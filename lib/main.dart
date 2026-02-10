@@ -25,9 +25,7 @@ class DashboardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final edgePadding = AppThemeTokens.screenEdgePadding(
-      MediaQuery.sizeOf(context),
-    );
+    final edgePadding = AppThemeTokens.screenEdgePadding(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -47,15 +45,15 @@ class DashboardView extends StatelessWidget {
         padding: edgePadding,
         children: const [
           _SectionTitle('Key Metrics'),
-          SizedBox(height: 12),
+          SizedBox(height: AppThemeTokens.space3),
           _MetricGrid(),
-          SizedBox(height: 24),
+          SizedBox(height: AppThemeTokens.space6),
           _SectionTitle('Performance'),
-          SizedBox(height: 12),
+          SizedBox(height: AppThemeTokens.space3),
           _ChartPlaceholder(),
-          SizedBox(height: 24),
+          SizedBox(height: AppThemeTokens.space6),
           _SectionTitle('Recent Activity'),
-          SizedBox(height: 12),
+          SizedBox(height: AppThemeTokens.space3),
           _ActivityList(),
         ],
       ),
@@ -90,8 +88,8 @@ class _MetricGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisSpacing: AppThemeTokens.space3,
+        mainAxisSpacing: AppThemeTokens.space3,
         childAspectRatio: 1.7,
       ),
       itemBuilder: (_, __) => const _Card(
@@ -100,7 +98,7 @@ class _MetricGrid extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _BarPlaceholder(width: 72, height: 10),
-            SizedBox(height: 12),
+            SizedBox(height: AppThemeTokens.space3),
             _BarPlaceholder(width: 120, height: 20),
           ],
         ),
@@ -133,7 +131,7 @@ class _ChartPlaceholder extends StatelessWidget {
               _BarPlaceholder(width: 20, height: 120),
             ],
           ),
-          SizedBox(height: 12),
+          SizedBox(height: AppThemeTokens.space3),
         ],
       ),
     );
@@ -149,26 +147,26 @@ class _ActivityList extends StatelessWidget {
       children: List.generate(
         5,
         (index) => const Padding(
-          padding: EdgeInsets.only(bottom: 10),
+          padding: EdgeInsets.only(bottom: AppThemeTokens.space3),
           child: _Card(
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: Color(0xFFE2E8F0),
+                  backgroundColor: AppThemeTokens.accentLighter,
                 ),
-                SizedBox(width: 12),
+                SizedBox(width: AppThemeTokens.space3),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _BarPlaceholder(width: 160, height: 10),
-                      SizedBox(height: 8),
+                      SizedBox(height: AppThemeTokens.space2),
                       _BarPlaceholder(width: 100, height: 10),
                     ],
                   ),
                 ),
-                SizedBox(width: 8),
+                SizedBox(width: AppThemeTokens.space2),
                 _BarPlaceholder(width: 44, height: 10),
               ],
             ),
@@ -189,16 +187,16 @@ class _Card extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: height,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppThemeTokens.space4),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: AppThemeTokens.surface,
+        borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+        border: Border.all(color: AppThemeTokens.border),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A0F172A),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+            color: AppThemeTokens.shadow,
+            blurRadius: AppThemeTokens.elevation1Blur,
+            offset: Offset(0, AppThemeTokens.elevation1OffsetY),
           ),
         ],
       ),
@@ -219,8 +217,8 @@ class _BarPlaceholder extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: const Color(0xFFE2E8F0),
-        borderRadius: BorderRadius.circular(8),
+        color: AppThemeTokens.barBackground,
+        borderRadius: BorderRadius.circular(AppThemeTokens.space2),
       ),
     );
   }

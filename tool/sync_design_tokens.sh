@@ -121,7 +121,12 @@ CHIP_PAD_X="$(px "$(read_number_const chipPaddingX)")"
 CHIP_PAD_Y="$(px "$(read_number_const chipPaddingY)")"
 NAV_ITEM_PAD_X="$(px "$(read_number_const navItemPaddingX)")"
 NAV_ITEM_PAD_Y="$(px "$(read_number_const navItemPaddingY)")"
-SCREEN_EDGE_PADDING_RATIO="$(read_number_const screenEdgePaddingRatio)"
+SCREEN_EDGE_PADDING_MIN="$(px "$(read_number_const screenEdgePaddingMin)")"
+SCREEN_EDGE_PADDING_MAX="$(px "$(read_number_const screenEdgePaddingMax)")"
+SCREEN_EDGE_PADDING_WIDTH_FACTOR="$(read_number_const screenEdgePaddingWidthFactor)"
+SCREEN_EDGE_PADDING_WIDTH_VW="$(awk -v f="$SCREEN_EDGE_PADDING_WIDTH_FACTOR" 'BEGIN { printf "%.4fvw", f * 100 }')"
+SCREEN_EDGE_PADDING_WIDTH_VW="$(echo "$SCREEN_EDGE_PADDING_WIDTH_VW" | sed 's/0\{1,\}vw$/vw/; s/\.vw$/vw/; s/\.\([0-9]*[1-9]\)0*vw$/.\1vw/')"
+SCREEN_EDGE_PADDING_VERTICAL_MIN="$(px "$(read_number_const screenEdgePaddingVerticalMin)")"
 
 ELEVATION1_Y="$(px "$(read_number_const elevation1OffsetY)")"
 ELEVATION1_BLUR="$(px "$(read_number_const elevation1Blur)")"
@@ -189,7 +194,10 @@ window.APP_THEME_TOKENS = {
     "nav-item-padding-y": "${NAV_ITEM_PAD_Y}"
   },
   layout: {
-    "screen-edge-padding-ratio": "${SCREEN_EDGE_PADDING_RATIO}"
+    "edge-min": "${SCREEN_EDGE_PADDING_MIN}",
+    "edge-max": "${SCREEN_EDGE_PADDING_MAX}",
+    "edge-vw": "${SCREEN_EDGE_PADDING_WIDTH_VW}",
+    "edge-vertical-min": "${SCREEN_EDGE_PADDING_VERTICAL_MIN}"
   },
   elevation: {
     "1": "${ELEVATION_1}"

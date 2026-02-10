@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -61,7 +63,10 @@ class AppThemeTokens {
   static const double chipPaddingY = 8;
   static const double navItemPaddingX = 12;
   static const double navItemPaddingY = 10;
-  static const double screenEdgePaddingRatio = 0.125;
+  static const double screenEdgePaddingMin = 16;
+  static const double screenEdgePaddingMax = 32;
+  static const double screenEdgePaddingWidthFactor = 0.04;
+  static const double screenEdgePaddingVerticalMin = 16;
 
   // Elevation
   static const double elevation1 = 1;
@@ -69,10 +74,19 @@ class AppThemeTokens {
   static const double elevation1Blur = 2;
   static const Color shadow = Color(0x1A1F0D00);
 
-  static EdgeInsets screenEdgePadding(Size size) {
-    return EdgeInsets.symmetric(
-      horizontal: size.width * screenEdgePaddingRatio,
-      vertical: size.height * screenEdgePaddingRatio,
+  static EdgeInsets screenEdgePadding(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final safeAreaInsets = MediaQuery.viewPaddingOf(context);
+    final horizontal = (size.width * screenEdgePaddingWidthFactor).clamp(
+      screenEdgePaddingMin,
+      screenEdgePaddingMax,
+    );
+
+    return EdgeInsets.fromLTRB(
+      math.max(horizontal, safeAreaInsets.left),
+      math.max(screenEdgePaddingVerticalMin, safeAreaInsets.top),
+      math.max(horizontal, safeAreaInsets.right),
+      math.max(screenEdgePaddingVerticalMin, safeAreaInsets.bottom),
     );
   }
 }
