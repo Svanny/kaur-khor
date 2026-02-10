@@ -113,26 +113,28 @@ class _ChartPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const _Card(
-      height: 220,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          _BarPlaceholder(width: double.infinity, height: 6),
-          SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _BarPlaceholder(width: 20, height: 70),
-              _BarPlaceholder(width: 20, height: 130),
-              _BarPlaceholder(width: 20, height: 100),
-              _BarPlaceholder(width: 20, height: 150),
-              _BarPlaceholder(width: 20, height: 90),
-              _BarPlaceholder(width: 20, height: 120),
-            ],
-          ),
-          SizedBox(height: AppThemeTokens.space3),
-        ],
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            _BarPlaceholder(width: double.infinity, height: 6),
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _BarPlaceholder(width: 20, height: 70),
+                _BarPlaceholder(width: 20, height: 130),
+                _BarPlaceholder(width: 20, height: 100),
+                _BarPlaceholder(width: 20, height: 150),
+                _BarPlaceholder(width: 20, height: 90),
+                _BarPlaceholder(width: 20, height: 120),
+              ],
+            ),
+            SizedBox(height: AppThemeTokens.space3),
+          ],
+        ),
       ),
     );
   }
@@ -178,15 +180,13 @@ class _ActivityList extends StatelessWidget {
 }
 
 class _Card extends StatelessWidget {
-  const _Card({required this.child, this.height});
+  const _Card({required this.child});
 
   final Widget child;
-  final double? height;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: height,
       padding: const EdgeInsets.all(AppThemeTokens.space4),
       decoration: BoxDecoration(
         color: AppThemeTokens.surface,
