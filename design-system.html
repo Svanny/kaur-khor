@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Banji Design System</title>
+  <style>
+    :root {
+      --font-family: 'Noto Sans Oriya', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+      --color-primary: #638ead;
+      --color-secondary: #bb7d4f;
+      --color-background: #e6e6e6;
+      --color-surface: #d2d7df;
+      --color-border: #747474;
+      --color-text-primary: #1a1d1e;
+      --color-text-secondary: #707070;
+      --color-white: #ffffff;
+      --color-error: #e95b3c;
+      --color-warning: #ff8c09;
+      --color-success: #41985e;
+      --color-accent-lighter: #79a8c8;
+      --color-accent-darker: #466a7f;
+      --color-chip-bg: #b6b6b6;
+      --color-chip-selected: #79a8c8;
+      --color-nav-indicator: #79a8c8;
+      --color-badge-bg: #e2e8f0;
+      --color-bar-bg: #b6b6b6;
+
+      --typography-font-size-headline-small: 37.92px;
+      --typography-font-size-title-large: 28.44px;
+      --typography-font-size-title-medium: 21.33px;
+      --typography-font-size-body-large: 16px;
+      --typography-font-size-body-medium: 12px;
+      --typography-font-weight-regular: 400;
+      --typography-font-weight-medium: 500;
+      --typography-font-weight-semibold: 600;
+      --typography-font-weight-bold: 700;
+      --typography-line-height-body-large: 1.45;
+      --typography-line-height-body-medium: 1.4;
+      --typography-letter-spacing-headline: -0.2px;
+
+      --radius-md: 12px;
+      --radius-pill: 999px;
+      --radius-nav: 10px;
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-6: 24px;
+      --space-8: 32px;
+
+      --component-button-padding-x: 16px;
+      --component-button-padding-y: 12px;
+      --component-input-padding-x: 14px;
+      --component-input-padding-y: 12px;
+      --component-chip-padding-x: 12px;
+      --component-chip-padding-y: 8px;
+      --component-nav-item-padding-x: 12px;
+      --component-nav-item-padding-y: 10px;
+
+      --elevation-1: 0 1px 2px rgba(15, 23, 42, 0.0784);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--color-background);
+      color: var(--color-text-primary);
+      font-family: var(--font-family);
+      line-height: var(--typography-line-height-body-large);
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-4) 80px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-4);
+      margin-bottom: var(--space-8);
+    }
+
+    .title {
+      font-size: var(--typography-font-size-headline-small);
+      font-weight: var(--typography-font-weight-semibold);
+      margin: 0 0 var(--space-1);
+      letter-spacing: var(--typography-letter-spacing-headline);
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--color-text-secondary);
+      font-size: var(--typography-font-size-body-medium);
+      line-height: var(--typography-line-height-body-medium);
+    }
+
+    .badge {
+      background: var(--color-badge-bg);
+      color: var(--color-text-primary);
+      border-radius: var(--radius-pill);
+      padding: var(--component-chip-padding-y) var(--component-chip-padding-x);
+      font-size: var(--typography-font-size-body-medium);
+      font-weight: var(--typography-font-weight-semibold);
+      white-space: nowrap;
+      box-shadow: var(--elevation-1);
+    }
+
+    .section {
+      margin-top: var(--space-8);
+    }
+
+    .section h2 {
+      font-size: var(--typography-font-size-title-large);
+      font-weight: var(--typography-font-weight-semibold);
+      margin: 0 0 var(--space-4);
+      letter-spacing: -0.01em;
+    }
+
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      box-shadow: var(--elevation-1);
+    }
+
+    .color-grid {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+
+    .swatch {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: var(--color-surface);
+      box-shadow: var(--elevation-1);
+    }
+
+    .swatch-top {
+      height: 78px;
+      background: var(--swatch-color, var(--color-surface));
+    }
+
+    .swatch-meta {
+      padding: var(--space-3);
+      font-size: var(--typography-font-size-body-medium);
+      color: var(--color-text-secondary);
+      border-top: 1px solid var(--color-border);
+    }
+
+    .swatch-meta strong {
+      display: block;
+      color: var(--color-text-primary);
+      font-size: var(--typography-font-size-body-large);
+      font-weight: var(--typography-font-weight-medium);
+      margin-bottom: 2px;
+    }
+
+    .type-grid {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .type-row {
+      display: grid;
+      gap: var(--space-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-3);
+      background: var(--color-surface);
+      box-shadow: var(--elevation-1);
+    }
+
+    .type-meta {
+      color: var(--color-text-secondary);
+      font-size: var(--typography-font-size-body-medium);
+    }
+
+    .sample-headline {
+      font-size: var(--typography-font-size-headline-small);
+      font-weight: var(--typography-font-weight-semibold);
+      letter-spacing: var(--typography-letter-spacing-headline);
+    }
+
+    .sample-title-large {
+      font-size: var(--typography-font-size-title-large);
+      font-weight: var(--typography-font-weight-semibold);
+    }
+
+    .sample-title-medium {
+      font-size: var(--typography-font-size-title-medium);
+      font-weight: var(--typography-font-weight-semibold);
+    }
+
+    .sample-body-large {
+      font-size: var(--typography-font-size-body-large);
+      font-weight: var(--typography-font-weight-regular);
+      line-height: var(--typography-line-height-body-large);
+    }
+
+    .sample-body-medium {
+      font-size: var(--typography-font-size-body-medium);
+      font-weight: var(--typography-font-weight-regular);
+      line-height: var(--typography-line-height-body-medium);
+      color: var(--color-text-secondary);
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+    }
+
+    .btn {
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      padding: var(--component-button-padding-y) var(--component-button-padding-x);
+      font-size: var(--typography-font-size-body-medium);
+      font-weight: var(--typography-font-weight-semibold);
+      cursor: pointer;
+      transition: opacity 160ms ease;
+      box-shadow: var(--elevation-1);
+      font-family: var(--font-family);
+    }
+
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: var(--color-white);
+    }
+
+    .btn-outline {
+      background: var(--color-surface);
+      color: var(--color-text-primary);
+      border-color: var(--color-border);
+    }
+
+    .btn-text {
+      background: transparent;
+      color: var(--color-text-secondary);
+      padding-left: var(--space-2);
+      padding-right: var(--space-2);
+    }
+
+    .input-row {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .input {
+      width: 100%;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--component-input-padding-y) var(--component-input-padding-x);
+      font-size: var(--typography-font-size-body-medium);
+      color: var(--color-text-primary);
+      outline: none;
+      box-shadow: var(--elevation-1);
+      font-family: var(--font-family);
+    }
+
+    .input::placeholder { color: var(--color-text-secondary); }
+    .input:focus { border-color: var(--color-primary); }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: var(--radius-pill);
+      background: var(--color-chip-bg);
+      color: var(--color-text-primary);
+      padding: var(--component-chip-padding-y) var(--component-chip-padding-x);
+      font-size: var(--typography-font-size-body-medium);
+      font-weight: var(--typography-font-weight-medium);
+      border: 1px solid transparent;
+      box-shadow: var(--elevation-1);
+    }
+
+    .chip.selected { background: var(--color-chip-selected); }
+
+    .sample-dashboard {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: 1.2fr 1fr;
+    }
+
+    .metric-row {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .token-source {
+      margin-top: var(--space-3);
+    }
+
+    .muted {
+      color: var(--color-text-secondary);
+      font-size: var(--typography-font-size-body-medium);
+      line-height: var(--typography-line-height-body-medium);
+      margin: 0;
+    }
+
+    .metric {
+      font-size: var(--typography-font-size-title-large);
+      font-weight: var(--typography-font-weight-bold);
+      margin: var(--space-1) 0 0;
+    }
+
+    .bar {
+      width: 100%;
+      height: var(--space-2);
+      background: var(--color-bar-bg);
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: var(--color-primary);
+      border-radius: var(--radius-pill);
+    }
+
+    .bar-progress-72 { width: 72%; }
+
+    .nav-preview {
+      display: flex;
+      gap: var(--space-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-surface);
+      padding: var(--space-2);
+      width: fit-content;
+      box-shadow: var(--elevation-1);
+    }
+
+    .nav-item {
+      border-radius: var(--radius-nav);
+      padding: var(--component-nav-item-padding-y) var(--component-nav-item-padding-x);
+      color: var(--color-text-secondary);
+      font-size: var(--typography-font-size-body-medium);
+      font-weight: var(--typography-font-weight-medium);
+    }
+
+    .nav-item.active {
+      background: var(--color-nav-indicator);
+      color: var(--color-text-primary);
+      font-weight: var(--typography-font-weight-semibold);
+    }
+
+    @media (max-width: 920px) {
+      .sample-dashboard { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+  <script src="./design-tokens.js"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div>
+        <h1 class="title">Banji Design System</h1>
+        <p class="subtitle">Ground truth is loaded from <code>app_theme.dart</code> via generated tokens.</p>
+      </div>
+      <div class="badge">Material 3 + AppTheme Tokens</div>
+    </header>
+
+    <section class="section">
+      <h2>Color Tokens</h2>
+      <div class="color-grid">
+        <div class="swatch" data-color-token="primary"><div class="swatch-top"></div><div class="swatch-meta"><strong>Primary</strong><span class="token-value">-</span></div></div>
+        <div class="swatch" data-color-token="background"><div class="swatch-top"></div><div class="swatch-meta"><strong>Background</strong><span class="token-value">-</span></div></div>
+        <div class="swatch" data-color-token="surface"><div class="swatch-top"></div><div class="swatch-meta"><strong>Surface</strong><span class="token-value">-</span></div></div>
+        <div class="swatch" data-color-token="border"><div class="swatch-top"></div><div class="swatch-meta"><strong>Border</strong><span class="token-value">-</span></div></div>
+        <div class="swatch" data-color-token="text-primary"><div class="swatch-top"></div><div class="swatch-meta"><strong>Text Primary</strong><span class="token-value">-</span></div></div>
+        <div class="swatch" data-color-token="text-secondary"><div class="swatch-top"></div><div class="swatch-meta"><strong>Text Secondary</strong><span class="token-value">-</span></div></div>
+      </div>
+      <p class="subtitle token-source" id="token-source">Token source: loading...</p>
+    </section>
+
+    <section class="section">
+      <h2>Typography</h2>
+      <div class="type-grid">
+        <div class="type-row"><div class="sample-headline">Headline Small</div><div class="type-meta">font-size-headline-small / semibold</div></div>
+        <div class="type-row"><div class="sample-title-large">Title Large</div><div class="type-meta">font-size-title-large / semibold</div></div>
+        <div class="type-row"><div class="sample-title-medium">Title Medium</div><div class="type-meta">font-size-title-medium / semibold</div></div>
+        <div class="type-row"><div class="sample-body-large">Body Large text for key content and descriptions.</div><div class="type-meta">font-size-body-large / line-height-body-large</div></div>
+        <div class="type-row"><div class="sample-body-medium">Body Medium text for supporting content and hints.</div><div class="type-meta">font-size-body-medium / line-height-body-medium</div></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Buttons</h2>
+      <div class="card">
+        <div class="btn-row">
+          <button class="btn btn-primary">Primary Action</button>
+          <button class="btn btn-outline">Secondary</button>
+          <button class="btn btn-text">Tertiary</button>
+          <button class="btn btn-primary" disabled>Disabled</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Inputs</h2>
+      <div class="card">
+        <div class="input-row">
+          <input class="input" placeholder="Search dashboards..." />
+          <input class="input" value="Example value" />
+          <input class="input" placeholder="Disabled input" disabled />
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Chips</h2>
+      <div class="card">
+        <div class="chip-row">
+          <span class="chip selected">All</span>
+          <span class="chip">Revenue</span>
+          <span class="chip">Users</span>
+          <span class="chip">Retention</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Navigation</h2>
+      <div class="nav-preview">
+        <div class="nav-item active">Overview</div>
+        <div class="nav-item">Reports</div>
+        <div class="nav-item">Activity</div>
+        <div class="nav-item">Settings</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Dashboard Composition Example</h2>
+      <div class="sample-dashboard">
+        <div class="card">
+          <p class="muted">Monthly Revenue</p>
+          <p class="metric">$48,240</p>
+          <div class="bar"><span class="bar-progress-72"></span></div>
+        </div>
+        <div class="metric-row">
+          <div class="card">
+            <p class="muted">New Users</p>
+            <p class="metric">1,204</p>
+          </div>
+          <div class="card">
+            <p class="muted">Conversion</p>
+            <p class="metric">4.8%</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    (function applyTokens() {
+      const tokens = window.APP_THEME_TOKENS;
+      if (!tokens) return;
+
+      const root = document.documentElement;
+
+      const groups = {
+        colors: 'color',
+        typography: 'typography',
+        radius: 'radius',
+        spacing: 'space',
+        component: 'component',
+        elevation: 'elevation',
+        font: 'font',
+      };
+
+      Object.entries(groups).forEach(([groupName, prefix]) => {
+        const values = tokens[groupName];
+        if (!values) return;
+        Object.entries(values).forEach(([name, value]) => {
+          root.style.setProperty(`--${prefix}-${name}`, value);
+        });
+      });
+
+      document.querySelectorAll('[data-color-token]').forEach((node) => {
+        const token = node.getAttribute('data-color-token');
+        const value = tokens.colors && tokens.colors[token];
+        if (!value) return;
+        node.style.setProperty('--swatch-color', value);
+        const label = node.querySelector('.token-value');
+        if (label) label.textContent = value;
+      });
+
+      const source = document.getElementById('token-source');
+      if (source) {
+        source.textContent = `Token source: ${tokens.source} (${tokens.generatedAt})`;
+      }
+    })();
+  </script>
+</body>
+</html>
