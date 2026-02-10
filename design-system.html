@@ -137,12 +137,57 @@
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     }
 
+    .status-grid {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
     .swatch {
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
       overflow: hidden;
       background: var(--color-surface);
       box-shadow: var(--elevation-1);
+    }
+
+    .status-card {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-surface);
+      box-shadow: var(--elevation-1);
+      padding: var(--space-3);
+    }
+
+    .status-title {
+      margin: 0 0 var(--space-2);
+      font-size: var(--typography-font-size-title-medium);
+      font-weight: var(--typography-font-weight-semibold);
+      color: var(--status-color, var(--color-text-primary));
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--color-text-secondary);
+      font-size: var(--typography-font-size-body-medium);
+    }
+
+    .status-dot {
+      width: var(--space-3);
+      height: var(--space-3);
+      border-radius: var(--radius-pill);
+      background: var(--status-color, var(--color-text-primary));
+      flex-shrink: 0;
+    }
+
+    .status-swatch {
+      margin-top: var(--space-3);
+      height: 56px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      background: var(--status-color, var(--color-text-primary));
     }
 
     .swatch-top {
@@ -398,6 +443,36 @@
     </section>
 
     <section class="section">
+      <h2>Status Colors</h2>
+      <div class="status-grid">
+        <article class="status-card" data-status-token="warning">
+          <h3 class="status-title">Warning</h3>
+          <div class="status-row">
+            <span class="status-dot"></span>
+            <span class="status-value">-</span>
+          </div>
+          <div class="status-swatch"></div>
+        </article>
+        <article class="status-card" data-status-token="success">
+          <h3 class="status-title">Success</h3>
+          <div class="status-row">
+            <span class="status-dot"></span>
+            <span class="status-value">-</span>
+          </div>
+          <div class="status-swatch"></div>
+        </article>
+        <article class="status-card" data-status-token="error">
+          <h3 class="status-title">Error</h3>
+          <div class="status-row">
+            <span class="status-dot"></span>
+            <span class="status-value">-</span>
+          </div>
+          <div class="status-swatch"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
       <h2>Typography</h2>
       <div class="type-grid">
         <div class="type-row"><div class="sample-headline">Headline Small</div><div class="type-meta">font-size-headline-small / semibold</div></div>
@@ -505,6 +580,15 @@
         if (!value) return;
         node.style.setProperty('--swatch-color', value);
         const label = node.querySelector('.token-value');
+        if (label) label.textContent = value;
+      });
+
+      document.querySelectorAll('[data-status-token]').forEach((node) => {
+        const token = node.getAttribute('data-status-token');
+        const value = tokens.colors && tokens.colors[token];
+        if (!value) return;
+        node.style.setProperty('--status-color', value);
+        const label = node.querySelector('.status-value');
         if (label) label.textContent = value;
       });
 

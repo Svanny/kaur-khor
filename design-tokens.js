@@ -9,9 +9,9 @@ window.APP_THEME_TOKENS = {
     "text-primary": "#1F0D00",
     "text-secondary": "#4A3A2A",
     "white": "#FFFFFF",
-    "error": "#7A3B2B",
-    "warning": "#BC8053",
-    "success": "#99C768",
+    "error": "#B3523C",
+    "warning": "#EC964C",
+    "success": "#386341",
     "accent-lighter": "#C0CC8D",
     "accent-darker": "#6D8D4E",
     "chip-bg": "#C0CC8D",
@@ -64,5 +64,5 @@ window.APP_THEME_TOKENS = {
   font: {
     "family": "'Noto Sans Oriya', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
   },
-  generatedAt: "2026-02-10T07:00:53Z"
+  generatedAt: "2026-02-10T07:06:32Z"
 };

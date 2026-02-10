@@ -13,9 +13,9 @@ class AppThemeTokens {
   static const Color white = Color(0xFFFFFFFF);
 
   // Semantic colors
-  static const Color error = Color(0xFF7A3B2B);
-  static const Color warning = Color(0xFFBC8053);
-  static const Color success = Color(0xFF99C768);
+  static const Color error = Color(0xFFB3523C);
+  static const Color warning = Color(0xFFEC964C);
+  static const Color success = Color(0xFF386341);
 
   // Accent and state colors
   static const Color accentLighter = Color(0xFFC0CC8D);
