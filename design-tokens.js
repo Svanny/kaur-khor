@@ -58,11 +58,14 @@ window.APP_THEME_TOKENS = {
     "nav-item-padding-x": "12px",
     "nav-item-padding-y": "10px"
   },
+  layout: {
+    "screen-edge-padding-ratio": "0.125"
+  },
   elevation: {
     "1": "0 1px 2px rgba(31, 13, 0, 0.102)"
   },
   font: {
     "family": "'Noto Sans Oriya', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
   },
-  generatedAt: "2026-02-10T07:06:32Z"
+  generatedAt: "2026-02-10T08:31:17Z"
 };

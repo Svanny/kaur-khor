@@ -25,6 +25,10 @@ class DashboardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final edgePadding = AppThemeTokens.screenEdgePadding(
+      MediaQuery.sizeOf(context),
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('banji'),
@@ -40,7 +44,7 @@ class DashboardView extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: edgePadding,
         children: const [
           _SectionTitle('Key Metrics'),
           SizedBox(height: 12),

@@ -61,12 +61,20 @@ class AppThemeTokens {
   static const double chipPaddingY = 8;
   static const double navItemPaddingX = 12;
   static const double navItemPaddingY = 10;
+  static const double screenEdgePaddingRatio = 0.125;
 
   // Elevation
   static const double elevation1 = 1;
   static const double elevation1OffsetY = 1;
   static const double elevation1Blur = 2;
   static const Color shadow = Color(0x1A1F0D00);
+
+  static EdgeInsets screenEdgePadding(Size size) {
+    return EdgeInsets.symmetric(
+      horizontal: size.width * screenEdgePaddingRatio,
+      vertical: size.height * screenEdgePaddingRatio,
+    );
+  }
 }
 
 class AppTheme {

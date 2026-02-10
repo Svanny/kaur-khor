@@ -59,6 +59,7 @@
       --component-chip-padding-y: 8px;
       --component-nav-item-padding-x: 12px;
       --component-nav-item-padding-y: 10px;
+      --layout-screen-edge-padding-ratio: 0.125;
 
       --elevation-1: 0 1px 2px rgba(15, 23, 42, 0.0784);
     }
@@ -74,9 +75,10 @@
     }
 
     .page {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: var(--space-8) var(--space-4) 80px;
+      width: 100%;
+      margin: 0;
+      padding: calc(100vh * var(--layout-screen-edge-padding-ratio))
+               calc(100vw * var(--layout-screen-edge-padding-ratio));
     }
 
     .header {
@@ -562,6 +564,7 @@
         radius: 'radius',
         spacing: 'space',
         component: 'component',
+        layout: 'layout',
         elevation: 'elevation',
         font: 'font',
       };

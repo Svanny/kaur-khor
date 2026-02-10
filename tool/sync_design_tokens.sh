@@ -121,6 +121,7 @@ CHIP_PAD_X="$(px "$(read_number_const chipPaddingX)")"
 CHIP_PAD_Y="$(px "$(read_number_const chipPaddingY)")"
 NAV_ITEM_PAD_X="$(px "$(read_number_const navItemPaddingX)")"
 NAV_ITEM_PAD_Y="$(px "$(read_number_const navItemPaddingY)")"
+SCREEN_EDGE_PADDING_RATIO="$(read_number_const screenEdgePaddingRatio)"
 
 ELEVATION1_Y="$(px "$(read_number_const elevation1OffsetY)")"
 ELEVATION1_BLUR="$(px "$(read_number_const elevation1Blur)")"
@@ -186,6 +187,9 @@ window.APP_THEME_TOKENS = {
     "chip-padding-y": "${CHIP_PAD_Y}",
     "nav-item-padding-x": "${NAV_ITEM_PAD_X}",
     "nav-item-padding-y": "${NAV_ITEM_PAD_Y}"
+  },
+  layout: {
+    "screen-edge-padding-ratio": "${SCREEN_EDGE_PADDING_RATIO}"
   },
   elevation: {
     "1": "${ELEVATION_1}"
