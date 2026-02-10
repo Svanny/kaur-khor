@@ -26,6 +26,12 @@ class DashboardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final edgePadding = AppThemeTokens.screenEdgePadding(context);
+    final contentPadding = EdgeInsets.fromLTRB(
+      edgePadding.left,
+      AppThemeTokens.space4,
+      edgePadding.right,
+      edgePadding.bottom,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -42,7 +48,7 @@ class DashboardView extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: edgePadding,
+        padding: contentPadding,
         children: const [
           _SectionTitle('Key Metrics'),
           SizedBox(height: AppThemeTokens.space3),
@@ -85,6 +91,8 @@ class _MetricGrid extends StatelessWidget {
     return GridView.builder(
       itemCount: 4,
       shrinkWrap: true,
+      primary: false,
+      padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
