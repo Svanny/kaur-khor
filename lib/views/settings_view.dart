@@ -165,6 +165,8 @@ class _DropdownPill extends StatefulWidget {
 
 class _DropdownPillState extends State<_DropdownPill>
     with SingleTickerProviderStateMixin {
+  static const double _dropdownMinWidth = 100;
+
   final LayerLink _layerLink = LayerLink();
   final GlobalKey _pillKey = GlobalKey();
   OverlayEntry? _overlayEntry;
@@ -178,7 +180,7 @@ class _DropdownPillState extends State<_DropdownPill>
     reverseCurve: Curves.easeInCubic,
   );
   bool _isOpen = false;
-  double _menuWidth = 220;
+  double _menuWidth = _dropdownMinWidth;
   double _pillWidth = 0;
   double _pillHeight = 0;
 
@@ -201,7 +203,11 @@ class _DropdownPillState extends State<_DropdownPill>
     final renderObject = _pillKey.currentContext?.findRenderObject();
     if (renderObject is! RenderBox || !renderObject.hasSize) return;
     final pillSize = renderObject.size;
-    _menuWidth = math.max(pillSize.width, 220);
+    final contentMenuWidth = _menuWidthForContent(context);
+    _menuWidth = math.max(
+      math.max(pillSize.width, _dropdownMinWidth),
+      contentMenuWidth,
+    );
     _pillWidth = pillSize.width;
     _pillHeight = pillSize.height;
 
@@ -251,6 +257,34 @@ class _DropdownPillState extends State<_DropdownPill>
     Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
     setState(() => _isOpen = true);
     _animationController.forward(from: 0);
+  }
+
+  double _menuWidthForContent(BuildContext context) {
+    final baseTextStyle =
+        Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ) ??
+            const TextStyle(
+              fontSize: AppThemeTokens.fontSizeBodyLarge,
+              fontWeight: FontWeight.w600,
+            );
+
+    final textScaler = MediaQuery.textScalerOf(context);
+    double maxTextWidth = 0;
+    for (final option in widget.options) {
+      final textPainter = TextPainter(
+        text: TextSpan(text: option, style: baseTextStyle),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        textScaler: textScaler,
+      )..layout();
+      maxTextWidth = math.max(maxTextWidth, textPainter.width);
+    }
+
+    const horizontalPadding = AppThemeTokens.space3 * 2;
+    const minTrailingArea =
+        AppThemeTokens.dropdownCheckSpacing + AppThemeTokens.iconSizeMedium;
+    return maxTextWidth + horizontalPadding + minTrailingArea;
   }
 
   void _closeDropdown() {
@@ -350,6 +384,9 @@ class _DropdownMenuPanel extends StatelessWidget {
                         Expanded(
                           child: Text(
                             option,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodyLarge
                                 ?.copyWith(
                                   color: AppThemeTokens.white,
@@ -360,8 +397,13 @@ class _DropdownMenuPanel extends StatelessWidget {
                           ),
                         ),
                         if (option == selectedValue)
+                          const SizedBox(
+                            width: AppThemeTokens.dropdownCheckSpacing,
+                          ),
+                        if (option == selectedValue)
                           const Icon(
                             Icons.check_rounded,
+                            size: AppThemeTokens.iconSizeMedium,
                             color: AppThemeTokens.white,
                           ),
                       ],

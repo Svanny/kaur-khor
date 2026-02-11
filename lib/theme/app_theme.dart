@@ -45,6 +45,7 @@ class AppThemeTokens {
   static const double lineHeightBodyLarge = 1.45;
   static const double lineHeightBodyMedium = 1.4;
   static const double letterSpacingHeadline = -0.2;
+  static const double iconSizeMedium = 6 * unit;
 
   // Shape and spacing
   static const double radiusMd = 3 * unit;
@@ -64,6 +65,7 @@ class AppThemeTokens {
   static const double inputPaddingY = space3;
   static const double chipPaddingX = space3;
   static const double chipPaddingY = space2;
+  static const double dropdownCheckSpacing = space6;
   static const double navItemPaddingX = space3;
   static const double navItemPaddingY = 2.5 * unit;
   static const double screenEdgePaddingMin = space4;
