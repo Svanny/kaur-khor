@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/app_theme.dart';
 
@@ -65,8 +66,16 @@ class _SettingsViewState extends State<SettingsView> {
             const SizedBox(height: AppThemeTokens.space4),
             _SettingsRow(
               label: 'Manually Backup',
-              trailing: _PillIconButton(
-                icon: Icons.backup_outlined,
+              trailing: _CircleIconButton(
+                icon: SvgPicture.asset(
+                  'icons/backup_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+                  width: AppThemeTokens.iconSizeMedium,
+                  height: AppThemeTokens.iconSizeMedium,
+                  colorFilter: const ColorFilter.mode(
+                    AppThemeTokens.white,
+                    BlendMode.srcIn,
+                  ),
+                ),
                 onPressed: () {},
               ),
             ),
@@ -314,7 +323,7 @@ class _DropdownPillState extends State<_DropdownPill>
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppThemeTokens.chipPaddingX,
-              vertical: AppThemeTokens.space1,
+              vertical: AppThemeTokens.chipPaddingY,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -418,13 +427,13 @@ class _DropdownMenuPanel extends StatelessWidget {
   }
 }
 
-class _PillIconButton extends StatelessWidget {
-  const _PillIconButton({
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({
     required this.icon,
     required this.onPressed,
   });
 
-  final IconData icon;
+  final Widget icon;
   final VoidCallback onPressed;
 
   @override
@@ -435,14 +444,14 @@ class _PillIconButton extends StatelessWidget {
         backgroundColor: AppThemeTokens.textPrimary,
         foregroundColor: AppThemeTokens.white,
         padding: const EdgeInsets.symmetric(
-          horizontal: AppThemeTokens.chipPaddingX,
-          vertical: AppThemeTokens.chipPaddingY,
+          horizontal: AppThemeTokens.buttonPaddingX,
+          vertical: AppThemeTokens.buttonPaddingY,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-        ),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: const CircleBorder(),
       ),
-      icon: Icon(icon),
+      icon: icon,
     );
   }
 }
