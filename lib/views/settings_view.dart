@@ -81,6 +81,7 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             const Spacer(),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const Icon(
                   Icons.info_outline,
@@ -93,13 +94,14 @@ class _SettingsViewState extends State<SettingsView> {
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppThemeTokens.textPrimary,
                         fontWeight: FontWeight.w600,
+                        height: 1,
                       ),
                 ),
                 const Spacer(),
                 FilledButton(
                   onPressed: () {},
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppThemeTokens.textPrimary,
+                    backgroundColor: AppThemeTokens.primary,
                     foregroundColor: AppThemeTokens.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppThemeTokens.buttonPaddingX,
@@ -317,7 +319,7 @@ class _DropdownPillState extends State<_DropdownPill>
         onTap: _toggleDropdown,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: AppThemeTokens.textPrimary,
+            color: AppThemeTokens.primary,
             borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
           ),
           child: Padding(
@@ -371,7 +373,7 @@ class _DropdownMenuPanel extends StatelessWidget {
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: AppThemeTokens.textPrimary,
+        color: AppThemeTokens.primary,
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd * 2),
       ),
       child: Padding(
@@ -441,7 +443,7 @@ class _CircleIconButton extends StatelessWidget {
     return IconButton.filled(
       onPressed: onPressed,
       style: IconButton.styleFrom(
-        backgroundColor: AppThemeTokens.textPrimary,
+        backgroundColor: AppThemeTokens.primary,
         foregroundColor: AppThemeTokens.white,
         padding: const EdgeInsets.symmetric(
           horizontal: AppThemeTokens.buttonPaddingX,
