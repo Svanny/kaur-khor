@@ -70,5 +70,5 @@ window.APP_THEME_TOKENS = {
   font: {
     "family": "'Noto Sans Oriya', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
   },
-  generatedAt: "2026-02-10T09:50:02Z"
+  generatedAt: "2026-02-11T02:58:02Z"
 };

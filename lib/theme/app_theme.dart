@@ -28,13 +28,16 @@ class AppThemeTokens {
   static const Color badgeBackground = Color(0xFFC0CC8D);
   static const Color barBackground = Color(0xFFC0CC8D);
 
+  // Base unit scale (4pt)
+  static const double unit = 4;
+
   // Typography (Perfect Fourth scale)
   static const String fontFamily = 'Noto Sans Oriya';
   static const double fontSizeHeadlineSmall = 37.92;
   static const double fontSizeTitleLarge = 28.44;
   static const double fontSizeTitleMedium = 21.33;
-  static const double fontSizeBodyLarge = 16;
-  static const double fontSizeBodyMedium = 12;
+  static const double fontSizeBodyLarge = 4 * unit;
+  static const double fontSizeBodyMedium = 3 * unit;
   static const double fontWeightRegular = 400;
   static const double fontWeightMedium = 500;
   static const double fontWeightSemibold = 600;
@@ -44,34 +47,36 @@ class AppThemeTokens {
   static const double letterSpacingHeadline = -0.2;
 
   // Shape and spacing
-  static const double radiusMd = 12;
+  static const double radiusMd = 3 * unit;
   static const double radiusPill = 999;
-  static const double radiusNavItem = 10;
-  static const double space1 = 4;
-  static const double space2 = 8;
-  static const double space3 = 12;
-  static const double space4 = 16;
-  static const double space6 = 24;
-  static const double space8 = 32;
+  static const double radiusNavItem = 2.5 * unit;
+  static const double space1 = 1 * unit; // 4
+  static const double space2 = 2 * unit; // 8
+  static const double space3 = 3 * unit; // 12
+  static const double space4 = 4 * unit; // 16
+  static const double space6 = 6 * unit; // 24
+  static const double space8 = 8 * unit; // 32
 
   // Component paddings
-  static const double buttonPaddingX = 16;
-  static const double buttonPaddingY = 12;
-  static const double inputPaddingX = 14;
-  static const double inputPaddingY = 12;
-  static const double chipPaddingX = 12;
-  static const double chipPaddingY = 8;
-  static const double navItemPaddingX = 12;
-  static const double navItemPaddingY = 10;
-  static const double screenEdgePaddingMin = 16;
-  static const double screenEdgePaddingMax = 32;
+  static const double buttonPaddingX = space4;
+  static const double buttonPaddingY = space3;
+  static const double inputPaddingX = 3.5 * unit;
+  static const double inputPaddingY = space3;
+  static const double chipPaddingX = space3;
+  static const double chipPaddingY = space2;
+  static const double navItemPaddingX = space3;
+  static const double navItemPaddingY = 2.5 * unit;
+  static const double screenEdgePaddingMin = space4;
+  static const double screenEdgePaddingMax = space8;
   static const double screenEdgePaddingWidthFactor = 0.04;
-  static const double screenEdgePaddingVerticalMin = 16;
+  static const double screenEdgePaddingVerticalMin = space4;
+  static const double dividerThickness = unit / 4;
+  static const double dividerSpace = unit / 4;
 
   // Elevation
-  static const double elevation1 = 1;
-  static const double elevation1OffsetY = 1;
-  static const double elevation1Blur = 2;
+  static const double elevation1 = unit / 4;
+  static const double elevation1OffsetY = unit / 4;
+  static const double elevation1Blur = unit / 2;
   static const Color shadow = Color(0x1A1F0D00);
 
   static EdgeInsets screenEdgePadding(BuildContext context) {
@@ -230,8 +235,8 @@ class AppTheme {
       ),
       dividerTheme: const DividerThemeData(
         color: AppThemeTokens.border,
-        thickness: 1,
-        space: 1,
+        thickness: AppThemeTokens.dividerThickness,
+        space: AppThemeTokens.dividerSpace,
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppThemeTokens.chipBackground,

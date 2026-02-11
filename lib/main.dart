@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'theme/app_theme.dart';
 
@@ -22,10 +23,12 @@ class BanjiApp extends StatelessWidget {
 
 class DashboardView extends StatelessWidget {
   const DashboardView({super.key});
+  static const double _logoAspectRatio = 1000 / 1000;
 
   @override
   Widget build(BuildContext context) {
     final edgePadding = AppThemeTokens.screenEdgePadding(context);
+    const logoHeight = AppThemeTokens.fontSizeTitleMedium * 1.4;
     final contentPadding = EdgeInsets.fromLTRB(
       edgePadding.left,
       AppThemeTokens.space4,
@@ -35,15 +38,35 @@ class DashboardView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('banji'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: logoHeight,
+              child: AspectRatio(
+                aspectRatio: _logoAspectRatio,
+                child: SvgPicture.asset(
+                  'icons/logo.svg',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppThemeTokens.space2),
+            const Text('banji'),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.notifications_none_rounded),
+            icon: const Icon(Icons.format_list_bulleted),
           ),
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.tune_rounded),
+            icon: const Icon(Icons.download_rounded),
+          ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.settings),
           ),
         ],
       ),

@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_FILE="$ROOT_DIR/lib/theme/app_theme.dart"
 OUTPUT_FILE="$ROOT_DIR/design-tokens.js"
+if [[ -f "$ROOT_DIR/References/design-system.html" ]]; then
+  OUTPUT_FILE="$ROOT_DIR/References/design-tokens.js"
+fi
 
 read_color_const() {
   local name="$1"
@@ -40,15 +43,68 @@ color_to_css() {
   echo "rgba(${ri}, ${gi}, ${bi}, ${alpha})"
 }
 
+eval_numeric_expr() {
+  local expr="$1"
+  local left right symbol value
+
+  expr="${expr//[[:space:]]/}"
+
+  if [[ "$expr" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+    echo "$expr"
+    return
+  fi
+
+  if [[ "$expr" =~ ^([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
+    read_number_const "${BASH_REMATCH[1]}"
+    return
+  fi
+
+  if [[ "$expr" =~ ^(-?[0-9]+(\.[0-9]+)?)\*([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
+    left="${BASH_REMATCH[1]}"
+    symbol="${BASH_REMATCH[3]}"
+    right="$(read_number_const "$symbol")"
+    awk -v a="$left" -v b="$right" 'BEGIN { printf "%.10g", a * b }'
+    return
+  fi
+
+  if [[ "$expr" =~ ^([A-Za-z_][A-Za-z0-9_]*)\*(-?[0-9]+(\.[0-9]+)?)$ ]]; then
+    symbol="${BASH_REMATCH[1]}"
+    right="${BASH_REMATCH[2]}"
+    left="$(read_number_const "$symbol")"
+    awk -v a="$left" -v b="$right" 'BEGIN { printf "%.10g", a * b }'
+    return
+  fi
+
+  if [[ "$expr" =~ ^([A-Za-z_][A-Za-z0-9_]*)/(-?[0-9]+(\.[0-9]+)?)$ ]]; then
+    symbol="${BASH_REMATCH[1]}"
+    right="${BASH_REMATCH[2]}"
+    left="$(read_number_const "$symbol")"
+    awk -v a="$left" -v b="$right" 'BEGIN { printf "%.10g", a / b }'
+    return
+  fi
+
+  if [[ "$expr" =~ ^(-?[0-9]+(\.[0-9]+)?)/([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
+    left="${BASH_REMATCH[1]}"
+    symbol="${BASH_REMATCH[3]}"
+    right="$(read_number_const "$symbol")"
+    awk -v a="$left" -v b="$right" 'BEGIN { printf "%.10g", a / b }'
+    return
+  fi
+
+  echo "Unsupported numeric expression in $SOURCE_FILE: $expr" >&2
+  exit 1
+}
+
 read_number_const() {
   local name="$1"
-  local value
-  value="$(sed -nE "s/^[[:space:]]*static const (double|int) ${name} = (-?[0-9]+(\.[0-9]+)?);/\2/p" "$SOURCE_FILE" | head -n 1)"
-  if [[ -z "$value" ]]; then
+  local expr
+  expr="$(sed -nE "s/^[[:space:]]*static const (double|int) ${name} = (.*);/\\2/p" "$SOURCE_FILE" | head -n 1)"
+  if [[ -z "$expr" ]]; then
     echo "Missing numeric token in $SOURCE_FILE: $name" >&2
     exit 1
   fi
-  echo "$value"
+  expr="${expr%%//*}"
+  eval_numeric_expr "$expr"
 }
 
 read_string_const() {
