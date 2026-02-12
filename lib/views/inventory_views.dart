@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/app_theme.dart';
 
@@ -622,7 +623,9 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       title: Text(
                         'Sold as a Product?',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: _fontWeight(
+                            AppThemeTokens.fontWeightSemibold,
+                          ),
                         ),
                       ),
                     ),
@@ -953,7 +956,7 @@ class _DetailHeader extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontSize: AppThemeTokens.fontSizeTitleLarge,
+              fontSize: AppThemeTokens.fontSizeTitleMedium,
             ),
           ),
         ),
@@ -1051,7 +1054,7 @@ class _PageHeader extends StatelessWidget {
           child: Text(
             title,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontSize: AppThemeTokens.fontSizeTitleLarge,
+              fontSize: AppThemeTokens.fontSizeTitleMedium,
             ),
           ),
         ),
@@ -1074,7 +1077,12 @@ class _SectionHeader extends StatelessWidget {
           padding: const EdgeInsets.symmetric(
             horizontal: AppThemeTokens.space2,
           ),
-          child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+            ),
+          ),
         ),
         const Expanded(child: Divider()),
       ],
@@ -1123,63 +1131,92 @@ class _InventoryItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const editIconReservedWidth =
+        AppThemeTokens.iconSizeMedium + AppThemeTokens.space2;
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(AppThemeTokens.space4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  color: AppThemeTokens.accentDarker,
-                  borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-                ),
-              ),
-              const SizedBox(width: AppThemeTokens.space3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: Theme.of(context).textTheme.titleMedium,
+                    AspectRatio(
+                      aspectRatio: 1,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppThemeTokens.accentDarker,
+                          borderRadius: BorderRadius.circular(
+                            AppThemeTokens.radiusMd,
                           ),
                         ),
-                        IconButton(
-                          onPressed: onTap,
-                          icon: const Icon(Icons.edit_outlined),
-                          tooltip: 'Edit',
+                      ),
+                    ),
+                    const SizedBox(width: AppThemeTokens.space3),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          right: editIconReservedWidth,
                         ),
-                      ],
-                    ),
-                    Wrap(
-                      spacing: AppThemeTokens.space2,
-                      runSpacing: AppThemeTokens.space2,
-                      children: [
-                        Chip(label: Text('Pieces: $pieces')),
-                        Chip(label: Text('Bulk: $bulk')),
-                      ],
-                    ),
-                    const SizedBox(height: AppThemeTokens.space2),
-                    Text(
-                      'Total Value',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Text(
-                      totalValueLabel,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const SizedBox(height: AppThemeTokens.space2),
+                            Wrap(
+                              spacing: AppThemeTokens.space2,
+                              runSpacing: AppThemeTokens.space2,
+                              children: [
+                                Chip(label: Text('Pieces: $pieces')),
+                                Chip(label: Text('Bulk: $bulk')),
+                              ],
+                            ),
+                            const SizedBox(height: AppThemeTokens.space2),
+                            Text(
+                              'Total Value',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            Text(
+                              totalValueLabel,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontWeight: _fontWeight(
+                                      AppThemeTokens.fontWeightBold,
+                                    ),
+                                  ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
+                ),
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                child: IconButton(
+                  onPressed: onTap,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                  splashRadius: AppThemeTokens.iconSizeMedium * 0.65,
+                  icon: SvgPicture.asset(
+                    'icons/edit_square_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+                    width: AppThemeTokens.iconSizeMedium,
+                    height: AppThemeTokens.iconSizeMedium,
+                    colorFilter: const ColorFilter.mode(
+                      AppThemeTokens.textPrimary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                  tooltip: 'Edit',
                 ),
               ),
             ],
@@ -1306,9 +1343,9 @@ class _ReadOnlyField extends StatelessWidget {
           decoration: const InputDecoration(enabled: false),
           child: Text(
             value,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+            ),
           ),
         ),
       ],
@@ -1332,4 +1369,19 @@ String _currencyLabel(double value) {
     return '${(value / 1000).toStringAsFixed(1)}k USD';
   }
   return '${value.toStringAsFixed(0)} USD';
+}
+
+FontWeight _fontWeight(double tokenWeight) {
+  return switch (tokenWeight.round()) {
+    100 => FontWeight.w100,
+    200 => FontWeight.w200,
+    300 => FontWeight.w300,
+    400 => FontWeight.w400,
+    500 => FontWeight.w500,
+    600 => FontWeight.w600,
+    700 => FontWeight.w700,
+    800 => FontWeight.w800,
+    900 => FontWeight.w900,
+    _ => FontWeight.w400,
+  };
 }
