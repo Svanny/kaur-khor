@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
+import 'inventory_views.dart';
 import 'settings_view.dart';
 
 class HomeView extends StatelessWidget {
@@ -31,10 +32,7 @@ class HomeView extends StatelessWidget {
               height: logoHeight,
               child: AspectRatio(
                 aspectRatio: _logoAspectRatio,
-                child: SvgPicture.asset(
-                  'icons/logo.svg',
-                  fit: BoxFit.contain,
-                ),
+                child: SvgPicture.asset('icons/logo.svg', fit: BoxFit.contain),
               ),
             ),
             const SizedBox(width: AppThemeTokens.space2),
@@ -43,7 +41,11 @@ class HomeView extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const ViewAllPage()),
+              );
+            },
             icon: const Icon(Icons.format_list_bulleted),
           ),
           IconButton(
@@ -53,9 +55,7 @@ class HomeView extends StatelessWidget {
           IconButton(
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SettingsView(),
-                ),
+                MaterialPageRoute<void>(builder: (_) => const SettingsView()),
               );
             },
             icon: const Icon(Icons.settings),
@@ -91,9 +91,9 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     );
   }
 }
