@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../l10n/generated/app_localizations.dart';
+import '../localization/locale_controller.dart';
 import '../theme/app_theme.dart';
 
 class SettingsView extends StatefulWidget {
@@ -13,14 +16,15 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
-  static const List<String> _languageOptions = ['English', 'Khmer'];
   static const List<String> _currencyOptions = ['USD', 'KHR'];
 
-  String _selectedLanguage = _languageOptions.first;
   String _selectedCurrency = _currencyOptions.first;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final localeController = context.localeController;
+    final selectedLanguage = AppLanguage.fromLocale(localeController.value);
     final edgePadding = AppThemeTokens.screenEdgePadding(context);
     final contentPadding = EdgeInsets.fromLTRB(
       edgePadding.left,
@@ -36,28 +40,28 @@ class _SettingsViewState extends State<SettingsView> {
         foregroundColor: AppThemeTokens.textPrimary,
         iconTheme: const IconThemeData(color: AppThemeTokens.textPrimary),
         titleSpacing: AppThemeTokens.space3,
-        title: const Text('Settings'),
+        title: Text(l10n.settingsTitle),
       ),
       body: Padding(
         padding: contentPadding,
         child: Column(
           children: [
             _SettingsRow(
-              label: 'Language',
-              trailing: _DropdownPill(
-                value: _selectedLanguage,
-                options: _languageOptions,
-                onChanged: (value) {
-                  setState(() => _selectedLanguage = value);
-                },
+              label: l10n.settingsLanguage,
+              trailing: _DropdownPill<AppLanguage>(
+                value: selectedLanguage,
+                options: AppLanguage.values,
+                labelBuilder: (language) => _languageLabel(l10n, language),
+                onChanged: localeController.switchLanguage,
               ),
             ),
             const SizedBox(height: AppThemeTokens.space4),
             _SettingsRow(
-              label: 'Currency',
-              trailing: _DropdownPill(
+              label: l10n.settingsCurrency,
+              trailing: _DropdownPill<String>(
                 value: _selectedCurrency,
                 options: _currencyOptions,
+                labelBuilder: (currency) => currency,
                 onChanged: (value) {
                   setState(() => _selectedCurrency = value);
                 },
@@ -65,7 +69,7 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             const SizedBox(height: AppThemeTokens.space4),
             _SettingsRow(
-              label: 'Manually Backup',
+              label: l10n.settingsManualBackup,
               trailing: _CircleIconButton(
                 icon: SvgPicture.asset(
                   'icons/backup_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
@@ -90,7 +94,7 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 const SizedBox(width: AppThemeTokens.space2),
                 Text(
-                  'Disclaimer',
+                  l10n.settingsDisclaimer,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppThemeTokens.textPrimary,
                         fontWeight: FontWeight.w600,
@@ -114,7 +118,7 @@ class _SettingsViewState extends State<SettingsView> {
                     ),
                   ),
                   child: Text(
-                    'Logout',
+                    l10n.settingsLogout,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: AppThemeTokens.white,
                           fontSize: AppThemeTokens.fontSizeBodyLarge,
@@ -129,6 +133,13 @@ class _SettingsViewState extends State<SettingsView> {
       ),
     );
   }
+}
+
+String _languageLabel(AppLocalizations l10n, AppLanguage language) {
+  return switch (language) {
+    AppLanguage.english => l10n.languageEnglish,
+    AppLanguage.khmer => l10n.languageKhmer,
+  };
 }
 
 class _SettingsRow extends StatelessWidget {
@@ -159,41 +170,59 @@ class _SettingsRow extends StatelessWidget {
   }
 }
 
-class _DropdownPill extends StatefulWidget {
+class _DropdownPill<T> extends StatefulWidget {
   const _DropdownPill({
     required this.value,
     required this.options,
+    required this.labelBuilder,
     required this.onChanged,
   });
 
-  final String value;
-  final List<String> options;
-  final ValueChanged<String> onChanged;
+  final T value;
+  final List<T> options;
+  final String Function(T option) labelBuilder;
+  final ValueChanged<T> onChanged;
 
   @override
-  State<_DropdownPill> createState() => _DropdownPillState();
+  State<_DropdownPill<T>> createState() => _DropdownPillState<T>();
 }
 
-class _DropdownPillState extends State<_DropdownPill>
+class _DropdownPillState<T> extends State<_DropdownPill<T>>
     with SingleTickerProviderStateMixin {
   static const double _dropdownMinWidth = 100;
 
   final LayerLink _layerLink = LayerLink();
   final GlobalKey _pillKey = GlobalKey();
   OverlayEntry? _overlayEntry;
-  late final AnimationController _animationController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 180),
-  );
-  late final CurvedAnimation _dropdownAnimation = CurvedAnimation(
-    parent: _animationController,
-    curve: Curves.easeOutCubic,
-    reverseCurve: Curves.easeInCubic,
-  );
+  late final AnimationController _animationController;
+  late final CurvedAnimation _dropdownAnimation;
   bool _isOpen = false;
   double _menuWidth = _dropdownMinWidth;
   double _pillWidth = 0;
   double _pillHeight = 0;
+
+  @override
+  void didUpdateWidget(covariant _DropdownPill<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final optionsChanged = !listEquals(oldWidget.options, widget.options);
+    if (_isOpen && (oldWidget.value != widget.value || optionsChanged)) {
+      _closeDropdown();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+    _dropdownAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+  }
 
   @override
   void dispose() {
@@ -246,10 +275,11 @@ class _DropdownPillState extends State<_DropdownPill>
                     child: SizeTransition(
                       sizeFactor: _dropdownAnimation,
                       axisAlignment: -1,
-                      child: _DropdownMenuPanel(
+                      child: _DropdownMenuPanel<T>(
                         width: _menuWidth,
                         options: widget.options,
                         selectedValue: widget.value,
+                        labelBuilder: widget.labelBuilder,
                         onSelected: (value) {
                           widget.onChanged(value);
                           _closeDropdown();
@@ -284,7 +314,10 @@ class _DropdownPillState extends State<_DropdownPill>
     double maxTextWidth = 0;
     for (final option in widget.options) {
       final textPainter = TextPainter(
-        text: TextSpan(text: option, style: baseTextStyle),
+        text: TextSpan(
+          text: widget.labelBuilder(option),
+          style: baseTextStyle,
+        ),
         textDirection: TextDirection.ltr,
         maxLines: 1,
         textScaler: textScaler,
@@ -331,7 +364,7 @@ class _DropdownPillState extends State<_DropdownPill>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  widget.value,
+                  widget.labelBuilder(widget.value),
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppThemeTokens.white,
                       ),
@@ -355,18 +388,20 @@ class _DropdownPillState extends State<_DropdownPill>
   }
 }
 
-class _DropdownMenuPanel extends StatelessWidget {
+class _DropdownMenuPanel<T> extends StatelessWidget {
   const _DropdownMenuPanel({
     required this.width,
     required this.options,
     required this.selectedValue,
+    required this.labelBuilder,
     required this.onSelected,
   });
 
   final double width;
-  final List<String> options;
-  final String selectedValue;
-  final ValueChanged<String> onSelected;
+  final List<T> options;
+  final T selectedValue;
+  final String Function(T option) labelBuilder;
+  final ValueChanged<T> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -394,7 +429,7 @@ class _DropdownMenuPanel extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            option,
+                            labelBuilder(option),
                             maxLines: 1,
                             softWrap: false,
                             overflow: TextOverflow.ellipsis,

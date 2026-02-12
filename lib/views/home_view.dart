@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import 'settings_view.dart';
 
@@ -11,6 +12,7 @@ class HomeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final edgePadding = AppThemeTokens.screenEdgePadding(context);
     const logoHeight = AppThemeTokens.fontSizeTitleMedium * 1.4;
     final contentPadding = EdgeInsets.fromLTRB(
@@ -36,7 +38,7 @@ class HomeView extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppThemeTokens.space2),
-            const Text('banji'),
+            Text(l10n.appBrand),
           ],
         ),
         actions: [
@@ -62,18 +64,18 @@ class HomeView extends StatelessWidget {
       ),
       body: ListView(
         padding: contentPadding,
-        children: const [
-          _SectionTitle('Key Metrics'),
-          SizedBox(height: AppThemeTokens.space3),
-          _MetricGrid(),
-          SizedBox(height: AppThemeTokens.space6),
-          _SectionTitle('Performance'),
-          SizedBox(height: AppThemeTokens.space3),
-          _ChartPlaceholder(),
-          SizedBox(height: AppThemeTokens.space6),
-          _SectionTitle('Recent Activity'),
-          SizedBox(height: AppThemeTokens.space3),
-          _ActivityList(),
+        children: [
+          _SectionTitle(l10n.homeKeyMetrics),
+          const SizedBox(height: AppThemeTokens.space3),
+          const _MetricGrid(),
+          const SizedBox(height: AppThemeTokens.space6),
+          _SectionTitle(l10n.homePerformance),
+          const SizedBox(height: AppThemeTokens.space3),
+          const _ChartPlaceholder(),
+          const SizedBox(height: AppThemeTokens.space6),
+          _SectionTitle(l10n.homeRecentActivity),
+          const SizedBox(height: AppThemeTokens.space3),
+          const _ActivityList(),
         ],
       ),
     );
