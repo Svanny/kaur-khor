@@ -146,6 +146,18 @@ abstract class AppLocalizations {
   /// **'Currency'**
   String get settingsCurrency;
 
+  /// Currency option label for US Dollar.
+  ///
+  /// In en, this message translates to:
+  /// **'USD (\$)'**
+  String get currencyOptionUsd;
+
+  /// Currency option label for Cambodian Riel.
+  ///
+  /// In en, this message translates to:
+  /// **'KHR (៛)'**
+  String get currencyOptionKhr;
+
   /// Label for manual backup setting action.
   ///
   /// In en, this message translates to:

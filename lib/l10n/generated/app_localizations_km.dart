@@ -33,6 +33,12 @@ class AppLocalizationsKm extends AppLocalizations {
   String get settingsCurrency => 'រូបិយប័ណ្ណ';
 
   @override
+  String get currencyOptionUsd => 'ដុល្លា (\$)';
+
+  @override
+  String get currencyOptionKhr => 'រៀល (៛)';
+
+  @override
   String get settingsManualBackup => 'បម្រុងទុកទិន្នន័យ';
 
   @override

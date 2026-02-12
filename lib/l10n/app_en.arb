@@ -32,6 +32,14 @@
   "@settingsCurrency": {
     "description": "Label for currency setting row."
   },
+  "currencyOptionUsd": "USD ($)",
+  "@currencyOptionUsd": {
+    "description": "Currency option label for US Dollar."
+  },
+  "currencyOptionKhr": "KHR (៛)",
+  "@currencyOptionKhr": {
+    "description": "Currency option label for Cambodian Riel."
+  },
   "settingsManualBackup": "Manually Backup",
   "@settingsManualBackup": {
     "description": "Label for manual backup setting action."

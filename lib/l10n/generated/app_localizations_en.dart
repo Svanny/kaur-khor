@@ -33,6 +33,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsCurrency => 'Currency';
 
   @override
+  String get currencyOptionUsd => 'USD (\$)';
+
+  @override
+  String get currencyOptionKhr => 'KHR (៛)';
+
+  @override
   String get settingsManualBackup => 'Manually Backup';
 
   @override

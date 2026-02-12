@@ -16,9 +16,9 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
-  static const List<String> _currencyOptions = ['USD', 'KHR'];
+  static const List<AppCurrency> _currencyOptions = AppCurrency.values;
 
-  String _selectedCurrency = _currencyOptions.first;
+  AppCurrency _selectedCurrency = _currencyOptions.first;
 
   @override
   Widget build(BuildContext context) {
@@ -58,10 +58,10 @@ class _SettingsViewState extends State<SettingsView> {
             const SizedBox(height: AppThemeTokens.space4),
             _SettingsRow(
               label: l10n.settingsCurrency,
-              trailing: _DropdownPill<String>(
+              trailing: _DropdownPill<AppCurrency>(
                 value: _selectedCurrency,
                 options: _currencyOptions,
-                labelBuilder: (currency) => currency,
+                labelBuilder: (currency) => _currencyLabel(l10n, currency),
                 onChanged: (value) {
                   setState(() => _selectedCurrency = value);
                 },
@@ -139,6 +139,15 @@ String _languageLabel(AppLocalizations l10n, AppLanguage language) {
   return switch (language) {
     AppLanguage.english => l10n.languageEnglish,
     AppLanguage.khmer => l10n.languageKhmer,
+  };
+}
+
+enum AppCurrency { usd, khr }
+
+String _currencyLabel(AppLocalizations l10n, AppCurrency currency) {
+  return switch (currency) {
+    AppCurrency.usd => l10n.currencyOptionUsd,
+    AppCurrency.khr => l10n.currencyOptionKhr,
   };
 }
 
