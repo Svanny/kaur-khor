@@ -449,6 +449,109 @@ void main() {
     },
   );
 
+  testWidgets('sku detail action buttons appear only after edits', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'SKU #001');
+
+    expect(find.byIcon(Icons.close), findsNothing);
+    expect(find.byIcon(Icons.check), findsNothing);
+
+    await tester.enterText(find.byType(TextField).at(0), 'SKU #001 Updated');
+    await tester.pump();
+
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
+  });
+
+  testWidgets('sku detail X cancels edits and stays on page', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'SKU #001');
+
+    await tester.enterText(find.byType(TextField).at(0), 'SKU #001 Updated');
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SkuDetailPage), findsOneWidget);
+    final nameField = tester.widget<TextField>(find.byType(TextField).at(0));
+    expect(nameField.controller?.text, 'SKU #001');
+    expect(find.byIcon(Icons.close), findsNothing);
+    expect(find.byIcon(Icons.check), findsNothing);
+  });
+
+  testWidgets('sku detail back prompt discard exits without saving', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'SKU #001');
+
+    await tester.enterText(find.byType(TextField).at(0), 'SKU #001 Unsaved');
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved changes'), findsOneWidget);
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All Items'), findsOneWidget);
+    expect(find.text('SKU #001'), findsOneWidget);
+    expect(find.text('SKU #001 Unsaved'), findsNothing);
+  });
+
+  testWidgets('sku detail back prompt confirm saves and exits', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'SKU #001');
+
+    await tester.enterText(find.byType(TextField).at(0), 'SKU One');
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved changes'), findsOneWidget);
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All Items'), findsOneWidget);
+    expect(find.text('SKU One'), findsOneWidget);
+  });
+
+  testWidgets('invalid sku unsaved popup shows go back and field errors', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'SKU #001');
+
+    await tester.scrollUntilVisible(
+      find.text('Cost / Piece'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(find.byType(TextField).at(5), '4a');
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Invalid fields'), findsOneWidget);
+    expect(
+      find.textContaining('Cost / Piece field must be a valid number'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(TextButton, 'Discard'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Go Back'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Confirm'), findsNothing);
+  });
+
   testWidgets('add SKU flow requires description and appends new card', (
     WidgetTester tester,
   ) async {
@@ -459,18 +562,17 @@ void main() {
     await tester.tap(find.text('Add SKU'));
     await tester.pumpAndSettle();
 
-    FilledButton saveButton = tester.widget<FilledButton>(
-      find.byType(FilledButton),
-    );
-    expect(saveButton.onPressed, isNull);
+    expect(find.byIcon(Icons.check), findsNothing);
 
     await tester.enterText(find.byType(TextField).at(1), 'New SKU description');
     await tester.pump();
 
-    saveButton = tester.widget<FilledButton>(find.byType(FilledButton));
+    FilledButton saveButton = tester.widget<FilledButton>(
+      find.widgetWithIcon(FilledButton, Icons.check),
+    );
     expect(saveButton.onPressed, isNotNull);
 
-    await tester.tap(find.byType(FilledButton));
+    await tester.tap(find.widgetWithIcon(FilledButton, Icons.check));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'NEW');
@@ -511,9 +613,51 @@ void main() {
     await tester.pump();
     expect(find.text('SKU #001'), findsOneWidget);
     expect(find.text('SKU #002'), findsNothing);
+    expect(find.byIcon(Icons.close), findsNothing);
+    expect(find.byIcon(Icons.check), findsNothing);
+
+    final selectorCard = tester.widget<Card>(
+      find.ancestor(
+        of: find.widgetWithText(CheckboxListTile, 'SKU #001'),
+        matching: find.byType(Card),
+      ),
+    );
+    expect(selectorCard.margin, EdgeInsets.zero);
+    final selectorShape = selectorCard.shape as RoundedRectangleBorder;
+    expect(
+      selectorShape.borderRadius,
+      const BorderRadius.all(Radius.circular(AppThemeTokens.radiusMd)),
+    );
+    final skuTile = tester.widget<CheckboxListTile>(
+      find.widgetWithText(CheckboxListTile, 'SKU #001'),
+    );
+    expect(skuTile.contentPadding, isNull);
+    expect(skuTile.checkboxScaleFactor, 1.0);
 
     await tester.tap(find.widgetWithText(CheckboxListTile, 'SKU #001'));
     await tester.pump();
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.widgetWithIcon(OutlinedButton, Icons.close),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is SizedBox && widget.width == 40 && widget.height == 40,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.widgetWithIcon(FilledButton, Icons.check),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is SizedBox && widget.width == 40 && widget.height == 40,
+        ),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
 

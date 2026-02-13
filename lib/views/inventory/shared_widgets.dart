@@ -8,6 +8,7 @@ class _DetailHeader extends StatelessWidget {
     required this.onSave,
     this.showActions = true,
     this.actionsKey,
+    this.actionSize = 40,
   });
 
   final String title;
@@ -16,6 +17,7 @@ class _DetailHeader extends StatelessWidget {
   final VoidCallback? onSave;
   final bool showActions;
   final Key? actionsKey;
+  final double actionSize;
 
   @override
   Widget build(BuildContext context) {
@@ -45,12 +47,14 @@ class _DetailHeader extends StatelessWidget {
                 icon: Icons.close,
                 onPressed: onCancel,
                 tooltip: 'Cancel',
+                size: actionSize,
               ),
               const SizedBox(width: AppThemeTokens.space2),
               _CircleFilledAction(
                 icon: Icons.check,
                 onPressed: onSave,
                 tooltip: onSave == null ? 'Fix required fields' : 'Save',
+                size: actionSize,
               ),
             ],
           ),
@@ -64,11 +68,13 @@ class _CircleFilledAction extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     required this.tooltip,
+    this.size = 40,
   });
 
   final IconData icon;
   final VoidCallback? onPressed;
   final String tooltip;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -76,8 +82,8 @@ class _CircleFilledAction extends StatelessWidget {
         ? AppThemeTokens.error
         : AppThemeTokens.primary;
     return SizedBox(
-      width: 40,
-      height: 40,
+      width: size,
+      height: size,
       child: Tooltip(
         message: tooltip,
         child: FilledButton(
@@ -87,7 +93,7 @@ class _CircleFilledAction extends StatelessWidget {
             padding: EdgeInsets.zero,
             side: BorderSide(color: sideColor, width: 2),
           ),
-          child: Icon(icon, size: 18),
+          child: Icon(icon, size: size * 0.45),
         ),
       ),
     );
@@ -99,17 +105,19 @@ class _CircleOutlineAction extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     required this.tooltip,
+    this.size = 40,
   });
 
   final IconData icon;
   final VoidCallback onPressed;
   final String tooltip;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 40,
-      height: 40,
+      width: size,
+      height: size,
       child: Tooltip(
         message: tooltip,
         child: OutlinedButton(
@@ -119,7 +127,7 @@ class _CircleOutlineAction extends StatelessWidget {
             padding: EdgeInsets.zero,
             side: const BorderSide(color: AppThemeTokens.border, width: 2),
           ),
-          child: Icon(icon, size: 18),
+          child: Icon(icon, size: size * 0.45),
         ),
       ),
     );

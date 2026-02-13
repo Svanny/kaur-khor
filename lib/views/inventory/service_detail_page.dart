@@ -125,14 +125,15 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
           padding: EdgeInsets.fromLTRB(edge.left, edge.top, edge.right, 0),
           child: Column(
             children: [
-              _DetailHeader(
+              buildSaveChangeHeader(
                 title: _nameController.text.trim().isEmpty
                     ? 'Service'
                     : _nameController.text.trim(),
                 onBack: _onBackPressed,
                 onCancel: _resetChanges,
-                onSave: _hasChanges && _isValid ? _save : null,
-                showActions: _hasChanges,
+                onSave: _save,
+                hasChanges: _hasChanges,
+                isValid: _isValid,
               ),
               const SizedBox(height: AppThemeTokens.space3),
               Expanded(
@@ -288,7 +289,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     if (!mounted) {
       return false;
     }
-    if (choice == _UnsavedServiceChangesAction.confirm) {
+    if (choice == UnsavedExitAction.confirm) {
       if (!_isValid) {
         setState(() => _showValidationHighlights = true);
         return false;
@@ -296,7 +297,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
       _save();
       return false;
     }
-    return choice == _UnsavedServiceChangesAction.discard;
+    return choice == UnsavedExitAction.discard;
   }
 
   void _popWithoutSaving() {
@@ -304,18 +305,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     Navigator.of(context).pop();
   }
 
-  Future<_UnsavedServiceChangesAction?> _showUnsavedChangesDialog() {
-    return showGeneralDialog<_UnsavedServiceChangesAction>(
+  Future<UnsavedExitAction?> _showUnsavedChangesDialog() {
+    return showUnsavedChangesDialog(
       context: context,
-      barrierDismissible: false,
-      barrierLabel: 'Dismiss unsaved changes',
-      barrierColor: Colors.transparent,
-      transitionDuration: Duration.zero,
-      pageBuilder: (_, __, ___) => _UnsavedChangesPopup(
-        isValid: _isValid,
-        validationErrors: _validationErrors,
-      ),
-      transitionBuilder: (_, __, ___, child) => child,
+      isValid: _isValid,
+      validationErrors: _validationErrors,
     );
   }
 
@@ -362,131 +356,6 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     );
     setState(() => _allowPop = true);
     Navigator.of(context).pop(updated);
-  }
-}
-
-enum _UnsavedServiceChangesAction { confirm, discard, goBack }
-
-class _UnsavedChangesPopup extends StatelessWidget {
-  const _UnsavedChangesPopup({
-    required this.isValid,
-    required this.validationErrors,
-  });
-
-  final bool isValid;
-  final List<String> validationErrors;
-
-  @override
-  Widget build(BuildContext context) {
-    final width = math
-        .min(
-          MediaQuery.sizeOf(context).width - (AppThemeTokens.space6 * 2),
-          360,
-        )
-        .toDouble();
-    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-      color: AppThemeTokens.textPrimary,
-      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-    );
-    final bodyStyle = Theme.of(
-      context,
-    ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.textSecondary);
-    final actionStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
-      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-    );
-    final isInvalidVariant = !isValid;
-    final title = isInvalidVariant ? 'Invalid fields' : 'Unsaved changes';
-    final message = isInvalidVariant
-        ? validationErrors.join('\n')
-        : 'You have unsaved changes. Confirm to keep them or discard to exit.';
-
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).pop(),
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: 0.55),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-          Center(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(
-                width: width,
-                decoration: BoxDecoration(
-                  color: AppThemeTokens.surface,
-                  borderRadius: BorderRadius.circular(32),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppThemeTokens.space6),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: titleStyle),
-                      const SizedBox(height: AppThemeTokens.space3),
-                      Text(message, style: bodyStyle),
-                      const SizedBox(height: AppThemeTokens.space6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(
-                              context,
-                            ).pop(_UnsavedServiceChangesAction.discard),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppThemeTokens.primary,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppThemeTokens.buttonPaddingX,
-                                vertical: AppThemeTokens.buttonPaddingY,
-                              ),
-                            ),
-                            child: Text(
-                              'Discard',
-                              style: actionStyle?.copyWith(
-                                color: AppThemeTokens.primary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: AppThemeTokens.space2),
-                          FilledButton(
-                            onPressed: () => Navigator.of(context).pop(
-                              isInvalidVariant
-                                  ? _UnsavedServiceChangesAction.goBack
-                                  : _UnsavedServiceChangesAction.confirm,
-                            ),
-                            style: FilledButton.styleFrom(
-                              foregroundColor: AppThemeTokens.white,
-                              shape: const StadiumBorder(),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppThemeTokens.buttonPaddingX,
-                                vertical: AppThemeTokens.buttonPaddingY,
-                              ),
-                            ),
-                            child: Text(
-                              isInvalidVariant ? 'Go Back' : 'Confirm',
-                              style: actionStyle?.copyWith(
-                                color: AppThemeTokens.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -577,12 +446,19 @@ class SkuUsedSelectorPage extends StatefulWidget {
 
 class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
   final TextEditingController _searchController = TextEditingController();
+  late final Set<String> _initialSelectedSkuIds;
   late Set<String> _selectedSkuIds;
+  bool _allowPop = false;
+
+  bool get _hasSelectionChanges =>
+      _selectedSkuIds.length != _initialSelectedSkuIds.length ||
+      !_selectedSkuIds.containsAll(_initialSelectedSkuIds);
 
   @override
   void initState() {
     super.initState();
-    _selectedSkuIds = Set<String>.of(widget.selectedSkuIds);
+    _initialSelectedSkuIds = Set<String>.of(widget.selectedSkuIds);
+    _selectedSkuIds = Set<String>.of(_initialSelectedSkuIds);
   }
 
   @override
@@ -600,68 +476,124 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
         .where((sku) => sku.name.toLowerCase().contains(query))
         .toList(growable: false);
 
-    return Scaffold(
-      body: Padding(
-        padding: EdgeInsets.fromLTRB(edge.left, edge.top, edge.right, 0),
-        child: Column(
-          children: [
-            _DetailHeader(
-              title: 'SKUs Used',
-              onBack: () => Navigator.of(context).pop(),
-              onCancel: () => Navigator.of(context).pop(),
-              onSave: () => Navigator.of(context).pop(_selectedSkuIds),
-            ),
-            const SizedBox(height: AppThemeTokens.space3),
-            _SearchField(
-              controller: _searchController,
-              hintText: 'Search SKUs by name',
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: AppThemeTokens.space3),
-            Expanded(
-              child: ListView.separated(
-                padding: EdgeInsets.only(
-                  bottom: bottomInset + AppThemeTokens.space8,
-                ),
-                itemCount: visibleSkus.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(height: AppThemeTokens.space2),
-                itemBuilder: (_, index) {
-                  final sku = visibleSkus[index];
-                  final selected = _selectedSkuIds.contains(sku.id);
-                  return Card(
-                    child: CheckboxListTile(
-                      value: selected,
-                      onChanged: (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        setState(() {
-                          if (value) {
-                            _selectedSkuIds.add(sku.id);
-                          } else {
-                            _selectedSkuIds.remove(sku.id);
-                          }
-                        });
-                      },
-                      title: Text(sku.name),
-                      subtitle: Text(
-                        '${sku.pieces} pieces · ${sku.bulk} bulk',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppThemeTokens.space3,
-                        vertical: AppThemeTokens.space1,
-                      ),
-                    ),
-                  );
-                },
+    return PopScope<Set<String>>(
+      canPop: _allowPop || !_hasSelectionChanges,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !_hasSelectionChanges) {
+          return;
+        }
+        unawaited(_onBackPressed());
+      },
+      child: Scaffold(
+        body: Padding(
+          padding: EdgeInsets.fromLTRB(edge.left, edge.top, edge.right, 0),
+          child: Column(
+            children: [
+              buildSaveChangeHeader(
+                title: 'SKUs Used',
+                onBack: _onBackPressed,
+                onCancel: _resetSelection,
+                onSave: _saveSelection,
+                hasChanges: _hasSelectionChanges,
+                isValid: true,
               ),
-            ),
-          ],
+              const SizedBox(height: AppThemeTokens.space3),
+              _SearchField(
+                controller: _searchController,
+                hintText: 'Search SKUs by name',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: AppThemeTokens.space3),
+              Expanded(
+                child: ListView.separated(
+                  padding: EdgeInsets.only(
+                    bottom: bottomInset + AppThemeTokens.space8,
+                  ),
+                  itemCount: visibleSkus.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: AppThemeTokens.space3),
+                  itemBuilder: (_, index) {
+                    final sku = visibleSkus[index];
+                    final selected = _selectedSkuIds.contains(sku.id);
+                    return Card(
+                      margin: EdgeInsets.zero,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(AppThemeTokens.radiusMd),
+                        ),
+                      ),
+                      child: CheckboxListTile(
+                        value: selected,
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            if (value) {
+                              _selectedSkuIds.add(sku.id);
+                            } else {
+                              _selectedSkuIds.remove(sku.id);
+                            }
+                          });
+                        },
+                        title: Text(sku.name),
+                        subtitle: Text(
+                          '${sku.pieces} pieces · ${sku.bulk} bulk',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        checkboxScaleFactor: 1.0,
+                        controlAffinity: ListTileControlAffinity.leading,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _onBackPressed() async {
+    final shouldPop = await _confirmExitIfNeeded();
+    if (!mounted || !shouldPop) {
+      return;
+    }
+    _popWithoutSaving();
+  }
+
+  Future<bool> _confirmExitIfNeeded() async {
+    if (!_hasSelectionChanges) {
+      return true;
+    }
+
+    final choice = await showUnsavedChangesDialog(
+      context: context,
+      isValid: true,
+      validationErrors: const <String>[],
+    );
+    if (!mounted) {
+      return false;
+    }
+    if (choice == UnsavedExitAction.confirm) {
+      _saveSelection();
+      return false;
+    }
+    return choice == UnsavedExitAction.discard;
+  }
+
+  void _popWithoutSaving() {
+    setState(() => _allowPop = true);
+    Navigator.of(context).pop();
+  }
+
+  void _saveSelection() {
+    setState(() => _allowPop = true);
+    Navigator.of(context).pop(_selectedSkuIds);
+  }
+
+  void _resetSelection() {
+    setState(() => _selectedSkuIds = Set<String>.of(_initialSelectedSkuIds));
   }
 }
