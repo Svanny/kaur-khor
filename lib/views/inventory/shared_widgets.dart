@@ -358,6 +358,8 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
   static const int _pageCount = 2;
   static const Duration _autoScrollEvery = Duration(seconds: 10);
   static const Duration _pageAnimationDuration = Duration(milliseconds: 350);
+  static const String _editSquareAsset =
+      'icons/edit_square_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 
   late final PageController _pageController;
   Timer? _autoScrollTimer;
@@ -367,7 +369,7 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
   void initState() {
     super.initState();
     _pageController = PageController();
-    _autoScrollTimer = Timer.periodic(_autoScrollEvery, (_) => _advancePage());
+    _restartAutoScrollTimer();
   }
 
   @override
@@ -389,9 +391,15 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
     );
   }
 
+  void _restartAutoScrollTimer() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = Timer(_autoScrollEvery, _advancePage);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: EdgeInsets.zero,
       child: SizedBox(
         height: 260,
         child: Stack(
@@ -401,47 +409,74 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
                 controller: _pageController,
                 onPageChanged: (index) {
                   setState(() => _activePage = index);
+                  _restartAutoScrollTimer();
                 },
                 children: [
-                  Center(
-                    child: Text(
-                      'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppThemeTokens.textSecondary,
+                  Stack(
+                    children: [
+                      Center(
+                        child: Text(
+                          'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: AppThemeTokens.textSecondary),
+                        ),
                       ),
-                    ),
+                      Positioned(
+                        top: AppThemeTokens.space2,
+                        right: AppThemeTokens.space2,
+                        child: IconButton(
+                          onPressed: () {},
+                          tooltip: 'Filter chart',
+                          icon: const Icon(Icons.filter_alt_outlined),
+                        ),
+                      ),
+                    ],
                   ),
-                  Center(
-                    child: Container(
-                      width: AppThemeTokens.unit * 36,
-                      height: AppThemeTokens.unit * 36,
-                      decoration: BoxDecoration(
-                        color: AppThemeTokens.accentDarker,
-                        borderRadius: BorderRadius.circular(
-                          AppThemeTokens.radiusMd,
+                  Stack(
+                    children: [
+                      Center(
+                        child: Container(
+                          width: AppThemeTokens.unit * 36,
+                          height: AppThemeTokens.unit * 36,
+                          decoration: BoxDecoration(
+                            color: AppThemeTokens.accentDarker,
+                            borderRadius: BorderRadius.circular(
+                              AppThemeTokens.radiusMd,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(
+                              AppThemeTokens.space2,
+                            ),
+                            child: _ItemPictureGlyph(
+                              widget.itemPictureIcon,
+                              fill: true,
+                              color: AppThemeTokens.white,
+                            ),
+                          ),
                         ),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppThemeTokens.space2),
-                        child: _ItemPictureGlyph(
-                          widget.itemPictureIcon,
-                          fill: true,
-                          color: AppThemeTokens.white,
+                      Positioned(
+                        top: AppThemeTokens.space2,
+                        right: AppThemeTokens.space2,
+                        child: IconButton(
+                          onPressed: () {},
+                          tooltip: 'Edit picture',
+                          icon: SvgPicture.asset(
+                            _editSquareAsset,
+                            width: 24,
+                            height: 24,
+                            colorFilter: const ColorFilter.mode(
+                              AppThemeTokens.textPrimary,
+                              BlendMode.srcIn,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
-              ),
-            ),
-            Positioned(
-              top: AppThemeTokens.space2,
-              right: AppThemeTokens.space2,
-              child: IconButton(
-                onPressed: () {},
-                tooltip: 'Edit media',
-                icon: const Icon(Icons.edit_square),
               ),
             ),
             Positioned(
@@ -455,7 +490,24 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
                     return const SizedBox(width: AppThemeTokens.space2);
                   }
                   final dotIndex = index ~/ 2;
-                  return _CarouselDot(active: _activePage == dotIndex);
+                  return _CarouselDot(
+                    key: ValueKey('media-carousel-dot-$dotIndex'),
+                    active: _activePage == dotIndex,
+                    onTap: () {
+                      _restartAutoScrollTimer();
+                      if (!_pageController.hasClients) {
+                        return;
+                      }
+                      if (_activePage == dotIndex) {
+                        return;
+                      }
+                      _pageController.animateToPage(
+                        dotIndex,
+                        duration: _pageAnimationDuration,
+                        curve: Curves.easeInOutCubic,
+                      );
+                    },
+                  );
                 }),
               ),
             ),
@@ -467,18 +519,22 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
 }
 
 class _CarouselDot extends StatelessWidget {
-  const _CarouselDot({required this.active});
+  const _CarouselDot({super.key, required this.active, required this.onTap});
 
   final bool active;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 10,
-      height: 10,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: active ? AppThemeTokens.primary : AppThemeTokens.border,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: active ? AppThemeTokens.primary : AppThemeTokens.border,
+        ),
       ),
     );
   }
@@ -569,6 +625,7 @@ class _FieldEditor extends StatelessWidget {
     this.enabled = true,
     this.keyboardType,
     this.onChanged,
+    this.maxLength,
   });
 
   final String label;
@@ -577,6 +634,7 @@ class _FieldEditor extends StatelessWidget {
   final bool enabled;
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
+  final int? maxLength;
 
   @override
   Widget build(BuildContext context) {
@@ -585,14 +643,69 @@ class _FieldEditor extends StatelessWidget {
       children: [
         Text(label, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppThemeTokens.space1),
-        TextField(
-          controller: controller,
-          maxLines: maxLines,
-          enabled: enabled,
-          keyboardType: keyboardType,
-          onChanged: onChanged,
-          decoration: InputDecoration(hintText: label),
-        ),
+        if (maxLength == null)
+          TextField(
+            controller: controller,
+            maxLines: maxLines,
+            enabled: enabled,
+            keyboardType: keyboardType,
+            onChanged: onChanged,
+            decoration: InputDecoration(hintText: label),
+          )
+        else
+          Stack(
+            children: [
+              TextField(
+                controller: controller,
+                maxLines: maxLines,
+                enabled: enabled,
+                keyboardType: keyboardType,
+                onChanged: onChanged,
+                maxLength: maxLength,
+                textAlignVertical: maxLines > 1
+                    ? TextAlignVertical.top
+                    : TextAlignVertical.center,
+                decoration: InputDecoration(
+                  hintText: label,
+                  counterText: '',
+                  suffix: maxLines == 1
+                      ? const SizedBox(
+                          width:
+                              AppThemeTokens.space8 +
+                              AppThemeTokens.space2,
+                              //AppThemeTokens.space2 +
+                              //AppThemeTokens.space2,
+                        )
+                      : null,
+                  contentPadding: maxLines > 1
+                      ? const EdgeInsets.fromLTRB(
+                          AppThemeTokens.inputPaddingX,
+                          AppThemeTokens.inputPaddingY,
+                          AppThemeTokens.inputPaddingX,
+                          AppThemeTokens.inputPaddingY + AppThemeTokens.space6,
+                        )
+                      : null,
+                ),
+              ),
+              Positioned(
+                right: AppThemeTokens.inputPaddingX,
+                bottom: AppThemeTokens.space2,
+                child: IgnorePointer(
+                  child: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (context, value, _) {
+                      return Text(
+                        '${value.text.length}/$maxLength',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppThemeTokens.textSecondary,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }

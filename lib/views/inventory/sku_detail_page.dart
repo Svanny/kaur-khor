@@ -116,23 +116,18 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                   _FieldEditor(
                     label: 'Name',
                     controller: _nameController,
+                    maxLength: 80,
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
+                  const SizedBox(height: AppThemeTokens.space4),
                   _FieldEditor(
                     label: 'Description',
                     controller: _descriptionController,
                     maxLines: 4,
+                    maxLength: 250,
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
-                  _ItemPictureField(
-                    onUseDefault: () {
-                      setState(() => _itemPictureIcon = _defaultSkuPictureIcon);
-                    },
-                    defaultLabel: 'Default: box icon',
-                  ),
-                  const SizedBox(height: AppThemeTokens.space3),
+                  const SizedBox(height: AppThemeTokens.space4),
                   Row(
                     children: [
                       Expanded(
@@ -169,7 +164,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
+                  const SizedBox(height: AppThemeTokens.space4),
                   Row(
                     children: [
                       Expanded(
@@ -191,7 +186,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
+                  const SizedBox(height: AppThemeTokens.space4),
                   _FieldEditor(
                     label: 'Cost / Bulk',
                     controller: _costBulkController,
@@ -200,8 +195,9 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
+                  const SizedBox(height: AppThemeTokens.space4),
                   Card(
+                    margin: EdgeInsets.zero,
                     child: Padding(
                       padding: const EdgeInsets.all(AppThemeTokens.space3),
                       child: Column(

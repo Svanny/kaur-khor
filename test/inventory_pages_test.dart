@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:banji/theme/app_theme.dart';
 import 'package:banji/views/inventory_views.dart';
@@ -266,5 +267,367 @@ void main() {
     await tester.pump();
     productField = tester.widget<TextField>(find.byType(TextField).last);
     expect(productField.enabled, isFalse);
+  });
+
+  testWidgets('detail pages no longer show Item Picture field section', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-test',
+      name: 'SKU Test',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 1,
+      bulk: 1,
+      piecesPerBulk: 1,
+      costPerPiece: 1,
+      costPerBulk: 1,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+    const service = ServiceItem(
+      id: 'service-test',
+      name: 'Service Test',
+      itemPictureIcon: Icons.person_outline,
+      description: 'desc',
+      price: 1,
+      skuIds: {'sku-test'},
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const SkuDetailPage(initialSku: sku),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Item Picture *'), findsNothing);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const ServiceDetailPage(
+          initialService: service,
+          availableSkus: [sku],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Item Picture *'), findsNothing);
+  });
+
+  testWidgets('media carousel auto-scrolls to item picture after 10 seconds', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-carousel',
+      name: 'SKU Carousel',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 1,
+      bulk: 1,
+      piecesPerBulk: 1,
+      costPerPiece: 1,
+      costPerBulk: 1,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const SkuDetailPage(initialSku: sku),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
+      ),
+      findsNothing,
+    );
+    expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+  });
+
+  testWidgets('tapping carousel dots changes media slide', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-carousel-dots',
+      name: 'SKU Carousel Dots',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 1,
+      bulk: 1,
+      piecesPerBulk: 1,
+      costPerPiece: 1,
+      costPerBulk: 1,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const SkuDetailPage(initialSku: sku),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('media-carousel-dot-1')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
+      ),
+      findsNothing,
+    );
+    expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 9));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('media carousel has edit icon button and tapping is a no-op', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    final filterIcon = find.byIcon(Icons.filter_alt_outlined);
+    expect(filterIcon, findsOneWidget);
+    await tester.tap(filterIcon);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+
+    final editSquareAsset = find.byWidgetPredicate(
+      (widget) =>
+          widget is SvgPicture &&
+          widget.bytesLoader is SvgAssetLoader &&
+          (widget.bytesLoader as SvgAssetLoader).assetName ==
+              'icons/edit_square_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+    );
+    expect(editSquareAsset, findsOneWidget);
+
+    await tester.tap(editSquareAsset);
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ServiceDetailPage), findsOneWidget);
+  });
+
+  testWidgets('service detail selected SKU chips use item-card chip styling', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    final chip = tester.widget<Chip>(find.widgetWithText(Chip, 'SKU #001'));
+
+    expect(chip.backgroundColor, AppThemeTokens.chipBackground);
+    expect(chip.side, BorderSide.none);
+    expect(chip.materialTapTargetSize, MaterialTapTargetSize.shrinkWrap);
+    expect(chip.visualDensity, VisualDensity.compact);
+    expect(
+      chip.padding,
+      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    );
+
+    final shape = chip.shape as RoundedRectangleBorder;
+    expect(
+      shape.borderRadius,
+      const BorderRadius.all(Radius.circular(AppThemeTokens.radiusPill)),
+    );
+  });
+
+  testWidgets('service detail frames are aligned, equal width, and spaced', (
+    WidgetTester tester,
+  ) async {
+    const skuOne = SkuItem(
+      id: 'sku-001',
+      name: 'SKU #001',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 1,
+      bulk: 1,
+      piecesPerBulk: 1,
+      costPerPiece: 1,
+      costPerBulk: 1,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+    const skuTwo = SkuItem(
+      id: 'sku-002',
+      name: 'SKU #002',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 1,
+      bulk: 1,
+      piecesPerBulk: 1,
+      costPerPiece: 1,
+      costPerBulk: 1,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+    const service = ServiceItem(
+      id: 'service-001',
+      name: 'Service #001',
+      itemPictureIcon: Icons.person_outline,
+      description: 'Basic package for recurring customers.',
+      price: 1200,
+      skuIds: {'sku-001', 'sku-002'},
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const ServiceDetailPage(
+          initialService: service,
+          availableSkus: [skuOne, skuTwo],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final mediaRect = tester.getRect(find.byType(Card).at(0));
+    final skuUsedRect = tester.getRect(find.byType(Card).at(1));
+    final nameRect = tester.getRect(find.byType(TextField).at(0));
+    final descriptionRect = tester.getRect(find.byType(TextField).at(1));
+    final priceRect = tester.getRect(find.byType(TextField).at(2));
+    final nameLabelRect = tester.getRect(find.text('Name').first);
+    final descriptionLabelRect = tester.getRect(find.text('Description').first);
+
+    const epsilon = 0.01;
+    expect((mediaRect.left - nameRect.left).abs(), lessThanOrEqualTo(epsilon));
+    expect(
+      (skuUsedRect.left - nameRect.left).abs(),
+      lessThanOrEqualTo(epsilon),
+    );
+    expect(
+      (descriptionRect.left - nameRect.left).abs(),
+      lessThanOrEqualTo(epsilon),
+    );
+    expect((priceRect.left - nameRect.left).abs(), lessThanOrEqualTo(epsilon));
+
+    expect(
+      (mediaRect.width - nameRect.width).abs(),
+      lessThanOrEqualTo(epsilon),
+    );
+    expect(
+      (skuUsedRect.width - nameRect.width).abs(),
+      lessThanOrEqualTo(epsilon),
+    );
+    expect(
+      (descriptionRect.width - nameRect.width).abs(),
+      lessThanOrEqualTo(epsilon),
+    );
+    expect(
+      (priceRect.width - nameRect.width).abs(),
+      lessThanOrEqualTo(epsilon),
+    );
+
+    final labelToBoxGap = nameRect.top - nameLabelRect.bottom;
+    final frameToFrameGap = descriptionLabelRect.top - nameRect.bottom;
+    expect(frameToFrameGap, greaterThan(labelToBoxGap));
+  });
+
+  testWidgets('name and description counters update live and enforce limits', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-limit-test',
+      name: 'SKU',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'Desc',
+      pieces: 1,
+      bulk: 1,
+      piecesPerBulk: 1,
+      costPerPiece: 1,
+      costPerBulk: 1,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const SkuDetailPage(initialSku: sku),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('3/80'), findsOneWidget);
+    expect(find.text('4/250'), findsOneWidget);
+
+    final nameField = tester.widget<TextField>(find.byType(TextField).at(0));
+    final descriptionField = tester.widget<TextField>(
+      find.byType(TextField).at(1),
+    );
+    final namePadding = nameField.decoration?.contentPadding as EdgeInsets?;
+    final descriptionPadding =
+        descriptionField.decoration?.contentPadding as EdgeInsets?;
+
+    expect(nameField.decoration?.suffix, isNotNull);
+    expect(descriptionPadding, isNotNull);
+    expect(descriptionPadding!.left, AppThemeTokens.inputPaddingX);
+    expect(descriptionPadding.right, AppThemeTokens.inputPaddingX);
+    if (namePadding != null) {
+      expect(namePadding.left, AppThemeTokens.inputPaddingX);
+      expect(namePadding.right, AppThemeTokens.inputPaddingX);
+      expect(namePadding.bottom, AppThemeTokens.inputPaddingY);
+    }
+    expect(
+      descriptionPadding.bottom,
+      greaterThan(AppThemeTokens.inputPaddingY),
+    );
+
+    await tester.enterText(find.byType(TextField).at(0), 'Hello');
+    await tester.pump();
+    expect(find.text('5/80'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).at(0), 'A' * 150);
+    await tester.pump();
+    expect(find.text('80/80'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).at(1), 'B' * 1100);
+    await tester.pump();
+    expect(find.text('250/250'), findsOneWidget);
   });
 }

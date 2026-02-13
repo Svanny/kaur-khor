@@ -80,25 +80,18 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                   _FieldEditor(
                     label: 'Name',
                     controller: _nameController,
+                    maxLength: 80,
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
+                  const SizedBox(height: AppThemeTokens.space4),
                   _FieldEditor(
                     label: 'Description',
                     controller: _descriptionController,
                     maxLines: 4,
+                    maxLength: 250,
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
-                  _ItemPictureField(
-                    onUseDefault: () {
-                      setState(
-                        () => _itemPictureIcon = _defaultServicePictureIcon,
-                      );
-                    },
-                    defaultLabel: 'Default: person_apron',
-                  ),
-                  const SizedBox(height: AppThemeTokens.space3),
+                  const SizedBox(height: AppThemeTokens.space4),
                   _FieldEditor(
                     label: 'Price',
                     controller: _priceController,
@@ -107,13 +100,14 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
+                  const SizedBox(height: AppThemeTokens.space4),
                   Text(
                     'SKUs Used',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: AppThemeTokens.space2),
                   Card(
+                    margin: EdgeInsets.zero,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(
                         AppThemeTokens.radiusMd,
