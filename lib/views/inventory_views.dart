@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/app_theme.dart';
 
-const IconData _defaultItemPictureIcon = Icons.inventory_2_outlined;
+const IconData _defaultSkuPictureIcon = Icons.inventory_2_outlined;
+const IconData _defaultServicePictureIcon = Icons.person_outline;
+const String _defaultServicePictureAsset =
+    'icons/person_apron_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 
 class SkuItem {
   const SkuItem({
@@ -113,7 +117,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     SkuItem(
       id: 'sku-001',
       name: 'SKU #001',
-      itemPictureIcon: _defaultItemPictureIcon,
+      itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Base ingredient for high volume items.',
       pieces: 120,
       bulk: 12,
@@ -126,7 +130,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     SkuItem(
       id: 'sku-002',
       name: 'SKU #002',
-      itemPictureIcon: _defaultItemPictureIcon,
+      itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Reusable material with stable demand.',
       pieces: 86,
       bulk: 6,
@@ -139,7 +143,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     SkuItem(
       id: 'sku-003',
       name: 'SKU #003',
-      itemPictureIcon: _defaultItemPictureIcon,
+      itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Low-rotation backup stock.',
       pieces: 44,
       bulk: 4,
@@ -155,7 +159,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     ServiceItem(
       id: 'service-001',
       name: 'Service #001',
-      itemPictureIcon: _defaultItemPictureIcon,
+      itemPictureIcon: _defaultServicePictureIcon,
       description: 'Basic package for recurring customers.',
       price: 1200,
       skuIds: {'sku-001', 'sku-002'},
@@ -163,7 +167,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     ServiceItem(
       id: 'service-002',
       name: 'Service #002',
-      itemPictureIcon: _defaultItemPictureIcon,
+      itemPictureIcon: _defaultServicePictureIcon,
       description: 'Premium package with deeper SKU usage.',
       price: 2200,
       skuIds: {'sku-002', 'sku-003'},
@@ -427,7 +431,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     final newSku = SkuItem(
       id: 'sku-${DateTime.now().microsecondsSinceEpoch}',
       name: 'SKU #NEW',
-      itemPictureIcon: _defaultItemPictureIcon,
+      itemPictureIcon: _defaultSkuPictureIcon,
       description: '',
       pieces: 0,
       bulk: 0,
@@ -452,7 +456,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     final newService = ServiceItem(
       id: 'service-${DateTime.now().microsecondsSinceEpoch}',
       name: 'Service #NEW',
-      itemPictureIcon: _defaultItemPictureIcon,
+      itemPictureIcon: _defaultServicePictureIcon,
       description: '',
       price: 0,
       skuIds: <String>{},
@@ -628,8 +632,9 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
             _ItemPictureField(
               icon: _itemPictureIcon,
               onUseDefault: () {
-                setState(() => _itemPictureIcon = _defaultItemPictureIcon);
+                setState(() => _itemPictureIcon = _defaultSkuPictureIcon);
               },
+              defaultLabel: 'Default: box icon',
             ),
             const SizedBox(height: AppThemeTokens.space3),
             Row(
@@ -857,8 +862,9 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
             _ItemPictureField(
               icon: _itemPictureIcon,
               onUseDefault: () {
-                setState(() => _itemPictureIcon = _defaultItemPictureIcon);
+                setState(() => _itemPictureIcon = _defaultServicePictureIcon);
               },
+              defaultLabel: 'Default: person_apron',
             ),
             const SizedBox(height: AppThemeTokens.space3),
             _FieldEditor(
@@ -1287,11 +1293,14 @@ class _InventoryItemCard extends StatelessWidget {
                         AppThemeTokens.radiusMd,
                       ),
                     ),
-                    child: Center(
-                      child: Icon(
-                        itemPictureIcon,
-                        size: AppThemeTokens.iconSizeMedium * 1.3,
-                        color: AppThemeTokens.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppThemeTokens.space2),
+                      child: Center(
+                        child: _ItemPictureGlyph(
+                          itemPictureIcon,
+                          fill: true,
+                          color: AppThemeTokens.white,
+                        ),
                       ),
                     ),
                   ),
@@ -1443,10 +1452,15 @@ class _CarouselDot extends StatelessWidget {
 }
 
 class _ItemPictureField extends StatelessWidget {
-  const _ItemPictureField({required this.icon, required this.onUseDefault});
+  const _ItemPictureField({
+    required this.icon,
+    required this.onUseDefault,
+    required this.defaultLabel,
+  });
 
   final IconData icon;
   final VoidCallback onUseDefault;
+  final String defaultLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1469,16 +1483,19 @@ class _ItemPictureField extends StatelessWidget {
                       AppThemeTokens.radiusMd,
                     ),
                   ),
-                  child: Icon(
-                    icon,
-                    size: AppThemeTokens.iconSizeMedium * 1.2,
-                    color: AppThemeTokens.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppThemeTokens.space1),
+                    child: _ItemPictureGlyph(
+                      icon,
+                      fill: true,
+                      color: AppThemeTokens.white,
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppThemeTokens.space3),
                 Expanded(
                   child: Text(
-                    'Required field. Default uses box icon.',
+                    'Required field. $defaultLabel.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
@@ -1491,6 +1508,41 @@ class _ItemPictureField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ItemPictureGlyph extends StatelessWidget {
+  const _ItemPictureGlyph(this.icon, {required this.fill, required this.color});
+
+  final IconData icon;
+  final bool fill;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!fill) {
+      if (icon == _defaultServicePictureIcon) {
+        return SvgPicture.asset(
+          _defaultServicePictureAsset,
+          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+        );
+      }
+      return Icon(icon, color: color);
+    }
+
+    return SizedBox.expand(
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: icon == _defaultServicePictureIcon
+            ? SvgPicture.asset(
+                _defaultServicePictureAsset,
+                width: AppThemeTokens.iconSizeMedium,
+                height: AppThemeTokens.iconSizeMedium,
+                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+              )
+            : Icon(icon, size: AppThemeTokens.iconSizeMedium, color: color),
+      ),
     );
   }
 }
