@@ -5,8 +5,9 @@ import 'package:banji/main.dart';
 import 'package:banji/views/settings_view.dart';
 
 void main() {
-  testWidgets('Banji app renders home dashboard shell',
-      (WidgetTester tester) async {
+  testWidgets('Banji app renders home dashboard shell', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const BanjiApp());
 
     expect(find.text('banji'), findsOneWidget);
@@ -14,8 +15,9 @@ void main() {
     expect(find.byIcon(Icons.settings), findsOneWidget);
   });
 
-  testWidgets('switching language updates UI immediately',
-      (WidgetTester tester) async {
+  testWidgets('switching language updates UI immediately', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const BanjiApp());
 
     await tester.tap(find.byIcon(Icons.settings));

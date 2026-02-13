@@ -93,15 +93,19 @@ class _SettingsViewState extends State<SettingsView> {
                   color: AppThemeTokens.textPrimary,
                 ),
                 const SizedBox(width: AppThemeTokens.space2),
-                Text(
-                  l10n.settingsDisclaimer,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppThemeTokens.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        height: 1,
-                      ),
+                Expanded(
+                  child: Text(
+                    l10n.settingsDisclaimer,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppThemeTokens.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      height: 1,
+                    ),
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(width: AppThemeTokens.space2),
                 FilledButton(
                   onPressed: () {},
                   style: FilledButton.styleFrom(
@@ -120,10 +124,10 @@ class _SettingsViewState extends State<SettingsView> {
                   child: Text(
                     l10n.settingsLogout,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppThemeTokens.white,
-                          fontSize: AppThemeTokens.fontSizeBodyLarge,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      color: AppThemeTokens.white,
+                      fontSize: AppThemeTokens.fontSizeBodyLarge,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -152,10 +156,7 @@ String _currencyLabel(AppLocalizations l10n, AppCurrency currency) {
 }
 
 class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({
-    required this.label,
-    required this.trailing,
-  });
+  const _SettingsRow({required this.label, required this.trailing});
 
   final String label;
   final Widget trailing;
@@ -168,9 +169,9 @@ class _SettingsRow extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppThemeTokens.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: AppThemeTokens.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
         trailing,
@@ -311,22 +312,19 @@ class _DropdownPillState<T> extends State<_DropdownPill<T>>
 
   double _menuWidthForContent(BuildContext context) {
     final baseTextStyle =
-        Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-            ) ??
-            const TextStyle(
-              fontSize: AppThemeTokens.fontSizeBodyLarge,
-              fontWeight: FontWeight.w600,
-            );
+        Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600) ??
+        const TextStyle(
+          fontSize: AppThemeTokens.fontSizeBodyLarge,
+          fontWeight: FontWeight.w600,
+        );
 
     final textScaler = MediaQuery.textScalerOf(context);
     double maxTextWidth = 0;
     for (final option in widget.options) {
       final textPainter = TextPainter(
-        text: TextSpan(
-          text: widget.labelBuilder(option),
-          style: baseTextStyle,
-        ),
+        text: TextSpan(text: widget.labelBuilder(option), style: baseTextStyle),
         textDirection: TextDirection.ltr,
         maxLines: 1,
         textScaler: textScaler,
@@ -374,9 +372,9 @@ class _DropdownPillState<T> extends State<_DropdownPill<T>>
               children: [
                 Text(
                   widget.labelBuilder(widget.value),
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppThemeTokens.white,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white),
                 ),
                 const SizedBox(width: AppThemeTokens.space1),
                 AnimatedRotation(
@@ -474,10 +472,7 @@ class _DropdownMenuPanel<T> extends StatelessWidget {
 }
 
 class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({
-    required this.icon,
-    required this.onPressed,
-  });
+  const _CircleIconButton({required this.icon, required this.onPressed});
 
   final Widget icon;
   final VoidCallback onPressed;

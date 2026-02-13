@@ -1274,114 +1274,111 @@ class _InventoryItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const thumbnailExtent = AppThemeTokens.unit * 40;
+
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(AppThemeTokens.space4),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AspectRatio(
-                  aspectRatio: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppThemeTokens.accentDarker,
-                      borderRadius: BorderRadius.circular(
-                        AppThemeTokens.radiusMd,
-                      ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: thumbnailExtent,
+                height: thumbnailExtent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppThemeTokens.accentDarker,
+                    borderRadius: BorderRadius.circular(
+                      AppThemeTokens.radiusMd,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppThemeTokens.space2),
-                      child: Center(
-                        child: _ItemPictureGlyph(
-                          itemPictureIcon,
-                          fill: true,
-                          color: AppThemeTokens.white,
-                        ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppThemeTokens.space2),
+                    child: Center(
+                      child: _ItemPictureGlyph(
+                        itemPictureIcon,
+                        fill: true,
+                        color: AppThemeTokens.white,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: AppThemeTokens.space3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: Theme.of(context).textTheme.bodyLarge),
-                      //const SizedBox(height: AppThemeTokens.space2),
-                      Wrap(
-                        spacing: AppThemeTokens.space2,
-                        runSpacing: AppThemeTokens.space2,
-                        children: [
-                          Chip(
-                            backgroundColor: AppThemeTokens.chipBackground,
+              ),
+              const SizedBox(width: AppThemeTokens.space3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.bodyLarge),
+                    Wrap(
+                      spacing: AppThemeTokens.space2,
+                      runSpacing: AppThemeTokens.space2,
+                      children: [
+                        Chip(
+                          backgroundColor: AppThemeTokens.chipBackground,
+                          side: BorderSide.none,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.all(
+                              Radius.circular(AppThemeTokens.radiusPill),
+                            ),
                             side: BorderSide.none,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(AppThemeTokens.radiusPill),
-                              ),
-                              side: BorderSide.none,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal:
-                                  AppThemeTokens.chipPaddingX -
-                                  AppThemeTokens.space1,
-                              vertical:
-                                  AppThemeTokens.chipPaddingY -
-                                  AppThemeTokens.space1,
-                            ),
-                            label: Text(
-                              'Pieces: $pieces',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppThemeTokens.textPrimary),
-                            ),
                           ),
-                          Chip(
-                            backgroundColor: AppThemeTokens.chipBackground,
-                            side: BorderSide.none,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(AppThemeTokens.radiusPill),
-                              ),
-                              side: BorderSide.none,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal:
-                                  AppThemeTokens.chipPaddingX -
-                                  AppThemeTokens.space1,
-                              vertical:
-                                  AppThemeTokens.chipPaddingY -
-                                  AppThemeTokens.space1,
-                            ),
-                            label: Text(
-                              'Bulk: $bulk',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppThemeTokens.textPrimary),
-                            ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal:
+                                AppThemeTokens.chipPaddingX -
+                                AppThemeTokens.space1,
+                            vertical:
+                                AppThemeTokens.chipPaddingY -
+                                AppThemeTokens.space1,
                           ),
-                        ],
-                      ),
-                      //const SizedBox(height: AppThemeTokens.space2),
-                      Text(
-                        'Total Value',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      Text(
-                        totalValueLabel,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: _fontWeight(
-                            AppThemeTokens.fontWeightBold,
+                          label: Text(
+                            'Pieces: $pieces',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppThemeTokens.textPrimary),
                           ),
                         ),
+                        Chip(
+                          backgroundColor: AppThemeTokens.chipBackground,
+                          side: BorderSide.none,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.all(
+                              Radius.circular(AppThemeTokens.radiusPill),
+                            ),
+                            side: BorderSide.none,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal:
+                                AppThemeTokens.chipPaddingX -
+                                AppThemeTokens.space1,
+                            vertical:
+                                AppThemeTokens.chipPaddingY -
+                                AppThemeTokens.space1,
+                          ),
+                          label: Text(
+                            'Bulk: $bulk',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppThemeTokens.textPrimary),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Total Value',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    Text(
+                      totalValueLabel,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
