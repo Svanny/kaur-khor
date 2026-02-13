@@ -6,12 +6,14 @@ class _DetailHeader extends StatelessWidget {
     required this.onBack,
     required this.onCancel,
     required this.onSave,
+    this.showActions = true,
   });
 
   final String title;
   final VoidCallback onBack;
   final VoidCallback onCancel;
   final VoidCallback? onSave;
+  final bool showActions;
 
   @override
   Widget build(BuildContext context) {
@@ -20,26 +22,31 @@ class _DetailHeader extends StatelessWidget {
         IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back)),
         const SizedBox(width: AppThemeTokens.space2),
         Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontSize: AppThemeTokens.fontSizeTitleMedium,
+          child: Padding(
+            padding: const EdgeInsets.only(right: AppThemeTokens.space2),
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontSize: AppThemeTokens.fontSizeTitleMedium,
+              ),
             ),
           ),
         ),
-        _CircleOutlineAction(
-          icon: Icons.close,
-          onPressed: onCancel,
-          tooltip: 'Cancel',
-        ),
-        const SizedBox(width: AppThemeTokens.space2),
-        _CircleFilledAction(
-          icon: Icons.check,
-          onPressed: onSave,
-          tooltip: onSave == null ? 'Fix required fields' : 'Save',
-        ),
+        if (showActions) ...[
+          _CircleOutlineAction(
+            icon: Icons.close,
+            onPressed: onCancel,
+            tooltip: 'Cancel',
+          ),
+          const SizedBox(width: AppThemeTokens.space2),
+          _CircleFilledAction(
+            icon: Icons.check,
+            onPressed: onSave,
+            tooltip: onSave == null ? 'Fix required fields' : 'Save',
+          ),
+        ],
       ],
     );
   }
@@ -68,6 +75,7 @@ class _CircleFilledAction extends StatelessWidget {
           style: FilledButton.styleFrom(
             shape: const CircleBorder(),
             padding: EdgeInsets.zero,
+            side: const BorderSide(color: AppThemeTokens.primary, width: 2),
           ),
           child: Icon(icon, size: 18),
         ),
@@ -99,6 +107,7 @@ class _CircleOutlineAction extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             shape: const CircleBorder(),
             padding: EdgeInsets.zero,
+            side: const BorderSide(color: AppThemeTokens.border, width: 2),
           ),
           child: Icon(icon, size: 18),
         ),
@@ -672,9 +681,7 @@ class _FieldEditor extends StatelessWidget {
                   counterText: '',
                   suffix: maxLines == 1
                       ? const SizedBox(
-                          width:
-                              AppThemeTokens.space8 +
-                              AppThemeTokens.space2,
+                          width: AppThemeTokens.space8 + AppThemeTokens.space2,
                         )
                       : null,
                   contentPadding: maxLines > 1

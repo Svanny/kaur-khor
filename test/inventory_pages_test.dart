@@ -119,7 +119,7 @@ void main() {
     expect(find.text('SKUs Used'), findsOneWidget);
     expect(find.text('Price'), findsAtLeastNWidgets(1));
 
-    await tester.tap(find.byIcon(Icons.close));
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
     await tester.pumpAndSettle();
     expect(find.text('All Items'), findsOneWidget);
 
@@ -131,6 +131,92 @@ void main() {
     );
     expect(find.text('Sold as a Product?'), findsOneWidget);
     expect(find.text('Cost / Piece'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('service detail action buttons appear only after edits', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    expect(find.byIcon(Icons.close), findsNothing);
+    expect(find.byIcon(Icons.check), findsNothing);
+
+    await tester.enterText(
+      find.byType(TextField).at(0),
+      'Service #001 Updated',
+    );
+    await tester.pump();
+
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
+  });
+
+  testWidgets('service detail X cancels edits and stays on page', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    await tester.enterText(
+      find.byType(TextField).at(0),
+      'Service #001 Updated',
+    );
+    await tester.pump();
+    expect(find.byIcon(Icons.close), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ServiceDetailPage), findsOneWidget);
+    final nameField = tester.widget<TextField>(find.byType(TextField).at(0));
+    expect(nameField.controller?.text, 'Service #001');
+    expect(find.byIcon(Icons.close), findsNothing);
+    expect(find.byIcon(Icons.check), findsNothing);
+  });
+
+  testWidgets('service detail back prompt discard exits without saving', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    await tester.enterText(
+      find.byType(TextField).at(0),
+      'Service #001 Unsaved',
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved changes'), findsOneWidget);
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All Items'), findsOneWidget);
+    expect(find.text('Service #001'), findsOneWidget);
+    expect(find.text('Service #001 Unsaved'), findsNothing);
+  });
+
+  testWidgets('service detail back prompt confirm saves and exits', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    await tester.enterText(find.byType(TextField).at(0), 'Service One');
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved changes'), findsOneWidget);
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All Items'), findsOneWidget);
+    expect(find.text('Service One'), findsOneWidget);
   });
 
   testWidgets('add SKU flow requires description and appends new card', (
