@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/app_theme.dart';
 
@@ -1131,95 +1130,60 @@ class _InventoryItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const editIconReservedWidth =
-        AppThemeTokens.iconSizeMedium + AppThemeTokens.space2;
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(AppThemeTokens.space4),
-          child: Stack(
-            children: [
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 1,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppThemeTokens.accentDarker,
-                          borderRadius: BorderRadius.circular(
-                            AppThemeTokens.radiusMd,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppThemeTokens.accentDarker,
+                      borderRadius: BorderRadius.circular(
+                        AppThemeTokens.radiusMd,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppThemeTokens.space3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: Theme.of(context).textTheme.bodyLarge),
+                      const SizedBox(height: AppThemeTokens.space2),
+                      Wrap(
+                        spacing: AppThemeTokens.space2,
+                        runSpacing: AppThemeTokens.space2,
+                        children: [
+                          Chip(label: Text('Pieces: $pieces')),
+                          Chip(label: Text('Bulk: $bulk')),
+                        ],
+                      ),
+                      const SizedBox(height: AppThemeTokens.space2),
+                      Text(
+                        'Total Value',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      Text(
+                        totalValueLabel,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: _fontWeight(
+                            AppThemeTokens.fontWeightBold,
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: AppThemeTokens.space3),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          right: editIconReservedWidth,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            const SizedBox(height: AppThemeTokens.space2),
-                            Wrap(
-                              spacing: AppThemeTokens.space2,
-                              runSpacing: AppThemeTokens.space2,
-                              children: [
-                                Chip(label: Text('Pieces: $pieces')),
-                                Chip(label: Text('Bulk: $bulk')),
-                              ],
-                            ),
-                            const SizedBox(height: AppThemeTokens.space2),
-                            Text(
-                              'Total Value',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            Text(
-                              totalValueLabel,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    fontWeight: _fontWeight(
-                                      AppThemeTokens.fontWeightBold,
-                                    ),
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                top: 0,
-                right: 0,
-                child: IconButton(
-                  onPressed: onTap,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                  splashRadius: AppThemeTokens.iconSizeMedium * 0.65,
-                  icon: SvgPicture.asset(
-                    'icons/edit_square_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
-                    width: AppThemeTokens.iconSizeMedium,
-                    height: AppThemeTokens.iconSizeMedium,
-                    colorFilter: const ColorFilter.mode(
-                      AppThemeTokens.textPrimary,
-                      BlendMode.srcIn,
-                    ),
+                    ],
                   ),
-                  tooltip: 'Edit',
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
