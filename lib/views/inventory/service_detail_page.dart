@@ -25,12 +25,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   late final String _initialPriceText;
   late final IconData _initialItemPictureIcon;
   late final Set<String> _initialSkuIds;
-  final GlobalKey _headerActionsKey = GlobalKey();
-  final GlobalKey _stackKey = GlobalKey();
   bool _allowPop = false;
-  bool _showUnsavedOverlay = false;
-  Rect? _unsavedOverlayStartRect;
-  Completer<_UnsavedServiceChangesAction?>? _unsavedOverlayCompleter;
+  bool _showValidationHighlights = false;
+  bool _nameBlurred = false;
+  bool _descriptionBlurred = false;
+  bool _priceBlurred = false;
 
   @override
   void initState() {
@@ -50,21 +49,49 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
 
   @override
   void dispose() {
-    if (_unsavedOverlayCompleter?.isCompleted == false) {
-      _unsavedOverlayCompleter?.complete(null);
-    }
     _nameController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
     super.dispose();
   }
 
-  bool get _isValid {
-    return _nameController.text.trim().isNotEmpty &&
-        _descriptionController.text.trim().isNotEmpty &&
-        (_tryDouble(_priceController.text) ?? -1) >= 0 &&
-        _selectedSkuIds.isNotEmpty;
+  List<String> get _validationErrors {
+    final errors = <String>[];
+    final name = _nameController.text.trim();
+    final description = _descriptionController.text.trim();
+    final priceRaw = _priceController.text.trim();
+    final parsedPrice = _tryDouble(_priceController.text);
+
+    if (name.isEmpty) {
+      errors.add('Name field is required.');
+    }
+    if (description.isEmpty) {
+      errors.add('Description field is required.');
+    }
+    if (priceRaw.isEmpty) {
+      errors.add('Price field is required.');
+    } else if (parsedPrice == null) {
+      errors.add('Price field must be a valid number (no symbols or letters).');
+    } else if (parsedPrice < 0) {
+      errors.add('Price field cannot be negative.');
+    }
+    if (_selectedSkuIds.isEmpty) {
+      errors.add('Select at least one SKU.');
+    }
+
+    return errors;
   }
+
+  bool get _isValid => _validationErrors.isEmpty;
+  bool get _nameHasError => _nameController.text.trim().isEmpty;
+  bool get _descriptionHasError => _descriptionController.text.trim().isEmpty;
+  bool get _priceHasError {
+    final priceRaw = _priceController.text.trim();
+    final parsedPrice = _tryDouble(_priceController.text);
+    return priceRaw.isEmpty || parsedPrice == null || parsedPrice < 0;
+  }
+
+  bool get _skusHasError => _selectedSkuIds.isEmpty;
 
   bool get _hasChanges {
     final skuSelectionUnchanged =
@@ -94,152 +121,149 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
         unawaited(_onBackPressed());
       },
       child: Scaffold(
-        body: Stack(
-          key: _stackKey,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(edge.left, edge.top, edge.right, 0),
-              child: Column(
-                children: [
-                  _DetailHeader(
-                    title: _nameController.text.trim().isEmpty
-                        ? 'Service'
-                        : _nameController.text.trim(),
-                    onBack: _onBackPressed,
-                    onCancel: _resetChanges,
-                    onSave: _hasChanges && _isValid ? _save : null,
-                    showActions: _hasChanges && !_showUnsavedOverlay,
-                    actionsKey: _headerActionsKey,
+        body: Padding(
+          padding: EdgeInsets.fromLTRB(edge.left, edge.top, edge.right, 0),
+          child: Column(
+            children: [
+              _DetailHeader(
+                title: _nameController.text.trim().isEmpty
+                    ? 'Service'
+                    : _nameController.text.trim(),
+                onBack: _onBackPressed,
+                onCancel: _resetChanges,
+                onSave: _hasChanges && _isValid ? _save : null,
+                showActions: _hasChanges,
+              ),
+              const SizedBox(height: AppThemeTokens.space3),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.only(
+                    bottom: bottomInset + AppThemeTokens.space8,
                   ),
-                  const SizedBox(height: AppThemeTokens.space3),
-                  Expanded(
-                    child: ListView(
-                      padding: EdgeInsets.only(
-                        bottom: bottomInset + AppThemeTokens.space8,
+                  children: [
+                    _MediaPlaceholderCard(itemPictureIcon: _itemPictureIcon),
+                    const SizedBox(height: AppThemeTokens.space4),
+                    _FieldEditor(
+                      label: 'Name',
+                      controller: _nameController,
+                      maxLength: 80,
+                      hintText: 'Enter service name',
+                      hasError:
+                          (_showValidationHighlights || _nameBlurred) &&
+                          _nameHasError,
+                      onTapOutside: () => setState(() => _nameBlurred = true),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: AppThemeTokens.space4),
+                    _FieldEditor(
+                      label: 'Description',
+                      controller: _descriptionController,
+                      maxLines: 4,
+                      maxLength: 250,
+                      hintText: 'Describe this service',
+                      hasError:
+                          (_showValidationHighlights || _descriptionBlurred) &&
+                          _descriptionHasError,
+                      onTapOutside: () =>
+                          setState(() => _descriptionBlurred = true),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: AppThemeTokens.space4),
+                    ValueListenableBuilder<AppCurrency>(
+                      valueListenable: context.currencyController,
+                      builder: (_, currency, __) {
+                        return _PriceFieldWithCurrency(
+                          controller: _priceController,
+                          currencyCode: currency.code,
+                          hasError:
+                              (_showValidationHighlights || _priceBlurred) &&
+                              _priceHasError,
+                          onTapOutside: () =>
+                              setState(() => _priceBlurred = true),
+                          onChanged: (_) => setState(() {}),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: AppThemeTokens.space4),
+                    Text(
+                      'SKUs Used',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: AppThemeTokens.space2),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppThemeTokens.radiusMd,
+                        ),
+                        side: BorderSide(
+                          color: _showValidationHighlights && _skusHasError
+                              ? AppThemeTokens.error
+                              : AppThemeTokens.border,
+                        ),
                       ),
-                      children: [
-                        _MediaPlaceholderCard(
-                          itemPictureIcon: _itemPictureIcon,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(
+                          AppThemeTokens.radiusMd,
                         ),
-                        const SizedBox(height: AppThemeTokens.space4),
-                        _FieldEditor(
-                          label: 'Name',
-                          controller: _nameController,
-                          maxLength: 80,
-                          hintText: 'Enter service name',
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        const SizedBox(height: AppThemeTokens.space4),
-                        _FieldEditor(
-                          label: 'Description',
-                          controller: _descriptionController,
-                          maxLines: 4,
-                          maxLength: 250,
-                          hintText: 'Describe this service',
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        const SizedBox(height: AppThemeTokens.space4),
-                        ValueListenableBuilder<AppCurrency>(
-                          valueListenable: context.currencyController,
-                          builder: (_, currency, __) {
-                            return _PriceFieldWithCurrency(
-                              controller: _priceController,
-                              currencyCode: currency.code,
-                              onChanged: (_) => setState(() {}),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: AppThemeTokens.space4),
-                        Text(
-                          'SKUs Used',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: AppThemeTokens.space2),
-                        Card(
-                          margin: EdgeInsets.zero,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(
-                              AppThemeTokens.radiusMd,
-                            ),
-                            onTap: _editSkuSelection,
-                            child: Padding(
-                              padding: const EdgeInsets.all(
-                                AppThemeTokens.space3,
-                              ),
-                              child: selectedSkus.isEmpty
-                                  ? Text(
-                                      'Tap to choose SKUs',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    )
-                                  : Wrap(
-                                      spacing: AppThemeTokens.space2,
-                                      runSpacing: AppThemeTokens.space2,
-                                      children: selectedSkus
-                                          .map(
-                                            (sku) => Chip(
-                                              backgroundColor:
-                                                  AppThemeTokens.chipBackground,
-                                              side: BorderSide.none,
-                                              materialTapTargetSize:
-                                                  MaterialTapTargetSize
-                                                      .shrinkWrap,
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                              shape:
-                                                  const RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.all(
-                                                          Radius.circular(
-                                                            AppThemeTokens
-                                                                .radiusPill,
-                                                          ),
-                                                        ),
-                                                    side: BorderSide.none,
-                                                  ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal:
-                                                        AppThemeTokens
-                                                            .chipPaddingX -
-                                                        AppThemeTokens.space1,
-                                                    vertical:
-                                                        AppThemeTokens
-                                                            .chipPaddingY -
-                                                        AppThemeTokens.space1,
-                                                  ),
-                                              label: Text(
-                                                sku.name,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      color: AppThemeTokens
-                                                          .textPrimary,
-                                                    ),
+                        onTap: _editSkuSelection,
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppThemeTokens.space3),
+                          child: selectedSkus.isEmpty
+                              ? Text(
+                                  'Tap to choose SKUs',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                )
+                              : Wrap(
+                                  spacing: AppThemeTokens.space2,
+                                  runSpacing: AppThemeTokens.space2,
+                                  children: selectedSkus
+                                      .map(
+                                        (sku) => Chip(
+                                          backgroundColor:
+                                              AppThemeTokens.chipBackground,
+                                          side: BorderSide.none,
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                          visualDensity: VisualDensity.compact,
+                                          shape: const RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.all(
+                                              Radius.circular(
+                                                AppThemeTokens.radiusPill,
                                               ),
                                             ),
-                                          )
-                                          .toList(growable: false),
-                                    ),
-                            ),
-                          ),
+                                            side: BorderSide.none,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal:
+                                                AppThemeTokens.chipPaddingX -
+                                                AppThemeTokens.space1,
+                                            vertical:
+                                                AppThemeTokens.chipPaddingY -
+                                                AppThemeTokens.space1,
+                                          ),
+                                          label: Text(
+                                            sku.name,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  color: AppThemeTokens
+                                                      .textPrimary,
+                                                ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(growable: false),
+                                ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            if (_showUnsavedOverlay && _unsavedOverlayStartRect != null)
-              Positioned.fill(
-                child: _UnsavedChangesMorphOverlay(
-                  startRect: _unsavedOverlayStartRect!,
-                  onSelected: _onUnsavedOverlaySelected,
+                  ],
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -257,17 +281,16 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     if (!_hasChanges) {
       return true;
     }
+    if (!_isValid && !_showValidationHighlights) {
+      setState(() => _showValidationHighlights = true);
+    }
     final choice = await _showUnsavedChangesDialog();
     if (!mounted) {
       return false;
     }
     if (choice == _UnsavedServiceChangesAction.confirm) {
       if (!_isValid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Fix required fields before confirming'),
-          ),
-        );
+        setState(() => _showValidationHighlights = true);
         return false;
       }
       _save();
@@ -282,60 +305,18 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   }
 
   Future<_UnsavedServiceChangesAction?> _showUnsavedChangesDialog() {
-    final pending = _unsavedOverlayCompleter;
-    if (pending != null) {
-      return pending.future;
-    }
-
-    final completer = Completer<_UnsavedServiceChangesAction?>();
-    setState(() {
-      _unsavedOverlayStartRect = _resolveHeaderActionsRect();
-      _showUnsavedOverlay = true;
-      _unsavedOverlayCompleter = completer;
-    });
-    return completer.future;
-  }
-
-  Rect _resolveHeaderActionsRect() {
-    final actionsContext = _headerActionsKey.currentContext;
-    final stackContext = _stackKey.currentContext;
-    if (actionsContext == null || stackContext == null) {
-      return _fallbackHeaderActionsRect();
-    }
-    final actionsBox = actionsContext.findRenderObject() as RenderBox?;
-    final stackBox = stackContext.findRenderObject() as RenderBox?;
-    if (actionsBox == null || stackBox == null) {
-      return _fallbackHeaderActionsRect();
-    }
-    final topLeft = stackBox.globalToLocal(
-      actionsBox.localToGlobal(Offset.zero),
+    return showGeneralDialog<_UnsavedServiceChangesAction>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Dismiss unsaved changes',
+      barrierColor: Colors.transparent,
+      transitionDuration: Duration.zero,
+      pageBuilder: (_, __, ___) => _UnsavedChangesPopup(
+        isValid: _isValid,
+        validationErrors: _validationErrors,
+      ),
+      transitionBuilder: (_, __, ___, child) => child,
     );
-    return topLeft & actionsBox.size;
-  }
-
-  Rect _fallbackHeaderActionsRect() {
-    const width = 88.0;
-    const height = 40.0;
-    final size = MediaQuery.sizeOf(context);
-    return Rect.fromLTWH(
-      size.width - AppThemeTokens.space4 - width,
-      AppThemeTokens.space4,
-      width,
-      height,
-    );
-  }
-
-  void _onUnsavedOverlaySelected(_UnsavedServiceChangesAction? action) {
-    final completer = _unsavedOverlayCompleter;
-    if (completer == null || completer.isCompleted) {
-      return;
-    }
-    setState(() {
-      _showUnsavedOverlay = false;
-      _unsavedOverlayStartRect = null;
-      _unsavedOverlayCompleter = null;
-    });
-    completer.complete(action);
   }
 
   void _resetChanges() {
@@ -346,6 +327,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
       _priceController.text = _initialPriceText;
       _itemPictureIcon = _initialItemPictureIcon;
       _selectedSkuIds = Set<String>.of(_initialSkuIds);
+      _showValidationHighlights = false;
+      _nameBlurred = false;
+      _descriptionBlurred = false;
+      _priceBlurred = false;
     });
   }
 
@@ -380,320 +365,126 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   }
 }
 
-enum _UnsavedServiceChangesAction { confirm, discard }
+enum _UnsavedServiceChangesAction { confirm, discard, goBack }
 
-class _UnsavedChangesMorphOverlay extends StatefulWidget {
-  const _UnsavedChangesMorphOverlay({
-    required this.startRect,
-    required this.onSelected,
+class _UnsavedChangesPopup extends StatelessWidget {
+  const _UnsavedChangesPopup({
+    required this.isValid,
+    required this.validationErrors,
   });
 
-  final Rect startRect;
-  final ValueChanged<_UnsavedServiceChangesAction?> onSelected;
-
-  @override
-  State<_UnsavedChangesMorphOverlay> createState() =>
-      _UnsavedChangesMorphOverlayState();
-}
-
-class _UnsavedChangesMorphOverlayState
-    extends State<_UnsavedChangesMorphOverlay>
-    with SingleTickerProviderStateMixin {
-  static const Duration _duration = Duration(milliseconds: 200);
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: _duration,
-    reverseDuration: _duration,
-  );
-  bool _isClosing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _select(_UnsavedServiceChangesAction action) async {
-    if (_isClosing) {
-      return;
-    }
-    _isClosing = true;
-    await _controller.reverse();
-    if (!mounted) {
-      return;
-    }
-    widget.onSelected(action);
-  }
-
-  Future<void> _dismiss() async {
-    if (_isClosing) {
-      return;
-    }
-    _isClosing = true;
-    await _controller.reverse();
-    if (!mounted) {
-      return;
-    }
-    widget.onSelected(null);
-  }
+  final bool isValid;
+  final List<String> validationErrors;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        final targetRect = Rect.fromCenter(
-          center: Offset(width / 2, height / 2),
-          width: math.min(width - (AppThemeTokens.space6 * 2), 360),
-          height: 260,
-        );
-        final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: AppThemeTokens.textPrimary,
-          fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-        );
-        final bodyStyle = Theme.of(
-          context,
-        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.textSecondary);
-
-        return AnimatedBuilder(
-          animation: _controller,
-          builder: (_, __) {
-            final frameT = Curves.easeInOutCubic.transform(_controller.value);
-            final showContent = frameT > 0.6;
-            final contentT = Curves.easeOutCubic.transform(
-              ((frameT - 0.6) / 0.4).clamp(0.0, 1.0),
-            );
-            final actionLabelT = Curves.easeOutCubic.transform(
-              ((frameT - 0.66) / 0.34).clamp(0.0, 1.0),
-            );
-            final scrimOpacity = 0.55 * frameT;
-            final rect = Rect.lerp(widget.startRect, targetRect, frameT)!;
-            final borderRadius = BorderRadius.circular(20 + (12 * frameT));
-            final cardColor = Color.lerp(
-              Colors.transparent,
-              AppThemeTokens.surface,
-              frameT,
-            );
-
-            return Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _dismiss,
-                    child: ColoredBox(
-                      color: Colors.black.withValues(alpha: scrimOpacity),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ),
-                Positioned.fromRect(
-                  rect: rect,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: borderRadius,
-                      border: Border.all(
-                        color: AppThemeTokens.border,
-                        width: 2,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: borderRadius,
-                      child: Padding(
-                        padding: EdgeInsets.lerp(
-                          EdgeInsets.zero,
-                          const EdgeInsets.all(AppThemeTokens.space6),
-                          contentT,
-                        )!,
-                        child: Stack(
-                          children: [
-                            if (showContent)
-                              Positioned(
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                child: Transform.translate(
-                                  offset: Offset(0, (1 - contentT) * 10),
-                                  child: Opacity(
-                                    opacity: contentT,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'Unsaved changes',
-                                          style: titleStyle,
-                                        ),
-                                        SizedBox(
-                                          height:
-                                              AppThemeTokens.space3 * contentT,
-                                        ),
-                                        Transform.translate(
-                                          offset: Offset(0, (1 - contentT) * 8),
-                                          child: Opacity(
-                                            opacity: contentT,
-                                            child: Text(
-                                              'You have unsaved changes. '
-                                              'Confirm to keep them or '
-                                              'discard to exit.',
-                                              style: bodyStyle,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            Align(
-                              alignment: Alignment.bottomRight,
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerRight,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _MorphActionButton(
-                                      icon: Icons.close,
-                                      label: 'Discard',
-                                      filled: false,
-                                      progress: actionLabelT,
-                                      onTap: () => _select(
-                                        _UnsavedServiceChangesAction.discard,
-                                      ),
-                                    ),
-                                    const SizedBox(
-                                      width: AppThemeTokens.space2,
-                                    ),
-                                    _MorphActionButton(
-                                      icon: Icons.check,
-                                      label: 'Confirm',
-                                      filled: true,
-                                      progress: actionLabelT,
-                                      onTap: () => _select(
-                                        _UnsavedServiceChangesAction.confirm,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final width = math
+        .min(
+          MediaQuery.sizeOf(context).width - (AppThemeTokens.space6 * 2),
+          360,
+        )
+        .toDouble();
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      color: AppThemeTokens.textPrimary,
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
     );
-  }
-}
-
-class _MorphActionButton extends StatelessWidget {
-  const _MorphActionButton({
-    required this.icon,
-    required this.label,
-    required this.filled,
-    required this.progress,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool filled;
-  final double progress;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final clamped = progress.clamp(0.0, 1.0).toDouble();
-    final labelColor = filled ? AppThemeTokens.white : AppThemeTokens.primary;
-    final iconColor = filled
-        ? AppThemeTokens.white
-        : AppThemeTokens.textPrimary;
-    final width = 40 + ((filled ? 106 : 104) * clamped);
-    final slide = (1 - clamped) * 12;
+    final bodyStyle = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.textSecondary);
+    final actionStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+    );
+    final isInvalidVariant = !isValid;
+    final title = isInvalidVariant ? 'Invalid fields' : 'Unsaved changes';
+    final message = isInvalidVariant
+        ? validationErrors.join('\n')
+        : 'You have unsaved changes. Confirm to keep them or discard to exit.';
 
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-        child: Container(
-          width: width,
-          height: 40,
-          decoration: BoxDecoration(
-            color: filled ? AppThemeTokens.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-            border: Border.all(
-              color: filled ? AppThemeTokens.primary : AppThemeTokens.border,
-              width: 2,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(context).pop(),
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.55),
+                child: const SizedBox.expand(),
+              ),
             ),
           ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final iconWidth = math.min(40.0, constraints.maxWidth);
-              final labelWidth = (constraints.maxWidth - iconWidth).clamp(
-                0.0,
-                200.0,
-              );
-              return Row(
-                children: [
-                  SizedBox(
-                    width: iconWidth,
-                    child: Center(
-                      child: Icon(icon, size: 18, color: iconColor),
-                    ),
-                  ),
-                  if (clamped > 0.06 && labelWidth > 0)
-                    SizedBox(
-                      width: labelWidth,
-                      child: ClipRect(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: clamped,
-                          child: Transform.translate(
-                            offset: Offset(slide, 0),
-                            child: Opacity(
-                              opacity: clamped,
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                  left: AppThemeTokens.space2,
-                                ),
-                                child: Text(
-                                  label,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(
-                                        color: labelColor,
-                                        fontWeight: _fontWeight(
-                                          AppThemeTokens.fontWeightSemibold,
-                                        ),
-                                      ),
-                                ),
+          Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: Container(
+                width: width,
+                decoration: BoxDecoration(
+                  color: AppThemeTokens.surface,
+                  borderRadius: BorderRadius.circular(32),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppThemeTokens.space6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: titleStyle),
+                      const SizedBox(height: AppThemeTokens.space3),
+                      Text(message, style: bodyStyle),
+                      const SizedBox(height: AppThemeTokens.space6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(
+                              context,
+                            ).pop(_UnsavedServiceChangesAction.discard),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppThemeTokens.primary,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppThemeTokens.buttonPaddingX,
+                                vertical: AppThemeTokens.buttonPaddingY,
+                              ),
+                            ),
+                            child: Text(
+                              'Discard',
+                              style: actionStyle?.copyWith(
+                                color: AppThemeTokens.primary,
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: AppThemeTokens.space2),
+                          FilledButton(
+                            onPressed: () => Navigator.of(context).pop(
+                              isInvalidVariant
+                                  ? _UnsavedServiceChangesAction.goBack
+                                  : _UnsavedServiceChangesAction.confirm,
+                            ),
+                            style: FilledButton.styleFrom(
+                              foregroundColor: AppThemeTokens.white,
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppThemeTokens.buttonPaddingX,
+                                vertical: AppThemeTokens.buttonPaddingY,
+                              ),
+                            ),
+                            child: Text(
+                              isInvalidVariant ? 'Go Back' : 'Confirm',
+                              style: actionStyle?.copyWith(
+                                color: AppThemeTokens.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                ],
-              );
-            },
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -703,11 +494,15 @@ class _PriceFieldWithCurrency extends StatelessWidget {
   const _PriceFieldWithCurrency({
     required this.controller,
     required this.currencyCode,
+    this.hasError = false,
+    this.onTapOutside,
     this.onChanged,
   });
 
   final TextEditingController controller;
   final String currencyCode;
+  final bool hasError;
+  final VoidCallback? onTapOutside;
   final ValueChanged<String>? onChanged;
 
   @override
@@ -721,21 +516,47 @@ class _PriceFieldWithCurrency extends StatelessWidget {
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: onChanged,
-          decoration: InputDecoration(
-            hintText: 'e.g. 1200.00',
-            suffix: Padding(
-              padding: const EdgeInsets.only(left: AppThemeTokens.space3),
-              child: Text(
-                currencyCode,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppThemeTokens.textSecondary,
-                  fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+          onTapOutside: (_) {
+            FocusManager.instance.primaryFocus?.unfocus();
+            onChanged?.call(controller.text);
+            onTapOutside?.call();
+          },
+          decoration: _buildDecoration(
+            context,
+            InputDecoration(
+              hintText: 'e.g. 1200.00',
+              suffix: Padding(
+                padding: const EdgeInsets.only(left: AppThemeTokens.space3),
+                child: Text(
+                  currencyCode,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppThemeTokens.textSecondary,
+                    fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  InputDecoration _buildDecoration(
+    BuildContext context,
+    InputDecoration decoration,
+  ) {
+    if (!hasError) {
+      return decoration;
+    }
+    final errorBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+      borderSide: const BorderSide(color: AppThemeTokens.error),
+    );
+    return decoration.copyWith(
+      enabledBorder: errorBorder,
+      focusedBorder: errorBorder,
+      border: errorBorder,
     );
   }
 }

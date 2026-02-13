@@ -171,6 +171,44 @@ void main() {
     expect(side?.width, 2);
   });
 
+  testWidgets(
+    'tapping outside selected text field unfocuses and keeps validation logic',
+    (WidgetTester tester) async {
+      await pumpViewAll(tester);
+      await openCard(tester, 'Service #001');
+
+      final priceField = find.byType(TextField).at(2);
+      await tester.tap(priceField);
+      await tester.pump();
+
+      await tester.enterText(priceField, '1200a');
+      await tester.pump();
+
+      final priceEditableBefore = tester.widget<EditableText>(
+        find.descendant(of: priceField, matching: find.byType(EditableText)),
+      );
+      expect(priceEditableBefore.focusNode.hasFocus, isTrue);
+
+      await tester.tap(find.text('SKUs Used'));
+      await tester.pump();
+
+      final priceEditableAfter = tester.widget<EditableText>(
+        find.descendant(of: priceField, matching: find.byType(EditableText)),
+      );
+      expect(priceEditableAfter.focusNode.hasFocus, isFalse);
+
+      final priceTextField = tester.widget<TextField>(priceField);
+      final priceBorder =
+          priceTextField.decoration?.enabledBorder as OutlineInputBorder?;
+      expect(priceBorder?.borderSide.color, AppThemeTokens.error);
+
+      final saveButton = tester.widget<FilledButton>(
+        find.widgetWithIcon(FilledButton, Icons.check),
+      );
+      expect(saveButton.onPressed, isNull);
+    },
+  );
+
   testWidgets('service detail X cancels edits and stays on page', (
     WidgetTester tester,
   ) async {
@@ -218,7 +256,7 @@ void main() {
     expect(find.text('Service #001 Unsaved'), findsNothing);
   });
 
-  testWidgets('service unsaved overlay animates title and labels in', (
+  testWidgets('service unsaved popup shows content immediately', (
     WidgetTester tester,
   ) async {
     await pumpViewAll(tester);
@@ -232,18 +270,98 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
     await tester.pump();
-
-    expect(find.text('Unsaved changes'), findsNothing);
-    expect(find.text('Discard'), findsNothing);
-    expect(find.text('Confirm'), findsNothing);
-
-    await tester.pump(const Duration(milliseconds: 420));
+    await tester.pumpAndSettle();
 
     expect(find.text('Unsaved changes'), findsOneWidget);
     expect(find.textContaining('You have unsaved changes'), findsOneWidget);
     expect(find.text('Discard'), findsOneWidget);
     expect(find.text('Confirm'), findsOneWidget);
   });
+
+  testWidgets('service unsaved overlay action labels use larger text size', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    await tester.enterText(
+      find.byType(TextField).at(0),
+      'Service #001 Unsaved',
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    final discardText = tester.widget<Text>(find.text('Discard'));
+    final confirmText = tester.widget<Text>(find.text('Confirm'));
+
+    expect(discardText.style?.fontSize, AppThemeTokens.fontSizeBodyLarge);
+    expect(confirmText.style?.fontSize, AppThemeTokens.fontSizeBodyLarge);
+  });
+
+  testWidgets(
+    'service unsaved overlay uses app theme button and frame styles',
+    (WidgetTester tester) async {
+      await pumpViewAll(tester);
+      await openCard(tester, 'Service #001');
+
+      await tester.enterText(
+        find.byType(TextField).at(0),
+        'Service #001 Unsaved',
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.arrow_back).first);
+      await tester.pumpAndSettle();
+
+      final popupContainer = tester.widget<Container>(
+        find
+            .ancestor(
+              of: find.text('Unsaved changes'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container &&
+                    widget.decoration is BoxDecoration &&
+                    (widget.decoration as BoxDecoration).color ==
+                        AppThemeTokens.surface,
+              ),
+            )
+            .first,
+      );
+      final popupDecoration = popupContainer.decoration! as BoxDecoration;
+      expect(popupDecoration.border, isNull);
+
+      final discardButton = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Discard'),
+      );
+      expect(
+        discardButton.style?.padding?.resolve(const <WidgetState>{}),
+        const EdgeInsets.symmetric(
+          horizontal: AppThemeTokens.buttonPaddingX,
+          vertical: AppThemeTokens.buttonPaddingY,
+        ),
+      );
+
+      final confirmButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Confirm'),
+      );
+      expect(
+        confirmButton.style?.padding?.resolve(const <WidgetState>{}),
+        const EdgeInsets.symmetric(
+          horizontal: AppThemeTokens.buttonPaddingX,
+          vertical: AppThemeTokens.buttonPaddingY,
+        ),
+      );
+      final confirmText = tester.widget<Text>(
+        find.descendant(
+          of: find.widgetWithText(FilledButton, 'Confirm'),
+          matching: find.text('Confirm'),
+        ),
+      );
+      expect(confirmText.style?.color, AppThemeTokens.white);
+    },
+  );
 
   testWidgets('tapping outside unsaved overlay dismisses and keeps edits', (
     WidgetTester tester,
@@ -291,6 +409,45 @@ void main() {
     expect(find.text('All Items'), findsOneWidget);
     expect(find.text('Service One'), findsOneWidget);
   });
+
+  testWidgets(
+    'invalid unsaved popup uses discard/go back and highlights bad fields',
+    (WidgetTester tester) async {
+      await pumpViewAll(tester);
+      await openCard(tester, 'Service #001');
+
+      await tester.enterText(find.byType(TextField).at(0), '');
+      await tester.enterText(find.byType(TextField).at(2), '1200a');
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.arrow_back).first);
+      await tester.pumpAndSettle();
+      expect(find.text('Invalid fields'), findsOneWidget);
+      expect(
+        find.textContaining('Price field must be a valid number'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Please fix'), findsNothing);
+      expect(find.widgetWithText(TextButton, 'Discard'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Go Back'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Confirm'), findsNothing);
+
+      final nameField = tester.widget<TextField>(find.byType(TextField).at(0));
+      final nameBorder =
+          nameField.decoration?.enabledBorder as OutlineInputBorder?;
+      expect(nameBorder?.borderSide.color, AppThemeTokens.error);
+
+      final priceField = tester.widget<TextField>(find.byType(TextField).at(2));
+      final priceBorder =
+          priceField.decoration?.enabledBorder as OutlineInputBorder?;
+      expect(priceBorder?.borderSide.color, AppThemeTokens.error);
+
+      await tester.tap(find.text('Go Back'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ServiceDetailPage), findsOneWidget);
+      expect(find.text('Invalid fields'), findsNothing);
+    },
+  );
 
   testWidgets('add SKU flow requires description and appends new card', (
     WidgetTester tester,

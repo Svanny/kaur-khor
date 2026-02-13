@@ -194,6 +194,10 @@ class _SearchField extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
+      onTapOutside: (_) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        onChanged(controller.text);
+      },
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: Theme.of(
@@ -642,6 +646,8 @@ class _FieldEditor extends StatelessWidget {
     required this.controller,
     this.maxLines = 1,
     this.enabled = true,
+    this.hasError = false,
+    this.onTapOutside,
     this.keyboardType,
     this.onChanged,
     this.maxLength,
@@ -652,6 +658,8 @@ class _FieldEditor extends StatelessWidget {
   final TextEditingController controller;
   final int maxLines;
   final bool enabled;
+  final bool hasError;
+  final VoidCallback? onTapOutside;
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
   final int? maxLength;
@@ -671,7 +679,14 @@ class _FieldEditor extends StatelessWidget {
             enabled: enabled,
             keyboardType: keyboardType,
             onChanged: onChanged,
-            decoration: InputDecoration(hintText: hintText ?? label),
+            onTapOutside: (_) {
+              FocusManager.instance.primaryFocus?.unfocus();
+              onChanged?.call(controller.text);
+              onTapOutside?.call();
+            },
+            decoration: _buildDecoration(
+              InputDecoration(hintText: hintText ?? label),
+            ),
           )
         else
           Stack(
@@ -682,26 +697,35 @@ class _FieldEditor extends StatelessWidget {
                 enabled: enabled,
                 keyboardType: keyboardType,
                 onChanged: onChanged,
+                onTapOutside: (_) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  onChanged?.call(controller.text);
+                  onTapOutside?.call();
+                },
                 maxLength: maxLength,
                 textAlignVertical: maxLines > 1
                     ? TextAlignVertical.top
                     : TextAlignVertical.center,
-                decoration: InputDecoration(
-                  hintText: hintText ?? label,
-                  counterText: '',
-                  suffix: maxLines == 1
-                      ? const SizedBox(
-                          width: AppThemeTokens.space8 + AppThemeTokens.space2,
-                        )
-                      : null,
-                  contentPadding: maxLines > 1
-                      ? const EdgeInsets.fromLTRB(
-                          AppThemeTokens.inputPaddingX,
-                          AppThemeTokens.inputPaddingY,
-                          AppThemeTokens.inputPaddingX,
-                          AppThemeTokens.inputPaddingY + AppThemeTokens.space6,
-                        )
-                      : null,
+                decoration: _buildDecoration(
+                  InputDecoration(
+                    hintText: hintText ?? label,
+                    counterText: '',
+                    suffix: maxLines == 1
+                        ? const SizedBox(
+                            width:
+                                AppThemeTokens.space8 + AppThemeTokens.space2,
+                          )
+                        : null,
+                    contentPadding: maxLines > 1
+                        ? const EdgeInsets.fromLTRB(
+                            AppThemeTokens.inputPaddingX,
+                            AppThemeTokens.inputPaddingY,
+                            AppThemeTokens.inputPaddingX,
+                            AppThemeTokens.inputPaddingY +
+                                AppThemeTokens.space6,
+                          )
+                        : null,
+                  ),
                 ),
               ),
               Positioned(
@@ -724,6 +748,22 @@ class _FieldEditor extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+
+  InputDecoration _buildDecoration(InputDecoration decoration) {
+    if (!hasError) {
+      return decoration;
+    }
+
+    final errorBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+      borderSide: const BorderSide(color: AppThemeTokens.error),
+    );
+    return decoration.copyWith(
+      border: errorBorder,
+      enabledBorder: errorBorder,
+      focusedBorder: errorBorder,
     );
   }
 }
