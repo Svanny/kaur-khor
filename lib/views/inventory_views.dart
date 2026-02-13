@@ -1163,17 +1163,33 @@ class _InventoryItemCard extends StatelessWidget {
                         runSpacing: AppThemeTokens.space2,
                         children: [
                           Chip(
+                            backgroundColor: AppThemeTokens.chipBackground,
+                            side: BorderSide.none,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(AppThemeTokens.radiusPill),
+                              ),
+                              side: BorderSide.none,
+                            ),
                             padding: const EdgeInsets.symmetric(
                               horizontal:
                                   AppThemeTokens.chipPaddingX -
-                                  AppThemeTokens.space2,
+                                  AppThemeTokens.space1,
                               vertical:
                                   AppThemeTokens.chipPaddingY -
-                                  AppThemeTokens.space2,
+                                  AppThemeTokens.space1,
                             ),
                             label: Text('Pieces: $pieces'),
                           ),
                           Chip(
+                            backgroundColor: AppThemeTokens.chipBackground,
+                            side: BorderSide.none,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(AppThemeTokens.radiusPill),
+                              ),
+                              side: BorderSide.none,
+                            ),
                             padding: const EdgeInsets.symmetric(
                               horizontal:
                                   AppThemeTokens.chipPaddingX -
