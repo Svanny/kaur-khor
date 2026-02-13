@@ -178,7 +178,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
         .toList(growable: false);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.small(
+      floatingActionButton: FloatingActionButton(
         onPressed: _onAddItemPressed,
         child: const Icon(Icons.add),
       ),
@@ -266,34 +266,44 @@ class _ViewAllPageState extends State<ViewAllPage> {
                   bottom: bottomInset + AppThemeTokens.space8,
                 ),
                 children: [
-                  if (_showServices) ...[
-                    const _SectionHeader(title: 'Services'),
-                    const SizedBox(height: AppThemeTokens.space3),
-                    for (final service in visibleServices) ...[
-                      _InventoryItemCard(
-                        title: service.name,
-                        pieces: _piecesForService(service),
-                        bulk: _bulkForService(service),
-                        totalValueLabel: _currencyLabel(service.price),
-                        onTap: () => _editService(service),
-                      ),
-                      const SizedBox(height: AppThemeTokens.space3),
-                    ],
-                  ],
-                  if (_showSkus) ...[
-                    const _SectionHeader(title: 'SKUs'),
-                    const SizedBox(height: AppThemeTokens.space3),
-                    for (final sku in visibleSkus) ...[
-                      _InventoryItemCard(
-                        title: sku.name,
-                        pieces: sku.pieces,
-                        bulk: sku.bulk,
-                        totalValueLabel: _currencyLabel(sku.totalValue),
-                        onTap: () => _editSku(sku),
-                      ),
-                      const SizedBox(height: AppThemeTokens.space3),
-                    ],
-                  ],
+                  _AnimatedFilterSection(
+                    visible: _showServices,
+                    child: Column(
+                      children: [
+                        const _SectionHeader(title: 'Services'),
+                        const SizedBox(height: AppThemeTokens.space3),
+                        for (final service in visibleServices) ...[
+                          _InventoryItemCard(
+                            title: service.name,
+                            pieces: _piecesForService(service),
+                            bulk: _bulkForService(service),
+                            totalValueLabel: _currencyLabel(service.price),
+                            onTap: () => _editService(service),
+                          ),
+                          const SizedBox(height: AppThemeTokens.space3),
+                        ],
+                      ],
+                    ),
+                  ),
+                  _AnimatedFilterSection(
+                    visible: _showSkus,
+                    child: Column(
+                      children: [
+                        const _SectionHeader(title: 'SKUs'),
+                        const SizedBox(height: AppThemeTokens.space3),
+                        for (final sku in visibleSkus) ...[
+                          _InventoryItemCard(
+                            title: sku.name,
+                            pieces: sku.pieces,
+                            bulk: sku.bulk,
+                            totalValueLabel: _currencyLabel(sku.totalValue),
+                            onTap: () => _editSku(sku),
+                          ),
+                          const SizedBox(height: AppThemeTokens.space3),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -444,6 +454,33 @@ class _ViewAllPageState extends State<ViewAllPage> {
 }
 
 enum _NewItemType { sku, service }
+
+class _AnimatedFilterSection extends StatelessWidget {
+  const _AnimatedFilterSection({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  static const Duration _duration = Duration(milliseconds: 200);
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedAlign(
+        duration: _duration,
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        heightFactor: visible ? 1 : 0,
+        child: AnimatedOpacity(
+          duration: _duration,
+          curve: Curves.easeOutCubic,
+          opacity: visible ? 1 : 0,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
 
 class SkuDetailPage extends StatefulWidget {
   const SkuDetailPage({required this.initialSku, super.key});
