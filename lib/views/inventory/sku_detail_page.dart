@@ -111,7 +111,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                   bottom: bottomInset + AppThemeTokens.space8,
                 ),
                 children: [
-                  const _MediaPlaceholderCard(),
+                  _MediaPlaceholderCard(itemPictureIcon: _itemPictureIcon),
                   const SizedBox(height: AppThemeTokens.space4),
                   _FieldEditor(
                     label: 'Name',
@@ -127,7 +127,6 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                   ),
                   const SizedBox(height: AppThemeTokens.space3),
                   _ItemPictureField(
-                    icon: _itemPictureIcon,
                     onUseDefault: () {
                       setState(() => _itemPictureIcon = _defaultSkuPictureIcon);
                     },

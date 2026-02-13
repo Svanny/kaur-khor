@@ -345,8 +345,49 @@ class _InventoryItemCard extends StatelessWidget {
   }
 }
 
-class _MediaPlaceholderCard extends StatelessWidget {
-  const _MediaPlaceholderCard();
+class _MediaPlaceholderCard extends StatefulWidget {
+  const _MediaPlaceholderCard({required this.itemPictureIcon});
+
+  final IconData itemPictureIcon;
+
+  @override
+  State<_MediaPlaceholderCard> createState() => _MediaPlaceholderCardState();
+}
+
+class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
+  static const int _pageCount = 2;
+  static const Duration _autoScrollEvery = Duration(seconds: 10);
+  static const Duration _pageAnimationDuration = Duration(milliseconds: 350);
+
+  late final PageController _pageController;
+  Timer? _autoScrollTimer;
+  int _activePage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _autoScrollTimer = Timer.periodic(_autoScrollEvery, (_) => _advancePage());
+  }
+
+  @override
+  void dispose() {
+    _autoScrollTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _advancePage() {
+    if (!mounted || !_pageController.hasClients) {
+      return;
+    }
+    final nextPage = (_activePage + 1) % _pageCount;
+    _pageController.animateToPage(
+      nextPage,
+      duration: _pageAnimationDuration,
+      curve: Curves.easeInOutCubic,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -355,31 +396,67 @@ class _MediaPlaceholderCard extends StatelessWidget {
         height: 260,
         child: Stack(
           children: [
-            const Positioned(
-              top: AppThemeTokens.space3,
-              right: AppThemeTokens.space3,
-              child: Icon(Icons.filter_alt_outlined),
-            ),
-            Center(
-              child: Text(
-                'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppThemeTokens.textSecondary,
-                ),
+            Positioned.fill(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() => _activePage = index);
+                },
+                children: [
+                  Center(
+                    child: Text(
+                      'Chart graphing updates +\nest. (banded) values\n\nand picture for the other',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppThemeTokens.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Container(
+                      width: AppThemeTokens.unit * 36,
+                      height: AppThemeTokens.unit * 36,
+                      decoration: BoxDecoration(
+                        color: AppThemeTokens.accentDarker,
+                        borderRadius: BorderRadius.circular(
+                          AppThemeTokens.radiusMd,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppThemeTokens.space2),
+                        child: _ItemPictureGlyph(
+                          widget.itemPictureIcon,
+                          fill: true,
+                          color: AppThemeTokens.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const Positioned(
+            Positioned(
+              top: AppThemeTokens.space2,
+              right: AppThemeTokens.space2,
+              child: IconButton(
+                onPressed: () {},
+                tooltip: 'Edit media',
+                icon: const Icon(Icons.edit_square),
+              ),
+            ),
+            Positioned(
               left: 0,
               right: 0,
               bottom: AppThemeTokens.space3,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _CarouselDot(active: false),
-                  SizedBox(width: AppThemeTokens.space2),
-                  _CarouselDot(active: true),
-                ],
+                children: List.generate(_pageCount * 2 - 1, (index) {
+                  if (index.isOdd) {
+                    return const SizedBox(width: AppThemeTokens.space2);
+                  }
+                  final dotIndex = index ~/ 2;
+                  return _CarouselDot(active: _activePage == dotIndex);
+                }),
               ),
             ),
           ],
@@ -409,12 +486,10 @@ class _CarouselDot extends StatelessWidget {
 
 class _ItemPictureField extends StatelessWidget {
   const _ItemPictureField({
-    required this.icon,
     required this.onUseDefault,
     required this.defaultLabel,
   });
 
-  final IconData icon;
   final VoidCallback onUseDefault;
   final String defaultLabel;
 
@@ -430,28 +505,9 @@ class _ItemPictureField extends StatelessWidget {
             padding: const EdgeInsets.all(AppThemeTokens.space3),
             child: Row(
               children: [
-                Container(
-                  width: AppThemeTokens.unit * 14,
-                  height: AppThemeTokens.unit * 14,
-                  decoration: BoxDecoration(
-                    color: AppThemeTokens.accentDarker,
-                    borderRadius: BorderRadius.circular(
-                      AppThemeTokens.radiusMd,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppThemeTokens.space1),
-                    child: _ItemPictureGlyph(
-                      icon,
-                      fill: true,
-                      color: AppThemeTokens.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppThemeTokens.space3),
                 Expanded(
                   child: Text(
-                    'Required field. $defaultLabel.',
+                    'Preview shown in carousel. Required field. $defaultLabel.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),

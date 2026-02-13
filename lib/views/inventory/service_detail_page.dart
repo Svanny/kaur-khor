@@ -75,7 +75,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                   bottom: bottomInset + AppThemeTokens.space8,
                 ),
                 children: [
-                  const _MediaPlaceholderCard(),
+                  _MediaPlaceholderCard(itemPictureIcon: _itemPictureIcon),
                   const SizedBox(height: AppThemeTokens.space4),
                   _FieldEditor(
                     label: 'Name',
@@ -91,7 +91,6 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                   ),
                   const SizedBox(height: AppThemeTokens.space3),
                   _ItemPictureField(
-                    icon: _itemPictureIcon,
                     onUseDefault: () {
                       setState(
                         () => _itemPictureIcon = _defaultServicePictureIcon,
@@ -133,11 +132,37 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                                 children: selectedSkus
                                     .map(
                                       (sku) => Chip(
+                                        backgroundColor:
+                                            AppThemeTokens.chipBackground,
+                                        side: BorderSide.none,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        visualDensity: VisualDensity.compact,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.all(
+                                            Radius.circular(
+                                              AppThemeTokens.radiusPill,
+                                            ),
+                                          ),
+                                          side: BorderSide.none,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal:
+                                              AppThemeTokens.chipPaddingX -
+                                              AppThemeTokens.space1,
+                                          vertical:
+                                              AppThemeTokens.chipPaddingY -
+                                              AppThemeTokens.space1,
+                                        ),
                                         label: Text(
                                           sku.name,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color:
+                                                    AppThemeTokens.textPrimary,
+                                              ),
                                         ),
                                       ),
                                     )
