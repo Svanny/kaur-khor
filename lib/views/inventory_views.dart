@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
+const IconData _defaultItemPictureIcon = Icons.inventory_2_outlined;
+
 class SkuItem {
   const SkuItem({
     required this.id,
     required this.name,
+    required this.itemPictureIcon,
     required this.description,
     required this.pieces,
     required this.bulk,
@@ -18,6 +21,7 @@ class SkuItem {
 
   final String id;
   final String name;
+  final IconData itemPictureIcon;
   final String description;
   final int pieces;
   final int bulk;
@@ -32,6 +36,7 @@ class SkuItem {
   SkuItem copyWith({
     String? id,
     String? name,
+    IconData? itemPictureIcon,
     String? description,
     int? pieces,
     int? bulk,
@@ -45,6 +50,7 @@ class SkuItem {
     return SkuItem(
       id: id ?? this.id,
       name: name ?? this.name,
+      itemPictureIcon: itemPictureIcon ?? this.itemPictureIcon,
       description: description ?? this.description,
       pieces: pieces ?? this.pieces,
       bulk: bulk ?? this.bulk,
@@ -63,6 +69,7 @@ class ServiceItem {
   const ServiceItem({
     required this.id,
     required this.name,
+    required this.itemPictureIcon,
     required this.description,
     required this.price,
     required this.skuIds,
@@ -70,6 +77,7 @@ class ServiceItem {
 
   final String id;
   final String name;
+  final IconData itemPictureIcon;
   final String description;
   final double price;
   final Set<String> skuIds;
@@ -77,6 +85,7 @@ class ServiceItem {
   ServiceItem copyWith({
     String? id,
     String? name,
+    IconData? itemPictureIcon,
     String? description,
     double? price,
     Set<String>? skuIds,
@@ -84,6 +93,7 @@ class ServiceItem {
     return ServiceItem(
       id: id ?? this.id,
       name: name ?? this.name,
+      itemPictureIcon: itemPictureIcon ?? this.itemPictureIcon,
       description: description ?? this.description,
       price: price ?? this.price,
       skuIds: skuIds ?? this.skuIds,
@@ -103,6 +113,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     SkuItem(
       id: 'sku-001',
       name: 'SKU #001',
+      itemPictureIcon: _defaultItemPictureIcon,
       description: 'Base ingredient for high volume items.',
       pieces: 120,
       bulk: 12,
@@ -115,6 +126,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     SkuItem(
       id: 'sku-002',
       name: 'SKU #002',
+      itemPictureIcon: _defaultItemPictureIcon,
       description: 'Reusable material with stable demand.',
       pieces: 86,
       bulk: 6,
@@ -127,6 +139,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     SkuItem(
       id: 'sku-003',
       name: 'SKU #003',
+      itemPictureIcon: _defaultItemPictureIcon,
       description: 'Low-rotation backup stock.',
       pieces: 44,
       bulk: 4,
@@ -142,6 +155,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     ServiceItem(
       id: 'service-001',
       name: 'Service #001',
+      itemPictureIcon: _defaultItemPictureIcon,
       description: 'Basic package for recurring customers.',
       price: 1200,
       skuIds: {'sku-001', 'sku-002'},
@@ -149,6 +163,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     ServiceItem(
       id: 'service-002',
       name: 'Service #002',
+      itemPictureIcon: _defaultItemPictureIcon,
       description: 'Premium package with deeper SKU usage.',
       price: 2200,
       skuIds: {'sku-002', 'sku-003'},
@@ -275,6 +290,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                         for (final service in visibleServices) ...[
                           _InventoryItemCard(
                             title: service.name,
+                            itemPictureIcon: service.itemPictureIcon,
                             pieces: _piecesForService(service),
                             bulk: _bulkForService(service),
                             totalValueLabel: _currencyLabel(service.price),
@@ -294,6 +310,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                         for (final sku in visibleSkus) ...[
                           _InventoryItemCard(
                             title: sku.name,
+                            itemPictureIcon: sku.itemPictureIcon,
                             pieces: sku.pieces,
                             bulk: sku.bulk,
                             totalValueLabel: _currencyLabel(sku.totalValue),
@@ -410,6 +427,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     final newSku = SkuItem(
       id: 'sku-${DateTime.now().microsecondsSinceEpoch}',
       name: 'SKU #NEW',
+      itemPictureIcon: _defaultItemPictureIcon,
       description: '',
       pieces: 0,
       bulk: 0,
@@ -434,6 +452,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     final newService = ServiceItem(
       id: 'service-${DateTime.now().microsecondsSinceEpoch}',
       name: 'Service #NEW',
+      itemPictureIcon: _defaultItemPictureIcon,
       description: '',
       price: 0,
       skuIds: <String>{},
@@ -501,6 +520,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   late final TextEditingController _costBulkController;
   late final TextEditingController _productPriceController;
 
+  late IconData _itemPictureIcon;
   late bool _soldAsProduct;
 
   @override
@@ -523,6 +543,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     _productPriceController = TextEditingController(
       text: sku.productPrice == null ? '' : _trimNumber(sku.productPrice!),
     );
+    _itemPictureIcon = sku.itemPictureIcon;
     _soldAsProduct = sku.soldAsProduct;
   }
 
@@ -602,6 +623,13 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
               controller: _descriptionController,
               maxLines: 4,
               onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: AppThemeTokens.space3),
+            _ItemPictureField(
+              icon: _itemPictureIcon,
+              onUseDefault: () {
+                setState(() => _itemPictureIcon = _defaultItemPictureIcon);
+              },
             ),
             const SizedBox(height: AppThemeTokens.space3),
             Row(
@@ -721,6 +749,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     }
     final updated = widget.initialSku.copyWith(
       name: _nameController.text.trim(),
+      itemPictureIcon: _itemPictureIcon,
       description: _descriptionController.text.trim(),
       pieces: _tryInt(_piecesController.text) ?? 0,
       bulk: _tryInt(_bulkController.text) ?? 0,
@@ -755,6 +784,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _priceController;
+  late IconData _itemPictureIcon;
   late Set<String> _selectedSkuIds;
 
   @override
@@ -764,6 +794,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     _nameController = TextEditingController(text: service.name);
     _descriptionController = TextEditingController(text: service.description);
     _priceController = TextEditingController(text: _trimNumber(service.price));
+    _itemPictureIcon = service.itemPictureIcon;
     _selectedSkuIds = Set<String>.of(service.skuIds);
   }
 
@@ -821,6 +852,13 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
               controller: _descriptionController,
               maxLines: 4,
               onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: AppThemeTokens.space3),
+            _ItemPictureField(
+              icon: _itemPictureIcon,
+              onUseDefault: () {
+                setState(() => _itemPictureIcon = _defaultItemPictureIcon);
+              },
             ),
             const SizedBox(height: AppThemeTokens.space3),
             _FieldEditor(
@@ -891,6 +929,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     }
     final updated = widget.initialService.copyWith(
       name: _nameController.text.trim(),
+      itemPictureIcon: _itemPictureIcon,
       description: _descriptionController.text.trim(),
       price: _tryDouble(_priceController.text) ?? 0,
       skuIds: _selectedSkuIds,
@@ -1213,6 +1252,7 @@ class _SearchField extends StatelessWidget {
 class _InventoryItemCard extends StatelessWidget {
   const _InventoryItemCard({
     required this.title,
+    required this.itemPictureIcon,
     required this.pieces,
     required this.bulk,
     required this.totalValueLabel,
@@ -1220,6 +1260,7 @@ class _InventoryItemCard extends StatelessWidget {
   });
 
   final String title;
+  final IconData itemPictureIcon;
   final int pieces;
   final int bulk;
   final String totalValueLabel;
@@ -1239,11 +1280,18 @@ class _InventoryItemCard extends StatelessWidget {
               children: [
                 AspectRatio(
                   aspectRatio: 1,
-                  child: DecoratedBox(
+                  child: Container(
                     decoration: BoxDecoration(
                       color: AppThemeTokens.accentDarker,
                       borderRadius: BorderRadius.circular(
                         AppThemeTokens.radiusMd,
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        itemPictureIcon,
+                        size: AppThemeTokens.iconSizeMedium * 1.3,
+                        color: AppThemeTokens.white,
                       ),
                     ),
                   ),
@@ -1390,6 +1438,59 @@ class _CarouselDot extends StatelessWidget {
         shape: BoxShape.circle,
         color: active ? AppThemeTokens.primary : AppThemeTokens.border,
       ),
+    );
+  }
+}
+
+class _ItemPictureField extends StatelessWidget {
+  const _ItemPictureField({required this.icon, required this.onUseDefault});
+
+  final IconData icon;
+  final VoidCallback onUseDefault;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Item Picture *', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppThemeTokens.space1),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppThemeTokens.space3),
+            child: Row(
+              children: [
+                Container(
+                  width: AppThemeTokens.unit * 14,
+                  height: AppThemeTokens.unit * 14,
+                  decoration: BoxDecoration(
+                    color: AppThemeTokens.accentDarker,
+                    borderRadius: BorderRadius.circular(
+                      AppThemeTokens.radiusMd,
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: AppThemeTokens.iconSizeMedium * 1.2,
+                    color: AppThemeTokens.white,
+                  ),
+                ),
+                const SizedBox(width: AppThemeTokens.space3),
+                Expanded(
+                  child: Text(
+                    'Required field. Default uses box icon.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: onUseDefault,
+                  child: const Text('Default'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
