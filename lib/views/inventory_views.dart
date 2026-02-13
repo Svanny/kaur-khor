@@ -488,15 +488,17 @@ class _AnimatedFilterSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final curve = visible ? Curves.easeOutCubic : Curves.easeInCubic;
+
     return ClipRect(
       child: AnimatedAlign(
         duration: _duration,
-        curve: Curves.easeOutCubic,
+        curve: curve,
         alignment: Alignment.topCenter,
         heightFactor: visible ? 1 : 0,
         child: AnimatedOpacity(
           duration: _duration,
-          curve: Curves.easeOutCubic,
+          curve: curve,
           opacity: visible ? 1 : 0,
           child: child,
         ),
@@ -1516,6 +1518,14 @@ class _ItemPictureGlyph extends StatelessWidget {
   final bool fill;
   final Color color;
 
+  bool get _isDefaultInventoryIcon {
+    return icon == _defaultSkuPictureIcon || icon == _defaultServicePictureIcon;
+  }
+
+  Color get _effectiveColor {
+    return _isDefaultInventoryIcon ? AppThemeTokens.secondary : color;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!fill) {
@@ -1538,11 +1548,11 @@ class _ItemPictureGlyph extends StatelessWidget {
         _defaultServicePictureAsset,
         width: size,
         height: size,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+        colorFilter: ColorFilter.mode(_effectiveColor, BlendMode.srcIn),
       );
     }
 
-    return Icon(icon, size: size, color: color);
+    return Icon(icon, size: size, color: _effectiveColor);
   }
 }
 
