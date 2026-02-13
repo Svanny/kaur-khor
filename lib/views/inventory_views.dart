@@ -1184,7 +1184,27 @@ class _SearchField extends StatelessWidget {
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hintText,
-        suffixIcon: const Icon(Icons.search),
+        hintStyle: Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.textSecondary),
+        prefixIcon: const Icon(Icons.search),
+        prefixIconColor: AppThemeTokens.textSecondary,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppThemeTokens.inputPaddingX,
+          vertical: AppThemeTokens.inputPaddingY,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+          borderSide: const BorderSide(color: AppThemeTokens.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+          borderSide: const BorderSide(color: AppThemeTokens.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+          borderSide: const BorderSide(color: AppThemeTokens.primary),
+        ),
       ),
     );
   }
