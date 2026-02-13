@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../localization/locale_controller.dart';
+import '../settings/currency_controller.dart';
 import '../theme/app_theme.dart';
 
 class SettingsView extends StatefulWidget {
@@ -18,12 +19,11 @@ class SettingsView extends StatefulWidget {
 class _SettingsViewState extends State<SettingsView> {
   static const List<AppCurrency> _currencyOptions = AppCurrency.values;
 
-  AppCurrency _selectedCurrency = _currencyOptions.first;
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final localeController = context.localeController;
+    final currencyController = context.currencyController;
     final selectedLanguage = AppLanguage.fromLocale(localeController.value);
     final edgePadding = AppThemeTokens.screenEdgePadding(context);
     final contentPadding = EdgeInsets.fromLTRB(
@@ -58,12 +58,15 @@ class _SettingsViewState extends State<SettingsView> {
             const SizedBox(height: AppThemeTokens.space4),
             _SettingsRow(
               label: l10n.settingsCurrency,
-              trailing: _DropdownPill<AppCurrency>(
-                value: _selectedCurrency,
-                options: _currencyOptions,
-                labelBuilder: (currency) => _currencyLabel(l10n, currency),
-                onChanged: (value) {
-                  setState(() => _selectedCurrency = value);
+              trailing: ValueListenableBuilder<AppCurrency>(
+                valueListenable: currencyController,
+                builder: (_, selectedCurrency, __) {
+                  return _DropdownPill<AppCurrency>(
+                    value: selectedCurrency,
+                    options: _currencyOptions,
+                    labelBuilder: (currency) => _currencyLabel(l10n, currency),
+                    onChanged: currencyController.switchCurrency,
+                  );
                 },
               ),
             ),
@@ -145,8 +148,6 @@ String _languageLabel(AppLocalizations l10n, AppLanguage language) {
     AppLanguage.khmer => l10n.languageKhmer,
   };
 }
-
-enum AppCurrency { usd, khr }
 
 String _currencyLabel(AppLocalizations l10n, AppCurrency currency) {
   return switch (currency) {

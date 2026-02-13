@@ -94,14 +94,15 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppThemeTokens.space4),
-                  _FieldEditor(
-                    label: 'Price',
-                    controller: _priceController,
-                    hintText: 'e.g. 1200.00',
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (_) => setState(() {}),
+                  ValueListenableBuilder<AppCurrency>(
+                    valueListenable: context.currencyController,
+                    builder: (_, currency, __) {
+                      return _PriceFieldWithCurrency(
+                        controller: _priceController,
+                        currencyCode: currency.code,
+                        onChanged: (_) => setState(() {}),
+                      );
+                    },
                   ),
                   const SizedBox(height: AppThemeTokens.space4),
                   Text(
@@ -204,6 +205,47 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
       skuIds: _selectedSkuIds,
     );
     Navigator.of(context).pop(updated);
+  }
+}
+
+class _PriceFieldWithCurrency extends StatelessWidget {
+  const _PriceFieldWithCurrency({
+    required this.controller,
+    required this.currencyCode,
+    this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String currencyCode;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Price', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppThemeTokens.space1),
+        TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            hintText: 'e.g. 1200.00',
+            suffix: Padding(
+              padding: const EdgeInsets.only(left: AppThemeTokens.space3),
+              child: Text(
+                currencyCode,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: AppThemeTokens.textSecondary,
+                  fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

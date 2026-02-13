@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'package:banji/settings/currency_controller.dart';
 import 'package:banji/theme/app_theme.dart';
 import 'package:banji/views/inventory_views.dart';
 
@@ -475,25 +476,114 @@ void main() {
     );
   });
 
-  testWidgets('service detail frames are aligned, equal width, and spaced', (
+  testWidgets(
+    'service detail frames are aligned and reserve price currency space',
+    (WidgetTester tester) async {
+      const skuOne = SkuItem(
+        id: 'sku-001',
+        name: 'SKU #001',
+        itemPictureIcon: Icons.inventory_2_outlined,
+        description: 'desc',
+        pieces: 1,
+        bulk: 1,
+        piecesPerBulk: 1,
+        costPerPiece: 1,
+        costPerBulk: 1,
+        soldAsProduct: false,
+        productPrice: null,
+      );
+      const skuTwo = SkuItem(
+        id: 'sku-002',
+        name: 'SKU #002',
+        itemPictureIcon: Icons.inventory_2_outlined,
+        description: 'desc',
+        pieces: 1,
+        bulk: 1,
+        piecesPerBulk: 1,
+        costPerPiece: 1,
+        costPerBulk: 1,
+        soldAsProduct: false,
+        productPrice: null,
+      );
+      const service = ServiceItem(
+        id: 'service-001',
+        name: 'Service #001',
+        itemPictureIcon: Icons.person_outline,
+        description: 'Basic package for recurring customers.',
+        price: 1200,
+        skuIds: {'sku-001', 'sku-002'},
+      );
+
+      await setPhoneViewport(tester);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: const ServiceDetailPage(
+            initialService: service,
+            availableSkus: [skuOne, skuTwo],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final mediaRect = tester.getRect(find.byType(Card).at(0));
+      final skuUsedRect = tester.getRect(find.byType(Card).at(1));
+      final nameRect = tester.getRect(find.byType(TextField).at(0));
+      final descriptionRect = tester.getRect(find.byType(TextField).at(1));
+      final priceRect = tester.getRect(find.byType(TextField).at(2));
+      final nameLabelRect = tester.getRect(find.text('Name').first);
+      final descriptionLabelRect = tester.getRect(
+        find.text('Description').first,
+      );
+
+      const epsilon = 0.01;
+      expect(
+        (mediaRect.left - nameRect.left).abs(),
+        lessThanOrEqualTo(epsilon),
+      );
+      expect(
+        (skuUsedRect.left - nameRect.left).abs(),
+        lessThanOrEqualTo(epsilon),
+      );
+      expect(
+        (descriptionRect.left - nameRect.left).abs(),
+        lessThanOrEqualTo(epsilon),
+      );
+      expect(
+        (priceRect.left - nameRect.left).abs(),
+        lessThanOrEqualTo(epsilon),
+      );
+
+      expect(
+        (mediaRect.width - nameRect.width).abs(),
+        lessThanOrEqualTo(epsilon),
+      );
+      expect(
+        (skuUsedRect.width - nameRect.width).abs(),
+        lessThanOrEqualTo(epsilon),
+      );
+      expect(
+        (descriptionRect.width - nameRect.width).abs(),
+        lessThanOrEqualTo(epsilon),
+      );
+      expect(
+        (priceRect.width - nameRect.width).abs(),
+        lessThanOrEqualTo(epsilon),
+      );
+      expect(find.text('USD'), findsOneWidget);
+
+      final labelToBoxGap = nameRect.top - nameLabelRect.bottom;
+      final frameToFrameGap = descriptionLabelRect.top - nameRect.bottom;
+      expect(frameToFrameGap, greaterThan(labelToBoxGap));
+    },
+  );
+
+  testWidgets('service detail price row reflects selected app currency', (
     WidgetTester tester,
   ) async {
-    const skuOne = SkuItem(
+    const sku = SkuItem(
       id: 'sku-001',
       name: 'SKU #001',
-      itemPictureIcon: Icons.inventory_2_outlined,
-      description: 'desc',
-      pieces: 1,
-      bulk: 1,
-      piecesPerBulk: 1,
-      costPerPiece: 1,
-      costPerBulk: 1,
-      soldAsProduct: false,
-      productPrice: null,
-    );
-    const skuTwo = SkuItem(
-      id: 'sku-002',
-      name: 'SKU #002',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
       pieces: 1,
@@ -510,61 +600,28 @@ void main() {
       itemPictureIcon: Icons.person_outline,
       description: 'Basic package for recurring customers.',
       price: 1200,
-      skuIds: {'sku-001', 'sku-002'},
+      skuIds: {'sku-001'},
     );
+
+    final currencyController = CurrencyController()
+      ..switchCurrency(AppCurrency.khr);
 
     await setPhoneViewport(tester);
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: const ServiceDetailPage(
-          initialService: service,
-          availableSkus: [skuOne, skuTwo],
+      AppCurrencyScope(
+        controller: currencyController,
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const ServiceDetailPage(
+            initialService: service,
+            availableSkus: [sku],
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    final mediaRect = tester.getRect(find.byType(Card).at(0));
-    final skuUsedRect = tester.getRect(find.byType(Card).at(1));
-    final nameRect = tester.getRect(find.byType(TextField).at(0));
-    final descriptionRect = tester.getRect(find.byType(TextField).at(1));
-    final priceRect = tester.getRect(find.byType(TextField).at(2));
-    final nameLabelRect = tester.getRect(find.text('Name').first);
-    final descriptionLabelRect = tester.getRect(find.text('Description').first);
-
-    const epsilon = 0.01;
-    expect((mediaRect.left - nameRect.left).abs(), lessThanOrEqualTo(epsilon));
-    expect(
-      (skuUsedRect.left - nameRect.left).abs(),
-      lessThanOrEqualTo(epsilon),
-    );
-    expect(
-      (descriptionRect.left - nameRect.left).abs(),
-      lessThanOrEqualTo(epsilon),
-    );
-    expect((priceRect.left - nameRect.left).abs(), lessThanOrEqualTo(epsilon));
-
-    expect(
-      (mediaRect.width - nameRect.width).abs(),
-      lessThanOrEqualTo(epsilon),
-    );
-    expect(
-      (skuUsedRect.width - nameRect.width).abs(),
-      lessThanOrEqualTo(epsilon),
-    );
-    expect(
-      (descriptionRect.width - nameRect.width).abs(),
-      lessThanOrEqualTo(epsilon),
-    );
-    expect(
-      (priceRect.width - nameRect.width).abs(),
-      lessThanOrEqualTo(epsilon),
-    );
-
-    final labelToBoxGap = nameRect.top - nameLabelRect.bottom;
-    final frameToFrameGap = descriptionLabelRect.top - nameRect.bottom;
-    expect(frameToFrameGap, greaterThan(labelToBoxGap));
+    expect(find.text('KHR'), findsOneWidget);
   });
 
   testWidgets('name and description counters update live and enforce limits', (

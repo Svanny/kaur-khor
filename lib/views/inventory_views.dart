@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../settings/currency_controller.dart';
 import '../theme/app_theme.dart';
 
 part 'inventory/inventory_models.dart';
