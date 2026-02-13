@@ -152,6 +152,25 @@ void main() {
     expect(find.byIcon(Icons.check), findsOneWidget);
   });
 
+  testWidgets('service detail disabled check border uses error color', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    await tester.enterText(find.byType(TextField).at(2), '1200a');
+    await tester.pump();
+
+    final saveButton = tester.widget<FilledButton>(
+      find.widgetWithIcon(FilledButton, Icons.check),
+    );
+    final side = saveButton.style?.side?.resolve({WidgetState.disabled});
+
+    expect(saveButton.onPressed, isNull);
+    expect(side?.color, AppThemeTokens.error);
+    expect(side?.width, 2);
+  });
+
   testWidgets('service detail X cancels edits and stays on page', (
     WidgetTester tester,
   ) async {
@@ -197,6 +216,60 @@ void main() {
     expect(find.text('All Items'), findsOneWidget);
     expect(find.text('Service #001'), findsOneWidget);
     expect(find.text('Service #001 Unsaved'), findsNothing);
+  });
+
+  testWidgets('service unsaved overlay animates title and labels in', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    await tester.enterText(
+      find.byType(TextField).at(0),
+      'Service #001 Unsaved',
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pump();
+
+    expect(find.text('Unsaved changes'), findsNothing);
+    expect(find.text('Discard'), findsNothing);
+    expect(find.text('Confirm'), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 420));
+
+    expect(find.text('Unsaved changes'), findsOneWidget);
+    expect(find.textContaining('You have unsaved changes'), findsOneWidget);
+    expect(find.text('Discard'), findsOneWidget);
+    expect(find.text('Confirm'), findsOneWidget);
+  });
+
+  testWidgets('tapping outside unsaved overlay dismisses and keeps edits', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    await tester.enterText(
+      find.byType(TextField).at(0),
+      'Service #001 Unsaved',
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+    expect(find.text('Unsaved changes'), findsOneWidget);
+
+    await tester.tapAt(const Offset(16, 16));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ServiceDetailPage), findsOneWidget);
+    expect(find.text('Unsaved changes'), findsNothing);
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    final nameField = tester.widget<TextField>(find.byType(TextField).at(0));
+    expect(nameField.controller?.text, 'Service #001 Unsaved');
   });
 
   testWidgets('service detail back prompt confirm saves and exits', (

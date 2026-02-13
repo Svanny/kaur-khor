@@ -7,6 +7,7 @@ class _DetailHeader extends StatelessWidget {
     required this.onCancel,
     required this.onSave,
     this.showActions = true,
+    this.actionsKey,
   });
 
   final String title;
@@ -14,6 +15,7 @@ class _DetailHeader extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback? onSave;
   final bool showActions;
+  final Key? actionsKey;
 
   @override
   Widget build(BuildContext context) {
@@ -34,19 +36,24 @@ class _DetailHeader extends StatelessWidget {
             ),
           ),
         ),
-        if (showActions) ...[
-          _CircleOutlineAction(
-            icon: Icons.close,
-            onPressed: onCancel,
-            tooltip: 'Cancel',
+        if (showActions)
+          Row(
+            key: actionsKey,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _CircleOutlineAction(
+                icon: Icons.close,
+                onPressed: onCancel,
+                tooltip: 'Cancel',
+              ),
+              const SizedBox(width: AppThemeTokens.space2),
+              _CircleFilledAction(
+                icon: Icons.check,
+                onPressed: onSave,
+                tooltip: onSave == null ? 'Fix required fields' : 'Save',
+              ),
+            ],
           ),
-          const SizedBox(width: AppThemeTokens.space2),
-          _CircleFilledAction(
-            icon: Icons.check,
-            onPressed: onSave,
-            tooltip: onSave == null ? 'Fix required fields' : 'Save',
-          ),
-        ],
       ],
     );
   }
@@ -65,6 +72,9 @@ class _CircleFilledAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sideColor = onPressed == null
+        ? AppThemeTokens.error
+        : AppThemeTokens.primary;
     return SizedBox(
       width: 40,
       height: 40,
@@ -75,7 +85,7 @@ class _CircleFilledAction extends StatelessWidget {
           style: FilledButton.styleFrom(
             shape: const CircleBorder(),
             padding: EdgeInsets.zero,
-            side: const BorderSide(color: AppThemeTokens.primary, width: 2),
+            side: BorderSide(color: sideColor, width: 2),
           ),
           child: Icon(icon, size: 18),
         ),
