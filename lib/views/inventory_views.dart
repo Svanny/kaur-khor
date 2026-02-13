@@ -1157,23 +1157,43 @@ class _InventoryItemCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: AppThemeTokens.space2),
+                      //const SizedBox(height: AppThemeTokens.space2),
                       Wrap(
                         spacing: AppThemeTokens.space2,
                         runSpacing: AppThemeTokens.space2,
                         children: [
-                          Chip(label: Text('Pieces: $pieces')),
-                          Chip(label: Text('Bulk: $bulk')),
+                          Chip(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal:
+                                  AppThemeTokens.chipPaddingX -
+                                  AppThemeTokens.space2,
+                              vertical:
+                                  AppThemeTokens.chipPaddingY -
+                                  AppThemeTokens.space2,
+                            ),
+                            label: Text('Pieces: $pieces'),
+                          ),
+                          Chip(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal:
+                                  AppThemeTokens.chipPaddingX -
+                                  AppThemeTokens.space1,
+                              vertical:
+                                  AppThemeTokens.chipPaddingY -
+                                  AppThemeTokens.space1,
+                            ),
+                            label: Text('Bulk: $bulk'),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: AppThemeTokens.space2),
+                      //const SizedBox(height: AppThemeTokens.space2),
                       Text(
                         'Total Value',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       Text(
                         totalValueLabel,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           fontWeight: _fontWeight(
                             AppThemeTokens.fontWeightBold,
                           ),
