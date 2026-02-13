@@ -1276,111 +1276,122 @@ class _InventoryItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const thumbnailExtent = AppThemeTokens.unit * 40;
-
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(AppThemeTokens.space4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: thumbnailExtent,
-                height: thumbnailExtent,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppThemeTokens.accentDarker,
-                    borderRadius: BorderRadius.circular(
-                      AppThemeTokens.radiusMd,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppThemeTokens.accentDarker,
+                      borderRadius: BorderRadius.circular(
+                        AppThemeTokens.radiusMd,
+                      ),
                     ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppThemeTokens.space2),
-                    child: Center(
-                      child: _ItemPictureGlyph(
-                        itemPictureIcon,
-                        fill: true,
-                        color: AppThemeTokens.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppThemeTokens.space2),
+                      child: Center(
+                        child: _ItemPictureGlyph(
+                          itemPictureIcon,
+                          fill: true,
+                          color: AppThemeTokens.white,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppThemeTokens.space3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.bodyLarge),
-                    Wrap(
-                      spacing: AppThemeTokens.space2,
-                      runSpacing: AppThemeTokens.space2,
-                      children: [
-                        Chip(
-                          backgroundColor: AppThemeTokens.chipBackground,
-                          side: BorderSide.none,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.all(
-                              Radius.circular(AppThemeTokens.radiusPill),
-                            ),
+                const SizedBox(width: AppThemeTokens.space3),
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: Theme.of(context).textTheme.bodyLarge),
+                      const SizedBox(height: AppThemeTokens.space2),
+                      Wrap(
+                        spacing: AppThemeTokens.space2,
+                        runSpacing: AppThemeTokens.space2,
+                        children: [
+                          Chip(
+                            backgroundColor: AppThemeTokens.chipBackground,
                             side: BorderSide.none,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal:
-                                AppThemeTokens.chipPaddingX -
-                                AppThemeTokens.space1,
-                            vertical:
-                                AppThemeTokens.chipPaddingY -
-                                AppThemeTokens.space1,
-                          ),
-                          label: Text(
-                            'Pieces: $pieces',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: AppThemeTokens.textPrimary),
-                          ),
-                        ),
-                        Chip(
-                          backgroundColor: AppThemeTokens.chipBackground,
-                          side: BorderSide.none,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.all(
-                              Radius.circular(AppThemeTokens.radiusPill),
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(AppThemeTokens.radiusPill),
+                              ),
+                              side: BorderSide.none,
                             ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal:
+                                  AppThemeTokens.chipPaddingX -
+                                  AppThemeTokens.space1,
+                              vertical:
+                                  AppThemeTokens.chipPaddingY -
+                                  AppThemeTokens.space1,
+                            ),
+                            label: Text(
+                              'Pieces: $pieces',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppThemeTokens.textPrimary),
+                            ),
+                          ),
+                          Chip(
+                            backgroundColor: AppThemeTokens.chipBackground,
                             side: BorderSide.none,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(AppThemeTokens.radiusPill),
+                              ),
+                              side: BorderSide.none,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal:
+                                  AppThemeTokens.chipPaddingX -
+                                  AppThemeTokens.space1,
+                              vertical:
+                                  AppThemeTokens.chipPaddingY -
+                                  AppThemeTokens.space1,
+                            ),
+                            label: Text(
+                              'Bulk: $bulk',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppThemeTokens.textPrimary),
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal:
-                                AppThemeTokens.chipPaddingX -
-                                AppThemeTokens.space1,
-                            vertical:
-                                AppThemeTokens.chipPaddingY -
-                                AppThemeTokens.space1,
-                          ),
-                          label: Text(
-                            'Bulk: $bulk',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: AppThemeTokens.textPrimary),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      'Total Value',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Text(
-                      totalValueLabel,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: AppThemeTokens.space2),
+                      Text(
+                        'Total Value',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      Text(
+                        totalValueLabel,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: _fontWeight(
+                            AppThemeTokens.fontWeightBold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1518,14 +1529,6 @@ class _ItemPictureGlyph extends StatelessWidget {
   final bool fill;
   final Color color;
 
-  bool get _isDefaultInventoryIcon {
-    return icon == _defaultSkuPictureIcon || icon == _defaultServicePictureIcon;
-  }
-
-  Color get _effectiveColor {
-    return _isDefaultInventoryIcon ? AppThemeTokens.secondary : color;
-  }
-
   @override
   Widget build(BuildContext context) {
     if (!fill) {
@@ -1548,11 +1551,11 @@ class _ItemPictureGlyph extends StatelessWidget {
         _defaultServicePictureAsset,
         width: size,
         height: size,
-        colorFilter: ColorFilter.mode(_effectiveColor, BlendMode.srcIn),
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
       );
     }
 
-    return Icon(icon, size: size, color: _effectiveColor);
+    return Icon(icon, size: size, color: color);
   }
 }
 
