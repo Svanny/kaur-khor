@@ -168,6 +168,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
   @override
   Widget build(BuildContext context) {
     final edge = AppThemeTokens.screenEdgePadding(context);
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final query = _searchController.text.trim().toLowerCase();
     final visibleSkus = _skus
         .where((sku) => sku.name.toLowerCase().contains(query))
@@ -181,128 +182,122 @@ class _ViewAllPageState extends State<ViewAllPage> {
         onPressed: _onAddItemPressed,
         child: const Icon(Icons.add),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            edge.left,
-            AppThemeTokens.space4,
-            edge.right,
-            edge.bottom,
-          ),
-          child: Column(
-            children: [
-              _PageHeader(
-                title: 'All Items',
-                onBack: () => Navigator.of(context).pop(),
-              ),
-              const SizedBox(height: AppThemeTokens.space3),
-              _SearchField(
-                controller: _searchController,
-                hintText: 'Item',
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: AppThemeTokens.space3),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Wrap(
-                  spacing: AppThemeTokens.space2,
-                  runSpacing: AppThemeTokens.space2,
-                  children: [
-                    FilterChip(
-                      selected: _showSkus,
-                      onSelected: (_) => setState(() => _showSkus = !_showSkus),
-                      backgroundColor: AppThemeTokens.chipBackground,
-                      selectedColor: AppThemeTokens.chipSelected,
+      body: Padding(
+        padding: EdgeInsets.fromLTRB(edge.left, edge.top, edge.right, 0),
+        child: Column(
+          children: [
+            _PageHeader(
+              title: 'All Items',
+              onBack: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(height: AppThemeTokens.space3),
+            _SearchField(
+              controller: _searchController,
+              hintText: 'Item',
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: AppThemeTokens.space3),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: AppThemeTokens.space2,
+                runSpacing: AppThemeTokens.space2,
+                children: [
+                  FilterChip(
+                    selected: _showSkus,
+                    onSelected: (_) => setState(() => _showSkus = !_showSkus),
+                    backgroundColor: AppThemeTokens.chipBackground,
+                    selectedColor: AppThemeTokens.chipSelected,
+                    side: BorderSide.none,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(AppThemeTokens.radiusPill),
+                      ),
                       side: BorderSide.none,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(
-                          Radius.circular(AppThemeTokens.radiusPill),
-                        ),
-                        side: BorderSide.none,
-                      ),
-                      elevation: AppThemeTokens.elevation1,
-                      pressElevation: AppThemeTokens.elevation1,
-                      shadowColor: AppThemeTokens.shadow,
-                      selectedShadowColor: AppThemeTokens.shadow,
-                      label: Text(
-                        'SKUs',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      avatar: Icon(
-                        _showSkus ? Icons.check : Icons.circle_outlined,
-                        size: 16,
-                        color: _showSkus ? null : AppThemeTokens.textPrimary,
-                      ),
                     ),
-                    FilterChip(
-                      selected: _showServices,
-                      onSelected: (_) =>
-                          setState(() => _showServices = !_showServices),
-                      backgroundColor: AppThemeTokens.chipBackground,
-                      selectedColor: AppThemeTokens.chipSelected,
+                    elevation: AppThemeTokens.elevation1,
+                    pressElevation: AppThemeTokens.elevation1,
+                    shadowColor: AppThemeTokens.shadow,
+                    selectedShadowColor: AppThemeTokens.shadow,
+                    label: Text(
+                      'SKUs',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    avatar: Icon(
+                      _showSkus ? Icons.check : Icons.circle_outlined,
+                      size: 16,
+                      color: _showSkus ? null : AppThemeTokens.textPrimary,
+                    ),
+                  ),
+                  FilterChip(
+                    selected: _showServices,
+                    onSelected: (_) =>
+                        setState(() => _showServices = !_showServices),
+                    backgroundColor: AppThemeTokens.chipBackground,
+                    selectedColor: AppThemeTokens.chipSelected,
+                    side: BorderSide.none,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(AppThemeTokens.radiusPill),
+                      ),
                       side: BorderSide.none,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(
-                          Radius.circular(AppThemeTokens.radiusPill),
-                        ),
-                        side: BorderSide.none,
-                      ),
-                      elevation: AppThemeTokens.elevation1,
-                      pressElevation: AppThemeTokens.elevation1,
-                      shadowColor: AppThemeTokens.shadow,
-                      selectedShadowColor: AppThemeTokens.shadow,
-                      label: Text(
-                        'Services',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      avatar: Icon(
-                        _showServices ? Icons.check : Icons.circle_outlined,
-                        size: 16,
-                        color: _showServices
-                            ? null
-                            : AppThemeTokens.textPrimary,
-                      ),
                     ),
-                  ],
+                    elevation: AppThemeTokens.elevation1,
+                    pressElevation: AppThemeTokens.elevation1,
+                    shadowColor: AppThemeTokens.shadow,
+                    selectedShadowColor: AppThemeTokens.shadow,
+                    label: Text(
+                      'Services',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    avatar: Icon(
+                      _showServices ? Icons.check : Icons.circle_outlined,
+                      size: 16,
+                      color: _showServices ? null : AppThemeTokens.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppThemeTokens.space3),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.only(
+                  bottom: bottomInset + AppThemeTokens.space8,
                 ),
-              ),
-              const SizedBox(height: AppThemeTokens.space3),
-              Expanded(
-                child: ListView(
-                  children: [
-                    if (_showServices) ...[
-                      const _SectionHeader(title: 'Services'),
+                children: [
+                  if (_showServices) ...[
+                    const _SectionHeader(title: 'Services'),
+                    const SizedBox(height: AppThemeTokens.space3),
+                    for (final service in visibleServices) ...[
+                      _InventoryItemCard(
+                        title: service.name,
+                        pieces: _piecesForService(service),
+                        bulk: _bulkForService(service),
+                        totalValueLabel: _currencyLabel(service.price),
+                        onTap: () => _editService(service),
+                      ),
                       const SizedBox(height: AppThemeTokens.space3),
-                      for (final service in visibleServices) ...[
-                        _InventoryItemCard(
-                          title: service.name,
-                          pieces: _piecesForService(service),
-                          bulk: _bulkForService(service),
-                          totalValueLabel: _currencyLabel(service.price),
-                          onTap: () => _editService(service),
-                        ),
-                        const SizedBox(height: AppThemeTokens.space3),
-                      ],
-                    ],
-                    if (_showSkus) ...[
-                      const _SectionHeader(title: 'SKUs'),
-                      const SizedBox(height: AppThemeTokens.space3),
-                      for (final sku in visibleSkus) ...[
-                        _InventoryItemCard(
-                          title: sku.name,
-                          pieces: sku.pieces,
-                          bulk: sku.bulk,
-                          totalValueLabel: _currencyLabel(sku.totalValue),
-                          onTap: () => _editSku(sku),
-                        ),
-                        const SizedBox(height: AppThemeTokens.space3),
-                      ],
                     ],
                   ],
-                ),
+                  if (_showSkus) ...[
+                    const _SectionHeader(title: 'SKUs'),
+                    const SizedBox(height: AppThemeTokens.space3),
+                    for (final sku in visibleSkus) ...[
+                      _InventoryItemCard(
+                        title: sku.name,
+                        pieces: sku.pieces,
+                        bulk: sku.bulk,
+                        totalValueLabel: _currencyLabel(sku.totalValue),
+                        onTap: () => _editSku(sku),
+                      ),
+                      const SizedBox(height: AppThemeTokens.space3),
+                    ],
+                  ],
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
