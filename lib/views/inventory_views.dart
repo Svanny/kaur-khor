@@ -1522,28 +1522,30 @@ class _ItemPictureGlyph extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!fill) {
-      if (icon == _defaultServicePictureIcon) {
-        return SvgPicture.asset(
-          _defaultServicePictureAsset,
-          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-        );
-      }
-      return Icon(icon, color: color);
+      return _baseGlyph(AppThemeTokens.iconSizeMedium);
     }
 
-    return SizedBox.expand(
+    // Keep fill-mode intrinsic-safe inside IntrinsicHeight-based parents.
+    return Align(
+      alignment: Alignment.center,
       child: FittedBox(
         fit: BoxFit.contain,
-        child: icon == _defaultServicePictureIcon
-            ? SvgPicture.asset(
-                _defaultServicePictureAsset,
-                width: AppThemeTokens.iconSizeMedium,
-                height: AppThemeTokens.iconSizeMedium,
-                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-              )
-            : Icon(icon, size: AppThemeTokens.iconSizeMedium, color: color),
+        child: _baseGlyph(AppThemeTokens.unit * 16),
       ),
     );
+  }
+
+  Widget _baseGlyph(double size) {
+    if (icon == _defaultServicePictureIcon) {
+      return SvgPicture.asset(
+        _defaultServicePictureAsset,
+        width: size,
+        height: size,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      );
+    }
+
+    return Icon(icon, size: size, color: color);
   }
 }
 
