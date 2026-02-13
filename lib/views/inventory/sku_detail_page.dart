@@ -117,6 +117,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     label: 'Name',
                     controller: _nameController,
                     maxLength: 80,
+                    hintText: 'Enter SKU name',
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppThemeTokens.space4),
@@ -125,6 +126,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     controller: _descriptionController,
                     maxLines: 4,
                     maxLength: 250,
+                    hintText: 'Describe this SKU',
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppThemeTokens.space4),
@@ -134,6 +136,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         child: _FieldEditor(
                           label: 'Pieces',
                           controller: _piecesController,
+                          hintText: 'Enter pieces count',
                           keyboardType: const TextInputType.numberWithOptions(
                             signed: false,
                           ),
@@ -145,6 +148,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         child: _FieldEditor(
                           label: 'Bulk',
                           controller: _bulkController,
+                          hintText: 'Enter bulk count',
                           keyboardType: const TextInputType.numberWithOptions(
                             signed: false,
                           ),
@@ -156,6 +160,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         child: _FieldEditor(
                           label: 'Pieces / Bulk',
                           controller: _ratioController,
+                          hintText: 'Enter pieces per bulk',
                           keyboardType: const TextInputType.numberWithOptions(
                             signed: false,
                           ),
@@ -178,6 +183,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         child: _FieldEditor(
                           label: 'Cost / Piece',
                           controller: _costPieceController,
+                          hintText: 'e.g. 4.50',
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -190,6 +196,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                   _FieldEditor(
                     label: 'Cost / Bulk',
                     controller: _costBulkController,
+                    hintText: 'e.g. 40.00',
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
@@ -225,6 +232,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                           _FieldEditor(
                             label: 'Product Price',
                             controller: _productPriceController,
+                            hintText: 'e.g. 12.00',
                             enabled: _soldAsProduct,
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,

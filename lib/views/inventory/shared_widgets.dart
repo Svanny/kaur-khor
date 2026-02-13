@@ -626,6 +626,7 @@ class _FieldEditor extends StatelessWidget {
     this.keyboardType,
     this.onChanged,
     this.maxLength,
+    this.hintText,
   });
 
   final String label;
@@ -635,6 +636,7 @@ class _FieldEditor extends StatelessWidget {
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
   final int? maxLength;
+  final String? hintText;
 
   @override
   Widget build(BuildContext context) {
@@ -650,7 +652,7 @@ class _FieldEditor extends StatelessWidget {
             enabled: enabled,
             keyboardType: keyboardType,
             onChanged: onChanged,
-            decoration: InputDecoration(hintText: label),
+            decoration: InputDecoration(hintText: hintText ?? label),
           )
         else
           Stack(
@@ -666,15 +668,13 @@ class _FieldEditor extends StatelessWidget {
                     ? TextAlignVertical.top
                     : TextAlignVertical.center,
                 decoration: InputDecoration(
-                  hintText: label,
+                  hintText: hintText ?? label,
                   counterText: '',
                   suffix: maxLines == 1
                       ? const SizedBox(
                           width:
                               AppThemeTokens.space8 +
                               AppThemeTokens.space2,
-                              //AppThemeTokens.space2 +
-                              //AppThemeTokens.space2,
                         )
                       : null,
                   contentPadding: maxLines > 1

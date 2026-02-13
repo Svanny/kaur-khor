@@ -81,6 +81,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     label: 'Name',
                     controller: _nameController,
                     maxLength: 80,
+                    hintText: 'Enter service name',
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppThemeTokens.space4),
@@ -89,12 +90,14 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     controller: _descriptionController,
                     maxLines: 4,
                     maxLength: 250,
+                    hintText: 'Describe this service',
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppThemeTokens.space4),
                   _FieldEditor(
                     label: 'Price',
                     controller: _priceController,
+                    hintText: 'e.g. 1200.00',
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
@@ -257,7 +260,7 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
             const SizedBox(height: AppThemeTokens.space3),
             _SearchField(
               controller: _searchController,
-              hintText: 'Item',
+              hintText: 'Search SKUs by name',
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppThemeTokens.space3),

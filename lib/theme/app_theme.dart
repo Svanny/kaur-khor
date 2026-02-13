@@ -230,7 +230,8 @@ class AppTheme {
         fillColor: AppThemeTokens.surface,
         hintStyle: GoogleFonts.notoSansOriya(
           color: AppThemeTokens.textSecondary,
-          fontSize: AppThemeTokens.fontSizeBodyMedium,
+          fontSize: AppThemeTokens.fontSizeBodyLarge,
+          height: AppThemeTokens.lineHeightBodyLarge,
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppThemeTokens.inputPaddingX,

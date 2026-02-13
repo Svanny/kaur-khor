@@ -107,7 +107,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
             const SizedBox(height: AppThemeTokens.space3),
             _SearchField(
               controller: _searchController,
-              hintText: 'Item',
+              hintText: 'Search items by name',
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppThemeTokens.space3),
