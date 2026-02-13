@@ -51,21 +51,22 @@ void main() {
 
       final skuChip = chipByLabel(tester, 'SKUs');
       final serviceChip = chipByLabel(tester, 'Services');
-      final skuAvatar = skuChip.avatar! as Icon;
-      final serviceAvatar = serviceChip.avatar! as Icon;
-
       expect(skuChip.selected, isTrue);
       expect(serviceChip.selected, isTrue);
+      expect(skuChip.showCheckmark, isTrue);
+      expect(serviceChip.showCheckmark, isTrue);
+      expect(skuChip.checkmarkColor, AppThemeTokens.textPrimary);
+      expect(serviceChip.checkmarkColor, AppThemeTokens.textPrimary);
+      expect(skuChip.avatar, isNull);
+      expect(serviceChip.avatar, isNull);
       expect(skuChip.side, BorderSide.none);
       expect(serviceChip.side, BorderSide.none);
       expect(skuChip.elevation, AppThemeTokens.elevation1);
       expect(serviceChip.elevation, AppThemeTokens.elevation1);
-      expect(skuAvatar.icon, Icons.check);
-      expect(serviceAvatar.icon, Icons.check);
     },
   );
 
-  testWidgets('filter chips collapse sections and switch avatar icon', (
+  testWidgets('filter chips collapse sections with built-in checkmarks', (
     WidgetTester tester,
   ) async {
     await pumpViewAll(tester);
@@ -77,10 +78,8 @@ void main() {
     expect(find.text('Service #001'), findsNothing);
     expect(find.text('Service #002'), findsNothing);
     final serviceChip = chipByLabel(tester, 'Services');
-    final serviceAvatar = serviceChip.avatar! as Icon;
     expect(serviceChip.selected, isFalse);
-    expect(serviceAvatar.icon, Icons.circle_outlined);
-    expect(serviceAvatar.color, AppThemeTokens.textPrimary);
+    expect(serviceChip.showCheckmark, isTrue);
 
     await tester.tap(find.widgetWithText(FilterChip, 'SKUs'));
     await tester.pump();
@@ -90,10 +89,8 @@ void main() {
     expect(find.text('SKU #002'), findsNothing);
     expect(find.text('SKU #003'), findsNothing);
     final skuChip = chipByLabel(tester, 'SKUs');
-    final skuAvatar = skuChip.avatar! as Icon;
     expect(skuChip.selected, isFalse);
-    expect(skuAvatar.icon, Icons.circle_outlined);
-    expect(skuAvatar.color, AppThemeTokens.textPrimary);
+    expect(skuChip.showCheckmark, isTrue);
     expect(tester.takeException(), isNull);
   });
 

@@ -27,6 +27,8 @@ class AppThemeTokens {
   static const Color navIndicator = Color(0xFF99C768);
   static const Color badgeBackground = Color(0xFFC0CC8D);
   static const Color barBackground = Color(0xFFC0CC8D);
+  static const Color disabledBackground = Color(0xFFD4D4D4);
+  static const Color disabledForeground = Color(0xFF737373);
 
   // Base unit scale (4pt)
   static const double unit = 4;
@@ -181,6 +183,8 @@ class AppTheme {
           shadowColor: AppThemeTokens.shadow,
           backgroundColor: AppThemeTokens.primary,
           foregroundColor: AppThemeTokens.white,
+          disabledBackgroundColor: AppThemeTokens.disabledBackground,
+          disabledForegroundColor: AppThemeTokens.disabledForeground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
           ),
@@ -195,21 +199,31 @@ class AppTheme {
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppThemeTokens.textPrimary,
-          side: const BorderSide(color: AppThemeTokens.border),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppThemeTokens.buttonPaddingX,
-            vertical: AppThemeTokens.buttonPaddingY,
-          ),
-          textStyle: GoogleFonts.notoSansOriya(
-            fontWeight: FontWeight.w600,
-            fontSize: AppThemeTokens.fontSizeBodyMedium,
-          ),
-        ),
+        style:
+            OutlinedButton.styleFrom(
+              foregroundColor: AppThemeTokens.textPrimary,
+              disabledForegroundColor: AppThemeTokens.disabledForeground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppThemeTokens.buttonPaddingX,
+                vertical: AppThemeTokens.buttonPaddingY,
+              ),
+              textStyle: GoogleFonts.notoSansOriya(
+                fontWeight: FontWeight.w600,
+                fontSize: AppThemeTokens.fontSizeBodyMedium,
+              ),
+            ).copyWith(
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.disabled)) {
+                  return const BorderSide(
+                    color: AppThemeTokens.disabledBackground,
+                  );
+                }
+                return const BorderSide(color: AppThemeTokens.border);
+              }),
+            ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -243,6 +257,7 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: AppThemeTokens.chipBackground,
         selectedColor: AppThemeTokens.chipSelected,
+        disabledColor: AppThemeTokens.disabledBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
           side: BorderSide.none,

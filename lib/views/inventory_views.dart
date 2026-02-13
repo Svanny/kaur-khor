@@ -225,8 +225,16 @@ class _ViewAllPageState extends State<ViewAllPage> {
                   FilterChip(
                     selected: _showSkus,
                     onSelected: (_) => setState(() => _showSkus = !_showSkus),
-                    backgroundColor: AppThemeTokens.chipBackground,
+                    showCheckmark: true,
+                    checkmarkColor: AppThemeTokens.textPrimary,
+                    backgroundColor: AppThemeTokens.disabledBackground,
                     selectedColor: AppThemeTokens.chipSelected,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal:
+                          AppThemeTokens.chipPaddingX + AppThemeTokens.space1,
+                      vertical:
+                          AppThemeTokens.chipPaddingY + AppThemeTokens.space1,
+                    ),
                     side: BorderSide.none,
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.all(
@@ -242,18 +250,21 @@ class _ViewAllPageState extends State<ViewAllPage> {
                       'SKUs',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    avatar: Icon(
-                      _showSkus ? Icons.check : Icons.circle_outlined,
-                      size: 16,
-                      color: _showSkus ? null : AppThemeTokens.textPrimary,
-                    ),
                   ),
                   FilterChip(
                     selected: _showServices,
                     onSelected: (_) =>
                         setState(() => _showServices = !_showServices),
-                    backgroundColor: AppThemeTokens.chipBackground,
+                    showCheckmark: true,
+                    checkmarkColor: AppThemeTokens.textPrimary,
+                    backgroundColor: AppThemeTokens.disabledBackground,
                     selectedColor: AppThemeTokens.chipSelected,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal:
+                          AppThemeTokens.chipPaddingX + AppThemeTokens.space1,
+                      vertical:
+                          AppThemeTokens.chipPaddingY + AppThemeTokens.space1,
+                    ),
                     side: BorderSide.none,
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.all(
@@ -268,11 +279,6 @@ class _ViewAllPageState extends State<ViewAllPage> {
                     label: Text(
                       'Services',
                       style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    avatar: Icon(
-                      _showServices ? Icons.check : Icons.circle_outlined,
-                      size: 16,
-                      color: _showServices ? null : AppThemeTokens.textPrimary,
                     ),
                   ),
                 ],
