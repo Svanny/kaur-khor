@@ -211,20 +211,56 @@ class _ViewAllPageState extends State<ViewAllPage> {
                     FilterChip(
                       selected: _showSkus,
                       onSelected: (_) => setState(() => _showSkus = !_showSkus),
-                      label: const Text('SKUs'),
+                      backgroundColor: AppThemeTokens.chipBackground,
+                      selectedColor: AppThemeTokens.chipSelected,
+                      side: BorderSide.none,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(AppThemeTokens.radiusPill),
+                        ),
+                        side: BorderSide.none,
+                      ),
+                      elevation: AppThemeTokens.elevation1,
+                      pressElevation: AppThemeTokens.elevation1,
+                      shadowColor: AppThemeTokens.shadow,
+                      selectedShadowColor: AppThemeTokens.shadow,
+                      label: Text(
+                        'SKUs',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                       avatar: Icon(
-                        _showSkus ? Icons.check : Icons.add,
+                        _showSkus ? Icons.check : Icons.circle_outlined,
                         size: 16,
+                        color: _showSkus ? null : AppThemeTokens.textPrimary,
                       ),
                     ),
                     FilterChip(
                       selected: _showServices,
                       onSelected: (_) =>
                           setState(() => _showServices = !_showServices),
-                      label: const Text('Services'),
+                      backgroundColor: AppThemeTokens.chipBackground,
+                      selectedColor: AppThemeTokens.chipSelected,
+                      side: BorderSide.none,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(AppThemeTokens.radiusPill),
+                        ),
+                        side: BorderSide.none,
+                      ),
+                      elevation: AppThemeTokens.elevation1,
+                      pressElevation: AppThemeTokens.elevation1,
+                      shadowColor: AppThemeTokens.shadow,
+                      selectedShadowColor: AppThemeTokens.shadow,
+                      label: Text(
+                        'Services',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                       avatar: Icon(
-                        _showServices ? Icons.check : Icons.add,
+                        _showServices ? Icons.check : Icons.circle_outlined,
                         size: 16,
+                        color: _showServices
+                            ? null
+                            : AppThemeTokens.textPrimary,
                       ),
                     ),
                   ],
@@ -781,7 +817,16 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                           spacing: AppThemeTokens.space2,
                           runSpacing: AppThemeTokens.space2,
                           children: selectedSkus
-                              .map((sku) => Chip(label: Text(sku.name)))
+                              .map(
+                                (sku) => Chip(
+                                  label: Text(
+                                    sku.name,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                  ),
+                                ),
+                              )
                               .toList(growable: false),
                         ),
                 ),
@@ -1179,7 +1224,11 @@ class _InventoryItemCard extends StatelessWidget {
                                   AppThemeTokens.chipPaddingY -
                                   AppThemeTokens.space1,
                             ),
-                            label: Text('Pieces: $pieces'),
+                            label: Text(
+                              'Pieces: $pieces',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppThemeTokens.textPrimary),
+                            ),
                           ),
                           Chip(
                             backgroundColor: AppThemeTokens.chipBackground,
@@ -1198,7 +1247,11 @@ class _InventoryItemCard extends StatelessWidget {
                                   AppThemeTokens.chipPaddingY -
                                   AppThemeTokens.space1,
                             ),
-                            label: Text('Bulk: $bulk'),
+                            label: Text(
+                              'Bulk: $bulk',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppThemeTokens.textPrimary),
+                            ),
                           ),
                         ],
                       ),
