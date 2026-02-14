@@ -552,6 +552,101 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Confirm'), findsNothing);
   });
 
+  testWidgets('sku detail monetary fields reflect selected app currency', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-currency',
+      name: 'SKU Currency',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 12,
+      bulk: 2,
+      piecesPerBulk: 6,
+      costPerPiece: 5,
+      costPerBulk: 40,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+    final currencyController = CurrencyController()
+      ..switchCurrency(AppCurrency.khr);
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      AppCurrencyScope(
+        controller: currencyController,
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const SkuDetailPage(initialSku: sku),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Cost / Piece'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final costPieceField = tester.widget<TextField>(
+      find.byType(TextField).at(5),
+    );
+    final costPieceSuffix = costPieceField.decoration?.suffix as Padding;
+    expect((costPieceSuffix.child as Text).data, 'KHR');
+
+    await tester.scrollUntilVisible(
+      find.text('Product Price'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final costBulkField = tester.widget<TextField>(
+      find.byType(TextField).at(6),
+    );
+    final costBulkSuffix = costBulkField.decoration?.suffix as Padding;
+    expect((costBulkSuffix.child as Text).data, 'KHR');
+
+    await tester.tap(find.text('Sold as a Product?'));
+    await tester.pump();
+    final productPriceField = tester.widget<TextField>(
+      find.byType(TextField).at(7),
+    );
+    final productPriceSuffix = productPriceField.decoration?.suffix as Padding;
+    expect((productPriceSuffix.child as Text).data, 'KHR');
+  });
+
+  testWidgets('sku detail invalid monetary field shows red border on blur', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'SKU #001');
+
+    await tester.scrollUntilVisible(
+      find.text('Cost / Piece'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    final costPieceField = find.byType(TextField).at(5);
+    await tester.tap(costPieceField);
+    await tester.pump();
+    await tester.enterText(costPieceField, '4a');
+    await tester.pump();
+    await tester.tap(find.text('Cost / Bulk'));
+    await tester.pump();
+
+    final saveButton = tester.widget<FilledButton>(
+      find.widgetWithIcon(FilledButton, Icons.check),
+    );
+    expect(saveButton.onPressed, isNull);
+    final side = saveButton.style?.side?.resolve({WidgetState.disabled});
+    expect(side?.color, AppThemeTokens.error);
+
+    final priceTextField = tester.widget<TextField>(costPieceField);
+    final border =
+        priceTextField.decoration?.enabledBorder as OutlineInputBorder?;
+    expect(border?.borderSide.color, AppThemeTokens.error);
+  });
+
   testWidgets('add SKU flow requires description and appends new card', (
     WidgetTester tester,
   ) async {

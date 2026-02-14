@@ -318,7 +318,7 @@ class _InventoryItemCard extends StatelessWidget {
                                   AppThemeTokens.space1,
                             ),
                             label: Text(
-                              'Pieces: $pieces',
+                              'Pieces: ${_compactNumber(pieces)}',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: AppThemeTokens.textPrimary),
                             ),
@@ -344,7 +344,7 @@ class _InventoryItemCard extends StatelessWidget {
                                   AppThemeTokens.space1,
                             ),
                             label: Text(
-                              'Bulk: $bulk',
+                              'Bulk: ${_compactNumber(bulk)}',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: AppThemeTokens.textPrimary),
                             ),

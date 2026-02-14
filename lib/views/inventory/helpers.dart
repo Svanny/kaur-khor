@@ -11,11 +11,30 @@ String _trimNumber(double value) {
   return value.toStringAsFixed(2);
 }
 
-String _currencyLabel(double value) {
-  if (value >= 1000) {
-    return '${(value / 1000).toStringAsFixed(1)}k USD';
+String _formatNumber(num value, {int maxFractionDigits = 2}) {
+  if (value == value.roundToDouble()) {
+    return value.toStringAsFixed(0);
   }
-  return '${value.toStringAsFixed(0)} USD';
+  final fixed = value.toStringAsFixed(maxFractionDigits);
+  return fixed.replaceFirst(RegExp(r'\.?0+$'), '');
+}
+
+String _compactNumber(num value) {
+  final absoluteValue = value.abs().toDouble();
+  const divisors = <double>[1e15, 1e12, 1e9, 1e6, 1e3];
+  const suffixes = <String>['q', 't', 'b', 'm', 'k'];
+
+  for (var i = 0; i < divisors.length; i++) {
+    if (absoluteValue >= divisors[i]) {
+      return '${_formatNumber(value / divisors[i], maxFractionDigits: 1)}${suffixes[i]}';
+    }
+  }
+
+  return _formatNumber(value, maxFractionDigits: 2);
+}
+
+String _currencyLabel(double value, {String currencyCode = 'USD'}) {
+  return '${_compactNumber(value)} $currencyCode';
 }
 
 FontWeight _fontWeight(double tokenWeight) {

@@ -88,30 +88,80 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
 
   List<String> get _validationErrors {
     final errors = <String>[];
+    final piecesRaw = _piecesController.text.trim();
+    final bulkRaw = _bulkController.text.trim();
+    final ratioRaw = _ratioController.text.trim();
+    final costPieceRaw = _costPieceController.text.trim();
+    final costBulkRaw = _costBulkController.text.trim();
+    final productPriceRaw = _productPriceController.text.trim();
+    final pieces = _piecesValue;
+    final bulk = _bulkValue;
+    final ratio = _ratioValue;
+    final costPiece = _costPieceValue;
+    final costBulk = _costBulkValue;
+    final productPrice = _productPriceValue;
+
     if (_nameController.text.trim().isEmpty) {
       errors.add('Name field is required.');
     }
     if (_descriptionController.text.trim().isEmpty) {
       errors.add('Description field is required.');
     }
-    if (_tryInt(_piecesController.text) == null) {
-      errors.add('Pieces field must be a valid whole number.');
+    if (piecesRaw.isEmpty) {
+      errors.add('Pieces field is required.');
+    } else if (pieces == null) {
+      errors.add(
+        'Pieces field must be a valid whole number (no symbols or letters).',
+      );
+    } else if (pieces < 0) {
+      errors.add('Pieces field cannot be negative.');
     }
-    if (_tryInt(_bulkController.text) == null) {
-      errors.add('Bulk field must be a valid whole number.');
+    if (bulkRaw.isEmpty) {
+      errors.add('Bulk field is required.');
+    } else if (bulk == null) {
+      errors.add(
+        'Bulk field must be a valid whole number (no symbols or letters).',
+      );
+    } else if (bulk < 0) {
+      errors.add('Bulk field cannot be negative.');
     }
-    if ((_tryInt(_ratioController.text) ?? 0) <= 0) {
+    if (ratioRaw.isEmpty) {
+      errors.add('Pieces / Bulk field is required.');
+    } else if (ratio == null) {
+      errors.add(
+        'Pieces / Bulk field must be a valid whole number (no symbols or letters).',
+      );
+    } else if (ratio <= 0) {
       errors.add('Pieces / Bulk field must be greater than 0.');
     }
-    if (_tryDouble(_costPieceController.text) == null) {
-      errors.add('Cost / Piece field must be a valid number.');
+    if (costPieceRaw.isEmpty) {
+      errors.add('Cost / Piece field is required.');
+    } else if (costPiece == null) {
+      errors.add(
+        'Cost / Piece field must be a valid number (no symbols or letters).',
+      );
+    } else if (costPiece < 0) {
+      errors.add('Cost / Piece field cannot be negative.');
     }
-    if (_tryDouble(_costBulkController.text) == null) {
-      errors.add('Cost / Bulk field must be a valid number.');
+    if (costBulkRaw.isEmpty) {
+      errors.add('Cost / Bulk field is required.');
+    } else if (costBulk == null) {
+      errors.add(
+        'Cost / Bulk field must be a valid number (no symbols or letters).',
+      );
+    } else if (costBulk < 0) {
+      errors.add('Cost / Bulk field cannot be negative.');
     }
-    if (_soldAsProduct &&
-        (_tryDouble(_productPriceController.text) ?? -1) < 0) {
-      errors.add('Product Price field must be a valid non-negative number.');
+    if (_soldAsProduct) {
+      if (productPriceRaw.isEmpty) {
+        errors.add('Product Price field is required.');
+      } else if (productPrice == null) {
+        errors.add(
+          'Product Price field must be a valid number (no symbols or letters).',
+        );
+      } else if (productPrice < 0) {
+        errors.add('Product Price field cannot be negative.');
+      }
     }
     return errors;
   }
@@ -119,13 +169,48 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   bool get _isValid => _validationErrors.isEmpty;
   bool get _nameHasError => _nameController.text.trim().isEmpty;
   bool get _descriptionHasError => _descriptionController.text.trim().isEmpty;
-  bool get _piecesHasError => _tryInt(_piecesController.text) == null;
-  bool get _bulkHasError => _tryInt(_bulkController.text) == null;
-  bool get _ratioHasError => (_tryInt(_ratioController.text) ?? 0) <= 0;
-  bool get _costPieceHasError => _tryDouble(_costPieceController.text) == null;
-  bool get _costBulkHasError => _tryDouble(_costBulkController.text) == null;
+  int? get _piecesValue => _tryInt(_piecesController.text);
+  int? get _bulkValue => _tryInt(_bulkController.text);
+  int? get _ratioValue => _tryInt(_ratioController.text);
+  double? get _costPieceValue => _tryDouble(_costPieceController.text);
+  double? get _costBulkValue => _tryDouble(_costBulkController.text);
+  double? get _productPriceValue => _tryDouble(_productPriceController.text);
+
+  bool get _piecesHasError {
+    final raw = _piecesController.text.trim();
+    final parsed = _piecesValue;
+    return raw.isEmpty || parsed == null || parsed < 0;
+  }
+
+  bool get _bulkHasError {
+    final raw = _bulkController.text.trim();
+    final parsed = _bulkValue;
+    return raw.isEmpty || parsed == null || parsed < 0;
+  }
+
+  bool get _ratioHasError {
+    final raw = _ratioController.text.trim();
+    final parsed = _ratioValue;
+    return raw.isEmpty || parsed == null || parsed <= 0;
+  }
+
+  bool get _costPieceHasError {
+    final raw = _costPieceController.text.trim();
+    final parsed = _costPieceValue;
+    return raw.isEmpty || parsed == null || parsed < 0;
+  }
+
+  bool get _costBulkHasError {
+    final raw = _costBulkController.text.trim();
+    final parsed = _costBulkValue;
+    return raw.isEmpty || parsed == null || parsed < 0;
+  }
+
   bool get _productPriceHasError =>
-      _soldAsProduct && (_tryDouble(_productPriceController.text) ?? -1) < 0;
+      _soldAsProduct &&
+      (_productPriceController.text.trim().isEmpty ||
+          _productPriceValue == null ||
+          _productPriceValue! < 0);
 
   bool get _hasChanges =>
       _nameController.text != _initialName ||
@@ -143,11 +228,19 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   Widget build(BuildContext context) {
     final edge = AppThemeTokens.screenEdgePadding(context);
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final pieceCount = _piecesValue;
+    final bulkCount = _bulkValue;
+    final costPerPiece = _costPieceValue;
+    final costPerBulk = _costBulkValue;
     final total =
-        ((_tryInt(_piecesController.text) ?? 0) *
-                    (_tryDouble(_costPieceController.text) ?? 0) +
-                (_tryInt(_bulkController.text) ?? 0) *
-                    (_tryDouble(_costBulkController.text) ?? 0))
+        (((pieceCount != null && pieceCount > 0) ? pieceCount : 0) *
+                    ((costPerPiece != null && costPerPiece > 0)
+                        ? costPerPiece
+                        : 0) +
+                ((bulkCount != null && bulkCount > 0) ? bulkCount : 0) *
+                    ((costPerBulk != null && costPerBulk > 0)
+                        ? costPerBulk
+                        : 0))
             .toDouble();
 
     return PopScope<SkuItem>(
@@ -263,48 +356,57 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       ],
                     ),
                     const SizedBox(height: AppThemeTokens.space4),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ReadOnlyField(
-                            label: 'Total Value',
-                            value: _currencyLabel(total),
-                          ),
-                        ),
-                        const SizedBox(width: AppThemeTokens.space2),
-                        Expanded(
-                          child: _FieldEditor(
-                            label: 'Cost / Piece',
-                            controller: _costPieceController,
-                            hintText: 'e.g. 4.50',
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
+                    ValueListenableBuilder<AppCurrency>(
+                      valueListenable: context.currencyController,
+                      builder: (_, currency, __) {
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: _ReadOnlyField(
+                                label: 'Total Value',
+                                value: _currencyLabel(
+                                  total,
+                                  currencyCode: currency.code,
+                                ),
+                              ),
                             ),
-                            hasError:
-                                (_showValidationHighlights ||
-                                    _costPieceBlurred) &&
-                                _costPieceHasError,
-                            onTapOutside: () =>
-                                setState(() => _costPieceBlurred = true),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ),
-                      ],
+                            const SizedBox(width: AppThemeTokens.space2),
+                            Expanded(
+                              child: _CurrencyFieldEditor(
+                                label: 'Cost / Piece',
+                                controller: _costPieceController,
+                                hintText: 'e.g. 4.50',
+                                currencyCode: currency.code,
+                                hasError:
+                                    (_showValidationHighlights ||
+                                        _costPieceBlurred) &&
+                                    _costPieceHasError,
+                                onTapOutside: () =>
+                                    setState(() => _costPieceBlurred = true),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: AppThemeTokens.space4),
-                    _FieldEditor(
-                      label: 'Cost / Bulk',
-                      controller: _costBulkController,
-                      hintText: 'e.g. 40.00',
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      hasError:
-                          (_showValidationHighlights || _costBulkBlurred) &&
-                          _costBulkHasError,
-                      onTapOutside: () =>
-                          setState(() => _costBulkBlurred = true),
-                      onChanged: (_) => setState(() {}),
+                    ValueListenableBuilder<AppCurrency>(
+                      valueListenable: context.currencyController,
+                      builder: (_, currency, __) {
+                        return _CurrencyFieldEditor(
+                          label: 'Cost / Bulk',
+                          controller: _costBulkController,
+                          hintText: 'e.g. 40.00',
+                          currencyCode: currency.code,
+                          hasError:
+                              (_showValidationHighlights || _costBulkBlurred) &&
+                              _costBulkHasError,
+                          onTapOutside: () =>
+                              setState(() => _costBulkBlurred = true),
+                          onChanged: (_) => setState(() {}),
+                        );
+                      },
                     ),
                     const SizedBox(height: AppThemeTokens.space4),
                     Card(
@@ -338,22 +440,25 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                     ),
                               ),
                             ),
-                            _FieldEditor(
-                              label: 'Product Price',
-                              controller: _productPriceController,
-                              hintText: 'e.g. 12.00',
-                              enabled: _soldAsProduct,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
+                            ValueListenableBuilder<AppCurrency>(
+                              valueListenable: context.currencyController,
+                              builder: (_, currency, __) {
+                                return _CurrencyFieldEditor(
+                                  label: 'Product Price',
+                                  controller: _productPriceController,
+                                  hintText: 'e.g. 12.00',
+                                  currencyCode: currency.code,
+                                  enabled: _soldAsProduct,
+                                  hasError:
+                                      (_showValidationHighlights ||
+                                          _productPriceBlurred) &&
+                                      _productPriceHasError,
+                                  onTapOutside: () => setState(
+                                    () => _productPriceBlurred = true,
                                   ),
-                              hasError:
-                                  (_showValidationHighlights ||
-                                      _productPriceBlurred) &&
-                                  _productPriceHasError,
-                              onTapOutside: () =>
-                                  setState(() => _productPriceBlurred = true),
-                              onChanged: (_) => setState(() {}),
+                                  onChanged: (_) => setState(() {}),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -445,18 +550,91 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
       name: _nameController.text.trim(),
       itemPictureIcon: _itemPictureIcon,
       description: _descriptionController.text.trim(),
-      pieces: _tryInt(_piecesController.text) ?? 0,
-      bulk: _tryInt(_bulkController.text) ?? 0,
-      piecesPerBulk: (_tryInt(_ratioController.text) ?? 1).clamp(1, 100000),
-      costPerPiece: _tryDouble(_costPieceController.text) ?? 0,
-      costPerBulk: _tryDouble(_costBulkController.text) ?? 0,
+      pieces: _piecesValue ?? 0,
+      bulk: _bulkValue ?? 0,
+      piecesPerBulk: (_ratioValue ?? 1).clamp(1, 100000),
+      costPerPiece: _costPieceValue ?? 0,
+      costPerBulk: _costBulkValue ?? 0,
       soldAsProduct: _soldAsProduct,
-      productPrice: _soldAsProduct
-          ? _tryDouble(_productPriceController.text)
-          : null,
+      productPrice: _soldAsProduct ? _productPriceValue : null,
       clearProductPrice: !_soldAsProduct,
     );
     setState(() => _allowPop = true);
     Navigator.of(context).pop(updated);
+  }
+}
+
+class _CurrencyFieldEditor extends StatelessWidget {
+  const _CurrencyFieldEditor({
+    required this.label,
+    required this.controller,
+    required this.currencyCode,
+    this.hintText,
+    this.enabled = true,
+    this.hasError = false,
+    this.onTapOutside,
+    this.onChanged,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String currencyCode;
+  final String? hintText;
+  final bool enabled;
+  final bool hasError;
+  final VoidCallback? onTapOutside;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppThemeTokens.space1),
+        TextField(
+          controller: controller,
+          enabled: enabled,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: onChanged,
+          onTapOutside: (_) {
+            FocusManager.instance.primaryFocus?.unfocus();
+            onChanged?.call(controller.text);
+            onTapOutside?.call();
+          },
+          decoration: _buildDecoration(
+            InputDecoration(
+              hintText: hintText ?? label,
+              suffix: Padding(
+                padding: const EdgeInsets.only(left: AppThemeTokens.space3),
+                child: Text(
+                  currencyCode,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppThemeTokens.textSecondary,
+                    fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _buildDecoration(InputDecoration decoration) {
+    if (!hasError) {
+      return decoration;
+    }
+
+    final errorBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+      borderSide: const BorderSide(color: AppThemeTokens.error),
+    );
+    return decoration.copyWith(
+      border: errorBorder,
+      enabledBorder: errorBorder,
+      focusedBorder: errorBorder,
+    );
   }
 }

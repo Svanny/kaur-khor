@@ -83,6 +83,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
   Widget build(BuildContext context) {
     final edge = AppThemeTokens.screenEdgePadding(context);
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final currencyCode = context.currencyController.value.code;
     final query = _searchController.text.trim().toLowerCase();
     final visibleSkus = _skus
         .where((sku) => sku.name.toLowerCase().contains(query))
@@ -198,7 +199,10 @@ class _ViewAllPageState extends State<ViewAllPage> {
                             itemPictureIcon: service.itemPictureIcon,
                             pieces: _piecesForService(service),
                             bulk: _bulkForService(service),
-                            totalValueLabel: _currencyLabel(service.price),
+                            totalValueLabel: _currencyLabel(
+                              service.price,
+                              currencyCode: currencyCode,
+                            ),
                             onTap: () => _editService(service),
                           ),
                           const SizedBox(height: AppThemeTokens.space3),
@@ -218,7 +222,10 @@ class _ViewAllPageState extends State<ViewAllPage> {
                             itemPictureIcon: sku.itemPictureIcon,
                             pieces: sku.pieces,
                             bulk: sku.bulk,
-                            totalValueLabel: _currencyLabel(sku.totalValue),
+                            totalValueLabel: _currencyLabel(
+                              sku.totalValue,
+                              currencyCode: currencyCode,
+                            ),
                             onTap: () => _editSku(sku),
                           ),
                           const SizedBox(height: AppThemeTokens.space3),
