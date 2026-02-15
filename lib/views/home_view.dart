@@ -62,20 +62,34 @@ class HomeView extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: contentPadding,
+      body: Stack(
         children: [
-          _SectionTitle(l10n.homeKeyMetrics),
-          const SizedBox(height: AppThemeTokens.cardContentGap),
-          const _MetricGrid(),
-          const SizedBox(height: AppThemeTokens.sectionGapLarge),
-          _SectionTitle(l10n.homePerformance),
-          const SizedBox(height: AppThemeTokens.cardContentGap),
-          const _ChartPlaceholder(),
-          const SizedBox(height: AppThemeTokens.sectionGapLarge),
-          _SectionTitle(l10n.homeRecentActivity),
-          const SizedBox(height: AppThemeTokens.cardContentGap),
-          const _ActivityList(),
+          ListView(
+            padding: contentPadding,
+            children: [
+              _SectionTitle(l10n.homeKeyMetrics),
+              const SizedBox(height: AppThemeTokens.cardContentGap),
+              const _MetricGrid(),
+              const SizedBox(height: AppThemeTokens.sectionGapLarge),
+              _SectionTitle(l10n.homePerformance),
+              const SizedBox(height: AppThemeTokens.cardContentGap),
+              const _ChartPlaceholder(),
+              const SizedBox(height: AppThemeTokens.sectionGapLarge),
+              _SectionTitle(l10n.homeRecentActivity),
+              const SizedBox(height: AppThemeTokens.cardContentGap),
+              const _ActivityList(),
+            ],
+          ),
+          Positioned(
+            bottom: edgePadding.bottom,
+            right: edgePadding.right,
+            child: FloatingActionButton(
+              key: const ValueKey('home-overlay-receipt-button'),
+              onPressed: () {},
+              shape: const CircleBorder(),
+              child: const Icon(Icons.receipt_long_rounded),
+            ),
+          ),
         ],
       ),
     );
