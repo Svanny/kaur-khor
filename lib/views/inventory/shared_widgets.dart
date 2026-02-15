@@ -154,10 +154,10 @@ class _SlidingYesNoToggle extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final Duration duration;
 
-  static const double _width = AppThemeTokens.unit * 24;
-  static const double _height = AppThemeTokens.unit * 9;
-  static const double _thumbWidth = AppThemeTokens.unit * 11;
-  static const double _thumbHeight = AppThemeTokens.unit * 8;
+  static const double _width = AppThemeTokens.unit * 26;
+  static const double _height = AppThemeTokens.unit * 10;
+  static const double _thumbWidth = AppThemeTokens.unit * 12;
+  static const double _thumbHeight = AppThemeTokens.unit * 9;
   static const double _inset = 2;
 
   @override

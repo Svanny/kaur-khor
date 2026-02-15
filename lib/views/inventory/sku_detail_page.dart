@@ -19,7 +19,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   static const Duration _productPriceToggleDuration = Duration(
     milliseconds: 220,
   );
-  static const double _productPriceExpansionEstimate = 132;
+  static const double _productPriceExpansionEstimate = 140;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _productPriceSectionKey = GlobalKey();
   final GlobalKey _soldAsProductCardKey = GlobalKey();
@@ -471,7 +471,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                 margin: EdgeInsets.zero,
                                 child: Padding(
                                   padding: const EdgeInsets.all(
-                                    AppThemeTokens.sectionCardInset,
+                                    AppThemeTokens.groupedCardInset,
                                   ),
                                   child: KeyedSubtree(
                                     key: _productPriceSectionKey,

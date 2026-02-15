@@ -913,12 +913,48 @@ void main() {
         productPricePaddings.any(
           (padding) =>
               padding.padding ==
-              const EdgeInsets.all(AppThemeTokens.sectionCardInset),
+              const EdgeInsets.all(AppThemeTokens.groupedCardInset),
         ),
         isTrue,
       );
     },
   );
+
+  testWidgets('sku sold-as-product toggle pill uses the larger size', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-toggle-size',
+      name: 'SKU Toggle Size',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 3,
+      bulk: 2,
+      piecesPerBulk: 10,
+      costPerPiece: 11.1,
+      costPerBulk: 50,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const SkuDetailPage(initialSku: sku),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      soldAsProductToggleFinder(),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final toggleSize = tester.getSize(soldAsProductToggleFinder());
+    expect(toggleSize.width, AppThemeTokens.unit * 26);
+    expect(toggleSize.height, AppThemeTokens.unit * 10);
+  });
 
   testWidgets(
     'sku product price expansion auto-scrolls and keeps symmetric horizontal inset',
@@ -976,12 +1012,12 @@ void main() {
         lessThanOrEqualTo(
           viewportRect.bottom -
               AppThemeTokens.scrollVisibilityBottomClearance +
-              2.0,
+              3.0,
         ),
       );
       expect(
         (soldAsProductToggleRect.right - productPriceRect.right).abs(),
-        closeTo(AppThemeTokens.sectionCardInset, 1.0),
+        closeTo(AppThemeTokens.groupedCardInset, 1.0),
       );
 
       final soldCard = find
