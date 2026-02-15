@@ -920,41 +920,41 @@ void main() {
     },
   );
 
-  testWidgets('sku sold-as-product toggle pill uses the larger size', (
-    WidgetTester tester,
-  ) async {
-    const sku = SkuItem(
-      id: 'sku-toggle-size',
-      name: 'SKU Toggle Size',
-      itemPictureIcon: Icons.inventory_2_outlined,
-      description: 'desc',
-      pieces: 3,
-      bulk: 2,
-      piecesPerBulk: 10,
-      costPerPiece: 11.1,
-      costPerBulk: 50,
-      soldAsProduct: false,
-      productPrice: null,
-    );
+  testWidgets(
+    'toggle pill size is harmonized with filter chip size via theme tokens',
+    (WidgetTester tester) async {
+      await pumpViewAll(tester);
+      final filterChipSize = tester.getSize(
+        find.widgetWithText(FilterChip, 'SKUs'),
+      );
+      expect(
+        filterChipSize.height,
+        closeTo(AppThemeTokens.filterChipPillHeight, 0.6),
+      );
 
-    await setPhoneViewport(tester);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: const SkuDetailPage(initialSku: sku),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await openCard(tester, 'SKU #001');
 
-    await tester.scrollUntilVisible(
-      soldAsProductToggleFinder(),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
-    final toggleSize = tester.getSize(soldAsProductToggleFinder());
-    expect(toggleSize.width, AppThemeTokens.unit * 26);
-    expect(toggleSize.height, AppThemeTokens.unit * 10);
-  });
+      await tester.scrollUntilVisible(
+        soldAsProductToggleFinder(),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      final toggleSize = tester.getSize(soldAsProductToggleFinder());
+      expect(
+        toggleSize.width,
+        closeTo(AppThemeTokens.segmentedToggleTrackWidth, 0.6),
+      );
+      expect(
+        toggleSize.height,
+        closeTo(AppThemeTokens.segmentedToggleTrackHeight, 0.6),
+      );
+      expect(toggleSize.height, closeTo(filterChipSize.height, 0.6));
+      expect(
+        AppThemeTokens.segmentedToggleTrackHeight,
+        AppThemeTokens.filterChipPillHeight,
+      );
+    },
+  );
 
   testWidgets(
     'sku product price expansion auto-scrolls and keeps symmetric horizontal inset',

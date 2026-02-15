@@ -119,59 +119,67 @@ class _ViewAllPageState extends State<ViewAllPage> {
                 spacing: AppThemeTokens.wrapSpacing,
                 runSpacing: AppThemeTokens.wrapSpacing,
                 children: [
-                  FilterChip(
-                    selected: _showSkus,
-                    onSelected: (_) => setState(() => _showSkus = !_showSkus),
-                    showCheckmark: true,
-                    checkmarkColor: AppThemeTokens.textPrimary,
-                    backgroundColor: AppThemeTokens.disabledBackground,
-                    selectedColor: AppThemeTokens.chipSelected,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppThemeTokens.filterChipPadX,
-                      vertical: AppThemeTokens.filterChipPadY,
-                    ),
-                    side: BorderSide.none,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(AppThemeTokens.radiusPill),
+                  SizedBox(
+                    height: AppThemeTokens.filterChipPillHeight,
+                    child: FilterChip(
+                      selected: _showSkus,
+                      onSelected: (_) => setState(() => _showSkus = !_showSkus),
+                      showCheckmark: true,
+                      checkmarkColor: AppThemeTokens.textPrimary,
+                      backgroundColor: AppThemeTokens.disabledBackground,
+                      selectedColor: AppThemeTokens.chipSelected,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppThemeTokens.filterChipPadX,
+                        vertical: AppThemeTokens.filterChipPadY,
                       ),
                       side: BorderSide.none,
-                    ),
-                    elevation: AppThemeTokens.elevation1,
-                    pressElevation: AppThemeTokens.elevation1,
-                    shadowColor: AppThemeTokens.shadow,
-                    selectedShadowColor: AppThemeTokens.shadow,
-                    label: Text(
-                      'SKUs',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(AppThemeTokens.radiusPill),
+                        ),
+                        side: BorderSide.none,
+                      ),
+                      elevation: AppThemeTokens.elevation1,
+                      pressElevation: AppThemeTokens.elevation1,
+                      shadowColor: AppThemeTokens.shadow,
+                      selectedShadowColor: AppThemeTokens.shadow,
+                      label: Text(
+                        'SKUs',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                     ),
                   ),
-                  FilterChip(
-                    selected: _showServices,
-                    onSelected: (_) =>
-                        setState(() => _showServices = !_showServices),
-                    showCheckmark: true,
-                    checkmarkColor: AppThemeTokens.textPrimary,
-                    backgroundColor: AppThemeTokens.disabledBackground,
-                    selectedColor: AppThemeTokens.chipSelected,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppThemeTokens.filterChipPadX,
-                      vertical: AppThemeTokens.filterChipPadY,
-                    ),
-                    side: BorderSide.none,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(AppThemeTokens.radiusPill),
+                  SizedBox(
+                    height: AppThemeTokens.filterChipPillHeight,
+                    child: FilterChip(
+                      selected: _showServices,
+                      onSelected: (_) =>
+                          setState(() => _showServices = !_showServices),
+                      showCheckmark: true,
+                      checkmarkColor: AppThemeTokens.textPrimary,
+                      backgroundColor: AppThemeTokens.disabledBackground,
+                      selectedColor: AppThemeTokens.chipSelected,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppThemeTokens.filterChipPadX,
+                        vertical: AppThemeTokens.filterChipPadY,
                       ),
                       side: BorderSide.none,
-                    ),
-                    elevation: AppThemeTokens.elevation1,
-                    pressElevation: AppThemeTokens.elevation1,
-                    shadowColor: AppThemeTokens.shadow,
-                    selectedShadowColor: AppThemeTokens.shadow,
-                    label: Text(
-                      'Services',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(AppThemeTokens.radiusPill),
+                        ),
+                        side: BorderSide.none,
+                      ),
+                      elevation: AppThemeTokens.elevation1,
+                      pressElevation: AppThemeTokens.elevation1,
+                      shadowColor: AppThemeTokens.shadow,
+                      selectedShadowColor: AppThemeTokens.shadow,
+                      label: Text(
+                        'Services',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                     ),
                   ),
                 ],

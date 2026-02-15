@@ -154,12 +154,6 @@ class _SlidingYesNoToggle extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final Duration duration;
 
-  static const double _width = AppThemeTokens.unit * 26;
-  static const double _height = AppThemeTokens.unit * 10;
-  static const double _thumbWidth = AppThemeTokens.unit * 12;
-  static const double _thumbHeight = AppThemeTokens.unit * 9;
-  static const double _inset = 2;
-
   @override
   Widget build(BuildContext context) {
     final labelStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -167,8 +161,8 @@ class _SlidingYesNoToggle extends StatelessWidget {
     );
 
     return SizedBox(
-      width: _width,
-      height: _height,
+      width: AppThemeTokens.segmentedToggleTrackWidth,
+      height: AppThemeTokens.segmentedToggleTrackHeight,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: AppThemeTokens.surface,
@@ -182,7 +176,9 @@ class _SlidingYesNoToggle extends StatelessWidget {
               curve: Curves.easeInOutCubic,
               alignment: value ? Alignment.centerRight : Alignment.centerLeft,
               child: Padding(
-                padding: const EdgeInsets.all(_inset),
+                padding: const EdgeInsets.all(
+                  AppThemeTokens.segmentedToggleTrackInset,
+                ),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: AppThemeTokens.primary,
@@ -191,8 +187,8 @@ class _SlidingYesNoToggle extends StatelessWidget {
                     ),
                   ),
                   child: const SizedBox(
-                    width: _thumbWidth,
-                    height: _thumbHeight,
+                    width: AppThemeTokens.segmentedToggleThumbWidth,
+                    height: AppThemeTokens.segmentedToggleThumbHeight,
                   ),
                 ),
               ),

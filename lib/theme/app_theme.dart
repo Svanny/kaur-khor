@@ -100,6 +100,17 @@ class AppThemeTokens {
   static const double filterChipPadY = chipPaddingY + chipDenseAdjust;
   static const double inventoryChipPadX = chipPaddingX - chipDenseAdjust;
   static const double inventoryChipPadY = chipPaddingY - chipDenseAdjust;
+  static const double filterChipPillHeight = unit * 11;
+
+  // Pill control harmonization: segmented toggle tracks filter chip scale.
+  static const double segmentedToggleTrackHeight = filterChipPillHeight;
+  static const double segmentedToggleTrackWidth =
+      (segmentedToggleTrackHeight * 2) + space6;
+  static const double segmentedToggleTrackInset = unit / 2;
+  static const double segmentedToggleThumbHeight =
+      segmentedToggleTrackHeight - (segmentedToggleTrackInset * 2);
+  static const double segmentedToggleThumbWidth =
+      (segmentedToggleTrackWidth / 2) - (segmentedToggleTrackInset * 2);
 
   static const double dropdownPanelInsetY = space2;
   static const double dropdownOptionPadX = space3;
