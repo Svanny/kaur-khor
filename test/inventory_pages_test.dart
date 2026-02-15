@@ -145,6 +145,34 @@ void main() {
     expect(find.text('Cost / Piece'), findsAtLeastNWidgets(1));
   });
 
+  testWidgets('service detail opens SKUs Used as a bottom sheet', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'Service #001');
+
+    await tester.tap(find.text('SKU #001').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ServiceDetailPage), findsOneWidget);
+    expect(find.byType(SkuUsedSelectorPage), findsOneWidget);
+    expect(find.text('Search SKUs by name'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(SkuUsedSelectorPage),
+        matching: find.byIcon(Icons.close),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(SkuUsedSelectorPage),
+        matching: find.byIcon(Icons.arrow_back),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('service detail action buttons appear only after edits', (
     WidgetTester tester,
   ) async {
@@ -728,6 +756,72 @@ void main() {
     },
   );
 
+  testWidgets('sku detail uses harmonized frame spacing for card sections', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-spacing',
+      name: 'SKU Spacing',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 3,
+      bulk: 2,
+      piecesPerBulk: 10,
+      costPerPiece: 11.1,
+      costPerBulk: 50,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const SkuDetailPage(initialSku: sku),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final ratioRect = tester.getRect(textFieldByHint('Enter pieces per bulk'));
+    final piecesCardRect = tester.getRect(
+      find.ancestor(of: find.text('Pieces'), matching: find.byType(Card)).first,
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Sold as a Product?'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    final totalValueRect = tester.getRect(
+      find
+          .descendant(
+            of: find
+                .ancestor(
+                  of: find.text('Total Value'),
+                  matching: find.byType(Column),
+                )
+                .first,
+            matching: find.byType(InputDecorator),
+          )
+          .first,
+    );
+    final soldAsProductCardRect = tester.getRect(
+      find
+          .ancestor(
+            of: find.text('Sold as a Product?'),
+            matching: find.byType(Card),
+          )
+          .first,
+    );
+
+    final piecesCardGap = piecesCardRect.top - ratioRect.bottom;
+    final soldAsProductGap = soldAsProductCardRect.top - totalValueRect.bottom;
+    const tolerance = 0.6;
+    expect(piecesCardGap, closeTo(AppThemeTokens.space4, tolerance));
+    expect(soldAsProductGap, closeTo(AppThemeTokens.space4, tolerance));
+  });
+
   testWidgets(
     'sku product price expansion auto-scrolls and keeps symmetric horizontal inset',
     (WidgetTester tester) async {
@@ -899,12 +993,30 @@ void main() {
     await tester.tap(find.text('Tap to choose SKUs'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), '001');
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(SkuUsedSelectorPage),
+        matching: find.byType(TextField),
+      ),
+      '001',
+    );
     await tester.pump();
     expect(find.text('SKU #001'), findsOneWidget);
     expect(find.text('SKU #002'), findsNothing);
-    expect(find.byIcon(Icons.close), findsNothing);
-    expect(find.byIcon(Icons.check), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(SkuUsedSelectorPage),
+        matching: find.byIcon(Icons.close),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(SkuUsedSelectorPage),
+        matching: find.byIcon(Icons.check),
+      ),
+      findsNothing,
+    );
 
     final selectorCard = tester.widget<Card>(
       find.ancestor(
@@ -913,11 +1025,13 @@ void main() {
       ),
     );
     expect(selectorCard.margin, EdgeInsets.zero);
+    expect(selectorCard.color, AppThemeTokens.surface);
     final selectorShape = selectorCard.shape as RoundedRectangleBorder;
     expect(
       selectorShape.borderRadius,
       const BorderRadius.all(Radius.circular(AppThemeTokens.radiusMd)),
     );
+    expect(selectorShape.side.color, AppThemeTokens.border);
     final skuTile = tester.widget<CheckboxListTile>(
       find.widgetWithText(CheckboxListTile, 'SKU #001'),
     );
@@ -926,11 +1040,19 @@ void main() {
 
     await tester.tap(find.widgetWithText(CheckboxListTile, 'SKU #001'));
     await tester.pump();
-    expect(find.byIcon(Icons.close), findsOneWidget);
-    expect(find.byIcon(Icons.check), findsOneWidget);
+    final selectorCloseAction = find.descendant(
+      of: find.byType(SkuUsedSelectorPage),
+      matching: find.widgetWithIcon(OutlinedButton, Icons.close),
+    );
+    final selectorCheckAction = find.descendant(
+      of: find.byType(SkuUsedSelectorPage),
+      matching: find.widgetWithIcon(FilledButton, Icons.check),
+    );
+    expect(selectorCloseAction, findsOneWidget);
+    expect(selectorCheckAction, findsOneWidget);
     expect(
       find.ancestor(
-        of: find.widgetWithIcon(OutlinedButton, Icons.close),
+        of: selectorCloseAction,
         matching: find.byWidgetPredicate(
           (widget) =>
               widget is SizedBox && widget.width == 40 && widget.height == 40,
@@ -940,7 +1062,7 @@ void main() {
     );
     expect(
       find.ancestor(
-        of: find.widgetWithIcon(FilledButton, Icons.check),
+        of: selectorCheckAction,
         matching: find.byWidgetPredicate(
           (widget) =>
               widget is SizedBox && widget.width == 40 && widget.height == 40,
@@ -948,7 +1070,12 @@ void main() {
       ),
       findsOneWidget,
     );
-    await tester.tap(find.byType(FilledButton));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SkuUsedSelectorPage),
+        matching: find.widgetWithIcon(FilledButton, Icons.check),
+      ),
+    );
     await tester.pumpAndSettle();
 
     saveButton = tester.widget<FilledButton>(find.byType(FilledButton));

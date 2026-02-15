@@ -10,6 +10,7 @@ Widget buildSaveChangeHeader({
   required bool hasChanges,
   required bool isValid,
   double actionSize = 40,
+  IconData backIcon = Icons.arrow_back,
   Key? actionsKey,
 }) {
   return _DetailHeader(
@@ -19,6 +20,7 @@ Widget buildSaveChangeHeader({
     onSave: hasChanges && isValid ? onSave : null,
     showActions: hasChanges,
     actionSize: actionSize,
+    backIcon: backIcon,
     actionsKey: actionsKey,
   );
 }

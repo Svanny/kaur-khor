@@ -9,6 +9,7 @@ class _DetailHeader extends StatelessWidget {
     this.showActions = true,
     this.actionsKey,
     this.actionSize = 40,
+    this.backIcon = Icons.arrow_back,
   });
 
   final String title;
@@ -18,12 +19,13 @@ class _DetailHeader extends StatelessWidget {
   final bool showActions;
   final Key? actionsKey;
   final double actionSize;
+  final IconData backIcon;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back)),
+        IconButton(onPressed: onBack, icon: Icon(backIcon)),
         const SizedBox(width: AppThemeTokens.space2),
         Expanded(
           child: Padding(

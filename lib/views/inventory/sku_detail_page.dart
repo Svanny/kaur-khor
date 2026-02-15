@@ -284,7 +284,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     bottom:
                         edge.bottom +
                         AppThemeTokens.space8 +
-                        AppThemeTokens.space3,
+                        AppThemeTokens.space6,
                   ),
                   children: [
                     _MediaPlaceholderCard(itemPictureIcon: _itemPictureIcon),
@@ -474,7 +474,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                               child: _soldAsProduct
                                   ? Padding(
                                       padding: const EdgeInsets.only(
-                                        top: AppThemeTokens.space3,
+                                        top: AppThemeTokens.space4,
                                       ),
                                       child: KeyedSubtree(
                                         key: _productPriceSectionKey,
@@ -652,14 +652,16 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
 
     final position = _scrollController.position;
     final edge = AppThemeTokens.screenEdgePadding(context);
-    final bottomClearance = edge.bottom + AppThemeTokens.space2;
+    final bottomClearance = edge.bottom + AppThemeTokens.space4;
     final cardBottom = cardObject.localToGlobal(
       cardObject.size.bottomLeft(Offset.zero),
       ancestor: viewportObject,
     );
     final viewportBottom = viewportObject.size.height - bottomClearance;
     final overflowAfterExpand =
-        (cardBottom.dy + _productPriceExpansionEstimate) - viewportBottom;
+        (cardBottom.dy + _productPriceExpansionEstimate) -
+        viewportBottom +
+        AppThemeTokens.space1;
     if (overflowAfterExpand <= 0) {
       return;
     }
@@ -696,7 +698,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final position = _scrollController.position;
     final edge = AppThemeTokens.screenEdgePadding(context);
     const topClearance = AppThemeTokens.space2;
-    final bottomClearance = edge.bottom + AppThemeTokens.space2;
+    final bottomClearance = edge.bottom + AppThemeTokens.space4;
     final topLeft = renderObject.localToGlobal(
       Offset.zero,
       ancestor: viewportObject,
@@ -710,7 +712,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     var targetOffset = position.pixels;
 
     if (bottomRight.dy > viewportBottom) {
-      targetOffset += bottomRight.dy - viewportBottom;
+      targetOffset += (bottomRight.dy - viewportBottom) + AppThemeTokens.space1;
     } else if (topLeft.dy < viewportTop) {
       targetOffset -= viewportTop - topLeft.dy;
     }

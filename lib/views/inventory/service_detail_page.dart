@@ -331,9 +331,16 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   }
 
   Future<void> _editSkuSelection() async {
-    final selected = await Navigator.of(context).push<Set<String>>(
-      MaterialPageRoute(
-        builder: (_) => SkuUsedSelectorPage(
+    FocusScope.of(context).unfocus();
+    final selected = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppThemeTokens.modalSheetBackground,
+      builder: (_) => SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.82,
+        child: SkuUsedSelectorPage(
           skus: widget.availableSkus,
           selectedSkuIds: _selectedSkuIds,
         ),
@@ -415,71 +422,86 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
         }
         unawaited(_onBackPressed());
       },
-      child: Scaffold(
-        body: Padding(
-          padding: EdgeInsets.fromLTRB(edge.left, edge.top, edge.right, 0),
-          child: Column(
-            children: [
-              buildSaveChangeHeader(
-                title: 'SKUs Used',
-                onBack: _onBackPressed,
-                onCancel: _resetSelection,
-                onSave: _saveSelection,
-                hasChanges: _hasSelectionChanges,
-                isValid: true,
-              ),
-              const SizedBox(height: AppThemeTokens.space3),
-              _SearchField(
-                controller: _searchController,
-                hintText: 'Search SKUs by name',
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: AppThemeTokens.space3),
-              Expanded(
-                child: ListView.separated(
-                  padding: EdgeInsets.only(
-                    bottom: bottomInset + AppThemeTokens.space8,
-                  ),
-                  itemCount: visibleSkus.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: AppThemeTokens.space3),
-                  itemBuilder: (_, index) {
-                    final sku = visibleSkus[index];
-                    final selected = _selectedSkuIds.contains(sku.id);
-                    return Card(
-                      margin: EdgeInsets.zero,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(
-                          Radius.circular(AppThemeTokens.radiusMd),
-                        ),
-                      ),
-                      child: CheckboxListTile(
-                        value: selected,
-                        onChanged: (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          setState(() {
-                            if (value) {
-                              _selectedSkuIds.add(sku.id);
-                            } else {
-                              _selectedSkuIds.remove(sku.id);
-                            }
-                          });
-                        },
-                        title: Text(sku.name),
-                        subtitle: Text(
-                          '${sku.pieces} pieces · ${sku.bulk} bulk',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        checkboxScaleFactor: 1.0,
-                        controlAffinity: ListTileControlAffinity.leading,
-                      ),
-                    );
-                  },
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Material(
+          color: AppThemeTokens.modalSheetBackground,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              edge.left,
+              //AppThemeTokens.space1,
+              0,
+              edge.right,
+              0,
+            ),
+            child: Column(
+              children: [
+                buildSaveChangeHeader(
+                  title: 'SKUs Used',
+                  onBack: _onBackPressed,
+                  onCancel: _resetSelection,
+                  onSave: _saveSelection,
+                  hasChanges: _hasSelectionChanges,
+                  isValid: true,
+                  backIcon: Icons.close,
                 ),
-              ),
-            ],
+                const SizedBox(height: AppThemeTokens.space3),
+                _SearchField(
+                  controller: _searchController,
+                  hintText: 'Search SKUs by name',
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: AppThemeTokens.space3),
+                Expanded(
+                  child: ListView.separated(
+                    padding: EdgeInsets.only(
+                      bottom: bottomInset + AppThemeTokens.space8,
+                    ),
+                    itemCount: visibleSkus.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppThemeTokens.space3),
+                    itemBuilder: (_, index) {
+                      final sku = visibleSkus[index];
+                      final selected = _selectedSkuIds.contains(sku.id);
+                      return Card(
+                        color: AppThemeTokens.surface,
+                        margin: EdgeInsets.zero,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(
+                            Radius.circular(AppThemeTokens.radiusMd),
+                          ),
+                          side: BorderSide(color: AppThemeTokens.border),
+                        ),
+                        child: CheckboxListTile(
+                          value: selected,
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              if (value) {
+                                _selectedSkuIds.add(sku.id);
+                              } else {
+                                _selectedSkuIds.remove(sku.id);
+                              }
+                            });
+                          },
+                          title: Text(sku.name),
+                          subtitle: Text(
+                            '${sku.pieces} pieces · ${sku.bulk} bulk',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          checkboxScaleFactor: 1.0,
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

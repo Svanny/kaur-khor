@@ -8,6 +8,7 @@ class AppThemeTokens {
   static const Color primary = Color(0xFFBC8053);
   static const Color secondary = Color(0xFFC0CC8D);
   static const Color background = Color(0xFFE8E3E0);
+  static const Color modalSheetBackground = Color(0xFFE7E3E0);
   static const Color surface = Color(0xFFF1EEEC);
   static const Color border = Color(0xFFD1CBC7);
   static const Color textPrimary = Color(0xFF1F0D00);
