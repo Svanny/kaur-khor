@@ -758,11 +758,14 @@ class _ItemPictureGlyph extends StatelessWidget {
 
   Widget _baseGlyph(double size) {
     if (icon == _defaultServicePictureIcon) {
-      return SvgPicture.asset(
-        _defaultServicePictureAsset,
-        width: size,
-        height: size,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      return Transform.scale(
+        scale: AppThemeTokens.serviceSvgOutlineScale,
+        child: SvgPicture.asset(
+          _defaultServicePictureAsset,
+          width: size,
+          height: size,
+          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+        ),
       );
     }
 

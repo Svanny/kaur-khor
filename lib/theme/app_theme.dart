@@ -49,6 +49,7 @@ class AppThemeTokens {
   static const double lineHeightBodyMedium = 1.4;
   static const double letterSpacingHeadline = -0.2;
   static const double iconSizeMedium = 6 * unit;
+  static const double serviceSvgOutlineScale = 1.2;
 
   // Shape and spacing
   static const double radiusMd = 3 * unit;
