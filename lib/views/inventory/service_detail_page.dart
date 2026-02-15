@@ -173,9 +173,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     ValueListenableBuilder<AppCurrency>(
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
-                        return _PriceFieldWithCurrency(
+                        return _CurrencyFieldWithCode(
+                          label: 'Price',
                           controller: _priceController,
                           currencyCode: currency.code,
+                          hintText: 'e.g. 1200.00',
                           hasError:
                               (_showValidationHighlights || _priceBlurred) &&
                               _priceHasError,
@@ -356,77 +358,6 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     );
     setState(() => _allowPop = true);
     Navigator.of(context).pop(updated);
-  }
-}
-
-class _PriceFieldWithCurrency extends StatelessWidget {
-  const _PriceFieldWithCurrency({
-    required this.controller,
-    required this.currencyCode,
-    this.hasError = false,
-    this.onTapOutside,
-    this.onChanged,
-  });
-
-  final TextEditingController controller;
-  final String currencyCode;
-  final bool hasError;
-  final VoidCallback? onTapOutside;
-  final ValueChanged<String>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Price', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.space1),
-        TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          onChanged: onChanged,
-          onTapOutside: (_) {
-            FocusManager.instance.primaryFocus?.unfocus();
-            onChanged?.call(controller.text);
-            onTapOutside?.call();
-          },
-          decoration: _buildDecoration(
-            context,
-            InputDecoration(
-              hintText: 'e.g. 1200.00',
-              suffix: Padding(
-                padding: const EdgeInsets.only(left: AppThemeTokens.space3),
-                child: Text(
-                  currencyCode,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppThemeTokens.textSecondary,
-                    fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  InputDecoration _buildDecoration(
-    BuildContext context,
-    InputDecoration decoration,
-  ) {
-    if (!hasError) {
-      return decoration;
-    }
-    final errorBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-      borderSide: const BorderSide(color: AppThemeTokens.error),
-    );
-    return decoration.copyWith(
-      enabledBorder: errorBorder,
-      focusedBorder: errorBorder,
-      border: errorBorder,
-    );
   }
 }
 

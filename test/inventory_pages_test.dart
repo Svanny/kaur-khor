@@ -30,6 +30,13 @@ void main() {
     return tester.widget<FilterChip>(find.widgetWithText(FilterChip, label));
   }
 
+  Finder textFieldByHint(String hintText) {
+    return find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField && widget.decoration?.hintText == hintText,
+    );
+  }
+
   Future<void> openCard(WidgetTester tester, String title) async {
     final card = find.widgetWithText(Card, title).first;
     await tester.ensureVisible(card);
@@ -536,7 +543,7 @@ void main() {
       220,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.enterText(find.byType(TextField).at(5), '4a');
+    await tester.enterText(textFieldByHint('e.g. 4.50'), '4a');
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
@@ -589,7 +596,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     final costPieceField = tester.widget<TextField>(
-      find.byType(TextField).at(5),
+      textFieldByHint('e.g. 4.50'),
     );
     final costPieceSuffix = costPieceField.decoration?.suffix as Padding;
     expect((costPieceSuffix.child as Text).data, 'KHR');
@@ -600,7 +607,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     final costBulkField = tester.widget<TextField>(
-      find.byType(TextField).at(6),
+      textFieldByHint('e.g. 40.00'),
     );
     final costBulkSuffix = costBulkField.decoration?.suffix as Padding;
     expect((costBulkSuffix.child as Text).data, 'KHR');
@@ -608,10 +615,46 @@ void main() {
     await tester.tap(find.text('Sold as a Product?'));
     await tester.pump();
     final productPriceField = tester.widget<TextField>(
-      find.byType(TextField).at(7),
+      textFieldByHint('e.g. 12.00'),
     );
     final productPriceSuffix = productPriceField.decoration?.suffix as Padding;
     expect((productPriceSuffix.child as Text).data, 'KHR');
+  });
+
+  testWidgets('sku detail total value is right aligned', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-total-align',
+      name: 'SKU Total Align',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 120,
+      bulk: 12,
+      piecesPerBulk: 12,
+      costPerPiece: 5,
+      costPerBulk: 58,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const SkuDetailPage(initialSku: sku),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Total Value'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    final totalValueText = tester.widget<Text>(find.text('1.3k USD'));
+    expect(totalValueText.textAlign, TextAlign.end);
   });
 
   testWidgets('sku detail invalid monetary field shows red border on blur', (
@@ -626,11 +669,14 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
 
-    final costPieceField = find.byType(TextField).at(5);
-    await tester.tap(costPieceField);
-    await tester.pump();
+    final costPieceField = textFieldByHint('e.g. 4.50');
     await tester.enterText(costPieceField, '4a');
     await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Cost / Bulk'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Cost / Bulk'));
     await tester.pump();
 

@@ -336,24 +336,21 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                             onChanged: (_) => setState(() {}),
                           ),
                         ),
-                        const SizedBox(width: AppThemeTokens.space2),
-                        Expanded(
-                          child: _FieldEditor(
-                            label: 'Pieces / Bulk',
-                            controller: _ratioController,
-                            hintText: 'Enter pieces per bulk',
-                            keyboardType: const TextInputType.numberWithOptions(
-                              signed: false,
-                            ),
-                            hasError:
-                                (_showValidationHighlights || _ratioBlurred) &&
-                                _ratioHasError,
-                            onTapOutside: () =>
-                                setState(() => _ratioBlurred = true),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ),
                       ],
+                    ),
+                    const SizedBox(height: AppThemeTokens.space4),
+                    _FieldEditor(
+                      label: 'Pieces / Bulk',
+                      controller: _ratioController,
+                      hintText: 'Enter pieces per bulk',
+                      keyboardType: const TextInputType.numberWithOptions(
+                        signed: false,
+                      ),
+                      hasError:
+                          (_showValidationHighlights || _ratioBlurred) &&
+                          _ratioHasError,
+                      onTapOutside: () => setState(() => _ratioBlurred = true),
+                      onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: AppThemeTokens.space4),
                     ValueListenableBuilder<AppCurrency>(
@@ -362,17 +359,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         return Row(
                           children: [
                             Expanded(
-                              child: _ReadOnlyField(
-                                label: 'Total Value',
-                                value: _currencyLabel(
-                                  total,
-                                  currencyCode: currency.code,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: AppThemeTokens.space2),
-                            Expanded(
-                              child: _CurrencyFieldEditor(
+                              child: _CurrencyFieldWithCode(
                                 label: 'Cost / Piece',
                                 controller: _costPieceController,
                                 hintText: 'e.g. 4.50',
@@ -386,6 +373,22 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                 onChanged: (_) => setState(() {}),
                               ),
                             ),
+                            const SizedBox(width: AppThemeTokens.space2),
+                            Expanded(
+                              child: _CurrencyFieldWithCode(
+                                label: 'Cost / Bulk',
+                                controller: _costBulkController,
+                                hintText: 'e.g. 40.00',
+                                currencyCode: currency.code,
+                                hasError:
+                                    (_showValidationHighlights ||
+                                        _costBulkBlurred) &&
+                                    _costBulkHasError,
+                                onTapOutside: () =>
+                                    setState(() => _costBulkBlurred = true),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
                           ],
                         );
                       },
@@ -394,17 +397,14 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     ValueListenableBuilder<AppCurrency>(
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
-                        return _CurrencyFieldEditor(
-                          label: 'Cost / Bulk',
-                          controller: _costBulkController,
-                          hintText: 'e.g. 40.00',
-                          currencyCode: currency.code,
-                          hasError:
-                              (_showValidationHighlights || _costBulkBlurred) &&
-                              _costBulkHasError,
-                          onTapOutside: () =>
-                              setState(() => _costBulkBlurred = true),
-                          onChanged: (_) => setState(() {}),
+                        return _ReadOnlyField(
+                          label: 'Total Value',
+                          value: _currencyLabel(
+                            total,
+                            currencyCode: currency.code,
+                          ),
+                          valueAlignment: Alignment.centerRight,
+                          valueTextAlign: TextAlign.end,
                         );
                       },
                     ),
@@ -432,18 +432,13 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                               contentPadding: EdgeInsets.zero,
                               title: Text(
                                 'Sold as a Product?',
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
-                                      fontWeight: _fontWeight(
-                                        AppThemeTokens.fontWeightSemibold,
-                                      ),
-                                    ),
+                                style: Theme.of(context).textTheme.titleMedium,
                               ),
                             ),
                             ValueListenableBuilder<AppCurrency>(
                               valueListenable: context.currencyController,
                               builder: (_, currency, __) {
-                                return _CurrencyFieldEditor(
+                                return _CurrencyFieldWithCode(
                                   label: 'Product Price',
                                   controller: _productPriceController,
                                   hintText: 'e.g. 12.00',
@@ -561,80 +556,5 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     );
     setState(() => _allowPop = true);
     Navigator.of(context).pop(updated);
-  }
-}
-
-class _CurrencyFieldEditor extends StatelessWidget {
-  const _CurrencyFieldEditor({
-    required this.label,
-    required this.controller,
-    required this.currencyCode,
-    this.hintText,
-    this.enabled = true,
-    this.hasError = false,
-    this.onTapOutside,
-    this.onChanged,
-  });
-
-  final String label;
-  final TextEditingController controller;
-  final String currencyCode;
-  final String? hintText;
-  final bool enabled;
-  final bool hasError;
-  final VoidCallback? onTapOutside;
-  final ValueChanged<String>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.space1),
-        TextField(
-          controller: controller,
-          enabled: enabled,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          onChanged: onChanged,
-          onTapOutside: (_) {
-            FocusManager.instance.primaryFocus?.unfocus();
-            onChanged?.call(controller.text);
-            onTapOutside?.call();
-          },
-          decoration: _buildDecoration(
-            InputDecoration(
-              hintText: hintText ?? label,
-              suffix: Padding(
-                padding: const EdgeInsets.only(left: AppThemeTokens.space3),
-                child: Text(
-                  currencyCode,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppThemeTokens.textSecondary,
-                    fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  InputDecoration _buildDecoration(InputDecoration decoration) {
-    if (!hasError) {
-      return decoration;
-    }
-
-    final errorBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-      borderSide: const BorderSide(color: AppThemeTokens.error),
-    );
-    return decoration.copyWith(
-      border: errorBorder,
-      enabledBorder: errorBorder,
-      focusedBorder: errorBorder,
-    );
   }
 }

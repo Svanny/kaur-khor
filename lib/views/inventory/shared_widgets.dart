@@ -776,11 +776,97 @@ class _FieldEditor extends StatelessWidget {
   }
 }
 
+class _CurrencyFieldWithCode extends StatelessWidget {
+  const _CurrencyFieldWithCode({
+    required this.label,
+    required this.controller,
+    required this.currencyCode,
+    this.hintText,
+    this.enabled = true,
+    this.hasError = false,
+    this.onTapOutside,
+    this.onChanged,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String currencyCode;
+  final String? hintText;
+  final bool enabled;
+  final bool hasError;
+  final VoidCallback? onTapOutside;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppThemeTokens.space1),
+        TextField(
+          controller: controller,
+          enabled: enabled,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: onChanged,
+          onTapOutside: (_) {
+            FocusManager.instance.primaryFocus?.unfocus();
+            onChanged?.call(controller.text);
+            onTapOutside?.call();
+          },
+          decoration: _buildDecoration(
+            context,
+            InputDecoration(
+              hintText: hintText ?? label,
+              suffix: Padding(
+                padding: const EdgeInsets.only(left: AppThemeTokens.space3),
+                child: Text(
+                  currencyCode,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppThemeTokens.textSecondary,
+                    fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _buildDecoration(
+    BuildContext context,
+    InputDecoration decoration,
+  ) {
+    if (!hasError) {
+      return decoration;
+    }
+
+    final errorBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+      borderSide: const BorderSide(color: AppThemeTokens.error),
+    );
+    return decoration.copyWith(
+      border: errorBorder,
+      enabledBorder: errorBorder,
+      focusedBorder: errorBorder,
+    );
+  }
+}
+
 class _ReadOnlyField extends StatelessWidget {
-  const _ReadOnlyField({required this.label, required this.value});
+  const _ReadOnlyField({
+    required this.label,
+    required this.value,
+    this.valueAlignment = Alignment.centerLeft,
+    this.valueTextAlign = TextAlign.start,
+  });
 
   final String label;
   final String value;
+  final AlignmentGeometry valueAlignment;
+  final TextAlign valueTextAlign;
 
   @override
   Widget build(BuildContext context) {
@@ -791,10 +877,14 @@ class _ReadOnlyField extends StatelessWidget {
         const SizedBox(height: AppThemeTokens.space1),
         InputDecorator(
           decoration: const InputDecoration(enabled: false),
-          child: Text(
-            value,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+          child: Align(
+            alignment: valueAlignment,
+            child: Text(
+              value,
+              textAlign: valueTextAlign,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+              ),
             ),
           ),
         ),
