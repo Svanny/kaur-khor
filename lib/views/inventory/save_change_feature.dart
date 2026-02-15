@@ -9,12 +9,14 @@ Widget buildSaveChangeHeader({
   required VoidCallback onSave,
   required bool hasChanges,
   required bool isValid,
+  IconData? titleIcon,
   double actionSize = 40,
   IconData backIcon = Icons.arrow_back,
   Key? actionsKey,
 }) {
   return _DetailHeader(
     title: title,
+    titleIcon: titleIcon,
     onBack: onBack,
     onCancel: onCancel,
     onSave: hasChanges && isValid ? onSave : null,

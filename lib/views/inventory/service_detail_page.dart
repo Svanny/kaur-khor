@@ -129,6 +129,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                 title: _nameController.text.trim().isEmpty
                     ? 'Service'
                     : _nameController.text.trim(),
+                titleIcon: _defaultServicePictureIcon,
                 onBack: _onBackPressed,
                 onCancel: _resetChanges,
                 onSave: _save,

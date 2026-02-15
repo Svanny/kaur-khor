@@ -6,6 +6,7 @@ class _DetailHeader extends StatelessWidget {
     required this.onBack,
     required this.onCancel,
     required this.onSave,
+    this.titleIcon,
     this.showActions = true,
     this.actionsKey,
     this.actionSize = 40,
@@ -13,6 +14,7 @@ class _DetailHeader extends StatelessWidget {
   });
 
   final String title;
+  final IconData? titleIcon;
   final VoidCallback onBack;
   final VoidCallback onCancel;
   final VoidCallback? onSave;
@@ -36,13 +38,31 @@ class _DetailHeader extends StatelessWidget {
             padding: const EdgeInsets.only(
               right: AppThemeTokens.sectionCardInlineGap,
             ),
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontSize: AppThemeTokens.fontSizeTitleMedium,
-              ),
+            child: Row(
+              key: const ValueKey('detail-header-title-row'),
+              children: [
+                if (titleIcon != null) ...[
+                  SizedBox(
+                    key: const ValueKey('detail-header-category-icon'),
+                    child: _ItemPictureGlyph(
+                      titleIcon!,
+                      fill: false,
+                      color: AppThemeTokens.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: AppThemeTokens.sectionCardInlineGap),
+                ],
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontSize: AppThemeTokens.fontSizeTitleMedium,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

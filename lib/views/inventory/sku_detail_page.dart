@@ -273,6 +273,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                 title: _nameController.text.trim().isEmpty
                     ? 'SKU'
                     : _nameController.text.trim(),
+                titleIcon: _defaultSkuPictureIcon,
                 onBack: _onBackPressed,
                 onCancel: _resetChanges,
                 onSave: _save,

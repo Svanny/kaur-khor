@@ -156,6 +156,22 @@ void main() {
     await pumpViewAll(tester);
 
     await openCard(tester, 'Service #001');
+    final serviceHeaderTitleRow = find.byKey(
+      const ValueKey('detail-header-title-row'),
+    );
+    expect(
+      find.descendant(
+        of: serviceHeaderTitleRow,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is SvgPicture &&
+              widget.bytesLoader is SvgAssetLoader &&
+              (widget.bytesLoader as SvgAssetLoader).assetName ==
+                  'icons/person_apron_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('SKUs Used'), findsOneWidget);
     expect(find.text('Price'), findsAtLeastNWidgets(1));
 
@@ -168,6 +184,16 @@ void main() {
       find.text('Sold as a Product'),
       220,
       scrollable: find.byType(Scrollable).first,
+    );
+    final skuHeaderTitleRow = find.byKey(
+      const ValueKey('detail-header-title-row'),
+    );
+    expect(
+      find.descendant(
+        of: skuHeaderTitleRow,
+        matching: find.byIcon(Icons.inventory_2_outlined),
+      ),
+      findsOneWidget,
     );
     expect(find.text('Sold as a Product'), findsOneWidget);
     expect(find.text('Cost / Piece'), findsAtLeastNWidgets(1));
@@ -1385,7 +1411,7 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.inventory_2_outlined), findsAtLeastNWidgets(1));
   });
 
   testWidgets('tapping carousel dots changes media slide', (
@@ -1430,11 +1456,11 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.inventory_2_outlined), findsAtLeastNWidgets(1));
 
     await tester.pump(const Duration(seconds: 9));
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.inventory_2_outlined), findsAtLeastNWidgets(1));
 
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
