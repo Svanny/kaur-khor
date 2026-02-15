@@ -14,9 +14,11 @@ import '../settings/currency_controller.dart';
 import '../theme/app_theme.dart';
 
 part 'inventory/inventory_models.dart';
+part 'inventory/inventory_controller.dart';
 part 'inventory/view_all_page.dart';
 part 'inventory/sku_detail_page.dart';
 part 'inventory/service_detail_page.dart';
+part 'inventory/update_stock_page.dart';
 part 'inventory/save_change_feature.dart';
 part 'inventory/shared_widgets.dart';
 part 'inventory/helpers.dart';

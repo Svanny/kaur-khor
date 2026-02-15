@@ -85,7 +85,13 @@ class HomeView extends StatelessWidget {
             right: edgePadding.right,
             child: FloatingActionButton(
               key: const ValueKey('home-overlay-receipt-button'),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const UpdateStockPage(),
+                  ),
+                );
+              },
               shape: const CircleBorder(),
               child: const Icon(Icons.receipt_long_rounded),
             ),

@@ -18,11 +18,16 @@ void main() {
 
   Future<void> pumpViewAll(WidgetTester tester) async {
     await setPhoneViewport(tester);
+    final inventoryController = InventoryController();
+    addTearDown(inventoryController.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
-        home: const ViewAllPage(),
+      AppInventoryScope(
+        controller: inventoryController,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          home: const ViewAllPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

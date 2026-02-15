@@ -8,58 +8,6 @@ class ViewAllPage extends StatefulWidget {
 }
 
 class _ViewAllPageState extends State<ViewAllPage> {
-  List<SkuItem> _skus = const [
-    SkuItem(
-      id: 'sku-001',
-      name: 'SKU #001',
-      itemPictureIcon: _defaultSkuPictureIcon,
-      description: 'Base ingredient for high volume items.',
-      unitsInStock: 264.0,
-      costPerUnit: 1296 / 264,
-      soldAsProduct: true,
-      productPrice: 10,
-    ),
-    SkuItem(
-      id: 'sku-002',
-      name: 'SKU #002',
-      itemPictureIcon: _defaultSkuPictureIcon,
-      description: 'Reusable material with stable demand.',
-      unitsInStock: 146.0,
-      costPerUnit: 601.2 / 146,
-      soldAsProduct: false,
-      productPrice: null,
-    ),
-    SkuItem(
-      id: 'sku-003',
-      name: 'SKU #003',
-      itemPictureIcon: _defaultSkuPictureIcon,
-      description: 'Low-rotation backup stock.',
-      unitsInStock: 76.0,
-      costPerUnit: 592 / 76,
-      soldAsProduct: true,
-      productPrice: 16,
-    ),
-  ];
-
-  List<ServiceItem> _services = const [
-    ServiceItem(
-      id: 'service-001',
-      name: 'Service #001',
-      itemPictureIcon: _defaultServicePictureIcon,
-      description: 'Basic package for recurring customers.',
-      price: 1200,
-      skuIds: {'sku-001', 'sku-002'},
-    ),
-    ServiceItem(
-      id: 'service-002',
-      name: 'Service #002',
-      itemPictureIcon: _defaultServicePictureIcon,
-      description: 'Premium package with deeper SKU usage.',
-      price: 2200,
-      skuIds: {'sku-002', 'sku-003'},
-    ),
-  ];
-
   final TextEditingController _searchController = TextEditingController();
   bool _showSkus = true;
   bool _showServices = true;
@@ -75,13 +23,6 @@ class _ViewAllPageState extends State<ViewAllPage> {
     final edge = AppThemeTokens.screenEdgePadding(context);
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final currencyCode = context.currencyController.value.code;
-    final query = _searchController.text.trim().toLowerCase();
-    final visibleSkus = _skus
-        .where((sku) => sku.name.toLowerCase().contains(query))
-        .toList(growable: false);
-    final visibleServices = _services
-        .where((service) => service.name.toLowerCase().contains(query))
-        .toList(growable: false);
 
     return Scaffold(
       floatingActionButton: FloatingActionButton(
@@ -179,57 +120,85 @@ class _ViewAllPageState extends State<ViewAllPage> {
             ),
             const SizedBox(height: AppThemeTokens.headerToContentGap),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.only(
-                  bottom:
-                      bottomInset + AppThemeTokens.scrollBottomReservePrimary,
-                ),
-                children: [
-                  _AnimatedFilterSection(
-                    visible: _showServices,
-                    child: Column(
-                      children: [
-                        const _SectionHeader(title: 'Services'),
-                        const SizedBox(height: AppThemeTokens.cardContentGap),
-                        for (final service in visibleServices) ...[
-                          _InventoryItemCard(
-                            title: service.name,
-                            itemPictureIcon: service.itemPictureIcon,
-                            unitsInStock: _unitsInStockForService(service),
-                            totalValueLabel: _currencyLabel(
-                              service.price,
-                              currencyCode: currencyCode,
-                            ),
-                            onTap: () => _editService(service),
-                          ),
-                          const SizedBox(height: AppThemeTokens.cardContentGap),
-                        ],
-                      ],
+              child: ValueListenableBuilder<InventoryState>(
+                valueListenable: context.inventoryController,
+                builder: (_, inventory, __) {
+                  final query = _searchController.text.trim().toLowerCase();
+                  final visibleSkus = inventory.skus
+                      .where((sku) => sku.name.toLowerCase().contains(query))
+                      .toList(growable: false);
+                  final visibleServices = inventory.services
+                      .where(
+                        (service) => service.name.toLowerCase().contains(query),
+                      )
+                      .toList(growable: false);
+
+                  return ListView(
+                    padding: EdgeInsets.only(
+                      bottom:
+                          bottomInset +
+                          AppThemeTokens.scrollBottomReservePrimary,
                     ),
-                  ),
-                  _AnimatedFilterSection(
-                    visible: _showSkus,
-                    child: Column(
-                      children: [
-                        const _SectionHeader(title: 'SKUs'),
-                        const SizedBox(height: AppThemeTokens.cardContentGap),
-                        for (final sku in visibleSkus) ...[
-                          _InventoryItemCard(
-                            title: sku.name,
-                            itemPictureIcon: sku.itemPictureIcon,
-                            unitsInStock: sku.unitsInStock,
-                            totalValueLabel: _currencyLabel(
-                              sku.totalValue,
-                              currencyCode: currencyCode,
+                    children: [
+                      _AnimatedFilterSection(
+                        visible: _showServices,
+                        child: Column(
+                          children: [
+                            const _SectionHeader(title: 'Services'),
+                            const SizedBox(
+                              height: AppThemeTokens.cardContentGap,
                             ),
-                            onTap: () => _editSku(sku),
-                          ),
-                          const SizedBox(height: AppThemeTokens.cardContentGap),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+                            for (final service in visibleServices) ...[
+                              _InventoryItemCard(
+                                title: service.name,
+                                itemPictureIcon: service.itemPictureIcon,
+                                unitsInStock: _unitsInStockForService(
+                                  service,
+                                  inventory.skus,
+                                ),
+                                totalValueLabel: _currencyLabel(
+                                  service.price,
+                                  currencyCode: currencyCode,
+                                ),
+                                onTap: () =>
+                                    _editService(service, inventory.skus),
+                              ),
+                              const SizedBox(
+                                height: AppThemeTokens.cardContentGap,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      _AnimatedFilterSection(
+                        visible: _showSkus,
+                        child: Column(
+                          children: [
+                            const _SectionHeader(title: 'SKUs'),
+                            const SizedBox(
+                              height: AppThemeTokens.cardContentGap,
+                            ),
+                            for (final sku in visibleSkus) ...[
+                              _InventoryItemCard(
+                                title: sku.name,
+                                itemPictureIcon: sku.itemPictureIcon,
+                                unitsInStock: sku.unitsInStock,
+                                totalValueLabel: _currencyLabel(
+                                  sku.totalValue,
+                                  currencyCode: currencyCode,
+                                ),
+                                onTap: () => _editSku(sku),
+                              ),
+                              const SizedBox(
+                                height: AppThemeTokens.cardContentGap,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -238,42 +207,36 @@ class _ViewAllPageState extends State<ViewAllPage> {
     );
   }
 
-  double _unitsInStockForService(ServiceItem service) {
-    final selected = _skus.where((sku) => service.skuIds.contains(sku.id));
+  double _unitsInStockForService(ServiceItem service, List<SkuItem> allSkus) {
+    final selected = allSkus.where((sku) => service.skuIds.contains(sku.id));
     return selected.fold(0.0, (sum, sku) => sum + sku.unitsInStock);
   }
 
   Future<void> _editSku(SkuItem sku) async {
     FocusScope.of(context).unfocus();
+    final inventoryController = context.inventoryController;
     final updated = await Navigator.of(context).push<SkuItem>(
       MaterialPageRoute(builder: (_) => SkuDetailPage(initialSku: sku)),
     );
-    if (updated == null) {
+    if (!mounted || updated == null) {
       return;
     }
-    setState(() {
-      _skus = _skus
-          .map((item) => item.id == updated.id ? updated : item)
-          .toList(growable: false);
-    });
+    inventoryController.replaceSku(updated);
   }
 
-  Future<void> _editService(ServiceItem service) async {
+  Future<void> _editService(ServiceItem service, List<SkuItem> allSkus) async {
     FocusScope.of(context).unfocus();
+    final inventoryController = context.inventoryController;
     final updated = await Navigator.of(context).push<ServiceItem>(
       MaterialPageRoute(
         builder: (_) =>
-            ServiceDetailPage(initialService: service, availableSkus: _skus),
+            ServiceDetailPage(initialService: service, availableSkus: allSkus),
       ),
     );
-    if (updated == null) {
+    if (!mounted || updated == null) {
       return;
     }
-    setState(() {
-      _services = _services
-          .map((item) => item.id == updated.id ? updated : item)
-          .toList(growable: false);
-    });
+    inventoryController.replaceService(updated);
   }
 
   Future<void> _onAddItemPressed() async {
@@ -330,6 +293,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
   }
 
   Future<void> _createSku() async {
+    final inventoryController = context.inventoryController;
     final newSku = SkuItem(
       id: IdGenerator.newSkuId(),
       name: 'SKU #NEW',
@@ -343,15 +307,14 @@ class _ViewAllPageState extends State<ViewAllPage> {
     final saved = await Navigator.of(context).push<SkuItem>(
       MaterialPageRoute(builder: (_) => SkuDetailPage(initialSku: newSku)),
     );
-    if (saved == null) {
+    if (!mounted || saved == null) {
       return;
     }
-    setState(() {
-      _skus = [..._skus, saved];
-    });
+    inventoryController.addSku(saved);
   }
 
   Future<void> _createService() async {
+    final inventoryController = context.inventoryController;
     final newService = ServiceItem(
       id: IdGenerator.newServiceId(),
       name: 'Service #NEW',
@@ -360,18 +323,19 @@ class _ViewAllPageState extends State<ViewAllPage> {
       price: 0,
       skuIds: <String>{},
     );
+    final availableSkus = context.inventoryController.value.skus;
     final saved = await Navigator.of(context).push<ServiceItem>(
       MaterialPageRoute(
-        builder: (_) =>
-            ServiceDetailPage(initialService: newService, availableSkus: _skus),
+        builder: (_) => ServiceDetailPage(
+          initialService: newService,
+          availableSkus: availableSkus,
+        ),
       ),
     );
-    if (saved == null) {
+    if (!mounted || saved == null) {
       return;
     }
-    setState(() {
-      _services = [..._services, saved];
-    });
+    inventoryController.addService(saved);
   }
 }
 

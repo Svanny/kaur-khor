@@ -22,7 +22,7 @@ class AppThemeTokens {
 
   // Accent and state colors
   static const Color accentLighter = Color(0xFFC0CC8D);
-  static const Color accentDarker = Color(0xFF6D8D4E);
+  static const Color accentDarker = Color(0xFF738C55);
   static const Color chipBackground = Color(0xFFC0CC8D);
   static const Color chipSelected = Color(0xFF99C768);
   static const Color navIndicator = Color(0xFF99C768);
@@ -107,7 +107,9 @@ class AppThemeTokens {
   static const double segmentedToggleTrackHeight = filterChipPillHeight;
   static const double segmentedToggleTrackWidth =
       (segmentedToggleTrackHeight * 2) + space6;
-  static const double segmentedToggleTrackInset = unit / 2;
+  static const double togglePillInnerInset = unit / 2;
+  static const double togglePillLabelPadX = unit * 3;
+  static const double segmentedToggleTrackInset = togglePillInnerInset;
   static const double segmentedToggleThumbHeight =
       segmentedToggleTrackHeight - (segmentedToggleTrackInset * 2);
   static const double segmentedToggleThumbWidth =
@@ -124,6 +126,22 @@ class AppThemeTokens {
   static const double scrollVisibilityTopClearance = space2;
   static const double scrollVisibilityBottomClearance = space4;
   static const double scrollNudge = space1;
+
+  // Update stock flow
+  static const double stockCardInset = space4;
+  static const double stockIndicatorWidth = 2 * unit;
+  static const double stockIndicatorHeight = 10 * unit;
+  static const double stockIndicatorGap = space1;
+  static const double stockIndicatorRightInset = space1;
+  static const double stockIncrementOptionPadX = space3;
+  static const double stockIncrementOptionPadY = space2;
+  static const double stockStepperValueMinWidth = 18 * unit;
+  static const double stockStepActionHeight = 10 * unit;
+  static const double stockStepperTrackInset = unit / 2;
+  static const double stockThumbnailAspectRatio = 16 / 9;
+  static const double stockCounterPillPadX = cardContentGap;
+  static const double stockCounterPillPadY = sectionGapCompact;
+  static const double stockStepperActionPadX = stockCounterPillPadX;
 
   // Component paddings
   static const double buttonPaddingX = space4;

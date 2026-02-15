@@ -6,11 +6,16 @@ import 'package:banji/views/inventory_views.dart';
 
 void main() {
   Future<void> pumpInventory(WidgetTester tester) async {
+    final inventoryController = InventoryController();
+    addTearDown(inventoryController.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
-        home: const ViewAllPage(),
+      AppInventoryScope(
+        controller: inventoryController,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          home: const ViewAllPage(),
+        ),
       ),
     );
     await tester.pump();

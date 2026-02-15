@@ -5,6 +5,7 @@ import 'localization/locale_controller.dart';
 import 'settings/currency_controller.dart';
 import 'theme/app_theme.dart';
 import 'views/home_view.dart';
+import 'views/inventory_views.dart';
 
 void main() {
   runApp(const BanjiApp());
@@ -20,16 +21,19 @@ class BanjiApp extends StatefulWidget {
 class _BanjiAppState extends State<BanjiApp> {
   late final LocaleController _localeController;
   late final CurrencyController _currencyController;
+  late final InventoryController _inventoryController;
 
   @override
   void initState() {
     super.initState();
     _localeController = LocaleController();
     _currencyController = CurrencyController();
+    _inventoryController = InventoryController();
   }
 
   @override
   void dispose() {
+    _inventoryController.dispose();
     _currencyController.dispose();
     _localeController.dispose();
     super.dispose();
@@ -37,24 +41,27 @@ class _BanjiAppState extends State<BanjiApp> {
 
   @override
   Widget build(BuildContext context) {
-    return AppCurrencyScope(
-      controller: _currencyController,
-      child: AppLocaleScope(
-        controller: _localeController,
-        child: ValueListenableBuilder<Locale>(
-          valueListenable: _localeController,
-          builder: (_, locale, __) {
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              onGenerateTitle: (context) =>
-                  AppLocalizations.of(context).appTitle,
-              theme: AppTheme.light(),
-              locale: locale,
-              supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: const HomeView(),
-            );
-          },
+    return AppInventoryScope(
+      controller: _inventoryController,
+      child: AppCurrencyScope(
+        controller: _currencyController,
+        child: AppLocaleScope(
+          controller: _localeController,
+          child: ValueListenableBuilder<Locale>(
+            valueListenable: _localeController,
+            builder: (_, locale, __) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                onGenerateTitle: (context) =>
+                    AppLocalizations.of(context).appTitle,
+                theme: AppTheme.light(),
+                locale: locale,
+                supportedLocales: AppLocalizations.supportedLocales,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                home: const HomeView(),
+              );
+            },
+          ),
         ),
       ),
     );

@@ -1,0 +1,735 @@
+part of '../inventory_views.dart';
+
+enum StockInputMode { changes, total }
+
+enum IncrementPreset { small, medium, big }
+
+extension IncrementPresetValues on IncrementPreset {
+  double get countStep {
+    return switch (this) {
+      IncrementPreset.small => 1,
+      IncrementPreset.medium => 5,
+      IncrementPreset.big => 20,
+    };
+  }
+
+  double get costStep {
+    return switch (this) {
+      IncrementPreset.small => 0.25,
+      IncrementPreset.medium => 0.5,
+      IncrementPreset.big => 1,
+    };
+  }
+
+  String get label {
+    return switch (this) {
+      IncrementPreset.small => 'Small',
+      IncrementPreset.medium => 'Medium',
+      IncrementPreset.big => 'Big',
+    };
+  }
+
+  String get description {
+    return switch (this) {
+      IncrementPreset.small => 'Count Increment 1; Cost increment 0.25 USD',
+      IncrementPreset.medium => 'Count Increment 5; Cost increment 0.5 USD',
+      IncrementPreset.big => 'Count Increment 20; Cost increment 1 USD',
+    };
+  }
+}
+
+class StockDraft {
+  const StockDraft({
+    required this.skuId,
+    required this.baseCount,
+    required this.baseUnitCost,
+    this.countDelta = 0,
+    this.costDelta = 0,
+  });
+
+  factory StockDraft.fromSku(SkuItem sku) {
+    return StockDraft(
+      skuId: sku.id,
+      baseCount: sku.unitsInStock,
+      baseUnitCost: sku.costPerUnit,
+    );
+  }
+
+  final String skuId;
+  final double baseCount;
+  final double baseUnitCost;
+  final double countDelta;
+  final double costDelta;
+
+  double get effectiveCount => math.max(0.0, baseCount + countDelta);
+  double get effectiveUnitCost => math.max(0.0, baseUnitCost + costDelta);
+  double get effectiveTotalValue => effectiveCount * effectiveUnitCost;
+
+  StockDraft copyWith({
+    double? countDelta,
+    double? costDelta,
+    double? baseCount,
+    double? baseUnitCost,
+  }) {
+    return StockDraft(
+      skuId: skuId,
+      baseCount: baseCount ?? this.baseCount,
+      baseUnitCost: baseUnitCost ?? this.baseUnitCost,
+      countDelta: countDelta ?? this.countDelta,
+      costDelta: costDelta ?? this.costDelta,
+    );
+  }
+
+  StockDraft reset() => copyWith(countDelta: 0, costDelta: 0);
+
+  StockDraft adjustCount({
+    required StockInputMode mode,
+    required bool increment,
+    required double step,
+  }) {
+    final direction = increment ? 1 : -1;
+    if (mode == StockInputMode.changes) {
+      return copyWith(countDelta: countDelta + (direction * step));
+    }
+    final nextTotal = math.max(0.0, effectiveCount + (direction * step));
+    return copyWith(countDelta: nextTotal - baseCount);
+  }
+
+  StockDraft adjustUnitCost({
+    required StockInputMode mode,
+    required bool increment,
+    required double step,
+  }) {
+    final direction = increment ? 1 : -1;
+    if (mode == StockInputMode.changes) {
+      return copyWith(costDelta: costDelta + (direction * step));
+    }
+    final nextTotal = math.max(0.0, effectiveUnitCost + (direction * step));
+    return copyWith(costDelta: nextTotal - baseUnitCost);
+  }
+
+  SkuItem applyToSku(SkuItem sku) {
+    return sku.copyWith(
+      unitsInStock: effectiveCount,
+      costPerUnit: effectiveUnitCost,
+    );
+  }
+}
+
+class UpdateStockPage extends StatefulWidget {
+  const UpdateStockPage({super.key});
+
+  @override
+  State<UpdateStockPage> createState() => _UpdateStockPageState();
+}
+
+class _UpdateStockPageState extends State<UpdateStockPage> {
+  static const double _swipeVelocityThreshold = 220;
+  static const Duration _switcherDuration = Duration(milliseconds: 220);
+
+  bool _initialized = false;
+  late InventoryController _inventoryController;
+  late List<SkuItem> _sourceSkus;
+  late List<StockDraft> _drafts;
+
+  StockInputMode _mode = StockInputMode.changes;
+  IncrementPreset _preset = IncrementPreset.small;
+  int _selectedSkuIndex = 0;
+  bool _showIncrementOptions = false;
+  bool _showConfirmationCard = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) {
+      return;
+    }
+    _inventoryController = context.inventoryController;
+    _sourceSkus = _inventoryController.value.skus;
+    _drafts = _sourceSkus.map(StockDraft.fromSku).toList(growable: false);
+    _initialized = true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final edge = AppThemeTokens.screenEdgePadding(context);
+    final currencyCode = context.currencyController.value.code;
+
+    return Scaffold(
+      body: Padding(
+        padding: EdgeInsets.fromLTRB(
+          edge.left,
+          edge.top,
+          edge.right,
+          edge.bottom,
+        ),
+        child: _sourceSkus.isEmpty
+            ? _buildEmptyState()
+            : Column(
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: AppThemeTokens.headerToContentGap),
+                  Text(
+                    "SKU's Stock Count Update",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppThemeTokens.sectionGap),
+                  Expanded(
+                    child: GestureDetector(
+                      onVerticalDragEnd: _onVerticalDragEnd,
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: AnimatedSwitcher(
+                              duration: _switcherDuration,
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              child: _showConfirmationCard
+                                  ? _buildConfirmationCard(
+                                      key: const ValueKey(
+                                        'update-stock-confirmation-card',
+                                      ),
+                                    )
+                                  : _buildSkuCard(
+                                      key: ValueKey(
+                                        'update-stock-sku-card-$_selectedSkuIndex',
+                                      ),
+                                      sku: _sourceSkus[_selectedSkuIndex],
+                                      draft: _drafts[_selectedSkuIndex],
+                                      currencyCode: currencyCode,
+                                    ),
+                            ),
+                          ),
+                          Positioned(
+                            right: AppThemeTokens.stockIndicatorRightInset,
+                            top: 0,
+                            bottom: 0,
+                            child: IgnorePointer(child: _buildSkuIndicator()),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppThemeTokens.sectionGapLarge),
+                  _buildIncrementSelector(),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Column(
+      children: [
+        _buildHeader(),
+        const SizedBox(height: AppThemeTokens.headerToContentGap),
+        Expanded(
+          child: Center(
+            child: Text(
+              'No SKUs available to update.',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        IconButton(
+          key: const ValueKey('update-stock-back'),
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back),
+        ),
+        const Spacer(),
+        _ChangesTotalToggle(
+          value: _mode,
+          onChanged: (mode) => setState(() => _mode = mode),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkuCard({
+    required Key key,
+    required SkuItem sku,
+    required StockDraft draft,
+    required String currencyCode,
+  }) {
+    return Card(
+      key: key,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeTokens.stockCardInset),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: AppThemeTokens.stockThumbnailAspectRatio,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppThemeTokens.accentDarker,
+                  borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+                ),
+                child: Center(
+                  child: _ItemPictureGlyph(
+                    sku.itemPictureIcon,
+                    fill: true,
+                    color: AppThemeTokens.white,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppThemeTokens.sectionGap),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  sku.name,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('update-stock-reset-current'),
+                  tooltip: 'Reset changes',
+                  onPressed: _resetCurrentDraft,
+                  icon: const Icon(Icons.restart_alt),
+                ),
+              ],
+            ),
+            Text(
+              _currencyLabel(
+                draft.effectiveTotalValue,
+                currencyCode: currencyCode,
+              ),
+              key: const ValueKey('update-stock-total-value'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppThemeTokens.sectionGap),
+            _StockStepper(
+              label: 'Count',
+              valueKey: const ValueKey('update-stock-count-value'),
+              decrementKey: const ValueKey('update-stock-count-decrement'),
+              incrementKey: const ValueKey('update-stock-count-increment'),
+              value: _mode == StockInputMode.changes
+                  ? _signedNumber(draft.countDelta)
+                  : _formatNumber(draft.effectiveCount),
+              onDecrement: () => _updateCurrentDraft(
+                (item) => item.adjustCount(
+                  mode: _mode,
+                  increment: false,
+                  step: _preset.countStep,
+                ),
+              ),
+              onIncrement: () => _updateCurrentDraft(
+                (item) => item.adjustCount(
+                  mode: _mode,
+                  increment: true,
+                  step: _preset.countStep,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppThemeTokens.sectionGapCompact),
+            _StockStepper(
+              label: 'Cost',
+              valueKey: const ValueKey('update-stock-cost-value'),
+              decrementKey: const ValueKey('update-stock-cost-decrement'),
+              incrementKey: const ValueKey('update-stock-cost-increment'),
+              value: _mode == StockInputMode.changes
+                  ? '${_signedNumber(draft.costDelta)} $currencyCode'
+                  : _currencyLabel(
+                      draft.effectiveUnitCost,
+                      currencyCode: currencyCode,
+                    ),
+              onDecrement: () => _updateCurrentDraft(
+                (item) => item.adjustUnitCost(
+                  mode: _mode,
+                  increment: false,
+                  step: _preset.costStep,
+                ),
+              ),
+              onIncrement: () => _updateCurrentDraft(
+                (item) => item.adjustUnitCost(
+                  mode: _mode,
+                  increment: true,
+                  step: _preset.costStep,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfirmationCard({required Key key}) {
+    final changedCount = _drafts
+        .where((draft) => draft.countDelta != 0 || draft.costDelta != 0)
+        .length;
+
+    return Card(
+      key: key,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeTokens.stockCardInset),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Confirm Updates',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+              ),
+            ),
+            const SizedBox(height: AppThemeTokens.sectionGapCompact),
+            Text(
+              '$changedCount SKU(s) changed',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: AppThemeTokens.sectionGapLarge),
+            OutlinedButton(
+              key: const ValueKey('update-stock-back-to-edit'),
+              onPressed: () => setState(() => _showConfirmationCard = false),
+              child: const Text('Back to Edit'),
+            ),
+            const SizedBox(height: AppThemeTokens.sectionGapCompact),
+            FilledButton(
+              key: const ValueKey('update-stock-save-all'),
+              onPressed: _saveAllAndOpenViewAll,
+              child: const Text('Save All'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkuIndicator() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_sourceSkus.length * 2 - 1, (index) {
+        if (index.isOdd) {
+          return const SizedBox(height: AppThemeTokens.stockIndicatorGap);
+        }
+        final pillIndex = index ~/ 2;
+        final isActive = pillIndex == _selectedSkuIndex;
+        return AnimatedContainer(
+          key: ValueKey(
+            'update-stock-indicator-$pillIndex-${isActive ? 'active' : 'inactive'}',
+          ),
+          duration: _switcherDuration,
+          width: AppThemeTokens.stockIndicatorWidth,
+          height: AppThemeTokens.stockIndicatorHeight,
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppThemeTokens.textPrimary
+                : AppThemeTokens.accentDarker,
+            borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildIncrementSelector() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedSwitcher(
+          duration: _switcherDuration,
+          child: _showIncrementOptions
+              ? Container(
+                  key: const ValueKey('update-stock-increment-options'),
+                  margin: const EdgeInsets.only(
+                    bottom: AppThemeTokens.sectionGapCompact,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppThemeTokens.surface,
+                    border: Border.all(color: AppThemeTokens.accentDarker),
+                    borderRadius: BorderRadius.circular(
+                      AppThemeTokens.radiusMd,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: IncrementPreset.values
+                        .map(
+                          (preset) => InkWell(
+                            onTap: () => setState(() {
+                              _preset = preset;
+                              _showIncrementOptions = false;
+                            }),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal:
+                                    AppThemeTokens.stockIncrementOptionPadX,
+                                vertical:
+                                    AppThemeTokens.stockIncrementOptionPadY,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${preset.label}: ${preset.description}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ),
+                                  if (_preset == preset)
+                                    const Icon(Icons.check, size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        FilledButton(
+          key: const ValueKey('update-stock-increment-toggle'),
+          style: FilledButton.styleFrom(shape: const StadiumBorder()),
+          onPressed: () =>
+              setState(() => _showIncrementOptions = !_showIncrementOptions),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('+/- ${_formatNumber(_preset.countStep)}'),
+              const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
+              Icon(
+                _showIncrementOptions ? Icons.expand_more : Icons.chevron_right,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity > _swipeVelocityThreshold) {
+      _onSwipeDown();
+    } else if (velocity < -_swipeVelocityThreshold) {
+      _onSwipeUp();
+    }
+  }
+
+  void _onSwipeDown() {
+    setState(() {
+      _showIncrementOptions = false;
+      if (_showConfirmationCard) {
+        return;
+      }
+      if (_selectedSkuIndex < _sourceSkus.length - 1) {
+        _selectedSkuIndex += 1;
+        return;
+      }
+      _showConfirmationCard = true;
+    });
+  }
+
+  void _onSwipeUp() {
+    setState(() {
+      _showIncrementOptions = false;
+      if (_showConfirmationCard) {
+        _showConfirmationCard = false;
+        return;
+      }
+      if (_selectedSkuIndex > 0) {
+        _selectedSkuIndex -= 1;
+      }
+    });
+  }
+
+  void _resetCurrentDraft() {
+    _updateCurrentDraft((draft) => draft.reset());
+  }
+
+  void _updateCurrentDraft(StockDraft Function(StockDraft) updater) {
+    final nextDrafts = List<StockDraft>.of(_drafts);
+    nextDrafts[_selectedSkuIndex] = updater(nextDrafts[_selectedSkuIndex]);
+    setState(() => _drafts = nextDrafts);
+  }
+
+  void _saveAllAndOpenViewAll() {
+    final updatedSkus = <SkuItem>[
+      for (var i = 0; i < _sourceSkus.length; i += 1)
+        _drafts[i].applyToSku(_sourceSkus[i]),
+    ];
+    _inventoryController.applySkuStockUpdates(updatedSkus);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Stock updates saved.')));
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const ViewAllPage()));
+  }
+}
+
+class _ChangesTotalToggle extends StatelessWidget {
+  const _ChangesTotalToggle({required this.value, required this.onChanged});
+
+  final StockInputMode value;
+  final ValueChanged<StockInputMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SlidingTogglePill(
+      options: const ['Changes', 'Total'],
+      selectedIndex: value == StockInputMode.total ? 1 : 0,
+      onChanged: (index) =>
+          onChanged(index == 1 ? StockInputMode.total : StockInputMode.changes),
+      contentDrivenWidth: true,
+    );
+  }
+}
+
+class _StockStepper extends StatelessWidget {
+  const _StockStepper({
+    required this.label,
+    required this.valueKey,
+    required this.decrementKey,
+    required this.incrementKey,
+    required this.value,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
+
+  final String label;
+  final Key valueKey;
+  final Key decrementKey;
+  final Key incrementKey;
+  final String value;
+  final VoidCallback onDecrement;
+  final VoidCallback onIncrement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+          ),
+        ),
+        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppThemeTokens.disabledBackground,
+            borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(
+              AppThemeTokens.stockStepperTrackInset,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _StepAction(
+                      key: decrementKey,
+                      icon: Icons.remove,
+                      onTap: onDecrement,
+                    ),
+                  ),
+                ),
+                Container(
+                  constraints: const BoxConstraints(
+                    minWidth: AppThemeTokens.stockStepperValueMinWidth,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppThemeTokens.stockCounterPillPadX,
+                    vertical: AppThemeTokens.stockCounterPillPadY,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppThemeTokens.surface,
+                    borderRadius: BorderRadius.circular(
+                      AppThemeTokens.radiusPill,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      value,
+                      key: valueKey,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: _fontWeight(
+                          AppThemeTokens.fontWeightSemibold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _StepAction(
+                      key: incrementKey,
+                      icon: Icons.add,
+                      onTap: onIncrement,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StepAction extends StatelessWidget {
+  const _StepAction({required this.icon, required this.onTap, super.key});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+        onTap: onTap,
+        child: SizedBox(
+          height: AppThemeTokens.stockStepActionHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppThemeTokens.stockStepperActionPadX,
+            ),
+            child: Icon(
+              icon,
+              size: AppThemeTokens.iconSizeMedium * 0.8,
+              color: AppThemeTokens.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _signedNumber(double value) {
+  if (value > 0) {
+    return '+${_formatNumber(value)}';
+  }
+  if (value < 0) {
+    return '-${_formatNumber(value.abs())}';
+  }
+  return '0';
+}
