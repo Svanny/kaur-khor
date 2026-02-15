@@ -276,19 +276,19 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                 hasChanges: _hasChanges,
                 isValid: _isValid,
               ),
-              const SizedBox(height: AppThemeTokens.space3),
+              const SizedBox(height: AppThemeTokens.headerToContentGap),
               Expanded(
                 child: ListView(
                   controller: _scrollController,
                   padding: EdgeInsets.only(
                     bottom:
                         edge.bottom +
-                        AppThemeTokens.space8 +
-                        AppThemeTokens.space6,
+                        AppThemeTokens.scrollBottomReservePrimary +
+                        AppThemeTokens.scrollBottomReserveSecondary,
                   ),
                   children: [
                     _MediaPlaceholderCard(itemPictureIcon: _itemPictureIcon),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Name',
                       controller: _nameController,
@@ -300,7 +300,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       onTapOutside: () => setState(() => _nameBlurred = true),
                       onChanged: (_) => setState(() {}),
                     ),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Description',
                       controller: _descriptionController,
@@ -314,7 +314,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                           setState(() => _descriptionBlurred = true),
                       onChanged: (_) => setState(() {}),
                     ),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Pieces / Bulk',
                       controller: _ratioController,
@@ -328,7 +328,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       onTapOutside: () => setState(() => _ratioBlurred = true),
                       onChanged: (_) => setState(() {}),
                     ),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     ValueListenableBuilder<AppCurrency>(
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
@@ -353,7 +353,10 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                         setState(() => _piecesBlurred = true),
                                     onChanged: (_) => setState(() {}),
                                   ),
-                                  const SizedBox(height: AppThemeTokens.space3),
+                                  const SizedBox(
+                                    height: AppThemeTokens
+                                        .groupedCardInternalFieldGap,
+                                  ),
                                   _CurrencyFieldWithCode(
                                     label: 'Cost / Piece',
                                     controller: _costPieceController,
@@ -371,7 +374,9 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: AppThemeTokens.space2),
+                            const SizedBox(
+                              width: AppThemeTokens.groupedCardsHorizontalGap,
+                            ),
                             Expanded(
                               child: _GroupedInputCard(
                                 children: [
@@ -391,7 +396,10 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                         setState(() => _bulkBlurred = true),
                                     onChanged: (_) => setState(() {}),
                                   ),
-                                  const SizedBox(height: AppThemeTokens.space3),
+                                  const SizedBox(
+                                    height: AppThemeTokens
+                                        .groupedCardInternalFieldGap,
+                                  ),
                                   _CurrencyFieldWithCode(
                                     label: 'Cost / Bulk',
                                     controller: _costBulkController,
@@ -412,7 +420,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         );
                       },
                     ),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     ValueListenableBuilder<AppCurrency>(
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
@@ -423,12 +431,14 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         );
                       },
                     ),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     Card(
                       key: _soldAsProductCardKey,
                       margin: EdgeInsets.zero,
                       child: Padding(
-                        padding: const EdgeInsets.all(AppThemeTokens.space3),
+                        padding: const EdgeInsets.all(
+                          AppThemeTokens.sectionCardInset,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -450,7 +460,9 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                     _setSoldAsProduct(value);
                                   },
                                 ),
-                                const SizedBox(width: AppThemeTokens.space2),
+                                const SizedBox(
+                                  width: AppThemeTokens.sectionCardInlineGap,
+                                ),
                                 Expanded(
                                   child: GestureDetector(
                                     behavior: HitTestBehavior.opaque,
@@ -474,7 +486,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                               child: _soldAsProduct
                                   ? Padding(
                                       padding: const EdgeInsets.only(
-                                        top: AppThemeTokens.space4,
+                                        top: AppThemeTokens
+                                            .sectionCardExpandedContentGap,
                                       ),
                                       child: KeyedSubtree(
                                         key: _productPriceSectionKey,
@@ -652,7 +665,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
 
     final position = _scrollController.position;
     final edge = AppThemeTokens.screenEdgePadding(context);
-    final bottomClearance = edge.bottom + AppThemeTokens.space4;
+    final bottomClearance =
+        edge.bottom + AppThemeTokens.scrollVisibilityBottomClearance;
     final cardBottom = cardObject.localToGlobal(
       cardObject.size.bottomLeft(Offset.zero),
       ancestor: viewportObject,
@@ -661,7 +675,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final overflowAfterExpand =
         (cardBottom.dy + _productPriceExpansionEstimate) -
         viewportBottom +
-        AppThemeTokens.space1;
+        AppThemeTokens.scrollNudge;
     if (overflowAfterExpand <= 0) {
       return;
     }
@@ -697,8 +711,9 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     }
     final position = _scrollController.position;
     final edge = AppThemeTokens.screenEdgePadding(context);
-    const topClearance = AppThemeTokens.space2;
-    final bottomClearance = edge.bottom + AppThemeTokens.space4;
+    const topClearance = AppThemeTokens.scrollVisibilityTopClearance;
+    final bottomClearance =
+        edge.bottom + AppThemeTokens.scrollVisibilityBottomClearance;
     final topLeft = renderObject.localToGlobal(
       Offset.zero,
       ancestor: viewportObject,
@@ -712,7 +727,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     var targetOffset = position.pixels;
 
     if (bottomRight.dy > viewportBottom) {
-      targetOffset += (bottomRight.dy - viewportBottom) + AppThemeTokens.space1;
+      targetOffset +=
+          (bottomRight.dy - viewportBottom) + AppThemeTokens.scrollNudge;
     } else if (topLeft.dy < viewportTop) {
       targetOffset -= viewportTop - topLeft.dy;
     }
@@ -743,7 +759,7 @@ class _GroupedInputCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(AppThemeTokens.space3),
+        padding: const EdgeInsets.all(AppThemeTokens.groupedCardInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

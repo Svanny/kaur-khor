@@ -106,18 +106,18 @@ class _ViewAllPageState extends State<ViewAllPage> {
               title: 'All Items',
               onBack: () => Navigator.of(context).pop(),
             ),
-            const SizedBox(height: AppThemeTokens.space3),
+            const SizedBox(height: AppThemeTokens.headerToContentGap),
             _SearchField(
               controller: _searchController,
               hintText: 'Search items by name',
               onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: AppThemeTokens.space3),
+            const SizedBox(height: AppThemeTokens.headerToContentGap),
             Align(
               alignment: Alignment.centerLeft,
               child: Wrap(
-                spacing: AppThemeTokens.space2,
-                runSpacing: AppThemeTokens.space2,
+                spacing: AppThemeTokens.wrapSpacing,
+                runSpacing: AppThemeTokens.wrapSpacing,
                 children: [
                   FilterChip(
                     selected: _showSkus,
@@ -127,10 +127,8 @@ class _ViewAllPageState extends State<ViewAllPage> {
                     backgroundColor: AppThemeTokens.disabledBackground,
                     selectedColor: AppThemeTokens.chipSelected,
                     padding: const EdgeInsets.symmetric(
-                      horizontal:
-                          AppThemeTokens.chipPaddingX + AppThemeTokens.space1,
-                      vertical:
-                          AppThemeTokens.chipPaddingY + AppThemeTokens.space1,
+                      horizontal: AppThemeTokens.filterChipPadX,
+                      vertical: AppThemeTokens.filterChipPadY,
                     ),
                     side: BorderSide.none,
                     shape: const RoundedRectangleBorder(
@@ -157,10 +155,8 @@ class _ViewAllPageState extends State<ViewAllPage> {
                     backgroundColor: AppThemeTokens.disabledBackground,
                     selectedColor: AppThemeTokens.chipSelected,
                     padding: const EdgeInsets.symmetric(
-                      horizontal:
-                          AppThemeTokens.chipPaddingX + AppThemeTokens.space1,
-                      vertical:
-                          AppThemeTokens.chipPaddingY + AppThemeTokens.space1,
+                      horizontal: AppThemeTokens.filterChipPadX,
+                      vertical: AppThemeTokens.filterChipPadY,
                     ),
                     side: BorderSide.none,
                     shape: const RoundedRectangleBorder(
@@ -181,11 +177,12 @@ class _ViewAllPageState extends State<ViewAllPage> {
                 ],
               ),
             ),
-            const SizedBox(height: AppThemeTokens.space3),
+            const SizedBox(height: AppThemeTokens.headerToContentGap),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.only(
-                  bottom: bottomInset + AppThemeTokens.space8,
+                  bottom:
+                      bottomInset + AppThemeTokens.scrollBottomReservePrimary,
                 ),
                 children: [
                   _AnimatedFilterSection(
@@ -193,7 +190,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                     child: Column(
                       children: [
                         const _SectionHeader(title: 'Services'),
-                        const SizedBox(height: AppThemeTokens.space3),
+                        const SizedBox(height: AppThemeTokens.cardContentGap),
                         for (final service in visibleServices) ...[
                           _InventoryItemCard(
                             title: service.name,
@@ -206,7 +203,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                             ),
                             onTap: () => _editService(service),
                           ),
-                          const SizedBox(height: AppThemeTokens.space3),
+                          const SizedBox(height: AppThemeTokens.cardContentGap),
                         ],
                       ],
                     ),
@@ -216,7 +213,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                     child: Column(
                       children: [
                         const _SectionHeader(title: 'SKUs'),
-                        const SizedBox(height: AppThemeTokens.space3),
+                        const SizedBox(height: AppThemeTokens.cardContentGap),
                         for (final sku in visibleSkus) ...[
                           _InventoryItemCard(
                             title: sku.name,
@@ -229,7 +226,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                             ),
                             onTap: () => _editSku(sku),
                           ),
-                          const SizedBox(height: AppThemeTokens.space3),
+                          const SizedBox(height: AppThemeTokens.cardContentGap),
                         ],
                       ],
                     ),
@@ -290,7 +287,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(AppThemeTokens.space4),
+            padding: const EdgeInsets.all(AppThemeTokens.cardInset),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -305,7 +302,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () => Navigator.of(context).pop(_NewItemType.sku),
                 ),
-                const SizedBox(height: AppThemeTokens.space2),
+                const SizedBox(height: AppThemeTokens.sectionGapCompact),
                 ListTile(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(

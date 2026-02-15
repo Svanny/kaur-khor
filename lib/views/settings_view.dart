@@ -28,7 +28,7 @@ class _SettingsViewState extends State<SettingsView> {
     final edgePadding = AppThemeTokens.screenEdgePadding(context);
     final contentPadding = EdgeInsets.fromLTRB(
       edgePadding.left,
-      AppThemeTokens.space4,
+      AppThemeTokens.sectionGap,
       edgePadding.right,
       edgePadding.bottom,
     );
@@ -39,7 +39,7 @@ class _SettingsViewState extends State<SettingsView> {
         backgroundColor: AppThemeTokens.background,
         foregroundColor: AppThemeTokens.textPrimary,
         iconTheme: const IconThemeData(color: AppThemeTokens.textPrimary),
-        titleSpacing: AppThemeTokens.space3,
+        titleSpacing: AppThemeTokens.headerToContentGap,
         title: Text(l10n.settingsTitle),
       ),
       body: Padding(
@@ -55,7 +55,7 @@ class _SettingsViewState extends State<SettingsView> {
                 onChanged: localeController.switchLanguage,
               ),
             ),
-            const SizedBox(height: AppThemeTokens.space4),
+            const SizedBox(height: AppThemeTokens.sectionGap),
             _SettingsRow(
               label: l10n.settingsCurrency,
               trailing: ValueListenableBuilder<AppCurrency>(
@@ -70,7 +70,7 @@ class _SettingsViewState extends State<SettingsView> {
                 },
               ),
             ),
-            const SizedBox(height: AppThemeTokens.space4),
+            const SizedBox(height: AppThemeTokens.sectionGap),
             _SettingsRow(
               label: l10n.settingsManualBackup,
               trailing: _CircleIconButton(
@@ -95,7 +95,7 @@ class _SettingsViewState extends State<SettingsView> {
                   size: AppThemeTokens.fontSizeBodyLarge,
                   color: AppThemeTokens.textPrimary,
                 ),
-                const SizedBox(width: AppThemeTokens.space2),
+                const SizedBox(width: AppThemeTokens.sectionGapCompact),
                 Expanded(
                   child: Text(
                     l10n.settingsDisclaimer,
@@ -108,7 +108,7 @@ class _SettingsViewState extends State<SettingsView> {
                     ),
                   ),
                 ),
-                const SizedBox(width: AppThemeTokens.space2),
+                const SizedBox(width: AppThemeTokens.sectionGapCompact),
                 FilledButton(
                   onPressed: () {},
                   style: FilledButton.styleFrom(
@@ -333,7 +333,7 @@ class _DropdownPillState<T> extends State<_DropdownPill<T>>
       maxTextWidth = math.max(maxTextWidth, textPainter.width);
     }
 
-    const horizontalPadding = AppThemeTokens.space3 * 2;
+    const horizontalPadding = AppThemeTokens.dropdownOptionPadTotalX;
     const minTrailingArea =
         AppThemeTokens.dropdownCheckSpacing + AppThemeTokens.iconSizeMedium;
     return maxTextWidth + horizontalPadding + minTrailingArea;
@@ -377,7 +377,7 @@ class _DropdownPillState<T> extends State<_DropdownPill<T>>
                     context,
                   ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white),
                 ),
-                const SizedBox(width: AppThemeTokens.space1),
+                const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
                 AnimatedRotation(
                   turns: _isOpen ? 0.5 : 0,
                   duration: const Duration(milliseconds: 180),
@@ -420,7 +420,9 @@ class _DropdownMenuPanel<T> extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd * 2),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppThemeTokens.space2),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppThemeTokens.dropdownPanelInsetY,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: options
@@ -430,8 +432,8 @@ class _DropdownMenuPanel<T> extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppThemeTokens.space3,
-                      vertical: AppThemeTokens.space2,
+                      horizontal: AppThemeTokens.dropdownOptionPadX,
+                      vertical: AppThemeTokens.dropdownOptionPadY,
                     ),
                     child: Row(
                       children: [

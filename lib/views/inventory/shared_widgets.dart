@@ -25,11 +25,17 @@ class _DetailHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        IconButton(onPressed: onBack, icon: Icon(backIcon)),
-        const SizedBox(width: AppThemeTokens.space2),
+        IconButton(
+          onPressed: onBack,
+          padding: EdgeInsets.zero,
+          icon: Icon(backIcon),
+        ),
+        const SizedBox(width: AppThemeTokens.sectionCardInlineGap),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.only(right: AppThemeTokens.space2),
+            padding: const EdgeInsets.only(
+              right: AppThemeTokens.sectionCardInlineGap,
+            ),
             child: Text(
               title,
               maxLines: 1,
@@ -51,7 +57,7 @@ class _DetailHeader extends StatelessWidget {
                 tooltip: 'Cancel',
                 size: actionSize,
               ),
-              const SizedBox(width: AppThemeTokens.space2),
+              const SizedBox(width: AppThemeTokens.sectionCardInlineGap),
               _CircleFilledAction(
                 icon: Icons.check,
                 onPressed: onSave,
@@ -146,8 +152,12 @@ class _PageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back)),
-        const SizedBox(width: AppThemeTokens.space2),
+        IconButton(
+          onPressed: onBack,
+          padding: EdgeInsets.zero,
+          icon: const Icon(Icons.arrow_back),
+        ),
+        const SizedBox(width: AppThemeTokens.sectionCardInlineGap),
         Expanded(
           child: Text(
             title,
@@ -173,7 +183,7 @@ class _SectionHeader extends StatelessWidget {
         const Expanded(child: Divider()),
         Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppThemeTokens.space2,
+            horizontal: AppThemeTokens.sectionHeaderInset,
           ),
           child: Text(
             title,
@@ -260,7 +270,7 @@ class _InventoryItemCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(AppThemeTokens.space4),
+          padding: const EdgeInsets.all(AppThemeTokens.cardInset),
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -275,7 +285,9 @@ class _InventoryItemCard extends StatelessWidget {
                       ),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(AppThemeTokens.space2),
+                      padding: const EdgeInsets.all(
+                        AppThemeTokens.cardInnerInset,
+                      ),
                       child: Center(
                         child: _ItemPictureGlyph(
                           itemPictureIcon,
@@ -286,7 +298,7 @@ class _InventoryItemCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: AppThemeTokens.space3),
+                const SizedBox(width: AppThemeTokens.cardContentGap),
                 Flexible(
                   fit: FlexFit.loose,
                   child: Column(
@@ -294,10 +306,10 @@ class _InventoryItemCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: AppThemeTokens.space2),
+                      const SizedBox(height: AppThemeTokens.cardInlineGap),
                       Wrap(
-                        spacing: AppThemeTokens.space2,
-                        runSpacing: AppThemeTokens.space2,
+                        spacing: AppThemeTokens.wrapSpacing,
+                        runSpacing: AppThemeTokens.wrapRunSpacing,
                         children: [
                           Chip(
                             backgroundColor: AppThemeTokens.chipBackground,
@@ -312,12 +324,8 @@ class _InventoryItemCard extends StatelessWidget {
                               side: BorderSide.none,
                             ),
                             padding: const EdgeInsets.symmetric(
-                              horizontal:
-                                  AppThemeTokens.chipPaddingX -
-                                  AppThemeTokens.space1,
-                              vertical:
-                                  AppThemeTokens.chipPaddingY -
-                                  AppThemeTokens.space1,
+                              horizontal: AppThemeTokens.inventoryChipPadX,
+                              vertical: AppThemeTokens.inventoryChipPadY,
                             ),
                             label: Text(
                               'Pieces: $pieces',
@@ -338,12 +346,8 @@ class _InventoryItemCard extends StatelessWidget {
                               side: BorderSide.none,
                             ),
                             padding: const EdgeInsets.symmetric(
-                              horizontal:
-                                  AppThemeTokens.chipPaddingX -
-                                  AppThemeTokens.space1,
-                              vertical:
-                                  AppThemeTokens.chipPaddingY -
-                                  AppThemeTokens.space1,
+                              horizontal: AppThemeTokens.inventoryChipPadX,
+                              vertical: AppThemeTokens.inventoryChipPadY,
                             ),
                             label: Text(
                               'Bulk: $bulk',
@@ -353,7 +357,7 @@ class _InventoryItemCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppThemeTokens.space2),
+                      const SizedBox(height: AppThemeTokens.cardInlineGap),
                       Text(
                         'Total Value',
                         style: Theme.of(context).textTheme.bodyMedium,
@@ -456,10 +460,11 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
                         ),
                       ),
                       Positioned(
-                        top: AppThemeTokens.space2,
-                        right: AppThemeTokens.space2,
+                        top: AppThemeTokens.mediaOverlayInset,
+                        right: AppThemeTokens.mediaOverlayInset,
                         child: IconButton(
                           onPressed: () {},
+                          padding: EdgeInsets.zero,
                           tooltip: 'Filter chart',
                           icon: const Icon(Icons.filter_alt_outlined),
                         ),
@@ -480,7 +485,7 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(
-                              AppThemeTokens.space2,
+                              AppThemeTokens.cardInlineGap,
                             ),
                             child: _ItemPictureGlyph(
                               widget.itemPictureIcon,
@@ -491,10 +496,11 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
                         ),
                       ),
                       Positioned(
-                        top: AppThemeTokens.space2,
-                        right: AppThemeTokens.space2,
+                        top: AppThemeTokens.mediaOverlayInset,
+                        right: AppThemeTokens.mediaOverlayInset,
                         child: IconButton(
                           onPressed: () {},
+                          padding: EdgeInsets.zero,
                           tooltip: 'Edit picture',
                           icon: SvgPicture.asset(
                             _editSquareAsset,
@@ -515,12 +521,12 @@ class _MediaPlaceholderCardState extends State<_MediaPlaceholderCard> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: AppThemeTokens.space3,
+              bottom: AppThemeTokens.mediaDotsBottomInset,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(_pageCount * 2 - 1, (index) {
                   if (index.isOdd) {
-                    return const SizedBox(width: AppThemeTokens.space2);
+                    return const SizedBox(width: AppThemeTokens.mediaDotGap);
                   }
                   final dotIndex = index ~/ 2;
                   return _CarouselDot(
@@ -588,10 +594,10 @@ class _ItemPictureField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Item Picture *', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.space1),
+        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(AppThemeTokens.space3),
+            padding: const EdgeInsets.all(AppThemeTokens.cardContentGap),
             child: Row(
               children: [
                 Expanded(
@@ -681,7 +687,7 @@ class _FieldEditor extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.space1),
+        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         if (maxLength == null)
           TextField(
             controller: controller,
@@ -723,7 +729,8 @@ class _FieldEditor extends StatelessWidget {
                     suffix: maxLines == 1
                         ? const SizedBox(
                             width:
-                                AppThemeTokens.space8 + AppThemeTokens.space2,
+                                AppThemeTokens.scrollBottomReservePrimary +
+                                AppThemeTokens.sectionGapCompact,
                           )
                         : null,
                     contentPadding: maxLines > 1
@@ -732,7 +739,7 @@ class _FieldEditor extends StatelessWidget {
                             AppThemeTokens.inputPaddingY,
                             AppThemeTokens.inputPaddingX,
                             AppThemeTokens.inputPaddingY +
-                                AppThemeTokens.space6,
+                                AppThemeTokens.scrollBottomReserveSecondary,
                           )
                         : null,
                   ),
@@ -740,7 +747,7 @@ class _FieldEditor extends StatelessWidget {
               ),
               Positioned(
                 right: AppThemeTokens.inputPaddingX,
-                bottom: AppThemeTokens.space2,
+                bottom: AppThemeTokens.cardInlineGap,
                 child: IgnorePointer(
                   child: ValueListenableBuilder<TextEditingValue>(
                     valueListenable: controller,
@@ -805,7 +812,7 @@ class _CurrencyFieldWithCode extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.space1),
+        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         TextField(
           controller: controller,
           enabled: enabled,
@@ -821,7 +828,9 @@ class _CurrencyFieldWithCode extends StatelessWidget {
             InputDecoration(
               hintText: hintText ?? label,
               suffix: Padding(
-                padding: const EdgeInsets.only(left: AppThemeTokens.space3),
+                padding: const EdgeInsets.only(
+                  left: AppThemeTokens.cardContentGap,
+                ),
                 child: Text(
                   currencyCode,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -878,7 +887,7 @@ class _ReadOnlyField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.space1),
+        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         InputDecorator(
           decoration: const InputDecoration(enabled: false),
           child: trailingValue == null
@@ -907,7 +916,7 @@ class _ReadOnlyField extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: AppThemeTokens.space2),
+                    const SizedBox(width: AppThemeTokens.cardInlineGap),
                     Text(
                       trailingValue!,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -951,7 +960,7 @@ class _AdaptiveCurrencyReadOnlyField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.space1),
+        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         LayoutBuilder(
           builder: (context, constraints) {
             final availableWidth =
@@ -968,7 +977,7 @@ class _AdaptiveCurrencyReadOnlyField extends StatelessWidget {
               trailingStyle,
             );
             final canUseFull =
-                fullTextWidth + AppThemeTokens.space2 + trailingWidth <=
+                fullTextWidth + AppThemeTokens.cardInlineGap + trailingWidth <=
                 availableWidth;
             final resolvedValue = canUseFull
                 ? fullValue
@@ -987,7 +996,7 @@ class _AdaptiveCurrencyReadOnlyField extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: AppThemeTokens.space2),
+                  const SizedBox(width: AppThemeTokens.cardInlineGap),
                   Text(currencyCode, style: trailingStyle),
                 ],
               ),

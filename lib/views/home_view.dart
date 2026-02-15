@@ -18,7 +18,7 @@ class HomeView extends StatelessWidget {
     const logoHeight = AppThemeTokens.fontSizeTitleMedium * 1.4;
     final contentPadding = EdgeInsets.fromLTRB(
       edgePadding.left,
-      AppThemeTokens.space4,
+      AppThemeTokens.sectionGap,
       edgePadding.right,
       edgePadding.bottom,
     );
@@ -35,7 +35,7 @@ class HomeView extends StatelessWidget {
                 child: SvgPicture.asset('icons/logo.svg', fit: BoxFit.contain),
               ),
             ),
-            const SizedBox(width: AppThemeTokens.space2),
+            const SizedBox(width: AppThemeTokens.sectionGapCompact),
             Text(l10n.appBrand),
           ],
         ),
@@ -66,15 +66,15 @@ class HomeView extends StatelessWidget {
         padding: contentPadding,
         children: [
           _SectionTitle(l10n.homeKeyMetrics),
-          const SizedBox(height: AppThemeTokens.space3),
+          const SizedBox(height: AppThemeTokens.cardContentGap),
           const _MetricGrid(),
-          const SizedBox(height: AppThemeTokens.space6),
+          const SizedBox(height: AppThemeTokens.sectionGapLarge),
           _SectionTitle(l10n.homePerformance),
-          const SizedBox(height: AppThemeTokens.space3),
+          const SizedBox(height: AppThemeTokens.cardContentGap),
           const _ChartPlaceholder(),
-          const SizedBox(height: AppThemeTokens.space6),
+          const SizedBox(height: AppThemeTokens.sectionGapLarge),
           _SectionTitle(l10n.homeRecentActivity),
-          const SizedBox(height: AppThemeTokens.space3),
+          const SizedBox(height: AppThemeTokens.cardContentGap),
           const _ActivityList(),
         ],
       ),
@@ -111,8 +111,8 @@ class _MetricGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: AppThemeTokens.space3,
-        mainAxisSpacing: AppThemeTokens.space3,
+        crossAxisSpacing: AppThemeTokens.cardContentGap,
+        mainAxisSpacing: AppThemeTokens.cardContentGap,
         childAspectRatio: 1.7,
       ),
       itemBuilder: (_, __) => const _Card(
@@ -121,7 +121,7 @@ class _MetricGrid extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _BarPlaceholder(width: 72, height: 10),
-            SizedBox(height: AppThemeTokens.space3),
+            SizedBox(height: AppThemeTokens.cardContentGap),
             _BarPlaceholder(width: 120, height: 20),
           ],
         ),
@@ -155,7 +155,7 @@ class _ChartPlaceholder extends StatelessWidget {
                 _BarPlaceholder(width: 20, height: 120),
               ],
             ),
-            SizedBox(height: AppThemeTokens.space3),
+            SizedBox(height: AppThemeTokens.cardContentGap),
           ],
         ),
       ),
@@ -172,7 +172,7 @@ class _ActivityList extends StatelessWidget {
       children: List.generate(
         5,
         (index) => const Padding(
-          padding: EdgeInsets.only(bottom: AppThemeTokens.space3),
+          padding: EdgeInsets.only(bottom: AppThemeTokens.cardContentGap),
           child: _Card(
             child: Row(
               children: [
@@ -180,18 +180,18 @@ class _ActivityList extends StatelessWidget {
                   radius: 20,
                   backgroundColor: AppThemeTokens.accentLighter,
                 ),
-                SizedBox(width: AppThemeTokens.space3),
+                SizedBox(width: AppThemeTokens.cardContentGap),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _BarPlaceholder(width: 160, height: 10),
-                      SizedBox(height: AppThemeTokens.space2),
+                      SizedBox(height: AppThemeTokens.sectionGapCompact),
                       _BarPlaceholder(width: 100, height: 10),
                     ],
                   ),
                 ),
-                SizedBox(width: AppThemeTokens.space2),
+                SizedBox(width: AppThemeTokens.sectionGapCompact),
                 _BarPlaceholder(width: 44, height: 10),
               ],
             ),
@@ -210,7 +210,7 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppThemeTokens.space4),
+      padding: const EdgeInsets.all(AppThemeTokens.cardInset),
       decoration: BoxDecoration(
         color: AppThemeTokens.surface,
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
@@ -241,7 +241,7 @@ class _BarPlaceholder extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: AppThemeTokens.barBackground,
-        borderRadius: BorderRadius.circular(AppThemeTokens.space2),
+        borderRadius: BorderRadius.circular(AppThemeTokens.sectionGapCompact),
       ),
     );
   }

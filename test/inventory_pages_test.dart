@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -818,9 +820,80 @@ void main() {
     final piecesCardGap = piecesCardRect.top - ratioRect.bottom;
     final soldAsProductGap = soldAsProductCardRect.top - totalValueRect.bottom;
     const tolerance = 0.6;
-    expect(piecesCardGap, closeTo(AppThemeTokens.space4, tolerance));
-    expect(soldAsProductGap, closeTo(AppThemeTokens.space4, tolerance));
+    expect(piecesCardGap, closeTo(AppThemeTokens.sectionGap, tolerance));
+    expect(
+      soldAsProductGap,
+      closeTo(AppThemeTokens.sectionGap, tolerance),
+    );
   });
+
+  testWidgets(
+    'sku detail grouped cards use 16px and sold card inset is non-zero',
+    (WidgetTester tester) async {
+      const sku = SkuItem(
+        id: 'sku-intracard-padding',
+        name: 'SKU Intra Padding',
+        itemPictureIcon: Icons.inventory_2_outlined,
+        description: 'desc',
+        pieces: 3,
+        bulk: 2,
+        piecesPerBulk: 10,
+        costPerPiece: 11.1,
+        costPerBulk: 50,
+        soldAsProduct: false,
+        productPrice: null,
+      );
+
+      await setPhoneViewport(tester);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: const SkuDetailPage(initialSku: sku),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final piecesCard = find
+          .ancestor(of: find.text('Pieces'), matching: find.byType(Card))
+          .first;
+      final piecesCardPaddings = tester.widgetList<Padding>(
+        find.descendant(of: piecesCard, matching: find.byType(Padding)),
+      );
+      expect(
+        piecesCardPaddings.any(
+          (padding) =>
+              padding.padding ==
+              const EdgeInsets.all(AppThemeTokens.groupedCardInset),
+        ),
+        isTrue,
+      );
+
+      await tester.scrollUntilVisible(
+        find.text('Sold as a Product?'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      final soldAsProductCard = find
+          .ancestor(
+            of: find.text('Sold as a Product?'),
+            matching: find.byType(Card),
+          )
+          .first;
+      final soldAsProductPaddings = tester.widgetList<Padding>(
+        find.descendant(of: soldAsProductCard, matching: find.byType(Padding)),
+      );
+      expect(
+        soldAsProductPaddings.any(
+          (padding) =>
+              padding.padding ==
+              const EdgeInsets.all(AppThemeTokens.sectionCardInset),
+        ),
+        isTrue,
+      );
+      expect(AppThemeTokens.sectionCardInset, greaterThan(0));
+    },
+  );
 
   testWidgets(
     'sku product price expansion auto-scrolls and keeps symmetric horizontal inset',
@@ -880,7 +953,9 @@ void main() {
       );
       expect(
         productPriceRect.bottom,
-        lessThanOrEqualTo(viewportRect.bottom - AppThemeTokens.space4),
+        lessThanOrEqualTo(
+          viewportRect.bottom - AppThemeTokens.scrollVisibilityBottomClearance,
+        ),
       );
       expect(
         (soldAsProductCheckboxRect.left - productPriceRect.left).abs(),
@@ -1335,6 +1410,84 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(ServiceDetailPage), findsOneWidget);
+  });
+
+  testWidgets('sku detail icon buttons use explicit zero padding', (
+    WidgetTester tester,
+  ) async {
+    const sku = SkuItem(
+      id: 'sku-icon-padding',
+      name: 'SKU Icon Padding',
+      itemPictureIcon: Icons.inventory_2_outlined,
+      description: 'desc',
+      pieces: 1,
+      bulk: 1,
+      piecesPerBulk: 1,
+      costPerPiece: 1,
+      costPerBulk: 1,
+      soldAsProduct: false,
+      productPrice: null,
+    );
+
+    await setPhoneViewport(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const SkuDetailPage(initialSku: sku),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final backButton = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.arrow_back).first,
+    );
+    expect(backButton.padding, EdgeInsets.zero);
+
+    final filterButton = tester.widget<IconButton>(
+      find
+          .ancestor(
+            of: find.byTooltip('Filter chart'),
+            matching: find.byType(IconButton),
+          )
+          .first,
+    );
+    expect(filterButton.padding, EdgeInsets.zero);
+
+    await tester.tap(find.byKey(const ValueKey('media-carousel-dot-1')));
+    await tester.pumpAndSettle();
+
+    final editButton = tester.widget<IconButton>(
+      find
+          .ancestor(
+            of: find.byTooltip('Edit picture'),
+            matching: find.byType(IconButton),
+          )
+          .first,
+    );
+    expect(editButton.padding, EdgeInsets.zero);
+  });
+
+  test('views use semantic spacing tokens instead of primitive space scale', () {
+    final viewsDir = Directory('lib/views');
+    final violations = <String>[];
+    final primitivePattern = RegExp(r'AppThemeTokens\.space[0-9]+');
+    for (final entity in viewsDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) {
+        continue;
+      }
+      final content = entity.readAsStringSync();
+      if (primitivePattern.hasMatch(content)) {
+        final firstMatch = primitivePattern.firstMatch(content)?.group(0) ?? '';
+        violations.add('${entity.path} contains $firstMatch');
+      }
+    }
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Found primitive spacing tokens in views:\n${violations.join('\n')}',
+    );
   });
 
   testWidgets('service detail selected SKU chips use item-card chip styling', (

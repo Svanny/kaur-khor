@@ -135,15 +135,16 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                 hasChanges: _hasChanges,
                 isValid: _isValid,
               ),
-              const SizedBox(height: AppThemeTokens.space3),
+              const SizedBox(height: AppThemeTokens.headerToContentGap),
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.only(
-                    bottom: bottomInset + AppThemeTokens.space8,
+                    bottom:
+                        bottomInset + AppThemeTokens.scrollBottomReservePrimary,
                   ),
                   children: [
                     _MediaPlaceholderCard(itemPictureIcon: _itemPictureIcon),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Name',
                       controller: _nameController,
@@ -155,7 +156,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                       onTapOutside: () => setState(() => _nameBlurred = true),
                       onChanged: (_) => setState(() {}),
                     ),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Description',
                       controller: _descriptionController,
@@ -169,7 +170,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                           setState(() => _descriptionBlurred = true),
                       onChanged: (_) => setState(() {}),
                     ),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     ValueListenableBuilder<AppCurrency>(
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
@@ -187,12 +188,12 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                         );
                       },
                     ),
-                    const SizedBox(height: AppThemeTokens.space4),
+                    const SizedBox(height: AppThemeTokens.sectionGap),
                     Text(
                       'SKUs Used',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: AppThemeTokens.space2),
+                    const SizedBox(height: AppThemeTokens.sectionCardOuterGap),
                     Card(
                       margin: EdgeInsets.zero,
                       shape: RoundedRectangleBorder(
@@ -211,15 +212,17 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                         ),
                         onTap: _editSkuSelection,
                         child: Padding(
-                          padding: const EdgeInsets.all(AppThemeTokens.space3),
+                          padding: const EdgeInsets.all(
+                            AppThemeTokens.cardContentGap,
+                          ),
                           child: selectedSkus.isEmpty
                               ? Text(
                                   'Tap to choose SKUs',
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 )
                               : Wrap(
-                                  spacing: AppThemeTokens.space2,
-                                  runSpacing: AppThemeTokens.space2,
+                                  spacing: AppThemeTokens.wrapSpacing,
+                                  runSpacing: AppThemeTokens.wrapRunSpacing,
                                   children: selectedSkus
                                       .map(
                                         (sku) => Chip(
@@ -238,12 +241,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                                             side: BorderSide.none,
                                           ),
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal:
-                                                AppThemeTokens.chipPaddingX -
-                                                AppThemeTokens.space1,
-                                            vertical:
-                                                AppThemeTokens.chipPaddingY -
-                                                AppThemeTokens.space1,
+                                            horizontal: AppThemeTokens
+                                                .inventoryChipPadX,
+                                            vertical: AppThemeTokens
+                                                .inventoryChipPadY,
                                           ),
                                           label: Text(
                                             sku.name,
@@ -429,13 +430,7 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
         child: Material(
           color: AppThemeTokens.modalSheetBackground,
           child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              edge.left,
-              //AppThemeTokens.space1,
-              0,
-              edge.right,
-              0,
-            ),
+            padding: EdgeInsets.fromLTRB(edge.left, 0, edge.right, 0),
             child: Column(
               children: [
                 buildSaveChangeHeader(
@@ -447,21 +442,24 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
                   isValid: true,
                   backIcon: Icons.close,
                 ),
-                const SizedBox(height: AppThemeTokens.space3),
+                const SizedBox(height: AppThemeTokens.headerToContentGap),
                 _SearchField(
                   controller: _searchController,
                   hintText: 'Search SKUs by name',
                   onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: AppThemeTokens.space3),
+                const SizedBox(height: AppThemeTokens.headerToContentGap),
                 Expanded(
                   child: ListView.separated(
                     padding: EdgeInsets.only(
-                      bottom: bottomInset + AppThemeTokens.space8,
+                      bottom:
+                          bottomInset +
+                          AppThemeTokens.scrollBottomReservePrimary,
                     ),
                     itemCount: visibleSkus.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: AppThemeTokens.space3),
+                    separatorBuilder: (_, __) => const SizedBox(
+                      height: AppThemeTokens.headerToContentGap,
+                    ),
                     itemBuilder: (_, index) {
                       final sku = visibleSkus[index];
                       final selected = _selectedSkuIds.contains(sku.id);

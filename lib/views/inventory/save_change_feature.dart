@@ -57,7 +57,7 @@ class _UnsavedChangesPopup extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = math
         .min(
-          MediaQuery.sizeOf(context).width - (AppThemeTokens.space6 * 2),
+          MediaQuery.sizeOf(context).width - (AppThemeTokens.popupInset * 2),
           360,
         )
         .toDouble();
@@ -101,15 +101,15 @@ class _UnsavedChangesPopup extends StatelessWidget {
                   borderRadius: BorderRadius.circular(32),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(AppThemeTokens.space6),
+                  padding: const EdgeInsets.all(AppThemeTokens.popupInset),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: titleStyle),
-                      const SizedBox(height: AppThemeTokens.space3),
+                      const SizedBox(height: AppThemeTokens.headerToContentGap),
                       Text(message, style: bodyStyle),
-                      const SizedBox(height: AppThemeTokens.space6),
+                      const SizedBox(height: AppThemeTokens.popupInset),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -131,7 +131,7 @@ class _UnsavedChangesPopup extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(width: AppThemeTokens.space2),
+                          const SizedBox(width: AppThemeTokens.popupActionGap),
                           FilledButton(
                             onPressed: () => Navigator.of(context).pop(
                               isInvalidVariant

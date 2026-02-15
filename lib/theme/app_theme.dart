@@ -61,6 +61,58 @@ class AppThemeTokens {
   static const double space6 = 6 * unit; // 24
   static const double space8 = 8 * unit; // 32
 
+  // Semantic layout spacing (page/view usage)
+  static const double headerToContentGap = space3;
+  static const double sectionGap = space4;
+  static const double sectionGapCompact = space2;
+  static const double sectionGapLarge = space6;
+  static const double sectionHeaderInset = space2;
+
+  static const double fieldLabelToControlGap = space1;
+  static const double groupedCardInset = space4;
+  static const double groupedCardInternalFieldGap = space3;
+  static const double groupedCardsHorizontalGap = space2;
+
+  static const double sectionCardOuterGap = space2;
+  static const double sectionCardInset = space2;
+  static const double sectionCardInlineGap = space2;
+  static const double sectionCardExpandedContentGap = space4;
+
+  static const double cardInset = space4;
+  static const double cardInnerInset = space2;
+  static const double cardContentGap = space3;
+  static const double cardInlineGap = space2;
+  static const double cardBlockGap = space2;
+
+  static const double wrapSpacing = space2;
+  static const double wrapRunSpacing = space2;
+  static const double chipDenseAdjust = space1;
+  static const double trailingCounterBottomInset = space2;
+
+  static const double mediaOverlayInset = space2;
+  static const double mediaDotsBottomInset = space3;
+  static const double mediaDotGap = space2;
+
+  static const double popupInset = space6;
+  static const double popupActionGap = space2;
+
+  static const double filterChipPadX = chipPaddingX + chipDenseAdjust;
+  static const double filterChipPadY = chipPaddingY + chipDenseAdjust;
+  static const double inventoryChipPadX = chipPaddingX - chipDenseAdjust;
+  static const double inventoryChipPadY = chipPaddingY - chipDenseAdjust;
+
+  static const double dropdownPanelInsetY = space2;
+  static const double dropdownOptionPadX = space3;
+  static const double dropdownOptionPadY = space2;
+  static const double dropdownOptionPadTotalX = dropdownOptionPadX * 2;
+  static const double dropdownToggleIconGap = space1;
+
+  static const double scrollBottomReservePrimary = space8;
+  static const double scrollBottomReserveSecondary = space6;
+  static const double scrollVisibilityTopClearance = space2;
+  static const double scrollVisibilityBottomClearance = space4;
+  static const double scrollNudge = space1;
+
   // Component paddings
   static const double buttonPaddingX = space4;
   static const double buttonPaddingY = space3;
