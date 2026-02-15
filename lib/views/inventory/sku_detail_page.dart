@@ -284,7 +284,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     bottom:
                         edge.bottom +
                         AppThemeTokens.space8 +
-                        AppThemeTokens.space2,
+                        AppThemeTokens.space3,
                   ),
                   children: [
                     _MediaPlaceholderCard(itemPictureIcon: _itemPictureIcon),
@@ -437,6 +437,12 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                 Checkbox(
                                   key: _soldAsProductCheckboxKey,
                                   value: _soldAsProduct,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: const VisualDensity(
+                                    horizontal: -4,
+                                    vertical: -4,
+                                  ),
                                   onChanged: (value) {
                                     if (value == null) {
                                       return;
@@ -466,27 +472,34 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                               curve: Curves.easeInOutCubic,
                               alignment: Alignment.topCenter,
                               child: _soldAsProduct
-                                  ? KeyedSubtree(
-                                      key: _productPriceSectionKey,
-                                      child: ValueListenableBuilder<AppCurrency>(
-                                        valueListenable:
-                                            context.currencyController,
-                                        builder: (_, currency, __) {
-                                          return _CurrencyFieldWithCode(
-                                            label: 'Product Price',
-                                            controller: _productPriceController,
-                                            hintText: 'e.g. 12.00',
-                                            currencyCode: currency.code,
-                                            hasError:
-                                                (_showValidationHighlights ||
-                                                    _productPriceBlurred) &&
-                                                _productPriceHasError,
-                                            onTapOutside: () => setState(
-                                              () => _productPriceBlurred = true,
-                                            ),
-                                            onChanged: (_) => setState(() {}),
-                                          );
-                                        },
+                                  ? Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: AppThemeTokens.space3,
+                                      ),
+                                      child: KeyedSubtree(
+                                        key: _productPriceSectionKey,
+                                        child: ValueListenableBuilder<AppCurrency>(
+                                          valueListenable:
+                                              context.currencyController,
+                                          builder: (_, currency, __) {
+                                            return _CurrencyFieldWithCode(
+                                              label: 'Product Price',
+                                              controller:
+                                                  _productPriceController,
+                                              hintText: 'e.g. 12.00',
+                                              currencyCode: currency.code,
+                                              hasError:
+                                                  (_showValidationHighlights ||
+                                                      _productPriceBlurred) &&
+                                                  _productPriceHasError,
+                                              onTapOutside: () => setState(
+                                                () =>
+                                                    _productPriceBlurred = true,
+                                              ),
+                                              onChanged: (_) => setState(() {}),
+                                            );
+                                          },
+                                        ),
                                       ),
                                     )
                                   : const SizedBox.shrink(),

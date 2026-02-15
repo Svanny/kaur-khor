@@ -95,6 +95,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         onPressed: _onAddItemPressed,
+        shape: const CircleBorder(),
         child: const Icon(Icons.add),
       ),
       body: Padding(

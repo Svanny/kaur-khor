@@ -72,6 +72,11 @@ void main() {
       expect(serviceChip.side, BorderSide.none);
       expect(skuChip.elevation, AppThemeTokens.elevation1);
       expect(serviceChip.elevation, AppThemeTokens.elevation1);
+
+      final fab = tester.widget<FloatingActionButton>(
+        find.byType(FloatingActionButton),
+      );
+      expect(fab.shape, isA<CircleBorder>());
     },
   );
 
@@ -776,9 +781,16 @@ void main() {
 
       final viewportRect = tester.getRect(find.byType(Scrollable).first);
       final productPriceRect = tester.getRect(textFieldByHint('e.g. 12.00'));
+      final soldAsProductCheckboxRect = tester.getRect(
+        find.byKey(const ValueKey('sold-as-product-checkbox')),
+      );
       expect(
         productPriceRect.bottom,
         lessThanOrEqualTo(viewportRect.bottom - AppThemeTokens.space4),
+      );
+      expect(
+        (soldAsProductCheckboxRect.left - productPriceRect.left).abs(),
+        lessThan(1.0),
       );
 
       final soldCard = find
