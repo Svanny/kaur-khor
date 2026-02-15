@@ -14,9 +14,9 @@ class _ViewAllPageState extends State<ViewAllPage> {
       name: 'SKU #001',
       itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Base ingredient for high volume items.',
-      pieces: 120,
+      pieces: 120.0,
       bulk: 12,
-      piecesPerBulk: 12,
+      piecesPerBulk: 12.0,
       costPerPiece: 5,
       costPerBulk: 58,
       soldAsProduct: true,
@@ -27,9 +27,9 @@ class _ViewAllPageState extends State<ViewAllPage> {
       name: 'SKU #002',
       itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Reusable material with stable demand.',
-      pieces: 86,
+      pieces: 86.0,
       bulk: 6,
-      piecesPerBulk: 10,
+      piecesPerBulk: 10.0,
       costPerPiece: 4.2,
       costPerBulk: 40,
       soldAsProduct: false,
@@ -40,9 +40,9 @@ class _ViewAllPageState extends State<ViewAllPage> {
       name: 'SKU #003',
       itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Low-rotation backup stock.',
-      pieces: 44,
+      pieces: 44.0,
       bulk: 4,
-      piecesPerBulk: 8,
+      piecesPerBulk: 8.0,
       costPerPiece: 8,
       costPerBulk: 60,
       soldAsProduct: true,
@@ -109,6 +109,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
             const SizedBox(height: AppThemeTokens.headerToContentGap),
             _SearchField(
               controller: _searchController,
+              inputMode: _InputMode.text,
               hintText: 'Search items by name',
               onChanged: (_) => setState(() {}),
             ),
@@ -248,9 +249,9 @@ class _ViewAllPageState extends State<ViewAllPage> {
     );
   }
 
-  int _piecesForService(ServiceItem service) {
+  double _piecesForService(ServiceItem service) {
     final selected = _skus.where((sku) => service.skuIds.contains(sku.id));
-    return selected.fold(0, (sum, sku) => sum + sku.pieces);
+    return selected.fold(0.0, (sum, sku) => sum + sku.pieces);
   }
 
   int _bulkForService(ServiceItem service) {
@@ -259,6 +260,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
   }
 
   Future<void> _editSku(SkuItem sku) async {
+    FocusScope.of(context).unfocus();
     final updated = await Navigator.of(context).push<SkuItem>(
       MaterialPageRoute(builder: (_) => SkuDetailPage(initialSku: sku)),
     );
@@ -273,6 +275,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
   }
 
   Future<void> _editService(ServiceItem service) async {
+    FocusScope.of(context).unfocus();
     final updated = await Navigator.of(context).push<ServiceItem>(
       MaterialPageRoute(
         builder: (_) =>
@@ -290,6 +293,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
   }
 
   Future<void> _onAddItemPressed() async {
+    FocusScope.of(context).unfocus();
     final selectedType = await showModalBottomSheet<_NewItemType>(
       context: context,
       builder: (context) {
@@ -343,13 +347,13 @@ class _ViewAllPageState extends State<ViewAllPage> {
 
   Future<void> _createSku() async {
     final newSku = SkuItem(
-      id: 'sku-${DateTime.now().microsecondsSinceEpoch}',
+      id: IdGenerator.newSkuId(),
       name: 'SKU #NEW',
       itemPictureIcon: _defaultSkuPictureIcon,
       description: '',
-      pieces: 0,
+      pieces: 0.0,
       bulk: 0,
-      piecesPerBulk: 1,
+      piecesPerBulk: 1.0,
       costPerPiece: 0,
       costPerBulk: 0,
       soldAsProduct: false,
@@ -368,7 +372,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
 
   Future<void> _createService() async {
     final newService = ServiceItem(
-      id: 'service-${DateTime.now().microsecondsSinceEpoch}',
+      id: IdGenerator.newServiceId(),
       name: 'Service #NEW',
       itemPictureIcon: _defaultServicePictureIcon,
       description: '',

@@ -24,9 +24,9 @@ class SkuItem {
   final String name;
   final IconData itemPictureIcon;
   final String description;
-  final int pieces;
+  final double pieces;
   final int bulk;
-  final int piecesPerBulk;
+  final double piecesPerBulk;
   final double costPerPiece;
   final double costPerBulk;
   final bool soldAsProduct;
@@ -39,9 +39,9 @@ class SkuItem {
     String? name,
     IconData? itemPictureIcon,
     String? description,
-    int? pieces,
+    double? pieces,
     int? bulk,
-    int? piecesPerBulk,
+    double? piecesPerBulk,
     double? costPerPiece,
     double? costPerBulk,
     bool? soldAsProduct,

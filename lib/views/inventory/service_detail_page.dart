@@ -57,24 +57,32 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
 
   List<String> get _validationErrors {
     final errors = <String>[];
-    final name = _nameController.text.trim();
-    final description = _descriptionController.text.trim();
-    final priceRaw = _priceController.text.trim();
-    final parsedPrice = _tryDouble(_priceController.text);
+    final nameError = SecurityValidators.validateRequiredText(
+      _nameController.text,
+      fieldName: 'Name',
+      maxLength: SecurityLimits.serviceNameMaxLength,
+    );
+    if (nameError != null) {
+      errors.add(nameError);
+    }
 
-    if (name.isEmpty) {
-      errors.add('Name field is required.');
+    final descriptionError = SecurityValidators.validateRequiredText(
+      _descriptionController.text,
+      fieldName: 'Description',
+      maxLength: SecurityLimits.serviceDescriptionMaxLength,
+    );
+    if (descriptionError != null) {
+      errors.add(descriptionError);
     }
-    if (description.isEmpty) {
-      errors.add('Description field is required.');
+
+    final priceError = SecurityValidators.validateNonNegativeDecimal(
+      _priceController.text,
+      fieldName: 'Price',
+    );
+    if (priceError != null) {
+      errors.add(priceError);
     }
-    if (priceRaw.isEmpty) {
-      errors.add('Price field is required.');
-    } else if (parsedPrice == null) {
-      errors.add('Price field must be a valid number (no symbols or letters).');
-    } else if (parsedPrice < 0) {
-      errors.add('Price field cannot be negative.');
-    }
+
     if (_selectedSkuIds.isEmpty) {
       errors.add('Select at least one SKU.');
     }
@@ -83,12 +91,26 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   }
 
   bool get _isValid => _validationErrors.isEmpty;
-  bool get _nameHasError => _nameController.text.trim().isEmpty;
-  bool get _descriptionHasError => _descriptionController.text.trim().isEmpty;
+  bool get _nameHasError =>
+      SecurityValidators.validateRequiredText(
+        _nameController.text,
+        fieldName: 'Name',
+        maxLength: SecurityLimits.serviceNameMaxLength,
+      ) !=
+      null;
+  bool get _descriptionHasError =>
+      SecurityValidators.validateRequiredText(
+        _descriptionController.text,
+        fieldName: 'Description',
+        maxLength: SecurityLimits.serviceDescriptionMaxLength,
+      ) !=
+      null;
   bool get _priceHasError {
-    final priceRaw = _priceController.text.trim();
-    final parsedPrice = _tryDouble(_priceController.text);
-    return priceRaw.isEmpty || parsedPrice == null || parsedPrice < 0;
+    return SecurityValidators.validateNonNegativeDecimal(
+          _priceController.text,
+          fieldName: 'Price',
+        ) !=
+        null;
   }
 
   bool get _skusHasError => _selectedSkuIds.isEmpty;
@@ -149,7 +171,8 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     _FieldEditor(
                       label: 'Name',
                       controller: _nameController,
-                      maxLength: 80,
+                      inputMode: _InputMode.text,
+                      maxLength: SecurityLimits.serviceNameMaxLength,
                       hintText: 'Enter service name',
                       hasError:
                           (_showValidationHighlights || _nameBlurred) &&
@@ -161,8 +184,9 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     _FieldEditor(
                       label: 'Description',
                       controller: _descriptionController,
+                      inputMode: _InputMode.text,
                       maxLines: 4,
-                      maxLength: 250,
+                      maxLength: SecurityLimits.serviceDescriptionMaxLength,
                       hintText: 'Describe this service',
                       hasError:
                           (_showValidationHighlights || _descriptionBlurred) &&
@@ -178,6 +202,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                         return _CurrencyFieldWithCode(
                           label: 'Price',
                           controller: _priceController,
+                          inputMode: _InputMode.decimal,
                           currencyCode: currency.code,
                           hintText: 'e.g. 1200.00',
                           hasError:
@@ -359,9 +384,15 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
       return;
     }
     final updated = widget.initialService.copyWith(
-      name: _nameController.text.trim(),
+      name: SecurityValidators.normalizeText(
+        _nameController.text,
+        maxLength: SecurityLimits.serviceNameMaxLength,
+      ),
       itemPictureIcon: _itemPictureIcon,
-      description: _descriptionController.text.trim(),
+      description: SecurityValidators.normalizeText(
+        _descriptionController.text,
+        maxLength: SecurityLimits.serviceDescriptionMaxLength,
+      ),
       price: _tryDouble(_priceController.text) ?? 0,
       skuIds: _selectedSkuIds,
     );
@@ -446,6 +477,7 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
                 const SizedBox(height: AppThemeTokens.headerToContentGap),
                 _SearchField(
                   controller: _searchController,
+                  inputMode: _InputMode.text,
                   hintText: 'Search SKUs by name',
                   onChanged: (_) => setState(() {}),
                 ),
@@ -489,7 +521,7 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
                           },
                           title: Text(sku.name),
                           subtitle: Text(
-                            '${sku.pieces} pieces · ${sku.bulk} bulk',
+                            '${_formatNumber(sku.pieces)} pieces · ${sku.bulk} bulk',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           checkboxScaleFactor: 1.0,

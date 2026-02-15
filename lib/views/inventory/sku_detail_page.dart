@@ -62,9 +62,9 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final sku = widget.initialSku;
     _initialName = sku.name;
     _initialDescription = sku.description;
-    _initialPiecesText = sku.pieces.toString();
+    _initialPiecesText = _formatNumber(sku.pieces);
     _initialBulkText = sku.bulk.toString();
-    _initialRatioText = sku.piecesPerBulk.toString();
+    _initialRatioText = _formatNumber(sku.piecesPerBulk);
     _initialCostPieceText = _trimNumber(sku.costPerPiece);
     _initialCostBulkText = _trimNumber(sku.costPerBulk);
     _initialProductPriceText = sku.productPrice == null
@@ -102,129 +102,146 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
 
   List<String> get _validationErrors {
     final errors = <String>[];
-    final piecesRaw = _piecesController.text.trim();
-    final bulkRaw = _bulkController.text.trim();
-    final ratioRaw = _ratioController.text.trim();
-    final costPieceRaw = _costPieceController.text.trim();
-    final costBulkRaw = _costBulkController.text.trim();
-    final productPriceRaw = _productPriceController.text.trim();
-    final pieces = _piecesValue;
-    final bulk = _bulkValue;
-    final ratio = _ratioValue;
-    final costPiece = _costPieceValue;
-    final costBulk = _costBulkValue;
-    final productPrice = _productPriceValue;
 
-    if (_nameController.text.trim().isEmpty) {
-      errors.add('Name field is required.');
+    final nameError = SecurityValidators.validateRequiredText(
+      _nameController.text,
+      fieldName: 'Name',
+      maxLength: SecurityLimits.skuNameMaxLength,
+    );
+    if (nameError != null) {
+      errors.add(nameError);
     }
-    if (_descriptionController.text.trim().isEmpty) {
-      errors.add('Description field is required.');
+
+    final descriptionError = SecurityValidators.validateRequiredText(
+      _descriptionController.text,
+      fieldName: 'Description',
+      maxLength: SecurityLimits.skuDescriptionMaxLength,
+    );
+    if (descriptionError != null) {
+      errors.add(descriptionError);
     }
-    if (piecesRaw.isEmpty) {
-      errors.add('Pieces field is required.');
-    } else if (pieces == null) {
-      errors.add(
-        'Pieces field must be a valid whole number (no symbols or letters).',
-      );
-    } else if (pieces < 0) {
-      errors.add('Pieces field cannot be negative.');
+
+    final piecesError = SecurityValidators.validateNonNegativeDecimal(
+      _piecesController.text,
+      fieldName: 'Pieces',
+    );
+    if (piecesError != null) {
+      errors.add(piecesError);
     }
-    if (bulkRaw.isEmpty) {
-      errors.add('Bulk field is required.');
-    } else if (bulk == null) {
-      errors.add(
-        'Bulk field must be a valid whole number (no symbols or letters).',
-      );
-    } else if (bulk < 0) {
-      errors.add('Bulk field cannot be negative.');
+
+    final bulkError = SecurityValidators.validateNonNegativeInteger(
+      _bulkController.text,
+      fieldName: 'Bulk',
+    );
+    if (bulkError != null) {
+      errors.add(bulkError);
     }
-    if (ratioRaw.isEmpty) {
-      errors.add('Pieces / Bulk field is required.');
-    } else if (ratio == null) {
-      errors.add(
-        'Pieces / Bulk field must be a valid whole number (no symbols or letters).',
-      );
-    } else if (ratio <= 0) {
-      errors.add('Pieces / Bulk field must be greater than 0.');
+
+    final ratioError = SecurityValidators.validatePositiveDecimal(
+      _ratioController.text,
+      fieldName: 'Pieces / Bulk',
+    );
+    if (ratioError != null) {
+      errors.add(ratioError);
     }
-    if (costPieceRaw.isEmpty) {
-      errors.add('Cost / Piece field is required.');
-    } else if (costPiece == null) {
-      errors.add(
-        'Cost / Piece field must be a valid number (no symbols or letters).',
-      );
-    } else if (costPiece < 0) {
-      errors.add('Cost / Piece field cannot be negative.');
+
+    final costPieceError = SecurityValidators.validateNonNegativeDecimal(
+      _costPieceController.text,
+      fieldName: 'Cost / Piece',
+    );
+    if (costPieceError != null) {
+      errors.add(costPieceError);
     }
-    if (costBulkRaw.isEmpty) {
-      errors.add('Cost / Bulk field is required.');
-    } else if (costBulk == null) {
-      errors.add(
-        'Cost / Bulk field must be a valid number (no symbols or letters).',
-      );
-    } else if (costBulk < 0) {
-      errors.add('Cost / Bulk field cannot be negative.');
+
+    final costBulkError = SecurityValidators.validateNonNegativeDecimal(
+      _costBulkController.text,
+      fieldName: 'Cost / Bulk',
+    );
+    if (costBulkError != null) {
+      errors.add(costBulkError);
     }
+
     if (_soldAsProduct) {
-      if (productPriceRaw.isEmpty) {
-        errors.add('Product Price field is required.');
-      } else if (productPrice == null) {
-        errors.add(
-          'Product Price field must be a valid number (no symbols or letters).',
-        );
-      } else if (productPrice < 0) {
-        errors.add('Product Price field cannot be negative.');
+      final productPriceError = SecurityValidators.validateNonNegativeDecimal(
+        _productPriceController.text,
+        fieldName: 'Product Price',
+      );
+      if (productPriceError != null) {
+        errors.add(productPriceError);
       }
     }
     return errors;
   }
 
   bool get _isValid => _validationErrors.isEmpty;
-  bool get _nameHasError => _nameController.text.trim().isEmpty;
-  bool get _descriptionHasError => _descriptionController.text.trim().isEmpty;
-  int? get _piecesValue => _tryInt(_piecesController.text);
+  bool get _nameHasError =>
+      SecurityValidators.validateRequiredText(
+        _nameController.text,
+        fieldName: 'Name',
+        maxLength: SecurityLimits.skuNameMaxLength,
+      ) !=
+      null;
+  bool get _descriptionHasError =>
+      SecurityValidators.validateRequiredText(
+        _descriptionController.text,
+        fieldName: 'Description',
+        maxLength: SecurityLimits.skuDescriptionMaxLength,
+      ) !=
+      null;
+  double? get _piecesValue => _tryDouble(_piecesController.text);
   int? get _bulkValue => _tryInt(_bulkController.text);
-  int? get _ratioValue => _tryInt(_ratioController.text);
+  double? get _ratioValue => _tryDouble(_ratioController.text);
   double? get _costPieceValue => _tryDouble(_costPieceController.text);
   double? get _costBulkValue => _tryDouble(_costBulkController.text);
   double? get _productPriceValue => _tryDouble(_productPriceController.text);
 
   bool get _piecesHasError {
-    final raw = _piecesController.text.trim();
-    final parsed = _piecesValue;
-    return raw.isEmpty || parsed == null || parsed < 0;
+    return SecurityValidators.validateNonNegativeDecimal(
+          _piecesController.text,
+          fieldName: 'Pieces',
+        ) !=
+        null;
   }
 
   bool get _bulkHasError {
-    final raw = _bulkController.text.trim();
-    final parsed = _bulkValue;
-    return raw.isEmpty || parsed == null || parsed < 0;
+    return SecurityValidators.validateNonNegativeInteger(
+          _bulkController.text,
+          fieldName: 'Bulk',
+        ) !=
+        null;
   }
 
   bool get _ratioHasError {
-    final raw = _ratioController.text.trim();
-    final parsed = _ratioValue;
-    return raw.isEmpty || parsed == null || parsed <= 0;
+    return SecurityValidators.validatePositiveDecimal(
+          _ratioController.text,
+          fieldName: 'Pieces / Bulk',
+        ) !=
+        null;
   }
 
   bool get _costPieceHasError {
-    final raw = _costPieceController.text.trim();
-    final parsed = _costPieceValue;
-    return raw.isEmpty || parsed == null || parsed < 0;
+    return SecurityValidators.validateNonNegativeDecimal(
+          _costPieceController.text,
+          fieldName: 'Cost / Piece',
+        ) !=
+        null;
   }
 
   bool get _costBulkHasError {
-    final raw = _costBulkController.text.trim();
-    final parsed = _costBulkValue;
-    return raw.isEmpty || parsed == null || parsed < 0;
+    return SecurityValidators.validateNonNegativeDecimal(
+          _costBulkController.text,
+          fieldName: 'Cost / Bulk',
+        ) !=
+        null;
   }
 
   bool get _productPriceHasError =>
       _soldAsProduct &&
-      (_productPriceController.text.trim().isEmpty ||
-          _productPriceValue == null ||
-          _productPriceValue! < 0);
+      SecurityValidators.validateNonNegativeDecimal(
+            _productPriceController.text,
+            fieldName: 'Product Price',
+          ) !=
+          null;
 
   bool get _hasChanges =>
       _nameController.text != _initialName ||
@@ -296,7 +313,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     _FieldEditor(
                       label: 'Name',
                       controller: _nameController,
-                      maxLength: 80,
+                      inputMode: _InputMode.text,
+                      maxLength: SecurityLimits.skuNameMaxLength,
                       hintText: 'Enter SKU name',
                       hasError:
                           (_showValidationHighlights || _nameBlurred) &&
@@ -308,8 +326,9 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     _FieldEditor(
                       label: 'Description',
                       controller: _descriptionController,
+                      inputMode: _InputMode.text,
                       maxLines: 4,
-                      maxLength: 250,
+                      maxLength: SecurityLimits.skuDescriptionMaxLength,
                       hintText: 'Describe this SKU',
                       hasError:
                           (_showValidationHighlights || _descriptionBlurred) &&
@@ -322,10 +341,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     _FieldEditor(
                       label: 'Pieces / Bulk',
                       controller: _ratioController,
+                      inputMode: _InputMode.decimal,
                       hintText: 'Enter pieces per bulk',
-                      keyboardType: const TextInputType.numberWithOptions(
-                        signed: false,
-                      ),
                       hasError:
                           (_showValidationHighlights || _ratioBlurred) &&
                           _ratioHasError,
@@ -344,11 +361,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                   _FieldEditor(
                                     label: 'Pieces',
                                     controller: _piecesController,
+                                    inputMode: _InputMode.decimal,
                                     hintText: 'Enter pieces count',
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          signed: false,
-                                        ),
                                     hasError:
                                         (_showValidationHighlights ||
                                             _piecesBlurred) &&
@@ -364,6 +378,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                   _CurrencyFieldWithCode(
                                     label: 'Cost / Piece',
                                     controller: _costPieceController,
+                                    inputMode: _InputMode.decimal,
                                     hintText: 'e.g. 4.50',
                                     currencyCode: currency.code,
                                     hasError:
@@ -387,11 +402,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                   _FieldEditor(
                                     label: 'Bulk',
                                     controller: _bulkController,
+                                    inputMode: _InputMode.integer,
                                     hintText: 'Enter bulk count',
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          signed: false,
-                                        ),
                                     hasError:
                                         (_showValidationHighlights ||
                                             _bulkBlurred) &&
@@ -407,6 +419,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                   _CurrencyFieldWithCode(
                                     label: 'Cost / Bulk',
                                     controller: _costBulkController,
+                                    inputMode: _InputMode.decimal,
                                     hintText: 'e.g. 40.00',
                                     currencyCode: currency.code,
                                     hasError:
@@ -483,6 +496,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                         return _CurrencyFieldWithCode(
                                           label: 'Product Price',
                                           controller: _productPriceController,
+                                          inputMode: _InputMode.decimal,
                                           hintText: 'e.g. 12.00',
                                           currencyCode: currency.code,
                                           hasError:
@@ -585,12 +599,18 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
       return;
     }
     final updated = widget.initialSku.copyWith(
-      name: _nameController.text.trim(),
+      name: SecurityValidators.normalizeText(
+        _nameController.text,
+        maxLength: SecurityLimits.skuNameMaxLength,
+      ),
       itemPictureIcon: _itemPictureIcon,
-      description: _descriptionController.text.trim(),
-      pieces: _piecesValue ?? 0,
+      description: SecurityValidators.normalizeText(
+        _descriptionController.text,
+        maxLength: SecurityLimits.skuDescriptionMaxLength,
+      ),
+      pieces: _piecesValue ?? 0.0,
       bulk: _bulkValue ?? 0,
-      piecesPerBulk: (_ratioValue ?? 1).clamp(1, 100000),
+      piecesPerBulk: (_ratioValue ?? 1.0).clamp(1.0, 100000.0).toDouble(),
       costPerPiece: _costPieceValue ?? 0,
       costPerBulk: _costBulkValue ?? 0,
       soldAsProduct: _soldAsProduct,
@@ -703,7 +723,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
       renderObject.size.bottomRight(Offset.zero),
       ancestor: viewportObject,
     );
-    final viewportTop = topClearance;
+    const viewportTop = topClearance;
     final viewportBottom = viewportObject.size.height - bottomClearance;
     var targetOffset = position.pixels;
 

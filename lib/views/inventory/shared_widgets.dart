@@ -166,13 +166,12 @@ class _SlidingYesNoToggle extends StatelessWidget {
   const _SlidingYesNoToggle({
     required this.value,
     required this.onChanged,
-    this.duration = const Duration(milliseconds: 220),
     super.key,
   });
 
+  static const Duration _duration = Duration(milliseconds: 220);
   final bool value;
   final ValueChanged<bool> onChanged;
-  final Duration duration;
 
   @override
   Widget build(BuildContext context) {
@@ -192,7 +191,7 @@ class _SlidingYesNoToggle extends StatelessWidget {
         child: Stack(
           children: [
             AnimatedAlign(
-              duration: duration,
+              duration: _duration,
               curve: Curves.easeInOutCubic,
               alignment: value ? Alignment.centerRight : Alignment.centerLeft,
               child: Padding(
@@ -312,26 +311,63 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+enum _InputMode { text, integer, decimal }
+
+TextInputType _keyboardTypeForInputMode(_InputMode mode) {
+  return switch (mode) {
+    _InputMode.text => TextInputType.text,
+    _InputMode.integer => const TextInputType.numberWithOptions(
+      signed: false,
+      decimal: false,
+    ),
+    _InputMode.decimal => const TextInputType.numberWithOptions(
+      signed: false,
+      decimal: true,
+    ),
+  };
+}
+
+void _dismissSoftInputIfNoEditableFocus() {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final focusedWidget = FocusManager.instance.primaryFocus?.context?.widget;
+    if (focusedWidget is! EditableText) {
+      SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    }
+  });
+}
+
+void _handleTapOutside({
+  required TextEditingController controller,
+  ValueChanged<String>? onChanged,
+  VoidCallback? onTapOutside,
+}) {
+  FocusManager.instance.primaryFocus?.unfocus();
+  _dismissSoftInputIfNoEditableFocus();
+  onChanged?.call(controller.text);
+  onTapOutside?.call();
+}
+
 class _SearchField extends StatelessWidget {
   const _SearchField({
     required this.controller,
     required this.hintText,
     required this.onChanged,
+    this.inputMode = _InputMode.text,
   });
 
   final TextEditingController controller;
   final String hintText;
   final ValueChanged<String> onChanged;
+  final _InputMode inputMode;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      keyboardType: _keyboardTypeForInputMode(inputMode),
       onChanged: onChanged,
-      onTapOutside: (_) {
-        FocusManager.instance.primaryFocus?.unfocus();
-        onChanged(controller.text);
-      },
+      onTapOutside: (_) =>
+          _handleTapOutside(controller: controller, onChanged: onChanged),
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: Theme.of(
@@ -372,7 +408,7 @@ class _InventoryItemCard extends StatelessWidget {
 
   final String title;
   final IconData itemPictureIcon;
-  final int pieces;
+  final double pieces;
   final int bulk;
   final String totalValueLabel;
   final VoidCallback onTap;
@@ -442,7 +478,7 @@ class _InventoryItemCard extends StatelessWidget {
                               vertical: AppThemeTokens.inventoryChipPadY,
                             ),
                             label: Text(
-                              'Pieces: $pieces',
+                              'Pieces: ${_formatNumber(pieces)}',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: AppThemeTokens.textPrimary),
                             ),
@@ -693,46 +729,6 @@ class _CarouselDot extends StatelessWidget {
   }
 }
 
-class _ItemPictureField extends StatelessWidget {
-  const _ItemPictureField({
-    required this.onUseDefault,
-    required this.defaultLabel,
-  });
-
-  final VoidCallback onUseDefault;
-  final String defaultLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Item Picture *', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppThemeTokens.cardContentGap),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Preview shown in carousel. Required field. $defaultLabel.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-                OutlinedButton(
-                  onPressed: onUseDefault,
-                  child: const Text('Default'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _ItemPictureGlyph extends StatelessWidget {
   const _ItemPictureGlyph(this.icon, {required this.fill, required this.color});
 
@@ -778,10 +774,9 @@ class _FieldEditor extends StatelessWidget {
     required this.label,
     required this.controller,
     this.maxLines = 1,
-    this.enabled = true,
     this.hasError = false,
     this.onTapOutside,
-    this.keyboardType,
+    this.inputMode = _InputMode.text,
     this.onChanged,
     this.maxLength,
     this.hintText,
@@ -790,10 +785,9 @@ class _FieldEditor extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final int maxLines;
-  final bool enabled;
   final bool hasError;
   final VoidCallback? onTapOutside;
-  final TextInputType? keyboardType;
+  final _InputMode inputMode;
   final ValueChanged<String>? onChanged;
   final int? maxLength;
   final String? hintText;
@@ -809,14 +803,13 @@ class _FieldEditor extends StatelessWidget {
           TextField(
             controller: controller,
             maxLines: maxLines,
-            enabled: enabled,
-            keyboardType: keyboardType,
+            keyboardType: _keyboardTypeForInputMode(inputMode),
             onChanged: onChanged,
-            onTapOutside: (_) {
-              FocusManager.instance.primaryFocus?.unfocus();
-              onChanged?.call(controller.text);
-              onTapOutside?.call();
-            },
+            onTapOutside: (_) => _handleTapOutside(
+              controller: controller,
+              onChanged: onChanged,
+              onTapOutside: onTapOutside,
+            ),
             decoration: _buildDecoration(
               InputDecoration(hintText: hintText ?? label),
             ),
@@ -827,14 +820,13 @@ class _FieldEditor extends StatelessWidget {
               TextField(
                 controller: controller,
                 maxLines: maxLines,
-                enabled: enabled,
-                keyboardType: keyboardType,
+                keyboardType: _keyboardTypeForInputMode(inputMode),
                 onChanged: onChanged,
-                onTapOutside: (_) {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                  onChanged?.call(controller.text);
-                  onTapOutside?.call();
-                },
+                onTapOutside: (_) => _handleTapOutside(
+                  controller: controller,
+                  onChanged: onChanged,
+                  onTapOutside: onTapOutside,
+                ),
                 maxLength: maxLength,
                 textAlignVertical: maxLines > 1
                     ? TextAlignVertical.top
@@ -908,8 +900,8 @@ class _CurrencyFieldWithCode extends StatelessWidget {
     required this.controller,
     required this.currencyCode,
     this.hintText,
-    this.enabled = true,
     this.hasError = false,
+    this.inputMode = _InputMode.decimal,
     this.onTapOutside,
     this.onChanged,
   });
@@ -918,8 +910,8 @@ class _CurrencyFieldWithCode extends StatelessWidget {
   final TextEditingController controller;
   final String currencyCode;
   final String? hintText;
-  final bool enabled;
   final bool hasError;
+  final _InputMode inputMode;
   final VoidCallback? onTapOutside;
   final ValueChanged<String>? onChanged;
 
@@ -932,14 +924,13 @@ class _CurrencyFieldWithCode extends StatelessWidget {
         const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         TextField(
           controller: controller,
-          enabled: enabled,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: _keyboardTypeForInputMode(inputMode),
           onChanged: onChanged,
-          onTapOutside: (_) {
-            FocusManager.instance.primaryFocus?.unfocus();
-            onChanged?.call(controller.text);
-            onTapOutside?.call();
-          },
+          onTapOutside: (_) => _handleTapOutside(
+            controller: controller,
+            onChanged: onChanged,
+            onTapOutside: onTapOutside,
+          ),
           decoration: _buildDecoration(
             context,
             InputDecoration(
@@ -979,74 +970,6 @@ class _CurrencyFieldWithCode extends StatelessWidget {
       border: errorBorder,
       enabledBorder: errorBorder,
       focusedBorder: errorBorder,
-    );
-  }
-}
-
-class _ReadOnlyField extends StatelessWidget {
-  const _ReadOnlyField({
-    required this.label,
-    required this.value,
-    this.trailingValue,
-    this.valueAlignment = Alignment.centerLeft,
-    this.valueTextAlign = TextAlign.start,
-  });
-
-  final String label;
-  final String value;
-  final String? trailingValue;
-  final AlignmentGeometry valueAlignment;
-  final TextAlign valueTextAlign;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
-        InputDecorator(
-          decoration: const InputDecoration(enabled: false),
-          child: trailingValue == null
-              ? Align(
-                  alignment: valueAlignment,
-                  child: Text(
-                    value,
-                    textAlign: valueTextAlign,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: _fontWeight(
-                        AppThemeTokens.fontWeightSemibold,
-                      ),
-                    ),
-                  ),
-                )
-              : Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        value,
-                        textAlign: TextAlign.start,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: _fontWeight(
-                            AppThemeTokens.fontWeightSemibold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppThemeTokens.cardInlineGap),
-                    Text(
-                      trailingValue!,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppThemeTokens.textSecondary,
-                        fontWeight: _fontWeight(
-                          AppThemeTokens.fontWeightSemibold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ],
     );
   }
 }

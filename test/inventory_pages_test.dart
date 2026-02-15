@@ -150,6 +150,160 @@ void main() {
     expect(find.text('SKU #002'), findsOneWidget);
   });
 
+  testWidgets('sku detail field keyboard types map to text/integer/decimal', (
+    WidgetTester tester,
+  ) async {
+    const decimalKeyboard = TextInputType.numberWithOptions(decimal: true);
+    const integerKeyboard = TextInputType.numberWithOptions(
+      signed: false,
+      decimal: false,
+    );
+
+    await pumpViewAll(tester);
+
+    final viewAllSearchField = tester.widget<TextField>(
+      textFieldByHint('Search items by name'),
+    );
+    expect(viewAllSearchField.keyboardType, TextInputType.text);
+
+    await openCard(tester, 'SKU #001');
+    expect(
+      tester.widget<TextField>(textFieldByHint('Enter SKU name')).keyboardType,
+      TextInputType.text,
+    );
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Describe this SKU'))
+          .keyboardType,
+      TextInputType.text,
+    );
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Enter pieces per bulk'))
+          .keyboardType,
+      decimalKeyboard,
+    );
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Enter pieces count'))
+          .keyboardType,
+      decimalKeyboard,
+    );
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Enter bulk count'))
+          .keyboardType,
+      integerKeyboard,
+    );
+    expect(
+      tester.widget<TextField>(textFieldByHint('e.g. 4.50')).keyboardType,
+      decimalKeyboard,
+    );
+    expect(
+      tester.widget<TextField>(textFieldByHint('e.g. 40.00')).keyboardType,
+      decimalKeyboard,
+    );
+
+    await tester.scrollUntilVisible(
+      soldAsProductToggleFinder(),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await setSoldAsProduct(tester, sold: true);
+    expect(
+      tester.widget<TextField>(textFieldByHint('e.g. 12.00')).keyboardType,
+      decimalKeyboard,
+    );
+  });
+
+  testWidgets('service and search field keyboard types map correctly', (
+    WidgetTester tester,
+  ) async {
+    const decimalKeyboard = TextInputType.numberWithOptions(decimal: true);
+
+    await pumpViewAll(tester);
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Search items by name'))
+          .keyboardType,
+      TextInputType.text,
+    );
+
+    await openCard(tester, 'Service #001');
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Enter service name'))
+          .keyboardType,
+      TextInputType.text,
+    );
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Describe this service'))
+          .keyboardType,
+      TextInputType.text,
+    );
+    expect(
+      tester.widget<TextField>(textFieldByHint('e.g. 1200.00')).keyboardType,
+      decimalKeyboard,
+    );
+
+    await tester.tap(find.text('SKU #001').first);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Search SKUs by name'))
+          .keyboardType,
+      TextInputType.text,
+    );
+  });
+
+  testWidgets('view-all search field unfocuses when tapping filter chips', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+
+    final searchField = textFieldByHint('Search items by name');
+    final searchEditable = find.descendant(
+      of: searchField,
+      matching: find.byType(EditableText),
+    );
+
+    await tester.tap(searchField);
+    await tester.pump();
+    final editableBefore = tester.widget<EditableText>(searchEditable);
+    expect(editableBefore.focusNode.hasFocus, isTrue);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Services'));
+    await tester.pump();
+
+    final editableAfter = tester.widget<EditableText>(searchEditable);
+    expect(editableAfter.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('view-all search field unfocuses before opening detail page', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+
+    final searchField = textFieldByHint('Search items by name');
+    final searchEditable = find.descendant(
+      of: searchField,
+      matching: find.byType(EditableText),
+    );
+
+    await tester.tap(searchField);
+    await tester.pump();
+    final editableBefore = tester.widget<EditableText>(searchEditable);
+    expect(editableBefore.focusNode.hasFocus, isTrue);
+
+    await tester.tap(find.widgetWithText(Card, 'SKU #001').first);
+    await tester.pump();
+    expect(editableBefore.focusNode.hasFocus, isFalse);
+
+    await tester.pumpAndSettle();
+    expect(find.byType(SkuDetailPage), findsOneWidget);
+  });
+
   testWidgets('tapping cards opens service and sku detail pages', (
     WidgetTester tester,
   ) async {
@@ -644,6 +798,85 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Discard'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Go Back'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Confirm'), findsNothing);
+  });
+
+  testWidgets('sku detail accepts decimal pieces and ratio and persists', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'SKU #001');
+
+    await tester.enterText(textFieldByHint('Enter pieces per bulk'), '1.25');
+    await tester.enterText(textFieldByHint('Enter pieces count'), '3.5');
+    await tester.pump();
+
+    final saveButton = tester.widget<FilledButton>(
+      find.widgetWithIcon(FilledButton, Icons.check),
+    );
+    expect(saveButton.onPressed, isNotNull);
+
+    await tester.tap(find.widgetWithIcon(FilledButton, Icons.check));
+    await tester.pumpAndSettle();
+
+    await openCard(tester, 'SKU #001');
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Enter pieces per bulk'))
+          .controller
+          ?.text,
+      '1.25',
+    );
+    expect(
+      tester
+          .widget<TextField>(textFieldByHint('Enter pieces count'))
+          .controller
+          ?.text,
+      '3.5',
+    );
+  });
+
+  testWidgets('sku detail rejects invalid decimal pieces and ratio', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+    await openCard(tester, 'SKU #001');
+
+    await tester.enterText(textFieldByHint('Enter pieces count'), '-1');
+    await tester.enterText(textFieldByHint('Enter pieces per bulk'), '0');
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Invalid fields'), findsOneWidget);
+    expect(
+      find.textContaining('Pieces field cannot be negative'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Pieces / Bulk field must be greater than 0'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Go Back'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(textFieldByHint('Enter pieces count'), '3a');
+    await tester.enterText(textFieldByHint('Enter pieces per bulk'), '1.2.3');
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Invalid fields'), findsOneWidget);
+    expect(
+      find.textContaining('Pieces field must be a valid number'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Pieces / Bulk field must be a valid number'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('sku detail monetary fields reflect selected app currency', (
