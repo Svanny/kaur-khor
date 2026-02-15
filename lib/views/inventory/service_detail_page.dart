@@ -78,12 +78,13 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     final priceError = SecurityValidators.validateNonNegativeDecimal(
       _priceController.text,
       fieldName: 'Price',
+      maxValue: SecurityLimits.monetaryAmountMax,
     );
     if (priceError != null) {
       errors.add(priceError);
     }
 
-    if (_selectedSkuIds.isEmpty) {
+    if (_selectedExistingSkuIds().isEmpty) {
       errors.add('Select at least one SKU.');
     }
 
@@ -109,11 +110,12 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     return SecurityValidators.validateNonNegativeDecimal(
           _priceController.text,
           fieldName: 'Price',
+          maxValue: SecurityLimits.monetaryAmountMax,
         ) !=
         null;
   }
 
-  bool get _skusHasError => _selectedSkuIds.isEmpty;
+  bool get _skusHasError => _selectedExistingSkuIds().isEmpty;
 
   bool get _hasChanges {
     final skuSelectionUnchanged =
@@ -383,6 +385,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     if (!_isValid) {
       return;
     }
+    final selectedSkuIds = _selectedExistingSkuIds();
+    if (selectedSkuIds.isEmpty) {
+      setState(() => _showValidationHighlights = true);
+      return;
+    }
     final updated = widget.initialService.copyWith(
       name: SecurityValidators.normalizeText(
         _nameController.text,
@@ -393,11 +400,18 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
         _descriptionController.text,
         maxLength: SecurityLimits.serviceDescriptionMaxLength,
       ),
-      price: _tryDouble(_priceController.text) ?? 0,
-      skuIds: _selectedSkuIds,
+      price: (_tryDouble(_priceController.text) ?? 0)
+          .clamp(0, SecurityLimits.monetaryAmountMax)
+          .toDouble(),
+      skuIds: selectedSkuIds,
     );
     setState(() => _allowPop = true);
     Navigator.of(context).pop(updated);
+  }
+
+  Set<String> _selectedExistingSkuIds() {
+    final availableSkuIds = widget.availableSkus.map((sku) => sku.id).toSet();
+    return _selectedSkuIds.where(availableSkuIds.contains).toSet();
   }
 }
 

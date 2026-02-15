@@ -124,6 +124,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final piecesError = SecurityValidators.validateNonNegativeDecimal(
       _piecesController.text,
       fieldName: 'Pieces',
+      maxValue: SecurityLimits.inventoryQuantityMax,
     );
     if (piecesError != null) {
       errors.add(piecesError);
@@ -132,6 +133,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final bulkError = SecurityValidators.validateNonNegativeInteger(
       _bulkController.text,
       fieldName: 'Bulk',
+      maxValue: SecurityLimits.inventoryBulkMax,
     );
     if (bulkError != null) {
       errors.add(bulkError);
@@ -140,6 +142,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final ratioError = SecurityValidators.validatePositiveDecimal(
       _ratioController.text,
       fieldName: 'Pieces / Bulk',
+      maxValue: SecurityLimits.piecesPerBulkMax,
     );
     if (ratioError != null) {
       errors.add(ratioError);
@@ -148,6 +151,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final costPieceError = SecurityValidators.validateNonNegativeDecimal(
       _costPieceController.text,
       fieldName: 'Cost / Piece',
+      maxValue: SecurityLimits.monetaryAmountMax,
     );
     if (costPieceError != null) {
       errors.add(costPieceError);
@@ -156,6 +160,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final costBulkError = SecurityValidators.validateNonNegativeDecimal(
       _costBulkController.text,
       fieldName: 'Cost / Bulk',
+      maxValue: SecurityLimits.monetaryAmountMax,
     );
     if (costBulkError != null) {
       errors.add(costBulkError);
@@ -165,6 +170,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
       final productPriceError = SecurityValidators.validateNonNegativeDecimal(
         _productPriceController.text,
         fieldName: 'Product Price',
+        maxValue: SecurityLimits.monetaryAmountMax,
       );
       if (productPriceError != null) {
         errors.add(productPriceError);
@@ -199,6 +205,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     return SecurityValidators.validateNonNegativeDecimal(
           _piecesController.text,
           fieldName: 'Pieces',
+          maxValue: SecurityLimits.inventoryQuantityMax,
         ) !=
         null;
   }
@@ -207,6 +214,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     return SecurityValidators.validateNonNegativeInteger(
           _bulkController.text,
           fieldName: 'Bulk',
+          maxValue: SecurityLimits.inventoryBulkMax,
         ) !=
         null;
   }
@@ -215,6 +223,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     return SecurityValidators.validatePositiveDecimal(
           _ratioController.text,
           fieldName: 'Pieces / Bulk',
+          maxValue: SecurityLimits.piecesPerBulkMax,
         ) !=
         null;
   }
@@ -223,6 +232,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     return SecurityValidators.validateNonNegativeDecimal(
           _costPieceController.text,
           fieldName: 'Cost / Piece',
+          maxValue: SecurityLimits.monetaryAmountMax,
         ) !=
         null;
   }
@@ -231,6 +241,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     return SecurityValidators.validateNonNegativeDecimal(
           _costBulkController.text,
           fieldName: 'Cost / Bulk',
+          maxValue: SecurityLimits.monetaryAmountMax,
         ) !=
         null;
   }
@@ -240,6 +251,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
       SecurityValidators.validateNonNegativeDecimal(
             _productPriceController.text,
             fieldName: 'Product Price',
+            maxValue: SecurityLimits.monetaryAmountMax,
           ) !=
           null;
 
@@ -608,13 +620,25 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
         _descriptionController.text,
         maxLength: SecurityLimits.skuDescriptionMaxLength,
       ),
-      pieces: _piecesValue ?? 0.0,
-      bulk: _bulkValue ?? 0,
-      piecesPerBulk: (_ratioValue ?? 1.0).clamp(1.0, 100000.0).toDouble(),
-      costPerPiece: _costPieceValue ?? 0,
-      costPerBulk: _costBulkValue ?? 0,
+      pieces: (_piecesValue ?? 0.0)
+          .clamp(0.0, SecurityLimits.inventoryQuantityMax)
+          .toDouble(),
+      bulk: (_bulkValue ?? 0).clamp(0, SecurityLimits.inventoryBulkMax).toInt(),
+      piecesPerBulk: (_ratioValue ?? 1.0)
+          .clamp(1.0, SecurityLimits.piecesPerBulkMax)
+          .toDouble(),
+      costPerPiece: (_costPieceValue ?? 0)
+          .clamp(0, SecurityLimits.monetaryAmountMax)
+          .toDouble(),
+      costPerBulk: (_costBulkValue ?? 0)
+          .clamp(0, SecurityLimits.monetaryAmountMax)
+          .toDouble(),
       soldAsProduct: _soldAsProduct,
-      productPrice: _soldAsProduct ? _productPriceValue : null,
+      productPrice: _soldAsProduct
+          ? (_productPriceValue ?? 0)
+                .clamp(0, SecurityLimits.monetaryAmountMax)
+                .toDouble()
+          : null,
       clearProductPrice: !_soldAsProduct,
     );
     setState(() => _allowPop = true);

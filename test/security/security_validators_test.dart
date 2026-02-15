@@ -122,6 +122,41 @@ void main() {
       );
     });
 
+    test('rejects values above configured numeric limits', () {
+      expect(
+        SecurityValidators.validateNonNegativeDecimal(
+          '1000.01',
+          fieldName: 'Price',
+          maxValue: 1000,
+        ),
+        'Price field must be at most 1000.',
+      );
+      expect(
+        SecurityValidators.validatePositiveDecimal(
+          '250',
+          fieldName: 'Ratio',
+          maxValue: 100,
+        ),
+        'Ratio field must be at most 100.',
+      );
+      expect(
+        SecurityValidators.validateNonNegativeInteger(
+          '1001',
+          fieldName: 'Bulk',
+          maxValue: 1000,
+        ),
+        'Bulk field must be at most 1000.',
+      );
+      expect(
+        SecurityValidators.validatePositiveInteger(
+          '101',
+          fieldName: 'Pieces',
+          maxValue: 100,
+        ),
+        'Pieces field must be at most 100.',
+      );
+    });
+
     test('accepts and rejects positive-only validators correctly', () {
       expect(
         SecurityValidators.validatePositiveDecimal('0.5', fieldName: 'Ratio'),

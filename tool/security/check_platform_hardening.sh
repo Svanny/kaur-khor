@@ -33,10 +33,16 @@ else
   pass "Android applicationId is not com.example.*"
 fi
 
-if grep -q 'android:allowBackup="' "$ANDROID_MANIFEST"; then
-  pass "Android manifest sets explicit allowBackup policy"
+if grep -q 'android:allowBackup="false"' "$ANDROID_MANIFEST"; then
+  pass "Android manifest disables app data backup"
 else
-  fail "Android manifest missing explicit android:allowBackup policy"
+  fail "Android manifest must set android:allowBackup=\"false\""
+fi
+
+if grep -q 'android:usesCleartextTraffic="false"' "$ANDROID_MANIFEST"; then
+  pass "Android manifest disables cleartext traffic"
+else
+  fail "Android manifest must set android:usesCleartextTraffic=\"false\""
 fi
 
 if grep -q 'NSAllowsArbitraryLoads' "$IOS_INFO"; then

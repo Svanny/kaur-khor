@@ -43,6 +43,7 @@ class SecurityValidators {
   static String? validateNonNegativeDecimal(
     String value, {
     required String fieldName,
+    double? maxValue,
   }) {
     final raw = value.trim();
     if (raw.isEmpty) {
@@ -54,6 +55,9 @@ class SecurityValidators {
     }
     if (parsed < 0) {
       return '$fieldName field cannot be negative.';
+    }
+    if (maxValue != null && parsed > maxValue) {
+      return '$fieldName field must be at most ${_formatLimit(maxValue)}.';
     }
     return null;
   }
@@ -61,6 +65,7 @@ class SecurityValidators {
   static String? validatePositiveDecimal(
     String value, {
     required String fieldName,
+    double? maxValue,
   }) {
     final raw = value.trim();
     if (raw.isEmpty) {
@@ -73,12 +78,16 @@ class SecurityValidators {
     if (parsed <= 0) {
       return '$fieldName field must be greater than 0.';
     }
+    if (maxValue != null && parsed > maxValue) {
+      return '$fieldName field must be at most ${_formatLimit(maxValue)}.';
+    }
     return null;
   }
 
   static String? validateNonNegativeInteger(
     String value, {
     required String fieldName,
+    int? maxValue,
   }) {
     final raw = value.trim();
     if (raw.isEmpty) {
@@ -91,12 +100,16 @@ class SecurityValidators {
     if (parsed < 0) {
       return '$fieldName field cannot be negative.';
     }
+    if (maxValue != null && parsed > maxValue) {
+      return '$fieldName field must be at most ${_formatLimit(maxValue)}.';
+    }
     return null;
   }
 
   static String? validatePositiveInteger(
     String value, {
     required String fieldName,
+    int? maxValue,
   }) {
     final raw = value.trim();
     if (raw.isEmpty) {
@@ -109,7 +122,21 @@ class SecurityValidators {
     if (parsed <= 0) {
       return '$fieldName field must be greater than 0.';
     }
+    if (maxValue != null && parsed > maxValue) {
+      return '$fieldName field must be at most ${_formatLimit(maxValue)}.';
+    }
     return null;
+  }
+
+  static String _formatLimit(num value) {
+    if (value is int) {
+      return value.toString();
+    }
+    final doubleValue = value.toDouble();
+    if (doubleValue == doubleValue.roundToDouble()) {
+      return doubleValue.toStringAsFixed(0);
+    }
+    return doubleValue.toString();
   }
 
   static String _normalizeInternal(

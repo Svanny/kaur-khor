@@ -13,12 +13,13 @@ void main() {
     expect(gradle.contains('applicationId = "com.example.'), isFalse);
   });
 
-  test('android manifest declares explicit backup policy', () {
+  test('android manifest disables backup and cleartext traffic', () {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
 
-    expect(manifest.contains('android:allowBackup="'), isTrue);
+    expect(manifest.contains('android:allowBackup="false"'), isTrue);
+    expect(manifest.contains('android:usesCleartextTraffic="false"'), isTrue);
   });
 
   test('ios plist does not weaken ATS', () {
