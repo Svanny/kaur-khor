@@ -39,6 +39,32 @@ void main() {
     );
   }
 
+  Finder soldAsProductToggleFinder() {
+    return find.byKey(const ValueKey('sold-as-product-toggle'));
+  }
+
+  Finder soldAsProductRowFinder() {
+    return find.byKey(const ValueKey('sold-as-product-row'));
+  }
+
+  Future<void> setSoldAsProduct(
+    WidgetTester tester, {
+    required bool sold,
+  }) async {
+    final scrollable = find.byType(Scrollable).first;
+    final toggle = soldAsProductToggleFinder();
+    await tester.scrollUntilVisible(toggle, 80, scrollable: scrollable);
+    await tester.ensureVisible(toggle);
+    await tester.pumpAndSettle();
+    final option = find.descendant(
+      of: toggle,
+      matching: find.text(sold ? 'Yes' : 'No'),
+    );
+    await tester.scrollUntilVisible(option, 40, scrollable: scrollable);
+    await tester.tap(option, warnIfMissed: false);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> openCard(WidgetTester tester, String title) async {
     final card = find.widgetWithText(Card, title).first;
     await tester.ensureVisible(card);
@@ -139,11 +165,11 @@ void main() {
 
     await openCard(tester, 'SKU #001');
     await tester.scrollUntilVisible(
-      find.text('Sold as a Product?'),
+      find.text('Sold as a Product'),
       220,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Sold as a Product?'), findsOneWidget);
+    expect(find.text('Sold as a Product'), findsOneWidget);
     expect(find.text('Cost / Piece'), findsAtLeastNWidgets(1));
   });
 
@@ -643,16 +669,11 @@ void main() {
     expect((costBulkSuffix.child as Text).data, 'KHR');
 
     await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('sold-as-product-checkbox')),
+      find.byKey(const ValueKey('sold-as-product-toggle')),
       220,
       scrollable: find.byType(Scrollable).first,
     );
-    final soldAsProductCheckbox = find.byKey(
-      const ValueKey('sold-as-product-checkbox'),
-    );
-    final checkbox = tester.widget<Checkbox>(soldAsProductCheckbox);
-    checkbox.onChanged?.call(true);
-    await tester.pumpAndSettle();
+    await setSoldAsProduct(tester, sold: true);
     final productPriceField = tester.widget<TextField>(
       textFieldByHint('e.g. 12.00'),
     );
@@ -790,7 +811,7 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.text('Sold as a Product?'),
+      find.text('Sold as a Product'),
       220,
       scrollable: find.byType(Scrollable).first,
     );
@@ -808,27 +829,17 @@ void main() {
           )
           .first,
     );
-    final soldAsProductCardRect = tester.getRect(
-      find
-          .ancestor(
-            of: find.text('Sold as a Product?'),
-            matching: find.byType(Card),
-          )
-          .first,
-    );
+    final soldAsProductRowRect = tester.getRect(soldAsProductRowFinder());
 
     final piecesCardGap = piecesCardRect.top - ratioRect.bottom;
-    final soldAsProductGap = soldAsProductCardRect.top - totalValueRect.bottom;
+    final soldAsProductGap = soldAsProductRowRect.top - totalValueRect.bottom;
     const tolerance = 0.6;
     expect(piecesCardGap, closeTo(AppThemeTokens.sectionGap, tolerance));
-    expect(
-      soldAsProductGap,
-      closeTo(AppThemeTokens.sectionGap, tolerance),
-    );
+    expect(soldAsProductGap, closeTo(AppThemeTokens.sectionGap, tolerance));
   });
 
   testWidgets(
-    'sku detail grouped cards use 16px and sold card inset is non-zero',
+    'sku detail grouped cards use 16px and sold row is plain text + toggle',
     (WidgetTester tester) async {
       const sku = SkuItem(
         id: 'sku-intracard-padding',
@@ -869,29 +880,43 @@ void main() {
       );
 
       await tester.scrollUntilVisible(
-        find.text('Sold as a Product?'),
+        find.text('Sold as a Product'),
         220,
         scrollable: find.byType(Scrollable).first,
       );
 
-      final soldAsProductCard = find
-          .ancestor(
-            of: find.text('Sold as a Product?'),
-            matching: find.byType(Card),
-          )
+      expect(
+        find.ancestor(
+          of: find.text('Sold as a Product'),
+          matching: find.byType(Card),
+        ),
+        findsNothing,
+      );
+      final soldAsProductRow = soldAsProductRowFinder();
+      expect(soldAsProductRow, findsOneWidget);
+      expect(
+        find.descendant(
+          of: soldAsProductRow,
+          matching: soldAsProductToggleFinder(),
+        ),
+        findsOneWidget,
+      );
+
+      await setSoldAsProduct(tester, sold: true);
+      final productPriceCard = find
+          .ancestor(of: find.text('Product Price'), matching: find.byType(Card))
           .first;
-      final soldAsProductPaddings = tester.widgetList<Padding>(
-        find.descendant(of: soldAsProductCard, matching: find.byType(Padding)),
+      final productPricePaddings = tester.widgetList<Padding>(
+        find.descendant(of: productPriceCard, matching: find.byType(Padding)),
       );
       expect(
-        soldAsProductPaddings.any(
+        productPricePaddings.any(
           (padding) =>
               padding.padding ==
               const EdgeInsets.all(AppThemeTokens.sectionCardInset),
         ),
         isTrue,
       );
-      expect(AppThemeTokens.sectionCardInset, greaterThan(0));
     },
   );
 
@@ -926,7 +951,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('sold-as-product-checkbox')),
+        find.byKey(const ValueKey('sold-as-product-toggle')),
         220,
         scrollable: find.byType(Scrollable).first,
       );
@@ -936,37 +961,31 @@ void main() {
       );
       final beforeOffset = scrollableState.position.pixels;
 
-      final soldAsProductCheckbox = find.byKey(
-        const ValueKey('sold-as-product-checkbox'),
-      );
-      final checkbox = tester.widget<Checkbox>(soldAsProductCheckbox);
-      checkbox.onChanged?.call(true);
-      await tester.pumpAndSettle();
+      await setSoldAsProduct(tester, sold: true);
 
       final afterOffset = scrollableState.position.pixels;
       expect(afterOffset, greaterThanOrEqualTo(beforeOffset));
 
       final viewportRect = tester.getRect(find.byType(Scrollable).first);
       final productPriceRect = tester.getRect(textFieldByHint('e.g. 12.00'));
-      final soldAsProductCheckboxRect = tester.getRect(
-        find.byKey(const ValueKey('sold-as-product-checkbox')),
+      final soldAsProductToggleRect = tester.getRect(
+        find.byKey(const ValueKey('sold-as-product-toggle')),
       );
       expect(
         productPriceRect.bottom,
         lessThanOrEqualTo(
-          viewportRect.bottom - AppThemeTokens.scrollVisibilityBottomClearance,
+          viewportRect.bottom -
+              AppThemeTokens.scrollVisibilityBottomClearance +
+              2.0,
         ),
       );
       expect(
-        (soldAsProductCheckboxRect.left - productPriceRect.left).abs(),
-        lessThan(1.0),
+        (soldAsProductToggleRect.right - productPriceRect.right).abs(),
+        closeTo(AppThemeTokens.sectionCardInset, 1.0),
       );
 
       final soldCard = find
-          .ancestor(
-            of: find.text('Sold as a Product?'),
-            matching: find.byType(Card),
-          )
+          .ancestor(of: find.text('Product Price'), matching: find.byType(Card))
           .first;
       final cardRect = tester.getRect(soldCard);
       final leftInset = productPriceRect.left - cardRect.left;
@@ -1207,25 +1226,35 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Sold as a Product?'),
+      soldAsProductToggleFinder(),
       220,
       scrollable: find.byType(Scrollable).first,
     );
+    final soldAsProductRow = soldAsProductRowFinder();
+    expect(soldAsProductRow, findsOneWidget);
+    expect(
+      find.descendant(
+        of: soldAsProductRow,
+        matching: find.text('Sold as a Product'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: soldAsProductRow,
+        matching: soldAsProductToggleFinder(),
+      ),
+      findsOneWidget,
+    );
+
     expect(find.text('Product Price'), findsNothing);
     expect(textFieldByHint('e.g. 12.00'), findsNothing);
 
-    final soldAsProductCheckbox = find.byKey(
-      const ValueKey('sold-as-product-checkbox'),
-    );
-    var checkbox = tester.widget<Checkbox>(soldAsProductCheckbox);
-    checkbox.onChanged?.call(true);
-    await tester.pumpAndSettle();
+    await setSoldAsProduct(tester, sold: true);
     expect(find.text('Product Price'), findsOneWidget);
     expect(textFieldByHint('e.g. 12.00'), findsOneWidget);
 
-    checkbox = tester.widget<Checkbox>(soldAsProductCheckbox);
-    checkbox.onChanged?.call(false);
-    await tester.pumpAndSettle();
+    await setSoldAsProduct(tester, sold: false);
     expect(find.text('Product Price'), findsNothing);
     expect(textFieldByHint('e.g. 12.00'), findsNothing);
   });

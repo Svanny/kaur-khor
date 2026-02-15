@@ -142,6 +142,104 @@ class _CircleOutlineAction extends StatelessWidget {
   }
 }
 
+class _SlidingYesNoToggle extends StatelessWidget {
+  const _SlidingYesNoToggle({
+    required this.value,
+    required this.onChanged,
+    this.duration = const Duration(milliseconds: 220),
+    super.key,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Duration duration;
+
+  static const double _width = AppThemeTokens.unit * 24;
+  static const double _height = AppThemeTokens.unit * 9;
+  static const double _thumbWidth = AppThemeTokens.unit * 11;
+  static const double _thumbHeight = AppThemeTokens.unit * 8;
+  static const double _inset = 2;
+
+  @override
+  Widget build(BuildContext context) {
+    final labelStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+    );
+
+    return SizedBox(
+      width: _width,
+      height: _height,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppThemeTokens.surface,
+          borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+          border: Border.all(color: AppThemeTokens.border),
+        ),
+        child: Stack(
+          children: [
+            AnimatedAlign(
+              duration: duration,
+              curve: Curves.easeInOutCubic,
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(_inset),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppThemeTokens.primary,
+                    borderRadius: BorderRadius.circular(
+                      AppThemeTokens.radiusPill,
+                    ),
+                  ),
+                  child: const SizedBox(
+                    width: _thumbWidth,
+                    height: _thumbHeight,
+                  ),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onChanged(false),
+                    child: Center(
+                      child: Text(
+                        'No',
+                        style: labelStyle?.copyWith(
+                          color: value
+                              ? AppThemeTokens.textSecondary
+                              : AppThemeTokens.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onChanged(true),
+                    child: Center(
+                      child: Text(
+                        'Yes',
+                        style: labelStyle?.copyWith(
+                          color: value
+                              ? AppThemeTokens.white
+                              : AppThemeTokens.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PageHeader extends StatelessWidget {
   const _PageHeader({required this.title, required this.onBack});
 

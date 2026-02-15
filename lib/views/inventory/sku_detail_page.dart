@@ -10,8 +10,11 @@ class SkuDetailPage extends StatefulWidget {
 }
 
 class _SkuDetailPageState extends State<SkuDetailPage> {
-  static const ValueKey<String> _soldAsProductCheckboxKey = ValueKey(
-    'sold-as-product-checkbox',
+  static const ValueKey<String> _soldAsProductToggleKey = ValueKey(
+    'sold-as-product-toggle',
+  );
+  static const ValueKey<String> _soldAsProductRowKey = ValueKey(
+    'sold-as-product-row',
   );
   static const Duration _productPriceToggleDuration = Duration(
     milliseconds: 220,
@@ -432,94 +435,71 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       },
                     ),
                     const SizedBox(height: AppThemeTokens.sectionGap),
-                    Card(
+                    KeyedSubtree(
                       key: _soldAsProductCardKey,
-                      margin: EdgeInsets.zero,
-                      child: Padding(
-                        padding: const EdgeInsets.all(
-                          AppThemeTokens.sectionCardInset,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Checkbox(
-                                  key: _soldAsProductCheckboxKey,
-                                  value: _soldAsProduct,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  visualDensity: const VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
+                      child: Row(
+                        key: _soldAsProductRowKey,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Sold as a Product',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          const SizedBox(
+                            width: AppThemeTokens.sectionCardInlineGap,
+                          ),
+                          _SlidingYesNoToggle(
+                            key: _soldAsProductToggleKey,
+                            value: _soldAsProduct,
+                            onChanged: _setSoldAsProduct,
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedSize(
+                      duration: _productPriceToggleDuration,
+                      reverseDuration: _productPriceToggleDuration,
+                      curve: Curves.easeInOutCubic,
+                      alignment: Alignment.topCenter,
+                      child: _soldAsProduct
+                          ? Padding(
+                              padding: const EdgeInsets.only(
+                                top: AppThemeTokens.sectionCardOuterGap,
+                              ),
+                              child: Card(
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(
+                                    AppThemeTokens.sectionCardInset,
                                   ),
-                                  onChanged: (value) {
-                                    if (value == null) {
-                                      return;
-                                    }
-                                    _setSoldAsProduct(value);
-                                  },
-                                ),
-                                const SizedBox(
-                                  width: AppThemeTokens.sectionCardInlineGap,
-                                ),
-                                Expanded(
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () =>
-                                        _setSoldAsProduct(!_soldAsProduct),
-                                    child: Text(
-                                      'Sold as a Product?',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
+                                  child: KeyedSubtree(
+                                    key: _productPriceSectionKey,
+                                    child: ValueListenableBuilder<AppCurrency>(
+                                      valueListenable:
+                                          context.currencyController,
+                                      builder: (_, currency, __) {
+                                        return _CurrencyFieldWithCode(
+                                          label: 'Product Price',
+                                          controller: _productPriceController,
+                                          hintText: 'e.g. 12.00',
+                                          currencyCode: currency.code,
+                                          hasError:
+                                              (_showValidationHighlights ||
+                                                  _productPriceBlurred) &&
+                                              _productPriceHasError,
+                                          onTapOutside: () => setState(
+                                            () => _productPriceBlurred = true,
+                                          ),
+                                          onChanged: (_) => setState(() {}),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                            AnimatedSize(
-                              duration: _productPriceToggleDuration,
-                              reverseDuration: _productPriceToggleDuration,
-                              curve: Curves.easeInOutCubic,
-                              alignment: Alignment.topCenter,
-                              child: _soldAsProduct
-                                  ? Padding(
-                                      padding: const EdgeInsets.only(
-                                        top: AppThemeTokens
-                                            .sectionCardExpandedContentGap,
-                                      ),
-                                      child: KeyedSubtree(
-                                        key: _productPriceSectionKey,
-                                        child: ValueListenableBuilder<AppCurrency>(
-                                          valueListenable:
-                                              context.currencyController,
-                                          builder: (_, currency, __) {
-                                            return _CurrencyFieldWithCode(
-                                              label: 'Product Price',
-                                              controller:
-                                                  _productPriceController,
-                                              hintText: 'e.g. 12.00',
-                                              currencyCode: currency.code,
-                                              hasError:
-                                                  (_showValidationHighlights ||
-                                                      _productPriceBlurred) &&
-                                                  _productPriceHasError,
-                                              onTapOutside: () => setState(
-                                                () =>
-                                                    _productPriceBlurred = true,
-                                              ),
-                                              onChanged: (_) => setState(() {}),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    )
-                                  : const SizedBox.shrink(),
-                            ),
-                          ],
-                        ),
-                      ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ],
                 ),
