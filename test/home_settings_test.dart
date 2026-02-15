@@ -33,6 +33,28 @@ void main() {
     expect(find.text('Recent Activity'), findsOneWidget);
     expect(find.byIcon(Icons.format_list_bulleted), findsOneWidget);
     expect(find.byIcon(Icons.settings), findsOneWidget);
+    expect(find.byIcon(Icons.receipt_long_rounded), findsOneWidget);
+  });
+
+  testWidgets('home overlay receipt action is rendered as a rounded button', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+
+    final receiptButtonFinder = find.byKey(
+      const ValueKey('home-overlay-receipt-button'),
+    );
+    final receiptButton = tester.widget<FloatingActionButton>(
+      receiptButtonFinder,
+    );
+    final receiptButtonPositioned = tester.widget<Positioned>(
+      find.ancestor(of: receiptButtonFinder, matching: find.byType(Positioned)),
+    );
+    expect(receiptButtonPositioned.top, isNull);
+    expect(receiptButtonPositioned.bottom, isNotNull);
+    expect(receiptButtonPositioned.right, isNotNull);
+    expect(receiptButton.shape, isA<CircleBorder>());
+    expect(tester.getSize(receiptButtonFinder), const Size(56, 56));
   });
 
   testWidgets('home list action opens View All and back returns home', (
