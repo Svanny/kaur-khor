@@ -339,6 +339,7 @@ void main() {
     await pumpViewAll(tester);
     await openCard(tester, 'Service #001');
 
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     await tester.tap(find.text('SKU #001').first);
     await tester.pumpAndSettle();
 
@@ -1295,131 +1296,132 @@ void main() {
     expect(find.text('SKU #NEW'), findsOneWidget);
   });
 
-  testWidgets('add Service flow requires SKU selection and saves selection', (
-    WidgetTester tester,
-  ) async {
-    await pumpViewAll(tester);
+  testWidgets(
+    'add Service flow allows blank SKU selection and can still save selection',
+    (WidgetTester tester) async {
+      await pumpViewAll(tester);
 
-    await tester.tap(find.byType(FloatingActionButton));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Add Service'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add Service'));
+      await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextField).at(1),
-      'New Service description',
-    );
-    await tester.pump();
+      await tester.enterText(
+        find.byType(TextField).at(1),
+        'New Service description',
+      );
+      await tester.pump();
 
-    FilledButton saveButton = tester.widget<FilledButton>(
-      find.byType(FilledButton),
-    );
-    expect(saveButton.onPressed, isNull);
+      FilledButton saveButton = tester.widget<FilledButton>(
+        find.byType(FilledButton),
+      );
+      expect(saveButton.onPressed, isNotNull);
 
-    await tester.scrollUntilVisible(
-      find.text('Tap to choose SKUs'),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('Tap to choose SKUs'));
-    await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Tap to choose SKUs. Leave blank if none.'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Tap to choose SKUs. Leave blank if none.'));
+      await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.descendant(
-        of: find.byType(SkuUsedSelectorPage),
-        matching: find.byType(TextField),
-      ),
-      '001',
-    );
-    await tester.pump();
-    expect(find.text('SKU #001'), findsOneWidget);
-    expect(find.text('SKU #002'), findsNothing);
-    expect(
-      find.descendant(
-        of: find.byType(SkuUsedSelectorPage),
-        matching: find.byIcon(Icons.close),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byType(SkuUsedSelectorPage),
-        matching: find.byIcon(Icons.check),
-      ),
-      findsNothing,
-    );
-
-    final selectorCard = tester.widget<Card>(
-      find.ancestor(
-        of: find.widgetWithText(CheckboxListTile, 'SKU #001'),
-        matching: find.byType(Card),
-      ),
-    );
-    expect(selectorCard.margin, EdgeInsets.zero);
-    expect(selectorCard.color, AppThemeTokens.surface);
-    final selectorShape = selectorCard.shape as RoundedRectangleBorder;
-    expect(
-      selectorShape.borderRadius,
-      const BorderRadius.all(Radius.circular(AppThemeTokens.radiusMd)),
-    );
-    expect(selectorShape.side.color, AppThemeTokens.border);
-    final skuTile = tester.widget<CheckboxListTile>(
-      find.widgetWithText(CheckboxListTile, 'SKU #001'),
-    );
-    expect(skuTile.contentPadding, isNull);
-    expect(skuTile.checkboxScaleFactor, 1.0);
-
-    await tester.tap(find.widgetWithText(CheckboxListTile, 'SKU #001'));
-    await tester.pump();
-    final selectorCloseAction = find.descendant(
-      of: find.byType(SkuUsedSelectorPage),
-      matching: find.widgetWithIcon(OutlinedButton, Icons.close),
-    );
-    final selectorCheckAction = find.descendant(
-      of: find.byType(SkuUsedSelectorPage),
-      matching: find.widgetWithIcon(FilledButton, Icons.check),
-    );
-    expect(selectorCloseAction, findsOneWidget);
-    expect(selectorCheckAction, findsOneWidget);
-    expect(
-      find.ancestor(
-        of: selectorCloseAction,
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is SizedBox && widget.width == 40 && widget.height == 40,
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(SkuUsedSelectorPage),
+          matching: find.byType(TextField),
         ),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.ancestor(
-        of: selectorCheckAction,
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is SizedBox && widget.width == 40 && widget.height == 40,
+        '001',
+      );
+      await tester.pump();
+      expect(find.text('SKU #001'), findsOneWidget);
+      expect(find.text('SKU #002'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(SkuUsedSelectorPage),
+          matching: find.byIcon(Icons.close),
         ),
-      ),
-      findsOneWidget,
-    );
-    await tester.tap(
-      find.descendant(
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(SkuUsedSelectorPage),
+          matching: find.byIcon(Icons.check),
+        ),
+        findsNothing,
+      );
+
+      final selectorCard = tester.widget<Card>(
+        find.ancestor(
+          of: find.widgetWithText(CheckboxListTile, 'SKU #001'),
+          matching: find.byType(Card),
+        ),
+      );
+      expect(selectorCard.margin, EdgeInsets.zero);
+      expect(selectorCard.color, AppThemeTokens.surface);
+      final selectorShape = selectorCard.shape as RoundedRectangleBorder;
+      expect(
+        selectorShape.borderRadius,
+        const BorderRadius.all(Radius.circular(AppThemeTokens.radiusMd)),
+      );
+      expect(selectorShape.side.color, AppThemeTokens.border);
+      final skuTile = tester.widget<CheckboxListTile>(
+        find.widgetWithText(CheckboxListTile, 'SKU #001'),
+      );
+      expect(skuTile.contentPadding, isNull);
+      expect(skuTile.checkboxScaleFactor, 1.0);
+
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'SKU #001'));
+      await tester.pump();
+      final selectorCloseAction = find.descendant(
+        of: find.byType(SkuUsedSelectorPage),
+        matching: find.widgetWithIcon(OutlinedButton, Icons.close),
+      );
+      final selectorCheckAction = find.descendant(
         of: find.byType(SkuUsedSelectorPage),
         matching: find.widgetWithIcon(FilledButton, Icons.check),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      expect(selectorCloseAction, findsOneWidget);
+      expect(selectorCheckAction, findsOneWidget);
+      expect(
+        find.ancestor(
+          of: selectorCloseAction,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is SizedBox && widget.width == 40 && widget.height == 40,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(
+          of: selectorCheckAction,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is SizedBox && widget.width == 40 && widget.height == 40,
+          ),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SkuUsedSelectorPage),
+          matching: find.widgetWithIcon(FilledButton, Icons.check),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    saveButton = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(saveButton.onPressed, isNotNull);
-    expect(find.text('SKU #001'), findsOneWidget);
+      saveButton = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(saveButton.onPressed, isNotNull);
+      expect(find.text('SKU #001'), findsOneWidget);
 
-    await tester.tap(find.byType(FilledButton));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'NEW');
-    await tester.pump();
-    expect(find.text('Service #NEW'), findsOneWidget);
-  });
+      await tester.enterText(find.byType(TextField), 'NEW');
+      await tester.pump();
+      expect(find.text('Service #NEW'), findsOneWidget);
+    },
+  );
 
   testWidgets('editing existing SKU updates card content in list', (
     WidgetTester tester,
