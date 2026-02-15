@@ -400,16 +400,14 @@ class _InventoryItemCard extends StatelessWidget {
   const _InventoryItemCard({
     required this.title,
     required this.itemPictureIcon,
-    required this.pieces,
-    required this.bulk,
+    required this.unitsInStock,
     required this.totalValueLabel,
     required this.onTap,
   });
 
   final String title;
   final IconData itemPictureIcon;
-  final double pieces;
-  final int bulk;
+  final double unitsInStock;
   final String totalValueLabel;
   final VoidCallback onTap;
 
@@ -478,29 +476,7 @@ class _InventoryItemCard extends StatelessWidget {
                               vertical: AppThemeTokens.inventoryChipPadY,
                             ),
                             label: Text(
-                              'Pieces: ${_formatNumber(pieces)}',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppThemeTokens.textPrimary),
-                            ),
-                          ),
-                          Chip(
-                            backgroundColor: AppThemeTokens.chipBackground,
-                            side: BorderSide.none,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(AppThemeTokens.radiusPill),
-                              ),
-                              side: BorderSide.none,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppThemeTokens.inventoryChipPadX,
-                              vertical: AppThemeTokens.inventoryChipPadY,
-                            ),
-                            label: Text(
-                              'Bulk: $bulk',
+                              'Units in Stock: ${_formatNumber(unitsInStock)}',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: AppThemeTokens.textPrimary),
                             ),

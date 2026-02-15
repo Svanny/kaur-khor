@@ -535,7 +535,7 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
                           },
                           title: Text(sku.name),
                           subtitle: Text(
-                            '${_formatNumber(sku.pieces)} pieces · ${sku.bulk} bulk',
+                            'Units in Stock: ${_formatNumber(sku.unitsInStock)}',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           checkboxScaleFactor: 1.0,

@@ -4,22 +4,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:banji/views/inventory_views.dart';
 
 void main() {
-  test('SkuItem totalValue computes from decimal pieces and bulk', () {
+  test('SkuItem totalValue computes from units in stock and cost per unit', () {
     const sku = SkuItem(
       id: 'sku-001',
       name: 'SKU 001',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 10.5,
-      bulk: 2,
-      piecesPerBulk: 12.0,
-      costPerPiece: 4.5,
-      costPerBulk: 40,
+      unitsInStock: 10.5,
+      costPerUnit: 4.5,
       soldAsProduct: false,
       productPrice: null,
     );
 
-    expect(sku.totalValue, 127.25);
+    expect(sku.totalValue, 47.25);
   });
 
   test('SkuItem copyWith updates fields and can clear product price', () {
@@ -28,11 +25,8 @@ void main() {
       name: 'SKU 001',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 10.0,
-      bulk: 2,
-      piecesPerBulk: 12.0,
-      costPerPiece: 4.5,
-      costPerBulk: 40,
+      unitsInStock: 10.0,
+      costPerUnit: 4.5,
       soldAsProduct: true,
       productPrice: 25,
     );

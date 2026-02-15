@@ -1,7 +1,5 @@
 part of '../inventory_views.dart';
 
-int? _tryInt(String raw) => int.tryParse(raw.trim());
-
 double? _tryDouble(String raw) => double.tryParse(raw.trim());
 
 String _trimNumber(double value) {

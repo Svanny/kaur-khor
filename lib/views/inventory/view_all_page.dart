@@ -14,11 +14,8 @@ class _ViewAllPageState extends State<ViewAllPage> {
       name: 'SKU #001',
       itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Base ingredient for high volume items.',
-      pieces: 120.0,
-      bulk: 12,
-      piecesPerBulk: 12.0,
-      costPerPiece: 5,
-      costPerBulk: 58,
+      unitsInStock: 264.0,
+      costPerUnit: 1296 / 264,
       soldAsProduct: true,
       productPrice: 10,
     ),
@@ -27,11 +24,8 @@ class _ViewAllPageState extends State<ViewAllPage> {
       name: 'SKU #002',
       itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Reusable material with stable demand.',
-      pieces: 86.0,
-      bulk: 6,
-      piecesPerBulk: 10.0,
-      costPerPiece: 4.2,
-      costPerBulk: 40,
+      unitsInStock: 146.0,
+      costPerUnit: 601.2 / 146,
       soldAsProduct: false,
       productPrice: null,
     ),
@@ -40,11 +34,8 @@ class _ViewAllPageState extends State<ViewAllPage> {
       name: 'SKU #003',
       itemPictureIcon: _defaultSkuPictureIcon,
       description: 'Low-rotation backup stock.',
-      pieces: 44.0,
-      bulk: 4,
-      piecesPerBulk: 8.0,
-      costPerPiece: 8,
-      costPerBulk: 60,
+      unitsInStock: 76.0,
+      costPerUnit: 592 / 76,
       soldAsProduct: true,
       productPrice: 16,
     ),
@@ -204,8 +195,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                           _InventoryItemCard(
                             title: service.name,
                             itemPictureIcon: service.itemPictureIcon,
-                            pieces: _piecesForService(service),
-                            bulk: _bulkForService(service),
+                            unitsInStock: _unitsInStockForService(service),
                             totalValueLabel: _currencyLabel(
                               service.price,
                               currencyCode: currencyCode,
@@ -227,8 +217,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                           _InventoryItemCard(
                             title: sku.name,
                             itemPictureIcon: sku.itemPictureIcon,
-                            pieces: sku.pieces,
-                            bulk: sku.bulk,
+                            unitsInStock: sku.unitsInStock,
                             totalValueLabel: _currencyLabel(
                               sku.totalValue,
                               currencyCode: currencyCode,
@@ -249,14 +238,9 @@ class _ViewAllPageState extends State<ViewAllPage> {
     );
   }
 
-  double _piecesForService(ServiceItem service) {
+  double _unitsInStockForService(ServiceItem service) {
     final selected = _skus.where((sku) => service.skuIds.contains(sku.id));
-    return selected.fold(0.0, (sum, sku) => sum + sku.pieces);
-  }
-
-  int _bulkForService(ServiceItem service) {
-    final selected = _skus.where((sku) => service.skuIds.contains(sku.id));
-    return selected.fold(0, (sum, sku) => sum + sku.bulk);
+    return selected.fold(0.0, (sum, sku) => sum + sku.unitsInStock);
   }
 
   Future<void> _editSku(SkuItem sku) async {
@@ -310,9 +294,9 @@ class _ViewAllPageState extends State<ViewAllPage> {
                     ),
                   ),
                   tileColor: AppThemeTokens.surface,
-                  title: const Text('Add SKU'),
+                  title: const Text('Add Service'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => Navigator.of(context).pop(_NewItemType.sku),
+                  onTap: () => Navigator.of(context).pop(_NewItemType.service),
                 ),
                 const SizedBox(height: AppThemeTokens.sectionGapCompact),
                 ListTile(
@@ -322,9 +306,9 @@ class _ViewAllPageState extends State<ViewAllPage> {
                     ),
                   ),
                   tileColor: AppThemeTokens.surface,
-                  title: const Text('Add Service'),
+                  title: const Text('Add SKU'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => Navigator.of(context).pop(_NewItemType.service),
+                  onTap: () => Navigator.of(context).pop(_NewItemType.sku),
                 ),
               ],
             ),
@@ -351,11 +335,8 @@ class _ViewAllPageState extends State<ViewAllPage> {
       name: 'SKU #NEW',
       itemPictureIcon: _defaultSkuPictureIcon,
       description: '',
-      pieces: 0.0,
-      bulk: 0,
-      piecesPerBulk: 1.0,
-      costPerPiece: 0,
-      costPerBulk: 0,
+      unitsInStock: 0.0,
+      costPerUnit: 0,
       soldAsProduct: false,
       productPrice: null,
     );

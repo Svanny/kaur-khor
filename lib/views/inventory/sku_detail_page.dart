@@ -25,20 +25,14 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   final GlobalKey _soldAsProductCardKey = GlobalKey();
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
-  late final TextEditingController _piecesController;
-  late final TextEditingController _bulkController;
-  late final TextEditingController _ratioController;
-  late final TextEditingController _costPieceController;
-  late final TextEditingController _costBulkController;
+  late final TextEditingController _unitsInStockController;
+  late final TextEditingController _costPerUnitController;
   late final TextEditingController _productPriceController;
 
   late final String _initialName;
   late final String _initialDescription;
-  late final String _initialPiecesText;
-  late final String _initialBulkText;
-  late final String _initialRatioText;
-  late final String _initialCostPieceText;
-  late final String _initialCostBulkText;
+  late final String _initialUnitsInStockText;
+  late final String _initialCostPerUnitText;
   late final String _initialProductPriceText;
   late final IconData _initialItemPictureIcon;
   late final bool _initialSoldAsProduct;
@@ -49,11 +43,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   bool _showValidationHighlights = false;
   bool _nameBlurred = false;
   bool _descriptionBlurred = false;
-  bool _piecesBlurred = false;
-  bool _bulkBlurred = false;
-  bool _ratioBlurred = false;
-  bool _costPieceBlurred = false;
-  bool _costBulkBlurred = false;
+  bool _unitsInStockBlurred = false;
+  bool _costPerUnitBlurred = false;
   bool _productPriceBlurred = false;
 
   @override
@@ -62,11 +53,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     final sku = widget.initialSku;
     _initialName = sku.name;
     _initialDescription = sku.description;
-    _initialPiecesText = _formatNumber(sku.pieces);
-    _initialBulkText = sku.bulk.toString();
-    _initialRatioText = _formatNumber(sku.piecesPerBulk);
-    _initialCostPieceText = _trimNumber(sku.costPerPiece);
-    _initialCostBulkText = _trimNumber(sku.costPerBulk);
+    _initialUnitsInStockText = _formatNumber(sku.unitsInStock);
+    _initialCostPerUnitText = _trimNumber(sku.costPerUnit);
     _initialProductPriceText = sku.productPrice == null
         ? ''
         : _trimNumber(sku.productPrice!);
@@ -74,11 +62,12 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     _initialSoldAsProduct = sku.soldAsProduct;
     _nameController = TextEditingController(text: _initialName);
     _descriptionController = TextEditingController(text: _initialDescription);
-    _piecesController = TextEditingController(text: _initialPiecesText);
-    _bulkController = TextEditingController(text: _initialBulkText);
-    _ratioController = TextEditingController(text: _initialRatioText);
-    _costPieceController = TextEditingController(text: _initialCostPieceText);
-    _costBulkController = TextEditingController(text: _initialCostBulkText);
+    _unitsInStockController = TextEditingController(
+      text: _initialUnitsInStockText,
+    );
+    _costPerUnitController = TextEditingController(
+      text: _initialCostPerUnitText,
+    );
     _productPriceController = TextEditingController(
       text: _initialProductPriceText,
     );
@@ -91,11 +80,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     _scrollController.dispose();
     _nameController.dispose();
     _descriptionController.dispose();
-    _piecesController.dispose();
-    _bulkController.dispose();
-    _ratioController.dispose();
-    _costPieceController.dispose();
-    _costBulkController.dispose();
+    _unitsInStockController.dispose();
+    _costPerUnitController.dispose();
     _productPriceController.dispose();
     super.dispose();
   }
@@ -121,49 +107,22 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
       errors.add(descriptionError);
     }
 
-    final piecesError = SecurityValidators.validateNonNegativeDecimal(
-      _piecesController.text,
-      fieldName: 'Pieces',
-      maxValue: SecurityLimits.inventoryQuantityMax,
+    final unitsInStockError = SecurityValidators.validateNonNegativeDecimal(
+      _unitsInStockController.text,
+      fieldName: 'Units in Stock',
+      maxValue: SecurityLimits.inventoryUnitsInStockMax,
     );
-    if (piecesError != null) {
-      errors.add(piecesError);
+    if (unitsInStockError != null) {
+      errors.add(unitsInStockError);
     }
 
-    final bulkError = SecurityValidators.validateNonNegativeInteger(
-      _bulkController.text,
-      fieldName: 'Bulk',
-      maxValue: SecurityLimits.inventoryBulkMax,
-    );
-    if (bulkError != null) {
-      errors.add(bulkError);
-    }
-
-    final ratioError = SecurityValidators.validatePositiveDecimal(
-      _ratioController.text,
-      fieldName: 'Pieces / Bulk',
-      maxValue: SecurityLimits.piecesPerBulkMax,
-    );
-    if (ratioError != null) {
-      errors.add(ratioError);
-    }
-
-    final costPieceError = SecurityValidators.validateNonNegativeDecimal(
-      _costPieceController.text,
-      fieldName: 'Cost / Piece',
+    final costPerUnitError = SecurityValidators.validateNonNegativeDecimal(
+      _costPerUnitController.text,
+      fieldName: 'Cost / Unit',
       maxValue: SecurityLimits.monetaryAmountMax,
     );
-    if (costPieceError != null) {
-      errors.add(costPieceError);
-    }
-
-    final costBulkError = SecurityValidators.validateNonNegativeDecimal(
-      _costBulkController.text,
-      fieldName: 'Cost / Bulk',
-      maxValue: SecurityLimits.monetaryAmountMax,
-    );
-    if (costBulkError != null) {
-      errors.add(costBulkError);
+    if (costPerUnitError != null) {
+      errors.add(costPerUnitError);
     }
 
     if (_soldAsProduct) {
@@ -194,53 +153,23 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
         maxLength: SecurityLimits.skuDescriptionMaxLength,
       ) !=
       null;
-  double? get _piecesValue => _tryDouble(_piecesController.text);
-  int? get _bulkValue => _tryInt(_bulkController.text);
-  double? get _ratioValue => _tryDouble(_ratioController.text);
-  double? get _costPieceValue => _tryDouble(_costPieceController.text);
-  double? get _costBulkValue => _tryDouble(_costBulkController.text);
+  double? get _unitsInStockValue => _tryDouble(_unitsInStockController.text);
+  double? get _costPerUnitValue => _tryDouble(_costPerUnitController.text);
   double? get _productPriceValue => _tryDouble(_productPriceController.text);
 
-  bool get _piecesHasError {
+  bool get _unitsInStockHasError {
     return SecurityValidators.validateNonNegativeDecimal(
-          _piecesController.text,
-          fieldName: 'Pieces',
-          maxValue: SecurityLimits.inventoryQuantityMax,
+          _unitsInStockController.text,
+          fieldName: 'Units in Stock',
+          maxValue: SecurityLimits.inventoryUnitsInStockMax,
         ) !=
         null;
   }
 
-  bool get _bulkHasError {
-    return SecurityValidators.validateNonNegativeInteger(
-          _bulkController.text,
-          fieldName: 'Bulk',
-          maxValue: SecurityLimits.inventoryBulkMax,
-        ) !=
-        null;
-  }
-
-  bool get _ratioHasError {
-    return SecurityValidators.validatePositiveDecimal(
-          _ratioController.text,
-          fieldName: 'Pieces / Bulk',
-          maxValue: SecurityLimits.piecesPerBulkMax,
-        ) !=
-        null;
-  }
-
-  bool get _costPieceHasError {
+  bool get _costPerUnitHasError {
     return SecurityValidators.validateNonNegativeDecimal(
-          _costPieceController.text,
-          fieldName: 'Cost / Piece',
-          maxValue: SecurityLimits.monetaryAmountMax,
-        ) !=
-        null;
-  }
-
-  bool get _costBulkHasError {
-    return SecurityValidators.validateNonNegativeDecimal(
-          _costBulkController.text,
-          fieldName: 'Cost / Bulk',
+          _costPerUnitController.text,
+          fieldName: 'Cost / Unit',
           maxValue: SecurityLimits.monetaryAmountMax,
         ) !=
         null;
@@ -258,11 +187,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   bool get _hasChanges =>
       _nameController.text != _initialName ||
       _descriptionController.text != _initialDescription ||
-      _piecesController.text != _initialPiecesText ||
-      _bulkController.text != _initialBulkText ||
-      _ratioController.text != _initialRatioText ||
-      _costPieceController.text != _initialCostPieceText ||
-      _costBulkController.text != _initialCostBulkText ||
+      _unitsInStockController.text != _initialUnitsInStockText ||
+      _costPerUnitController.text != _initialCostPerUnitText ||
       _productPriceController.text != _initialProductPriceText ||
       _itemPictureIcon != _initialItemPictureIcon ||
       _soldAsProduct != _initialSoldAsProduct;
@@ -270,19 +196,11 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   @override
   Widget build(BuildContext context) {
     final edge = AppThemeTokens.screenEdgePadding(context);
-    final pieceCount = _piecesValue;
-    final bulkCount = _bulkValue;
-    final costPerPiece = _costPieceValue;
-    final costPerBulk = _costBulkValue;
+    final unitsInStock = _unitsInStockValue;
+    final costPerUnit = _costPerUnitValue;
     final total =
-        (((pieceCount != null && pieceCount > 0) ? pieceCount : 0) *
-                    ((costPerPiece != null && costPerPiece > 0)
-                        ? costPerPiece
-                        : 0) +
-                ((bulkCount != null && bulkCount > 0) ? bulkCount : 0) *
-                    ((costPerBulk != null && costPerBulk > 0)
-                        ? costPerBulk
-                        : 0))
+        (((unitsInStock != null && unitsInStock > 0) ? unitsInStock : 0) *
+                ((costPerUnit != null && costPerUnit > 0) ? costPerUnit : 0))
             .toDouble();
 
     return PopScope<SkuItem>(
@@ -350,100 +268,51 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: AppThemeTokens.sectionGap),
-                    _FieldEditor(
-                      label: 'Pieces / Bulk',
-                      controller: _ratioController,
-                      inputMode: _InputMode.decimal,
-                      hintText: 'Enter pieces per bulk',
-                      hasError:
-                          (_showValidationHighlights || _ratioBlurred) &&
-                          _ratioHasError,
-                      onTapOutside: () => setState(() => _ratioBlurred = true),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: AppThemeTokens.sectionGap),
                     ValueListenableBuilder<AppCurrency>(
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
-                        return Row(
+                        return _GroupedInputCard(
                           children: [
-                            Expanded(
-                              child: _GroupedInputCard(
-                                children: [
-                                  _FieldEditor(
-                                    label: 'Pieces',
-                                    controller: _piecesController,
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _FieldEditor(
+                                    label: 'Units in Stock',
+                                    controller: _unitsInStockController,
                                     inputMode: _InputMode.decimal,
-                                    hintText: 'Enter pieces count',
+                                    hintText: 'Enter units in stock',
                                     hasError:
                                         (_showValidationHighlights ||
-                                            _piecesBlurred) &&
-                                        _piecesHasError,
-                                    onTapOutside: () =>
-                                        setState(() => _piecesBlurred = true),
+                                            _unitsInStockBlurred) &&
+                                        _unitsInStockHasError,
+                                    onTapOutside: () => setState(
+                                      () => _unitsInStockBlurred = true,
+                                    ),
                                     onChanged: (_) => setState(() {}),
                                   ),
-                                  const SizedBox(
-                                    height: AppThemeTokens
-                                        .groupedCardInternalFieldGap,
-                                  ),
-                                  _CurrencyFieldWithCode(
-                                    label: 'Cost / Piece',
-                                    controller: _costPieceController,
+                                ),
+                                const SizedBox(
+                                  width:
+                                      AppThemeTokens.groupedCardsHorizontalGap,
+                                ),
+                                Expanded(
+                                  child: _CurrencyFieldWithCode(
+                                    label: 'Cost / Unit',
+                                    controller: _costPerUnitController,
                                     inputMode: _InputMode.decimal,
                                     hintText: 'e.g. 4.50',
                                     currencyCode: currency.code,
                                     hasError:
                                         (_showValidationHighlights ||
-                                            _costPieceBlurred) &&
-                                        _costPieceHasError,
+                                            _costPerUnitBlurred) &&
+                                        _costPerUnitHasError,
                                     onTapOutside: () => setState(
-                                      () => _costPieceBlurred = true,
+                                      () => _costPerUnitBlurred = true,
                                     ),
                                     onChanged: (_) => setState(() {}),
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(
-                              width: AppThemeTokens.groupedCardsHorizontalGap,
-                            ),
-                            Expanded(
-                              child: _GroupedInputCard(
-                                children: [
-                                  _FieldEditor(
-                                    label: 'Bulk',
-                                    controller: _bulkController,
-                                    inputMode: _InputMode.integer,
-                                    hintText: 'Enter bulk count',
-                                    hasError:
-                                        (_showValidationHighlights ||
-                                            _bulkBlurred) &&
-                                        _bulkHasError,
-                                    onTapOutside: () =>
-                                        setState(() => _bulkBlurred = true),
-                                    onChanged: (_) => setState(() {}),
-                                  ),
-                                  const SizedBox(
-                                    height: AppThemeTokens
-                                        .groupedCardInternalFieldGap,
-                                  ),
-                                  _CurrencyFieldWithCode(
-                                    label: 'Cost / Bulk',
-                                    controller: _costBulkController,
-                                    inputMode: _InputMode.decimal,
-                                    hintText: 'e.g. 40.00',
-                                    currencyCode: currency.code,
-                                    hasError:
-                                        (_showValidationHighlights ||
-                                            _costBulkBlurred) &&
-                                        _costBulkHasError,
-                                    onTapOutside: () =>
-                                        setState(() => _costBulkBlurred = true),
-                                    onChanged: (_) => setState(() {}),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ],
                         );
@@ -586,22 +455,16 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     setState(() {
       _nameController.text = _initialName;
       _descriptionController.text = _initialDescription;
-      _piecesController.text = _initialPiecesText;
-      _bulkController.text = _initialBulkText;
-      _ratioController.text = _initialRatioText;
-      _costPieceController.text = _initialCostPieceText;
-      _costBulkController.text = _initialCostBulkText;
+      _unitsInStockController.text = _initialUnitsInStockText;
+      _costPerUnitController.text = _initialCostPerUnitText;
       _productPriceController.text = _initialProductPriceText;
       _itemPictureIcon = _initialItemPictureIcon;
       _soldAsProduct = _initialSoldAsProduct;
       _showValidationHighlights = false;
       _nameBlurred = false;
       _descriptionBlurred = false;
-      _piecesBlurred = false;
-      _bulkBlurred = false;
-      _ratioBlurred = false;
-      _costPieceBlurred = false;
-      _costBulkBlurred = false;
+      _unitsInStockBlurred = false;
+      _costPerUnitBlurred = false;
       _productPriceBlurred = false;
     });
   }
@@ -620,17 +483,10 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
         _descriptionController.text,
         maxLength: SecurityLimits.skuDescriptionMaxLength,
       ),
-      pieces: (_piecesValue ?? 0.0)
-          .clamp(0.0, SecurityLimits.inventoryQuantityMax)
+      unitsInStock: (_unitsInStockValue ?? 0)
+          .clamp(0, SecurityLimits.inventoryUnitsInStockMax)
           .toDouble(),
-      bulk: (_bulkValue ?? 0).clamp(0, SecurityLimits.inventoryBulkMax).toInt(),
-      piecesPerBulk: (_ratioValue ?? 1.0)
-          .clamp(1.0, SecurityLimits.piecesPerBulkMax)
-          .toDouble(),
-      costPerPiece: (_costPieceValue ?? 0)
-          .clamp(0, SecurityLimits.monetaryAmountMax)
-          .toDouble(),
-      costPerBulk: (_costBulkValue ?? 0)
+      costPerUnit: (_costPerUnitValue ?? 0)
           .clamp(0, SecurityLimits.monetaryAmountMax)
           .toDouble(),
       soldAsProduct: _soldAsProduct,
