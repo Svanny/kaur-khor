@@ -469,7 +469,7 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
                         },
                         title: Text(sku.name),
                         subtitle: Text(
-                          '${_compactNumber(sku.pieces)} pieces · ${_compactNumber(sku.bulk)} bulk',
+                          '${sku.pieces} pieces · ${sku.bulk} bulk',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         checkboxScaleFactor: 1.0,

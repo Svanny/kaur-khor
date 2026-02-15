@@ -34,7 +34,7 @@ String _compactNumber(num value) {
 }
 
 String _currencyLabel(double value, {String currencyCode = 'USD'}) {
-  return '${_compactNumber(value)} $currencyCode';
+  return '${_formatNumber(value, maxFractionDigits: 2)} $currencyCode';
 }
 
 FontWeight _fontWeight(double tokenWeight) {

@@ -601,19 +601,23 @@ void main() {
     final costPieceSuffix = costPieceField.decoration?.suffix as Padding;
     expect((costPieceSuffix.child as Text).data, 'KHR');
 
-    await tester.scrollUntilVisible(
-      find.text('Product Price'),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
     final costBulkField = tester.widget<TextField>(
       textFieldByHint('e.g. 40.00'),
     );
     final costBulkSuffix = costBulkField.decoration?.suffix as Padding;
     expect((costBulkSuffix.child as Text).data, 'KHR');
 
-    await tester.tap(find.text('Sold as a Product?'));
-    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('sold-as-product-checkbox')),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final soldAsProductCheckbox = find.byKey(
+      const ValueKey('sold-as-product-checkbox'),
+    );
+    final checkbox = tester.widget<Checkbox>(soldAsProductCheckbox);
+    checkbox.onChanged?.call(true);
+    await tester.pumpAndSettle();
     final productPriceField = tester.widget<TextField>(
       textFieldByHint('e.g. 12.00'),
     );
@@ -621,41 +625,174 @@ void main() {
     expect((productPriceSuffix.child as Text).data, 'KHR');
   });
 
-  testWidgets('sku detail total value is right aligned', (
-    WidgetTester tester,
-  ) async {
-    const sku = SkuItem(
-      id: 'sku-total-align',
-      name: 'SKU Total Align',
-      itemPictureIcon: Icons.inventory_2_outlined,
-      description: 'desc',
-      pieces: 120,
-      bulk: 12,
-      piecesPerBulk: 12,
-      costPerPiece: 5,
-      costPerBulk: 58,
-      soldAsProduct: false,
-      productPrice: null,
-    );
+  testWidgets(
+    'sku detail total value shows full number left and currency right',
+    (WidgetTester tester) async {
+      const sku = SkuItem(
+        id: 'sku-total-align',
+        name: 'SKU Total Align',
+        itemPictureIcon: Icons.inventory_2_outlined,
+        description: 'desc',
+        pieces: 120,
+        bulk: 12,
+        piecesPerBulk: 12,
+        costPerPiece: 5,
+        costPerBulk: 58,
+        soldAsProduct: false,
+        productPrice: null,
+      );
 
-    await setPhoneViewport(tester);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: const SkuDetailPage(initialSku: sku),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await setPhoneViewport(tester);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: const SkuDetailPage(initialSku: sku),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.text('Total Value'),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
+      await tester.scrollUntilVisible(
+        find.text('Total Value'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
 
-    final totalValueText = tester.widget<Text>(find.text('1.3k USD'));
-    expect(totalValueText.textAlign, TextAlign.end);
-  });
+      final totalValueNumber = find.text('1296');
+      expect(totalValueNumber, findsOneWidget);
+      final totalValueDecorator = find.ancestor(
+        of: totalValueNumber,
+        matching: find.byType(InputDecorator),
+      );
+      final totalValueCurrency = find.descendant(
+        of: totalValueDecorator,
+        matching: find.text('USD'),
+      );
+      expect(totalValueCurrency, findsOneWidget);
+
+      final numberRect = tester.getRect(totalValueNumber);
+      final currencyRect = tester.getRect(totalValueCurrency);
+      expect(numberRect.left, lessThan(currencyRect.left));
+    },
+  );
+
+  testWidgets(
+    'sku detail total value uses shorthand only when the field is too narrow',
+    (WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(260, 932);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const sku = SkuItem(
+        id: 'sku-total-compact',
+        name: 'SKU Total Compact',
+        itemPictureIcon: Icons.inventory_2_outlined,
+        description: 'desc',
+        pieces: 9000000000000000000,
+        bulk: 0,
+        piecesPerBulk: 1,
+        costPerPiece: 1,
+        costPerBulk: 0,
+        soldAsProduct: false,
+        productPrice: null,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: const SkuDetailPage(initialSku: sku),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('Total Value'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      final matchingCompactValues = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((text) => text.data)
+          .whereType<String>()
+          .where((text) => RegExp(r'^[0-9]+(\.[0-9])?[kmbtq]$').hasMatch(text))
+          .toList(growable: false);
+
+      expect(matchingCompactValues, isNotEmpty);
+      expect(find.text('USD'), findsAtLeastNWidgets(1));
+    },
+  );
+
+  testWidgets(
+    'sku product price expansion auto-scrolls and keeps symmetric horizontal inset',
+    (WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(430, 700);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const sku = SkuItem(
+        id: 'sku-product-price-expand',
+        name: 'SKU Product Price Expand',
+        itemPictureIcon: Icons.inventory_2_outlined,
+        description: 'desc',
+        pieces: 120,
+        bulk: 12,
+        piecesPerBulk: 12,
+        costPerPiece: 5,
+        costPerBulk: 58,
+        soldAsProduct: false,
+        productPrice: 10,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: const SkuDetailPage(initialSku: sku),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('sold-as-product-checkbox')),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      final scrollableState = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
+      final beforeOffset = scrollableState.position.pixels;
+
+      final soldAsProductCheckbox = find.byKey(
+        const ValueKey('sold-as-product-checkbox'),
+      );
+      final checkbox = tester.widget<Checkbox>(soldAsProductCheckbox);
+      checkbox.onChanged?.call(true);
+      await tester.pumpAndSettle();
+
+      final afterOffset = scrollableState.position.pixels;
+      expect(afterOffset, greaterThanOrEqualTo(beforeOffset));
+
+      final viewportRect = tester.getRect(find.byType(Scrollable).first);
+      final productPriceRect = tester.getRect(textFieldByHint('e.g. 12.00'));
+      expect(
+        productPriceRect.bottom,
+        lessThanOrEqualTo(viewportRect.bottom - AppThemeTokens.space4),
+      );
+
+      final soldCard = find
+          .ancestor(
+            of: find.text('Sold as a Product?'),
+            matching: find.byType(Card),
+          )
+          .first;
+      final cardRect = tester.getRect(soldCard);
+      final leftInset = productPriceRect.left - cardRect.left;
+      final rightInset = cardRect.right - productPriceRect.right;
+      expect((leftInset - rightInset).abs(), lessThan(0.6));
+    },
+  );
 
   testWidgets('sku detail invalid monetary field shows red border on blur', (
     WidgetTester tester,
@@ -860,15 +997,23 @@ void main() {
       220,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Sold as a Product?'));
-    await tester.pump();
-    var productField = tester.widget<TextField>(find.byType(TextField).last);
-    expect(productField.enabled, isTrue);
+    expect(find.text('Product Price'), findsNothing);
+    expect(textFieldByHint('e.g. 12.00'), findsNothing);
 
-    await tester.tap(find.text('Sold as a Product?'));
-    await tester.pump();
-    productField = tester.widget<TextField>(find.byType(TextField).last);
-    expect(productField.enabled, isFalse);
+    final soldAsProductCheckbox = find.byKey(
+      const ValueKey('sold-as-product-checkbox'),
+    );
+    var checkbox = tester.widget<Checkbox>(soldAsProductCheckbox);
+    checkbox.onChanged?.call(true);
+    await tester.pumpAndSettle();
+    expect(find.text('Product Price'), findsOneWidget);
+    expect(textFieldByHint('e.g. 12.00'), findsOneWidget);
+
+    checkbox = tester.widget<Checkbox>(soldAsProductCheckbox);
+    checkbox.onChanged?.call(false);
+    await tester.pumpAndSettle();
+    expect(find.text('Product Price'), findsNothing);
+    expect(textFieldByHint('e.g. 12.00'), findsNothing);
   });
 
   testWidgets('detail pages no longer show Item Picture field section', (

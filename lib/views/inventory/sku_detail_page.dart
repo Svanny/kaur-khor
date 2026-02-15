@@ -10,6 +10,16 @@ class SkuDetailPage extends StatefulWidget {
 }
 
 class _SkuDetailPageState extends State<SkuDetailPage> {
+  static const ValueKey<String> _soldAsProductCheckboxKey = ValueKey(
+    'sold-as-product-checkbox',
+  );
+  static const Duration _productPriceToggleDuration = Duration(
+    milliseconds: 220,
+  );
+  static const double _productPriceExpansionEstimate = 132;
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _productPriceSectionKey = GlobalKey();
+  final GlobalKey _soldAsProductCardKey = GlobalKey();
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _piecesController;
@@ -75,6 +85,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _nameController.dispose();
     _descriptionController.dispose();
     _piecesController.dispose();
@@ -227,7 +238,6 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   @override
   Widget build(BuildContext context) {
     final edge = AppThemeTokens.screenEdgePadding(context);
-    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final pieceCount = _piecesValue;
     final bulkCount = _bulkValue;
     final costPerPiece = _costPieceValue;
@@ -269,8 +279,12 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
               const SizedBox(height: AppThemeTokens.space3),
               Expanded(
                 child: ListView(
+                  controller: _scrollController,
                   padding: EdgeInsets.only(
-                    bottom: bottomInset + AppThemeTokens.space8,
+                    bottom:
+                        edge.bottom +
+                        AppThemeTokens.space8 +
+                        AppThemeTokens.space2,
                   ),
                   children: [
                     _MediaPlaceholderCard(itemPictureIcon: _itemPictureIcon),
@@ -301,44 +315,6 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: AppThemeTokens.space4),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _FieldEditor(
-                            label: 'Pieces',
-                            controller: _piecesController,
-                            hintText: 'Enter pieces count',
-                            keyboardType: const TextInputType.numberWithOptions(
-                              signed: false,
-                            ),
-                            hasError:
-                                (_showValidationHighlights || _piecesBlurred) &&
-                                _piecesHasError,
-                            onTapOutside: () =>
-                                setState(() => _piecesBlurred = true),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ),
-                        const SizedBox(width: AppThemeTokens.space2),
-                        Expanded(
-                          child: _FieldEditor(
-                            label: 'Bulk',
-                            controller: _bulkController,
-                            hintText: 'Enter bulk count',
-                            keyboardType: const TextInputType.numberWithOptions(
-                              signed: false,
-                            ),
-                            hasError:
-                                (_showValidationHighlights || _bulkBlurred) &&
-                                _bulkHasError,
-                            onTapOutside: () =>
-                                setState(() => _bulkBlurred = true),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppThemeTokens.space4),
                     _FieldEditor(
                       label: 'Pieces / Bulk',
                       controller: _ratioController,
@@ -359,34 +335,77 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         return Row(
                           children: [
                             Expanded(
-                              child: _CurrencyFieldWithCode(
-                                label: 'Cost / Piece',
-                                controller: _costPieceController,
-                                hintText: 'e.g. 4.50',
-                                currencyCode: currency.code,
-                                hasError:
-                                    (_showValidationHighlights ||
-                                        _costPieceBlurred) &&
-                                    _costPieceHasError,
-                                onTapOutside: () =>
-                                    setState(() => _costPieceBlurred = true),
-                                onChanged: (_) => setState(() {}),
+                              child: _GroupedInputCard(
+                                children: [
+                                  _FieldEditor(
+                                    label: 'Pieces',
+                                    controller: _piecesController,
+                                    hintText: 'Enter pieces count',
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          signed: false,
+                                        ),
+                                    hasError:
+                                        (_showValidationHighlights ||
+                                            _piecesBlurred) &&
+                                        _piecesHasError,
+                                    onTapOutside: () =>
+                                        setState(() => _piecesBlurred = true),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                  const SizedBox(height: AppThemeTokens.space3),
+                                  _CurrencyFieldWithCode(
+                                    label: 'Cost / Piece',
+                                    controller: _costPieceController,
+                                    hintText: 'e.g. 4.50',
+                                    currencyCode: currency.code,
+                                    hasError:
+                                        (_showValidationHighlights ||
+                                            _costPieceBlurred) &&
+                                        _costPieceHasError,
+                                    onTapOutside: () => setState(
+                                      () => _costPieceBlurred = true,
+                                    ),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(width: AppThemeTokens.space2),
                             Expanded(
-                              child: _CurrencyFieldWithCode(
-                                label: 'Cost / Bulk',
-                                controller: _costBulkController,
-                                hintText: 'e.g. 40.00',
-                                currencyCode: currency.code,
-                                hasError:
-                                    (_showValidationHighlights ||
-                                        _costBulkBlurred) &&
-                                    _costBulkHasError,
-                                onTapOutside: () =>
-                                    setState(() => _costBulkBlurred = true),
-                                onChanged: (_) => setState(() {}),
+                              child: _GroupedInputCard(
+                                children: [
+                                  _FieldEditor(
+                                    label: 'Bulk',
+                                    controller: _bulkController,
+                                    hintText: 'Enter bulk count',
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          signed: false,
+                                        ),
+                                    hasError:
+                                        (_showValidationHighlights ||
+                                            _bulkBlurred) &&
+                                        _bulkHasError,
+                                    onTapOutside: () =>
+                                        setState(() => _bulkBlurred = true),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                  const SizedBox(height: AppThemeTokens.space3),
+                                  _CurrencyFieldWithCode(
+                                    label: 'Cost / Bulk',
+                                    controller: _costBulkController,
+                                    hintText: 'e.g. 40.00',
+                                    currencyCode: currency.code,
+                                    hasError:
+                                        (_showValidationHighlights ||
+                                            _costBulkBlurred) &&
+                                        _costBulkHasError,
+                                    onTapOutside: () =>
+                                        setState(() => _costBulkBlurred = true),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -397,63 +416,80 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     ValueListenableBuilder<AppCurrency>(
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
-                        return _ReadOnlyField(
+                        return _AdaptiveCurrencyReadOnlyField(
                           label: 'Total Value',
-                          value: _currencyLabel(
-                            total,
-                            currencyCode: currency.code,
-                          ),
-                          valueAlignment: Alignment.centerRight,
-                          valueTextAlign: TextAlign.end,
+                          value: total,
+                          currencyCode: currency.code,
                         );
                       },
                     ),
                     const SizedBox(height: AppThemeTokens.space4),
                     Card(
+                      key: _soldAsProductCardKey,
                       margin: EdgeInsets.zero,
                       child: Padding(
                         padding: const EdgeInsets.all(AppThemeTokens.space3),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CheckboxListTile(
-                              value: _soldAsProduct,
-                              onChanged: (value) {
-                                if (value == null) {
-                                  return;
-                                }
-                                setState(() {
-                                  _soldAsProduct = value;
-                                  if (!_soldAsProduct) {
-                                    _productPriceBlurred = false;
-                                  }
-                                });
-                              },
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                'Sold as a Product?',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                            ValueListenableBuilder<AppCurrency>(
-                              valueListenable: context.currencyController,
-                              builder: (_, currency, __) {
-                                return _CurrencyFieldWithCode(
-                                  label: 'Product Price',
-                                  controller: _productPriceController,
-                                  hintText: 'e.g. 12.00',
-                                  currencyCode: currency.code,
-                                  enabled: _soldAsProduct,
-                                  hasError:
-                                      (_showValidationHighlights ||
-                                          _productPriceBlurred) &&
-                                      _productPriceHasError,
-                                  onTapOutside: () => setState(
-                                    () => _productPriceBlurred = true,
+                            Row(
+                              children: [
+                                Checkbox(
+                                  key: _soldAsProductCheckboxKey,
+                                  value: _soldAsProduct,
+                                  onChanged: (value) {
+                                    if (value == null) {
+                                      return;
+                                    }
+                                    _setSoldAsProduct(value);
+                                  },
+                                ),
+                                const SizedBox(width: AppThemeTokens.space2),
+                                Expanded(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () =>
+                                        _setSoldAsProduct(!_soldAsProduct),
+                                    child: Text(
+                                      'Sold as a Product?',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
                                   ),
-                                  onChanged: (_) => setState(() {}),
-                                );
-                              },
+                                ),
+                              ],
+                            ),
+                            AnimatedSize(
+                              duration: _productPriceToggleDuration,
+                              reverseDuration: _productPriceToggleDuration,
+                              curve: Curves.easeInOutCubic,
+                              alignment: Alignment.topCenter,
+                              child: _soldAsProduct
+                                  ? KeyedSubtree(
+                                      key: _productPriceSectionKey,
+                                      child: ValueListenableBuilder<AppCurrency>(
+                                        valueListenable:
+                                            context.currencyController,
+                                        builder: (_, currency, __) {
+                                          return _CurrencyFieldWithCode(
+                                            label: 'Product Price',
+                                            controller: _productPriceController,
+                                            hintText: 'e.g. 12.00',
+                                            currencyCode: currency.code,
+                                            hasError:
+                                                (_showValidationHighlights ||
+                                                    _productPriceBlurred) &&
+                                                _productPriceHasError,
+                                            onTapOutside: () => setState(
+                                              () => _productPriceBlurred = true,
+                                            ),
+                                            onChanged: (_) => setState(() {}),
+                                          );
+                                        },
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
                             ),
                           ],
                         ),
@@ -556,5 +592,149 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
     );
     setState(() => _allowPop = true);
     Navigator.of(context).pop(updated);
+  }
+
+  void _setSoldAsProduct(bool value) {
+    final wasSoldAsProduct = _soldAsProduct;
+    if (!wasSoldAsProduct && value) {
+      unawaited(_preScrollForProductPriceExpansion());
+    }
+    setState(() {
+      _soldAsProduct = value;
+      if (!_soldAsProduct) {
+        _productPriceBlurred = false;
+      }
+    });
+    if (!wasSoldAsProduct && value) {
+      _scheduleProductPriceAutoScroll();
+    }
+  }
+
+  void _scheduleProductPriceAutoScroll() {
+    Future<void>.delayed(_productPriceToggleDuration, () {
+      if (!mounted) {
+        return;
+      }
+      _ensureProductPriceVisible();
+    });
+  }
+
+  Future<void> _preScrollForProductPriceExpansion() async {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final cardContext = _soldAsProductCardKey.currentContext;
+    if (cardContext == null) {
+      return;
+    }
+    final cardObject = cardContext.findRenderObject();
+    if (cardObject is! RenderBox) {
+      return;
+    }
+    final scrollableState = Scrollable.maybeOf(cardContext);
+    final viewportObject = scrollableState?.context.findRenderObject();
+    if (viewportObject is! RenderBox) {
+      return;
+    }
+
+    final position = _scrollController.position;
+    final edge = AppThemeTokens.screenEdgePadding(context);
+    final bottomClearance = edge.bottom + AppThemeTokens.space2;
+    final cardBottom = cardObject.localToGlobal(
+      cardObject.size.bottomLeft(Offset.zero),
+      ancestor: viewportObject,
+    );
+    final viewportBottom = viewportObject.size.height - bottomClearance;
+    final overflowAfterExpand =
+        (cardBottom.dy + _productPriceExpansionEstimate) - viewportBottom;
+    if (overflowAfterExpand <= 0) {
+      return;
+    }
+
+    final targetOffset = math.max(
+      position.minScrollExtent,
+      math.min(position.maxScrollExtent, position.pixels + overflowAfterExpand),
+    );
+    if ((targetOffset - position.pixels).abs() < 0.5) {
+      return;
+    }
+
+    await _scrollController.animateTo(
+      targetOffset,
+      duration: _productPriceToggleDuration,
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  Future<void> _ensureProductPriceVisible() async {
+    final sectionContext = _productPriceSectionKey.currentContext;
+    if (sectionContext == null || !_scrollController.hasClients) {
+      return;
+    }
+    final renderObject = sectionContext.findRenderObject();
+    if (renderObject is! RenderBox) {
+      return;
+    }
+    final scrollableState = Scrollable.maybeOf(sectionContext);
+    final viewportObject = scrollableState?.context.findRenderObject();
+    if (viewportObject is! RenderBox) {
+      return;
+    }
+    final position = _scrollController.position;
+    final edge = AppThemeTokens.screenEdgePadding(context);
+    const topClearance = AppThemeTokens.space2;
+    final bottomClearance = edge.bottom + AppThemeTokens.space2;
+    final topLeft = renderObject.localToGlobal(
+      Offset.zero,
+      ancestor: viewportObject,
+    );
+    final bottomRight = renderObject.localToGlobal(
+      renderObject.size.bottomRight(Offset.zero),
+      ancestor: viewportObject,
+    );
+    final viewportTop = topClearance;
+    final viewportBottom = viewportObject.size.height - bottomClearance;
+    var targetOffset = position.pixels;
+
+    if (bottomRight.dy > viewportBottom) {
+      targetOffset += bottomRight.dy - viewportBottom;
+    } else if (topLeft.dy < viewportTop) {
+      targetOffset -= viewportTop - topLeft.dy;
+    }
+
+    targetOffset = math.max(
+      position.minScrollExtent,
+      math.min(position.maxScrollExtent, targetOffset),
+    );
+    if ((targetOffset - position.pixels).abs() < 0.5) {
+      return;
+    }
+
+    await _scrollController.animateTo(
+      targetOffset,
+      duration: _productPriceToggleDuration,
+      curve: Curves.easeInOutCubic,
+    );
+  }
+}
+
+class _GroupedInputCard extends StatelessWidget {
+  const _GroupedInputCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeTokens.space3),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
+      ),
+    );
   }
 }

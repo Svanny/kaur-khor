@@ -318,7 +318,7 @@ class _InventoryItemCard extends StatelessWidget {
                                   AppThemeTokens.space1,
                             ),
                             label: Text(
-                              'Pieces: ${_compactNumber(pieces)}',
+                              'Pieces: $pieces',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: AppThemeTokens.textPrimary),
                             ),
@@ -344,7 +344,7 @@ class _InventoryItemCard extends StatelessWidget {
                                   AppThemeTokens.space1,
                             ),
                             label: Text(
-                              'Bulk: ${_compactNumber(bulk)}',
+                              'Bulk: $bulk',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: AppThemeTokens.textPrimary),
                             ),
@@ -859,12 +859,14 @@ class _ReadOnlyField extends StatelessWidget {
   const _ReadOnlyField({
     required this.label,
     required this.value,
+    this.trailingValue,
     this.valueAlignment = Alignment.centerLeft,
     this.valueTextAlign = TextAlign.start,
   });
 
   final String label;
   final String value;
+  final String? trailingValue;
   final AlignmentGeometry valueAlignment;
   final TextAlign valueTextAlign;
 
@@ -877,18 +879,133 @@ class _ReadOnlyField extends StatelessWidget {
         const SizedBox(height: AppThemeTokens.space1),
         InputDecorator(
           decoration: const InputDecoration(enabled: false),
-          child: Align(
-            alignment: valueAlignment,
-            child: Text(
-              value,
-              textAlign: valueTextAlign,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-              ),
-            ),
-          ),
+          child: trailingValue == null
+              ? Align(
+                  alignment: valueAlignment,
+                  child: Text(
+                    value,
+                    textAlign: valueTextAlign,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: _fontWeight(
+                        AppThemeTokens.fontWeightSemibold,
+                      ),
+                    ),
+                  ),
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        value,
+                        textAlign: TextAlign.start,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: _fontWeight(
+                            AppThemeTokens.fontWeightSemibold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppThemeTokens.space2),
+                    Text(
+                      trailingValue!,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppThemeTokens.textSecondary,
+                        fontWeight: _fontWeight(
+                          AppThemeTokens.fontWeightSemibold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ],
     );
+  }
+}
+
+class _AdaptiveCurrencyReadOnlyField extends StatelessWidget {
+  const _AdaptiveCurrencyReadOnlyField({
+    required this.label,
+    required this.value,
+    required this.currencyCode,
+  });
+
+  final String label;
+  final num value;
+  final String currencyCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final valueStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+    );
+    final trailingStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: AppThemeTokens.textSecondary,
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+    );
+    final fullValue = _formatNumber(value, maxFractionDigits: 2);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppThemeTokens.space1),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth =
+                (constraints.maxWidth - (AppThemeTokens.inputPaddingX * 2))
+                    .clamp(0, double.infinity);
+            final fullTextWidth = _measureTextWidth(
+              context,
+              fullValue,
+              valueStyle,
+            );
+            final trailingWidth = _measureTextWidth(
+              context,
+              currencyCode,
+              trailingStyle,
+            );
+            final canUseFull =
+                fullTextWidth + AppThemeTokens.space2 + trailingWidth <=
+                availableWidth;
+            final resolvedValue = canUseFull
+                ? fullValue
+                : _compactNumber(value);
+
+            return InputDecorator(
+              decoration: const InputDecoration(enabled: false),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      resolvedValue,
+                      textAlign: TextAlign.start,
+                      style: valueStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: AppThemeTokens.space2),
+                  Text(currencyCode, style: trailingStyle),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  static double _measureTextWidth(
+    BuildContext context,
+    String text,
+    TextStyle? style,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width;
   }
 }
