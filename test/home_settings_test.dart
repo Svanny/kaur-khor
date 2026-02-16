@@ -103,6 +103,24 @@ void main() {
     expect(find.text('សូចនាករសំខាន់ៗ'), findsOneWidget);
   });
 
+  testWidgets('settings language dropdown keeps horizontal anchor alignment', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget);
+
+    await tester.tap(find.text('English'));
+    await tester.pumpAndSettle();
+
+    final follower = tester.widget<CompositedTransformFollower>(
+      find.byType(CompositedTransformFollower),
+    );
+    expect(follower.offset.dx.abs(), lessThan(1.0));
+  });
+
   testWidgets('settings backup and logout actions are tappable', (
     WidgetTester tester,
   ) async {

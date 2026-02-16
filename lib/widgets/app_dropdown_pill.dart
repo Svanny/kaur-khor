@@ -145,6 +145,7 @@ class _AppDropdownPillState<T> extends State<AppDropdownPill<T>>
         (AppThemeTokens.unit / 2);
     final horizontalOffset = _horizontalViewportNudge(
       renderBox: renderObject,
+      overlayRenderBox: _rootOverlayRenderBox(),
       pillSize: pillSize,
       menuWidth: _menuWidth,
       xAlignment: widget.menuXAlignment,
@@ -227,8 +228,20 @@ class _AppDropdownPillState<T> extends State<AppDropdownPill<T>>
     };
   }
 
+  RenderBox? _rootOverlayRenderBox() {
+    final overlayRenderObject = Overlay.of(
+      context,
+      rootOverlay: true,
+    ).context.findRenderObject();
+    if (overlayRenderObject is RenderBox && overlayRenderObject.hasSize) {
+      return overlayRenderObject;
+    }
+    return null;
+  }
+
   double _horizontalViewportNudge({
     required RenderBox renderBox,
+    required RenderBox? overlayRenderBox,
     required Size pillSize,
     required double menuWidth,
     required AppDropdownXAlignment xAlignment,
@@ -242,10 +255,14 @@ class _AppDropdownPillState<T> extends State<AppDropdownPill<T>>
       AppDropdownXAlignment.center => triggerCenter - (menuWidth / 2),
       AppDropdownXAlignment.right => triggerRight - menuWidth,
     };
-    final screenWidth = MediaQuery.sizeOf(context).width;
+    final overlayTopLeft = overlayRenderBox?.localToGlobal(Offset.zero);
+    final overlayLeft = overlayTopLeft?.dx ?? 0;
+    final overlayWidth =
+        overlayRenderBox?.size.width ?? MediaQuery.sizeOf(context).width;
+    final overlayRight = overlayLeft + overlayWidth;
     const margin = AppThemeTokens.space4;
-    final minLeft = margin;
-    final maxLeft = screenWidth - margin - menuWidth;
+    final minLeft = overlayLeft + margin;
+    final maxLeft = overlayRight - margin - menuWidth;
     if (maxLeft <= minLeft) {
       return 0;
     }

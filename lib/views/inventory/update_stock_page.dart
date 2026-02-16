@@ -39,17 +39,17 @@ extension IncrementPresetValues on IncrementPreset {
 
   String get countStepLabel {
     return switch (this) {
-      IncrementPreset.small => '±1',
-      IncrementPreset.medium => '±5',
-      IncrementPreset.big => '±20',
+      IncrementPreset.small => '± 1',
+      IncrementPreset.medium => '± 5',
+      IncrementPreset.big => '± 20',
     };
   }
 
   String get costStepLabel {
     return switch (this) {
-      IncrementPreset.small => '±\$0.25',
-      IncrementPreset.medium => '±\$0.50',
-      IncrementPreset.big => '±\$1.00',
+      IncrementPreset.small => '± \$0.25',
+      IncrementPreset.medium => '± \$0.50',
+      IncrementPreset.big => '± \$1.00',
     };
   }
 }
