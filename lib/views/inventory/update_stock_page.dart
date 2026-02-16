@@ -135,7 +135,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   StockInputMode _mode = StockInputMode.changes;
   IncrementPreset _preset = IncrementPreset.small;
   int _selectedSkuIndex = 0;
-  bool _showIncrementOptions = false;
   bool _showConfirmationCard = false;
 
   @override
@@ -183,24 +182,33 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: AnimatedSwitcher(
-                              duration: _switcherDuration,
-                              switchInCurve: Curves.easeOutCubic,
-                              switchOutCurve: Curves.easeInCubic,
-                              child: _showConfirmationCard
-                                  ? _buildConfirmationCard(
-                                      key: const ValueKey(
-                                        'update-stock-confirmation-card',
-                                      ),
-                                    )
-                                  : _buildSkuCard(
-                                      key: ValueKey(
-                                        'update-stock-sku-card-$_selectedSkuIndex',
-                                      ),
-                                      sku: _sourceSkus[_selectedSkuIndex],
-                                      draft: _drafts[_selectedSkuIndex],
-                                      currencyCode: currencyCode,
-                                    ),
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: FractionallySizedBox(
+                                widthFactor:
+                                    AppThemeTokens.stockCardViewportWidthFactor,
+                                heightFactor: AppThemeTokens
+                                    .stockCardViewportHeightFactor,
+                                child: AnimatedSwitcher(
+                                  duration: _switcherDuration,
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  child: _showConfirmationCard
+                                      ? _buildConfirmationCard(
+                                          key: const ValueKey(
+                                            'update-stock-confirmation-card',
+                                          ),
+                                        )
+                                      : _buildSkuCard(
+                                          key: ValueKey(
+                                            'update-stock-sku-card-$_selectedSkuIndex',
+                                          ),
+                                          sku: _sourceSkus[_selectedSkuIndex],
+                                          draft: _drafts[_selectedSkuIndex],
+                                          currencyCode: currencyCode,
+                                        ),
+                                ),
+                              ),
                             ),
                           ),
                           Positioned(
@@ -269,8 +277,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AspectRatio(
-              aspectRatio: AppThemeTokens.stockThumbnailAspectRatio,
+            Expanded(
               child: Container(
                 decoration: BoxDecoration(
                   color: AppThemeTokens.accentDarker,
@@ -439,80 +446,45 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   }
 
   Widget _buildIncrementSelector() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedSwitcher(
-          duration: _switcherDuration,
-          child: _showIncrementOptions
-              ? Container(
-                  key: const ValueKey('update-stock-increment-options'),
-                  margin: const EdgeInsets.only(
-                    bottom: AppThemeTokens.sectionGapCompact,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppThemeTokens.surface,
-                    border: Border.all(color: AppThemeTokens.accentDarker),
-                    borderRadius: BorderRadius.circular(
-                      AppThemeTokens.radiusMd,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: IncrementPreset.values
-                        .map(
-                          (preset) => InkWell(
-                            onTap: () => setState(() {
-                              _preset = preset;
-                              _showIncrementOptions = false;
-                            }),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal:
-                                    AppThemeTokens.stockIncrementOptionPadX,
-                                vertical:
-                                    AppThemeTokens.stockIncrementOptionPadY,
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${preset.label}: ${preset.description}',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
-                                  ),
-                                  if (_preset == preset)
-                                    const Icon(Icons.check, size: 18),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                )
-              : const SizedBox.shrink(),
-        ),
-        FilledButton(
-          key: const ValueKey('update-stock-increment-toggle'),
-          style: FilledButton.styleFrom(shape: const StadiumBorder()),
-          onPressed: () =>
-              setState(() => _showIncrementOptions = !_showIncrementOptions),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('+/- ${_formatNumber(_preset.countStep)}'),
-              const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
-              Icon(
-                _showIncrementOptions ? Icons.expand_more : Icons.chevron_right,
-                size: 18,
+    return AppDropdownPill<IncrementPreset>(
+      key: const ValueKey('update-stock-increment-dropdown'),
+      triggerKey: const ValueKey('update-stock-increment-toggle'),
+      menuKey: const ValueKey('update-stock-increment-options'),
+      value: _preset,
+      options: IncrementPreset.values,
+      labelBuilder: (preset) => '${preset.label}: ${preset.description}',
+      menuXAlignment: AppDropdownXAlignment.center,
+      menuYAlignment: AppDropdownYAlignment.top,
+      onChanged: (preset) => setState(() => _preset = preset),
+      triggerBuilder: (context, isOpen, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.swap_vert_rounded,
+              size: AppThemeTokens.iconSizeMedium,
+              color: AppThemeTokens.white,
+            ),
+            const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
+            Text(
+              'Increment',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white),
+            ),
+            const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
+            AnimatedRotation(
+              turns: isOpen ? 0.5 : 0,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              child: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppThemeTokens.white,
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -527,7 +499,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
   void _onSwipeDown() {
     setState(() {
-      _showIncrementOptions = false;
       if (_showConfirmationCard) {
         return;
       }
@@ -541,7 +512,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
   void _onSwipeUp() {
     setState(() {
-      _showIncrementOptions = false;
       if (_showConfirmationCard) {
         _showConfirmationCard = false;
         return;
@@ -625,66 +595,61 @@ class _StockStepper extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppThemeTokens.disabledBackground,
-            borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(
-              AppThemeTokens.stockStepperTrackInset,
+        Align(
+          alignment: Alignment.center,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppThemeTokens.disabledBackground,
+              borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: _StepAction(
-                      key: decrementKey,
-                      icon: Icons.remove,
-                      onTap: onDecrement,
+            child: Padding(
+              padding: const EdgeInsets.all(
+                AppThemeTokens.stockStepperTrackInset,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _StepAction(
+                    key: decrementKey,
+                    icon: Icons.remove,
+                    onTap: onDecrement,
+                  ),
+                  const SizedBox(width: AppThemeTokens.fieldLabelToControlGap),
+                  Container(
+                    constraints: const BoxConstraints(
+                      minWidth: AppThemeTokens.stockStepperValueMinWidth,
                     ),
-                  ),
-                ),
-                Container(
-                  constraints: const BoxConstraints(
-                    minWidth: AppThemeTokens.stockStepperValueMinWidth,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppThemeTokens.stockCounterPillPadX,
-                    vertical: AppThemeTokens.stockCounterPillPadY,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppThemeTokens.surface,
-                    borderRadius: BorderRadius.circular(
-                      AppThemeTokens.radiusPill,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppThemeTokens.stockCounterPillPadX,
+                      vertical: AppThemeTokens.stockCounterPillPadY,
                     ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      value,
-                      key: valueKey,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: _fontWeight(
-                          AppThemeTokens.fontWeightSemibold,
+                    decoration: BoxDecoration(
+                      color: AppThemeTokens.surface,
+                      borderRadius: BorderRadius.circular(
+                        AppThemeTokens.radiusPill,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        value,
+                        key: valueKey,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: _fontWeight(
+                            AppThemeTokens.fontWeightSemibold,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _StepAction(
-                      key: incrementKey,
-                      icon: Icons.add,
-                      onTap: onIncrement,
-                    ),
+                  const SizedBox(width: AppThemeTokens.fieldLabelToControlGap),
+                  _StepAction(
+                    key: incrementKey,
+                    icon: Icons.add,
+                    onTap: onIncrement,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

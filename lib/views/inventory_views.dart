@@ -12,6 +12,7 @@ import '../security/security_limits.dart';
 import '../security/security_validators.dart';
 import '../settings/currency_controller.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_dropdown_pill.dart';
 
 part 'inventory/inventory_models.dart';
 part 'inventory/inventory_controller.dart';

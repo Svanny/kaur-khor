@@ -1,6 +1,3 @@
-import 'dart:math' as math;
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -8,6 +5,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../localization/locale_controller.dart';
 import '../settings/currency_controller.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_dropdown_pill.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -48,11 +46,13 @@ class _SettingsViewState extends State<SettingsView> {
           children: [
             _SettingsRow(
               label: l10n.settingsLanguage,
-              trailing: _DropdownPill<AppLanguage>(
+              trailing: AppDropdownPill<AppLanguage>(
                 value: selectedLanguage,
                 options: AppLanguage.values,
                 labelBuilder: (language) => _languageLabel(l10n, language),
                 onChanged: localeController.switchLanguage,
+                menuXAlignment: AppDropdownXAlignment.right,
+                menuYAlignment: AppDropdownYAlignment.bottom,
               ),
             ),
             const SizedBox(height: AppThemeTokens.sectionGap),
@@ -61,11 +61,13 @@ class _SettingsViewState extends State<SettingsView> {
               trailing: ValueListenableBuilder<AppCurrency>(
                 valueListenable: currencyController,
                 builder: (_, selectedCurrency, __) {
-                  return _DropdownPill<AppCurrency>(
+                  return AppDropdownPill<AppCurrency>(
                     value: selectedCurrency,
                     options: _currencyOptions,
                     labelBuilder: (currency) => _currencyLabel(l10n, currency),
                     onChanged: currencyController.switchCurrency,
+                    menuXAlignment: AppDropdownXAlignment.right,
+                    menuYAlignment: AppDropdownYAlignment.bottom,
                   );
                 },
               ),
@@ -177,299 +179,6 @@ class _SettingsRow extends StatelessWidget {
         ),
         trailing,
       ],
-    );
-  }
-}
-
-class _DropdownPill<T> extends StatefulWidget {
-  const _DropdownPill({
-    required this.value,
-    required this.options,
-    required this.labelBuilder,
-    required this.onChanged,
-  });
-
-  final T value;
-  final List<T> options;
-  final String Function(T option) labelBuilder;
-  final ValueChanged<T> onChanged;
-
-  @override
-  State<_DropdownPill<T>> createState() => _DropdownPillState<T>();
-}
-
-class _DropdownPillState<T> extends State<_DropdownPill<T>>
-    with SingleTickerProviderStateMixin {
-  static const double _dropdownMinWidth = 100;
-
-  final LayerLink _layerLink = LayerLink();
-  final GlobalKey _pillKey = GlobalKey();
-  OverlayEntry? _overlayEntry;
-  late final AnimationController _animationController;
-  late final CurvedAnimation _dropdownAnimation;
-  bool _isOpen = false;
-  double _menuWidth = _dropdownMinWidth;
-  double _pillWidth = 0;
-  double _pillHeight = 0;
-
-  @override
-  void didUpdateWidget(covariant _DropdownPill<T> oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final optionsChanged = !listEquals(oldWidget.options, widget.options);
-    if (_isOpen && (oldWidget.value != widget.value || optionsChanged)) {
-      _closeDropdown();
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 180),
-    );
-    _dropdownAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-  }
-
-  @override
-  void dispose() {
-    _removeOverlay();
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _toggleDropdown() {
-    if (_isOpen) {
-      _closeDropdown();
-    } else {
-      _openDropdown();
-    }
-  }
-
-  void _openDropdown() {
-    final renderObject = _pillKey.currentContext?.findRenderObject();
-    if (renderObject is! RenderBox || !renderObject.hasSize) return;
-    final pillSize = renderObject.size;
-    final contentMenuWidth = _menuWidthForContent(context);
-    _menuWidth = math.max(
-      math.max(pillSize.width, _dropdownMinWidth),
-      contentMenuWidth,
-    );
-    _pillWidth = pillSize.width;
-    _pillHeight = pillSize.height;
-
-    _overlayEntry = OverlayEntry(
-      builder: (context) {
-        return Positioned.fill(
-          child: Stack(
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _closeDropdown,
-                child: const SizedBox.expand(),
-              ),
-              CompositedTransformFollower(
-                link: _layerLink,
-                showWhenUnlinked: false,
-                offset: Offset(
-                  _pillWidth - _menuWidth,
-                  _pillHeight + (AppThemeTokens.unit / 2),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: FadeTransition(
-                    opacity: _dropdownAnimation,
-                    child: SizeTransition(
-                      sizeFactor: _dropdownAnimation,
-                      axisAlignment: -1,
-                      child: _DropdownMenuPanel<T>(
-                        width: _menuWidth,
-                        options: widget.options,
-                        selectedValue: widget.value,
-                        labelBuilder: widget.labelBuilder,
-                        onSelected: (value) {
-                          widget.onChanged(value);
-                          _closeDropdown();
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
-    setState(() => _isOpen = true);
-    _animationController.forward(from: 0);
-  }
-
-  double _menuWidthForContent(BuildContext context) {
-    final baseTextStyle =
-        Theme.of(
-          context,
-        ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600) ??
-        const TextStyle(
-          fontSize: AppThemeTokens.fontSizeBodyLarge,
-          fontWeight: FontWeight.w600,
-        );
-
-    final textScaler = MediaQuery.textScalerOf(context);
-    double maxTextWidth = 0;
-    for (final option in widget.options) {
-      final textPainter = TextPainter(
-        text: TextSpan(text: widget.labelBuilder(option), style: baseTextStyle),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-        textScaler: textScaler,
-      )..layout();
-      maxTextWidth = math.max(maxTextWidth, textPainter.width);
-    }
-
-    const horizontalPadding = AppThemeTokens.dropdownOptionPadTotalX;
-    const minTrailingArea =
-        AppThemeTokens.dropdownCheckSpacing + AppThemeTokens.iconSizeMedium;
-    return maxTextWidth + horizontalPadding + minTrailingArea;
-  }
-
-  void _closeDropdown() {
-    if (!_isOpen) return;
-
-    setState(() => _isOpen = false);
-    _animationController.reverse().whenComplete(_removeOverlay);
-  }
-
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: GestureDetector(
-        key: _pillKey,
-        onTap: _toggleDropdown,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppThemeTokens.primary,
-            borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppThemeTokens.chipPaddingX,
-              vertical: AppThemeTokens.chipPaddingY,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.labelBuilder(widget.value),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white),
-                ),
-                const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
-                AnimatedRotation(
-                  turns: _isOpen ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  child: const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: AppThemeTokens.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DropdownMenuPanel<T> extends StatelessWidget {
-  const _DropdownMenuPanel({
-    required this.width,
-    required this.options,
-    required this.selectedValue,
-    required this.labelBuilder,
-    required this.onSelected,
-  });
-
-  final double width;
-  final List<T> options;
-  final T selectedValue;
-  final String Function(T option) labelBuilder;
-  final ValueChanged<T> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      decoration: BoxDecoration(
-        color: AppThemeTokens.primary,
-        borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd * 2),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: AppThemeTokens.dropdownPanelInsetY,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: options
-              .map(
-                (option) => InkWell(
-                  onTap: () => onSelected(option),
-                  borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppThemeTokens.dropdownOptionPadX,
-                      vertical: AppThemeTokens.dropdownOptionPadY,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            labelBuilder(option),
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: AppThemeTokens.white,
-                                  fontWeight: option == selectedValue
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                ),
-                          ),
-                        ),
-                        if (option == selectedValue)
-                          const SizedBox(
-                            width: AppThemeTokens.dropdownCheckSpacing,
-                          ),
-                        if (option == selectedValue)
-                          const Icon(
-                            Icons.check_rounded,
-                            size: AppThemeTokens.iconSizeMedium,
-                            color: AppThemeTokens.white,
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-      ),
     );
   }
 }
