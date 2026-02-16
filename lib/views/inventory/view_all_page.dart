@@ -25,6 +25,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
     final currencyCode = context.currencyController.value.code;
 
     return Scaffold(
+      floatingActionButtonLocation: AppThemeTokens.primaryFabLocation,
       floatingActionButton: FloatingActionButton(
         onPressed: _onAddItemPressed,
         shape: const CircleBorder(),

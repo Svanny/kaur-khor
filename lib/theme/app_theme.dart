@@ -126,6 +126,13 @@ class AppThemeTokens {
   static const double scrollVisibilityTopClearance = space2;
   static const double scrollVisibilityBottomClearance = space4;
   static const double scrollNudge = space1;
+  static const double primaryFabEndInset = space4 * 2;
+  static const double primaryFabBottomInset = space4 * 3;
+  static const FloatingActionButtonLocation primaryFabLocation =
+      _BottomRightFabLocation(
+        endInset: primaryFabEndInset,
+        bottomInset: primaryFabBottomInset,
+      );
 
   // Update stock flow
   static const double stockCardInset = space4;
@@ -182,6 +189,28 @@ class AppThemeTokens {
       math.max(horizontal, safeAreaInsets.right),
       math.max(screenEdgePaddingVerticalMin, safeAreaInsets.bottom),
     );
+  }
+}
+
+class _BottomRightFabLocation extends FloatingActionButtonLocation {
+  const _BottomRightFabLocation({
+    required this.endInset,
+    required this.bottomInset,
+  });
+
+  final double endInset;
+  final double bottomInset;
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    final fabSize = scaffoldGeometry.floatingActionButtonSize;
+    final fabX = switch (scaffoldGeometry.textDirection) {
+      TextDirection.rtl => endInset,
+      TextDirection.ltr =>
+        scaffoldGeometry.scaffoldSize.width - fabSize.width - endInset,
+    };
+    final fabY = scaffoldGeometry.contentBottom - fabSize.height - bottomInset;
+    return Offset(fabX, fabY);
   }
 }
 

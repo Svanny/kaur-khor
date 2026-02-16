@@ -109,6 +109,11 @@ void main() {
       final fab = tester.widget<FloatingActionButton>(
         find.byType(FloatingActionButton),
       );
+      final viewAllScaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      expect(
+        viewAllScaffold.floatingActionButtonLocation,
+        AppThemeTokens.primaryFabLocation,
+      );
       expect(fab.shape, isA<CircleBorder>());
     },
   );

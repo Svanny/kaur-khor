@@ -460,14 +460,18 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.swap_vert_rounded,
-              size: AppThemeTokens.iconSizeMedium,
-              color: AppThemeTokens.white,
+            SvgPicture.asset(
+              'icons/steppers_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24 (1).svg',
+              width: AppThemeTokens.iconSizeMedium,
+              height: AppThemeTokens.iconSizeMedium,
+              colorFilter: const ColorFilter.mode(
+                AppThemeTokens.white,
+                BlendMode.srcIn,
+              ),
             ),
             const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
             Text(
-              'Increment',
+              'Increments \u00B7 ${_preset.label}',
               style: Theme.of(
                 context,
               ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white),

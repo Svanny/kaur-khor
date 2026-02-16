@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:banji/main.dart';
+import 'package:banji/theme/app_theme.dart';
 
 void main() {
   Future<void> setPhoneViewport(WidgetTester tester) async {
@@ -47,12 +48,11 @@ void main() {
     final receiptButton = tester.widget<FloatingActionButton>(
       receiptButtonFinder,
     );
-    final receiptButtonPositioned = tester.widget<Positioned>(
-      find.ancestor(of: receiptButtonFinder, matching: find.byType(Positioned)),
+    final homeScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(
+      homeScaffold.floatingActionButtonLocation,
+      AppThemeTokens.primaryFabLocation,
     );
-    expect(receiptButtonPositioned.top, isNull);
-    expect(receiptButtonPositioned.bottom, isNotNull);
-    expect(receiptButtonPositioned.right, isNotNull);
     expect(receiptButton.shape, isA<CircleBorder>());
     expect(tester.getSize(receiptButtonFinder), const Size(56, 56));
   });
