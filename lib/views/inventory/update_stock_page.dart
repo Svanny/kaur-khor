@@ -468,8 +468,8 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       menuKey: const ValueKey('update-stock-increment-options'),
       value: _preset,
       options: IncrementPreset.values,
-      minMenuWidth: AppThemeTokens.unit * 72,
-      maxMenuWidth: AppThemeTokens.unit * 72,
+      minMenuWidth: AppThemeTokens.unit * 60,
+      maxMenuWidth: AppThemeTokens.unit * 80,
       labelBuilder: (preset) =>
           '${preset.label} ${preset.countStepLabel} and ${preset.costStepLabel}',
       menuXAlignment: AppDropdownXAlignment.center,
@@ -503,10 +503,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 child: Table(
                   defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                   columnWidths: const <int, TableColumnWidth>{
-                    0: FlexColumnWidth(1.7),
-                    1: FlexColumnWidth(0.95),
-                    2: FlexColumnWidth(0.55),
-                    3: FlexColumnWidth(1.3),
+                    0: FlexColumnWidth(0.6),
+                    1: FlexColumnWidth(0.2),
+                    2: FlexColumnWidth(0.2),
+                    3: FlexColumnWidth(0.2),
                   },
                   children: options
                       .map((preset) {

@@ -47,6 +47,9 @@ class _SettingsViewState extends State<SettingsView> {
             _SettingsRow(
               label: l10n.settingsLanguage,
               trailing: AppDropdownPill<AppLanguage>(
+                key: const ValueKey('settings-language-dropdown'),
+                triggerKey: const ValueKey('settings-language-trigger'),
+                menuKey: const ValueKey('settings-language-menu'),
                 value: selectedLanguage,
                 options: AppLanguage.values,
                 labelBuilder: (language) => _languageLabel(l10n, language),
@@ -62,6 +65,9 @@ class _SettingsViewState extends State<SettingsView> {
                 valueListenable: currencyController,
                 builder: (_, selectedCurrency, __) {
                   return AppDropdownPill<AppCurrency>(
+                    key: const ValueKey('settings-currency-dropdown'),
+                    triggerKey: const ValueKey('settings-currency-trigger'),
+                    menuKey: const ValueKey('settings-currency-menu'),
                     value: selectedCurrency,
                     options: _currencyOptions,
                     labelBuilder: (currency) => _currencyLabel(l10n, currency),

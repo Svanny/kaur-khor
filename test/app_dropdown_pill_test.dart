@@ -8,9 +8,12 @@ void main() {
   const triggerKey = ValueKey('dropdown-trigger');
   const menuKey = ValueKey('dropdown-menu');
 
-  Future<void> setViewport(WidgetTester tester) async {
+  Future<void> setViewport(
+    WidgetTester tester, {
+    Size size = const Size(900, 700),
+  }) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(900, 700);
+    tester.view.physicalSize = size;
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
   }
@@ -54,13 +57,11 @@ void main() {
       await tester.tap(find.byKey(triggerKey));
       await tester.pumpAndSettle();
 
-      final follower = tester.widget<CompositedTransformFollower>(
-        find.byType(CompositedTransformFollower),
-      );
-      expect(follower.offset.dx.abs(), lessThan(1.0));
-
       final triggerRect = tester.getRect(find.byKey(triggerKey));
+      final menuRect = tester.getRect(find.byKey(menuKey));
       final selectedTextRect = tester.getRect(find.text('English').last);
+      expect(menuRect.left, greaterThanOrEqualTo(AppThemeTokens.space4));
+      expect(menuRect.right, lessThanOrEqualTo(900 - AppThemeTokens.space4));
       expect(
         selectedTextRect.right,
         lessThanOrEqualTo(triggerRect.right + AppThemeTokens.space4),
@@ -108,7 +109,45 @@ void main() {
       await tester.pumpAndSettle();
 
       final checkIconRect = tester.getRect(find.byIcon(Icons.check_rounded));
-      expect(checkIconRect.right, lessThanOrEqualTo(900 - AppThemeTokens.space4));
+      expect(
+        checkIconRect.right,
+        lessThanOrEqualTo(900 - AppThemeTokens.space4),
+      );
     },
   );
+
+  testWidgets('dropdown clamps oversized menu within viewport margins', (
+    tester,
+  ) async {
+    await setViewport(tester, size: const Size(320, 700));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topRight,
+            child: AppDropdownPill<String>(
+              triggerKey: triggerKey,
+              menuKey: menuKey,
+              value: 'English',
+              options: const ['English', 'Khmer (ខ្មែរ)'],
+              labelBuilder: (value) => value,
+              onChanged: (_) {},
+              menuXAlignment: AppDropdownXAlignment.right,
+              menuYAlignment: AppDropdownYAlignment.bottom,
+              minMenuWidth: 600,
+              maxMenuWidth: 600,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(triggerKey));
+    await tester.pumpAndSettle();
+
+    final menuRect = tester.getRect(find.byKey(menuKey));
+    expect(menuRect.left, greaterThanOrEqualTo(AppThemeTokens.space4));
+    expect(menuRect.right, lessThanOrEqualTo(320 - AppThemeTokens.space4));
+  });
 }

@@ -115,10 +115,11 @@ void main() {
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
 
-    final follower = tester.widget<CompositedTransformFollower>(
-      find.byType(CompositedTransformFollower),
+    final menuRect = tester.getRect(
+      find.byKey(const ValueKey('settings-language-menu')),
     );
-    expect(follower.offset.dx.abs(), lessThan(1.0));
+    expect(menuRect.left, greaterThanOrEqualTo(AppThemeTokens.space4));
+    expect(menuRect.right, lessThanOrEqualTo(430 - AppThemeTokens.space4));
   });
 
   testWidgets('settings backup and logout actions are tappable', (

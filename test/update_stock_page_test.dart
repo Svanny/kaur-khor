@@ -107,10 +107,15 @@ void main() {
       find.byKey(const ValueKey('update-stock-increment-options')),
       findsOneWidget,
     );
+    final menuRect = tester.getRect(
+      find.byKey(const ValueKey('update-stock-increment-options')),
+    );
+    expect(menuRect.left, greaterThanOrEqualTo(AppThemeTokens.space4));
+    expect(menuRect.right, lessThanOrEqualTo(430 - AppThemeTokens.space4));
     expect(find.text('Small:'), findsOneWidget);
-    expect(find.text('±1'), findsOneWidget);
+    expect(find.text('± 1'), findsOneWidget);
     expect(find.text('&'), findsNWidgets(3));
-    expect(find.text('±\$0.25'), findsOneWidget);
+    expect(find.text('± \$0.25'), findsOneWidget);
     expect(find.byIcon(Icons.check_rounded), findsOneWidget);
 
     await tester.tap(
