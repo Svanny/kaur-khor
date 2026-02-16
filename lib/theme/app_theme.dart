@@ -150,7 +150,7 @@ class AppThemeTokens {
   static const double stockCounterPillPadY = sectionGapCompact;
   static const double stockStepperActionPadX = stockCounterPillPadX;
   static const double stockCardViewportWidthFactor = 0.95;
-  static const double stockCardViewportHeightFactor = 0.75;
+  static const double stockCardViewportHeightFactor = 0.85;
 
   // Component paddings
   static const double buttonPaddingX = space4;

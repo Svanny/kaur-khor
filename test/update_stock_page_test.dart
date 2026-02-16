@@ -107,8 +107,15 @@ void main() {
       find.byKey(const ValueKey('update-stock-increment-options')),
       findsOneWidget,
     );
+    expect(find.text('Small:'), findsOneWidget);
+    expect(find.text('±1'), findsOneWidget);
+    expect(find.text('&'), findsNWidgets(3));
+    expect(find.text('±\$0.25'), findsOneWidget);
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
 
-    await tester.tap(find.textContaining('Medium:'));
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-increment-row-medium')),
+    );
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('update-stock-increment-options')),

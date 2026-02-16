@@ -31,9 +31,25 @@ extension IncrementPresetValues on IncrementPreset {
 
   String get description {
     return switch (this) {
-      IncrementPreset.small => 'Count Increment 1; Cost increment 0.25 USD',
-      IncrementPreset.medium => 'Count Increment 5; Cost increment 0.5 USD',
-      IncrementPreset.big => 'Count Increment 20; Cost increment 1 USD',
+      IncrementPreset.small => '±1 and ±\$0.25',
+      IncrementPreset.medium => '±5 and ±\$0.50',
+      IncrementPreset.big => '±20 and ±\$1.00',
+    };
+  }
+
+  String get countStepLabel {
+    return switch (this) {
+      IncrementPreset.small => '±1',
+      IncrementPreset.medium => '±5',
+      IncrementPreset.big => '±20',
+    };
+  }
+
+  String get costStepLabel {
+    return switch (this) {
+      IncrementPreset.small => '±\$0.25',
+      IncrementPreset.medium => '±\$0.50',
+      IncrementPreset.big => '±\$1.00',
     };
   }
 }
@@ -452,22 +468,94 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       menuKey: const ValueKey('update-stock-increment-options'),
       value: _preset,
       options: IncrementPreset.values,
-      labelBuilder: (preset) => '${preset.label}: ${preset.description}',
+      minMenuWidth: AppThemeTokens.unit * 72,
+      maxMenuWidth: AppThemeTokens.unit * 72,
+      labelBuilder: (preset) =>
+          '${preset.label} ${preset.countStepLabel} and ${preset.costStepLabel}',
       menuXAlignment: AppDropdownXAlignment.center,
       menuYAlignment: AppDropdownYAlignment.top,
       onChanged: (preset) => setState(() => _preset = preset),
+      menuBuilder:
+          (
+            context,
+            width,
+            options,
+            selectedValue,
+            onSelected,
+            backgroundColor,
+            foregroundColor,
+          ) {
+            final dividerColor = foregroundColor.withValues(alpha: 0.28);
+            final activeRow = foregroundColor.withValues(alpha: 0.16);
+            return Container(
+              width: width,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(
+                  AppThemeTokens.radiusMd * 2,
+                ),
+                border: Border.all(color: dividerColor),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(
+                  AppThemeTokens.radiusMd * 2,
+                ),
+                child: Table(
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  columnWidths: const <int, TableColumnWidth>{
+                    0: FlexColumnWidth(1.7),
+                    1: FlexColumnWidth(0.95),
+                    2: FlexColumnWidth(0.55),
+                    3: FlexColumnWidth(1.3),
+                  },
+                  children: options
+                      .map((preset) {
+                        final isSelected = preset == selectedValue;
+                        return TableRow(
+                          decoration: BoxDecoration(
+                            color: isSelected ? activeRow : Colors.transparent,
+                          ),
+                          children: [
+                            _IncrementMenuCell(
+                              key: ValueKey(
+                                'update-stock-increment-row-${preset.name}',
+                              ),
+                              text: '${preset.label}:',
+                              textColor: foregroundColor,
+                              onTap: () => onSelected(preset),
+                            ),
+                            _IncrementMenuCell(
+                              text: preset.countStepLabel,
+                              textColor: foregroundColor,
+                              onTap: () => onSelected(preset),
+                            ),
+                            _IncrementMenuCell(
+                              text: '&',
+                              textColor: foregroundColor,
+                              onTap: () => onSelected(preset),
+                            ),
+                            _IncrementMenuCell(
+                              text: preset.costStepLabel,
+                              textColor: foregroundColor,
+                              showCheck: isSelected,
+                              onTap: () => onSelected(preset),
+                            ),
+                          ],
+                        );
+                      })
+                      .toList(growable: false),
+                ),
+              ),
+            );
+          },
       triggerBuilder: (context, isOpen, _) {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset(
-              'icons/steppers_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24 (1).svg',
-              width: AppThemeTokens.iconSizeMedium,
-              height: AppThemeTokens.iconSizeMedium,
-              colorFilter: const ColorFilter.mode(
-                AppThemeTokens.white,
-                BlendMode.srcIn,
-              ),
+            const Icon(
+              Icons.swap_vert_rounded,
+              size: AppThemeTokens.iconSizeMedium,
+              color: AppThemeTokens.white,
             ),
             const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
             Text(
@@ -565,6 +653,60 @@ class _ChangesTotalToggle extends StatelessWidget {
       onChanged: (index) =>
           onChanged(index == 1 ? StockInputMode.total : StockInputMode.changes),
       contentDrivenWidth: true,
+    );
+  }
+}
+
+class _IncrementMenuCell extends StatelessWidget {
+  const _IncrementMenuCell({
+    required this.text,
+    required this.textColor,
+    required this.onTap,
+    this.showCheck = false,
+    super.key,
+  });
+
+  final String text;
+  final Color textColor;
+  final VoidCallback onTap;
+  final bool showCheck;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppThemeTokens.space2,
+          vertical: AppThemeTokens.dropdownOptionPadY,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Expanded(
+              child: Text(
+                text,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.left,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: textColor,
+                  fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+                ),
+              ),
+            ),
+            if (showCheck) ...[
+              const SizedBox(width: AppThemeTokens.space1),
+              Icon(
+                Icons.check_rounded,
+                size: AppThemeTokens.iconSizeMedium * 0.75,
+                color: textColor,
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

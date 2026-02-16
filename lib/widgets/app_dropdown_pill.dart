@@ -8,6 +8,17 @@ import '../theme/app_theme.dart';
 typedef AppDropdownTriggerBuilder<T> =
     Widget Function(BuildContext context, bool isOpen, T value);
 
+typedef AppDropdownMenuBuilder<T> =
+    Widget Function(
+      BuildContext context,
+      double width,
+      List<T> options,
+      T selectedValue,
+      ValueChanged<T> onSelected,
+      Color backgroundColor,
+      Color foregroundColor,
+    );
+
 enum AppDropdownXAlignment { left, center, right }
 
 enum AppDropdownYAlignment { top, bottom }
@@ -22,6 +33,7 @@ class AppDropdownPill<T> extends StatefulWidget {
     this.triggerKey,
     this.menuKey,
     this.triggerBuilder,
+    this.menuBuilder,
     this.menuXAlignment = AppDropdownXAlignment.right,
     this.menuYAlignment = AppDropdownYAlignment.bottom,
     this.minMenuWidth = 100,
@@ -38,6 +50,7 @@ class AppDropdownPill<T> extends StatefulWidget {
   final Key? triggerKey;
   final Key? menuKey;
   final AppDropdownTriggerBuilder<T>? triggerBuilder;
+  final AppDropdownMenuBuilder<T>? menuBuilder;
   final AppDropdownXAlignment menuXAlignment;
   final AppDropdownYAlignment menuYAlignment;
   final double minMenuWidth;
@@ -109,12 +122,13 @@ class _AppDropdownPillState<T> extends State<AppDropdownPill<T>>
     );
     final defaultMaxMenuWidth =
         MediaQuery.sizeOf(context).width - (AppThemeTokens.space4 * 2);
-    final constrainedMaxWidth = math.max(
+    final constrainedMaxWidth = widget.maxMenuWidth ?? defaultMaxMenuWidth;
+    final constrainedMinWidth = math.min(
       widget.minMenuWidth,
-      widget.maxMenuWidth ?? defaultMaxMenuWidth,
+      constrainedMaxWidth,
     );
     _menuWidth = unconstrainedWidth
-        .clamp(widget.minMenuWidth, constrainedMaxWidth)
+        .clamp(constrainedMinWidth, constrainedMaxWidth)
         .toDouble();
 
     final xAlignment = _xAlignmentValue(widget.menuXAlignment);
@@ -162,18 +176,33 @@ class _AppDropdownPillState<T> extends State<AppDropdownPill<T>>
                           widget.menuYAlignment == AppDropdownYAlignment.top
                           ? 1
                           : -1,
-                      child: _AppDropdownMenuPanel<T>(
+                      child: KeyedSubtree(
                         key: widget.menuKey,
-                        width: _menuWidth,
-                        backgroundColor: widget.menuBackgroundColor,
-                        foregroundColor: widget.foregroundColor,
-                        options: widget.options,
-                        selectedValue: widget.value,
-                        labelBuilder: widget.labelBuilder,
-                        onSelected: (value) {
-                          widget.onChanged(value);
-                          _closeDropdown();
-                        },
+                        child:
+                            widget.menuBuilder?.call(
+                              context,
+                              _menuWidth,
+                              widget.options,
+                              widget.value,
+                              (value) {
+                                widget.onChanged(value);
+                                _closeDropdown();
+                              },
+                              widget.menuBackgroundColor,
+                              widget.foregroundColor,
+                            ) ??
+                            _AppDropdownMenuPanel<T>(
+                              width: _menuWidth,
+                              backgroundColor: widget.menuBackgroundColor,
+                              foregroundColor: widget.foregroundColor,
+                              options: widget.options,
+                              selectedValue: widget.value,
+                              labelBuilder: widget.labelBuilder,
+                              onSelected: (value) {
+                                widget.onChanged(value);
+                                _closeDropdown();
+                              },
+                            ),
                       ),
                     ),
                   ),
@@ -344,7 +373,6 @@ class _AppDropdownMenuPanel<T> extends StatelessWidget {
     required this.selectedValue,
     required this.labelBuilder,
     required this.onSelected,
-    super.key,
   });
 
   final double width;
