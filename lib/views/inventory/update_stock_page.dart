@@ -289,128 +289,19 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           _showConfirmationCard = true;
         });
       },
-      frontCardBuilder: (context, index) => _buildSkuCard(
-        key: ValueKey('update-stock-sku-card-$index'),
-        sku: _sourceSkus[index],
-        draft: _drafts[index],
-        currencyCode: currencyCode,
-      ),
-      previewCardBuilder: (context, index) => _buildSkuCardPreview(
-        key: ValueKey('update-stock-sku-card-preview-$index'),
-        sku: _sourceSkus[index],
-        draft: _drafts[index],
-        currencyCode: currencyCode,
-      ),
+      cardBuilder: (context, index) {
+        final keyNamespace = index == _selectedSkuIndex ? null : 'stack-$index';
+        return _buildSkuCard(
+          key: ValueKey('update-stock-sku-card-$index'),
+          keyNamespace: keyNamespace,
+          sku: _sourceSkus[index],
+          draft: _drafts[index],
+          currencyCode: currencyCode,
+        );
+      },
       preloadKeyPrefix: 'update-stock-preload-sku-card-',
-      previewKeyPrefix: 'update-stock-sku-card-preview-',
+      stackCardKeyPrefix: 'update-stock-sku-card-stack-',
       downOverlayKeyPrefix: 'update-stock-down-restore-overlay-',
-    );
-  }
-
-  Widget _buildSkuCardPreview({
-    required Key key,
-    required SkuItem sku,
-    required StockDraft draft,
-    required String currencyCode,
-  }) {
-    return Card(
-      key: key,
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(AppThemeTokens.stockCardInset),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppThemeTokens.accentDarker,
-                  borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-                ),
-                child: Center(
-                  child: _ItemPictureGlyph(
-                    sku.itemPictureIcon,
-                    fill: true,
-                    color: AppThemeTokens.white,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(
-              height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
-            ),
-            Text(
-              sku.name,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
-              ),
-            ),
-            const SizedBox(height: AppThemeTokens.sectionGapCompact),
-            Text(
-              _currencyLabel(
-                draft.effectiveTotalValue,
-                currencyCode: currencyCode,
-              ),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(
-              height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
-            ),
-            _buildStaticStepperPreview(
-              value: _mode == StockInputMode.changes
-                  ? _signedNumber(draft.countDelta)
-                  : _formatNumber(draft.effectiveCount),
-            ),
-            const SizedBox(
-              height:
-                  AppThemeTokens.sectionGapCompact + (AppThemeTokens.unit * 2),
-            ),
-            _buildStaticStepperPreview(
-              value: _mode == StockInputMode.changes
-                  ? _unsignedCostLabel(
-                      draft.costDelta,
-                      currencyCode: currencyCode,
-                    )
-                  : _currencyLabel(
-                      draft.effectiveUnitCost,
-                      currencyCode: currencyCode,
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStaticStepperPreview({
-    required String value,
-  }) {
-    return Container(
-      height: AppThemeTokens.stockStepActionHeight,
-      constraints: const BoxConstraints(
-        minWidth: AppThemeTokens.stockStepperValueMinWidth,
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppThemeTokens.togglePillLabelPadX,
-      ),
-      decoration: BoxDecoration(
-        color: AppThemeTokens.disabledBackground,
-        borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-      ),
-      child: Center(
-        child: Text(
-          value,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            fontSize: AppThemeTokens.fontSizeBodyLarge + AppThemeTokens.unit,
-            height: 1.0,
-            fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-            color: AppThemeTokens.textPrimary,
-          ),
-        ),
-      ),
     );
   }
 
@@ -450,6 +341,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
   Widget _buildSkuCard({
     required Key key,
+    required String? keyNamespace,
     required SkuItem sku,
     required StockDraft draft,
     required String currencyCode,
@@ -495,17 +387,23 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             const SizedBox(
               height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
             ),
-            _buildSkuTitleRow(sku.name),
+            _buildSkuTitleRow(sku.name, keyNamespace: keyNamespace),
             _CenteredTrendText(
               text: _currencyLabel(
                 draft.effectiveTotalValue,
                 currencyCode: currencyCode,
               ),
-              textKey: const ValueKey('update-stock-total-value'),
+              textKey: _deckElementKey(
+                'update-stock-total-value',
+                keyNamespace: keyNamespace,
+              ),
               style: totalValueStyle,
               trendDirection: totalTrendDirection,
               trendAnimationDuration: _trendAnimationDuration,
-              trendKeyPrefix: 'update-stock-total-value-trend',
+              trendKeyPrefix: _deckElementKeyPrefix(
+                'update-stock-total-value-trend',
+                keyNamespace: keyNamespace,
+              ),
             ),
             const SizedBox(
               height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
@@ -513,13 +411,27 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             _StockStepper(
               label: 'Count',
               labelIconAsset: _package2SvgAsset,
-              labelIconKey: const ValueKey('update-stock-count-label-icon'),
-              valueKey: const ValueKey('update-stock-count-value'),
-              valueContainerKey: const ValueKey(
-                'update-stock-count-value-pill',
+              keyNamespace: keyNamespace,
+              labelIconKey: _deckElementKey(
+                'update-stock-count-label-icon',
+                keyNamespace: keyNamespace,
               ),
-              decrementKey: const ValueKey('update-stock-count-decrement'),
-              incrementKey: const ValueKey('update-stock-count-increment'),
+              valueKey: _deckElementKey(
+                'update-stock-count-value',
+                keyNamespace: keyNamespace,
+              ),
+              valueContainerKey: _deckElementKey(
+                'update-stock-count-value-pill',
+                keyNamespace: keyNamespace,
+              ),
+              decrementKey: _deckElementKey(
+                'update-stock-count-decrement',
+                keyNamespace: keyNamespace,
+              ),
+              incrementKey: _deckElementKey(
+                'update-stock-count-increment',
+                keyNamespace: keyNamespace,
+              ),
               trendDirection: countTrendDirection,
               trendAnimationDuration: _trendAnimationDuration,
               value: _mode == StockInputMode.changes
@@ -547,11 +459,27 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             _StockStepper(
               label: 'Cost',
               labelIconAsset: _paymentsSvgAsset,
-              labelIconKey: const ValueKey('update-stock-cost-label-icon'),
-              valueKey: const ValueKey('update-stock-cost-value'),
-              valueContainerKey: const ValueKey('update-stock-cost-value-pill'),
-              decrementKey: const ValueKey('update-stock-cost-decrement'),
-              incrementKey: const ValueKey('update-stock-cost-increment'),
+              keyNamespace: keyNamespace,
+              labelIconKey: _deckElementKey(
+                'update-stock-cost-label-icon',
+                keyNamespace: keyNamespace,
+              ),
+              valueKey: _deckElementKey(
+                'update-stock-cost-value',
+                keyNamespace: keyNamespace,
+              ),
+              valueContainerKey: _deckElementKey(
+                'update-stock-cost-value-pill',
+                keyNamespace: keyNamespace,
+              ),
+              decrementKey: _deckElementKey(
+                'update-stock-cost-decrement',
+                keyNamespace: keyNamespace,
+              ),
+              incrementKey: _deckElementKey(
+                'update-stock-cost-increment',
+                keyNamespace: keyNamespace,
+              ),
               trendDirection: costTrendDirection,
               trendAnimationDuration: _trendAnimationDuration,
               actionsEnabled: !isCostInputDisabled,
@@ -588,7 +516,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     );
   }
 
-  Widget _buildSkuTitleRow(String title) {
+  Widget _buildSkuTitleRow(String title, {required String? keyNamespace}) {
     const actionSlotWidth = kMinInteractiveDimension;
     final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
@@ -631,7 +559,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 child: SizedBox(
                   width: actionSlotWidth,
                   child: IconButton(
-                    key: const ValueKey('update-stock-reset-current'),
+                    key: _deckElementKey(
+                      'update-stock-reset-current',
+                      keyNamespace: keyNamespace,
+                    ),
                     tooltip: 'Reset changes',
                     padding: EdgeInsets.zero,
                     alignment: Alignment.center,
@@ -1057,6 +988,14 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     return textPainter.width;
   }
 
+  Key _deckElementKey(String base, {required String? keyNamespace}) {
+    return ValueKey(_deckElementKeyPrefix(base, keyNamespace: keyNamespace));
+  }
+
+  String _deckElementKeyPrefix(String base, {required String? keyNamespace}) {
+    return keyNamespace == null ? base : '$base-$keyNamespace';
+  }
+
   void _onVerticalDragEnd(DragEndDetails details) {
     if (!_showConfirmationCard) {
       return;
@@ -1218,6 +1157,7 @@ class _IncrementSeparatorPainter extends CustomPainter {
 class _StockStepper extends StatelessWidget {
   const _StockStepper({
     required this.label,
+    required this.keyNamespace,
     this.labelIconAsset,
     this.labelIconKey,
     required this.valueKey,
@@ -1234,6 +1174,7 @@ class _StockStepper extends StatelessWidget {
   });
 
   final String label;
+  final String? keyNamespace;
   final String? labelIconAsset;
   final Key? labelIconKey;
   final Key valueKey;
@@ -1331,16 +1272,22 @@ class _StockStepper extends StatelessWidget {
       'Cost' => 'update-stock-cost-label-trend',
       _ => 'update-stock-stepper-label-trend',
     };
+    final namespacedLabelTrendKeyPrefix = keyNamespace == null
+        ? labelTrendKeyPrefix
+        : '$labelTrendKeyPrefix-$keyNamespace';
+    final labelTextKey = keyNamespace == null
+        ? ValueKey('update-stock-${label.toLowerCase()}-label')
+        : ValueKey('update-stock-${label.toLowerCase()}-label-$keyNamespace');
 
     return Column(
       children: [
         _CenteredTrendText(
           text: label,
-          textKey: ValueKey('update-stock-${label.toLowerCase()}-label'),
+          textKey: labelTextKey,
           style: labelStyle,
           trendDirection: trendDirection,
           trendAnimationDuration: trendAnimationDuration,
-          trendKeyPrefix: labelTrendKeyPrefix,
+          trendKeyPrefix: namespacedLabelTrendKeyPrefix,
           labelIconAsset: labelIconAsset,
           labelIconKey: labelIconKey,
           centerText: true,
@@ -1397,17 +1344,20 @@ class _CenteredTrendText extends StatelessWidget {
     );
 
     if (labelIconAsset != null) {
-      return _FieldLabel(
-        label: text,
-        iconAsset: labelIconAsset,
-        iconKey: labelIconKey,
-        centerText: centerText,
-        textStyle: resolvedStyle,
-        trailing: _AnimatedTrendIndicator(
-          direction: trendDirection,
-          size: trendIconSize,
-          animationDuration: trendAnimationDuration,
-          keyPrefix: trendKeyPrefix,
+      return KeyedSubtree(
+        key: textKey,
+        child: _FieldLabel(
+          label: text,
+          iconAsset: labelIconAsset,
+          iconKey: labelIconKey,
+          centerText: centerText,
+          textStyle: resolvedStyle,
+          trailing: _AnimatedTrendIndicator(
+            direction: trendDirection,
+            size: trendIconSize,
+            animationDuration: trendAnimationDuration,
+            keyPrefix: trendKeyPrefix,
+          ),
         ),
       );
     }

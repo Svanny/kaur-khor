@@ -7,15 +7,14 @@ class UpdateStockCardDeck extends StatefulWidget {
   const UpdateStockCardDeck({
     required this.cardsCount,
     required this.currentIndex,
-    required this.frontCardBuilder,
-    required this.previewCardBuilder,
+    required this.cardBuilder,
     required this.onCurrentIndexChanged,
     required this.onReachedEndForward,
     required this.animationDuration,
     required this.swiperKey,
     this.maxStackCards = 3,
     this.preloadKeyPrefix = 'update-stock-preload-sku-card-',
-    this.previewKeyPrefix = 'update-stock-sku-card-preview-',
+    this.stackCardKeyPrefix = 'update-stock-sku-card-stack-',
     this.downOverlayKeyPrefix = 'update-stock-down-restore-overlay-',
     this.downBackEjectKeyPrefix = 'update-stock-down-back-eject-overlay-',
     this.backfillKeyPrefix = 'update-stock-backfill-preview-',
@@ -24,15 +23,14 @@ class UpdateStockCardDeck extends StatefulWidget {
 
   final int cardsCount;
   final int currentIndex;
-  final IndexedWidgetBuilder frontCardBuilder;
-  final IndexedWidgetBuilder previewCardBuilder;
+  final IndexedWidgetBuilder cardBuilder;
   final ValueChanged<int> onCurrentIndexChanged;
   final VoidCallback onReachedEndForward;
   final Duration animationDuration;
   final int maxStackCards;
   final Key swiperKey;
   final String preloadKeyPrefix;
-  final String previewKeyPrefix;
+  final String stackCardKeyPrefix;
   final String downOverlayKeyPrefix;
   final String downBackEjectKeyPrefix;
   final String backfillKeyPrefix;
@@ -197,13 +195,17 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
       );
       return Opacity(
         opacity: opacity,
-        child: widget.frontCardBuilder(context, index),
+        child: widget.cardBuilder(context, index),
       );
     }
 
-    final preview = KeyedSubtree(
-      key: ValueKey('${widget.previewKeyPrefix}$index-g$_previewGeneration'),
-      child: widget.previewCardBuilder(context, index),
+    final preview = IgnorePointer(
+      child: KeyedSubtree(
+        key: ValueKey(
+          '${widget.stackCardKeyPrefix}$index-g$_previewGeneration',
+        ),
+        child: widget.cardBuilder(context, index),
+      ),
     );
 
     if (_backfillPreviewIndex != index) {
@@ -272,7 +274,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
           ),
         );
       },
-      child: widget.frontCardBuilder(context, index),
+      child: widget.cardBuilder(context, index),
     );
   }
 
@@ -300,7 +302,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
           ),
         );
       },
-      child: widget.previewCardBuilder(context, index),
+      child: widget.cardBuilder(context, index),
     );
   }
 
@@ -336,7 +338,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
               offstage: true,
               child: RepaintBoundary(
                 key: ValueKey('${widget.preloadKeyPrefix}$index'),
-                child: widget.frontCardBuilder(context, index),
+                child: widget.cardBuilder(context, index),
               ),
             ),
         ],

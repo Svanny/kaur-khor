@@ -460,11 +460,15 @@ class _AdaptiveCurrencyReadOnlyField extends StatelessWidget {
     required this.label,
     required this.value,
     required this.currencyCode,
+    this.labelIconAsset,
+    this.labelIconKey,
   });
 
   final String label;
   final num value;
   final String currencyCode;
+  final String? labelIconAsset;
+  final Key? labelIconKey;
 
   @override
   Widget build(BuildContext context) {
@@ -480,7 +484,11 @@ class _AdaptiveCurrencyReadOnlyField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _FieldLabel(label: label),
+        _FieldLabel(
+          label: label,
+          iconAsset: labelIconAsset,
+          iconKey: labelIconKey,
+        ),
         const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         LayoutBuilder(
           builder: (context, constraints) {

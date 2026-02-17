@@ -338,6 +338,10 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                       builder: (_, currency, __) {
                         return _AdaptiveCurrencyReadOnlyField(
                           label: 'Total Value',
+                          labelIconAsset: _showChartSvgAsset,
+                          labelIconKey: const ValueKey(
+                            'sku-total-value-label-icon',
+                          ),
                           value: total,
                           currencyCode: currency.code,
                         );
@@ -350,9 +354,15 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                         key: _soldAsProductRowKey,
                         children: [
                           Expanded(
-                            child: Text(
-                              'Sold as a Product',
-                              style: Theme.of(context).textTheme.titleMedium,
+                            child: _FieldLabel(
+                              label: 'Sold as a Product',
+                              iconAsset: _shoppingBagSvgAsset,
+                              iconKey: const ValueKey(
+                                'sku-sold-as-product-label-icon',
+                              ),
+                              textStyle: Theme.of(
+                                context,
+                              ).textTheme.titleMedium,
                             ),
                           ),
                           const SizedBox(

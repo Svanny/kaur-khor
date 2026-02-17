@@ -179,7 +179,7 @@ void main() {
   );
 
   testWidgets(
-    'card stack shows two preview cards beneath active and hides on confirmation',
+    'card stack shows two draggable item cards beneath active and hides on confirmation',
     (WidgetTester tester) async {
       await pumpUpdateStockPage(tester);
 
@@ -187,13 +187,13 @@ void main() {
         const ValueKey('update-stock-sku-card-0'),
       );
       final secondCardFinder = find.byKey(
-        const ValueKey('update-stock-sku-card-preview-1'),
+        const ValueKey('update-stock-sku-card-1'),
       );
       final thirdCardFinder = find.byKey(
-        const ValueKey('update-stock-sku-card-preview-2'),
+        const ValueKey('update-stock-sku-card-2'),
       );
       final fourthCardFinder = find.byKey(
-        const ValueKey('update-stock-sku-card-preview-3'),
+        const ValueKey('update-stock-sku-card-3'),
       );
 
       expect(secondCardFinder, findsOneWidget);
@@ -874,8 +874,18 @@ void main() {
     final costValueTextRect = tester.getRect(
       find.byKey(const ValueKey('update-stock-cost-value')),
     );
-    final countLabelRect = tester.getRect(find.text('Count'));
-    final costLabelRect = tester.getRect(find.text('Cost'));
+    final countLabelRect = tester.getRect(
+      find.descendant(
+        of: find.byKey(const ValueKey('update-stock-count-label')),
+        matching: find.text('Count'),
+      ),
+    );
+    final costLabelRect = tester.getRect(
+      find.descendant(
+        of: find.byKey(const ValueKey('update-stock-cost-label')),
+        matching: find.text('Cost'),
+      ),
+    );
     final countLabelIconRect = tester.getRect(countLabelIconFinder);
     final costLabelIconRect = tester.getRect(costLabelIconFinder);
     expect(

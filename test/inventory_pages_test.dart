@@ -381,6 +381,28 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is SvgPicture &&
+            widget.key == const ValueKey('sku-total-value-label-icon') &&
+            widget.bytesLoader is SvgAssetLoader &&
+            (widget.bytesLoader as SvgAssetLoader).assetName ==
+                'icons/show_chart_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SvgPicture &&
+            widget.key == const ValueKey('sku-sold-as-product-label-icon') &&
+            widget.bytesLoader is SvgAssetLoader &&
+            (widget.bytesLoader as SvgAssetLoader).assetName ==
+                'icons/shopping_bag_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SvgPicture &&
             widget.key == const ValueKey('sku-name-label-icon') &&
             widget.bytesLoader is SvgAssetLoader &&
             (widget.bytesLoader as SvgAssetLoader).assetName ==

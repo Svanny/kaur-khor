@@ -41,9 +41,9 @@ void main() {
     await pumpDeckHarness(tester, cardsCount: 6);
 
     expect(find.byKey(const ValueKey('front-0')), findsOneWidget);
-    expect(find.byKey(const ValueKey('preview-1')), findsOneWidget);
-    expect(find.byKey(const ValueKey('preview-2')), findsOneWidget);
-    expect(find.byKey(const ValueKey('preview-3')), findsNothing);
+    expect(find.byKey(const ValueKey('front-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('front-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('front-3')), findsNothing);
   });
 
   testWidgets(
@@ -248,8 +248,8 @@ void main() {
       await pumpDeckHarness(tester, cardsCount: 2);
 
       expect(find.byKey(const ValueKey('front-0')), findsOneWidget);
-      expect(find.byKey(const ValueKey('preview-1')), findsOneWidget);
-      expect(find.byKey(const ValueKey('preview-2')), findsNothing);
+      expect(find.byKey(const ValueKey('front-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('front-2')), findsNothing);
 
       expect(
         find.byKey(const ValueKey('preload-0'), skipOffstage: false),
@@ -304,7 +304,7 @@ class _DeckHarnessState extends State<_DeckHarness> {
               animationDuration: const Duration(milliseconds: 220),
               maxStackCards: widget.maxStackCards,
               preloadKeyPrefix: 'preload-',
-              previewKeyPrefix: 'preview-',
+              stackCardKeyPrefix: 'stack-',
               downOverlayKeyPrefix: 'overlay-',
               downBackEjectKeyPrefix: 'eject-',
               backfillKeyPrefix: 'backfill-',
@@ -314,17 +314,11 @@ class _DeckHarnessState extends State<_DeckHarness> {
               onReachedEndForward: () {
                 setState(() => _endCount += 1);
               },
-              frontCardBuilder: (context, index) => Container(
+              cardBuilder: (context, index) => Container(
                 key: ValueKey('front-$index'),
                 color: Colors.blueGrey,
                 alignment: Alignment.center,
                 child: Text('front-$index'),
-              ),
-              previewCardBuilder: (context, index) => Container(
-                key: ValueKey('preview-$index'),
-                color: Colors.grey,
-                alignment: Alignment.center,
-                child: Text('preview-$index'),
               ),
             ),
           ),
