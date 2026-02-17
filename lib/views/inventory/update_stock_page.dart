@@ -155,6 +155,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
   StockInputMode _mode = StockInputMode.changes;
   IncrementPreset _preset = IncrementPreset.small;
+  IncrementPreset _displayedPreset = IncrementPreset.small;
+  Timer? _incrementLabelSwapTimer;
+  int _incrementLabelSwapGeneration = 0;
   int _selectedSkuIndex = 0;
   bool _showConfirmationCard = false;
 
@@ -168,6 +171,12 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     _sourceSkus = _inventoryController.value.skus;
     _drafts = _sourceSkus.map(StockDraft.fromSku).toList(growable: false);
     _initialized = true;
+  }
+
+  @override
+  void dispose() {
+    _incrementLabelSwapTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -197,7 +206,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                           children: [
                             Text(
                               "SKUs' Stock Update",
-                              style: Theme.of(context).textTheme.titleMedium
+                              style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     fontWeight: _fontWeight(
                                       AppThemeTokens.fontWeightBold,
@@ -410,7 +419,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               ),
             ),
             const SizedBox(
-              height: AppThemeTokens.sectionGapCompact + AppThemeTokens.unit,
+              height:
+                  AppThemeTokens.sectionGapCompact +
+                  (AppThemeTokens.unit * 2),
             ),
             _StockStepper(
               label: 'Cost',
@@ -589,7 +600,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           '${preset.label} ${preset.countStepLabel} and ${preset.costStepLabel}',
       menuXAlignment: AppDropdownXAlignment.center,
       menuYAlignment: AppDropdownYAlignment.top,
-      onChanged: (preset) => setState(() => _preset = preset),
+      onChanged: (preset) => _onIncrementPresetChanged(context, preset),
       menuBuilder:
           (
             context,
@@ -700,32 +711,86 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             );
           },
       triggerBuilder: (context, isOpen, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.swap_vert_rounded,
-              size: AppThemeTokens.iconSizeMedium,
-              color: AppThemeTokens.white,
-            ),
-            const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
-            Text(
-              'Increments \u00B7 ${_preset.label}',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white),
-            ),
-            const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
-            AnimatedRotation(
-              turns: isOpen ? 0.5 : 0,
+        final textStyle = Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white);
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final targetWidth = _incrementTriggerContentWidth(
+              context: context,
+              preset: _preset,
+              textStyle: textStyle,
+            );
+            final maxWidth = constraints.hasBoundedWidth
+                ? constraints.maxWidth
+                : targetWidth;
+            final clampedWidth = math.min(targetWidth, maxWidth);
+            return AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
-              child: const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: AppThemeTokens.white,
+              width: clampedWidth,
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  const Icon(
+                    Icons.swap_vert_rounded,
+                    size: AppThemeTokens.iconSizeMedium,
+                    color: AppThemeTokens.white,
+                  ),
+                  const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 140),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      layoutBuilder: (currentChild, previousChildren) {
+                        return Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            ...previousChildren,
+                            if (currentChild != null) currentChild,
+                          ],
+                        );
+                      },
+                      transitionBuilder: (child, animation) {
+                        final offsetAnimation = Tween<Offset>(
+                          begin: const Offset(0, 0.12),
+                          end: Offset.zero,
+                        ).animate(animation);
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: offsetAnimation,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        'Increments \u00B7 ${_displayedPreset.label}',
+                        key: ValueKey(_displayedPreset),
+                        style: textStyle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
+                  AnimatedRotation(
+                    turns: isOpen ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: AppThemeTokens.iconSizeMedium,
+                      color: AppThemeTokens.white,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -768,6 +833,64 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           cellHorizontalPadding +
           checkAreaWidth,
     ];
+  }
+
+  double _incrementTriggerContentWidth({
+    required BuildContext context,
+    required IncrementPreset preset,
+    TextStyle? textStyle,
+  }) {
+    final resolvedTextStyle =
+        textStyle ??
+        Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white) ??
+        const TextStyle(fontSize: AppThemeTokens.fontSizeBodyLarge);
+    final textScaler = MediaQuery.textScalerOf(context);
+    final textDirection = Directionality.of(context);
+    final labelWidth = _measureTextWidth(
+      text: 'Increments \u00B7 ${preset.label}',
+      textStyle: resolvedTextStyle,
+      textScaler: textScaler,
+      textDirection: textDirection,
+    );
+    return labelWidth +
+        (AppThemeTokens.iconSizeMedium * 2) +
+        (AppThemeTokens.dropdownToggleIconGap * 2);
+  }
+
+  void _onIncrementPresetChanged(BuildContext context, IncrementPreset preset) {
+    if (preset == _preset) {
+      return;
+    }
+
+    _incrementLabelSwapTimer?.cancel();
+    final generation = ++_incrementLabelSwapGeneration;
+    final currentWidth = _incrementTriggerContentWidth(
+      context: context,
+      preset: _preset,
+    );
+    final nextWidth = _incrementTriggerContentWidth(
+      context: context,
+      preset: preset,
+    );
+    final shouldDelayLabelSwap = nextWidth > currentWidth;
+
+    setState(() {
+      _preset = preset;
+      if (!shouldDelayLabelSwap) {
+        _displayedPreset = preset;
+      }
+    });
+
+    if (shouldDelayLabelSwap) {
+      _incrementLabelSwapTimer = Timer(const Duration(milliseconds: 180), () {
+        if (!mounted || generation != _incrementLabelSwapGeneration) {
+          return;
+        }
+        setState(() => _displayedPreset = preset);
+      });
+    }
   }
 
   List<double> _resolveIncrementColumnWidths({
@@ -1055,7 +1178,7 @@ class _StockStepper extends StatelessWidget {
                 minWidth: AppThemeTokens.stockStepperValueMinWidth,
               ),
               padding: const EdgeInsets.symmetric(
-                horizontal: AppThemeTokens.stockCounterPillPadX,
+                horizontal: AppThemeTokens.togglePillLabelPadX,
               ),
               decoration: BoxDecoration(
                 color: actionsEnabled
@@ -1125,7 +1248,9 @@ class _StockStepper extends StatelessWidget {
           labelIconKey: labelIconKey,
           centerText: true,
         ),
-        const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
+        const SizedBox(
+          height: AppThemeTokens.fieldLabelToControlGap + AppThemeTokens.unit,
+        ),
         Align(alignment: Alignment.center, child: trackWithTooltip),
       ],
     );

@@ -256,6 +256,24 @@ void main() {
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
+    final triggerFinder = find.byKey(
+      const ValueKey('update-stock-increment-toggle'),
+    );
+    final initialTriggerWidth = tester.getSize(triggerFinder).width;
+    expect(
+      find.descendant(
+        of: triggerFinder,
+        matching: find.byType(AnimatedContainer),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: triggerFinder,
+        matching: find.byType(AnimatedSwitcher),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(
       find.byKey(const ValueKey('update-stock-increment-toggle')),
@@ -318,10 +336,36 @@ void main() {
       find.byKey(const ValueKey('update-stock-increment-row-medium')),
     );
     await tester.pumpAndSettle();
+    final mediumTriggerWidth = tester.getSize(triggerFinder).width;
     expect(
       find.byKey(const ValueKey('update-stock-increment-options')),
       findsNothing,
     );
+    expect(mediumTriggerWidth, greaterThan(initialTriggerWidth));
+
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-increment-toggle')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-increment-row-big')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Increments · Big'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-increment-toggle')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-increment-row-medium')),
+    );
+    await tester.pump();
+    expect(find.text('Increments · Big'), findsOneWidget);
+    expect(find.text('Increments · Medium'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 180));
+    expect(find.text('Increments · Medium'), findsOneWidget);
+    await tester.pumpAndSettle();
 
     await tester.tap(
       find.byKey(const ValueKey('update-stock-count-increment')),
@@ -332,6 +376,17 @@ void main() {
       find.byKey(const ValueKey('update-stock-count-value')),
     );
     expect(countValue.data, '+5');
+
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-increment-toggle')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-increment-row-small')),
+    );
+    await tester.pumpAndSettle();
+    final finalSmallTriggerWidth = tester.getSize(triggerFinder).width;
+    expect(finalSmallTriggerWidth, lessThan(mediumTriggerWidth));
   });
 
   testWidgets('changes and total toggle preserves same state', (
