@@ -19,6 +19,7 @@ class UpdateStockCardDeck extends StatefulWidget {
     this.downBackEjectKeyPrefix = 'update-stock-down-back-eject-overlay-',
     this.backfillKeyPrefix = 'update-stock-backfill-preview-',
     this.boundaryFogOffsetFromDeckTop = 0,
+    this.boundaryFogEndOffsetFromDeckTop,
     super.key,
   });
 
@@ -36,6 +37,7 @@ class UpdateStockCardDeck extends StatefulWidget {
   final String downBackEjectKeyPrefix;
   final String backfillKeyPrefix;
   final double boundaryFogOffsetFromDeckTop;
+  final double? boundaryFogEndOffsetFromDeckTop;
 
   @override
   State<UpdateStockCardDeck> createState() => _UpdateStockCardDeckState();
@@ -260,15 +262,26 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     }
 
     final dragOffsetY = (verticalOffsetPercentage * _swipeThreshold) / 100;
-    final fogBoundaryY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
-    if (fogBoundaryY <= 0 && !_holdBoundaryFogForSwipeOut) {
-      return child;
+    late final double fogStartY;
+    late final double fogEndY;
+
+    if (widget.boundaryFogEndOffsetFromDeckTop case final fogEndOffset?) {
+      fogStartY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
+      fogEndY = fogEndOffset - dragOffsetY;
+      if (math.max(fogStartY, fogEndY) <= 0 && !_holdBoundaryFogForSwipeOut) {
+        return child;
+      }
+    } else {
+      fogStartY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
+      if (fogStartY <= 0 && !_holdBoundaryFogForSwipeOut) {
+        return child;
+      }
+      fogEndY = fogStartY + _boundaryFogTransitionHeight;
     }
 
-    final fogColor = Theme.of(context).scaffoldBackgroundColor;
     return ShaderMask(
       key: const ValueKey('update-stock-boundary-fog-mask'),
-      blendMode: BlendMode.srcATop,
+      blendMode: BlendMode.dstIn,
       shaderCallback: (Rect rect) {
         if (rect.height <= 0) {
           return const LinearGradient(
@@ -276,26 +289,22 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
           ).createShader(rect);
         }
 
-        final start = (fogBoundaryY / rect.height).clamp(0.0, 1.0).toDouble();
-        final end =
-            ((fogBoundaryY + _boundaryFogTransitionHeight) / rect.height)
-                .clamp(0.0, 1.0)
-                .toDouble();
-        final fogStrength = math.max(
-          (fogBoundaryY / _boundaryFogTransitionHeight)
-              .clamp(0.0, 1.0)
-              .toDouble(),
-          _holdBoundaryFogForSwipeOut ? 1.0 : 0.0,
-        );
+        final minStop = math.min(fogStartY, fogEndY);
+        final maxStop = math.max(fogStartY, fogEndY);
+        final start = (minStop / rect.height).clamp(0.0, 1.0).toDouble();
+        var end = (maxStop / rect.height).clamp(0.0, 1.0).toDouble();
+        if (end <= start) {
+          end = (start + 0.001).clamp(0.0, 1.0).toDouble();
+        }
 
         return LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            fogColor.withValues(alpha: 0.94 * fogStrength),
-            fogColor.withValues(alpha: 0.62 * fogStrength),
             Colors.transparent,
             Colors.transparent,
+            Colors.white,
+            Colors.white,
           ],
           stops: <double>[0, start, end, 1],
         ).createShader(rect);

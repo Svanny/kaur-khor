@@ -617,10 +617,20 @@ void main() {
     await tester.enterText(countValueFinder, '999999999999');
     await tester.tap(find.text("SKUs' Stock Update"));
     await tester.pumpAndSettle();
+    expect(find.text('Change is too high!'), findsOneWidget);
     expect(
       stepperValueText(tester, 'update-stock-count-value'),
       equals('1000000'),
     );
+    final highWarningTooltip = tester.widget<Tooltip>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip && widget.message == 'Change is too high!',
+      ),
+    );
+    final highWarningDecoration =
+        highWarningTooltip.decoration as BoxDecoration?;
+    expect(highWarningDecoration?.color, equals(AppThemeTokens.warning));
 
     final costValueFinder = find.byKey(
       const ValueKey('update-stock-cost-value'),
@@ -630,10 +640,37 @@ void main() {
     await tester.enterText(costValueFinder, '999999999999');
     await tester.tap(find.text("SKUs' Stock Update"));
     await tester.pumpAndSettle();
+    expect(find.text('Change is too high!'), findsOneWidget);
     expect(
       stepperValueText(tester, 'update-stock-cost-value'),
       equals('1000000000 USD'),
     );
+  });
+
+  testWidgets('editable input shows warning tooltip for non-numeric text', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    final initialCost = stepperValueText(tester, 'update-stock-cost-value');
+    final costValueFinder = find.byKey(
+      const ValueKey('update-stock-cost-value'),
+    );
+    await tester.tap(costValueFinder);
+    await tester.pump();
+    await tester.enterText(costValueFinder, 'abc');
+    await tester.tap(find.text("SKUs' Stock Update"));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Only numbers!'), findsOneWidget);
+    expect(stepperValueText(tester, 'update-stock-cost-value'), initialCost);
+    final warningTooltip = tester.widget<Tooltip>(
+      find.byWidgetPredicate(
+        (widget) => widget is Tooltip && widget.message == 'Only numbers!',
+      ),
+    );
+    final warningDecoration = warningTooltip.decoration as BoxDecoration?;
+    expect(warningDecoration?.color, equals(AppThemeTokens.warning));
   });
 
   testWidgets('cost in Changes mode is unsigned and + still increases value', (

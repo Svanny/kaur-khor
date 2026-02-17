@@ -177,6 +177,11 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   int _incrementLabelSwapGeneration = 0;
   int _selectedSkuIndex = 0;
   bool _showConfirmationCard = false;
+  final GlobalKey _stockUpdateTitleKey = GlobalKey();
+  final GlobalKey _stockDeckKey = GlobalKey();
+  bool _fogRangeMeasurementScheduled = false;
+  double _fogStartOffsetFromDeckTop = 0;
+  double _fogEndOffsetFromDeckTop = -AppThemeTokens.sectionGap;
 
   @override
   void didChangeDependencies() {
@@ -198,6 +203,8 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
   @override
   Widget build(BuildContext context) {
+    _scheduleFogRangeMeasurement();
+
     final edge = AppThemeTokens.screenEdgePadding(context);
     final currencyCode = context.currencyController.value.code;
 
@@ -226,6 +233,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                             children: [
                               Text(
                                 "SKUs' Stock Update",
+                                key: _stockUpdateTitleKey,
                                 style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(
                                       fontWeight: _fontWeight(
@@ -297,6 +305,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     }
 
     return UpdateStockCardDeck(
+      key: _stockDeckKey,
       cardsCount: _sourceSkus.length,
       currentIndex: _selectedSkuIndex,
       swiperKey: const ValueKey('update-stock-card-swiper'),
@@ -323,8 +332,51 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       preloadKeyPrefix: 'update-stock-preload-sku-card-',
       stackCardKeyPrefix: 'update-stock-sku-card-stack-',
       downOverlayKeyPrefix: 'update-stock-down-restore-overlay-',
-      boundaryFogOffsetFromDeckTop: -AppThemeTokens.sectionGap,
+      boundaryFogOffsetFromDeckTop: _fogStartOffsetFromDeckTop,
+      boundaryFogEndOffsetFromDeckTop: _fogEndOffsetFromDeckTop,
     );
+  }
+
+  void _scheduleFogRangeMeasurement() {
+    if (_sourceSkus.isEmpty ||
+        _showConfirmationCard ||
+        _fogRangeMeasurementScheduled) {
+      return;
+    }
+    _fogRangeMeasurementScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fogRangeMeasurementScheduled = false;
+      if (!mounted || _showConfirmationCard) {
+        return;
+      }
+
+      final titleContext = _stockUpdateTitleKey.currentContext;
+      final deckContext = _stockDeckKey.currentContext;
+      if (titleContext == null || deckContext == null) {
+        return;
+      }
+
+      final titleObject = titleContext.findRenderObject();
+      final deckObject = deckContext.findRenderObject();
+      if (titleObject is! RenderBox || deckObject is! RenderBox) {
+        return;
+      }
+
+      final titleTopGlobalY = titleObject.localToGlobal(Offset.zero).dy;
+      final deckTopGlobalY = deckObject.localToGlobal(Offset.zero).dy;
+      final nextStart = -deckTopGlobalY;
+      final nextEnd = titleTopGlobalY - deckTopGlobalY;
+
+      if ((nextStart - _fogStartOffsetFromDeckTop).abs() < 0.5 &&
+          (nextEnd - _fogEndOffsetFromDeckTop).abs() < 0.5) {
+        return;
+      }
+
+      setState(() {
+        _fogStartOffsetFromDeckTop = nextStart;
+        _fogEndOffsetFromDeckTop = nextEnd;
+      });
+    });
   }
 
   Widget _buildEmptyState() {
@@ -1047,42 +1099,70 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     _updateCurrentDraft((draft) => draft.reset());
   }
 
-  void _applyCountInput(String rawValue) {
+  String? _applyCountInput(String rawValue) {
     final parsed = _parseEditableNumber(rawValue);
     if (parsed == null) {
-      return;
+      return 'Only numbers!';
     }
+    String? warning;
+    const epsilon = 1e-9;
     _updateCurrentDraft((draft) {
       if (_mode == StockInputMode.changes) {
-        final clampedTotal = _clampInventoryCount(draft.baseCount + parsed);
+        final rawTotal = draft.baseCount + parsed;
+        if (rawTotal > SecurityLimits.inventoryUnitsInStockMax + epsilon) {
+          warning = 'Change is too high!';
+        } else if (rawTotal < -epsilon) {
+          warning = 'Change is too low!';
+        }
+        final clampedTotal = _clampInventoryCount(rawTotal);
         return draft.copyWith(
           countDelta: _normalizeZero(clampedTotal - draft.baseCount),
         );
+      }
+      if (parsed > SecurityLimits.inventoryUnitsInStockMax + epsilon) {
+        warning = 'Change is too high!';
+      } else if (parsed < -epsilon) {
+        warning = 'Change is too low!';
       }
       final totalCount = _clampInventoryCount(parsed);
       return draft.copyWith(
         countDelta: _normalizeZero(totalCount - draft.baseCount),
       );
     });
+    return warning;
   }
 
-  void _applyCostInput(String rawValue) {
+  String? _applyCostInput(String rawValue) {
     final parsed = _parseEditableNumber(rawValue);
     if (parsed == null) {
-      return;
+      return 'Only numbers!';
     }
+    String? warning;
+    const epsilon = 1e-9;
     _updateCurrentDraft((draft) {
       if (_mode == StockInputMode.changes) {
-        final clampedTotal = _clampMonetaryAmount(draft.baseUnitCost + parsed);
+        final rawTotal = draft.baseUnitCost + parsed;
+        if (rawTotal > SecurityLimits.monetaryAmountMax + epsilon) {
+          warning = 'Change is too high!';
+        } else if (rawTotal < -epsilon) {
+          warning = 'Cost cannot go below zero';
+        }
+        final clampedTotal = _clampMonetaryAmount(rawTotal);
         return draft.copyWith(
           costDelta: _normalizeZero(clampedTotal - draft.baseUnitCost),
         );
+      }
+      if (parsed > SecurityLimits.monetaryAmountMax + epsilon) {
+        warning = 'Change is too high!';
+      } else if (parsed < -epsilon) {
+        warning = 'Cost cannot go below zero';
       }
       final totalUnitCost = _clampMonetaryAmount(parsed);
       return draft.copyWith(
         costDelta: _normalizeZero(totalUnitCost - draft.baseUnitCost),
       );
     });
+    return warning;
   }
 
   double _clampInventoryCount(double value) {
@@ -1095,11 +1175,23 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
   double? _parseEditableNumber(String rawValue) {
     final normalized = rawValue.replaceAll(',', '').trim();
-    final match = RegExp(r'[+-]?\d*\.?\d+').firstMatch(normalized);
-    if (match == null) {
+    if (normalized.isEmpty) {
       return null;
     }
-    return double.tryParse(match.group(0)!);
+    final withoutCurrency = normalized.replaceFirst(
+      RegExp(r'\s+[A-Za-z]{3}$'),
+      '',
+    );
+    final numericCandidate = withoutCurrency.trim();
+    const numericPattern = r'^[+-]?(?:\d+\.?\d*|\.\d+)$';
+    if (!RegExp(numericPattern).hasMatch(numericCandidate)) {
+      return null;
+    }
+    final parsed = double.tryParse(numericCandidate);
+    if (parsed == null || parsed.isNaN || !parsed.isFinite) {
+      return null;
+    }
+    return parsed;
   }
 
   double _normalizeZero(double value) {
@@ -1285,7 +1377,7 @@ class _StockStepper extends StatelessWidget {
   final Duration trendAnimationDuration;
   final bool valueEditable;
   final String value;
-  final ValueChanged<String> onValueCommitted;
+  final String? Function(String) onValueCommitted;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
   final bool actionsEnabled;
@@ -1369,6 +1461,13 @@ class _StockStepper extends StatelessWidget {
         ? Tooltip(
             message: disabledTooltip!,
             triggerMode: TooltipTriggerMode.tap,
+            decoration: BoxDecoration(
+              color: AppThemeTokens.warning,
+              borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+            ),
+            textStyle: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.textPrimary),
             child: track,
           )
         : track;
@@ -1636,7 +1735,7 @@ class _EditableStepperValue extends StatefulWidget {
   final String value;
   final Key textFieldKey;
   final bool enabled;
-  final ValueChanged<String> onValueCommitted;
+  final String? Function(String) onValueCommitted;
   final TextStyle? style;
 
   @override
@@ -1646,6 +1745,8 @@ class _EditableStepperValue extends StatefulWidget {
 class _EditableStepperValueState extends State<_EditableStepperValue> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
+  final GlobalKey<TooltipState> _warningTooltipKey = GlobalKey<TooltipState>();
+  String? _warningMessage;
 
   @override
   void initState() {
@@ -1676,6 +1777,9 @@ class _EditableStepperValueState extends State<_EditableStepperValue> {
 
   void _onFocusChange() {
     if (_focusNode.hasFocus) {
+      if (_warningMessage != null) {
+        setState(() => _warningMessage = null);
+      }
       _controller.selection = TextSelection(
         baseOffset: 0,
         extentOffset: _controller.text.length,
@@ -1683,7 +1787,10 @@ class _EditableStepperValueState extends State<_EditableStepperValue> {
       return;
     }
 
-    widget.onValueCommitted(_controller.text);
+    final warning = widget.onValueCommitted(_controller.text);
+    if (warning != null && warning.isNotEmpty) {
+      _showWarning(warning);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _focusNode.hasFocus) {
         return;
@@ -1694,35 +1801,60 @@ class _EditableStepperValueState extends State<_EditableStepperValue> {
     });
   }
 
+  void _showWarning(String message) {
+    if (_warningMessage != message) {
+      setState(() => _warningMessage = message);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _warningTooltipKey.currentState?.ensureTooltipVisible();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      key: widget.textFieldKey,
-      controller: _controller,
-      focusNode: _focusNode,
-      enabled: widget.enabled,
-      keyboardType: const TextInputType.numberWithOptions(
-        decimal: true,
-        signed: true,
+    return Tooltip(
+      key: _warningTooltipKey,
+      message: _warningMessage ?? '',
+      triggerMode: TooltipTriggerMode.manual,
+      showDuration: const Duration(seconds: 2),
+      decoration: BoxDecoration(
+        color: AppThemeTokens.warning,
+        borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
       ),
-      textInputAction: TextInputAction.done,
-      onSubmitted: (_) => _focusNode.unfocus(),
-      onTapOutside: (_) => _focusNode.unfocus(),
-      textAlign: TextAlign.center,
-      style: widget.style,
-      decoration: const InputDecoration(
-        filled: false,
-        fillColor: Colors.transparent,
-        hoverColor: Colors.transparent,
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        disabledBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        focusedErrorBorder: InputBorder.none,
-        isDense: true,
-        isCollapsed: true,
-        contentPadding: EdgeInsets.zero,
+      textStyle: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.textPrimary),
+      child: TextField(
+        key: widget.textFieldKey,
+        controller: _controller,
+        focusNode: _focusNode,
+        enabled: widget.enabled,
+        keyboardType: const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
+        ),
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _focusNode.unfocus(),
+        onTapOutside: (_) => _focusNode.unfocus(),
+        textAlign: TextAlign.center,
+        style: widget.style,
+        decoration: const InputDecoration(
+          filled: false,
+          fillColor: Colors.transparent,
+          hoverColor: Colors.transparent,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          isDense: true,
+          isCollapsed: true,
+          contentPadding: EdgeInsets.zero,
+        ),
       ),
     );
   }
@@ -1783,6 +1915,13 @@ class _StepAction extends StatelessWidget {
     return Tooltip(
       message: disabledTooltip!,
       triggerMode: TooltipTriggerMode.tap,
+      decoration: BoxDecoration(
+        color: AppThemeTokens.warning,
+        borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+      ),
+      textStyle: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.textPrimary),
       child: action,
     );
   }

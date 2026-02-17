@@ -24,6 +24,7 @@ void main() {
     int initialIndex = 0,
     int maxStackCards = 3,
     double boundaryFogOffsetFromDeckTop = 0,
+    double? boundaryFogEndOffsetFromDeckTop,
   }) async {
     await setPhoneViewport(tester);
     await tester.pumpWidget(
@@ -33,6 +34,7 @@ void main() {
           initialIndex: initialIndex,
           maxStackCards: maxStackCards,
           boundaryFogOffsetFromDeckTop: boundaryFogOffsetFromDeckTop,
+          boundaryFogEndOffsetFromDeckTop: boundaryFogEndOffsetFromDeckTop,
         ),
       ),
     );
@@ -75,6 +77,10 @@ void main() {
       }
     }
     expect(overlaySeen, isTrue);
+    final fogMask = tester.widget<ShaderMask>(
+      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
+    );
+    expect(fogMask.blendMode, BlendMode.dstIn);
 
     await gesture.up();
     await tester.pumpAndSettle();
@@ -91,6 +97,42 @@ void main() {
       tester,
       cardsCount: 6,
       boundaryFogOffsetFromDeckTop: -16,
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('front-0'))),
+    );
+    await gesture.moveBy(const Offset(0, -10));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
+      findsNothing,
+    );
+
+    var fogSeen = false;
+    for (var i = 0; i < 8; i += 1) {
+      await gesture.moveBy(const Offset(0, -8));
+      await tester.pump();
+      if (find
+          .byKey(const ValueKey('update-stock-boundary-fog-mask'))
+          .evaluate()
+          .isNotEmpty) {
+        fogSeen = true;
+        break;
+      }
+    }
+    expect(fogSeen, isTrue);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('boundary fog supports a custom start/end span', (tester) async {
+    await pumpDeckHarness(
+      tester,
+      cardsCount: 6,
+      boundaryFogOffsetFromDeckTop: -220,
+      boundaryFogEndOffsetFromDeckTop: -16,
     );
 
     final gesture = await tester.startGesture(
@@ -348,12 +390,14 @@ class _DeckHarness extends StatefulWidget {
     required this.initialIndex,
     required this.maxStackCards,
     required this.boundaryFogOffsetFromDeckTop,
+    required this.boundaryFogEndOffsetFromDeckTop,
   });
 
   final int cardsCount;
   final int initialIndex;
   final int maxStackCards;
   final double boundaryFogOffsetFromDeckTop;
+  final double? boundaryFogEndOffsetFromDeckTop;
 
   @override
   State<_DeckHarness> createState() => _DeckHarnessState();
@@ -386,6 +430,8 @@ class _DeckHarnessState extends State<_DeckHarness> {
               downBackEjectKeyPrefix: 'eject-',
               backfillKeyPrefix: 'backfill-',
               boundaryFogOffsetFromDeckTop: widget.boundaryFogOffsetFromDeckTop,
+              boundaryFogEndOffsetFromDeckTop:
+                  widget.boundaryFogEndOffsetFromDeckTop,
               onCurrentIndexChanged: (index) {
                 setState(() => _currentIndex = index);
               },
