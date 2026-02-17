@@ -18,11 +18,16 @@ void main() {
 
   Future<void> pumpViewAll(WidgetTester tester) async {
     await setPhoneViewport(tester);
+    final inventoryController = InventoryController();
+    addTearDown(inventoryController.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
-        home: const ViewAllPage(),
+      AppInventoryScope(
+        controller: inventoryController,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          home: const ViewAllPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -104,6 +109,11 @@ void main() {
       final fab = tester.widget<FloatingActionButton>(
         find.byType(FloatingActionButton),
       );
+      final viewAllScaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      expect(
+        viewAllScaffold.floatingActionButtonLocation,
+        AppThemeTokens.primaryFabLocation,
+      );
       expect(fab.shape, isA<CircleBorder>());
     },
   );
@@ -150,14 +160,10 @@ void main() {
     expect(find.text('SKU #002'), findsOneWidget);
   });
 
-  testWidgets('sku detail field keyboard types map to text/integer/decimal', (
+  testWidgets('sku detail field keyboard types map to text and decimal', (
     WidgetTester tester,
   ) async {
     const decimalKeyboard = TextInputType.numberWithOptions(decimal: true);
-    const integerKeyboard = TextInputType.numberWithOptions(
-      signed: false,
-      decimal: false,
-    );
 
     await pumpViewAll(tester);
 
@@ -178,29 +184,11 @@ void main() {
       TextInputType.text,
     );
     expect(
-      tester
-          .widget<TextField>(textFieldByHint('Enter pieces per bulk'))
-          .keyboardType,
+      tester.widget<TextField>(textFieldByHint('Enter units')).keyboardType,
       decimalKeyboard,
-    );
-    expect(
-      tester
-          .widget<TextField>(textFieldByHint('Enter pieces count'))
-          .keyboardType,
-      decimalKeyboard,
-    );
-    expect(
-      tester
-          .widget<TextField>(textFieldByHint('Enter bulk count'))
-          .keyboardType,
-      integerKeyboard,
     );
     expect(
       tester.widget<TextField>(textFieldByHint('e.g. 4.50')).keyboardType,
-      decimalKeyboard,
-    );
-    expect(
-      tester.widget<TextField>(textFieldByHint('e.g. 40.00')).keyboardType,
       decimalKeyboard,
     );
 
@@ -327,7 +315,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('SKUs Used'), findsOneWidget);
-    expect(find.text('Price'), findsAtLeastNWidgets(1));
+    expect(find.text('Service Price'), findsAtLeastNWidgets(1));
+    expect(
+      find.byKey(const ValueKey('service-price-label-icon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('service-skus-used-label-icon')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
     await tester.pumpAndSettle();
@@ -350,7 +346,25 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Sold as a Product'), findsOneWidget);
-    expect(find.text('Cost / Piece'), findsAtLeastNWidgets(1));
+    expect(find.text('Cost / Unit'), findsAtLeastNWidgets(1));
+    expect(
+      find.byKey(const ValueKey('sku-units-in-stock-label-icon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('sku-cost-unit-label-icon')),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Product Price'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('sku-product-price-label-icon')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('service detail opens SKUs Used as a bottom sheet', (
@@ -359,6 +373,7 @@ void main() {
     await pumpViewAll(tester);
     await openCard(tester, 'Service #001');
 
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     await tester.tap(find.text('SKU #001').first);
     await tester.pumpAndSettle();
 
@@ -672,7 +687,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Invalid fields'), findsOneWidget);
       expect(
-        find.textContaining('Price field must be a valid number'),
+        find.textContaining('Service Price field must be a valid number'),
         findsOneWidget,
       );
       expect(find.textContaining('Please fix'), findsNothing);
@@ -780,7 +795,7 @@ void main() {
     await openCard(tester, 'SKU #001');
 
     await tester.scrollUntilVisible(
-      find.text('Cost / Piece'),
+      find.text('Cost / Unit'),
       220,
       scrollable: find.byType(Scrollable).first,
     );
@@ -792,7 +807,7 @@ void main() {
 
     expect(find.text('Invalid fields'), findsOneWidget);
     expect(
-      find.textContaining('Cost / Piece field must be a valid number'),
+      find.textContaining('Cost / Unit field must be a valid number'),
       findsOneWidget,
     );
     expect(find.widgetWithText(TextButton, 'Discard'), findsOneWidget);
@@ -800,14 +815,13 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Confirm'), findsNothing);
   });
 
-  testWidgets('sku detail accepts decimal pieces and ratio and persists', (
+  testWidgets('sku detail accepts decimal units in stock and persists', (
     WidgetTester tester,
   ) async {
     await pumpViewAll(tester);
     await openCard(tester, 'SKU #001');
 
-    await tester.enterText(textFieldByHint('Enter pieces per bulk'), '1.25');
-    await tester.enterText(textFieldByHint('Enter pieces count'), '3.5');
+    await tester.enterText(textFieldByHint('Enter units'), '3.5');
     await tester.pump();
 
     final saveButton = tester.widget<FilledButton>(
@@ -820,29 +834,18 @@ void main() {
 
     await openCard(tester, 'SKU #001');
     expect(
-      tester
-          .widget<TextField>(textFieldByHint('Enter pieces per bulk'))
-          .controller
-          ?.text,
-      '1.25',
-    );
-    expect(
-      tester
-          .widget<TextField>(textFieldByHint('Enter pieces count'))
-          .controller
-          ?.text,
+      tester.widget<TextField>(textFieldByHint('Enter units')).controller?.text,
       '3.5',
     );
   });
 
-  testWidgets('sku detail rejects invalid decimal pieces and ratio', (
+  testWidgets('sku detail rejects invalid decimal units in stock', (
     WidgetTester tester,
   ) async {
     await pumpViewAll(tester);
     await openCard(tester, 'SKU #001');
 
-    await tester.enterText(textFieldByHint('Enter pieces count'), '-1');
-    await tester.enterText(textFieldByHint('Enter pieces per bulk'), '0');
+    await tester.enterText(textFieldByHint('Enter units'), '-1');
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
@@ -850,19 +853,13 @@ void main() {
 
     expect(find.text('Invalid fields'), findsOneWidget);
     expect(
-      find.textContaining('Pieces field cannot be negative'),
+      find.textContaining('Units field cannot be negative'),
       findsOneWidget,
     );
-    expect(
-      find.textContaining('Pieces / Bulk field must be greater than 0'),
-      findsOneWidget,
-    );
-
     await tester.tap(find.text('Go Back'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(textFieldByHint('Enter pieces count'), '3a');
-    await tester.enterText(textFieldByHint('Enter pieces per bulk'), '1.2.3');
+    await tester.enterText(textFieldByHint('Enter units'), '3a');
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
@@ -870,11 +867,7 @@ void main() {
 
     expect(find.text('Invalid fields'), findsOneWidget);
     expect(
-      find.textContaining('Pieces field must be a valid number'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('Pieces / Bulk field must be a valid number'),
+      find.textContaining('Units field must be a valid number'),
       findsOneWidget,
     );
   });
@@ -887,11 +880,8 @@ void main() {
       name: 'SKU Currency',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 12,
-      bulk: 2,
-      piecesPerBulk: 6,
-      costPerPiece: 5,
-      costPerBulk: 40,
+      unitsInStock: 12,
+      costPerUnit: 5,
       soldAsProduct: false,
       productPrice: null,
     );
@@ -911,21 +901,15 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Cost / Piece'),
+      find.text('Cost / Unit'),
       220,
       scrollable: find.byType(Scrollable).first,
     );
-    final costPieceField = tester.widget<TextField>(
+    final costUnitField = tester.widget<TextField>(
       textFieldByHint('e.g. 4.50'),
     );
-    final costPieceSuffix = costPieceField.decoration?.suffix as Padding;
-    expect((costPieceSuffix.child as Text).data, 'KHR');
-
-    final costBulkField = tester.widget<TextField>(
-      textFieldByHint('e.g. 40.00'),
-    );
-    final costBulkSuffix = costBulkField.decoration?.suffix as Padding;
-    expect((costBulkSuffix.child as Text).data, 'KHR');
+    final costUnitSuffix = costUnitField.decoration?.suffix as Padding;
+    expect((costUnitSuffix.child as Text).data, 'KHR');
 
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('sold-as-product-toggle')),
@@ -948,11 +932,8 @@ void main() {
         name: 'SKU Total Align',
         itemPictureIcon: Icons.inventory_2_outlined,
         description: 'desc',
-        pieces: 120,
-        bulk: 12,
-        piecesPerBulk: 12,
-        costPerPiece: 5,
-        costPerBulk: 58,
+        unitsInStock: 120,
+        costPerUnit: 5,
         soldAsProduct: false,
         productPrice: null,
       );
@@ -972,7 +953,7 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
 
-      final totalValueNumber = find.text('1296');
+      final totalValueNumber = find.text('600');
       expect(totalValueNumber, findsOneWidget);
       final totalValueDecorator = find.ancestor(
         of: totalValueNumber,
@@ -1003,11 +984,8 @@ void main() {
         name: 'SKU Total Compact',
         itemPictureIcon: Icons.inventory_2_outlined,
         description: 'desc',
-        pieces: 9000000000000000000,
-        bulk: 0,
-        piecesPerBulk: 1,
-        costPerPiece: 1,
-        costPerBulk: 0,
+        unitsInStock: 9000000000000000000,
+        costPerUnit: 1,
         soldAsProduct: false,
         productPrice: null,
       );
@@ -1046,11 +1024,8 @@ void main() {
       name: 'SKU Spacing',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 3,
-      bulk: 2,
-      piecesPerBulk: 10,
-      costPerPiece: 11.1,
-      costPerBulk: 50,
+      unitsInStock: 3,
+      costPerUnit: 11.1,
       soldAsProduct: false,
       productPrice: null,
     );
@@ -1064,9 +1039,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final ratioRect = tester.getRect(textFieldByHint('Enter pieces per bulk'));
-    final piecesCardRect = tester.getRect(
-      find.ancestor(of: find.text('Pieces'), matching: find.byType(Card)).first,
+    final descriptionRect = tester.getRect(
+      textFieldByHint('Describe this SKU'),
+    );
+    final unitsCardRect = tester.getRect(
+      find.ancestor(of: find.text('Units'), matching: find.byType(Card)).first,
     );
 
     await tester.scrollUntilVisible(
@@ -1090,10 +1067,10 @@ void main() {
     );
     final soldAsProductRowRect = tester.getRect(soldAsProductRowFinder());
 
-    final piecesCardGap = piecesCardRect.top - ratioRect.bottom;
+    final unitsCardGap = unitsCardRect.top - descriptionRect.bottom;
     final soldAsProductGap = soldAsProductRowRect.top - totalValueRect.bottom;
     const tolerance = 0.6;
-    expect(piecesCardGap, closeTo(AppThemeTokens.sectionGap, tolerance));
+    expect(unitsCardGap, closeTo(AppThemeTokens.sectionGap, tolerance));
     expect(soldAsProductGap, closeTo(AppThemeTokens.sectionGap, tolerance));
   });
 
@@ -1105,11 +1082,8 @@ void main() {
         name: 'SKU Intra Padding',
         itemPictureIcon: Icons.inventory_2_outlined,
         description: 'desc',
-        pieces: 3,
-        bulk: 2,
-        piecesPerBulk: 10,
-        costPerPiece: 11.1,
-        costPerBulk: 50,
+        unitsInStock: 3,
+        costPerUnit: 11.1,
         soldAsProduct: false,
         productPrice: null,
       );
@@ -1123,14 +1097,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final piecesCard = find
-          .ancestor(of: find.text('Pieces'), matching: find.byType(Card))
+      final unitsCard = find
+          .ancestor(of: find.text('Units'), matching: find.byType(Card))
           .first;
-      final piecesCardPaddings = tester.widgetList<Padding>(
-        find.descendant(of: piecesCard, matching: find.byType(Padding)),
+      final unitsCardPaddings = tester.widgetList<Padding>(
+        find.descendant(of: unitsCard, matching: find.byType(Padding)),
       );
       expect(
-        piecesCardPaddings.any(
+        unitsCardPaddings.any(
           (padding) =>
               padding.padding ==
               const EdgeInsets.all(AppThemeTokens.groupedCardInset),
@@ -1228,11 +1202,8 @@ void main() {
         name: 'SKU Product Price Expand',
         itemPictureIcon: Icons.inventory_2_outlined,
         description: 'desc',
-        pieces: 120,
-        bulk: 12,
-        piecesPerBulk: 12,
-        costPerPiece: 5,
-        costPerBulk: 58,
+        unitsInStock: 120,
+        costPerUnit: 5,
         soldAsProduct: false,
         productPrice: 10,
       );
@@ -1296,20 +1267,15 @@ void main() {
     await openCard(tester, 'SKU #001');
 
     await tester.scrollUntilVisible(
-      find.text('Cost / Piece'),
+      find.text('Cost / Unit'),
       220,
       scrollable: find.byType(Scrollable).first,
     );
 
-    final costPieceField = textFieldByHint('e.g. 4.50');
-    await tester.enterText(costPieceField, '4a');
+    final costUnitField = textFieldByHint('e.g. 4.50');
+    await tester.enterText(costUnitField, '4a');
     await tester.pump();
-    await tester.scrollUntilVisible(
-      find.text('Cost / Bulk'),
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('Cost / Bulk'));
+    await tester.tap(find.text('Units'));
     await tester.pump();
 
     final saveButton = tester.widget<FilledButton>(
@@ -1319,7 +1285,7 @@ void main() {
     final side = saveButton.style?.side?.resolve({WidgetState.disabled});
     expect(side?.color, AppThemeTokens.error);
 
-    final priceTextField = tester.widget<TextField>(costPieceField);
+    final priceTextField = tester.widget<TextField>(costUnitField);
     final border =
         priceTextField.decoration?.enabledBorder as OutlineInputBorder?;
     expect(border?.borderSide.color, AppThemeTokens.error);
@@ -1353,131 +1319,151 @@ void main() {
     expect(find.text('SKU #NEW'), findsOneWidget);
   });
 
-  testWidgets('add Service flow requires SKU selection and saves selection', (
+  testWidgets('add-item sheet shows service svg and sku box icon', (
     WidgetTester tester,
   ) async {
     await pumpViewAll(tester);
 
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add Service'));
-    await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextField).at(1),
-      'New Service description',
+    final serviceIcon = tester.widget<SvgPicture>(
+      find.byKey(const ValueKey('add-item-service-icon')),
     );
-    await tester.pump();
-
-    FilledButton saveButton = tester.widget<FilledButton>(
-      find.byType(FilledButton),
-    );
-    expect(saveButton.onPressed, isNull);
-
-    await tester.scrollUntilVisible(
-      find.text('Tap to choose SKUs'),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('Tap to choose SKUs'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-      find.descendant(
-        of: find.byType(SkuUsedSelectorPage),
-        matching: find.byType(TextField),
-      ),
-      '001',
-    );
-    await tester.pump();
-    expect(find.text('SKU #001'), findsOneWidget);
-    expect(find.text('SKU #002'), findsNothing);
-    expect(
-      find.descendant(
-        of: find.byType(SkuUsedSelectorPage),
-        matching: find.byIcon(Icons.close),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byType(SkuUsedSelectorPage),
-        matching: find.byIcon(Icons.check),
-      ),
-      findsNothing,
+    final skuIcon = tester.widget<Icon>(
+      find.byKey(const ValueKey('add-item-sku-icon')),
     );
 
-    final selectorCard = tester.widget<Card>(
-      find.ancestor(
-        of: find.widgetWithText(CheckboxListTile, 'SKU #001'),
-        matching: find.byType(Card),
-      ),
-    );
-    expect(selectorCard.margin, EdgeInsets.zero);
-    expect(selectorCard.color, AppThemeTokens.surface);
-    final selectorShape = selectorCard.shape as RoundedRectangleBorder;
-    expect(
-      selectorShape.borderRadius,
-      const BorderRadius.all(Radius.circular(AppThemeTokens.radiusMd)),
-    );
-    expect(selectorShape.side.color, AppThemeTokens.border);
-    final skuTile = tester.widget<CheckboxListTile>(
-      find.widgetWithText(CheckboxListTile, 'SKU #001'),
-    );
-    expect(skuTile.contentPadding, isNull);
-    expect(skuTile.checkboxScaleFactor, 1.0);
+    expect(serviceIcon.bytesLoader, isA<SvgAssetLoader>());
+    expect(skuIcon.icon, equals(Icons.inventory_2_outlined));
+  });
 
-    await tester.tap(find.widgetWithText(CheckboxListTile, 'SKU #001'));
-    await tester.pump();
-    final selectorCloseAction = find.descendant(
-      of: find.byType(SkuUsedSelectorPage),
-      matching: find.widgetWithIcon(OutlinedButton, Icons.close),
-    );
-    final selectorCheckAction = find.descendant(
-      of: find.byType(SkuUsedSelectorPage),
-      matching: find.widgetWithIcon(FilledButton, Icons.check),
-    );
-    expect(selectorCloseAction, findsOneWidget);
-    expect(selectorCheckAction, findsOneWidget);
-    expect(
-      find.ancestor(
-        of: selectorCloseAction,
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is SizedBox && widget.width == 40 && widget.height == 40,
+  testWidgets(
+    'add Service flow allows blank SKU selection and can still save selection',
+    (WidgetTester tester) async {
+      await pumpViewAll(tester);
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add Service'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(TextField).at(1),
+        'New Service description',
+      );
+      await tester.pump();
+
+      FilledButton saveButton = tester.widget<FilledButton>(
+        find.byType(FilledButton),
+      );
+      expect(saveButton.onPressed, isNotNull);
+
+      await tester.scrollUntilVisible(
+        find.text('Tap to choose SKUs. Leave blank if none.'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Tap to choose SKUs. Leave blank if none.'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(SkuUsedSelectorPage),
+          matching: find.byType(TextField),
         ),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.ancestor(
-        of: selectorCheckAction,
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is SizedBox && widget.width == 40 && widget.height == 40,
+        '001',
+      );
+      await tester.pump();
+      expect(find.text('SKU #001'), findsOneWidget);
+      expect(find.text('SKU #002'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(SkuUsedSelectorPage),
+          matching: find.byIcon(Icons.close),
         ),
-      ),
-      findsOneWidget,
-    );
-    await tester.tap(
-      find.descendant(
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(SkuUsedSelectorPage),
+          matching: find.byIcon(Icons.check),
+        ),
+        findsNothing,
+      );
+
+      final selectorCard = tester.widget<Card>(
+        find.ancestor(
+          of: find.widgetWithText(CheckboxListTile, 'SKU #001'),
+          matching: find.byType(Card),
+        ),
+      );
+      expect(selectorCard.margin, EdgeInsets.zero);
+      expect(selectorCard.color, AppThemeTokens.surface);
+      final selectorShape = selectorCard.shape as RoundedRectangleBorder;
+      expect(
+        selectorShape.borderRadius,
+        const BorderRadius.all(Radius.circular(AppThemeTokens.radiusMd)),
+      );
+      expect(selectorShape.side.color, AppThemeTokens.border);
+      final skuTile = tester.widget<CheckboxListTile>(
+        find.widgetWithText(CheckboxListTile, 'SKU #001'),
+      );
+      expect(skuTile.contentPadding, isNull);
+      expect(skuTile.checkboxScaleFactor, 1.0);
+
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'SKU #001'));
+      await tester.pump();
+      final selectorCloseAction = find.descendant(
+        of: find.byType(SkuUsedSelectorPage),
+        matching: find.widgetWithIcon(OutlinedButton, Icons.close),
+      );
+      final selectorCheckAction = find.descendant(
         of: find.byType(SkuUsedSelectorPage),
         matching: find.widgetWithIcon(FilledButton, Icons.check),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      expect(selectorCloseAction, findsOneWidget);
+      expect(selectorCheckAction, findsOneWidget);
+      expect(
+        find.ancestor(
+          of: selectorCloseAction,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is SizedBox && widget.width == 40 && widget.height == 40,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(
+          of: selectorCheckAction,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is SizedBox && widget.width == 40 && widget.height == 40,
+          ),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SkuUsedSelectorPage),
+          matching: find.widgetWithIcon(FilledButton, Icons.check),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    saveButton = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(saveButton.onPressed, isNotNull);
-    expect(find.text('SKU #001'), findsOneWidget);
+      saveButton = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(saveButton.onPressed, isNotNull);
+      expect(find.text('SKU #001'), findsOneWidget);
 
-    await tester.tap(find.byType(FilledButton));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'NEW');
-    await tester.pump();
-    expect(find.text('Service #NEW'), findsOneWidget);
-  });
+      await tester.enterText(find.byType(TextField), 'NEW');
+      await tester.pump();
+      expect(find.text('Service #NEW'), findsOneWidget);
+    },
+  );
 
   testWidgets('editing existing SKU updates card content in list', (
     WidgetTester tester,
@@ -1502,11 +1488,8 @@ void main() {
       name: 'SKU Test',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 1,
-      bulk: 1,
-      piecesPerBulk: 1,
-      costPerPiece: 1,
-      costPerBulk: 1,
+      unitsInStock: 1,
+      costPerUnit: 1,
       soldAsProduct: false,
       productPrice: null,
     );
@@ -1562,11 +1545,8 @@ void main() {
       name: 'SKU Test',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 1,
-      bulk: 1,
-      piecesPerBulk: 1,
-      costPerPiece: 1,
-      costPerBulk: 1,
+      unitsInStock: 1,
+      costPerUnit: 1,
       soldAsProduct: false,
       productPrice: null,
     );
@@ -1610,11 +1590,8 @@ void main() {
       name: 'SKU Carousel',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 1,
-      bulk: 1,
-      piecesPerBulk: 1,
-      costPerPiece: 1,
-      costPerBulk: 1,
+      unitsInStock: 1,
+      costPerUnit: 1,
       soldAsProduct: false,
       productPrice: null,
     );
@@ -1655,11 +1632,8 @@ void main() {
       name: 'SKU Carousel Dots',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 1,
-      bulk: 1,
-      piecesPerBulk: 1,
-      costPerPiece: 1,
-      costPerBulk: 1,
+      unitsInStock: 1,
+      costPerUnit: 1,
       soldAsProduct: false,
       productPrice: null,
     );
@@ -1744,11 +1718,8 @@ void main() {
       name: 'SKU Icon Padding',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 1,
-      bulk: 1,
-      piecesPerBulk: 1,
-      costPerPiece: 1,
-      costPerBulk: 1,
+      unitsInStock: 1,
+      costPerUnit: 1,
       soldAsProduct: false,
       productPrice: null,
     );
@@ -1846,11 +1817,8 @@ void main() {
         name: 'SKU #001',
         itemPictureIcon: Icons.inventory_2_outlined,
         description: 'desc',
-        pieces: 1,
-        bulk: 1,
-        piecesPerBulk: 1,
-        costPerPiece: 1,
-        costPerBulk: 1,
+        unitsInStock: 1,
+        costPerUnit: 1,
         soldAsProduct: false,
         productPrice: null,
       );
@@ -1859,11 +1827,8 @@ void main() {
         name: 'SKU #002',
         itemPictureIcon: Icons.inventory_2_outlined,
         description: 'desc',
-        pieces: 1,
-        bulk: 1,
-        piecesPerBulk: 1,
-        costPerPiece: 1,
-        costPerBulk: 1,
+        unitsInStock: 1,
+        costPerUnit: 1,
         soldAsProduct: false,
         productPrice: null,
       );
@@ -1948,11 +1913,8 @@ void main() {
       name: 'SKU #001',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'desc',
-      pieces: 1,
-      bulk: 1,
-      piecesPerBulk: 1,
-      costPerPiece: 1,
-      costPerBulk: 1,
+      unitsInStock: 1,
+      costPerUnit: 1,
       soldAsProduct: false,
       productPrice: null,
     );
@@ -1994,11 +1956,8 @@ void main() {
       name: 'SKU',
       itemPictureIcon: Icons.inventory_2_outlined,
       description: 'Desc',
-      pieces: 1,
-      bulk: 1,
-      piecesPerBulk: 1,
-      costPerPiece: 1,
-      costPerBulk: 1,
+      unitsInStock: 1,
+      costPerUnit: 1,
       soldAsProduct: false,
       productPrice: null,
     );

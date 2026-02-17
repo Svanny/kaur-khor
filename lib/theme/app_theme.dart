@@ -22,7 +22,7 @@ class AppThemeTokens {
 
   // Accent and state colors
   static const Color accentLighter = Color(0xFFC0CC8D);
-  static const Color accentDarker = Color(0xFF6D8D4E);
+  static const Color accentDarker = Color(0xFF738C55);
   static const Color chipBackground = Color(0xFFC0CC8D);
   static const Color chipSelected = Color(0xFF99C768);
   static const Color navIndicator = Color(0xFF99C768);
@@ -50,6 +50,8 @@ class AppThemeTokens {
   static const double letterSpacingHeadline = -0.2;
   static const double iconSizeMedium = 6 * unit;
   static const double serviceSvgOutlineScale = 1.2;
+  static const double attachedLabelIconToTextRatio = 1.3125;
+  static const double attachedLabelIconGapToIconRatio = 2 / 7;
 
   // Shape and spacing
   static const double radiusMd = 3 * unit;
@@ -107,7 +109,9 @@ class AppThemeTokens {
   static const double segmentedToggleTrackHeight = filterChipPillHeight;
   static const double segmentedToggleTrackWidth =
       (segmentedToggleTrackHeight * 2) + space6;
-  static const double segmentedToggleTrackInset = unit / 2;
+  static const double togglePillInnerInset = unit / 2;
+  static const double togglePillLabelPadX = unit * 3;
+  static const double segmentedToggleTrackInset = togglePillInnerInset;
   static const double segmentedToggleThumbHeight =
       segmentedToggleTrackHeight - (segmentedToggleTrackInset * 2);
   static const double segmentedToggleThumbWidth =
@@ -124,6 +128,41 @@ class AppThemeTokens {
   static const double scrollVisibilityTopClearance = space2;
   static const double scrollVisibilityBottomClearance = space4;
   static const double scrollNudge = space1;
+  static const double primaryFabEndInset = space4 * 2;
+  static const double primaryFabBottomInset = space4 * 3;
+  static const FloatingActionButtonLocation primaryFabLocation =
+      _BottomRightFabLocation(
+        endInset: primaryFabEndInset,
+        bottomInset: primaryFabBottomInset,
+      );
+
+  // Update stock flow
+  static const double stockCardInset = space4;
+  static const double stockIndicatorWidth = 2 * unit;
+  static const double stockIndicatorHeight = 10 * unit;
+  static const Color stockIndicatorSelected = Color(0xFFC2CC94);
+  static const Color stockIndicatorUnselected = Color(0xFFD4D4D4);
+  static const double stockIndicatorGap = space1;
+  static const double stockIndicatorRightInset = space1;
+  static const double stockIncrementOptionPadX = space3;
+  static const double stockIncrementOptionPadY = space2;
+  static const double stockStepperValueMinWidth = 18 * unit;
+  static const double stockStepActionHeight = 10 * unit;
+  static const double stockStepperTrackInset = unit / 2;
+  static const double stockThumbnailAspectRatio = 16 / 9;
+  static const double stockCounterPillPadX = cardContentGap;
+  static const double stockCounterPillPadY = sectionGapCompact;
+  static const double stockStepperActionPadX = stockCounterPillPadX;
+  static const double stockCardViewportWidthFactor = 0.95;
+  static const double stockCardViewportHeightFactor = 0.85;
+
+  static double attachedLabelIconSize(double labelFontSize) {
+    return labelFontSize * attachedLabelIconToTextRatio;
+  }
+
+  static double attachedLabelIconGap(double iconSize) {
+    return iconSize * attachedLabelIconGapToIconRatio;
+  }
 
   // Component paddings
   static const double buttonPaddingX = space4;
@@ -162,6 +201,28 @@ class AppThemeTokens {
       math.max(horizontal, safeAreaInsets.right),
       math.max(screenEdgePaddingVerticalMin, safeAreaInsets.bottom),
     );
+  }
+}
+
+class _BottomRightFabLocation extends FloatingActionButtonLocation {
+  const _BottomRightFabLocation({
+    required this.endInset,
+    required this.bottomInset,
+  });
+
+  final double endInset;
+  final double bottomInset;
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    final fabSize = scaffoldGeometry.floatingActionButtonSize;
+    final fabX = switch (scaffoldGeometry.textDirection) {
+      TextDirection.rtl => endInset,
+      TextDirection.ltr =>
+        scaffoldGeometry.scaffoldSize.width - fabSize.width - endInset,
+    };
+    final fabY = scaffoldGeometry.contentBottom - fabSize.height - bottomInset;
+    return Offset(fabX, fabY);
   }
 }
 

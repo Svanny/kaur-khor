@@ -11,11 +11,8 @@ class SkuItem {
     required this.name,
     required this.itemPictureIcon,
     required this.description,
-    required this.pieces,
-    required this.bulk,
-    required this.piecesPerBulk,
-    required this.costPerPiece,
-    required this.costPerBulk,
+    required this.unitsInStock,
+    required this.costPerUnit,
     required this.soldAsProduct,
     required this.productPrice,
   });
@@ -24,26 +21,20 @@ class SkuItem {
   final String name;
   final IconData itemPictureIcon;
   final String description;
-  final double pieces;
-  final int bulk;
-  final double piecesPerBulk;
-  final double costPerPiece;
-  final double costPerBulk;
+  final double unitsInStock;
+  final double costPerUnit;
   final bool soldAsProduct;
   final double? productPrice;
 
-  double get totalValue => (pieces * costPerPiece) + (bulk * costPerBulk);
+  double get totalValue => unitsInStock * costPerUnit;
 
   SkuItem copyWith({
     String? id,
     String? name,
     IconData? itemPictureIcon,
     String? description,
-    double? pieces,
-    int? bulk,
-    double? piecesPerBulk,
-    double? costPerPiece,
-    double? costPerBulk,
+    double? unitsInStock,
+    double? costPerUnit,
     bool? soldAsProduct,
     double? productPrice,
     bool clearProductPrice = false,
@@ -53,11 +44,8 @@ class SkuItem {
       name: name ?? this.name,
       itemPictureIcon: itemPictureIcon ?? this.itemPictureIcon,
       description: description ?? this.description,
-      pieces: pieces ?? this.pieces,
-      bulk: bulk ?? this.bulk,
-      piecesPerBulk: piecesPerBulk ?? this.piecesPerBulk,
-      costPerPiece: costPerPiece ?? this.costPerPiece,
-      costPerBulk: costPerBulk ?? this.costPerBulk,
+      unitsInStock: unitsInStock ?? this.unitsInStock,
+      costPerUnit: costPerUnit ?? this.costPerUnit,
       soldAsProduct: soldAsProduct ?? this.soldAsProduct,
       productPrice: clearProductPrice
           ? null

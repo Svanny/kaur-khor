@@ -77,15 +77,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
 
     final priceError = SecurityValidators.validateNonNegativeDecimal(
       _priceController.text,
-      fieldName: 'Price',
+      fieldName: 'Service Price',
       maxValue: SecurityLimits.monetaryAmountMax,
     );
     if (priceError != null) {
       errors.add(priceError);
-    }
-
-    if (_selectedExistingSkuIds().isEmpty) {
-      errors.add('Select at least one SKU.');
     }
 
     return errors;
@@ -109,13 +105,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   bool get _priceHasError {
     return SecurityValidators.validateNonNegativeDecimal(
           _priceController.text,
-          fieldName: 'Price',
+          fieldName: 'Service Price',
           maxValue: SecurityLimits.monetaryAmountMax,
         ) !=
         null;
   }
-
-  bool get _skusHasError => _selectedExistingSkuIds().isEmpty;
 
   bool get _hasChanges {
     final skuSelectionUnchanged =
@@ -202,7 +196,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
                         return _CurrencyFieldWithCode(
-                          label: 'Price',
+                          label: 'Service Price',
+                          labelIconAsset: _pointOfSaleSvgAsset,
+                          labelIconKey: const ValueKey(
+                            'service-price-label-icon',
+                          ),
                           controller: _priceController,
                           inputMode: _InputMode.decimal,
                           currencyCode: currency.code,
@@ -217,9 +215,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                       },
                     ),
                     const SizedBox(height: AppThemeTokens.sectionGap),
-                    Text(
-                      'SKUs Used',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    const _FieldLabel(
+                      label: 'SKUs Used',
+                      iconAsset: _listAltSvgAsset,
+                      iconKey: ValueKey('service-skus-used-label-icon'),
                     ),
                     const SizedBox(height: AppThemeTokens.sectionCardOuterGap),
                     Card(
@@ -228,11 +227,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                         borderRadius: BorderRadius.circular(
                           AppThemeTokens.radiusMd,
                         ),
-                        side: BorderSide(
-                          color: _showValidationHighlights && _skusHasError
-                              ? AppThemeTokens.error
-                              : AppThemeTokens.border,
-                        ),
+                        side: const BorderSide(color: AppThemeTokens.border),
                       ),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(
@@ -240,54 +235,77 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                         ),
                         onTap: _editSkuSelection,
                         child: Padding(
-                          padding: const EdgeInsets.all(
-                            AppThemeTokens.cardContentGap,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppThemeTokens.inputPaddingX,
+                            vertical: AppThemeTokens.inputPaddingY,
                           ),
-                          child: selectedSkus.isEmpty
-                              ? Text(
-                                  'Tap to choose SKUs',
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                )
-                              : Wrap(
-                                  spacing: AppThemeTokens.wrapSpacing,
-                                  runSpacing: AppThemeTokens.wrapRunSpacing,
-                                  children: selectedSkus
-                                      .map(
-                                        (sku) => Chip(
-                                          backgroundColor:
-                                              AppThemeTokens.chipBackground,
-                                          side: BorderSide.none,
-                                          materialTapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                          visualDensity: VisualDensity.compact,
-                                          shape: const RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.all(
-                                              Radius.circular(
-                                                AppThemeTokens.radiusPill,
-                                              ),
-                                            ),
-                                            side: BorderSide.none,
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: AppThemeTokens
-                                                .inventoryChipPadX,
-                                            vertical: AppThemeTokens
-                                                .inventoryChipPadY,
-                                          ),
-                                          label: Text(
-                                            sku.name,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium
-                                                ?.copyWith(
-                                                  color: AppThemeTokens
-                                                      .textPrimary,
-                                                ),
-                                          ),
-                                        ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: selectedSkus.isEmpty
+                                    ? Text(
+                                        'Tap to choose SKUs. Leave blank if none.',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
                                       )
-                                      .toList(growable: false),
-                                ),
+                                    : Wrap(
+                                        spacing: AppThemeTokens.wrapSpacing,
+                                        runSpacing:
+                                            AppThemeTokens.wrapRunSpacing,
+                                        children: selectedSkus
+                                            .map(
+                                              (sku) => Chip(
+                                                backgroundColor: AppThemeTokens
+                                                    .chipBackground,
+                                                side: BorderSide.none,
+                                                materialTapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                shape:
+                                                    const RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.all(
+                                                            Radius.circular(
+                                                              AppThemeTokens
+                                                                  .radiusPill,
+                                                            ),
+                                                          ),
+                                                      side: BorderSide.none,
+                                                    ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: AppThemeTokens
+                                                          .inventoryChipPadX,
+                                                      vertical: AppThemeTokens
+                                                          .inventoryChipPadY,
+                                                    ),
+                                                label: Text(
+                                                  sku.name,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        color: AppThemeTokens
+                                                            .textPrimary,
+                                                      ),
+                                                ),
+                                              ),
+                                            )
+                                            .toList(growable: false),
+                                      ),
+                              ),
+                              const SizedBox(
+                                width: AppThemeTokens.sectionCardInlineGap,
+                              ),
+                              const Icon(
+                                Icons.chevron_right,
+                                color: AppThemeTokens.textSecondary,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -386,10 +404,6 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
       return;
     }
     final selectedSkuIds = _selectedExistingSkuIds();
-    if (selectedSkuIds.isEmpty) {
-      setState(() => _showValidationHighlights = true);
-      return;
-    }
     final updated = widget.initialService.copyWith(
       name: SecurityValidators.normalizeText(
         _nameController.text,
@@ -535,7 +549,7 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
                           },
                           title: Text(sku.name),
                           subtitle: Text(
-                            '${_formatNumber(sku.pieces)} pieces · ${sku.bulk} bulk',
+                            '${_formatNumber(sku.unitsInStock)} units in stock',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           checkboxScaleFactor: 1.0,

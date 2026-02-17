@@ -24,6 +24,17 @@ class HomeView extends StatelessWidget {
     );
 
     return Scaffold(
+      floatingActionButtonLocation: AppThemeTokens.primaryFabLocation,
+      floatingActionButton: FloatingActionButton(
+        key: const ValueKey('home-overlay-receipt-button'),
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const UpdateStockPage()),
+          );
+        },
+        shape: const CircleBorder(),
+        child: const Icon(Icons.receipt_long_rounded),
+      ),
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -62,34 +73,20 @@ class HomeView extends StatelessWidget {
           ),
         ],
       ),
-      body: Stack(
+      body: ListView(
+        padding: contentPadding,
         children: [
-          ListView(
-            padding: contentPadding,
-            children: [
-              _SectionTitle(l10n.homeKeyMetrics),
-              const SizedBox(height: AppThemeTokens.cardContentGap),
-              const _MetricGrid(),
-              const SizedBox(height: AppThemeTokens.sectionGapLarge),
-              _SectionTitle(l10n.homePerformance),
-              const SizedBox(height: AppThemeTokens.cardContentGap),
-              const _ChartPlaceholder(),
-              const SizedBox(height: AppThemeTokens.sectionGapLarge),
-              _SectionTitle(l10n.homeRecentActivity),
-              const SizedBox(height: AppThemeTokens.cardContentGap),
-              const _ActivityList(),
-            ],
-          ),
-          Positioned(
-            bottom: edgePadding.bottom,
-            right: edgePadding.right,
-            child: FloatingActionButton(
-              key: const ValueKey('home-overlay-receipt-button'),
-              onPressed: () {},
-              shape: const CircleBorder(),
-              child: const Icon(Icons.receipt_long_rounded),
-            ),
-          ),
+          _SectionTitle(l10n.homeKeyMetrics),
+          const SizedBox(height: AppThemeTokens.cardContentGap),
+          const _MetricGrid(),
+          const SizedBox(height: AppThemeTokens.sectionGapLarge),
+          _SectionTitle(l10n.homePerformance),
+          const SizedBox(height: AppThemeTokens.cardContentGap),
+          const _ChartPlaceholder(),
+          const SizedBox(height: AppThemeTokens.sectionGapLarge),
+          _SectionTitle(l10n.homeRecentActivity),
+          const SizedBox(height: AppThemeTokens.cardContentGap),
+          const _ActivityList(),
         ],
       ),
     );

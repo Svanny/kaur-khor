@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:banji/main.dart';
+import 'package:banji/theme/app_theme.dart';
 
 void main() {
   Future<void> setPhoneViewport(WidgetTester tester) async {
@@ -47,12 +48,11 @@ void main() {
     final receiptButton = tester.widget<FloatingActionButton>(
       receiptButtonFinder,
     );
-    final receiptButtonPositioned = tester.widget<Positioned>(
-      find.ancestor(of: receiptButtonFinder, matching: find.byType(Positioned)),
+    final homeScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(
+      homeScaffold.floatingActionButtonLocation,
+      AppThemeTokens.primaryFabLocation,
     );
-    expect(receiptButtonPositioned.top, isNull);
-    expect(receiptButtonPositioned.bottom, isNotNull);
-    expect(receiptButtonPositioned.right, isNotNull);
     expect(receiptButton.shape, isA<CircleBorder>());
     expect(tester.getSize(receiptButtonFinder), const Size(56, 56));
   });
@@ -101,6 +101,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('សូចនាករសំខាន់ៗ'), findsOneWidget);
+  });
+
+  testWidgets('settings language dropdown keeps horizontal anchor alignment', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget);
+
+    await tester.tap(find.text('English'));
+    await tester.pumpAndSettle();
+
+    final menuRect = tester.getRect(
+      find.byKey(const ValueKey('settings-language-menu')),
+    );
+    expect(menuRect.left, greaterThanOrEqualTo(AppThemeTokens.space4));
+    expect(menuRect.right, lessThanOrEqualTo(430 - AppThemeTokens.space4));
   });
 
   testWidgets('settings backup and logout actions are tappable', (

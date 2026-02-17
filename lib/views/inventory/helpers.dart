@@ -1,6 +1,40 @@
 part of '../inventory_views.dart';
 
-int? _tryInt(String raw) => int.tryParse(raw.trim());
+const String _pointOfSaleSvgAsset =
+    'icons/sell_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
+const String _listAltSvgAsset =
+    'icons/list_alt_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
+const String _package2SvgAsset =
+    'icons/package_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
+const String _paymentsSvgAsset =
+    'icons/payments_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
+
+double _inventorySvgIconWidth({
+  required String assetPath,
+  required double size,
+}) {
+  if (assetPath == _defaultServicePictureAsset) {
+    // Keep apron glyph visually aligned with inventory_2_outlined footprint.
+    return size * AppThemeTokens.serviceSvgOutlineScale;
+  }
+  return size;
+}
+
+Widget _inventorySvgIcon({
+  required String assetPath,
+  required double size,
+  required Color color,
+  Key? key,
+}) {
+  return SvgPicture.asset(
+    assetPath,
+    key: key,
+    width: _inventorySvgIconWidth(assetPath: assetPath, size: size),
+    height: size,
+    fit: BoxFit.contain,
+    colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+  );
+}
 
 double? _tryDouble(String raw) => double.tryParse(raw.trim());
 
