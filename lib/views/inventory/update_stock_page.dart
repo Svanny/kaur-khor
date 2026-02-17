@@ -142,6 +142,8 @@ class UpdateStockPage extends StatefulWidget {
 class _UpdateStockPageState extends State<UpdateStockPage> {
   static const double _swipeVelocityThreshold = 220;
   static const Duration _switcherDuration = Duration(milliseconds: 220);
+  static const String _costInputDisabledTooltip =
+      'Cannot enter cost if change is negative.';
 
   bool _initialized = false;
   late InventoryController _inventoryController;
@@ -285,6 +287,8 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     required StockDraft draft,
     required String currencyCode,
   }) {
+    final isCostInputDisabled = _isCostInputDisabled(draft);
+
     return Card(
       key: key,
       margin: EdgeInsets.zero,
@@ -365,6 +369,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               valueKey: const ValueKey('update-stock-cost-value'),
               decrementKey: const ValueKey('update-stock-cost-decrement'),
               incrementKey: const ValueKey('update-stock-cost-increment'),
+              actionsEnabled: !isCostInputDisabled,
+              disabledTooltip: isCostInputDisabled
+                  ? _costInputDisabledTooltip
+                  : null,
               value: _mode == StockInputMode.changes
                   ? '${_signedNumber(draft.costDelta)} $currencyCode'
                   : _currencyLabel(
@@ -390,6 +398,14 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         ),
       ),
     );
+  }
+
+  bool _isCostInputDisabled(StockDraft draft) {
+    final isNegativeChangeInChangesMode =
+        _mode == StockInputMode.changes && draft.countDelta < 0;
+    final isCurrentTotalBelowPreviousTotal =
+        draft.effectiveCount < draft.baseCount;
+    return isNegativeChangeInChangesMode || isCurrentTotalBelowPreviousTotal;
   }
 
   Widget _buildConfirmationCard({required Key key}) {
@@ -469,7 +485,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       value: _preset,
       options: IncrementPreset.values,
       minMenuWidth: AppThemeTokens.unit * 60,
-      maxMenuWidth: AppThemeTokens.unit * 80,
+      maxMenuWidth: AppThemeTokens.unit * 100,
       labelBuilder: (preset) =>
           '${preset.label} ${preset.countStepLabel} and ${preset.costStepLabel}',
       menuXAlignment: AppDropdownXAlignment.center,
@@ -487,6 +503,29 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           ) {
             final dividerColor = foregroundColor.withValues(alpha: 0.28);
             final activeRow = foregroundColor.withValues(alpha: 0.16);
+            final cellTextStyle =
+                Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+                ) ??
+                const TextStyle(
+                  fontSize: AppThemeTokens.fontSizeBodyLarge,
+                  fontWeight: FontWeight.w600,
+                );
+            final columnMinimums = _incrementColumnMinimums(
+              context: context,
+              options: options,
+              textStyle: cellTextStyle,
+            );
+            final resolvedColumnWidths = _resolveIncrementColumnWidths(
+              minimums: columnMinimums,
+              availableWidth: width,
+              growthWeights: const [1, 1, 0, 1],
+            );
+            final separatorColumnCenterX =
+                resolvedColumnWidths[0] +
+                resolvedColumnWidths[1] +
+                (resolvedColumnWidths[2] / 2);
             return Container(
               width: width,
               decoration: BoxDecoration(
@@ -500,50 +539,63 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 borderRadius: BorderRadius.circular(
                   AppThemeTokens.radiusMd * 2,
                 ),
-                child: Table(
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  columnWidths: const <int, TableColumnWidth>{
-                    0: FlexColumnWidth(0.6),
-                    1: FlexColumnWidth(0.2),
-                    2: FlexColumnWidth(0.2),
-                    3: FlexColumnWidth(0.2),
-                  },
-                  children: options
-                      .map((preset) {
-                        final isSelected = preset == selectedValue;
-                        return TableRow(
-                          decoration: BoxDecoration(
-                            color: isSelected ? activeRow : Colors.transparent,
-                          ),
-                          children: [
-                            _IncrementMenuCell(
-                              key: ValueKey(
-                                'update-stock-increment-row-${preset.name}',
+                child: CustomPaint(
+                  foregroundPainter: _IncrementSeparatorPainter(
+                    color: foregroundColor,
+                    xOffset: separatorColumnCenterX,
+                  ),
+                  child: Table(
+                    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                    columnWidths: <int, TableColumnWidth>{
+                      for (var i = 0; i < resolvedColumnWidths.length; i += 1)
+                        i: FixedColumnWidth(resolvedColumnWidths[i]),
+                    },
+                    children: options
+                        .map((preset) {
+                          final isSelected = preset == selectedValue;
+                          return TableRow(
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? activeRow
+                                  : Colors.transparent,
+                            ),
+                            children: [
+                              _IncrementMenuCell(
+                                key: ValueKey(
+                                  'update-stock-increment-row-${preset.name}',
+                                ),
+                                text: '${preset.label}:',
+                                textColor: foregroundColor,
+                                onTap: () => onSelected(preset),
                               ),
-                              text: '${preset.label}:',
-                              textColor: foregroundColor,
-                              onTap: () => onSelected(preset),
-                            ),
-                            _IncrementMenuCell(
-                              text: preset.countStepLabel,
-                              textColor: foregroundColor,
-                              onTap: () => onSelected(preset),
-                            ),
-                            _IncrementMenuCell(
-                              text: '&',
-                              textColor: foregroundColor,
-                              onTap: () => onSelected(preset),
-                            ),
-                            _IncrementMenuCell(
-                              text: preset.costStepLabel,
-                              textColor: foregroundColor,
-                              showCheck: isSelected,
-                              onTap: () => onSelected(preset),
-                            ),
-                          ],
-                        );
-                      })
-                      .toList(growable: false),
+                              _IncrementMenuCell(
+                                text: preset.countStepLabel,
+                                textAlign: TextAlign.center,
+                                textColor: foregroundColor,
+                                onTap: () => onSelected(preset),
+                              ),
+                              _IncrementMenuCell(
+                                key: ValueKey(
+                                  'update-stock-increment-separator-${preset.name}',
+                                ),
+                                text: '',
+                                textAlign: TextAlign.center,
+                                textColor: foregroundColor,
+                                onTap: () => onSelected(preset),
+                              ),
+                              _IncrementMenuCell(
+                                text: preset.costStepLabel,
+                                textAlign: TextAlign.center,
+                                textColor: foregroundColor,
+                                showCheck: isSelected,
+                                reserveCheckSpace: true,
+                                onTap: () => onSelected(preset),
+                              ),
+                            ],
+                          );
+                        })
+                        .toList(growable: false),
+                  ),
                 ),
               ),
             );
@@ -578,6 +630,87 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         );
       },
     );
+  }
+
+  List<double> _incrementColumnMinimums({
+    required BuildContext context,
+    required List<IncrementPreset> options,
+    required TextStyle textStyle,
+  }) {
+    final textScaler = MediaQuery.textScalerOf(context);
+    final textDirection = Directionality.of(context);
+
+    double maxTextWidth(String Function(IncrementPreset option) labelFor) {
+      var maxWidth = 0.0;
+      for (final option in options) {
+        maxWidth = math.max(
+          maxWidth,
+          _measureTextWidth(
+            text: labelFor(option),
+            textStyle: textStyle,
+            textScaler: textScaler,
+            textDirection: textDirection,
+          ),
+        );
+      }
+      return maxWidth;
+    }
+
+    const cellHorizontalPadding = AppThemeTokens.space2 * 2;
+    const checkAreaWidth =
+        AppThemeTokens.space1 + (AppThemeTokens.iconSizeMedium * 0.75);
+
+    return <double>[
+      maxTextWidth((preset) => '${preset.label}:') + cellHorizontalPadding,
+      maxTextWidth((preset) => preset.countStepLabel) + cellHorizontalPadding,
+      cellHorizontalPadding + AppThemeTokens.dividerThickness,
+      maxTextWidth((preset) => preset.costStepLabel) +
+          cellHorizontalPadding +
+          checkAreaWidth,
+    ];
+  }
+
+  List<double> _resolveIncrementColumnWidths({
+    required List<double> minimums,
+    required double availableWidth,
+    required List<double> growthWeights,
+  }) {
+    if (minimums.isEmpty) return const <double>[];
+
+    final safeAvailable = math.max(0, availableWidth);
+    final totalMinimum = minimums.reduce((sum, width) => sum + width);
+
+    if (totalMinimum <= safeAvailable) {
+      final extra = safeAvailable - totalMinimum;
+      final totalWeight = growthWeights.fold(0.0, (sum, w) => sum + w);
+      if (extra <= 0 || totalWeight <= 0) {
+        return List<double>.of(minimums, growable: false);
+      }
+      return List<double>.generate(
+        minimums.length,
+        (index) =>
+            minimums[index] + (extra * (growthWeights[index] / totalWeight)),
+        growable: false,
+      );
+    }
+
+    final scale = safeAvailable / totalMinimum;
+    return minimums.map((width) => width * scale).toList(growable: false);
+  }
+
+  double _measureTextWidth({
+    required String text,
+    required TextStyle textStyle,
+    required TextScaler textScaler,
+    required TextDirection textDirection,
+  }) {
+    final textPainter = TextPainter(
+      text: TextSpan(text: text, style: textStyle),
+      textDirection: textDirection,
+      maxLines: 1,
+      textScaler: textScaler,
+    )..layout();
+    return textPainter.width;
   }
 
   void _onVerticalDragEnd(DragEndDetails details) {
@@ -662,17 +795,32 @@ class _IncrementMenuCell extends StatelessWidget {
     required this.text,
     required this.textColor,
     required this.onTap,
+    this.textAlign = TextAlign.left,
     this.showCheck = false,
+    this.reserveCheckSpace = false,
     super.key,
   });
 
   final String text;
   final Color textColor;
   final VoidCallback onTap;
+  final TextAlign textAlign;
   final bool showCheck;
+  final bool reserveCheckSpace;
 
   @override
   Widget build(BuildContext context) {
+    const checkIconWidth = AppThemeTokens.iconSizeMedium * 0.75;
+    const checkSpacing = AppThemeTokens.space1;
+    final trailingReserve = reserveCheckSpace || showCheck
+        ? (checkSpacing + checkIconWidth)
+        : 0.0;
+    final textAlignment = switch (textAlign) {
+      TextAlign.center => Alignment.center,
+      TextAlign.right || TextAlign.end => Alignment.centerRight,
+      _ => Alignment.centerLeft,
+    };
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -680,34 +828,70 @@ class _IncrementMenuCell extends StatelessWidget {
           horizontal: AppThemeTokens.space2,
           vertical: AppThemeTokens.dropdownOptionPadY,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.max,
+        child: Stack(
+          fit: StackFit.passthrough,
           children: [
-            Expanded(
-              child: Text(
-                text,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.left,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: textColor,
-                  fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+            Padding(
+              padding: EdgeInsets.only(right: trailingReserve),
+              child: Align(
+                alignment: textAlignment,
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: textAlign,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: textColor,
+                    fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+                  ),
                 ),
               ),
             ),
-            if (showCheck) ...[
-              const SizedBox(width: AppThemeTokens.space1),
-              Icon(
-                Icons.check_rounded,
-                size: AppThemeTokens.iconSizeMedium * 0.75,
-                color: textColor,
+            if (showCheck)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Icon(
+                  Icons.check_rounded,
+                  size: checkIconWidth,
+                  color: textColor,
+                ),
               ),
-            ],
           ],
         ),
       ),
     );
+  }
+}
+
+class _IncrementSeparatorPainter extends CustomPainter {
+  const _IncrementSeparatorPainter({
+    required this.color,
+    required this.xOffset,
+  });
+
+  final Color color;
+  final double xOffset;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokePaint = Paint()
+      ..color = color
+      ..strokeWidth = AppThemeTokens.dividerThickness
+      ..style = PaintingStyle.stroke;
+    final lineX = xOffset.clamp(0, size.width).toDouble();
+    const verticalInset = AppThemeTokens.dropdownPanelInsetY;
+    const startY = verticalInset;
+    final endY = size.height - verticalInset;
+    if (endY <= startY) {
+      return;
+    }
+    canvas.drawLine(Offset(lineX, startY), Offset(lineX, endY), strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _IncrementSeparatorPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.xOffset != xOffset;
   }
 }
 
@@ -720,6 +904,8 @@ class _StockStepper extends StatelessWidget {
     required this.value,
     required this.onDecrement,
     required this.onIncrement,
+    this.actionsEnabled = true,
+    this.disabledTooltip,
   });
 
   final String label;
@@ -729,6 +915,8 @@ class _StockStepper extends StatelessWidget {
   final String value;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
+  final bool actionsEnabled;
+  final String? disabledTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -758,6 +946,9 @@ class _StockStepper extends StatelessWidget {
                   _StepAction(
                     key: decrementKey,
                     icon: Icons.remove,
+                    horizontalNudge: AppThemeTokens.space1,
+                    isEnabled: actionsEnabled,
+                    disabledTooltip: disabledTooltip,
                     onTap: onDecrement,
                   ),
                   const SizedBox(width: AppThemeTokens.fieldLabelToControlGap),
@@ -792,6 +983,9 @@ class _StockStepper extends StatelessWidget {
                   _StepAction(
                     key: incrementKey,
                     icon: Icons.add,
+                    horizontalNudge: -AppThemeTokens.space1,
+                    isEnabled: actionsEnabled,
+                    disabledTooltip: disabledTooltip,
                     onTap: onIncrement,
                   ),
                 ],
@@ -805,33 +999,54 @@ class _StockStepper extends StatelessWidget {
 }
 
 class _StepAction extends StatelessWidget {
-  const _StepAction({required this.icon, required this.onTap, super.key});
+  const _StepAction({
+    required this.icon,
+    required this.onTap,
+    this.horizontalNudge = 0,
+    this.isEnabled = true,
+    this.disabledTooltip,
+    super.key,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final double horizontalNudge;
+  final bool isEnabled;
+  final String? disabledTooltip;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final action = Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-        onTap: onTap,
+        onTap: isEnabled ? onTap : null,
         child: SizedBox(
           height: AppThemeTokens.stockStepActionHeight,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppThemeTokens.stockStepperActionPadX,
             ),
-            child: Icon(
-              icon,
-              size: AppThemeTokens.iconSizeMedium * 0.8,
-              color: AppThemeTokens.textPrimary,
+            child: Transform.translate(
+              offset: Offset(horizontalNudge, 0),
+              child: Icon(
+                icon,
+                size: AppThemeTokens.iconSizeMedium * 0.8,
+                color: isEnabled
+                    ? AppThemeTokens.textPrimary
+                    : AppThemeTokens.disabledForeground,
+              ),
             ),
           ),
         ),
       ),
     );
+
+    if (!isEnabled && (disabledTooltip?.isNotEmpty ?? false)) {
+      return Tooltip(message: disabledTooltip!, child: action);
+    }
+
+    return action;
   }
 }
 

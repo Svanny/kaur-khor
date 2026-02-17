@@ -107,6 +107,21 @@ void main() {
       find.byKey(const ValueKey('update-stock-increment-options')),
       findsOneWidget,
     );
+    final incrementTable = tester.widget<Table>(
+      find.descendant(
+        of: find.byKey(const ValueKey('update-stock-increment-options')),
+        matching: find.byType(Table),
+      ),
+    );
+    final columnWidths = incrementTable.columnWidths;
+    expect(columnWidths?[2], isA<FixedColumnWidth>());
+    expect(columnWidths?[1], isA<FixedColumnWidth>());
+    expect(columnWidths?[3], isA<FixedColumnWidth>());
+    final separatorColumnWidth = (columnWidths?[2] as FixedColumnWidth).value;
+    final countColumnWidth = (columnWidths?[1] as FixedColumnWidth).value;
+    final costColumnWidth = (columnWidths?[3] as FixedColumnWidth).value;
+    expect(separatorColumnWidth, lessThan(countColumnWidth));
+    expect(separatorColumnWidth, lessThan(costColumnWidth));
     final menuRect = tester.getRect(
       find.byKey(const ValueKey('update-stock-increment-options')),
     );
@@ -114,8 +129,31 @@ void main() {
     expect(menuRect.right, lessThanOrEqualTo(430 - AppThemeTokens.space4));
     expect(find.text('Small:'), findsOneWidget);
     expect(find.text('± 1'), findsOneWidget);
-    expect(find.text('&'), findsNWidgets(3));
+    expect(
+      find.byKey(const ValueKey('update-stock-increment-separator-small')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-increment-separator-medium')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-increment-separator-big')),
+      findsOneWidget,
+    );
     expect(find.text('± \$0.25'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Small:')).textAlign,
+      equals(TextAlign.left),
+    );
+    expect(
+      tester.widget<Text>(find.text('± 1')).textAlign,
+      equals(TextAlign.center),
+    );
+    expect(
+      tester.widget<Text>(find.text('± \$0.25')).textAlign,
+      equals(TextAlign.center),
+    );
     expect(find.byIcon(Icons.check_rounded), findsOneWidget);
 
     await tester.tap(
@@ -172,6 +210,82 @@ void main() {
       '-1',
     );
   });
+
+  testWidgets(
+    'cost input is disabled with tooltip when count change is negative in Changes mode',
+    (WidgetTester tester) async {
+      await pumpUpdateStockPage(tester);
+
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-count-decrement')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('update-stock-count-value')),
+            )
+            .data,
+        '-1',
+      );
+
+      final costBefore = tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data;
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-cost-increment')),
+      );
+      await tester.pumpAndSettle();
+      final costAfter = tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data;
+      expect(costAfter, costBefore);
+
+      await tester.longPress(
+        find.byKey(const ValueKey('update-stock-cost-increment')),
+      );
+      await tester.pump();
+      expect(
+        find.text('Cannot enter cost if change is negative.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'cost input is disabled with tooltip when Total count drops below previous total',
+    (WidgetTester tester) async {
+      await pumpUpdateStockPage(tester);
+
+      await tester.tap(find.text('Total'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-count-decrement')),
+      );
+      await tester.pumpAndSettle();
+
+      final costBefore = tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data;
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-cost-increment')),
+      );
+      await tester.pumpAndSettle();
+      final costAfter = tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data;
+      expect(costAfter, costBefore);
+
+      await tester.longPress(
+        find.byKey(const ValueKey('update-stock-cost-increment')),
+      );
+      await tester.pump();
+      expect(
+        find.text('Cannot enter cost if change is negative.'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('save all updates shared inventory and opens view all', (
     WidgetTester tester,
