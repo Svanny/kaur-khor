@@ -186,8 +186,14 @@ void main() {
       final activeDecoration = activeIndicator.decoration as BoxDecoration;
       final inactiveDecoration = inactiveIndicator.decoration as BoxDecoration;
 
-      expect(activeDecoration.color, equals(AppThemeTokens.secondary));
-      expect(inactiveDecoration.color, equals(AppThemeTokens.accentLighter));
+      expect(
+        activeDecoration.color,
+        equals(AppThemeTokens.stockIndicatorSelected),
+      );
+      expect(
+        inactiveDecoration.color,
+        equals(AppThemeTokens.stockIndicatorUnselected),
+      );
     },
   );
 

@@ -263,8 +263,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                               animationDuration: _switcherDuration,
                               densityRule: SkuIndicatorDensityRule.balanced,
                               gapScale: 0.25,
-                              selectedColor: AppThemeTokens.secondary,
-                              unselectedColor: AppThemeTokens.accentLighter,
+                              selectedColor:
+                                  AppThemeTokens.stockIndicatorSelected,
+                              unselectedColor:
+                                  AppThemeTokens.stockIndicatorUnselected,
                             ),
                           ),
                         ),
