@@ -158,6 +158,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   IncrementPreset _displayedPreset = IncrementPreset.small;
   Timer? _incrementLabelSwapTimer;
   int _incrementLabelSwapGeneration = 0;
+  final CardSwiperController _cardSwiperController = CardSwiperController();
   int _selectedSkuIndex = 0;
   bool _showConfirmationCard = false;
 
@@ -176,6 +177,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   @override
   void dispose() {
     _incrementLabelSwapTimer?.cancel();
+    _cardSwiperController.dispose();
     super.dispose();
   }
 
@@ -216,43 +218,16 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                             ),
                             const SizedBox(height: AppThemeTokens.sectionGap),
                             Expanded(
-                              child: GestureDetector(
-                                onVerticalDragEnd: _onVerticalDragEnd,
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: Align(
-                                        alignment: Alignment.topCenter,
-                                        child: FractionallySizedBox(
-                                          widthFactor: AppThemeTokens
-                                              .stockCardViewportWidthFactor,
-                                          heightFactor: AppThemeTokens
-                                              .stockCardViewportHeightFactor,
-                                          child: AnimatedSwitcher(
-                                            duration: _switcherDuration,
-                                            switchInCurve: Curves.easeOutCubic,
-                                            switchOutCurve: Curves.easeInCubic,
-                                            child: _showConfirmationCard
-                                                ? _buildConfirmationCard(
-                                                    key: const ValueKey(
-                                                      'update-stock-confirmation-card',
-                                                    ),
-                                                  )
-                                                : _buildSkuCard(
-                                                    key: ValueKey(
-                                                      'update-stock-sku-card-$_selectedSkuIndex',
-                                                    ),
-                                                    sku:
-                                                        _sourceSkus[_selectedSkuIndex],
-                                                    draft:
-                                                        _drafts[_selectedSkuIndex],
-                                                    currencyCode: currencyCode,
-                                                  ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                child: FractionallySizedBox(
+                                  widthFactor: AppThemeTokens
+                                      .stockCardViewportWidthFactor,
+                                  heightFactor: AppThemeTokens
+                                      .stockCardViewportHeightFactor,
+                                  child: _buildCardDeck(
+                                    currencyCode: currencyCode,
+                                  ),
                                 ),
                               ),
                             ),
@@ -290,6 +265,150 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               ),
       ),
     );
+  }
+
+  Widget _buildCardDeck({required String currencyCode}) {
+    if (_showConfirmationCard) {
+      return GestureDetector(
+        onVerticalDragEnd: _onVerticalDragEnd,
+        child: _buildConfirmationCard(
+          key: const ValueKey('update-stock-confirmation-card'),
+        ),
+      );
+    }
+
+    return CardSwiper(
+      key: ValueKey('update-stock-card-swiper-$_selectedSkuIndex'),
+      controller: _cardSwiperController,
+      cardsCount: _sourceSkus.length,
+      initialIndex: _selectedSkuIndex,
+      duration: _switcherDuration,
+      padding: EdgeInsets.zero,
+      maxAngle: 0,
+      threshold: 30,
+      scale: AppThemeTokens.stockCardStackScale1,
+      isLoop: false,
+      numberOfCardsDisplayed: math.min(
+        AppThemeTokens.stockCardStackLayerCount + 1,
+        _sourceSkus.length,
+      ),
+      backCardOffset: const Offset(0, AppThemeTokens.stockCardStackPeekOffset1),
+      allowedSwipeDirection: const AllowedSwipeDirection.only(
+        up: true,
+        down: true,
+      ),
+      onSwipe: (previousIndex, currentIndex, direction) {
+        return _onDeckSwipe(
+          previousIndex: previousIndex,
+          currentIndex: currentIndex,
+          direction: direction,
+        );
+      },
+      onUndo: (previousIndex, currentIndex, direction) {
+        return _onDeckUndo(
+          previousIndex: previousIndex,
+          currentIndex: currentIndex,
+          direction: direction,
+        );
+      },
+      cardBuilder: (context, index, _, __) {
+        return _buildDeckCard(index: index, currencyCode: currencyCode);
+      },
+    );
+  }
+
+  Widget _buildDeckCard({required int index, required String currencyCode}) {
+    if (index == _selectedSkuIndex) {
+      return _buildSkuCard(
+        key: ValueKey('update-stock-sku-card-$index'),
+        sku: _sourceSkus[index],
+        draft: _drafts[index],
+        currencyCode: currencyCode,
+      );
+    }
+
+    final layerIndex = (index - _selectedSkuIndex - 1)
+        .clamp(0, AppThemeTokens.stockCardStackLayerCount - 1)
+        .toInt();
+    return _buildCardUnderlay(layerIndex: layerIndex);
+  }
+
+  Widget _buildCardUnderlay({required int layerIndex}) {
+    final sideInset = AppThemeTokens.space2 * (layerIndex + 1);
+    final layerColor = switch (layerIndex) {
+      0 => AppThemeTokens.surface,
+      _ => AppThemeTokens.disabledBackground,
+    };
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: sideInset),
+      child: DecoratedBox(
+        key: ValueKey('update-stock-card-underlay-$layerIndex'),
+        decoration: BoxDecoration(
+          color: layerColor,
+          borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+          border: Border.all(color: AppThemeTokens.border),
+          boxShadow: const [
+            BoxShadow(
+              color: AppThemeTokens.shadow,
+              blurRadius: AppThemeTokens.elevation1Blur,
+              offset: Offset(0, AppThemeTokens.elevation1OffsetY),
+            ),
+          ],
+        ),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
+
+  bool _onDeckSwipe({
+    required int previousIndex,
+    required int? currentIndex,
+    required CardSwiperDirection direction,
+  }) {
+    if (direction == CardSwiperDirection.top) {
+      final isAtLast = previousIndex >= _sourceSkus.length - 1;
+      if (isAtLast) {
+        setState(() {
+          _selectedSkuIndex = previousIndex;
+          _showConfirmationCard = true;
+        });
+        return false;
+      }
+      if (currentIndex == null) {
+        return false;
+      }
+      setState(() {
+        _selectedSkuIndex = currentIndex;
+      });
+      return true;
+    }
+
+    if (direction == CardSwiperDirection.bottom) {
+      if (previousIndex <= 0) {
+        return false;
+      }
+      final previousCardIndex = previousIndex - 1;
+      setState(() => _selectedSkuIndex = previousCardIndex);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _showConfirmationCard) {
+          return;
+        }
+        _cardSwiperController.moveTo(previousCardIndex);
+      });
+      return false;
+    }
+
+    return false;
+  }
+
+  bool _onDeckUndo({
+    required int? previousIndex,
+    required int currentIndex,
+    required CardSwiperDirection direction,
+  }) {
+    setState(() => _selectedSkuIndex = currentIndex);
+    return true;
   }
 
   Widget _buildEmptyState() {
@@ -420,8 +539,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             ),
             const SizedBox(
               height:
-                  AppThemeTokens.sectionGapCompact +
-                  (AppThemeTokens.unit * 2),
+                  AppThemeTokens.sectionGapCompact + (AppThemeTokens.unit * 2),
             ),
             _StockStepper(
               label: 'Cost',
@@ -937,37 +1055,13 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   }
 
   void _onVerticalDragEnd(DragEndDetails details) {
+    if (!_showConfirmationCard) {
+      return;
+    }
     final velocity = details.primaryVelocity ?? 0;
     if (velocity > _swipeVelocityThreshold) {
-      _onSwipeDown();
-    } else if (velocity < -_swipeVelocityThreshold) {
-      _onSwipeUp();
+      setState(() => _showConfirmationCard = false);
     }
-  }
-
-  void _onSwipeDown() {
-    setState(() {
-      if (_showConfirmationCard) {
-        return;
-      }
-      if (_selectedSkuIndex < _sourceSkus.length - 1) {
-        _selectedSkuIndex += 1;
-        return;
-      }
-      _showConfirmationCard = true;
-    });
-  }
-
-  void _onSwipeUp() {
-    setState(() {
-      if (_showConfirmationCard) {
-        _showConfirmationCard = false;
-        return;
-      }
-      if (_selectedSkuIndex > 0) {
-        _selectedSkuIndex -= 1;
-      }
-    });
   }
 
   void _resetCurrentDraft() {

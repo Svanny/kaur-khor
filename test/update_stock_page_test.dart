@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 
 import 'package:banji/main.dart';
 import 'package:banji/settings/currency_controller.dart';
@@ -95,48 +96,140 @@ void main() {
     expect(find.text("SKUs' Stock Update"), findsOneWidget);
   });
 
-  testWidgets('swipe changes selected SKU and reaches confirmation card', (
+  testWidgets(
+    'swipe up advances, swipe down goes back, and confirmation returns to card',
+    (WidgetTester tester) async {
+      await pumpUpdateStockPage(tester);
+
+      expect(
+        find.byKey(const ValueKey('update-stock-indicator-0-active')),
+        findsOneWidget,
+      );
+
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-0')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-indicator-1-active')),
+        findsOneWidget,
+      );
+
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-1')),
+        const Offset(0, 500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-indicator-0-active')),
+        findsOneWidget,
+      );
+
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-0')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-indicator-1-active')),
+        findsOneWidget,
+      );
+
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-1')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-indicator-2-active')),
+        findsOneWidget,
+      );
+
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-2')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-confirmation-card')),
+        findsOneWidget,
+      );
+
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-confirmation-card')),
+        const Offset(0, 500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-sku-card-2')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-indicator-2-active')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('card stack shows two underlays and hides them on confirmation', (
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
 
+    final activeCardFinder = find.byKey(
+      const ValueKey('update-stock-sku-card-0'),
+    );
+    final underlay0Finder = find.byKey(
+      const ValueKey('update-stock-card-underlay-0'),
+    );
+    final underlay1Finder = find.byKey(
+      const ValueKey('update-stock-card-underlay-1'),
+    );
+
+    expect(underlay0Finder, findsOneWidget);
+    expect(underlay1Finder, findsOneWidget);
     expect(
-      find.byKey(const ValueKey('update-stock-indicator-0-active')),
+      find.ancestor(of: activeCardFinder, matching: find.byType(CardSwiper)),
       findsOneWidget,
     );
 
-    await tester.fling(
-      find.byKey(const ValueKey('update-stock-sku-card-0')),
-      const Offset(0, 500),
-      1200,
-    );
+    final activeRect = tester.getRect(activeCardFinder);
+    final underlay0Rect = tester.getRect(underlay0Finder);
+    final underlay1Rect = tester.getRect(underlay1Finder);
+
+    expect(underlay0Rect.top, greaterThan(activeRect.top));
+    expect(underlay1Rect.top, greaterThan(underlay0Rect.top));
+    expect(underlay0Rect.width, lessThan(activeRect.width));
+    expect(underlay1Rect.width, lessThan(underlay0Rect.width));
+
+    await tester.fling(activeCardFinder, const Offset(0, -500), 1200);
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('update-stock-indicator-1-active')),
-      findsOneWidget,
-    );
-
     await tester.fling(
       find.byKey(const ValueKey('update-stock-sku-card-1')),
-      const Offset(0, 500),
+      const Offset(0, -500),
       1200,
     );
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('update-stock-indicator-2-active')),
-      findsOneWidget,
-    );
-
     await tester.fling(
       find.byKey(const ValueKey('update-stock-sku-card-2')),
-      const Offset(0, 500),
+      const Offset(0, -500),
       1200,
     );
     await tester.pumpAndSettle();
+
     expect(
       find.byKey(const ValueKey('update-stock-confirmation-card')),
       findsOneWidget,
     );
+    expect(underlay0Finder, findsNothing);
+    expect(underlay1Finder, findsNothing);
   });
 
   testWidgets(
@@ -911,19 +1004,19 @@ void main() {
 
     await tester.fling(
       find.byKey(const ValueKey('update-stock-sku-card-0')),
-      const Offset(0, 500),
+      const Offset(0, -500),
       1200,
     );
     await tester.pumpAndSettle();
     await tester.fling(
       find.byKey(const ValueKey('update-stock-sku-card-1')),
-      const Offset(0, 500),
+      const Offset(0, -500),
       1200,
     );
     await tester.pumpAndSettle();
     await tester.fling(
       find.byKey(const ValueKey('update-stock-sku-card-2')),
-      const Offset(0, 500),
+      const Offset(0, -500),
       1200,
     );
     await tester.pumpAndSettle();
