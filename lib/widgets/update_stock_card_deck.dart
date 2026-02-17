@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -47,6 +48,8 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   static const int _swipeThreshold = 30;
   static const double _boundaryFogTransitionHeight = 48;
   static const double _backfillStartOffsetY = 24;
+  static const bool _debugBoundaryBlurLogs = false;
+  static const bool _debugDownwardRestoreLogs = false;
 
   final CardSwiperController _cardSwiperController = CardSwiperController();
   final List<int> _dismissedHistory = <int>[];
@@ -56,6 +59,8 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   int? _backfillPreviewIndex;
   bool _isUpwardDragActive = false;
   bool _holdBoundaryFogForSwipeOut = false;
+  String? _lastBoundaryBlurDebugSignature;
+  String? _lastDownwardRestoreDebugSignature;
 
   @override
   void didUpdateWidget(covariant UpdateStockCardDeck oldWidget) {
@@ -84,6 +89,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     }
 
     return Stack(
+      clipBehavior: Clip.none,
       fit: StackFit.expand,
       children: [
         _buildPreloadedCards(),
@@ -129,6 +135,8 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
             );
           },
         ),
+        if (_isUpwardDragActive || _holdBoundaryFogForSwipeOut)
+          _buildBoundaryBlurOverlay(),
       ],
     );
   }
@@ -194,11 +202,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
           verticalOffsetPercentage: verticalOffsetPercentage,
         );
       }
-      return _buildFrontCardWithBoundaryFog(
-        context: context,
-        child: frontCard,
-        verticalOffsetPercentage: verticalOffsetPercentage,
-      );
+      return frontCard;
     }
 
     final preview = IgnorePointer(
@@ -256,6 +260,21 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
             widget.boundaryFogOffsetFromDeckTop -
             constraints.maxHeight +
             dragOffsetY;
+        if (_debugDownwardRestoreLogs) {
+          final signature = [
+            'restoreIndex=$restoreIndex',
+            'verticalPct=$verticalOffsetPercentage',
+            'dragY=${dragOffsetY.toStringAsFixed(2)}',
+            'enhancedDragY=${enhancedDragOffsetY.toStringAsFixed(2)}',
+            'cardH=${constraints.maxHeight.toStringAsFixed(2)}',
+            'startY=${widget.boundaryFogOffsetFromDeckTop.toStringAsFixed(2)}',
+            'previewTranslateY=${previewTranslateY.toStringAsFixed(2)}',
+          ].join(' | ');
+          if (signature != _lastDownwardRestoreDebugSignature) {
+            _lastDownwardRestoreDebugSignature = signature;
+            debugPrint('[UpdateStockCardDeck][down-restore] $signature');
+          }
+        }
         return Stack(
           fit: StackFit.expand,
           clipBehavior: Clip.none,
@@ -281,64 +300,58 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     );
   }
 
-  Widget _buildFrontCardWithBoundaryFog({
-    required BuildContext context,
-    required Widget child,
-    required int verticalOffsetPercentage,
-  }) {
-    if (!_isUpwardDragActive && !_holdBoundaryFogForSwipeOut) {
-      return child;
+  Widget _buildBoundaryBlurOverlay() {
+    final startY = widget.boundaryFogOffsetFromDeckTop;
+    final endY =
+        widget.boundaryFogEndOffsetFromDeckTop ??
+        (startY + _boundaryFogTransitionHeight);
+    final top = math.min(startY, endY);
+    final height = math.max((endY - startY).abs(), 1.0);
+    if (_debugBoundaryBlurLogs) {
+      final signature = [
+        'upDrag=$_isUpwardDragActive',
+        'hold=$_holdBoundaryFogForSwipeOut',
+        'startY=${startY.toStringAsFixed(2)}',
+        'endY=${endY.toStringAsFixed(2)}',
+        'top=${top.toStringAsFixed(2)}',
+        'height=${height.toStringAsFixed(2)}',
+        'hasEnd=${widget.boundaryFogEndOffsetFromDeckTop != null}',
+      ].join(' | ');
+      if (signature != _lastBoundaryBlurDebugSignature) {
+        _lastBoundaryBlurDebugSignature = signature;
+        debugPrint('[UpdateStockCardDeck][boundary-blur] $signature');
+      }
     }
 
-    final dragOffsetY = (verticalOffsetPercentage * _swipeThreshold) / 100;
-    late final double fogStartY;
-    late final double fogEndY;
-
-    if (widget.boundaryFogEndOffsetFromDeckTop case final fogEndOffset?) {
-      fogStartY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
-      fogEndY = fogEndOffset - dragOffsetY;
-      if (math.max(fogStartY, fogEndY) <= 0 && !_holdBoundaryFogForSwipeOut) {
-        return child;
-      }
-    } else {
-      fogStartY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
-      if (fogStartY <= 0 && !_holdBoundaryFogForSwipeOut) {
-        return child;
-      }
-      fogEndY = fogStartY + _boundaryFogTransitionHeight;
-    }
-
-    return ShaderMask(
-      key: const ValueKey('update-stock-boundary-fog-mask'),
-      blendMode: BlendMode.dstIn,
-      shaderCallback: (Rect rect) {
-        if (rect.height <= 0) {
-          return const LinearGradient(
-            colors: <Color>[Colors.transparent, Colors.transparent],
-          ).createShader(rect);
-        }
-
-        final minStop = math.min(fogStartY, fogEndY);
-        final maxStop = math.max(fogStartY, fogEndY);
-        final start = (minStop / rect.height).clamp(0.0, 1.0).toDouble();
-        var end = (maxStop / rect.height).clamp(0.0, 1.0).toDouble();
-        if (end <= start) {
-          end = (start + 0.001).clamp(0.0, 1.0).toDouble();
-        }
-
-        return LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Colors.transparent,
-            Colors.transparent,
-            Colors.white,
-            Colors.white,
-          ],
-          stops: <double>[0, start, end, 1],
-        ).createShader(rect);
-      },
-      child: child,
+    return Positioned(
+      key: const ValueKey('update-stock-boundary-blur-overlay'),
+      top: top,
+      left: 0,
+      right: 0,
+      height: height,
+      child: IgnorePointer(
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (Rect rect) {
+            return const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[Colors.white, Colors.transparent],
+            ).createShader(rect);
+          },
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

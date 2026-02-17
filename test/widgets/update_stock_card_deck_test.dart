@@ -50,13 +50,13 @@ void main() {
     expect(find.byKey(const ValueKey('front-3')), findsNothing);
   });
 
-  testWidgets('boundary fog mask appears only during upward drag', (
+  testWidgets('boundary blur overlay appears only during upward drag', (
     tester,
   ) async {
     await pumpDeckHarness(tester, cardsCount: 6);
 
     expect(
-      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
+      find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
       findsNothing,
     );
     expect(find.byType(ShaderMask), findsNothing);
@@ -69,7 +69,7 @@ void main() {
       await gesture.moveBy(const Offset(0, -20));
       await tester.pump();
       if (find
-          .byKey(const ValueKey('update-stock-boundary-fog-mask'))
+          .byKey(const ValueKey('update-stock-boundary-blur-overlay'))
           .evaluate()
           .isNotEmpty) {
         overlaySeen = true;
@@ -78,14 +78,17 @@ void main() {
     }
     expect(overlaySeen, isTrue);
     final fogMask = tester.widget<ShaderMask>(
-      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
+      find.descendant(
+        of: find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
+        matching: find.byType(ShaderMask),
+      ),
     );
     expect(fogMask.blendMode, BlendMode.dstIn);
 
     await gesture.up();
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
+      find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
       findsNothing,
     );
   });
@@ -105,7 +108,7 @@ void main() {
     await gesture.moveBy(const Offset(0, -10));
     await tester.pump();
     expect(
-      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
+      find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
       findsNothing,
     );
 
@@ -114,7 +117,7 @@ void main() {
       await gesture.moveBy(const Offset(0, -8));
       await tester.pump();
       if (find
-          .byKey(const ValueKey('update-stock-boundary-fog-mask'))
+          .byKey(const ValueKey('update-stock-boundary-blur-overlay'))
           .evaluate()
           .isNotEmpty) {
         fogSeen = true;
@@ -141,7 +144,7 @@ void main() {
     await gesture.moveBy(const Offset(0, -10));
     await tester.pump();
     expect(
-      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
+      find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
       findsNothing,
     );
 
@@ -150,7 +153,7 @@ void main() {
       await gesture.moveBy(const Offset(0, -8));
       await tester.pump();
       if (find
-          .byKey(const ValueKey('update-stock-boundary-fog-mask'))
+          .byKey(const ValueKey('update-stock-boundary-blur-overlay'))
           .evaluate()
           .isNotEmpty) {
         fogSeen = true;

@@ -166,6 +166,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   static const String _costClampTooltip = 'Cost cannot go below zero';
   static const double _headerOverlayHeight = kMinInteractiveDimension;
   static const double _titleOverlayFallbackHeight = 0;
+  static const bool _debugBoundaryMeasurementLogs = false;
 
   bool _initialized = false;
   late InventoryController _inventoryController;
@@ -185,6 +186,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   double _fogStartOffsetFromDeckTop = 0;
   double _fogEndOffsetFromDeckTop = -AppThemeTokens.sectionGap;
   double _stockTitleOverlayHeight = _titleOverlayFallbackHeight;
+  String? _lastBoundaryMeasurementDebugSignature;
 
   @override
   void didChangeDependencies() {
@@ -381,6 +383,21 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       final deckTopGlobalY = deckObject.localToGlobal(Offset.zero).dy;
       final nextStart = -deckTopGlobalY;
       final nextEnd = titleTopGlobalY - deckTopGlobalY;
+      if (_debugBoundaryMeasurementLogs) {
+        final signature = [
+          'titleTopGlobalY=${titleTopGlobalY.toStringAsFixed(2)}',
+          'titleH=${nextTitleHeight.toStringAsFixed(2)}',
+          'deckTopGlobalY=${deckTopGlobalY.toStringAsFixed(2)}',
+          'nextStart=${nextStart.toStringAsFixed(2)}',
+          'nextEnd=${nextEnd.toStringAsFixed(2)}',
+          'currStart=${_fogStartOffsetFromDeckTop.toStringAsFixed(2)}',
+          'currEnd=${_fogEndOffsetFromDeckTop.toStringAsFixed(2)}',
+        ].join(' | ');
+        if (signature != _lastBoundaryMeasurementDebugSignature) {
+          _lastBoundaryMeasurementDebugSignature = signature;
+          debugPrint('[UpdateStockPage][boundary-measure] $signature');
+        }
+      }
 
       if ((nextStart - _fogStartOffsetFromDeckTop).abs() < 0.5 &&
           (nextEnd - _fogEndOffsetFromDeckTop).abs() < 0.5 &&
