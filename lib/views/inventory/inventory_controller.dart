@@ -38,6 +38,16 @@ class InventoryState {
       soldAsProduct: true,
       productPrice: 16,
     ),
+    SkuItem(
+      id: 'sku-004',
+      name: 'SKU #004',
+      itemPictureIcon: _defaultSkuPictureIcon,
+      description: 'Seasonal inventory reserved for peak periods.',
+      unitsInStock: 98.0,
+      costPerUnit: 931 / 98,
+      soldAsProduct: false,
+      productPrice: null,
+    ),
   ];
 
   static const List<ServiceItem> _seedServices = [

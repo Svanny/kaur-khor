@@ -164,6 +164,8 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   static const String _costInputDisabledTooltip =
       'Cannot enter cost if change is negative.';
   static const String _costClampTooltip = 'Cost cannot go below zero';
+  static const double _headerOverlayHeight = kMinInteractiveDimension;
+  static const double _titleOverlayFallbackHeight = 0;
 
   bool _initialized = false;
   late InventoryController _inventoryController;
@@ -182,6 +184,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   bool _fogRangeMeasurementScheduled = false;
   double _fogStartOffsetFromDeckTop = 0;
   double _fogEndOffsetFromDeckTop = -AppThemeTokens.sectionGap;
+  double _stockTitleOverlayHeight = _titleOverlayFallbackHeight;
 
   @override
   void didChangeDependencies() {
@@ -221,76 +224,87 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           ),
           child: _sourceSkus.isEmpty
               ? _buildEmptyState()
-              : Column(
-                  children: [
-                    _buildHeader(),
-                    const SizedBox(height: AppThemeTokens.headerToContentGap),
-                    Expanded(
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Column(
-                            children: [
-                              Text(
-                                "SKUs' Stock Update",
-                                key: _stockUpdateTitleKey,
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      fontWeight: _fontWeight(
-                                        AppThemeTokens.fontWeightBold,
-                                      ),
-                                    ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: AppThemeTokens.sectionGap),
-                              Expanded(
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: FractionallySizedBox(
-                                    widthFactor: AppThemeTokens
-                                        .stockCardViewportWidthFactor,
-                                    heightFactor: AppThemeTokens
-                                        .stockCardViewportHeightFactor,
-                                    child: _buildCardDeck(
-                                      currencyCode: currencyCode,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(
-                                height: AppThemeTokens.sectionGapLarge,
-                              ),
-                            ],
-                          ),
-                          Positioned(
-                            right: -(edge.right / 2),
-                            top: 0,
-                            bottom: 0,
-                            child: IgnorePointer(
-                              child: SkuIndicatorRail(
-                                trackKey: const ValueKey(
-                                  'update-stock-indicator-track',
-                                ),
-                                count: _sourceSkus.length,
-                                selectedIndex: _selectedSkuIndex,
-                                animationDuration: _switcherDuration,
-                                densityRule: SkuIndicatorDensityRule.balanced,
-                                gapScale: 0.25,
-                                selectedColor:
-                                    AppThemeTokens.stockIndicatorSelected,
-                                unselectedColor:
-                                    AppThemeTokens.stockIndicatorUnselected,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _buildIncrementSelector(),
-                  ],
-                ),
+              : _buildStockUpdateLayout(edge: edge, currencyCode: currencyCode),
         ),
       ),
+    );
+  }
+
+  Widget _buildStockUpdateLayout({
+    required EdgeInsets edge,
+    required String currencyCode,
+  }) {
+    return Stack(
+      children: [
+        Column(
+          children: [
+            const SizedBox(height: _headerOverlayHeight),
+            const SizedBox(height: AppThemeTokens.headerToContentGap),
+            Expanded(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: _stockTitleOverlayHeight + AppThemeTokens.sectionGap,
+                    ),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: FractionallySizedBox(
+                        widthFactor:
+                            AppThemeTokens.stockCardViewportWidthFactor,
+                        heightFactor:
+                            AppThemeTokens.stockCardViewportHeightFactor,
+                        child: _buildCardDeck(currencyCode: currencyCode),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: -(edge.right / 2),
+                    top: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: SkuIndicatorRail(
+                        trackKey: const ValueKey(
+                          'update-stock-indicator-track',
+                        ),
+                        count: _sourceSkus.length,
+                        selectedIndex: _selectedSkuIndex,
+                        animationDuration: _switcherDuration,
+                        densityRule: SkuIndicatorDensityRule.balanced,
+                        gapScale: 0.25,
+                        selectedColor: AppThemeTokens.stockIndicatorSelected,
+                        unselectedColor:
+                            AppThemeTokens.stockIndicatorUnselected,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildIncrementSelector(),
+          ],
+        ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SizedBox(height: _headerOverlayHeight, child: _buildHeader()),
+        ),
+        Positioned(
+          top: _headerOverlayHeight + AppThemeTokens.headerToContentGap,
+          left: 0,
+          right: 0,
+          child: Text(
+            "SKUs' Stock Update",
+            key: _stockUpdateTitleKey,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
     );
   }
 
@@ -363,18 +377,21 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       }
 
       final titleTopGlobalY = titleObject.localToGlobal(Offset.zero).dy;
+      final nextTitleHeight = titleObject.size.height;
       final deckTopGlobalY = deckObject.localToGlobal(Offset.zero).dy;
       final nextStart = -deckTopGlobalY;
       final nextEnd = titleTopGlobalY - deckTopGlobalY;
 
       if ((nextStart - _fogStartOffsetFromDeckTop).abs() < 0.5 &&
-          (nextEnd - _fogEndOffsetFromDeckTop).abs() < 0.5) {
+          (nextEnd - _fogEndOffsetFromDeckTop).abs() < 0.5 &&
+          (nextTitleHeight - _stockTitleOverlayHeight).abs() < 0.5) {
         return;
       }
 
       setState(() {
         _fogStartOffsetFromDeckTop = nextStart;
         _fogEndOffsetFromDeckTop = nextEnd;
+        _stockTitleOverlayHeight = nextTitleHeight;
       });
     });
   }

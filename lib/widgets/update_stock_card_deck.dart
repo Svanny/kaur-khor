@@ -46,20 +46,10 @@ class UpdateStockCardDeck extends StatefulWidget {
 class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   static const int _swipeThreshold = 30;
   static const double _boundaryFogTransitionHeight = 48;
-  static const double _restoreStartOffsetY = 72;
   static const double _backfillStartOffsetY = 24;
-  static const double _backEjectBaseOffsetY = 40;
-  static const double _backEjectTravelY = 24;
-  static const double _backEjectScale = 0.92;
 
   final CardSwiperController _cardSwiperController = CardSwiperController();
   final List<int> _dismissedHistory = <int>[];
-
-  int? _restoreOverlayIndex;
-  int? _pendingRestoreIndex;
-  int? _backEjectOverlayIndex;
-  bool _isRestoreAnimating = false;
-  int _restoreAnimationGeneration = 0;
 
   int _previewGeneration = 0;
   int _backfillGeneration = 0;
@@ -97,10 +87,6 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
       fit: StackFit.expand,
       children: [
         _buildPreloadedCards(),
-        if (_backEjectOverlayIndex != null)
-          Positioned.fill(
-            child: IgnorePointer(child: _buildBackEjectOverlayCard()),
-          ),
         CardSwiper(
           key: widget.swiperKey,
           controller: _cardSwiperController,
@@ -143,10 +129,6 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
             );
           },
         ),
-        if (_restoreOverlayIndex != null)
-          Positioned.fill(
-            child: IgnorePointer(child: _buildRestoreOverlayCard()),
-          ),
       ],
     );
   }
@@ -156,10 +138,6 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     required int? currentIndex,
     required CardSwiperDirection direction,
   }) {
-    if (_isRestoreAnimating) {
-      return false;
-    }
-
     if (direction == CardSwiperDirection.top) {
       final isAtLastCard = previousIndex >= widget.cardsCount - 1;
       if (isAtLastCard) {
@@ -184,10 +162,10 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
         return false;
       }
       final restoreIndex = _dismissedHistory.removeLast();
-      _startRestoreAnimation(
-        restoreIndex: restoreIndex,
-        backEjectIndex: _backCardIndexFor(widget.currentIndex),
-      );
+      _previewGeneration += 1;
+      _backfillGeneration += 1;
+      _backfillPreviewIndex = _backfillIndexFor(restoreIndex);
+      widget.onCurrentIndexChanged(restoreIndex);
       return false;
     }
 
@@ -206,15 +184,19 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     required int index,
     required int verticalOffsetPercentage,
   }) {
-    if (_backEjectOverlayIndex == index) {
-      return const SizedBox.shrink();
-    }
-
     final isFrontCard = index == widget.currentIndex;
     if (isFrontCard) {
+      final frontCard = widget.cardBuilder(context, index);
+      if (_isDownwardRestoreDrag(verticalOffsetPercentage)) {
+        return _buildFrontCardWithDownwardRestorePreview(
+          context: context,
+          child: frontCard,
+          verticalOffsetPercentage: verticalOffsetPercentage,
+        );
+      }
       return _buildFrontCardWithBoundaryFog(
         context: context,
-        child: widget.cardBuilder(context, index),
+        child: frontCard,
         verticalOffsetPercentage: verticalOffsetPercentage,
       );
     }
@@ -249,6 +231,53 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
         );
       },
       child: preview,
+    );
+  }
+
+  bool _isDownwardRestoreDrag(int verticalOffsetPercentage) {
+    return verticalOffsetPercentage > 0 && _dismissedHistory.isNotEmpty;
+  }
+
+  Widget _buildFrontCardWithDownwardRestorePreview({
+    required BuildContext context,
+    required Widget child,
+    required int verticalOffsetPercentage,
+  }) {
+    if (_dismissedHistory.isEmpty) {
+      return child;
+    }
+
+    final dragOffsetY = (verticalOffsetPercentage * _swipeThreshold) / 100;
+    final enhancedDragOffsetY = dragOffsetY * 2;
+    final restoreIndex = _dismissedHistory.last;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final previewTranslateY =
+            widget.boundaryFogOffsetFromDeckTop -
+            constraints.maxHeight +
+            dragOffsetY;
+        return Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.none,
+          children: [
+            Transform.translate(offset: Offset(0, -dragOffsetY), child: child),
+            Transform.translate(
+              offset: Offset(
+                0,
+                previewTranslateY + enhancedDragOffsetY - dragOffsetY,
+              ),
+              child: IgnorePointer(
+                child: KeyedSubtree(
+                  key: ValueKey(
+                    'update-stock-down-ether-preview-$restoreIndex',
+                  ),
+                  child: widget.cardBuilder(context, restoreIndex),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -313,98 +342,11 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     );
   }
 
-  Widget _buildRestoreOverlayCard() {
-    final index = _restoreOverlayIndex;
-    if (index == null) {
-      return const SizedBox.shrink();
-    }
-
-    final generation = _restoreAnimationGeneration;
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('${widget.downOverlayKeyPrefix}$generation'),
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: widget.animationDuration,
-      curve: Curves.easeOutCubic,
-      onEnd: () {
-        if (!mounted || generation != _restoreAnimationGeneration) {
-          return;
-        }
-        final restoreIndex = _pendingRestoreIndex;
-        setState(() {
-          _isRestoreAnimating = false;
-          _restoreOverlayIndex = null;
-          _pendingRestoreIndex = null;
-          _backEjectOverlayIndex = null;
-          _previewGeneration += 1;
-          _backfillGeneration += 1;
-          _backfillPreviewIndex = restoreIndex == null
-              ? null
-              : _backfillIndexFor(restoreIndex);
-        });
-        if (restoreIndex != null) {
-          widget.onCurrentIndexChanged(restoreIndex);
-        }
-      },
-      builder: (context, progress, child) {
-        final translateY = (1 - progress) * -_restoreStartOffsetY;
-        return Opacity(
-          opacity: progress.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(0, translateY),
-            child: child,
-          ),
-        );
-      },
-      child: widget.cardBuilder(context, index),
-    );
-  }
-
-  Widget _buildBackEjectOverlayCard() {
-    final index = _backEjectOverlayIndex;
-    if (index == null) {
-      return const SizedBox.shrink();
-    }
-
-    final generation = _restoreAnimationGeneration;
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('${widget.downBackEjectKeyPrefix}$generation'),
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: widget.animationDuration,
-      curve: Curves.easeInCubic,
-      builder: (context, progress, child) {
-        final translateY =
-            _backEjectBaseOffsetY + (progress * _backEjectTravelY);
-        final scale = _backEjectScale - (progress * 0.04);
-        return Opacity(
-          opacity: (1 - progress).clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(0, translateY),
-            child: Transform.scale(scale: scale, child: child),
-          ),
-        );
-      },
-      child: widget.cardBuilder(context, index),
-    );
-  }
-
   void _startBackfillAnimation(int currentIndex) {
     setState(() {
       _previewGeneration += 1;
       _backfillGeneration += 1;
       _backfillPreviewIndex = _backfillIndexFor(currentIndex);
-    });
-  }
-
-  void _startRestoreAnimation({
-    required int restoreIndex,
-    required int? backEjectIndex,
-  }) {
-    setState(() {
-      _isRestoreAnimating = true;
-      _restoreAnimationGeneration += 1;
-      _restoreOverlayIndex = restoreIndex;
-      _pendingRestoreIndex = restoreIndex;
-      _backEjectOverlayIndex = backEjectIndex;
     });
   }
 
@@ -435,21 +377,13 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
         indices.add(index);
       }
     }
-    if (_restoreOverlayIndex case final restoreIndex?) {
-      indices.add(restoreIndex);
-    }
-    if (_backEjectOverlayIndex case final backEjectIndex?) {
-      indices.add(backEjectIndex);
+    if (_dismissedHistory case [..., final lastDismissed]) {
+      indices.add(lastDismissed);
     }
     yield* indices;
   }
 
   int? _backfillIndexFor(int currentIndex) {
-    final index = currentIndex + (widget.maxStackCards - 1);
-    return index < widget.cardsCount ? index : null;
-  }
-
-  int? _backCardIndexFor(int currentIndex) {
     final index = currentIndex + (widget.maxStackCards - 1);
     return index < widget.cardsCount ? index : null;
   }

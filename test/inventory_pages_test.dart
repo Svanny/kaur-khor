@@ -90,6 +90,7 @@ void main() {
       expect(find.text('SKU #001'), findsOneWidget);
       expect(find.text('SKU #002'), findsOneWidget);
       expect(find.text('SKU #003'), findsOneWidget);
+      expect(find.text('SKU #004'), findsOneWidget);
 
       final skuChip = chipByLabel(tester, 'SKUs');
       final serviceChip = chipByLabel(tester, 'Services');
@@ -140,6 +141,7 @@ void main() {
     expect(find.text('SKU #001'), findsNothing);
     expect(find.text('SKU #002'), findsNothing);
     expect(find.text('SKU #003'), findsNothing);
+    expect(find.text('SKU #004'), findsNothing);
     final skuChip = chipByLabel(tester, 'SKUs');
     expect(skuChip.selected, isFalse);
     expect(skuChip.showCheckmark, isTrue);

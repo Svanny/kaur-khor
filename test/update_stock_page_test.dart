@@ -165,6 +165,17 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
+        find.byKey(const ValueKey('update-stock-indicator-3-active')),
+        findsOneWidget,
+      );
+
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-3')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(
         find.byKey(const ValueKey('update-stock-confirmation-card')),
         findsOneWidget,
       );
@@ -176,11 +187,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const ValueKey('update-stock-sku-card-2')),
+        find.byKey(const ValueKey('update-stock-sku-card-3')),
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('update-stock-indicator-2-active')),
+        find.byKey(const ValueKey('update-stock-indicator-3-active')),
         findsOneWidget,
       );
     },
@@ -231,6 +242,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.fling(
         find.byKey(const ValueKey('update-stock-sku-card-2')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-3')),
         const Offset(0, -500),
         1200,
       );
@@ -291,30 +308,35 @@ void main() {
     'indicator rail spans track with uniform spacing and mapped colors',
     (WidgetTester tester) async {
       await pumpUpdateStockPage(tester);
+      final skuCount = InventoryState.initial().skus.length;
 
       final trackRect = tester.getRect(
         find.byKey(const ValueKey('update-stock-indicator-track')),
       );
       final firstRect = indicatorRect(tester, 0);
-      final secondRect = indicatorRect(tester, 1);
-      final thirdRect = indicatorRect(tester, 2);
+      final lastRect = indicatorRect(tester, skuCount - 1);
 
       expect((firstRect.top - trackRect.top).abs(), lessThanOrEqualTo(1.0));
       expect(
-        (thirdRect.bottom - trackRect.bottom).abs(),
+        (lastRect.bottom - trackRect.bottom).abs(),
         lessThanOrEqualTo(1.0),
       );
 
-      final gap01 = secondRect.top - firstRect.bottom;
-      final gap12 = thirdRect.top - secondRect.bottom;
-      expect((gap01 - gap12).abs(), lessThanOrEqualTo(1.0));
+      for (var index = 0; index < skuCount - 2; index++) {
+        final currentRect = indicatorRect(tester, index);
+        final nextRect = indicatorRect(tester, index + 1);
+        final afterNextRect = indicatorRect(tester, index + 2);
+        final currentGap = nextRect.top - currentRect.bottom;
+        final nextGap = afterNextRect.top - nextRect.bottom;
+        expect((currentGap - nextGap).abs(), lessThanOrEqualTo(1.0));
+      }
       final titleRect = tester.getRect(find.text("SKUs' Stock Update"));
       final incrementRect = tester.getRect(
         find.byKey(const ValueKey('update-stock-increment-toggle')),
       );
       expect((firstRect.top - titleRect.top).abs(), lessThanOrEqualTo(1.0));
       expect(
-        (thirdRect.bottom - incrementRect.top).abs(),
+        (lastRect.bottom - incrementRect.top).abs(),
         lessThanOrEqualTo(1.0),
       );
       final edgeRight =
@@ -349,7 +371,8 @@ void main() {
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
-    final gapFor3Skus = averageIndicatorGap(tester, 3);
+    final defaultSkuCount = InventoryState.initial().skus.length;
+    final gapForDefaultSkus = averageIndicatorGap(tester, defaultSkuCount);
 
     await pumpUpdateStockPage(
       tester,
@@ -357,7 +380,7 @@ void main() {
     );
     final gapFor6Skus = averageIndicatorGap(tester, 6);
 
-    expect(gapFor6Skus, lessThan(gapFor3Skus));
+    expect(gapFor6Skus, lessThan(gapForDefaultSkus));
   });
 
   testWidgets('SKU title stays centered while reset icon sits beside it', (
@@ -1183,6 +1206,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.fling(
       find.byKey(const ValueKey('update-stock-sku-card-2')),
+      const Offset(0, -500),
+      1200,
+    );
+    await tester.pumpAndSettle();
+    await tester.fling(
+      find.byKey(const ValueKey('update-stock-sku-card-3')),
       const Offset(0, -500),
       1200,
     );

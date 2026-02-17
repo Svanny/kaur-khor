@@ -163,8 +163,42 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('downward drag pulls previous card from ether preview', (
+    tester,
+  ) async {
+    await pumpDeckHarness(tester, cardsCount: 6);
+
+    await tester.fling(
+      find.byKey(const ValueKey('front-0')),
+      const Offset(0, -500),
+      1200,
+    );
+    await tester.pumpAndSettle();
+
+    expect(keyPrefixFinder('update-stock-down-ether-preview-'), findsNothing);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('front-1'))),
+    );
+    var previewSeen = false;
+    for (var i = 0; i < 8; i += 1) {
+      await gesture.moveBy(const Offset(0, 8));
+      await tester.pump();
+      if (keyPrefixFinder(
+        'update-stock-down-ether-preview-0',
+      ).evaluate().isNotEmpty) {
+        previewSeen = true;
+        break;
+      }
+    }
+    expect(previewSeen, isTrue);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets(
-    'preloads exactly current and next two, including after restore',
+    'preloads current/next cards and keeps restorable previous card ready',
     (tester) async {
       await pumpDeckHarness(tester, cardsCount: 6);
 
@@ -194,7 +228,7 @@ void main() {
 
       expect(
         find.byKey(const ValueKey('preload-0'), skipOffstage: false),
-        findsNothing,
+        findsOneWidget,
       );
       expect(
         find.byKey(const ValueKey('preload-1'), skipOffstage: false),
