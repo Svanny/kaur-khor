@@ -66,6 +66,14 @@ void main() {
     return totalGap / (count - 1);
   }
 
+  TextField stepperField(WidgetTester tester, String key) {
+    return tester.widget<TextField>(find.byKey(ValueKey(key)));
+  }
+
+  String stepperValueText(WidgetTester tester, String key) {
+    return stepperField(tester, key).controller?.text ?? '';
+  }
+
   InventoryState inventoryStateWithSkuCount(int count) {
     final skus = List.generate(count, (index) {
       final number = (index + 1).toString().padLeft(3, '0');
@@ -512,10 +520,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final countValue = tester.widget<Text>(
-      find.byKey(const ValueKey('update-stock-count-value')),
-    );
-    expect(countValue.data, '+5');
+    expect(stepperValueText(tester, 'update-stock-count-value'), '+5');
 
     await tester.tap(
       find.byKey(const ValueKey('update-stock-increment-toggle')),
@@ -538,29 +543,96 @@ void main() {
       find.byKey(const ValueKey('update-stock-count-decrement')),
     );
     await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-count-value')))
-          .data,
-      '-1',
-    );
+    expect(stepperValueText(tester, 'update-stock-count-value'), '-1');
 
     await tester.tap(find.text('Total'));
     await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-count-value')))
-          .data,
-      '263',
-    );
+    expect(stepperValueText(tester, 'update-stock-count-value'), '263');
 
     await tester.tap(find.text('Changes'));
     await tester.pumpAndSettle();
+    expect(stepperValueText(tester, 'update-stock-count-value'), '-1');
+  });
+
+  testWidgets('stepper value fields are editable and unfocus on outside tap', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    const numberKeyboard = TextInputType.numberWithOptions(
+      decimal: true,
+      signed: true,
+    );
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-count-value')))
-          .data,
-      '-1',
+      stepperField(tester, 'update-stock-count-value').keyboardType,
+      equals(numberKeyboard),
+    );
+    expect(
+      stepperField(tester, 'update-stock-cost-value').keyboardType,
+      equals(numberKeyboard),
+    );
+
+    final countValueFinder = find.byKey(
+      const ValueKey('update-stock-count-value'),
+    );
+    await tester.tap(countValueFinder);
+    await tester.pump();
+    await tester.enterText(countValueFinder, '7');
+    await tester.tap(find.text("SKUs' Stock Update"));
+    await tester.pumpAndSettle();
+
+    expect(stepperValueText(tester, 'update-stock-count-value'), '+7');
+    final hasFocusedEditableText = tester
+        .widgetList<EditableText>(find.byType(EditableText))
+        .any((editableText) => editableText.focusNode.hasFocus);
+    expect(hasFocusedEditableText, isFalse);
+
+    final costValueFinder = find.byKey(
+      const ValueKey('update-stock-cost-value'),
+    );
+    await tester.tap(costValueFinder);
+    await tester.pump();
+    await tester.enterText(costValueFinder, '-1.5');
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-count-value-pill')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(stepperValueText(tester, 'update-stock-cost-value'), '-1.5 USD');
+  });
+
+  testWidgets('editable values clamp to security numeric limits', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    await tester.tap(find.text('Total'));
+    await tester.pumpAndSettle();
+
+    final countValueFinder = find.byKey(
+      const ValueKey('update-stock-count-value'),
+    );
+    await tester.tap(countValueFinder);
+    await tester.pump();
+    await tester.enterText(countValueFinder, '999999999999');
+    await tester.tap(find.text("SKUs' Stock Update"));
+    await tester.pumpAndSettle();
+    expect(
+      stepperValueText(tester, 'update-stock-count-value'),
+      equals('1000000'),
+    );
+
+    final costValueFinder = find.byKey(
+      const ValueKey('update-stock-cost-value'),
+    );
+    await tester.tap(costValueFinder);
+    await tester.pump();
+    await tester.enterText(costValueFinder, '999999999999');
+    await tester.tap(find.text("SKUs' Stock Update"));
+    await tester.pumpAndSettle();
+    expect(
+      stepperValueText(tester, 'update-stock-cost-value'),
+      equals('1000000000 USD'),
     );
   });
 
@@ -569,17 +641,13 @@ void main() {
   ) async {
     await pumpUpdateStockPage(tester);
 
-    final initialCost = tester
-        .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-        .data;
+    final initialCost = stepperValueText(tester, 'update-stock-cost-value');
     expect(initialCost, equals('0 USD'));
 
     await tester.tap(find.byKey(const ValueKey('update-stock-cost-increment')));
     await tester.pumpAndSettle();
 
-    final incrementedCost = tester
-        .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-        .data;
+    final incrementedCost = stepperValueText(tester, 'update-stock-cost-value');
     expect(incrementedCost, equals('0.25 USD'));
     expect(incrementedCost, isNot(startsWith('+')));
     expect(incrementedCost, isNot(startsWith('-')));
@@ -593,36 +661,28 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
     await tester.pumpAndSettle();
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data,
+      stepperValueText(tester, 'update-stock-cost-value'),
       equals('-0.25 USD'),
     );
 
     await tester.tap(find.byKey(const ValueKey('update-stock-cost-increment')));
     await tester.pumpAndSettle();
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data,
+      stepperValueText(tester, 'update-stock-cost-value'),
       equals('0 USD'),
     );
 
     await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
     await tester.pumpAndSettle();
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data,
+      stepperValueText(tester, 'update-stock-cost-value'),
       equals('-0.25 USD'),
     );
 
     await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
     await tester.pumpAndSettle();
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data,
+      stepperValueText(tester, 'update-stock-cost-value'),
       equals('-0.5 USD'),
     );
   });
@@ -649,9 +709,7 @@ void main() {
     await pumpUpdateStockPage(tester, initialState: zeroCostState);
 
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data,
+      stepperValueText(tester, 'update-stock-cost-value'),
       equals('0 USD'),
     );
 
@@ -660,9 +718,7 @@ void main() {
 
     expect(find.text('Cost cannot go below zero'), findsOneWidget);
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data,
+      stepperValueText(tester, 'update-stock-cost-value'),
       equals('0 USD'),
     );
   });
@@ -862,12 +918,8 @@ void main() {
 
     const expectedFontSize =
         AppThemeTokens.fontSizeBodyLarge + AppThemeTokens.unit;
-    final countValue = tester.widget<Text>(
-      find.byKey(const ValueKey('update-stock-count-value')),
-    );
-    final costValue = tester.widget<Text>(
-      find.byKey(const ValueKey('update-stock-cost-value')),
-    );
+    final countValue = stepperField(tester, 'update-stock-count-value');
+    final costValue = stepperField(tester, 'update-stock-cost-value');
     expect(countValue.style?.fontSize, equals(expectedFontSize));
     expect(costValue.style?.fontSize, equals(expectedFontSize));
 
@@ -979,29 +1031,16 @@ void main() {
         find.byKey(const ValueKey('update-stock-count-decrement')),
       );
       await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<Text>(
-              find.byKey(const ValueKey('update-stock-count-value')),
-            )
-            .data,
-        '-1',
-      );
+      expect(stepperValueText(tester, 'update-stock-count-value'), '-1');
 
-      final costBefore = tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data;
+      final costBefore = stepperValueText(tester, 'update-stock-cost-value');
       await tester.tap(
         find.byKey(const ValueKey('update-stock-cost-increment')),
       );
       await tester.pumpAndSettle();
-      final costAfter = tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data;
+      final costAfter = stepperValueText(tester, 'update-stock-cost-value');
       expect(costAfter, costBefore);
-      final disabledCostText = tester.widget<Text>(
-        find.byKey(const ValueKey('update-stock-cost-value')),
-      );
+      final disabledCostText = stepperField(tester, 'update-stock-cost-value');
       expect(
         disabledCostText.style?.color,
         equals(AppThemeTokens.disabledForeground),
@@ -1046,20 +1085,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final costBefore = tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data;
+      final costBefore = stepperValueText(tester, 'update-stock-cost-value');
       await tester.tap(
         find.byKey(const ValueKey('update-stock-cost-increment')),
       );
       await tester.pumpAndSettle();
-      final costAfter = tester
-          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
-          .data;
+      final costAfter = stepperValueText(tester, 'update-stock-cost-value');
       expect(costAfter, costBefore);
-      final disabledCostText = tester.widget<Text>(
-        find.byKey(const ValueKey('update-stock-cost-value')),
-      );
+      final disabledCostText = stepperField(tester, 'update-stock-cost-value');
       expect(
         disabledCostText.style?.color,
         equals(AppThemeTokens.disabledForeground),

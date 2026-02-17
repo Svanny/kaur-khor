@@ -23,6 +23,7 @@ void main() {
     required int cardsCount,
     int initialIndex = 0,
     int maxStackCards = 3,
+    double boundaryFogOffsetFromDeckTop = 0,
   }) async {
     await setPhoneViewport(tester);
     await tester.pumpWidget(
@@ -31,6 +32,7 @@ void main() {
           cardsCount: cardsCount,
           initialIndex: initialIndex,
           maxStackCards: maxStackCards,
+          boundaryFogOffsetFromDeckTop: boundaryFogOffsetFromDeckTop,
         ),
       ),
     );
@@ -46,13 +48,13 @@ void main() {
     expect(find.byKey(const ValueKey('front-3')), findsNothing);
   });
 
-  testWidgets('boundary fog overlay appears only during upward drag', (
+  testWidgets('boundary fog mask appears only during upward drag', (
     tester,
   ) async {
     await pumpDeckHarness(tester, cardsCount: 6);
 
     expect(
-      find.byKey(const ValueKey('update-stock-boundary-fog-overlay')),
+      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
       findsNothing,
     );
     expect(find.byType(ShaderMask), findsNothing);
@@ -65,7 +67,7 @@ void main() {
       await gesture.moveBy(const Offset(0, -20));
       await tester.pump();
       if (find
-          .byKey(const ValueKey('update-stock-boundary-fog-overlay'))
+          .byKey(const ValueKey('update-stock-boundary-fog-mask'))
           .evaluate()
           .isNotEmpty) {
         overlaySeen = true;
@@ -77,9 +79,46 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey('update-stock-boundary-fog-overlay')),
+      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
       findsNothing,
     );
+  });
+
+  testWidgets('boundary fog respects top offset before showing', (
+    tester,
+  ) async {
+    await pumpDeckHarness(
+      tester,
+      cardsCount: 6,
+      boundaryFogOffsetFromDeckTop: -16,
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('front-0'))),
+    );
+    await gesture.moveBy(const Offset(0, -10));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('update-stock-boundary-fog-mask')),
+      findsNothing,
+    );
+
+    var fogSeen = false;
+    for (var i = 0; i < 8; i += 1) {
+      await gesture.moveBy(const Offset(0, -8));
+      await tester.pump();
+      if (find
+          .byKey(const ValueKey('update-stock-boundary-fog-mask'))
+          .evaluate()
+          .isNotEmpty) {
+        fogSeen = true;
+        break;
+      }
+    }
+    expect(fogSeen, isTrue);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets(
@@ -308,11 +347,13 @@ class _DeckHarness extends StatefulWidget {
     required this.cardsCount,
     required this.initialIndex,
     required this.maxStackCards,
+    required this.boundaryFogOffsetFromDeckTop,
   });
 
   final int cardsCount;
   final int initialIndex;
   final int maxStackCards;
+  final double boundaryFogOffsetFromDeckTop;
 
   @override
   State<_DeckHarness> createState() => _DeckHarnessState();
@@ -344,6 +385,7 @@ class _DeckHarnessState extends State<_DeckHarness> {
               downOverlayKeyPrefix: 'overlay-',
               downBackEjectKeyPrefix: 'eject-',
               backfillKeyPrefix: 'backfill-',
+              boundaryFogOffsetFromDeckTop: widget.boundaryFogOffsetFromDeckTop,
               onCurrentIndexChanged: (index) {
                 setState(() => _currentIndex = index);
               },

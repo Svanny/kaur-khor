@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:banji/security/security_limits.dart';
 import 'package:banji/views/inventory_views.dart';
 
 void main() {
@@ -80,6 +81,32 @@ void main() {
       expect(draft.effectiveTotalValue, 0);
     },
   );
+
+  test('count and cost clamp to security maxima', () {
+    var draft = StockDraft.fromSku(baseSku);
+    draft = draft.adjustCount(
+      mode: StockInputMode.changes,
+      increment: true,
+      step: SecurityLimits.inventoryUnitsInStockMax * 5,
+    );
+    expect(draft.effectiveCount, SecurityLimits.inventoryUnitsInStockMax);
+
+    draft = StockDraft.fromSku(baseSku);
+    draft = draft.adjustUnitCost(
+      mode: StockInputMode.total,
+      increment: true,
+      step: SecurityLimits.monetaryAmountMax * 2,
+    );
+    expect(draft.effectiveUnitCost, SecurityLimits.monetaryAmountMax);
+
+    draft = StockDraft.fromSku(baseSku);
+    draft = draft.adjustUnitCost(
+      mode: StockInputMode.changes,
+      increment: true,
+      step: SecurityLimits.monetaryAmountMax * 2,
+    );
+    expect(draft.effectiveUnitCost, SecurityLimits.monetaryAmountMax);
+  });
 
   test('increment presets map to expected count and cost steps', () {
     expect(IncrementPreset.small.countStep, 1);

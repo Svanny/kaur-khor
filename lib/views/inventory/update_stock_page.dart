@@ -77,8 +77,20 @@ class StockDraft {
   final double countDelta;
   final double costDelta;
 
-  double get effectiveCount => math.max(0.0, baseCount + countDelta);
-  double get effectiveUnitCost => math.max(0.0, baseUnitCost + costDelta);
+  static double _normalizeZero(double value) {
+    return value.abs() < 1e-9 ? 0.0 : value;
+  }
+
+  static double _clampCount(double value) {
+    return value.clamp(0.0, SecurityLimits.inventoryUnitsInStockMax).toDouble();
+  }
+
+  static double _clampCost(double value) {
+    return value.clamp(0.0, SecurityLimits.monetaryAmountMax).toDouble();
+  }
+
+  double get effectiveCount => _clampCount(baseCount + countDelta);
+  double get effectiveUnitCost => _clampCost(baseUnitCost + costDelta);
   double get effectiveTotalValue => effectiveCount * effectiveUnitCost;
 
   StockDraft copyWith({
@@ -105,10 +117,13 @@ class StockDraft {
   }) {
     final direction = increment ? 1 : -1;
     if (mode == StockInputMode.changes) {
-      return copyWith(countDelta: countDelta + (direction * step));
+      final nextTotal = _clampCount(
+        baseCount + countDelta + (direction * step),
+      );
+      return copyWith(countDelta: _normalizeZero(nextTotal - baseCount));
     }
-    final nextTotal = math.max(0.0, effectiveCount + (direction * step));
-    return copyWith(countDelta: nextTotal - baseCount);
+    final nextTotal = _clampCount(effectiveCount + (direction * step));
+    return copyWith(countDelta: _normalizeZero(nextTotal - baseCount));
   }
 
   StockDraft adjustUnitCost({
@@ -118,13 +133,13 @@ class StockDraft {
   }) {
     final direction = increment ? 1 : -1;
     if (mode == StockInputMode.changes) {
-      final minimumDelta = -baseUnitCost;
-      final nextDelta = math.max(minimumDelta, costDelta + (direction * step));
-      final normalizedNextDelta = nextDelta.abs() < 1e-9 ? 0.0 : nextDelta;
-      return copyWith(costDelta: normalizedNextDelta);
+      final nextTotal = _clampCost(
+        baseUnitCost + costDelta + (direction * step),
+      );
+      return copyWith(costDelta: _normalizeZero(nextTotal - baseUnitCost));
     }
-    final nextTotal = math.max(0.0, effectiveUnitCost + (direction * step));
-    return copyWith(costDelta: nextTotal - baseUnitCost);
+    final nextTotal = _clampCost(effectiveUnitCost + (direction * step));
+    return copyWith(costDelta: _normalizeZero(nextTotal - baseUnitCost));
   }
 
   SkuItem applyToSku(SkuItem sku) {
@@ -187,82 +202,86 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     final currencyCode = context.currencyController.value.code;
 
     return Scaffold(
-      body: Padding(
-        padding: EdgeInsets.fromLTRB(
-          edge.left,
-          edge.top,
-          edge.right,
-          edge.bottom,
-        ),
-        child: _sourceSkus.isEmpty
-            ? _buildEmptyState()
-            : Column(
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: AppThemeTokens.headerToContentGap),
-                  Expanded(
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Column(
-                          children: [
-                            Text(
-                              "SKUs' Stock Update",
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    fontWeight: _fontWeight(
-                                      AppThemeTokens.fontWeightBold,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            edge.left,
+            edge.top,
+            edge.right,
+            edge.bottom,
+          ),
+          child: _sourceSkus.isEmpty
+              ? _buildEmptyState()
+              : Column(
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: AppThemeTokens.headerToContentGap),
+                    Expanded(
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Column(
+                            children: [
+                              Text(
+                                "SKUs' Stock Update",
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      fontWeight: _fontWeight(
+                                        AppThemeTokens.fontWeightBold,
+                                      ),
                                     ),
-                                  ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: AppThemeTokens.sectionGap),
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.topCenter,
-                                child: FractionallySizedBox(
-                                  widthFactor: AppThemeTokens
-                                      .stockCardViewportWidthFactor,
-                                  heightFactor: AppThemeTokens
-                                      .stockCardViewportHeightFactor,
-                                  child: _buildCardDeck(
-                                    currencyCode: currencyCode,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: AppThemeTokens.sectionGap),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: FractionallySizedBox(
+                                    widthFactor: AppThemeTokens
+                                        .stockCardViewportWidthFactor,
+                                    heightFactor: AppThemeTokens
+                                        .stockCardViewportHeightFactor,
+                                    child: _buildCardDeck(
+                                      currencyCode: currencyCode,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(
-                              height: AppThemeTokens.sectionGapLarge,
-                            ),
-                          ],
-                        ),
-                        Positioned(
-                          right: -(edge.right / 2),
-                          top: 0,
-                          bottom: 0,
-                          child: IgnorePointer(
-                            child: SkuIndicatorRail(
-                              trackKey: const ValueKey(
-                                'update-stock-indicator-track',
+                              const SizedBox(
+                                height: AppThemeTokens.sectionGapLarge,
                               ),
-                              count: _sourceSkus.length,
-                              selectedIndex: _selectedSkuIndex,
-                              animationDuration: _switcherDuration,
-                              densityRule: SkuIndicatorDensityRule.balanced,
-                              gapScale: 0.25,
-                              selectedColor:
-                                  AppThemeTokens.stockIndicatorSelected,
-                              unselectedColor:
-                                  AppThemeTokens.stockIndicatorUnselected,
+                            ],
+                          ),
+                          Positioned(
+                            right: -(edge.right / 2),
+                            top: 0,
+                            bottom: 0,
+                            child: IgnorePointer(
+                              child: SkuIndicatorRail(
+                                trackKey: const ValueKey(
+                                  'update-stock-indicator-track',
+                                ),
+                                count: _sourceSkus.length,
+                                selectedIndex: _selectedSkuIndex,
+                                animationDuration: _switcherDuration,
+                                densityRule: SkuIndicatorDensityRule.balanced,
+                                gapScale: 0.25,
+                                selectedColor:
+                                    AppThemeTokens.stockIndicatorSelected,
+                                unselectedColor:
+                                    AppThemeTokens.stockIndicatorUnselected,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  _buildIncrementSelector(),
-                ],
-              ),
+                    _buildIncrementSelector(),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -304,6 +323,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       preloadKeyPrefix: 'update-stock-preload-sku-card-',
       stackCardKeyPrefix: 'update-stock-sku-card-stack-',
       downOverlayKeyPrefix: 'update-stock-down-restore-overlay-',
+      boundaryFogOffsetFromDeckTop: -AppThemeTokens.sectionGap,
     );
   }
 
@@ -437,9 +457,11 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               ),
               trendDirection: countTrendDirection,
               trendAnimationDuration: _trendAnimationDuration,
+              valueEditable: true,
               value: _mode == StockInputMode.changes
                   ? _signedNumber(draft.countDelta)
                   : _formatNumber(draft.effectiveCount),
+              onValueCommitted: _applyCountInput,
               onDecrement: () => _updateCurrentDraft(
                 (item) => item.adjustCount(
                   mode: _mode,
@@ -485,6 +507,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               ),
               trendDirection: costTrendDirection,
               trendAnimationDuration: _trendAnimationDuration,
+              valueEditable: !isCostInputDisabled,
               actionsEnabled: !isCostInputDisabled,
               decrementEnabled: !isCostDecrementClamped,
               decrementDisabledTooltip:
@@ -500,6 +523,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                       draft.effectiveUnitCost,
                       currencyCode: currencyCode,
                     ),
+              onValueCommitted: _applyCostInput,
               onDecrement: () => _updateCurrentDraft(
                 (item) => item.adjustUnitCost(
                   mode: _mode,
@@ -1023,6 +1047,65 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     _updateCurrentDraft((draft) => draft.reset());
   }
 
+  void _applyCountInput(String rawValue) {
+    final parsed = _parseEditableNumber(rawValue);
+    if (parsed == null) {
+      return;
+    }
+    _updateCurrentDraft((draft) {
+      if (_mode == StockInputMode.changes) {
+        final clampedTotal = _clampInventoryCount(draft.baseCount + parsed);
+        return draft.copyWith(
+          countDelta: _normalizeZero(clampedTotal - draft.baseCount),
+        );
+      }
+      final totalCount = _clampInventoryCount(parsed);
+      return draft.copyWith(
+        countDelta: _normalizeZero(totalCount - draft.baseCount),
+      );
+    });
+  }
+
+  void _applyCostInput(String rawValue) {
+    final parsed = _parseEditableNumber(rawValue);
+    if (parsed == null) {
+      return;
+    }
+    _updateCurrentDraft((draft) {
+      if (_mode == StockInputMode.changes) {
+        final clampedTotal = _clampMonetaryAmount(draft.baseUnitCost + parsed);
+        return draft.copyWith(
+          costDelta: _normalizeZero(clampedTotal - draft.baseUnitCost),
+        );
+      }
+      final totalUnitCost = _clampMonetaryAmount(parsed);
+      return draft.copyWith(
+        costDelta: _normalizeZero(totalUnitCost - draft.baseUnitCost),
+      );
+    });
+  }
+
+  double _clampInventoryCount(double value) {
+    return value.clamp(0.0, SecurityLimits.inventoryUnitsInStockMax).toDouble();
+  }
+
+  double _clampMonetaryAmount(double value) {
+    return value.clamp(0.0, SecurityLimits.monetaryAmountMax).toDouble();
+  }
+
+  double? _parseEditableNumber(String rawValue) {
+    final normalized = rawValue.replaceAll(',', '').trim();
+    final match = RegExp(r'[+-]?\d*\.?\d+').firstMatch(normalized);
+    if (match == null) {
+      return null;
+    }
+    return double.tryParse(match.group(0)!);
+  }
+
+  double _normalizeZero(double value) {
+    return value.abs() < 1e-9 ? 0.0 : value;
+  }
+
   void _updateCurrentDraft(StockDraft Function(StockDraft) updater) {
     final nextDrafts = List<StockDraft>.of(_drafts);
     nextDrafts[_selectedSkuIndex] = updater(nextDrafts[_selectedSkuIndex]);
@@ -1179,7 +1262,9 @@ class _StockStepper extends StatelessWidget {
     required this.incrementKey,
     required this.trendDirection,
     required this.trendAnimationDuration,
+    required this.valueEditable,
     required this.value,
+    required this.onValueCommitted,
     required this.onDecrement,
     required this.onIncrement,
     this.actionsEnabled = true,
@@ -1198,7 +1283,9 @@ class _StockStepper extends StatelessWidget {
   final Key incrementKey;
   final _TrendDirection trendDirection;
   final Duration trendAnimationDuration;
+  final bool valueEditable;
   final String value;
+  final ValueChanged<String> onValueCommitted;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
   final bool actionsEnabled;
@@ -1232,6 +1319,9 @@ class _StockStepper extends StatelessWidget {
               height: AppThemeTokens.stockStepActionHeight,
               constraints: const BoxConstraints(
                 minWidth: AppThemeTokens.stockStepperValueMinWidth,
+                maxWidth:
+                    AppThemeTokens.stockStepperValueMinWidth +
+                    (AppThemeTokens.unit * 22),
               ),
               padding: const EdgeInsets.symmetric(
                 horizontal: AppThemeTokens.togglePillLabelPadX,
@@ -1243,10 +1333,11 @@ class _StockStepper extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
               ),
               child: Center(
-                child: Text(
+                child: _EditableStepperValue(
                   value,
-                  key: valueKey,
-                  textAlign: TextAlign.center,
+                  textFieldKey: valueKey,
+                  enabled: valueEditable && actionsEnabled,
+                  onValueCommitted: onValueCommitted,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     fontSize:
                         AppThemeTokens.fontSizeBodyLarge + AppThemeTokens.unit,
@@ -1531,6 +1622,110 @@ _TrendDirection _trendDirection({
     return _TrendDirection.down;
   }
   return _TrendDirection.flat;
+}
+
+class _EditableStepperValue extends StatefulWidget {
+  const _EditableStepperValue(
+    this.value, {
+    required this.textFieldKey,
+    required this.enabled,
+    required this.onValueCommitted,
+    required this.style,
+  });
+
+  final String value;
+  final Key textFieldKey;
+  final bool enabled;
+  final ValueChanged<String> onValueCommitted;
+  final TextStyle? style;
+
+  @override
+  State<_EditableStepperValue> createState() => _EditableStepperValueState();
+}
+
+class _EditableStepperValueState extends State<_EditableStepperValue> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+    _focusNode = FocusNode()..addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _EditableStepperValue oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && _focusNode.hasFocus) {
+      _focusNode.unfocus();
+    }
+    if (!_focusNode.hasFocus && _controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_onFocusChange)
+      ..dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      _controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _controller.text.length,
+      );
+      return;
+    }
+
+    widget.onValueCommitted(_controller.text);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _focusNode.hasFocus) {
+        return;
+      }
+      if (_controller.text != widget.value) {
+        _controller.text = widget.value;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      key: widget.textFieldKey,
+      controller: _controller,
+      focusNode: _focusNode,
+      enabled: widget.enabled,
+      keyboardType: const TextInputType.numberWithOptions(
+        decimal: true,
+        signed: true,
+      ),
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _focusNode.unfocus(),
+      onTapOutside: (_) => _focusNode.unfocus(),
+      textAlign: TextAlign.center,
+      style: widget.style,
+      decoration: const InputDecoration(
+        filled: false,
+        fillColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        errorBorder: InputBorder.none,
+        focusedErrorBorder: InputBorder.none,
+        isDense: true,
+        isCollapsed: true,
+        contentPadding: EdgeInsets.zero,
+      ),
+    );
+  }
 }
 
 class _StepAction extends StatelessWidget {

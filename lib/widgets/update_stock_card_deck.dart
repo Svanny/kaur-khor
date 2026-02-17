@@ -18,6 +18,7 @@ class UpdateStockCardDeck extends StatefulWidget {
     this.downOverlayKeyPrefix = 'update-stock-down-restore-overlay-',
     this.downBackEjectKeyPrefix = 'update-stock-down-back-eject-overlay-',
     this.backfillKeyPrefix = 'update-stock-backfill-preview-',
+    this.boundaryFogOffsetFromDeckTop = 0,
     super.key,
   });
 
@@ -34,13 +35,15 @@ class UpdateStockCardDeck extends StatefulWidget {
   final String downOverlayKeyPrefix;
   final String downBackEjectKeyPrefix;
   final String backfillKeyPrefix;
+  final double boundaryFogOffsetFromDeckTop;
 
   @override
   State<UpdateStockCardDeck> createState() => _UpdateStockCardDeckState();
 }
 
 class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
-  static const double _boundaryFogOverlayHeight = 48;
+  static const int _swipeThreshold = 30;
+  static const double _boundaryFogTransitionHeight = 48;
   static const double _restoreStartOffsetY = 72;
   static const double _backfillStartOffsetY = 24;
   static const double _backEjectBaseOffsetY = 40;
@@ -104,7 +107,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
           duration: widget.animationDuration,
           padding: EdgeInsets.zero,
           maxAngle: 0,
-          threshold: 30,
+          threshold: _swipeThreshold,
           scale: 0.96,
           isLoop: false,
           numberOfCardsDisplayed: math.min(
@@ -130,12 +133,14 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
             }
             setState(() => _isUpwardDragActive = isUpward);
           },
-          cardBuilder: (context, index, _, __) {
-            return _buildDeckCard(context: context, index: index);
+          cardBuilder: (context, index, _, verticalOffsetPercentage) {
+            return _buildDeckCard(
+              context: context,
+              index: index,
+              verticalOffsetPercentage: verticalOffsetPercentage,
+            );
           },
         ),
-        if (_isUpwardDragActive || _holdBoundaryFogForSwipeOut)
-          _buildBoundaryFogOverlay(context),
         if (_restoreOverlayIndex != null)
           Positioned.fill(
             child: IgnorePointer(child: _buildRestoreOverlayCard()),
@@ -194,14 +199,22 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     setState(() => _holdBoundaryFogForSwipeOut = hold);
   }
 
-  Widget _buildDeckCard({required BuildContext context, required int index}) {
+  Widget _buildDeckCard({
+    required BuildContext context,
+    required int index,
+    required int verticalOffsetPercentage,
+  }) {
     if (_backEjectOverlayIndex == index) {
       return const SizedBox.shrink();
     }
 
     final isFrontCard = index == widget.currentIndex;
     if (isFrontCard) {
-      return widget.cardBuilder(context, index);
+      return _buildFrontCardWithBoundaryFog(
+        context: context,
+        child: widget.cardBuilder(context, index),
+        verticalOffsetPercentage: verticalOffsetPercentage,
+      );
     }
 
     final preview = IgnorePointer(
@@ -237,30 +250,57 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     );
   }
 
-  Widget _buildBoundaryFogOverlay(BuildContext context) {
+  Widget _buildFrontCardWithBoundaryFog({
+    required BuildContext context,
+    required Widget child,
+    required int verticalOffsetPercentage,
+  }) {
+    if (!_isUpwardDragActive && !_holdBoundaryFogForSwipeOut) {
+      return child;
+    }
+
+    final dragOffsetY = (verticalOffsetPercentage * _swipeThreshold) / 100;
+    final fogBoundaryY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
+    if (fogBoundaryY <= 0 && !_holdBoundaryFogForSwipeOut) {
+      return child;
+    }
+
     final fogColor = Theme.of(context).scaffoldBackgroundColor;
-    return IgnorePointer(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: SizedBox(
-          key: const ValueKey('update-stock-boundary-fog-overlay'),
-          height: _boundaryFogOverlayHeight,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: <Color>[
-                  fogColor.withValues(alpha: 0),
-                  fogColor.withValues(alpha: 0.62),
-                  fogColor.withValues(alpha: 0.94),
-                ],
-                stops: const <double>[0, 0.58, 1],
-              ),
-            ),
-          ),
-        ),
-      ),
+    return ShaderMask(
+      key: const ValueKey('update-stock-boundary-fog-mask'),
+      blendMode: BlendMode.srcATop,
+      shaderCallback: (Rect rect) {
+        if (rect.height <= 0) {
+          return const LinearGradient(
+            colors: <Color>[Colors.transparent, Colors.transparent],
+          ).createShader(rect);
+        }
+
+        final start = (fogBoundaryY / rect.height).clamp(0.0, 1.0).toDouble();
+        final end =
+            ((fogBoundaryY + _boundaryFogTransitionHeight) / rect.height)
+                .clamp(0.0, 1.0)
+                .toDouble();
+        final fogStrength = math.max(
+          (fogBoundaryY / _boundaryFogTransitionHeight)
+              .clamp(0.0, 1.0)
+              .toDouble(),
+          _holdBoundaryFogForSwipeOut ? 1.0 : 0.0,
+        );
+
+        return LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            fogColor.withValues(alpha: 0.94 * fogStrength),
+            fogColor.withValues(alpha: 0.62 * fogStrength),
+            Colors.transparent,
+            Colors.transparent,
+          ],
+          stops: <double>[0, start, end, 1],
+        ).createShader(rect);
+      },
+      child: child,
     );
   }
 
