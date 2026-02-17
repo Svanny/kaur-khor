@@ -242,6 +242,8 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Name',
+                      labelIconAsset: _labelSvgAsset,
+                      labelIconKey: const ValueKey('sku-name-label-icon'),
                       controller: _nameController,
                       inputMode: _InputMode.text,
                       maxLength: SecurityLimits.skuNameMaxLength,
@@ -255,6 +257,10 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                     const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Description',
+                      labelIconAsset: _descriptionSvgAsset,
+                      labelIconKey: const ValueKey(
+                        'sku-description-label-icon',
+                      ),
                       controller: _descriptionController,
                       inputMode: _InputMode.text,
                       maxLines: 4,

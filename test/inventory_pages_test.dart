@@ -324,6 +324,28 @@ void main() {
       find.byKey(const ValueKey('service-skus-used-label-icon')),
       findsOneWidget,
     );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SvgPicture &&
+            widget.key == const ValueKey('service-name-label-icon') &&
+            widget.bytesLoader is SvgAssetLoader &&
+            (widget.bytesLoader as SvgAssetLoader).assetName ==
+                'icons/label_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SvgPicture &&
+            widget.key == const ValueKey('service-description-label-icon') &&
+            widget.bytesLoader is SvgAssetLoader &&
+            (widget.bytesLoader as SvgAssetLoader).assetName ==
+                'icons/description_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
     await tester.pumpAndSettle();
@@ -353,6 +375,28 @@ void main() {
     );
     expect(
       find.byKey(const ValueKey('sku-cost-unit-label-icon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SvgPicture &&
+            widget.key == const ValueKey('sku-name-label-icon') &&
+            widget.bytesLoader is SvgAssetLoader &&
+            (widget.bytesLoader as SvgAssetLoader).assetName ==
+                'icons/label_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SvgPicture &&
+            widget.key == const ValueKey('sku-description-label-icon') &&
+            widget.bytesLoader is SvgAssetLoader &&
+            (widget.bytesLoader as SvgAssetLoader).assetName ==
+                'icons/description_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+      ),
       findsOneWidget,
     );
     await tester.scrollUntilVisible(

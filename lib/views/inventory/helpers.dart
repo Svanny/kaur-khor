@@ -4,6 +4,10 @@ const String _pointOfSaleSvgAsset =
     'icons/sell_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 const String _listAltSvgAsset =
     'icons/list_alt_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
+const String _labelSvgAsset =
+    'icons/label_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
+const String _descriptionSvgAsset =
+    'icons/description_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 const String _package2SvgAsset =
     'icons/package_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 const String _paymentsSvgAsset =

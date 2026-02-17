@@ -166,6 +166,8 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Name',
+                      labelIconAsset: _labelSvgAsset,
+                      labelIconKey: const ValueKey('service-name-label-icon'),
                       controller: _nameController,
                       inputMode: _InputMode.text,
                       maxLength: SecurityLimits.serviceNameMaxLength,
@@ -179,6 +181,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     const SizedBox(height: AppThemeTokens.sectionGap),
                     _FieldEditor(
                       label: 'Description',
+                      labelIconAsset: _descriptionSvgAsset,
+                      labelIconKey: const ValueKey(
+                        'service-description-label-icon',
+                      ),
                       controller: _descriptionController,
                       inputMode: _InputMode.text,
                       maxLines: 4,

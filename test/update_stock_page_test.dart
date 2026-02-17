@@ -178,60 +178,67 @@ void main() {
     },
   );
 
-  testWidgets('card stack shows two preview cards beneath active and hides on confirmation', (
-    WidgetTester tester,
-  ) async {
-    await pumpUpdateStockPage(tester);
+  testWidgets(
+    'card stack shows two preview cards beneath active and hides on confirmation',
+    (WidgetTester tester) async {
+      await pumpUpdateStockPage(tester);
 
-    final activeCardFinder = find.byKey(const ValueKey('update-stock-sku-card-0'));
-    final secondCardFinder = find.byKey(
-      const ValueKey('update-stock-sku-card-preview-1'),
-    );
-    final thirdCardFinder = find.byKey(
-      const ValueKey('update-stock-sku-card-preview-2'),
-    );
+      final activeCardFinder = find.byKey(
+        const ValueKey('update-stock-sku-card-0'),
+      );
+      final secondCardFinder = find.byKey(
+        const ValueKey('update-stock-sku-card-preview-1'),
+      );
+      final thirdCardFinder = find.byKey(
+        const ValueKey('update-stock-sku-card-preview-2'),
+      );
+      final fourthCardFinder = find.byKey(
+        const ValueKey('update-stock-sku-card-preview-3'),
+      );
 
-    expect(secondCardFinder, findsOneWidget);
-    expect(thirdCardFinder, findsOneWidget);
-    expect(
-      find.ancestor(of: activeCardFinder, matching: find.byType(CardSwiper)),
-      findsOneWidget,
-    );
+      expect(secondCardFinder, findsOneWidget);
+      expect(thirdCardFinder, findsOneWidget);
+      expect(fourthCardFinder, findsNothing);
+      expect(
+        find.ancestor(of: activeCardFinder, matching: find.byType(CardSwiper)),
+        findsOneWidget,
+      );
 
-    final activeRect = tester.getRect(activeCardFinder);
-    final secondRect = tester.getRect(secondCardFinder);
-    final thirdRect = tester.getRect(thirdCardFinder);
+      final activeRect = tester.getRect(activeCardFinder);
+      final secondRect = tester.getRect(secondCardFinder);
+      final thirdRect = tester.getRect(thirdCardFinder);
 
-    expect(secondRect.top, greaterThan(activeRect.top));
-    expect(thirdRect.top, greaterThan(secondRect.top));
-    expect(secondRect.width, lessThan(activeRect.width));
-    expect(thirdRect.width, lessThan(secondRect.width));
+      expect(secondRect.top, greaterThan(activeRect.top));
+      expect(thirdRect.top, greaterThan(secondRect.top));
+      expect(secondRect.width, lessThan(activeRect.width));
+      expect(thirdRect.width, lessThan(secondRect.width));
 
-    await tester.fling(activeCardFinder, const Offset(0, -500), 1200);
-    await tester.pumpAndSettle();
-    await tester.fling(
-      find.byKey(const ValueKey('update-stock-sku-card-1')),
-      const Offset(0, -500),
-      1200,
-    );
-    await tester.pumpAndSettle();
-    await tester.fling(
-      find.byKey(const ValueKey('update-stock-sku-card-2')),
-      const Offset(0, -500),
-      1200,
-    );
-    await tester.pumpAndSettle();
+      await tester.fling(activeCardFinder, const Offset(0, -500), 1200);
+      await tester.pumpAndSettle();
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-1')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      await tester.fling(
+        find.byKey(const ValueKey('update-stock-sku-card-2')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const ValueKey('update-stock-confirmation-card')),
-      findsOneWidget,
-    );
-    expect(activeCardFinder, findsNothing);
-    expect(secondCardFinder, findsNothing);
-    expect(thirdCardFinder, findsNothing);
-  });
+      expect(
+        find.byKey(const ValueKey('update-stock-confirmation-card')),
+        findsOneWidget,
+      );
+      expect(activeCardFinder, findsNothing);
+      expect(secondCardFinder, findsNothing);
+      expect(thirdCardFinder, findsNothing);
+    },
+  );
 
-  testWidgets('preloads first and second SKU cards offstage', (
+  testWidgets('preloads first three SKU cards offstage', (
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
@@ -242,6 +249,10 @@ void main() {
     );
     expect(
       find.byKey(const ValueKey('update-stock-preload-sku-card-1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-preload-sku-card-2')),
       findsNothing,
     );
 
@@ -255,6 +266,13 @@ void main() {
     expect(
       find.byKey(
         const ValueKey('update-stock-preload-sku-card-1'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const ValueKey('update-stock-preload-sku-card-2'),
         skipOffstage: false,
       ),
       findsOneWidget,

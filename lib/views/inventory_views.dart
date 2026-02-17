@@ -5,7 +5,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../security/id_generator.dart';
@@ -15,6 +14,7 @@ import '../settings/currency_controller.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_dropdown_pill.dart';
 import '../widgets/sku_indicator_rail.dart';
+import '../widgets/update_stock_card_deck.dart';
 
 part 'inventory/inventory_models.dart';
 part 'inventory/inventory_controller.dart';
