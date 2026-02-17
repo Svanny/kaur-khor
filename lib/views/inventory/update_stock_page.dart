@@ -1067,7 +1067,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                   ),
                   const SizedBox(width: AppThemeTokens.dropdownToggleIconGap),
                   AnimatedRotation(
-                    turns: isOpen ? 0.5 : 0,
+                    turns: isOpen ? 0 : 0.5,
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOutCubic,
                     child: const Icon(

@@ -547,11 +547,22 @@ void main() {
       ),
       findsOneWidget,
     );
+    AnimatedRotation toggleArrow() {
+      return tester.widget<AnimatedRotation>(
+        find.descendant(
+          of: triggerFinder,
+          matching: find.byType(AnimatedRotation),
+        ),
+      );
+    }
+
+    expect(toggleArrow().turns, equals(0.5));
 
     await tester.tap(
       find.byKey(const ValueKey('update-stock-increment-toggle')),
     );
     await tester.pumpAndSettle();
+    expect(toggleArrow().turns, equals(0));
     expect(
       find.byKey(const ValueKey('update-stock-increment-options')),
       findsOneWidget,
