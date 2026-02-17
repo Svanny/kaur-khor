@@ -47,7 +47,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('home-overlay-receipt-button')));
     await tester.pumpAndSettle();
 
-    expect(find.text("SKU's Stock Count Update"), findsOneWidget);
+    expect(find.text("SKUs' Stock Update"), findsOneWidget);
   });
 
   testWidgets('swipe changes selected SKU and reaches confirmation card', (
@@ -91,6 +91,35 @@ void main() {
     expect(
       find.byKey(const ValueKey('update-stock-confirmation-card')),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('SKU title stays centered while reset icon sits beside it', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    final cardFinder = find.byKey(const ValueKey('update-stock-sku-card-0'));
+    final titleFinder = find.descendant(
+      of: cardFinder,
+      matching: find.text('SKU #001'),
+    );
+    final resetIconFinder = find.byKey(
+      const ValueKey('update-stock-reset-current'),
+    );
+
+    final cardRect = tester.getRect(cardFinder);
+    final titleRect = tester.getRect(titleFinder);
+    final resetIconRect = tester.getRect(resetIconFinder);
+
+    expect(
+      (titleRect.center.dx - cardRect.center.dx).abs(),
+      lessThanOrEqualTo(1),
+    );
+    expect(resetIconRect.left, greaterThan(titleRect.right));
+    expect(
+      resetIconRect.left - titleRect.right,
+      lessThanOrEqualTo(AppThemeTokens.space4),
     );
   });
 

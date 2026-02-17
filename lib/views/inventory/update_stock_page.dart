@@ -187,7 +187,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                   _buildHeader(),
                   const SizedBox(height: AppThemeTokens.headerToContentGap),
                   Text(
-                    "SKU's Stock Count Update",
+                    "SKUs' Stock Update",
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
                     ),
@@ -313,23 +313,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               ),
             ),
             const SizedBox(height: AppThemeTokens.sectionGap),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  sku.name,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
-                  ),
-                ),
-                IconButton(
-                  key: const ValueKey('update-stock-reset-current'),
-                  tooltip: 'Reset changes',
-                  onPressed: _resetCurrentDraft,
-                  icon: const Icon(Icons.restart_alt),
-                ),
-              ],
-            ),
+            _buildSkuTitleRow(sku.name),
             Text(
               _currencyLabel(
                 draft.effectiveTotalValue,
@@ -404,6 +388,70 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSkuTitleRow(String title) {
+    const actionSlotWidth = kMinInteractiveDimension;
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textPainter = TextPainter(
+          text: TextSpan(text: title, style: titleStyle),
+          textDirection: Directionality.of(context),
+          maxLines: 1,
+        )..layout(maxWidth: constraints.maxWidth);
+
+        final textWidth = textPainter.size.width;
+        final desiredIconLeft =
+            (constraints.maxWidth / 2) +
+            (textWidth / 2) +
+            AppThemeTokens.space1;
+        final clampedIconLeft = desiredIconLeft
+            .clamp(0.0, math.max(0.0, constraints.maxWidth - actionSlotWidth))
+            .toDouble();
+
+        return SizedBox(
+          height: kMinInteractiveDimension,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Center(
+                child: Text(
+                  title,
+                  style: titleStyle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Positioned(
+                left: clampedIconLeft,
+                top: 0,
+                bottom: 0,
+                child: SizedBox(
+                  width: actionSlotWidth,
+                  child: IconButton(
+                    key: const ValueKey('update-stock-reset-current'),
+                    tooltip: 'Reset changes',
+                    padding: EdgeInsets.zero,
+                    alignment: Alignment.centerLeft,
+                    onPressed: _resetCurrentDraft,
+                    icon: const Icon(
+                      Icons.restart_alt,
+                      size:
+                          AppThemeTokens.iconSizeMedium + AppThemeTokens.space1,
+                      color: AppThemeTokens.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
