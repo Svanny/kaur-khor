@@ -166,6 +166,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   static const String _costClampTooltip = 'Cost cannot go below zero';
   static const double _headerOverlayHeight = kMinInteractiveDimension;
   static const double _titleOverlayFallbackHeight = 0;
+  static const double _stockDeckVerticalOffset = AppThemeTokens.space4;
   static const bool _debugBoundaryMeasurementLogs = false;
 
   bool _initialized = false;
@@ -248,7 +249,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 children: [
                   Padding(
                     padding: EdgeInsets.only(
-                      top: _stockTitleOverlayHeight + AppThemeTokens.sectionGap,
+                      top:
+                          _stockTitleOverlayHeight +
+                          AppThemeTokens.sectionGap +
+                          _stockDeckVerticalOffset,
                     ),
                     child: Align(
                       alignment: Alignment.topCenter,

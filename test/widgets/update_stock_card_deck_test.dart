@@ -18,6 +18,17 @@ void main() {
     }, skipOffstage: skipOffstage);
   }
 
+  List<String> cornerLayerKeys(WidgetTester tester) {
+    final layerStack = tester.widget<Stack>(
+      find.byKey(const ValueKey('update-stock-corner-layer-stack')),
+    );
+    return layerStack.children
+        .map((child) => child.key)
+        .whereType<ValueKey>()
+        .map((key) => '${key.value}')
+        .toList(growable: false);
+  }
+
   Future<void> pumpDeckHarness(
     WidgetTester tester, {
     required int cardsCount,
@@ -50,7 +61,45 @@ void main() {
     expect(find.byKey(const ValueKey('front-3')), findsNothing);
   });
 
-  testWidgets('boundary blur overlay appears only during upward drag', (
+  testWidgets('layer paint order stays A>B>C>D (front to back)', (
+    tester,
+  ) async {
+    await pumpDeckHarness(tester, cardsCount: 6);
+
+    // At rest: only C(back), B(front among stack layers).
+    expect(
+      cornerLayerKeys(tester),
+      orderedEquals(<String>['update-stock-layer-c', 'update-stock-layer-b']),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('front-0'))),
+    );
+    for (var i = 0; i < 4; i += 1) {
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump();
+    }
+
+    // During upward drag: D(back), C, B(front among stack layers).
+    final duringDragKeys = cornerLayerKeys(tester);
+    expect(duringDragKeys.last, 'update-stock-layer-b');
+    expect(duringDragKeys[duringDragKeys.length - 2], 'update-stock-layer-c');
+    if (duringDragKeys.length >= 3) {
+      expect(duringDragKeys.first, 'update-stock-layer-d');
+    }
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final settledKeys = cornerLayerKeys(tester);
+    expect(settledKeys.last, 'update-stock-layer-b');
+    expect(settledKeys[settledKeys.length - 2], 'update-stock-layer-c');
+    if (settledKeys.length >= 3) {
+      expect(settledKeys.first, 'update-stock-layer-d');
+    }
+  });
+
+  testWidgets('boundary overlay appears only during upward drag', (
     tester,
   ) async {
     await pumpDeckHarness(tester, cardsCount: 6);
@@ -59,7 +108,6 @@ void main() {
       find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
       findsNothing,
     );
-    expect(find.byType(ShaderMask), findsNothing);
 
     final gesture = await tester.startGesture(
       tester.getCenter(find.byKey(const ValueKey('front-0'))),
@@ -77,10 +125,17 @@ void main() {
       }
     }
     expect(overlaySeen, isTrue);
-    final fogMask = tester.widget<ShaderMask>(
+    final fogOverlay = tester.widget<Positioned>(
       find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
     );
-    expect(fogMask.blendMode, BlendMode.dstIn);
+    expect(fogOverlay.height, greaterThan(0));
+    final fogOverlayFill = tester.widget<ColoredBox>(
+      find.descendant(
+        of: find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
+        matching: find.byType(ColoredBox),
+      ),
+    );
+    expect(fogOverlayFill.color.a, 1);
 
     await gesture.up();
     await tester.pumpAndSettle();
@@ -216,6 +271,10 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('preload-3'), skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('preload-4'), skipOffstage: false),
         findsNothing,
       );
 
@@ -242,6 +301,10 @@ void main() {
         find.byKey(const ValueKey('preload-3'), skipOffstage: false),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('preload-4'), skipOffstage: false),
+        findsOneWidget,
+      );
 
       await tester.fling(
         find.byKey(const ValueKey('front-1')),
@@ -264,7 +327,122 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('preload-3'), skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('preload-4'), skipOffstage: false),
         findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'upward drag never pulls stacked cards past their next resting slot',
+    (tester) async {
+      await pumpDeckHarness(tester, cardsCount: 6);
+
+      final activeRectInitial = tester.getRect(
+        find.byKey(const ValueKey('front-0')),
+      );
+      final secondRectInitial = tester.getRect(
+        find.byKey(const ValueKey('front-1')),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('front-0'))),
+      );
+
+      for (var i = 0; i < 6; i += 1) {
+        await gesture.moveBy(const Offset(0, -15));
+        await tester.pump();
+
+        final secondRect = tester.getRect(
+          find.byKey(const ValueKey('front-1')),
+        );
+        final thirdRect = tester.getRect(find.byKey(const ValueKey('front-2')));
+
+        expect(secondRect.top, greaterThanOrEqualTo(activeRectInitial.top - 1));
+        expect(thirdRect.top, greaterThanOrEqualTo(secondRectInitial.top - 1));
+      }
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'corner slots settle B/C/D into A/B/C resting positions after forward swipe',
+    (tester) async {
+      await pumpDeckHarness(tester, cardsCount: 6);
+
+      final bRectBefore = tester.getRect(find.byKey(const ValueKey('front-1')));
+      final cRectBefore = tester.getRect(find.byKey(const ValueKey('front-2')));
+
+      await tester.fling(
+        find.byKey(const ValueKey('front-0')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+
+      final bRectAfter = tester.getRect(find.byKey(const ValueKey('front-1')));
+      final cRectAfter = tester.getRect(find.byKey(const ValueKey('front-2')));
+      final dRectAfter = tester.getRect(find.byKey(const ValueKey('front-3')));
+
+      expect(bRectAfter.top, lessThanOrEqualTo(bRectBefore.top + 1.0));
+      expect(cRectAfter.top, lessThanOrEqualTo(cRectBefore.top + 1.0));
+      expect(bRectAfter.top, lessThanOrEqualTo(cRectAfter.top));
+      expect(cRectAfter.top, lessThanOrEqualTo(dRectAfter.top));
+    },
+  );
+
+  testWidgets(
+    'corner slots are strict inverse after one up and one down swipe',
+    (tester) async {
+      await pumpDeckHarness(tester, cardsCount: 6);
+
+      final aRectInitial = tester.getRect(
+        find.byKey(const ValueKey('front-0')),
+      );
+      final bRectInitial = tester.getRect(
+        find.byKey(const ValueKey('front-1')),
+      );
+      final cRectInitial = tester.getRect(
+        find.byKey(const ValueKey('front-2')),
+      );
+
+      await tester.fling(
+        find.byKey(const ValueKey('front-0')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.fling(
+        find.byKey(const ValueKey('front-1')),
+        const Offset(0, 500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+
+      final aRectFinal = tester.getRect(find.byKey(const ValueKey('front-0')));
+      final bRectFinal = tester.getRect(find.byKey(const ValueKey('front-1')));
+      final cRectFinal = tester.getRect(find.byKey(const ValueKey('front-2')));
+
+      expect((aRectFinal.top - aRectInitial.top).abs(), lessThanOrEqualTo(1.0));
+      expect(
+        (aRectFinal.left - aRectInitial.left).abs(),
+        lessThanOrEqualTo(1.0),
+      );
+      expect((bRectFinal.top - bRectInitial.top).abs(), lessThanOrEqualTo(1.0));
+      expect(
+        (bRectFinal.left - bRectInitial.left).abs(),
+        lessThanOrEqualTo(1.0),
+      );
+      expect((cRectFinal.top - cRectInitial.top).abs(), lessThanOrEqualTo(1.0));
+      expect(
+        (cRectFinal.left - cRectInitial.left).abs(),
+        lessThanOrEqualTo(1.0),
       );
     },
   );

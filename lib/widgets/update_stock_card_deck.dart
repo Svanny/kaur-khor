@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
+import 'package:banji/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 
@@ -46,26 +47,31 @@ class UpdateStockCardDeck extends StatefulWidget {
 
 class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   static const int _swipeThreshold = 30;
-  static const double _boundaryFogTransitionHeight = 48;
-  static const double _backfillStartOffsetY = 24;
   static const bool _debugBoundaryBlurLogs = false;
-  static const bool _debugDownwardRestoreLogs = false;
 
   final CardSwiperController _cardSwiperController = CardSwiperController();
   final List<int> _dismissedHistory = <int>[];
 
   int _previewGeneration = 0;
-  int _backfillGeneration = 0;
-  int? _backfillPreviewIndex;
+  int? _recentBackfillIndex;
   bool _isUpwardDragActive = false;
   bool _holdBoundaryFogForSwipeOut = false;
+  int? _skipMoveToIndex;
+  int _boundaryHoldReleaseGeneration = 0;
+  Timer? _boundaryHoldReleaseTimer;
   String? _lastBoundaryBlurDebugSignature;
-  String? _lastDownwardRestoreDebugSignature;
+  Size? _lastDeckSize;
+  int _lastVerticalOffsetPercentage = 0;
 
   @override
   void didUpdateWidget(covariant UpdateStockCardDeck oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.currentIndex != oldWidget.currentIndex) {
+      if (_skipMoveToIndex == widget.currentIndex) {
+        _skipMoveToIndex = null;
+        _scheduleBoundaryHoldRelease();
+        return;
+      }
       _holdBoundaryFogForSwipeOut = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
@@ -78,6 +84,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
 
   @override
   void dispose() {
+    _boundaryHoldReleaseTimer?.cancel();
     _cardSwiperController.dispose();
     super.dispose();
   }
@@ -101,13 +108,10 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
           padding: EdgeInsets.zero,
           maxAngle: 0,
           threshold: _swipeThreshold,
-          scale: 0.96,
+          scale: 1,
           isLoop: false,
-          numberOfCardsDisplayed: math.min(
-            widget.maxStackCards,
-            widget.cardsCount,
-          ),
-          backCardOffset: const Offset(0, 20),
+          numberOfCardsDisplayed: 1,
+          backCardOffset: Offset.zero,
           allowedSwipeDirection: const AllowedSwipeDirection.only(
             up: true,
             down: true,
@@ -127,6 +131,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
             setState(() => _isUpwardDragActive = isUpward);
           },
           cardBuilder: (context, index, _, verticalOffsetPercentage) {
+            _lastVerticalOffsetPercentage = verticalOffsetPercentage;
             return _buildDeckCard(
               context: context,
               index: index,
@@ -154,9 +159,15 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
         _setBoundaryFogSwipeHold(false);
         return false;
       }
+      if (!_canCommitForwardSwipe()) {
+        _setBoundaryFogSwipeHold(false);
+        return false;
+      }
       _setBoundaryFogSwipeHold(true);
+      _skipMoveToIndex = currentIndex;
+      _recentBackfillIndex = currentIndex + 2;
       _dismissedHistory.add(previousIndex);
-      _startBackfillAnimation(currentIndex);
+      _previewGeneration += 1;
       widget.onCurrentIndexChanged(currentIndex);
       return true;
     }
@@ -168,13 +179,36 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
       }
       final restoreIndex = _dismissedHistory.removeLast();
       _previewGeneration += 1;
-      _backfillGeneration += 1;
-      _backfillPreviewIndex = _backfillIndexFor(restoreIndex);
       widget.onCurrentIndexChanged(restoreIndex);
       return false;
     }
 
     return false;
+  }
+
+  bool _canCommitForwardSwipe() {
+    if (_lastDeckSize == null) {
+      return true;
+    }
+    final dragOffsetY = (_lastVerticalOffsetPercentage * _swipeThreshold) / 100;
+    final deckBottom = _lastDeckSize!.height;
+    final aFrame = _frameForDepth(0, _lastDeckSize!);
+    final animatedBottomLeft = aFrame.corners.bottomLeft.dy + dragOffsetY;
+    final animatedBottomRight = aFrame.corners.bottomRight.dy + dragOffsetY;
+    // Commit only once A is moving upward in the deck frame.
+    return animatedBottomLeft < deckBottom && animatedBottomRight < deckBottom;
+  }
+
+  void _scheduleBoundaryHoldRelease() {
+    final generation = ++_boundaryHoldReleaseGeneration;
+    _boundaryHoldReleaseTimer?.cancel();
+    _boundaryHoldReleaseTimer = Timer(widget.animationDuration, () {
+      if (!mounted || generation != _boundaryHoldReleaseGeneration) {
+        return;
+      }
+      _setBoundaryFogSwipeHold(false);
+      _cardSwiperController.moveTo(widget.currentIndex);
+    });
   }
 
   void _setBoundaryFogSwipeHold(bool hold) {
@@ -190,115 +224,337 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     required int verticalOffsetPercentage,
   }) {
     final isFrontCard = index == widget.currentIndex;
-    if (isFrontCard) {
-      final frontCard = widget.cardBuilder(context, index);
-      if (_isDownwardRestoreDrag(verticalOffsetPercentage)) {
-        return _buildFrontCardWithDownwardRestorePreview(
-          context: context,
-          child: frontCard,
-          verticalOffsetPercentage: verticalOffsetPercentage,
-        );
-      }
-      return _buildFrontCardWithBoundaryBlur(
-        context: context,
-        child: frontCard,
-        verticalOffsetPercentage: verticalOffsetPercentage,
-      );
+    if (!isFrontCard) {
+      return const SizedBox.shrink();
     }
 
-    final preview = IgnorePointer(
-      child: KeyedSubtree(
-        key: ValueKey(
-          '${widget.stackCardKeyPrefix}$index-g$_previewGeneration',
-        ),
-        child: widget.cardBuilder(context, index),
-      ),
-    );
-
-    if (_backfillPreviewIndex != index) {
-      return preview;
-    }
-
-    final generation = _backfillGeneration;
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('${widget.backfillKeyPrefix}$index-g$generation'),
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: widget.animationDuration,
-      curve: Curves.easeOutCubic,
-      builder: (context, progress, child) {
-        final translateY = (1 - progress) * _backfillStartOffsetY;
-        return Opacity(
-          opacity: progress.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(0, translateY),
-            child: child,
-          ),
-        );
-      },
-      child: preview,
-    );
-  }
-
-  bool _isDownwardRestoreDrag(int verticalOffsetPercentage) {
-    return verticalOffsetPercentage > 0 && _dismissedHistory.isNotEmpty;
-  }
-
-  Widget _buildFrontCardWithDownwardRestorePreview({
-    required BuildContext context,
-    required Widget child,
-    required int verticalOffsetPercentage,
-  }) {
-    if (_dismissedHistory.isEmpty) {
-      return child;
-    }
-
-    final dragOffsetY = (verticalOffsetPercentage * _swipeThreshold) / 100;
-    final enhancedDragOffsetY = dragOffsetY * 2;
-    final restoreIndex = _dismissedHistory.last;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final previewTranslateY =
-            widget.boundaryFogOffsetFromDeckTop -
-            constraints.maxHeight +
-            dragOffsetY;
-        if (_debugDownwardRestoreLogs) {
-          final signature = [
-            'restoreIndex=$restoreIndex',
-            'verticalPct=$verticalOffsetPercentage',
-            'dragY=${dragOffsetY.toStringAsFixed(2)}',
-            'enhancedDragY=${enhancedDragOffsetY.toStringAsFixed(2)}',
-            'cardH=${constraints.maxHeight.toStringAsFixed(2)}',
-            'startY=${widget.boundaryFogOffsetFromDeckTop.toStringAsFixed(2)}',
-            'previewTranslateY=${previewTranslateY.toStringAsFixed(2)}',
-          ].join(' | ');
-          if (signature != _lastDownwardRestoreDebugSignature) {
-            _lastDownwardRestoreDebugSignature = signature;
-            debugPrint('[UpdateStockCardDeck][down-restore] $signature');
-          }
-        }
+        _lastDeckSize = constraints.biggest;
+        final deckSize = constraints.biggest;
+        final slotMap = _slotMapForDeckSize(deckSize);
+        final frontCard = RepaintBoundary(
+          key: ValueKey('update-stock-front-cache-$index'),
+          child: widget.cardBuilder(context, index),
+        );
+        final dragOffsetY = (verticalOffsetPercentage * _swipeThreshold) / 100;
+        final upwardProgress = _upwardProgress(verticalOffsetPercentage);
+        final downwardProgress = _downwardProgress(verticalOffsetPercentage);
+        final hasRestore = _dismissedHistory.isNotEmpty;
+
+        final foreground = downwardProgress > 0 && hasRestore
+            ? const SizedBox.shrink()
+            : _buildFrontCardWithBoundaryBlur(
+                context: context,
+                child: frontCard,
+                verticalOffsetPercentage: verticalOffsetPercentage,
+              );
+
         return Stack(
           fit: StackFit.expand,
           clipBehavior: Clip.none,
           children: [
-            Transform.translate(offset: Offset(0, -dragOffsetY), child: child),
             Transform.translate(
-              offset: Offset(
-                0,
-                previewTranslateY + enhancedDragOffsetY - dragOffsetY,
-              ),
-              child: IgnorePointer(
-                child: KeyedSubtree(
-                  key: ValueKey(
-                    'update-stock-down-ether-preview-$restoreIndex',
-                  ),
-                  child: widget.cardBuilder(context, restoreIndex),
+              // CardSwiper translates the full front card; offset that out so
+              // corner-linked stack follows only slot interpolation.
+              offset: Offset(0, -dragOffsetY),
+              child: Stack(
+                key: const ValueKey('update-stock-corner-layer-stack'),
+                fit: StackFit.expand,
+                clipBehavior: Clip.none,
+                children: _buildCornerLinkedStack(
+                  context: context,
+                  deckSize: deckSize,
+                  slots: slotMap,
+                  upwardProgress: upwardProgress,
+                  downwardProgress: downwardProgress,
                 ),
               ),
             ),
+            foreground,
           ],
         );
       },
     );
+  }
+
+  List<Widget> _buildCornerLinkedStack({
+    required BuildContext context,
+    required Size deckSize,
+    required _DeckSlotMap slots,
+    required double upwardProgress,
+    required double downwardProgress,
+  }) {
+    if (downwardProgress > 0 && _dismissedHistory.isNotEmpty) {
+      return _buildDownwardCornerStack(
+        context: context,
+        deckSize: deckSize,
+        slots: slots,
+        progress: downwardProgress,
+      );
+    }
+    return _buildUpwardCornerStack(
+      context: context,
+      deckSize: deckSize,
+      slots: slots,
+      progress: upwardProgress,
+    );
+  }
+
+  List<Widget> _buildUpwardCornerStack({
+    required BuildContext context,
+    required Size deckSize,
+    required _DeckSlotMap slots,
+    required double progress,
+  }) {
+    final layers = <Widget>[];
+    final bIndex = widget.currentIndex + 1;
+    final cIndex = widget.currentIndex + 2;
+    final dIndex = widget.currentIndex + 3;
+
+    if (dIndex < widget.cardsCount) {
+      final fadeProgress = progress.clamp(0.0, 1.0);
+      layers.add(
+        Offstage(
+          offstage: fadeProgress <= 0.001,
+          child: Opacity(
+            key: const ValueKey('update-stock-layer-d'),
+            opacity: fadeProgress,
+            child: _buildCornerLinkedCard(
+              context: context,
+              index: dIndex,
+              frameFrom: slots.incomingBack,
+              frameTo: slots.third,
+              deckSize: deckSize,
+              keyPrefix: widget.backfillKeyPrefix,
+              generation: _previewGeneration,
+              progress: progress,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (cIndex < widget.cardsCount) {
+      final cKeyPrefix = cIndex == _recentBackfillIndex
+          ? widget.backfillKeyPrefix
+          : widget.stackCardKeyPrefix;
+      layers.add(
+        KeyedSubtree(
+          key: const ValueKey('update-stock-layer-c'),
+          child: _buildCornerLinkedCard(
+            context: context,
+            index: cIndex,
+            frameFrom: slots.third,
+            frameTo: slots.second,
+            deckSize: deckSize,
+            keyPrefix: cKeyPrefix,
+            generation: _previewGeneration,
+            progress: progress,
+          ),
+        ),
+      );
+    }
+
+    if (bIndex < widget.cardsCount) {
+      layers.add(
+        KeyedSubtree(
+          key: const ValueKey('update-stock-layer-b'),
+          child: _buildCornerLinkedCard(
+            context: context,
+            index: bIndex,
+            frameFrom: slots.second,
+            frameTo: slots.front,
+            deckSize: deckSize,
+            keyPrefix: widget.stackCardKeyPrefix,
+            generation: _previewGeneration,
+            progress: progress,
+          ),
+        ),
+      );
+    }
+
+    return layers;
+  }
+
+  List<Widget> _buildDownwardCornerStack({
+    required BuildContext context,
+    required Size deckSize,
+    required _DeckSlotMap slots,
+    required double progress,
+  }) {
+    final layers = <Widget>[];
+    final restoreIndex = _dismissedHistory.last;
+    final currentIndex = widget.currentIndex;
+    final nextIndex = currentIndex + 1;
+    final nextNextIndex = currentIndex + 2;
+
+    if (nextNextIndex < widget.cardsCount) {
+      layers.add(
+        Opacity(
+          key: const ValueKey('update-stock-layer-d'),
+          opacity: (1 - progress).clamp(0.0, 1.0),
+          child: _buildCornerLinkedCard(
+            context: context,
+            index: nextNextIndex,
+            frameFrom: slots.third,
+            frameTo: slots.incomingBack,
+            deckSize: deckSize,
+            keyPrefix: widget.stackCardKeyPrefix,
+            generation: _previewGeneration,
+            progress: progress,
+          ),
+        ),
+      );
+    }
+
+    if (nextIndex < widget.cardsCount) {
+      layers.add(
+        KeyedSubtree(
+          key: const ValueKey('update-stock-layer-c'),
+          child: _buildCornerLinkedCard(
+            context: context,
+            index: nextIndex,
+            frameFrom: slots.second,
+            frameTo: slots.third,
+            deckSize: deckSize,
+            keyPrefix: widget.stackCardKeyPrefix,
+            generation: _previewGeneration,
+            progress: progress,
+          ),
+        ),
+      );
+    }
+
+    layers.add(
+      KeyedSubtree(
+        key: const ValueKey('update-stock-layer-b'),
+        child: _buildCornerLinkedCard(
+          context: context,
+          index: currentIndex,
+          frameFrom: slots.front,
+          frameTo: slots.second,
+          deckSize: deckSize,
+          keyPrefix: widget.stackCardKeyPrefix,
+          generation: _previewGeneration,
+          progress: progress,
+        ),
+      ),
+    );
+
+    layers.add(
+      _buildCornerLinkedCard(
+        context: context,
+        index: restoreIndex,
+        frameFrom: slots.incomingTop,
+        frameTo: slots.front,
+        deckSize: deckSize,
+        keyPrefix: widget.downOverlayKeyPrefix,
+        generation: _previewGeneration,
+        progress: progress,
+        overrideKey: 'update-stock-down-ether-preview-$restoreIndex',
+      ),
+    );
+
+    return layers;
+  }
+
+  Widget _buildCornerLinkedCard({
+    required BuildContext context,
+    required int index,
+    required _SlotFrame frameFrom,
+    required _SlotFrame frameTo,
+    required Size deckSize,
+    required String keyPrefix,
+    required int generation,
+    required double progress,
+    String? overrideKey,
+  }) {
+    final frame = _lerpFrame(frameFrom, frameTo, progress.clamp(0.0, 1.0));
+    final matrix = _transformForFrame(frame, deckSize);
+    final keyValue = overrideKey ?? '$keyPrefix$index-g$generation';
+    return IgnorePointer(
+      child: Transform(
+        transform: matrix,
+        alignment: Alignment.topLeft,
+        child: KeyedSubtree(
+          key: ValueKey(keyValue),
+          child: widget.cardBuilder(context, index),
+        ),
+      ),
+    );
+  }
+
+  double _upwardProgress(int verticalOffsetPercentage) {
+    if (_holdBoundaryFogForSwipeOut) {
+      return 1;
+    }
+    if (!_isUpwardDragActive) {
+      return 0;
+    }
+    return ((-verticalOffsetPercentage) / 100).clamp(0.0, 1.0).toDouble();
+  }
+
+  double _downwardProgress(int verticalOffsetPercentage) {
+    if (_dismissedHistory.isEmpty) {
+      return 0;
+    }
+    if (verticalOffsetPercentage <= 0) {
+      return 0;
+    }
+    return (verticalOffsetPercentage / 100).clamp(0.0, 1.0).toDouble();
+  }
+
+  _DeckSlotMap _slotMapForDeckSize(Size deckSize) {
+    return _DeckSlotMap(
+      front: _frameForDepth(0, deckSize),
+      second: _frameForDepth(1, deckSize),
+      third: _frameForDepth(2, deckSize),
+      incomingBack: _frameForDepth(3, deckSize),
+      incomingTop: _frameForDepth(0, deckSize).shift(const Offset(0, -1)),
+    ).scaledIncomingTop(deckSize.height);
+  }
+
+  _SlotFrame _frameForDepth(int depth, Size deckSize) {
+    final scale = switch (depth) {
+      <= 0 => 1.0,
+      1 => AppThemeTokens.stockCardStackScale1,
+      2 => AppThemeTokens.stockCardStackScale2,
+      _ => math.max(
+        0.82,
+        AppThemeTokens.stockCardStackScale2 -
+            (AppThemeTokens.stockCardStackScale1 -
+                AppThemeTokens.stockCardStackScale2),
+      ),
+    };
+
+    final top = switch (depth) {
+      <= 0 => 0.0,
+      1 => AppThemeTokens.stockCardStackPeekOffset1,
+      2 => AppThemeTokens.stockCardStackPeekOffset2,
+      _ =>
+        AppThemeTokens.stockCardStackPeekOffset2 +
+            (AppThemeTokens.stockCardStackPeekOffset2 -
+                AppThemeTokens.stockCardStackPeekOffset1),
+    };
+
+    final width = deckSize.width * scale;
+    final height = deckSize.height * scale;
+    final left = (deckSize.width - width) / 2;
+    final rect = Rect.fromLTWH(left, top, width, height);
+    return _SlotFrame(rect);
+  }
+
+  Matrix4 _transformForFrame(_SlotFrame frame, Size deckSize) {
+    final scaleX = frame.rect.width / deckSize.width;
+    final scaleY = frame.rect.height / deckSize.height;
+    return Matrix4.identity()
+      ..translate(frame.rect.left, frame.rect.top)
+      ..scale(scaleX, scaleY);
+  }
+
+  _SlotFrame _lerpFrame(_SlotFrame a, _SlotFrame b, double t) {
+    return _SlotFrame(Rect.lerp(a.rect, b.rect, t) ?? a.rect);
   }
 
   Widget _buildFrontCardWithBoundaryBlur({
@@ -313,6 +569,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     final dragOffsetY = (verticalOffsetPercentage * _swipeThreshold) / 100;
     late final double blurStartY;
     late final double blurEndY;
+    late final double concealEdgeY;
 
     if (widget.boundaryFogEndOffsetFromDeckTop case final blurEndOffset?) {
       blurStartY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
@@ -320,12 +577,14 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
       if (math.max(blurStartY, blurEndY) <= 0 && !_holdBoundaryFogForSwipeOut) {
         return child;
       }
+      concealEdgeY = math.max(blurStartY, blurEndY);
     } else {
       blurStartY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
       if (blurStartY <= 0 && !_holdBoundaryFogForSwipeOut) {
         return child;
       }
-      blurEndY = blurStartY + _boundaryFogTransitionHeight;
+      blurEndY = blurStartY;
+      concealEdgeY = blurStartY;
     }
 
     if (_debugBoundaryBlurLogs) {
@@ -336,6 +595,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
         'dragY=${dragOffsetY.toStringAsFixed(2)}',
         'blurStartY=${blurStartY.toStringAsFixed(2)}',
         'blurEndY=${blurEndY.toStringAsFixed(2)}',
+        'concealEdgeY=${concealEdgeY.toStringAsFixed(2)}',
       ].join(' | ');
       if (signature != _lastBoundaryBlurDebugSignature) {
         _lastBoundaryBlurDebugSignature = signature;
@@ -343,53 +603,25 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
       }
     }
 
+    final concealHeight = concealEdgeY.clamp(0.0, double.infinity).toDouble();
+    if (concealHeight <= 0) {
+      return child;
+    }
+
     return Stack(
       fit: StackFit.expand,
       children: [
         child,
-        ShaderMask(
+        Positioned(
           key: const ValueKey('update-stock-boundary-blur-overlay'),
-          blendMode: BlendMode.dstIn,
-          shaderCallback: (Rect rect) {
-            if (rect.height <= 0) {
-              return const LinearGradient(
-                colors: <Color>[Colors.transparent, Colors.transparent],
-              ).createShader(rect);
-            }
-            final minStop = math.min(blurStartY, blurEndY);
-            final maxStop = math.max(blurStartY, blurEndY);
-            final start = (minStop / rect.height).clamp(0.0, 1.0).toDouble();
-            var end = (maxStop / rect.height).clamp(0.0, 1.0).toDouble();
-            if (end <= start) {
-              end = (start + 0.001).clamp(0.0, 1.0).toDouble();
-            }
-            return LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: const <Color>[
-                Colors.white,
-                Colors.white,
-                Colors.transparent,
-                Colors.transparent,
-              ],
-              stops: <double>[0, start, end, 1],
-            ).createShader(rect);
-          },
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
-            child: Opacity(opacity: 0.96, child: child),
-          ),
+          top: 0,
+          left: 0,
+          right: 0,
+          height: concealHeight,
+          child: ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
         ),
       ],
     );
-  }
-
-  void _startBackfillAnimation(int currentIndex) {
-    setState(() {
-      _previewGeneration += 1;
-      _backfillGeneration += 1;
-      _backfillPreviewIndex = _backfillIndexFor(currentIndex);
-    });
   }
 
   Widget _buildPreloadedCards() {
@@ -413,7 +645,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
 
   Iterable<int> _preloadCardIndices() sync* {
     final indices = <int>{};
-    for (var i = 0; i < widget.maxStackCards; i += 1) {
+    for (var i = 0; i <= widget.maxStackCards; i += 1) {
       final index = widget.currentIndex + i;
       if (index < widget.cardsCount) {
         indices.add(index);
@@ -424,9 +656,59 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     }
     yield* indices;
   }
+}
 
-  int? _backfillIndexFor(int currentIndex) {
-    final index = currentIndex + (widget.maxStackCards - 1);
-    return index < widget.cardsCount ? index : null;
+class _CornerSet {
+  const _CornerSet({
+    required this.topLeft,
+    required this.topRight,
+    required this.bottomRight,
+    required this.bottomLeft,
+  });
+
+  final Offset topLeft;
+  final Offset topRight;
+  final Offset bottomRight;
+  final Offset bottomLeft;
+}
+
+class _SlotFrame {
+  const _SlotFrame(this.rect);
+
+  final Rect rect;
+
+  _CornerSet get corners => _CornerSet(
+    topLeft: rect.topLeft,
+    topRight: rect.topRight,
+    bottomRight: rect.bottomRight,
+    bottomLeft: rect.bottomLeft,
+  );
+
+  _SlotFrame shift(Offset offset) => _SlotFrame(rect.shift(offset));
+}
+
+class _DeckSlotMap {
+  const _DeckSlotMap({
+    required this.front,
+    required this.second,
+    required this.third,
+    required this.incomingBack,
+    required this.incomingTop,
+  });
+
+  final _SlotFrame front;
+  final _SlotFrame second;
+  final _SlotFrame third;
+  final _SlotFrame incomingBack;
+  final _SlotFrame incomingTop;
+
+  _DeckSlotMap scaledIncomingTop(double deckHeight) {
+    return _DeckSlotMap(
+      front: front,
+      second: second,
+      third: third,
+      incomingBack: incomingBack,
+      incomingTop: front.shift(Offset(0, -deckHeight)),
+    );
   }
 }

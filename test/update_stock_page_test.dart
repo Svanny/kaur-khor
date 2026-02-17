@@ -263,7 +263,7 @@ void main() {
     },
   );
 
-  testWidgets('preloads first three SKU cards offstage', (
+  testWidgets('preloads first four SKU cards offstage', (
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
@@ -278,6 +278,10 @@ void main() {
     );
     expect(
       find.byKey(const ValueKey('update-stock-preload-sku-card-2')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-preload-sku-card-3')),
       findsNothing,
     );
 
@@ -298,6 +302,13 @@ void main() {
     expect(
       find.byKey(
         const ValueKey('update-stock-preload-sku-card-2'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const ValueKey('update-stock-preload-sku-card-3'),
         skipOffstage: false,
       ),
       findsOneWidget,

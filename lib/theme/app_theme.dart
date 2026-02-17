@@ -156,10 +156,10 @@ class AppThemeTokens {
   static const double stockCardViewportWidthFactor = 0.95;
   static const double stockCardViewportHeightFactor = 0.85;
   static const int stockCardStackLayerCount = 2;
-  static const double stockCardStackPeekOffset1 = unit * 5;
-  static const double stockCardStackPeekOffset2 = unit * 10;
-  static const double stockCardStackScale1 = 0.96;
-  static const double stockCardStackScale2 = 0.92;
+  static const double stockCardStackPeekOffset1 = unit * 4;
+  static const double stockCardStackPeekOffset2 = unit * 8;
+  static const double stockCardStackScale1 = 0.985;
+  static const double stockCardStackScale2 = 0.97;
   static const double stockCardSwipeTravel = 0.24;
 
   static double attachedLabelIconSize(double labelFontSize) {
