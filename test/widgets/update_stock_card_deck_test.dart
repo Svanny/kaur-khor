@@ -81,6 +81,32 @@ void main() {
     );
   });
 
+  testWidgets(
+    'end sentinel snaps back to current card when index is unchanged',
+    (tester) async {
+      await pumpDeckHarness(tester, cardsCount: 1);
+
+      await tester.fling(
+        find.byKey(const ValueKey('front-0')),
+        const Offset(0, -500),
+        1200,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('front-0')), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('deck-current-index')))
+            .data,
+        'current:0',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('deck-end-count'))).data,
+        'end:1',
+      );
+    },
+  );
+
   testWidgets('downward swipe on first card does not change index', (
     tester,
   ) async {

@@ -5,14 +5,24 @@ class _InventoryItemCard extends StatelessWidget {
     required this.title,
     required this.itemPictureIcon,
     required this.unitsInStock,
-    required this.totalValueLabel,
+    required this.valuePillAmount,
+    required this.valuePillCurrencyCode,
+    required this.summaryLabel,
+    required this.summaryValueLabel,
+    required this.valueIconAssetPath,
+    required this.valueIconKey,
     required this.onTap,
   });
 
   final String title;
   final IconData itemPictureIcon;
   final double unitsInStock;
-  final String totalValueLabel;
+  final double valuePillAmount;
+  final String valuePillCurrencyCode;
+  final String summaryLabel;
+  final String summaryValueLabel;
+  final String valueIconAssetPath;
+  final Key valueIconKey;
   final VoidCallback onTap;
 
   @override
@@ -63,37 +73,40 @@ class _InventoryItemCard extends StatelessWidget {
                         spacing: AppThemeTokens.wrapSpacing,
                         runSpacing: AppThemeTokens.wrapRunSpacing,
                         children: [
-                          Chip(
-                            backgroundColor: AppThemeTokens.chipBackground,
-                            side: BorderSide.none,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(AppThemeTokens.radiusPill),
-                              ),
-                              side: BorderSide.none,
+                          _infoPill(
+                            context: context,
+                            key: const ValueKey('inventory-item-units-pill'),
+                            icon: _inventorySvgIcon(
+                              key: const ValueKey('inventory-item-units-icon'),
+                              assetPath: _package2SvgAsset,
+                              size: AppThemeTokens.fontSizeBodyLarge,
+                              color: AppThemeTokens.textPrimary,
                             ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppThemeTokens.inventoryChipPadX,
-                              vertical: AppThemeTokens.inventoryChipPadY,
+                            label: '${_formatNumber(unitsInStock)} units',
+                          ),
+                          _infoPill(
+                            context: context,
+                            key: const ValueKey('inventory-item-value-pill'),
+                            icon: _inventorySvgIcon(
+                              key: valueIconKey,
+                              assetPath: valueIconAssetPath,
+                              size: AppThemeTokens.fontSizeBodyLarge,
+                              color: AppThemeTokens.textPrimary,
                             ),
-                            label: Text(
-                              '${_formatNumber(unitsInStock)} units in stock',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppThemeTokens.textPrimary),
-                            ),
+                            label:
+                                '${_formatNumber(valuePillAmount, maxFractionDigits: 2)} $valuePillCurrencyCode',
                           ),
                         ],
                       ),
                       const SizedBox(height: AppThemeTokens.cardInlineGap),
                       Text(
-                        'Total Value',
+                        summaryLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       Text(
-                        totalValueLabel,
+                        summaryValueLabel,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           fontWeight: _fontWeight(
                             AppThemeTokens.fontWeightBold,
@@ -107,6 +120,44 @@ class _InventoryItemCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _infoPill({
+    required BuildContext context,
+    required Key key,
+    required Widget icon,
+    required String label,
+  }) {
+    return Chip(
+      key: key,
+      backgroundColor: AppThemeTokens.chipBackground,
+      side: BorderSide.none,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(AppThemeTokens.radiusPill),
+        ),
+        side: BorderSide.none,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppThemeTokens.inventoryChipPadX,
+        vertical: AppThemeTokens.inventoryChipPadY,
+      ),
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          icon,
+          const SizedBox(width: AppThemeTokens.space1),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.textPrimary),
+          ),
+        ],
       ),
     );
   }

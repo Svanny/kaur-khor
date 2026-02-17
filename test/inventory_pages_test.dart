@@ -119,6 +119,142 @@ void main() {
     },
   );
 
+  testWidgets('view-all item cards render units/value pills with icons', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+
+    expect(find.text('410 units'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('inventory-item-units-icon')),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(const ValueKey('inventory-item-sell-icon')),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(const ValueKey('inventory-item-currency-icon')),
+      findsWidgets,
+    );
+    expect(find.text('units in stock'), findsNothing);
+    expect(find.text('Total Value'), findsWidgets);
+    expect(find.text('Estimated Total Value'), findsNWidgets(2));
+
+    final sku003Card = find.ancestor(
+      of: find.text('SKU #003'),
+      matching: find.byType(Card),
+    );
+    expect(
+      find.descendant(of: sku003Card, matching: find.text('7.79 USD')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sku003Card, matching: find.text('592 USD')),
+      findsOneWidget,
+    );
+
+    final service001Card = find.ancestor(
+      of: find.text('Service #001'),
+      matching: find.byType(Card),
+    );
+    expect(
+      find.descendant(of: service001Card, matching: find.text('1200 USD')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: service001Card, matching: find.text('175200 USD')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: service001Card,
+        matching: find.byKey(const ValueKey('inventory-item-sell-icon')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('view-all value pill follows selected app currency code', (
+    WidgetTester tester,
+  ) async {
+    await setPhoneViewport(tester);
+    final inventoryController = InventoryController();
+    final currencyController = CurrencyController()
+      ..switchCurrency(AppCurrency.khr);
+    addTearDown(inventoryController.dispose);
+    addTearDown(currencyController.dispose);
+
+    await tester.pumpWidget(
+      AppInventoryScope(
+        controller: inventoryController,
+        child: AppCurrencyScope(
+          controller: currencyController,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light(),
+            home: const ViewAllPage(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1200 KHR'), findsOneWidget);
+    expect(find.text('175200 KHR'), findsOneWidget);
+    expect(find.text('1200 USD'), findsNothing);
+  });
+
+  testWidgets('service without SKUs shows ??? for estimated total value', (
+    WidgetTester tester,
+  ) async {
+    await setPhoneViewport(tester);
+    final inventoryController = InventoryController(
+      initialState: const InventoryState(
+        skus: [],
+        services: [
+          ServiceItem(
+            id: 'service-no-sku',
+            name: 'Service #NoSku',
+            itemPictureIcon: Icons.person_outline,
+            description: 'No SKU usage.',
+            price: 99,
+            skuIds: {},
+          ),
+        ],
+      ),
+    );
+    addTearDown(inventoryController.dispose);
+
+    await tester.pumpWidget(
+      AppInventoryScope(
+        controller: inventoryController,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          home: const ViewAllPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final noSkuServiceCard = find.ancestor(
+      of: find.text('Service #NoSku'),
+      matching: find.byType(Card),
+    );
+    expect(
+      find.descendant(
+        of: noSkuServiceCard,
+        matching: find.text('Estimated Total Value'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: noSkuServiceCard, matching: find.text('???')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('filter chips collapse sections with built-in checkmarks', (
     WidgetTester tester,
   ) async {

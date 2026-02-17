@@ -134,6 +134,18 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
 
     if (pageIndex == _endSentinelPage) {
       widget.onReachedEndForward();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_pageController.hasClients) {
+          return;
+        }
+        final currentPage =
+            _pageController.page?.round() ?? _pageController.initialPage;
+        if (currentPage != _endSentinelPage) {
+          return;
+        }
+        final target = widget.currentIndex.clamp(0, widget.cardsCount - 1);
+        _pageController.jumpToPage(target);
+      });
       return;
     }
 

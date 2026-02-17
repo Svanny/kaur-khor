@@ -158,7 +158,6 @@ class UpdateStockPage extends StatefulWidget {
 }
 
 class _UpdateStockPageState extends State<UpdateStockPage> {
-  static const double _swipeVelocityThreshold = 220;
   static const Duration _switcherDuration = Duration(milliseconds: 220);
   static const Duration _trendAnimationDuration = Duration(milliseconds: 180);
   static const String _costInputDisabledTooltip =
@@ -179,7 +178,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   Timer? _incrementLabelSwapTimer;
   int _incrementLabelSwapGeneration = 0;
   int _selectedSkuIndex = 0;
-  bool _showConfirmationCard = false;
   final GlobalKey _stockUpdateTitleKey = GlobalKey();
   final GlobalKey _stockDeckKey = GlobalKey();
   bool _fogRangeMeasurementScheduled = false;
@@ -187,6 +185,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   double _fogEndOffsetFromDeckTop = -AppThemeTokens.sectionGap;
   double _stockTitleOverlayHeight = _titleOverlayFallbackHeight;
   String? _lastBoundaryMeasurementDebugSignature;
+
+  int get _confirmationCardIndex => _sourceSkus.length;
+  bool get _isShowingConfirmationCard =>
+      _selectedSkuIndex == _confirmationCardIndex;
 
   @override
   void didChangeDependencies() {
@@ -268,7 +270,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                         ),
                         count: _sourceSkus.length,
                         selectedIndex: _selectedSkuIndex,
-                        allActive: _showConfirmationCard,
+                        allActive: _isShowingConfirmationCard,
                         animationDuration: _switcherDuration,
                         densityRule: SkuIndicatorDensityRule.balanced,
                         gapScale: 0.25,
@@ -316,27 +318,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   }
 
   Widget _buildCardDeck({required String currencyCode}) {
-    if (_showConfirmationCard) {
-      return GestureDetector(
-        onVerticalDragEnd: _onVerticalDragEnd,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Padding(
-            padding: const EdgeInsets.only(top: AppThemeTokens.space4),
-            child: FractionallySizedBox(
-              heightFactor: AppThemeTokens.stockCardViewportHeightFactor,
-              child: _buildConfirmationCard(
-                key: const ValueKey('update-stock-confirmation-card'),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     return UpdateStockCardDeck(
       key: _stockDeckKey,
-      cardsCount: _sourceSkus.length,
+      cardsCount: _sourceSkus.length + 1,
       currentIndex: _selectedSkuIndex,
       swiperKey: const ValueKey('update-stock-card-swiper'),
       animationDuration: _switcherDuration,
@@ -344,12 +328,26 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       onCurrentIndexChanged: (index) =>
           setState(() => _selectedSkuIndex = index),
       onReachedEndForward: () {
-        setState(() {
-          _selectedSkuIndex = _sourceSkus.length - 1;
-          _showConfirmationCard = true;
-        });
+        if (_selectedSkuIndex == _confirmationCardIndex) {
+          return;
+        }
+        setState(() => _selectedSkuIndex = _confirmationCardIndex);
       },
       cardBuilder: (context, index) {
+        if (index == _confirmationCardIndex) {
+          return Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppThemeTokens.space4),
+              child: FractionallySizedBox(
+                heightFactor: AppThemeTokens.stockCardViewportHeightFactor,
+                child: _buildConfirmationCard(
+                  key: const ValueKey('update-stock-confirmation-card'),
+                ),
+              ),
+            ),
+          );
+        }
         final keyNamespace = index == _selectedSkuIndex ? null : 'stack-$index';
         return Align(
           alignment: Alignment.topCenter,
@@ -378,14 +376,14 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
   void _scheduleFogRangeMeasurement() {
     if (_sourceSkus.isEmpty ||
-        _showConfirmationCard ||
+        _isShowingConfirmationCard ||
         _fogRangeMeasurementScheduled) {
       return;
     }
     _fogRangeMeasurementScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fogRangeMeasurementScheduled = false;
-      if (!mounted || _showConfirmationCard) {
+      if (!mounted || _isShowingConfirmationCard) {
         return;
       }
 
@@ -519,9 +517,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 ),
               ),
             ),
-            const SizedBox(
-              height: AppThemeTokens.sectionGapCompact,
-            ),
+            const SizedBox(height: AppThemeTokens.sectionGapCompact),
             _buildSkuTitleRow(sku.name, keyNamespace: keyNamespace),
             _CenteredTrendText(
               text: _currencyLabel(
@@ -776,7 +772,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                     key: const ValueKey('update-stock-back-to-edit'),
                     label: 'Back to Edit',
                     isPrimary: false,
-                    onTap: () => setState(() => _showConfirmationCard = false),
+                    onTap: () => setState(
+                      () => _selectedSkuIndex = _confirmationCardIndex - 1,
+                    ),
                   ),
                   const SizedBox(width: AppThemeTokens.space8),
                   _buildConfirmationPillButton(
@@ -845,7 +843,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         child: Container(
           height: AppThemeTokens.segmentedToggleTrackHeight,
           width: width,
-          padding: const EdgeInsets.symmetric(horizontal: horizontalInnerPadding),
+          padding: const EdgeInsets.symmetric(
+            horizontal: horizontalInnerPadding,
+          ),
           decoration: BoxDecoration(
             color: isPrimary ? AppThemeTokens.primary : AppThemeTokens.surface,
             borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
@@ -1231,16 +1231,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
   String _deckElementKeyPrefix(String base, {required String? keyNamespace}) {
     return keyNamespace == null ? base : '$base-$keyNamespace';
-  }
-
-  void _onVerticalDragEnd(DragEndDetails details) {
-    if (!_showConfirmationCard) {
-      return;
-    }
-    final velocity = details.primaryVelocity ?? 0;
-    if (velocity > _swipeVelocityThreshold) {
-      setState(() => _showConfirmationCard = false);
-    }
   }
 
   void _resetCurrentDraft() {

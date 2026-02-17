@@ -157,9 +157,17 @@ class _ViewAllPageState extends State<ViewAllPage> {
                                   service,
                                   inventory.skus,
                                 ),
-                                totalValueLabel: _currencyLabel(
-                                  service.price,
+                                valuePillAmount: service.price,
+                                valuePillCurrencyCode: currencyCode,
+                                summaryLabel: 'Estimated Total Value',
+                                summaryValueLabel: _estimatedServiceTotalValue(
+                                  service,
+                                  inventory.skus,
                                   currencyCode: currencyCode,
+                                ),
+                                valueIconAssetPath: _pointOfSaleSvgAsset,
+                                valueIconKey: const ValueKey(
+                                  'inventory-item-sell-icon',
                                 ),
                                 onTap: () =>
                                     _editService(service, inventory.skus),
@@ -184,9 +192,16 @@ class _ViewAllPageState extends State<ViewAllPage> {
                                 title: sku.name,
                                 itemPictureIcon: sku.itemPictureIcon,
                                 unitsInStock: sku.unitsInStock,
-                                totalValueLabel: _currencyLabel(
+                                valuePillAmount: sku.costPerUnit,
+                                valuePillCurrencyCode: currencyCode,
+                                summaryLabel: 'Total Value',
+                                summaryValueLabel: _currencyLabel(
                                   sku.totalValue,
                                   currencyCode: currencyCode,
+                                ),
+                                valueIconAssetPath: _paymentsSvgAsset,
+                                valueIconKey: const ValueKey(
+                                  'inventory-item-currency-icon',
                                 ),
                                 onTap: () => _editSku(sku),
                               ),
@@ -211,6 +226,25 @@ class _ViewAllPageState extends State<ViewAllPage> {
   double _unitsInStockForService(ServiceItem service, List<SkuItem> allSkus) {
     final selected = allSkus.where((sku) => service.skuIds.contains(sku.id));
     return selected.fold(0.0, (sum, sku) => sum + sku.unitsInStock);
+  }
+
+  String _estimatedServiceTotalValue(
+    ServiceItem service,
+    List<SkuItem> allSkus, {
+    required String currencyCode,
+  }) {
+    final selected = allSkus
+        .where((sku) => service.skuIds.contains(sku.id))
+        .toList(growable: false);
+    if (selected.isEmpty) {
+      return '???';
+    }
+
+    final minUnitsInStock = selected
+        .map((sku) => sku.unitsInStock)
+        .reduce(math.min);
+    final estimatedTotalValue = minUnitsInStock * service.price;
+    return _currencyLabel(estimatedTotalValue, currencyCode: currencyCode);
   }
 
   Future<void> _editSku(SkuItem sku) async {

@@ -214,6 +214,47 @@ void main() {
     },
   );
 
+  testWidgets('confirmation card is rendered as a deck card', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    await tester.fling(
+      find.byKey(const ValueKey('update-stock-sku-card-0')),
+      const Offset(0, -500),
+      1200,
+    );
+    await tester.pumpAndSettle();
+    await tester.fling(
+      find.byKey(const ValueKey('update-stock-sku-card-1')),
+      const Offset(0, -500),
+      1200,
+    );
+    await tester.pumpAndSettle();
+    await tester.fling(
+      find.byKey(const ValueKey('update-stock-sku-card-2')),
+      const Offset(0, -500),
+      1200,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.fling(
+      find.byKey(const ValueKey('update-stock-sku-card-3')),
+      const Offset(0, -500),
+      1200,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('update-stock-sku-card-3')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('update-stock-confirmation-card')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-sku-card-stack-4')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'vertical swipe card view shows active card and hides cards on confirmation',
     (WidgetTester tester) async {
