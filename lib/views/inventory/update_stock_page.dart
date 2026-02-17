@@ -345,7 +345,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 ),
               ),
             ),
-            const SizedBox(height: AppThemeTokens.sectionGap),
+            const SizedBox(
+              height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
+            ),
             _buildSkuTitleRow(sku.name),
             Text(
               _currencyLabel(
@@ -354,7 +356,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               ),
               key: const ValueKey('update-stock-total-value'),
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: AppThemeTokens.sectionGap),
             _StockStepper(
@@ -383,7 +385,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 ),
               ),
             ),
-            const SizedBox(height: AppThemeTokens.sectionGapCompact),
+            const SizedBox(
+              height: AppThemeTokens.sectionGapCompact + AppThemeTokens.unit,
+            ),
             _StockStepper(
               label: 'Cost',
               valueKey: const ValueKey('update-stock-cost-value'),
