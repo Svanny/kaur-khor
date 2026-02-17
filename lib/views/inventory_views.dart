@@ -13,6 +13,7 @@ import '../security/security_validators.dart';
 import '../settings/currency_controller.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_dropdown_pill.dart';
+import '../widgets/sku_indicator_rail.dart';
 
 part 'inventory/inventory_models.dart';
 part 'inventory/inventory_controller.dart';

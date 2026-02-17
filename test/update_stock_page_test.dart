@@ -14,9 +14,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
   }
 
-  Future<InventoryController> pumpUpdateStockPage(WidgetTester tester) async {
+  Future<InventoryController> pumpUpdateStockPage(
+    WidgetTester tester, {
+    InventoryState? initialState,
+  }) async {
     await setPhoneViewport(tester);
-    final inventoryController = InventoryController();
+    final inventoryController = InventoryController(initialState: initialState);
     final currencyController = CurrencyController();
     addTearDown(inventoryController.dispose);
     addTearDown(currencyController.dispose);
@@ -28,13 +31,55 @@ void main() {
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(),
-            home: const UpdateStockPage(),
+            home: UpdateStockPage(key: UniqueKey()),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
     return inventoryController;
+  }
+
+  Rect indicatorRect(WidgetTester tester, int index) {
+    final activeFinder = find.byKey(
+      ValueKey('update-stock-indicator-$index-active'),
+    );
+    if (activeFinder.evaluate().isNotEmpty) {
+      return tester.getRect(activeFinder);
+    }
+    return tester.getRect(
+      find.byKey(ValueKey('update-stock-indicator-$index-inactive')),
+    );
+  }
+
+  double averageIndicatorGap(WidgetTester tester, int count) {
+    if (count < 2) {
+      return 0;
+    }
+    var totalGap = 0.0;
+    for (var index = 0; index < count - 1; index++) {
+      final currentRect = indicatorRect(tester, index);
+      final nextRect = indicatorRect(tester, index + 1);
+      totalGap += nextRect.top - currentRect.bottom;
+    }
+    return totalGap / (count - 1);
+  }
+
+  InventoryState inventoryStateWithSkuCount(int count) {
+    final skus = List.generate(count, (index) {
+      final number = (index + 1).toString().padLeft(3, '0');
+      return SkuItem(
+        id: 'sku-$number',
+        name: 'SKU #$number',
+        itemPictureIcon: Icons.inventory_2_outlined,
+        description: 'Generated SKU $number',
+        unitsInStock: 100 + index.toDouble(),
+        costPerUnit: 5 + index.toDouble(),
+        soldAsProduct: true,
+        productPrice: 10 + index.toDouble(),
+      );
+    });
+    return InventoryState(skus: skus, services: const <ServiceItem>[]);
   }
 
   testWidgets('receipt FAB opens update stock page from home', (
@@ -94,6 +139,73 @@ void main() {
     );
   });
 
+  testWidgets(
+    'indicator rail spans track with uniform spacing and mapped colors',
+    (WidgetTester tester) async {
+      await pumpUpdateStockPage(tester);
+
+      final trackRect = tester.getRect(
+        find.byKey(const ValueKey('update-stock-indicator-track')),
+      );
+      final firstRect = indicatorRect(tester, 0);
+      final secondRect = indicatorRect(tester, 1);
+      final thirdRect = indicatorRect(tester, 2);
+
+      expect((firstRect.top - trackRect.top).abs(), lessThanOrEqualTo(1.0));
+      expect(
+        (thirdRect.bottom - trackRect.bottom).abs(),
+        lessThanOrEqualTo(1.0),
+      );
+
+      final gap01 = secondRect.top - firstRect.bottom;
+      final gap12 = thirdRect.top - secondRect.bottom;
+      expect((gap01 - gap12).abs(), lessThanOrEqualTo(1.0));
+      final titleRect = tester.getRect(find.text("SKUs' Stock Update"));
+      final incrementRect = tester.getRect(
+        find.byKey(const ValueKey('update-stock-increment-toggle')),
+      );
+      expect((firstRect.top - titleRect.top).abs(), lessThanOrEqualTo(1.0));
+      expect(
+        (thirdRect.bottom - incrementRect.top).abs(),
+        lessThanOrEqualTo(1.0),
+      );
+      final edgeRight =
+          (430 * AppThemeTokens.screenEdgePaddingWidthFactor).clamp(
+            AppThemeTokens.screenEdgePaddingMin,
+            AppThemeTokens.screenEdgePaddingMax,
+          ) /
+          2;
+      expect((430 - trackRect.right - edgeRight).abs(), lessThanOrEqualTo(1.0));
+
+      final activeIndicator = tester.widget<AnimatedContainer>(
+        find.byKey(const ValueKey('update-stock-indicator-0-active')),
+      );
+      final inactiveIndicator = tester.widget<AnimatedContainer>(
+        find.byKey(const ValueKey('update-stock-indicator-1-inactive')),
+      );
+      final activeDecoration = activeIndicator.decoration as BoxDecoration;
+      final inactiveDecoration = inactiveIndicator.decoration as BoxDecoration;
+
+      expect(activeDecoration.color, equals(AppThemeTokens.secondary));
+      expect(inactiveDecoration.color, equals(AppThemeTokens.accentLighter));
+    },
+  );
+
+  testWidgets('indicator spacing shrinks when SKU count increases', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+    final gapFor3Skus = averageIndicatorGap(tester, 3);
+
+    await pumpUpdateStockPage(
+      tester,
+      initialState: inventoryStateWithSkuCount(6),
+    );
+    final gapFor6Skus = averageIndicatorGap(tester, 6);
+
+    expect(gapFor6Skus, lessThan(gapFor3Skus));
+  });
+
   testWidgets('SKU title stays centered while reset icon sits beside it', (
     WidgetTester tester,
   ) async {
@@ -121,6 +233,17 @@ void main() {
       resetIconRect.left - titleRect.right,
       lessThanOrEqualTo(AppThemeTokens.space4),
     );
+    expect(
+      find.descendant(
+        of: resetIconFinder,
+        matching: find.byIcon(Icons.refresh),
+      ),
+      findsOneWidget,
+    );
+    final flipTransform = tester.widget<Transform>(
+      find.descendant(of: resetIconFinder, matching: find.byType(Transform)),
+    );
+    expect(flipTransform.transform.storage[0], equals(-1.0));
   });
 
   testWidgets('increment dropdown changes active preset step size', (

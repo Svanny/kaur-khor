@@ -186,60 +186,91 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 children: [
                   _buildHeader(),
                   const SizedBox(height: AppThemeTokens.headerToContentGap),
-                  Text(
-                    "SKUs' Stock Update",
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppThemeTokens.sectionGap),
                   Expanded(
-                    child: GestureDetector(
-                      onVerticalDragEnd: _onVerticalDragEnd,
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: FractionallySizedBox(
-                                widthFactor:
-                                    AppThemeTokens.stockCardViewportWidthFactor,
-                                heightFactor: AppThemeTokens
-                                    .stockCardViewportHeightFactor,
-                                child: AnimatedSwitcher(
-                                  duration: _switcherDuration,
-                                  switchInCurve: Curves.easeOutCubic,
-                                  switchOutCurve: Curves.easeInCubic,
-                                  child: _showConfirmationCard
-                                      ? _buildConfirmationCard(
-                                          key: const ValueKey(
-                                            'update-stock-confirmation-card',
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Column(
+                          children: [
+                            Text(
+                              "SKUs' Stock Update",
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    fontWeight: _fontWeight(
+                                      AppThemeTokens.fontWeightBold,
+                                    ),
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppThemeTokens.sectionGap),
+                            Expanded(
+                              child: GestureDetector(
+                                onVerticalDragEnd: _onVerticalDragEnd,
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: Align(
+                                        alignment: Alignment.topCenter,
+                                        child: FractionallySizedBox(
+                                          widthFactor: AppThemeTokens
+                                              .stockCardViewportWidthFactor,
+                                          heightFactor: AppThemeTokens
+                                              .stockCardViewportHeightFactor,
+                                          child: AnimatedSwitcher(
+                                            duration: _switcherDuration,
+                                            switchInCurve: Curves.easeOutCubic,
+                                            switchOutCurve: Curves.easeInCubic,
+                                            child: _showConfirmationCard
+                                                ? _buildConfirmationCard(
+                                                    key: const ValueKey(
+                                                      'update-stock-confirmation-card',
+                                                    ),
+                                                  )
+                                                : _buildSkuCard(
+                                                    key: ValueKey(
+                                                      'update-stock-sku-card-$_selectedSkuIndex',
+                                                    ),
+                                                    sku:
+                                                        _sourceSkus[_selectedSkuIndex],
+                                                    draft:
+                                                        _drafts[_selectedSkuIndex],
+                                                    currencyCode: currencyCode,
+                                                  ),
                                           ),
-                                        )
-                                      : _buildSkuCard(
-                                          key: ValueKey(
-                                            'update-stock-sku-card-$_selectedSkuIndex',
-                                          ),
-                                          sku: _sourceSkus[_selectedSkuIndex],
-                                          draft: _drafts[_selectedSkuIndex],
-                                          currencyCode: currencyCode,
                                         ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
+                            const SizedBox(
+                              height: AppThemeTokens.sectionGapLarge,
+                            ),
+                          ],
+                        ),
+                        Positioned(
+                          right: -(edge.right / 2),
+                          top: 0,
+                          bottom: 0,
+                          child: IgnorePointer(
+                            child: SkuIndicatorRail(
+                              trackKey: const ValueKey(
+                                'update-stock-indicator-track',
+                              ),
+                              count: _sourceSkus.length,
+                              selectedIndex: _selectedSkuIndex,
+                              animationDuration: _switcherDuration,
+                              densityRule: SkuIndicatorDensityRule.balanced,
+                              gapScale: 0.25,
+                              selectedColor: AppThemeTokens.secondary,
+                              unselectedColor: AppThemeTokens.accentLighter,
+                            ),
                           ),
-                          Positioned(
-                            right: AppThemeTokens.stockIndicatorRightInset,
-                            top: 0,
-                            bottom: 0,
-                            child: IgnorePointer(child: _buildSkuIndicator()),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: AppThemeTokens.sectionGapLarge),
                   _buildIncrementSelector(),
                 ],
               ),
@@ -437,13 +468,18 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                     key: const ValueKey('update-stock-reset-current'),
                     tooltip: 'Reset changes',
                     padding: EdgeInsets.zero,
-                    alignment: Alignment.centerLeft,
+                    alignment: Alignment.center,
                     onPressed: _resetCurrentDraft,
-                    icon: const Icon(
-                      Icons.restart_alt,
-                      size:
-                          AppThemeTokens.iconSizeMedium + AppThemeTokens.space1,
-                      color: AppThemeTokens.primary,
+                    icon: Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
+                      child: const Icon(
+                        Icons.refresh,
+                        size:
+                            AppThemeTokens.iconSizeMedium +
+                            AppThemeTokens.space1,
+                        color: AppThemeTokens.primary,
+                      ),
                     ),
                   ),
                 ),
@@ -502,33 +538,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSkuIndicator() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(_sourceSkus.length * 2 - 1, (index) {
-        if (index.isOdd) {
-          return const SizedBox(height: AppThemeTokens.stockIndicatorGap);
-        }
-        final pillIndex = index ~/ 2;
-        final isActive = pillIndex == _selectedSkuIndex;
-        return AnimatedContainer(
-          key: ValueKey(
-            'update-stock-indicator-$pillIndex-${isActive ? 'active' : 'inactive'}',
-          ),
-          duration: _switcherDuration,
-          width: AppThemeTokens.stockIndicatorWidth,
-          height: AppThemeTokens.stockIndicatorHeight,
-          decoration: BoxDecoration(
-            color: isActive
-                ? AppThemeTokens.textPrimary
-                : AppThemeTokens.accentDarker,
-            borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-          ),
-        );
-      }),
     );
   }
 

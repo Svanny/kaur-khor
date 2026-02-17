@@ -138,6 +138,8 @@ class AppThemeTokens {
   static const double stockCardInset = space4;
   static const double stockIndicatorWidth = 2 * unit;
   static const double stockIndicatorHeight = 10 * unit;
+  static const Color stockIndicatorSelected = Color(0xFFC2CC94);
+  static const Color stockIndicatorUnselected = Color(0xFFD4D4D4);
   static const double stockIndicatorGap = space1;
   static const double stockIndicatorRightInset = space1;
   static const double stockIncrementOptionPadX = space3;
