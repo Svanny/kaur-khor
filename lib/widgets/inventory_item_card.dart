@@ -4,7 +4,7 @@ class _InventoryItemCard extends StatelessWidget {
   const _InventoryItemCard({
     required this.title,
     required this.itemPictureIcon,
-    required this.unitsInStock,
+    required this.unitsPillLabel,
     required this.valuePillAmount,
     required this.valuePillCurrencyCode,
     required this.summaryLabel,
@@ -16,7 +16,7 @@ class _InventoryItemCard extends StatelessWidget {
 
   final String title;
   final IconData itemPictureIcon;
-  final double unitsInStock;
+  final String unitsPillLabel;
   final double valuePillAmount;
   final String valuePillCurrencyCode;
   final String summaryLabel;
@@ -67,7 +67,12 @@ class _InventoryItemCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: Theme.of(context).textTheme.bodyLarge),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
                       const SizedBox(height: AppThemeTokens.cardInlineGap),
                       Wrap(
                         spacing: AppThemeTokens.wrapSpacing,
@@ -82,7 +87,7 @@ class _InventoryItemCard extends StatelessWidget {
                               size: AppThemeTokens.fontSizeBodyLarge,
                               color: AppThemeTokens.textPrimary,
                             ),
-                            label: '${_formatNumber(unitsInStock)} units',
+                            label: unitsPillLabel,
                           ),
                           _infoPill(
                             context: context,

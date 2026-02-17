@@ -124,7 +124,6 @@ void main() {
   ) async {
     await pumpViewAll(tester);
 
-    expect(find.text('410 units'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('inventory-item-units-icon')),
       findsWidgets,
@@ -157,6 +156,10 @@ void main() {
     final service001Card = find.ancestor(
       of: find.text('Service #001'),
       matching: find.byType(Card),
+    );
+    expect(
+      find.descendant(of: service001Card, matching: find.text('146 units')),
+      findsOneWidget,
     );
     expect(
       find.descendant(of: service001Card, matching: find.text('1200 USD')),
@@ -247,6 +250,10 @@ void main() {
         of: noSkuServiceCard,
         matching: find.text('Estimated Total Value'),
       ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: noSkuServiceCard, matching: find.text('??? units')),
       findsOneWidget,
     );
     expect(

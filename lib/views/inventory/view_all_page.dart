@@ -153,7 +153,7 @@ class _ViewAllPageState extends State<ViewAllPage> {
                               _InventoryItemCard(
                                 title: service.name,
                                 itemPictureIcon: service.itemPictureIcon,
-                                unitsInStock: _unitsInStockForService(
+                                unitsPillLabel: _unitsPillLabelForService(
                                   service,
                                   inventory.skus,
                                 ),
@@ -191,7 +191,8 @@ class _ViewAllPageState extends State<ViewAllPage> {
                               _InventoryItemCard(
                                 title: sku.name,
                                 itemPictureIcon: sku.itemPictureIcon,
-                                unitsInStock: sku.unitsInStock,
+                                unitsPillLabel:
+                                    '${_formatNumber(sku.unitsInStock)} units',
                                 valuePillAmount: sku.costPerUnit,
                                 valuePillCurrencyCode: currencyCode,
                                 summaryLabel: 'Total Value',
@@ -223,9 +224,17 @@ class _ViewAllPageState extends State<ViewAllPage> {
     );
   }
 
-  double _unitsInStockForService(ServiceItem service, List<SkuItem> allSkus) {
-    final selected = allSkus.where((sku) => service.skuIds.contains(sku.id));
-    return selected.fold(0.0, (sum, sku) => sum + sku.unitsInStock);
+  String _unitsPillLabelForService(ServiceItem service, List<SkuItem> allSkus) {
+    final selected = allSkus
+        .where((sku) => service.skuIds.contains(sku.id))
+        .toList(growable: false);
+    if (selected.isEmpty) {
+      return '??? units';
+    }
+    final minUnitsInStock = selected
+        .map((sku) => sku.unitsInStock)
+        .reduce(math.min);
+    return '${_formatNumber(minUnitsInStock)} units';
   }
 
   String _estimatedServiceTotalValue(
