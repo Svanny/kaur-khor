@@ -46,6 +46,42 @@ void main() {
     expect(find.byKey(const ValueKey('front-3')), findsNothing);
   });
 
+  testWidgets('boundary fog overlay appears only during upward drag', (
+    tester,
+  ) async {
+    await pumpDeckHarness(tester, cardsCount: 6);
+
+    expect(
+      find.byKey(const ValueKey('update-stock-boundary-fog-overlay')),
+      findsNothing,
+    );
+    expect(find.byType(ShaderMask), findsNothing);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('front-0'))),
+    );
+    var overlaySeen = false;
+    for (var i = 0; i < 6; i += 1) {
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump();
+      if (find
+          .byKey(const ValueKey('update-stock-boundary-fog-overlay'))
+          .evaluate()
+          .isNotEmpty) {
+        overlaySeen = true;
+        break;
+      }
+    }
+    expect(overlaySeen, isTrue);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('update-stock-boundary-fog-overlay')),
+      findsNothing,
+    );
+  });
+
   testWidgets(
     'preloads exactly current and next two, including after restore',
     (tester) async {

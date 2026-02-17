@@ -58,6 +58,29 @@ void main() {
     expect(draft.costDelta, -4);
   });
 
+  test(
+    'changes mode cost delta can be negative but effective cost is clamped',
+    () {
+      var draft = StockDraft.fromSku(baseSku);
+      draft = draft.adjustUnitCost(
+        mode: StockInputMode.changes,
+        increment: false,
+        step: 1,
+      );
+      expect(draft.costDelta, -1);
+      expect(draft.effectiveUnitCost, 3);
+
+      draft = draft.adjustUnitCost(
+        mode: StockInputMode.changes,
+        increment: false,
+        step: 10,
+      );
+      expect(draft.costDelta, -4);
+      expect(draft.effectiveUnitCost, 0);
+      expect(draft.effectiveTotalValue, 0);
+    },
+  );
+
   test('increment presets map to expected count and cost steps', () {
     expect(IncrementPreset.small.countStep, 1);
     expect(IncrementPreset.small.costStep, 0.25);

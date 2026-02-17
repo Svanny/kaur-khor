@@ -118,8 +118,9 @@ class StockDraft {
   }) {
     final direction = increment ? 1 : -1;
     if (mode == StockInputMode.changes) {
-      final nextDelta = math.max(0.0, costDelta + (direction * step));
-      final normalizedNextDelta = nextDelta < 1e-9 ? 0.0 : nextDelta;
+      final minimumDelta = -baseUnitCost;
+      final nextDelta = math.max(minimumDelta, costDelta + (direction * step));
+      final normalizedNextDelta = nextDelta.abs() < 1e-9 ? 0.0 : nextDelta;
       return copyWith(costDelta: normalizedNextDelta);
     }
     final nextTotal = math.max(0.0, effectiveUnitCost + (direction * step));
@@ -147,6 +148,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   static const Duration _trendAnimationDuration = Duration(milliseconds: 180);
   static const String _costInputDisabledTooltip =
       'Cannot enter cost if change is negative.';
+  static const String _costClampTooltip = 'Cost cannot go below zero';
 
   bool _initialized = false;
   late InventoryController _inventoryController;
@@ -347,6 +349,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     required String currencyCode,
   }) {
     final isCostInputDisabled = _isCostInputDisabled(draft);
+    final isCostDecrementClamped = _isCostDecrementClamped(draft);
     final countTrendDirection = _trendDirection(
       current: draft.effectiveCount,
       baseline: draft.baseCount,
@@ -483,14 +486,16 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               trendDirection: costTrendDirection,
               trendAnimationDuration: _trendAnimationDuration,
               actionsEnabled: !isCostInputDisabled,
+              decrementEnabled: !isCostDecrementClamped,
+              decrementDisabledTooltip:
+                  !isCostInputDisabled && isCostDecrementClamped
+                  ? _costClampTooltip
+                  : null,
               disabledTooltip: isCostInputDisabled
                   ? _costInputDisabledTooltip
                   : null,
               value: _mode == StockInputMode.changes
-                  ? _unsignedCostLabel(
-                      draft.costDelta,
-                      currencyCode: currencyCode,
-                    )
+                  ? _costDeltaLabel(draft.costDelta, currencyCode: currencyCode)
                   : _currencyLabel(
                       draft.effectiveUnitCost,
                       currencyCode: currencyCode,
@@ -595,6 +600,14 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     final isCurrentTotalBelowPreviousTotal =
         draft.effectiveCount < draft.baseCount;
     return isNegativeChangeInChangesMode || isCurrentTotalBelowPreviousTotal;
+  }
+
+  bool _isCostDecrementClamped(StockDraft draft) {
+    const epsilon = 1e-9;
+    if (_mode == StockInputMode.changes) {
+      return draft.costDelta <= (-draft.baseUnitCost + epsilon);
+    }
+    return draft.effectiveUnitCost <= epsilon;
   }
 
   Widget _buildConfirmationCard({required Key key}) {
@@ -1170,6 +1183,8 @@ class _StockStepper extends StatelessWidget {
     required this.onDecrement,
     required this.onIncrement,
     this.actionsEnabled = true,
+    this.decrementEnabled = true,
+    this.decrementDisabledTooltip,
     this.disabledTooltip,
   });
 
@@ -1187,6 +1202,8 @@ class _StockStepper extends StatelessWidget {
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
   final bool actionsEnabled;
+  final bool decrementEnabled;
+  final String? decrementDisabledTooltip;
   final String? disabledTooltip;
 
   @override
@@ -1205,7 +1222,8 @@ class _StockStepper extends StatelessWidget {
               key: decrementKey,
               icon: Icons.remove,
               horizontalNudge: AppThemeTokens.fieldLabelToControlGap,
-              isEnabled: actionsEnabled,
+              isEnabled: actionsEnabled && decrementEnabled,
+              disabledTooltip: decrementDisabledTooltip,
               onTap: onDecrement,
             ),
             const SizedBox(width: AppThemeTokens.fieldLabelToControlGap),
@@ -1275,6 +1293,7 @@ class _StockStepper extends StatelessWidget {
     final namespacedLabelTrendKeyPrefix = keyNamespace == null
         ? labelTrendKeyPrefix
         : '$labelTrendKeyPrefix-$keyNamespace';
+    final invertTrendColors = label == 'Cost';
     final labelTextKey = keyNamespace == null
         ? ValueKey('update-stock-${label.toLowerCase()}-label')
         : ValueKey('update-stock-${label.toLowerCase()}-label-$keyNamespace');
@@ -1288,6 +1307,7 @@ class _StockStepper extends StatelessWidget {
           trendDirection: trendDirection,
           trendAnimationDuration: trendAnimationDuration,
           trendKeyPrefix: namespacedLabelTrendKeyPrefix,
+          invertTrendColors: invertTrendColors,
           labelIconAsset: labelIconAsset,
           labelIconKey: labelIconKey,
           centerText: true,
@@ -1311,6 +1331,7 @@ class _CenteredTrendText extends StatelessWidget {
     required this.trendDirection,
     required this.trendAnimationDuration,
     required this.trendKeyPrefix,
+    this.invertTrendColors = false,
     this.labelIconAsset,
     this.labelIconKey,
     this.centerText = false,
@@ -1322,6 +1343,7 @@ class _CenteredTrendText extends StatelessWidget {
   final _TrendDirection trendDirection;
   final Duration trendAnimationDuration;
   final String trendKeyPrefix;
+  final bool invertTrendColors;
   final String? labelIconAsset;
   final Key? labelIconKey;
   final bool centerText;
@@ -1334,6 +1356,12 @@ class _CenteredTrendText extends StatelessWidget {
     final trendIconSize =
         fontSize + AppThemeTokens.fieldLabelToControlGap + AppThemeTokens.unit;
     const trendGap = AppThemeTokens.fieldLabelToControlGap;
+    final upTrendColor = invertTrendColors
+        ? AppThemeTokens.error
+        : AppThemeTokens.success;
+    final downTrendColor = invertTrendColors
+        ? AppThemeTokens.success
+        : AppThemeTokens.error;
     final textWidget = Text(
       text,
       key: textKey,
@@ -1357,6 +1385,8 @@ class _CenteredTrendText extends StatelessWidget {
             size: trendIconSize,
             animationDuration: trendAnimationDuration,
             keyPrefix: trendKeyPrefix,
+            upColor: upTrendColor,
+            downColor: downTrendColor,
           ),
         ),
       );
@@ -1379,6 +1409,8 @@ class _CenteredTrendText extends StatelessWidget {
                 size: trendIconSize,
                 animationDuration: trendAnimationDuration,
                 keyPrefix: trendKeyPrefix,
+                upColor: upTrendColor,
+                downColor: downTrendColor,
               ),
             ],
           );
@@ -1415,6 +1447,8 @@ class _CenteredTrendText extends StatelessWidget {
                     size: trendIconSize,
                     animationDuration: trendAnimationDuration,
                     keyPrefix: trendKeyPrefix,
+                    upColor: upTrendColor,
+                    downColor: downTrendColor,
                   ),
                 ),
               ),
@@ -1432,12 +1466,16 @@ class _AnimatedTrendIndicator extends StatelessWidget {
     required this.size,
     required this.animationDuration,
     required this.keyPrefix,
+    required this.upColor,
+    required this.downColor,
   });
 
   final _TrendDirection direction;
   final double size;
   final Duration animationDuration;
   final String keyPrefix;
+  final Color upColor;
+  final Color downColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1445,13 +1483,13 @@ class _AnimatedTrendIndicator extends StatelessWidget {
       _TrendDirection.up => Icon(
         Icons.arrow_drop_up_rounded,
         key: ValueKey('$keyPrefix-up'),
-        color: AppThemeTokens.success,
+        color: upColor,
         size: size,
       ),
       _TrendDirection.down => Icon(
         Icons.arrow_drop_down_rounded,
         key: ValueKey('$keyPrefix-down'),
-        color: AppThemeTokens.error,
+        color: downColor,
         size: size,
       ),
       _TrendDirection.flat => SizedBox(
@@ -1501,6 +1539,7 @@ class _StepAction extends StatelessWidget {
     required this.onTap,
     this.horizontalNudge = 0,
     this.isEnabled = true,
+    this.disabledTooltip,
     super.key,
   });
 
@@ -1508,6 +1547,7 @@ class _StepAction extends StatelessWidget {
   final VoidCallback onTap;
   final double horizontalNudge;
   final bool isEnabled;
+  final String? disabledTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -1539,7 +1579,17 @@ class _StepAction extends StatelessWidget {
       ),
     );
 
-    return action;
+    final showDisabledTooltip =
+        !isEnabled && (disabledTooltip?.isNotEmpty ?? false);
+    if (!showDisabledTooltip) {
+      return action;
+    }
+
+    return Tooltip(
+      message: disabledTooltip!,
+      triggerMode: TooltipTriggerMode.tap,
+      child: action,
+    );
   }
 }
 
@@ -1553,8 +1603,11 @@ String _signedNumber(double value) {
   return '0';
 }
 
-String _unsignedCostLabel(double value, {required String currencyCode}) {
-  final magnitude = value.abs();
-  final normalizedMagnitude = magnitude < 1e-9 ? 0.0 : magnitude;
-  return '${_formatNumber(normalizedMagnitude)} $currencyCode';
+String _costDeltaLabel(double value, {required String currencyCode}) {
+  final normalizedValue = value.abs() < 1e-9 ? 0.0 : value;
+  final magnitude = _formatNumber(normalizedValue.abs());
+  if (normalizedValue < 0) {
+    return '-$magnitude $currencyCode';
+  }
+  return '$magnitude $currencyCode';
 }

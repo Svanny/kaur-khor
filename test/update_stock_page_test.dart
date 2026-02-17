@@ -585,7 +585,7 @@ void main() {
     expect(incrementedCost, isNot(startsWith('-')));
   });
 
-  testWidgets('cost change stays non-negative in Changes mode', (
+  testWidgets('cost change can go negative in Changes mode', (
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
@@ -596,7 +596,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
           .data,
-      equals('0 USD'),
+      equals('-0.25 USD'),
     );
 
     await tester.tap(find.byKey(const ValueKey('update-stock-cost-increment')));
@@ -605,7 +605,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
           .data,
-      equals('0.25 USD'),
+      equals('0 USD'),
     );
 
     await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
@@ -614,11 +614,51 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
           .data,
-      equals('0 USD'),
+      equals('-0.25 USD'),
     );
 
     await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
     await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data,
+      equals('-0.5 USD'),
+    );
+  });
+
+  testWidgets('cost decrement shows clamp tooltip when already at zero floor', (
+    WidgetTester tester,
+  ) async {
+    const zeroCostState = InventoryState(
+      skus: <SkuItem>[
+        SkuItem(
+          id: 'sku-zero-cost',
+          name: 'Zero Cost SKU',
+          itemPictureIcon: Icons.inventory_2_outlined,
+          description: 'Generated SKU',
+          unitsInStock: 10,
+          costPerUnit: 0,
+          soldAsProduct: true,
+          productPrice: 10,
+        ),
+      ],
+      services: <ServiceItem>[],
+    );
+
+    await pumpUpdateStockPage(tester, initialState: zeroCostState);
+
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data,
+      equals('0 USD'),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
+    await tester.pump();
+
+    expect(find.text('Cost cannot go below zero'), findsOneWidget);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
@@ -768,7 +808,7 @@ void main() {
               find.byKey(const ValueKey('update-stock-cost-label-trend-up')),
             )
             .color,
-        equals(AppThemeTokens.success),
+        equals(AppThemeTokens.error),
       );
 
       await tester.tap(
@@ -793,7 +833,7 @@ void main() {
               find.byKey(const ValueKey('update-stock-cost-label-trend-down')),
             )
             .color,
-        equals(AppThemeTokens.error),
+        equals(AppThemeTokens.success),
       );
 
       expect(

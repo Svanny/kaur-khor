@@ -40,7 +40,7 @@ class UpdateStockCardDeck extends StatefulWidget {
 }
 
 class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
-  static const double _frontDismissFadeStrength = 0.45;
+  static const double _boundaryFogOverlayHeight = 48;
   static const double _restoreStartOffsetY = 72;
   static const double _backfillStartOffsetY = 24;
   static const double _backEjectBaseOffsetY = 40;
@@ -59,11 +59,14 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   int _previewGeneration = 0;
   int _backfillGeneration = 0;
   int? _backfillPreviewIndex;
+  bool _isUpwardDragActive = false;
+  bool _holdBoundaryFogForSwipeOut = false;
 
   @override
   void didUpdateWidget(covariant UpdateStockCardDeck oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.currentIndex != oldWidget.currentIndex) {
+      _holdBoundaryFogForSwipeOut = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
@@ -120,14 +123,19 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
               direction: direction,
             );
           },
-          cardBuilder: (context, index, _, verticalOffsetPercentage) {
-            return _buildDeckCard(
-              context: context,
-              index: index,
-              verticalOffsetPercentage: verticalOffsetPercentage,
-            );
+          onSwipeDirectionChange: (_, verticalDirection) {
+            final isUpward = verticalDirection == CardSwiperDirection.top;
+            if (_isUpwardDragActive == isUpward) {
+              return;
+            }
+            setState(() => _isUpwardDragActive = isUpward);
+          },
+          cardBuilder: (context, index, _, __) {
+            return _buildDeckCard(context: context, index: index);
           },
         ),
+        if (_isUpwardDragActive || _holdBoundaryFogForSwipeOut)
+          _buildBoundaryFogOverlay(context),
         if (_restoreOverlayIndex != null)
           Positioned.fill(
             child: IgnorePointer(child: _buildRestoreOverlayCard()),
@@ -148,12 +156,15 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     if (direction == CardSwiperDirection.top) {
       final isAtLastCard = previousIndex >= widget.cardsCount - 1;
       if (isAtLastCard) {
+        _setBoundaryFogSwipeHold(false);
         widget.onReachedEndForward();
         return false;
       }
       if (currentIndex == null) {
+        _setBoundaryFogSwipeHold(false);
         return false;
       }
+      _setBoundaryFogSwipeHold(true);
       _dismissedHistory.add(previousIndex);
       _startBackfillAnimation(currentIndex);
       widget.onCurrentIndexChanged(currentIndex);
@@ -161,6 +172,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     }
 
     if (direction == CardSwiperDirection.bottom) {
+      _setBoundaryFogSwipeHold(false);
       if (_dismissedHistory.isEmpty) {
         return false;
       }
@@ -175,28 +187,21 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     return false;
   }
 
-  Widget _buildDeckCard({
-    required BuildContext context,
-    required int index,
-    required int verticalOffsetPercentage,
-  }) {
+  void _setBoundaryFogSwipeHold(bool hold) {
+    if (_holdBoundaryFogForSwipeOut == hold) {
+      return;
+    }
+    setState(() => _holdBoundaryFogForSwipeOut = hold);
+  }
+
+  Widget _buildDeckCard({required BuildContext context, required int index}) {
     if (_backEjectOverlayIndex == index) {
       return const SizedBox.shrink();
     }
 
     final isFrontCard = index == widget.currentIndex;
     if (isFrontCard) {
-      final upwardProgress = verticalOffsetPercentage < 0
-          ? (verticalOffsetPercentage.abs() / 100).clamp(0.0, 1.0)
-          : 0.0;
-      final opacity = (1 - (upwardProgress * _frontDismissFadeStrength)).clamp(
-        0.0,
-        1.0,
-      );
-      return Opacity(
-        opacity: opacity,
-        child: widget.cardBuilder(context, index),
-      );
+      return widget.cardBuilder(context, index);
     }
 
     final preview = IgnorePointer(
@@ -229,6 +234,33 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
         );
       },
       child: preview,
+    );
+  }
+
+  Widget _buildBoundaryFogOverlay(BuildContext context) {
+    final fogColor = Theme.of(context).scaffoldBackgroundColor;
+    return IgnorePointer(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          key: const ValueKey('update-stock-boundary-fog-overlay'),
+          height: _boundaryFogOverlayHeight,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: <Color>[
+                  fogColor.withValues(alpha: 0),
+                  fogColor.withValues(alpha: 0.62),
+                  fogColor.withValues(alpha: 0.94),
+                ],
+                stops: const <double>[0, 0.58, 1],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
