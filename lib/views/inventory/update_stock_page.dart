@@ -160,6 +160,8 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   int _incrementLabelSwapGeneration = 0;
   final CardSwiperController _cardSwiperController = CardSwiperController();
   int _selectedSkuIndex = 0;
+  int? _downSwipeOverlayCardIndex;
+  int _downSwipeOverlayAnimationGeneration = 0;
   bool _showConfirmationCard = false;
 
   @override
@@ -277,87 +279,142 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       );
     }
 
-    return CardSwiper(
-      key: ValueKey('update-stock-card-swiper-$_selectedSkuIndex'),
-      controller: _cardSwiperController,
-      cardsCount: _sourceSkus.length,
-      initialIndex: _selectedSkuIndex,
-      duration: _switcherDuration,
-      padding: EdgeInsets.zero,
-      maxAngle: 0,
-      threshold: 30,
-      scale: AppThemeTokens.stockCardStackScale1,
-      isLoop: false,
-      numberOfCardsDisplayed: math.min(
-        AppThemeTokens.stockCardStackLayerCount + 1,
-        _sourceSkus.length,
-      ),
-      backCardOffset: const Offset(0, AppThemeTokens.stockCardStackPeekOffset1),
-      allowedSwipeDirection: const AllowedSwipeDirection.only(
-        up: true,
-        down: true,
-      ),
-      onSwipe: (previousIndex, currentIndex, direction) {
-        return _onDeckSwipe(
-          previousIndex: previousIndex,
-          currentIndex: currentIndex,
-          direction: direction,
-        );
-      },
-      onUndo: (previousIndex, currentIndex, direction) {
-        return _onDeckUndo(
-          previousIndex: previousIndex,
-          currentIndex: currentIndex,
-          direction: direction,
-        );
-      },
-      cardBuilder: (context, index, _, __) {
-        return _buildDeckCard(index: index, currencyCode: currencyCode);
-      },
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _buildPreloadedCards(currencyCode: currencyCode),
+        CardSwiper(
+          key: const ValueKey('update-stock-card-swiper'),
+          controller: _cardSwiperController,
+          cardsCount: _sourceSkus.length,
+          initialIndex: _selectedSkuIndex,
+          duration: _switcherDuration,
+          padding: EdgeInsets.zero,
+          maxAngle: 0,
+          threshold: 30,
+          scale: AppThemeTokens.stockCardStackScale1,
+          isLoop: false,
+          numberOfCardsDisplayed: math.min(
+            AppThemeTokens.stockCardStackLayerCount + 1,
+            _sourceSkus.length,
+          ),
+          backCardOffset: const Offset(
+            0,
+            AppThemeTokens.stockCardStackPeekOffset1,
+          ),
+          allowedSwipeDirection: const AllowedSwipeDirection.only(
+            up: true,
+            down: true,
+          ),
+          onSwipe: (previousIndex, currentIndex, direction) {
+            return _onDeckSwipe(
+              previousIndex: previousIndex,
+              currentIndex: currentIndex,
+              direction: direction,
+            );
+          },
+          onUndo: (previousIndex, currentIndex, direction) {
+            return _onDeckUndo(
+              previousIndex: previousIndex,
+              currentIndex: currentIndex,
+              direction: direction,
+            );
+          },
+          cardBuilder: (context, index, _, verticalOffsetPercentage) {
+            return _buildDeckCard(
+              index: index,
+              currencyCode: currencyCode,
+              verticalOffsetPercentage: verticalOffsetPercentage,
+            );
+          },
+        ),
+        if (_downSwipeOverlayCardIndex != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _buildDownSwipeOverlayCard(currencyCode: currencyCode),
+            ),
+          ),
+      ],
     );
   }
 
-  Widget _buildDeckCard({required int index, required String currencyCode}) {
-    if (index == _selectedSkuIndex) {
-      return _buildSkuCard(
-        key: ValueKey('update-stock-sku-card-$index'),
-        sku: _sourceSkus[index],
-        draft: _drafts[index],
-        currencyCode: currencyCode,
+  Widget _buildPreloadedCards({required String currencyCode}) {
+    final preloadIndices = _preloadCardIndices().toList(growable: false);
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          for (final index in preloadIndices)
+            Offstage(
+              offstage: true,
+              child: RepaintBoundary(
+                child: _buildSkuCard(
+                  key: ValueKey('update-stock-preload-sku-card-$index'),
+                  sku: _sourceSkus[index],
+                  draft: _drafts[index],
+                  currencyCode: currencyCode,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Iterable<int> _preloadCardIndices() sync* {
+    final indices = <int>{};
+    if (_sourceSkus.isEmpty) {
+      return;
+    }
+
+    // Always keep the first two cards warm to avoid first-swipe pop-in.
+    indices.add(0);
+    if (_sourceSkus.length > 1) {
+      indices.add(1);
+    }
+
+    // Also warm local neighbors around the active card for smoother back/forth.
+    final previousIndex = _selectedSkuIndex - 1;
+    if (previousIndex >= 0) {
+      indices.add(previousIndex);
+    }
+    indices.add(_selectedSkuIndex);
+    final nextIndex = _selectedSkuIndex + 1;
+    if (nextIndex < _sourceSkus.length) {
+      indices.add(nextIndex);
+    }
+
+    yield* indices;
+  }
+
+  Widget _buildDeckCard({
+    required int index,
+    required String currencyCode,
+    required int verticalOffsetPercentage,
+  }) {
+    final isFrontCard = index == _selectedSkuIndex;
+    if (isFrontCard) {
+      final fadeProgress = (verticalOffsetPercentage.abs() / 100).clamp(
+        0.0,
+        1.0,
+      );
+      final opacity = (1.0 - (fadeProgress * 0.24)).clamp(0.76, 1.0);
+      return Opacity(
+        opacity: opacity,
+        child: _buildSkuCard(
+          key: ValueKey('update-stock-sku-card-$index'),
+          sku: _sourceSkus[index],
+          draft: _drafts[index],
+          currencyCode: currencyCode,
+        ),
       );
     }
 
-    final layerIndex = (index - _selectedSkuIndex - 1)
-        .clamp(0, AppThemeTokens.stockCardStackLayerCount - 1)
-        .toInt();
-    return _buildCardUnderlay(layerIndex: layerIndex);
-  }
-
-  Widget _buildCardUnderlay({required int layerIndex}) {
-    final sideInset = AppThemeTokens.space2 * (layerIndex + 1);
-    final layerColor = switch (layerIndex) {
-      0 => AppThemeTokens.surface,
-      _ => AppThemeTokens.disabledBackground,
-    };
-
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: sideInset),
-      child: DecoratedBox(
-        key: ValueKey('update-stock-card-underlay-$layerIndex'),
-        decoration: BoxDecoration(
-          color: layerColor,
-          borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-          border: Border.all(color: AppThemeTokens.border),
-          boxShadow: const [
-            BoxShadow(
-              color: AppThemeTokens.shadow,
-              blurRadius: AppThemeTokens.elevation1Blur,
-              offset: Offset(0, AppThemeTokens.elevation1OffsetY),
-            ),
-          ],
-        ),
-        child: const SizedBox.expand(),
-      ),
+    return _buildSkuCardPreview(
+      key: ValueKey('update-stock-sku-card-preview-$index'),
+      sku: _sourceSkus[index],
+      draft: _drafts[index],
+      currencyCode: currencyCode,
     );
   }
 
@@ -389,6 +446,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         return false;
       }
       final previousCardIndex = previousIndex - 1;
+      _startDownSwipeOverlayAnimation(previousIndex);
       setState(() => _selectedSkuIndex = previousCardIndex);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _showConfirmationCard) {
@@ -409,6 +467,121 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   }) {
     setState(() => _selectedSkuIndex = currentIndex);
     return true;
+  }
+
+  Widget _buildSkuCardPreview({
+    required Key key,
+    required SkuItem sku,
+    required StockDraft draft,
+    required String currencyCode,
+  }) {
+    return Card(
+      key: key,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeTokens.stockCardInset),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppThemeTokens.accentDarker,
+                  borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+                ),
+                child: Center(
+                  child: _ItemPictureGlyph(
+                    sku.itemPictureIcon,
+                    fill: true,
+                    color: AppThemeTokens.white,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(
+              height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
+            ),
+            Text(
+              sku.name,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+              ),
+            ),
+            const SizedBox(height: AppThemeTokens.sectionGapCompact),
+            Text(
+              _currencyLabel(
+                draft.effectiveTotalValue,
+                currencyCode: currencyCode,
+              ),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(
+              height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
+            ),
+            _buildPreviewPill(),
+            const SizedBox(
+              height:
+                  AppThemeTokens.sectionGapCompact + (AppThemeTokens.unit * 2),
+            ),
+            _buildPreviewPill(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewPill() {
+    return Container(
+      height: AppThemeTokens.stockStepActionHeight,
+      decoration: BoxDecoration(
+        color: AppThemeTokens.disabledBackground,
+        borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+      ),
+    );
+  }
+
+  Widget _buildDownSwipeOverlayCard({required String currencyCode}) {
+    final index = _downSwipeOverlayCardIndex;
+    if (index == null) {
+      return const SizedBox.shrink();
+    }
+    final animationGeneration = _downSwipeOverlayAnimationGeneration;
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('update-stock-down-swipe-overlay-$animationGeneration'),
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: _switcherDuration,
+      curve: Curves.easeInOutCubic,
+      onEnd: () {
+        if (!mounted ||
+            _downSwipeOverlayAnimationGeneration != animationGeneration) {
+          return;
+        }
+        setState(() => _downSwipeOverlayCardIndex = null);
+      },
+      builder: (context, progress, child) {
+        final translateY = progress * (AppThemeTokens.space8 * 2);
+        final opacity = (1.0 - (progress * 0.4)).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: opacity,
+          child: Transform.translate(offset: Offset(0, translateY), child: child),
+        );
+      },
+      child: _buildSkuCard(
+        key: ValueKey('update-stock-down-swipe-overlay-card-$index'),
+        sku: _sourceSkus[index],
+        draft: _drafts[index],
+        currencyCode: currencyCode,
+      ),
+    );
+  }
+
+  void _startDownSwipeOverlayAnimation(int index) {
+    setState(() {
+      _downSwipeOverlayAnimationGeneration += 1;
+      _downSwipeOverlayCardIndex = index;
+    });
   }
 
   Widget _buildEmptyState() {
