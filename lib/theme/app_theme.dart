@@ -128,6 +128,9 @@ class AppThemeTokens {
   static const double scrollVisibilityTopClearance = space2;
   static const double scrollVisibilityBottomClearance = space4;
   static const double scrollNudge = space1;
+  static const double primaryFabRadius = 8 * unit;
+  static const double primaryFabDiameter = primaryFabRadius * 2;
+  static const double primaryFabIconSize = 7 * unit;
   static const double primaryFabEndInset = space4 * 2;
   static const double primaryFabBottomInset = space4 * 3;
   static const FloatingActionButtonLocation primaryFabLocation =

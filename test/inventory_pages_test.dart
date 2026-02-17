@@ -116,6 +116,15 @@ void main() {
         AppThemeTokens.primaryFabLocation,
       );
       expect(fab.shape, isA<CircleBorder>());
+      expect(
+        tester.getSize(find.byType(FloatingActionButton)),
+        const Size(
+          AppThemeTokens.primaryFabDiameter,
+          AppThemeTokens.primaryFabDiameter,
+        ),
+      );
+      final addIcon = tester.widget<Icon>(find.byIcon(Icons.add));
+      expect(addIcon.size, AppThemeTokens.primaryFabIconSize);
     },
   );
 

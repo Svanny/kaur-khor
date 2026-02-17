@@ -25,15 +25,21 @@ class HomeView extends StatelessWidget {
 
     return Scaffold(
       floatingActionButtonLocation: AppThemeTokens.primaryFabLocation,
-      floatingActionButton: FloatingActionButton(
-        key: const ValueKey('home-overlay-receipt-button'),
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const UpdateStockPage()),
-          );
-        },
-        shape: const CircleBorder(),
-        child: const Icon(Icons.receipt_long_rounded),
+      floatingActionButton: SizedBox.square(
+        dimension: AppThemeTokens.primaryFabDiameter,
+        child: FloatingActionButton(
+          key: const ValueKey('home-overlay-receipt-button'),
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const UpdateStockPage()),
+            );
+          },
+          shape: const CircleBorder(),
+          child: const Icon(
+            Icons.receipt_long_rounded,
+            size: AppThemeTokens.primaryFabIconSize,
+          ),
+        ),
       ),
       appBar: AppBar(
         title: Row(

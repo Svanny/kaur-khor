@@ -26,10 +26,13 @@ class _ViewAllPageState extends State<ViewAllPage> {
 
     return Scaffold(
       floatingActionButtonLocation: AppThemeTokens.primaryFabLocation,
-      floatingActionButton: FloatingActionButton(
-        onPressed: _onAddItemPressed,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add),
+      floatingActionButton: SizedBox.square(
+        dimension: AppThemeTokens.primaryFabDiameter,
+        child: FloatingActionButton(
+          onPressed: _onAddItemPressed,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.add, size: AppThemeTokens.primaryFabIconSize),
+        ),
       ),
       body: Padding(
         padding: EdgeInsets.fromLTRB(edge.left, edge.top, edge.right, 0),

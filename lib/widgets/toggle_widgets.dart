@@ -28,6 +28,9 @@ class _SlidingTogglePill extends StatelessWidget {
     required this.onChanged,
     this.trackWidth,
     this.contentDrivenWidth = false,
+    this.labelStyle,
+    this.labelHorizontalPadding = AppThemeTokens.togglePillLabelPadX,
+    super.key,
   }) : assert(options.length >= 2),
        assert(selectedIndex >= 0),
        assert(selectedIndex < options.length);
@@ -39,19 +42,23 @@ class _SlidingTogglePill extends StatelessWidget {
   final ValueChanged<int> onChanged;
   final double? trackWidth;
   final bool contentDrivenWidth;
+  final TextStyle? labelStyle;
+  final double labelHorizontalPadding;
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-    );
+    final resolvedLabelStyle =
+        labelStyle ??
+        Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+        );
     const inset = AppThemeTokens.segmentedToggleTrackInset;
     final segmentWidths = contentDrivenWidth
         ? options
               .map(
                 (label) =>
-                    _measureLabelWidth(context, label, labelStyle) +
-                    (AppThemeTokens.togglePillLabelPadX * 2) +
+                    _measureLabelWidth(context, label, resolvedLabelStyle) +
+                    (labelHorizontalPadding * 2) +
                     (inset * 2),
               )
               .toList(growable: false)
@@ -111,12 +118,12 @@ class _SlidingTogglePill extends StatelessWidget {
                     onTap: () => onChanged(index),
                     child: Center(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppThemeTokens.togglePillLabelPadX,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: labelHorizontalPadding,
                         ),
                         child: Text(
                           options[index],
-                          style: labelStyle?.copyWith(
+                          style: resolvedLabelStyle?.copyWith(
                             color: isSelected
                                 ? AppThemeTokens.white
                                 : AppThemeTokens.textSecondary,

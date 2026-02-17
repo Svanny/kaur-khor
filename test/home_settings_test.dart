@@ -54,7 +54,20 @@ void main() {
       AppThemeTokens.primaryFabLocation,
     );
     expect(receiptButton.shape, isA<CircleBorder>());
-    expect(tester.getSize(receiptButtonFinder), const Size(56, 56));
+    expect(
+      tester.getSize(receiptButtonFinder),
+      const Size(
+        AppThemeTokens.primaryFabDiameter,
+        AppThemeTokens.primaryFabDiameter,
+      ),
+    );
+    final receiptIcon = tester.widget<Icon>(
+      find.descendant(
+        of: receiptButtonFinder,
+        matching: find.byIcon(Icons.receipt_long_rounded),
+      ),
+    );
+    expect(receiptIcon.size, AppThemeTokens.primaryFabIconSize);
   });
 
   testWidgets('home list action opens View All and back returns home', (

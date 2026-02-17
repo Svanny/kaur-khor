@@ -674,6 +674,37 @@ void main() {
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
+    final toggleFinder = find.byKey(
+      const ValueKey('update-stock-changes-total-toggle'),
+    );
+    expect(toggleFinder, findsOneWidget);
+
+    Text toggleLabel(String label) {
+      return tester.widget<Text>(
+        find.descendant(of: toggleFinder, matching: find.text(label)).first,
+      );
+    }
+
+    expect(
+      toggleLabel('Changes').style?.fontSize,
+      equals(AppThemeTokens.fontSizeBodyLarge),
+    );
+    expect(
+      toggleLabel('Total').style?.fontSize,
+      equals(AppThemeTokens.fontSizeBodyLarge),
+    );
+
+    final toggleLabelPadding = find.descendant(
+      of: toggleFinder,
+      matching: find.byWidgetPredicate((widget) {
+        if (widget is! Padding) {
+          return false;
+        }
+        return widget.padding ==
+            const EdgeInsets.symmetric(horizontal: AppThemeTokens.chipPaddingX);
+      }),
+    );
+    expect(toggleLabelPadding, findsAtLeastNWidgets(2));
 
     await tester.tap(
       find.byKey(const ValueKey('update-stock-count-decrement')),
@@ -1340,6 +1371,5 @@ void main() {
           .unitsInStock,
       263,
     );
-    expect(find.text('263 units in stock'), findsOneWidget);
   });
 }

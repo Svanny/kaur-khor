@@ -1366,11 +1366,16 @@ class _ChangesTotalToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _SlidingTogglePill(
+      key: const ValueKey('update-stock-changes-total-toggle'),
       options: const ['Changes', 'Total'],
       selectedIndex: value == StockInputMode.total ? 1 : 0,
       onChanged: (index) =>
           onChanged(index == 1 ? StockInputMode.total : StockInputMode.changes),
       contentDrivenWidth: true,
+      labelStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+        fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+      ),
+      labelHorizontalPadding: AppThemeTokens.chipPaddingX,
     );
   }
 }
