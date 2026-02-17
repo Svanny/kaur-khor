@@ -166,7 +166,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   static const String _costClampTooltip = 'Cost cannot go below zero';
   static const double _headerOverlayHeight = kMinInteractiveDimension;
   static const double _titleOverlayFallbackHeight = 0;
-  static const double _stockDeckVerticalOffset = AppThemeTokens.space4;
   static const bool _debugBoundaryMeasurementLogs = false;
 
   bool _initialized = false;
@@ -248,19 +247,12 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 clipBehavior: Clip.none,
                 children: [
                   Padding(
-                    padding: EdgeInsets.only(
-                      top:
-                          _stockTitleOverlayHeight +
-                          AppThemeTokens.sectionGap +
-                          _stockDeckVerticalOffset,
-                    ),
+                    padding: EdgeInsets.only(top: _stockTitleOverlayHeight),
                     child: Align(
                       alignment: Alignment.topCenter,
                       child: FractionallySizedBox(
                         widthFactor:
                             AppThemeTokens.stockCardViewportWidthFactor,
-                        heightFactor:
-                            AppThemeTokens.stockCardViewportHeightFactor,
                         child: _buildCardDeck(currencyCode: currencyCode),
                       ),
                     ),
@@ -276,6 +268,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                         ),
                         count: _sourceSkus.length,
                         selectedIndex: _selectedSkuIndex,
+                        allActive: _showConfirmationCard,
                         animationDuration: _switcherDuration,
                         densityRule: SkuIndicatorDensityRule.balanced,
                         gapScale: 0.25,
@@ -288,8 +281,16 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                 ],
               ),
             ),
-            _buildIncrementSelector(),
           ],
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Align(
+            alignment: Alignment.center,
+            child: _buildIncrementSelector(),
+          ),
         ),
         Positioned(
           top: 0,
@@ -318,8 +319,17 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     if (_showConfirmationCard) {
       return GestureDetector(
         onVerticalDragEnd: _onVerticalDragEnd,
-        child: _buildConfirmationCard(
-          key: const ValueKey('update-stock-confirmation-card'),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: AppThemeTokens.space4),
+            child: FractionallySizedBox(
+              heightFactor: AppThemeTokens.stockCardViewportHeightFactor,
+              child: _buildConfirmationCard(
+                key: const ValueKey('update-stock-confirmation-card'),
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -341,12 +351,21 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       },
       cardBuilder: (context, index) {
         final keyNamespace = index == _selectedSkuIndex ? null : 'stack-$index';
-        return _buildSkuCard(
-          key: ValueKey('update-stock-sku-card-$index'),
-          keyNamespace: keyNamespace,
-          sku: _sourceSkus[index],
-          draft: _drafts[index],
-          currencyCode: currencyCode,
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: AppThemeTokens.space4),
+            child: FractionallySizedBox(
+              heightFactor: AppThemeTokens.stockCardViewportHeightFactor,
+              child: _buildSkuCard(
+                key: ValueKey('update-stock-sku-card-$index'),
+                keyNamespace: keyNamespace,
+                sku: _sourceSkus[index],
+                draft: _drafts[index],
+                currencyCode: currencyCode,
+              ),
+            ),
+          ),
         );
       },
       preloadKeyPrefix: 'update-stock-preload-sku-card-',
@@ -501,7 +520,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               ),
             ),
             const SizedBox(
-              height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
+              height: AppThemeTokens.sectionGapCompact,
             ),
             _buildSkuTitleRow(sku.name, keyNamespace: keyNamespace),
             _CenteredTrendText(
@@ -740,33 +759,121 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'Confirm Updates',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
-              ),
-            ),
+            _buildConfirmationTitleRow(),
             const SizedBox(height: AppThemeTokens.sectionGapCompact),
             Text(
               '$changedCount SKU(s) changed',
               style: Theme.of(context).textTheme.bodyLarge,
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppThemeTokens.sectionGapLarge),
-            OutlinedButton(
-              key: const ValueKey('update-stock-back-to-edit'),
-              onPressed: () => setState(() => _showConfirmationCard = false),
-              child: const Text('Back to Edit'),
-            ),
-            const SizedBox(height: AppThemeTokens.sectionGapCompact),
-            FilledButton(
-              key: const ValueKey('update-stock-save-all'),
-              onPressed: _saveAllAndOpenViewAll,
-              child: const Text('Save All'),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildConfirmationPillButton(
+                    key: const ValueKey('update-stock-back-to-edit'),
+                    label: 'Back to Edit',
+                    isPrimary: false,
+                    onTap: () => setState(() => _showConfirmationCard = false),
+                  ),
+                  const SizedBox(width: AppThemeTokens.space8),
+                  _buildConfirmationPillButton(
+                    key: const ValueKey('update-stock-save-all'),
+                    label: 'Save All',
+                    isPrimary: true,
+                    onTap: _saveAllAndOpenViewAll,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildConfirmationTitleRow() {
+    final title = 'Confirm Changes';
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+    );
+    return SizedBox(
+      height: kMinInteractiveDimension,
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.checklist_rounded,
+                size:
+                    AppThemeTokens.iconSizeMedium +
+                    AppThemeTokens.fieldLabelToControlGap,
+                color: titleStyle?.color ?? AppThemeTokens.textPrimary,
+              ),
+              const SizedBox(width: AppThemeTokens.cardInlineGap),
+              Text(title, style: titleStyle, maxLines: 1, softWrap: false),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfirmationPillButton({
+    required Key key,
+    required String label,
+    required bool isPrimary,
+    required VoidCallback onTap,
+  }) {
+    final textStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: isPrimary ? AppThemeTokens.white : AppThemeTokens.textSecondary,
+    );
+    final width = _confirmationPillWidth(label, textStyle);
+    const horizontalInnerPadding =
+        AppThemeTokens.iconSizeMedium + AppThemeTokens.dropdownToggleIconGap;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: key,
+        borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+        onTap: onTap,
+        child: Container(
+          height: AppThemeTokens.segmentedToggleTrackHeight,
+          width: width,
+          padding: const EdgeInsets.symmetric(horizontal: horizontalInnerPadding),
+          decoration: BoxDecoration(
+            color: isPrimary ? AppThemeTokens.primary : AppThemeTokens.surface,
+            borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+            border: isPrimary ? null : Border.all(color: AppThemeTokens.border),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: textStyle,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            softWrap: false,
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _confirmationPillWidth(String label, TextStyle? style) {
+    final textPainter = TextPainter(
+      text: TextSpan(text: label, style: style),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    const horizontalInnerPadding =
+        AppThemeTokens.iconSizeMedium + AppThemeTokens.dropdownToggleIconGap;
+    return textPainter.width + (horizontalInnerPadding * 2);
   }
 
   Widget _buildIncrementSelector() {

@@ -450,6 +450,7 @@ class _FieldLabel extends StatelessWidget {
         key: iconKey,
         width: iconSize,
         height: iconSize,
+        alignment: Alignment.centerRight,
       ),
     );
   }

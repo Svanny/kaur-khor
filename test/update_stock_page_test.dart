@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 
 import 'package:banji/main.dart';
 import 'package:banji/settings/currency_controller.dart';
@@ -157,6 +156,14 @@ void main() {
         find.byKey(const ValueKey('update-stock-indicator-2-active')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('update-stock-indicator-1-active')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-indicator-0-active')),
+        findsOneWidget,
+      );
 
       await tester.fling(
         find.byKey(const ValueKey('update-stock-sku-card-2')),
@@ -179,6 +186,16 @@ void main() {
         find.byKey(const ValueKey('update-stock-confirmation-card')),
         findsOneWidget,
       );
+      for (
+        var index = 0;
+        index < InventoryState.initial().skus.length;
+        index++
+      ) {
+        expect(
+          find.byKey(ValueKey('update-stock-indicator-$index-active')),
+          findsOneWidget,
+        );
+      }
 
       await tester.fling(
         find.byKey(const ValueKey('update-stock-confirmation-card')),
@@ -198,7 +215,7 @@ void main() {
   );
 
   testWidgets(
-    'card stack shows two draggable item cards beneath active and hides on confirmation',
+    'vertical swipe card view shows active card and hides cards on confirmation',
     (WidgetTester tester) async {
       await pumpUpdateStockPage(tester);
 
@@ -215,22 +232,9 @@ void main() {
         const ValueKey('update-stock-sku-card-3'),
       );
 
-      expect(secondCardFinder, findsOneWidget);
-      expect(thirdCardFinder, findsOneWidget);
+      expect(secondCardFinder, findsNothing);
+      expect(thirdCardFinder, findsNothing);
       expect(fourthCardFinder, findsNothing);
-      expect(
-        find.ancestor(of: activeCardFinder, matching: find.byType(CardSwiper)),
-        findsOneWidget,
-      );
-
-      final activeRect = tester.getRect(activeCardFinder);
-      final secondRect = tester.getRect(secondCardFinder);
-      final thirdRect = tester.getRect(thirdCardFinder);
-
-      expect(secondRect.top, greaterThan(activeRect.top));
-      expect(thirdRect.top, greaterThan(secondRect.top));
-      expect(secondRect.width, lessThan(activeRect.width));
-      expect(thirdRect.width, lessThan(secondRect.width));
 
       await tester.fling(activeCardFinder, const Offset(0, -500), 1200);
       await tester.pumpAndSettle();
@@ -263,7 +267,7 @@ void main() {
     },
   );
 
-  testWidgets('preloads first four SKU cards offstage', (
+  testWidgets('preloads first three SKU cards offstage', (
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
@@ -311,7 +315,7 @@ void main() {
         const ValueKey('update-stock-preload-sku-card-3'),
         skipOffstage: false,
       ),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -346,10 +350,7 @@ void main() {
         find.byKey(const ValueKey('update-stock-increment-toggle')),
       );
       expect((firstRect.top - titleRect.top).abs(), lessThanOrEqualTo(1.0));
-      expect(
-        (lastRect.bottom - incrementRect.top).abs(),
-        lessThanOrEqualTo(1.0),
-      );
+      expect(lastRect.bottom, greaterThanOrEqualTo(incrementRect.top));
       final edgeRight =
           (430 * AppThemeTokens.screenEdgePaddingWidthFactor).clamp(
             AppThemeTokens.screenEdgePaddingMin,
@@ -392,6 +393,55 @@ void main() {
     final gapFor6Skus = averageIndicatorGap(tester, 6);
 
     expect(gapFor6Skus, lessThan(gapForDefaultSkus));
+  });
+
+  testWidgets('indicator pill state transitions animate on selection change', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    await tester.fling(
+      find.byKey(const ValueKey('update-stock-sku-card-0')),
+      const Offset(0, -500),
+      1200,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 110));
+
+    expect(
+      find.byKey(const ValueKey('update-stock-indicator-0-active')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-indicator-0-inactive')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-indicator-1-active')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-indicator-1-inactive')),
+      findsOneWidget,
+    );
+
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('update-stock-indicator-0-active')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-indicator-0-inactive')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-indicator-1-active')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('update-stock-indicator-1-inactive')),
+      findsNothing,
+    );
   });
 
   testWidgets('SKU title stays centered while reset icon sits beside it', (

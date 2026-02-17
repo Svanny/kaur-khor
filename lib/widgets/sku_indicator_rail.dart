@@ -29,6 +29,7 @@ class SkuIndicatorRail extends StatelessWidget {
     this.indicatorWidth = AppThemeTokens.stockIndicatorWidth,
     this.selectedColor = AppThemeTokens.stockIndicatorSelected,
     this.unselectedColor = AppThemeTokens.stockIndicatorUnselected,
+    this.allActive = false,
   });
 
   final int count;
@@ -41,6 +42,7 @@ class SkuIndicatorRail extends StatelessWidget {
   final double indicatorWidth;
   final Color selectedColor;
   final Color unselectedColor;
+  final bool allActive;
 
   @override
   Widget build(BuildContext context) {
@@ -65,18 +67,43 @@ class SkuIndicatorRail extends StatelessWidget {
 
         final children = <Widget>[];
         for (var index = 0; index < count; index++) {
-          final isActive = index == selectedIndex;
+          final isActive = allActive || index <= selectedIndex;
           children.add(
-            AnimatedContainer(
-              key: ValueKey(
-                '$indicatorPrefix-$index-${isActive ? 'active' : 'inactive'}',
-              ),
-              duration: animationDuration,
+            SizedBox(
+              key: ValueKey('$indicatorPrefix-$index'),
               width: indicatorWidth,
               height: pillHeight,
-              decoration: BoxDecoration(
-                color: isActive ? selectedColor : unselectedColor,
-                borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+              child: AnimatedSwitcher(
+                duration: animationDuration,
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  final scale = Tween<double>(begin: 0.9, end: 1.0).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                      reverseCurve: Curves.easeInCubic,
+                    ),
+                  );
+                  return FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(scale: scale, child: child),
+                  );
+                },
+                child: AnimatedContainer(
+                  key: ValueKey(
+                    '$indicatorPrefix-$index-${isActive ? 'active' : 'inactive'}',
+                  ),
+                  duration: animationDuration,
+                  width: indicatorWidth,
+                  height: pillHeight,
+                  decoration: BoxDecoration(
+                    color: isActive ? selectedColor : unselectedColor,
+                    borderRadius: BorderRadius.circular(
+                      AppThemeTokens.radiusPill,
+                    ),
+                  ),
+                ),
               ),
             ),
           );
