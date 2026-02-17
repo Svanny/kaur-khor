@@ -78,10 +78,7 @@ void main() {
     }
     expect(overlaySeen, isTrue);
     final fogMask = tester.widget<ShaderMask>(
-      find.descendant(
-        of: find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
-        matching: find.byType(ShaderMask),
-      ),
+      find.byKey(const ValueKey('update-stock-boundary-blur-overlay')),
     );
     expect(fogMask.blendMode, BlendMode.dstIn);
 

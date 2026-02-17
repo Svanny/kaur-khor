@@ -89,7 +89,6 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     }
 
     return Stack(
-      clipBehavior: Clip.none,
       fit: StackFit.expand,
       children: [
         _buildPreloadedCards(),
@@ -135,8 +134,6 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
             );
           },
         ),
-        if (_isUpwardDragActive || _holdBoundaryFogForSwipeOut)
-          _buildBoundaryBlurOverlay(),
       ],
     );
   }
@@ -202,7 +199,11 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
           verticalOffsetPercentage: verticalOffsetPercentage,
         );
       }
-      return frontCard;
+      return _buildFrontCardWithBoundaryBlur(
+        context: context,
+        child: frontCard,
+        verticalOffsetPercentage: verticalOffsetPercentage,
+      );
     }
 
     final preview = IgnorePointer(
@@ -300,22 +301,41 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     );
   }
 
-  Widget _buildBoundaryBlurOverlay() {
-    final startY = widget.boundaryFogOffsetFromDeckTop;
-    final endY =
-        widget.boundaryFogEndOffsetFromDeckTop ??
-        (startY + _boundaryFogTransitionHeight);
-    final top = math.min(startY, endY);
-    final height = math.max((endY - startY).abs(), 1.0);
+  Widget _buildFrontCardWithBoundaryBlur({
+    required BuildContext context,
+    required Widget child,
+    required int verticalOffsetPercentage,
+  }) {
+    if (!_isUpwardDragActive && !_holdBoundaryFogForSwipeOut) {
+      return child;
+    }
+
+    final dragOffsetY = (verticalOffsetPercentage * _swipeThreshold) / 100;
+    late final double blurStartY;
+    late final double blurEndY;
+
+    if (widget.boundaryFogEndOffsetFromDeckTop case final blurEndOffset?) {
+      blurStartY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
+      blurEndY = blurEndOffset - dragOffsetY;
+      if (math.max(blurStartY, blurEndY) <= 0 && !_holdBoundaryFogForSwipeOut) {
+        return child;
+      }
+    } else {
+      blurStartY = widget.boundaryFogOffsetFromDeckTop - dragOffsetY;
+      if (blurStartY <= 0 && !_holdBoundaryFogForSwipeOut) {
+        return child;
+      }
+      blurEndY = blurStartY + _boundaryFogTransitionHeight;
+    }
+
     if (_debugBoundaryBlurLogs) {
       final signature = [
         'upDrag=$_isUpwardDragActive',
         'hold=$_holdBoundaryFogForSwipeOut',
-        'startY=${startY.toStringAsFixed(2)}',
-        'endY=${endY.toStringAsFixed(2)}',
-        'top=${top.toStringAsFixed(2)}',
-        'height=${height.toStringAsFixed(2)}',
-        'hasEnd=${widget.boundaryFogEndOffsetFromDeckTop != null}',
+        'verticalPct=$verticalOffsetPercentage',
+        'dragY=${dragOffsetY.toStringAsFixed(2)}',
+        'blurStartY=${blurStartY.toStringAsFixed(2)}',
+        'blurEndY=${blurEndY.toStringAsFixed(2)}',
       ].join(' | ');
       if (signature != _lastBoundaryBlurDebugSignature) {
         _lastBoundaryBlurDebugSignature = signature;
@@ -323,35 +343,44 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
       }
     }
 
-    return Positioned(
-      key: const ValueKey('update-stock-boundary-blur-overlay'),
-      top: top,
-      left: 0,
-      right: 0,
-      height: height,
-      child: IgnorePointer(
-        child: ShaderMask(
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        ShaderMask(
+          key: const ValueKey('update-stock-boundary-blur-overlay'),
           blendMode: BlendMode.dstIn,
           shaderCallback: (Rect rect) {
-            return const LinearGradient(
+            if (rect.height <= 0) {
+              return const LinearGradient(
+                colors: <Color>[Colors.transparent, Colors.transparent],
+              ).createShader(rect);
+            }
+            final minStop = math.min(blurStartY, blurEndY);
+            final maxStop = math.max(blurStartY, blurEndY);
+            final start = (minStop / rect.height).clamp(0.0, 1.0).toDouble();
+            var end = (maxStop / rect.height).clamp(0.0, 1.0).toDouble();
+            if (end <= start) {
+              end = (start + 0.001).clamp(0.0, 1.0).toDouble();
+            }
+            return LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: <Color>[Colors.white, Colors.transparent],
+              colors: const <Color>[
+                Colors.white,
+                Colors.white,
+                Colors.transparent,
+                Colors.transparent,
+              ],
+              stops: <double>[0, start, end, 1],
             ).createShader(rect);
           },
-          child: ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
-                child: const SizedBox.expand(),
-              ),
-            ),
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+            child: Opacity(opacity: 0.96, child: child),
           ),
         ),
-      ),
+      ],
     );
   }
 

@@ -379,10 +379,13 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       }
 
       final titleTopGlobalY = titleObject.localToGlobal(Offset.zero).dy;
+      final titleBottomGlobalY = titleObject
+          .localToGlobal(titleObject.size.bottomLeft(Offset.zero))
+          .dy;
       final nextTitleHeight = titleObject.size.height;
       final deckTopGlobalY = deckObject.localToGlobal(Offset.zero).dy;
       final nextStart = -deckTopGlobalY;
-      final nextEnd = titleTopGlobalY - deckTopGlobalY;
+      final nextEnd = titleBottomGlobalY - deckTopGlobalY;
       if (_debugBoundaryMeasurementLogs) {
         final signature = [
           'titleTopGlobalY=${titleTopGlobalY.toStringAsFixed(2)}',
