@@ -215,6 +215,9 @@ void main() {
     'cost input is disabled with tooltip when count change is negative in Changes mode',
     (WidgetTester tester) async {
       await pumpUpdateStockPage(tester);
+      final enabledCostPillSize = tester.getSize(
+        find.byKey(const ValueKey('update-stock-cost-value-pill')),
+      );
 
       await tester.tap(
         find.byKey(const ValueKey('update-stock-count-decrement')),
@@ -240,9 +243,29 @@ void main() {
           .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
           .data;
       expect(costAfter, costBefore);
+      final disabledCostText = tester.widget<Text>(
+        find.byKey(const ValueKey('update-stock-cost-value')),
+      );
+      expect(
+        disabledCostText.style?.color,
+        equals(AppThemeTokens.disabledForeground),
+      );
+      final disabledCostPill = tester.widget<Container>(
+        find.byKey(const ValueKey('update-stock-cost-value-pill')),
+      );
+      final disabledCostPillSize = tester.getSize(
+        find.byKey(const ValueKey('update-stock-cost-value-pill')),
+      );
+      expect(disabledCostPillSize.height, equals(enabledCostPillSize.height));
+      final disabledCostPillDecoration =
+          disabledCostPill.decoration as BoxDecoration;
+      expect(
+        disabledCostPillDecoration.color,
+        equals(AppThemeTokens.disabledBackground),
+      );
 
-      await tester.longPress(
-        find.byKey(const ValueKey('update-stock-cost-increment')),
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-cost-value-pill')),
       );
       await tester.pump();
       expect(
@@ -259,6 +282,9 @@ void main() {
 
       await tester.tap(find.text('Total'));
       await tester.pumpAndSettle();
+      final enabledCostPillSize = tester.getSize(
+        find.byKey(const ValueKey('update-stock-cost-value-pill')),
+      );
       await tester.tap(
         find.byKey(const ValueKey('update-stock-count-decrement')),
       );
@@ -275,9 +301,29 @@ void main() {
           .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
           .data;
       expect(costAfter, costBefore);
+      final disabledCostText = tester.widget<Text>(
+        find.byKey(const ValueKey('update-stock-cost-value')),
+      );
+      expect(
+        disabledCostText.style?.color,
+        equals(AppThemeTokens.disabledForeground),
+      );
+      final disabledCostPill = tester.widget<Container>(
+        find.byKey(const ValueKey('update-stock-cost-value-pill')),
+      );
+      final disabledCostPillSize = tester.getSize(
+        find.byKey(const ValueKey('update-stock-cost-value-pill')),
+      );
+      expect(disabledCostPillSize.height, equals(enabledCostPillSize.height));
+      final disabledCostPillDecoration =
+          disabledCostPill.decoration as BoxDecoration;
+      expect(
+        disabledCostPillDecoration.color,
+        equals(AppThemeTokens.disabledBackground),
+      );
 
-      await tester.longPress(
-        find.byKey(const ValueKey('update-stock-cost-increment')),
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-cost-value-pill')),
       );
       await tester.pump();
       expect(

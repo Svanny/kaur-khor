@@ -343,6 +343,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             _StockStepper(
               label: 'Count',
               valueKey: const ValueKey('update-stock-count-value'),
+              valueContainerKey: const ValueKey(
+                'update-stock-count-value-pill',
+              ),
               decrementKey: const ValueKey('update-stock-count-decrement'),
               incrementKey: const ValueKey('update-stock-count-increment'),
               value: _mode == StockInputMode.changes
@@ -367,6 +370,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             _StockStepper(
               label: 'Cost',
               valueKey: const ValueKey('update-stock-cost-value'),
+              valueContainerKey: const ValueKey('update-stock-cost-value-pill'),
               decrementKey: const ValueKey('update-stock-cost-decrement'),
               incrementKey: const ValueKey('update-stock-cost-increment'),
               actionsEnabled: !isCostInputDisabled,
@@ -374,7 +378,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                   ? _costInputDisabledTooltip
                   : null,
               value: _mode == StockInputMode.changes
-                  ? '${_signedNumber(draft.costDelta)} $currencyCode'
+                  ? '${_formatNumber(draft.costDelta.abs())} $currencyCode'
                   : _currencyLabel(
                       draft.effectiveUnitCost,
                       currencyCode: currencyCode,
@@ -899,6 +903,7 @@ class _StockStepper extends StatelessWidget {
   const _StockStepper({
     required this.label,
     required this.valueKey,
+    required this.valueContainerKey,
     required this.decrementKey,
     required this.incrementKey,
     required this.value,
@@ -910,6 +915,7 @@ class _StockStepper extends StatelessWidget {
 
   final String label;
   final Key valueKey;
+  final Key valueContainerKey;
   final Key decrementKey;
   final Key incrementKey;
   final String value;
@@ -920,6 +926,77 @@ class _StockStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final track = DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppThemeTokens.disabledBackground,
+        borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeTokens.stockStepperTrackInset),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _StepAction(
+              key: decrementKey,
+              icon: Icons.remove,
+              horizontalNudge: AppThemeTokens.space1,
+              isEnabled: actionsEnabled,
+              onTap: onDecrement,
+            ),
+            const SizedBox(width: AppThemeTokens.fieldLabelToControlGap),
+            Container(
+              key: valueContainerKey,
+              height: AppThemeTokens.stockStepActionHeight,
+              constraints: const BoxConstraints(
+                minWidth: AppThemeTokens.stockStepperValueMinWidth,
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppThemeTokens.stockCounterPillPadX,
+                vertical: AppThemeTokens.stockCounterPillPadY,
+              ),
+              decoration: BoxDecoration(
+                color: actionsEnabled
+                    ? AppThemeTokens.surface
+                    : AppThemeTokens.disabledBackground,
+                borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
+              ),
+              child: Center(
+                child: Text(
+                  value,
+                  key: valueKey,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: actionsEnabled
+                        ? AppThemeTokens.textPrimary
+                        : AppThemeTokens.disabledForeground,
+                    fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppThemeTokens.fieldLabelToControlGap),
+            _StepAction(
+              key: incrementKey,
+              icon: Icons.add,
+              horizontalNudge: -AppThemeTokens.space1,
+              isEnabled: actionsEnabled,
+              onTap: onIncrement,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final showDisabledTooltip =
+        !actionsEnabled && (disabledTooltip?.isNotEmpty ?? false);
+    final trackWithTooltip = showDisabledTooltip
+        ? Tooltip(
+            message: disabledTooltip!,
+            triggerMode: TooltipTriggerMode.tap,
+            child: track,
+          )
+        : track;
+
     return Column(
       children: [
         Text(
@@ -929,70 +1006,7 @@ class _StockStepper extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
-        Align(
-          alignment: Alignment.center,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppThemeTokens.disabledBackground,
-              borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(
-                AppThemeTokens.stockStepperTrackInset,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _StepAction(
-                    key: decrementKey,
-                    icon: Icons.remove,
-                    horizontalNudge: AppThemeTokens.space1,
-                    isEnabled: actionsEnabled,
-                    disabledTooltip: disabledTooltip,
-                    onTap: onDecrement,
-                  ),
-                  const SizedBox(width: AppThemeTokens.fieldLabelToControlGap),
-                  Container(
-                    constraints: const BoxConstraints(
-                      minWidth: AppThemeTokens.stockStepperValueMinWidth,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppThemeTokens.stockCounterPillPadX,
-                      vertical: AppThemeTokens.stockCounterPillPadY,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppThemeTokens.surface,
-                      borderRadius: BorderRadius.circular(
-                        AppThemeTokens.radiusPill,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        value,
-                        key: valueKey,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: _fontWeight(
-                            AppThemeTokens.fontWeightSemibold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppThemeTokens.fieldLabelToControlGap),
-                  _StepAction(
-                    key: incrementKey,
-                    icon: Icons.add,
-                    horizontalNudge: -AppThemeTokens.space1,
-                    isEnabled: actionsEnabled,
-                    disabledTooltip: disabledTooltip,
-                    onTap: onIncrement,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        Align(alignment: Alignment.center, child: trackWithTooltip),
       ],
     );
   }
@@ -1004,7 +1018,6 @@ class _StepAction extends StatelessWidget {
     required this.onTap,
     this.horizontalNudge = 0,
     this.isEnabled = true,
-    this.disabledTooltip,
     super.key,
   });
 
@@ -1012,7 +1025,6 @@ class _StepAction extends StatelessWidget {
   final VoidCallback onTap;
   final double horizontalNudge;
   final bool isEnabled;
-  final String? disabledTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -1041,10 +1053,6 @@ class _StepAction extends StatelessWidget {
         ),
       ),
     );
-
-    if (!isEnabled && (disabledTooltip?.isNotEmpty ?? false)) {
-      return Tooltip(message: disabledTooltip!, child: action);
-    }
 
     return action;
   }
