@@ -58,7 +58,14 @@ void main() {
     expect(find.byKey(const ValueKey('front-0')), findsOneWidget);
     expect(find.byKey(const ValueKey('front-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('front-2')), findsOneWidget);
-    expect(find.byKey(const ValueKey('front-3')), findsNothing);
+    expect(find.byKey(const ValueKey('front-3')), findsOneWidget);
+    final dLayerOpacity = tester.widget<Opacity>(
+      find.descendant(
+        of: find.byKey(const ValueKey('update-stock-layer-d')),
+        matching: find.byType(Opacity),
+      ),
+    );
+    expect(dLayerOpacity.opacity, 0);
   });
 
   testWidgets('layer paint order stays A>B>C>D (front to back)', (
@@ -67,10 +74,12 @@ void main() {
     await pumpDeckHarness(tester, cardsCount: 6);
 
     // At rest: only C(back), B(front among stack layers).
-    expect(
-      cornerLayerKeys(tester),
-      orderedEquals(<String>['update-stock-layer-c', 'update-stock-layer-b']),
-    );
+    final restKeys = cornerLayerKeys(tester);
+    expect(restKeys.last, 'update-stock-layer-b');
+    expect(restKeys[restKeys.length - 2], 'update-stock-layer-c');
+    if (restKeys.length >= 3) {
+      expect(restKeys.first, 'update-stock-layer-d');
+    }
 
     final gesture = await tester.startGesture(
       tester.getCenter(find.byKey(const ValueKey('front-0'))),

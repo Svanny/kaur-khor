@@ -47,7 +47,10 @@ class UpdateStockCardDeck extends StatefulWidget {
 
 class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   static const int _swipeThreshold = 30;
+  static const double _downwardProgressDamping = 2;
   static const bool _debugBoundaryBlurLogs = false;
+  static const bool _debugCardDLogs = true;
+  static const bool _debugCardDProgressLogs = true;
 
   final CardSwiperController _cardSwiperController = CardSwiperController();
   final List<int> _dismissedHistory = <int>[];
@@ -60,6 +63,8 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   int _boundaryHoldReleaseGeneration = 0;
   Timer? _boundaryHoldReleaseTimer;
   String? _lastBoundaryBlurDebugSignature;
+  String? _lastCardDDebugSignature;
+  String? _lastCardDProgressDebugSignature;
   Size? _lastDeckSize;
   int _lastVerticalOffsetPercentage = 0;
 
@@ -149,6 +154,12 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     required CardSwiperDirection direction,
   }) {
     if (direction == CardSwiperDirection.top) {
+      if (_debugCardDLogs) {
+        debugPrint(
+          '[UpdateStockCardDeck][swipe-top] prev=$previousIndex curr=$currentIndex '
+          'verticalPct=$_lastVerticalOffsetPercentage',
+        );
+      }
       final isAtLastCard = previousIndex >= widget.cardsCount - 1;
       if (isAtLastCard) {
         _setBoundaryFogSwipeHold(false);
@@ -166,6 +177,12 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
       _setBoundaryFogSwipeHold(true);
       _skipMoveToIndex = currentIndex;
       _recentBackfillIndex = currentIndex + 2;
+      if (_debugCardDLogs) {
+        debugPrint(
+          '[UpdateStockCardDeck][swipe-top-commit] newCurrent=$currentIndex '
+          'recentBackfill=$_recentBackfillIndex',
+        );
+      }
       _dismissedHistory.add(previousIndex);
       _previewGeneration += 1;
       widget.onCurrentIndexChanged(currentIndex);
@@ -173,6 +190,12 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     }
 
     if (direction == CardSwiperDirection.bottom) {
+      if (_debugCardDLogs) {
+        debugPrint(
+          '[UpdateStockCardDeck][swipe-bottom] prev=$previousIndex curr=$currentIndex '
+          'history=${_dismissedHistory.length}',
+        );
+      }
       _setBoundaryFogSwipeHold(false);
       if (_dismissedHistory.isEmpty) {
         return false;
@@ -195,6 +218,14 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     final aFrame = _frameForDepth(0, _lastDeckSize!);
     final animatedBottomLeft = aFrame.corners.bottomLeft.dy + dragOffsetY;
     final animatedBottomRight = aFrame.corners.bottomRight.dy + dragOffsetY;
+    if (_debugCardDLogs) {
+      debugPrint(
+        '[UpdateStockCardDeck][commit-check] dragY=${dragOffsetY.toStringAsFixed(2)} '
+        'aBottomL=${animatedBottomLeft.toStringAsFixed(2)} '
+        'aBottomR=${animatedBottomRight.toStringAsFixed(2)} '
+        'deckBottom=${deckBottom.toStringAsFixed(2)}',
+      );
+    }
     // Commit only once A is moving upward in the deck frame.
     return animatedBottomLeft < deckBottom && animatedBottomRight < deckBottom;
   }
@@ -311,25 +342,60 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     final bIndex = widget.currentIndex + 1;
     final cIndex = widget.currentIndex + 2;
     final dIndex = widget.currentIndex + 3;
+    if (_debugCardDLogs) {
+      final signature = [
+        'g=$_previewGeneration',
+        'curr=${widget.currentIndex}',
+        'b=$bIndex',
+        'c=$cIndex',
+        'd=$dIndex',
+        'cards=${widget.cardsCount}',
+        'progress=${progress.toStringAsFixed(3)}',
+        'hold=$_holdBoundaryFogForSwipeOut',
+        'up=$_isUpwardDragActive',
+      ].join(' | ');
+      if (signature != _lastCardDDebugSignature) {
+        _lastCardDDebugSignature = signature;
+        debugPrint('[UpdateStockCardDeck][layer-up] $signature');
+      }
+    }
 
     if (dIndex < widget.cardsCount) {
-      final fadeProgress = progress.clamp(0.0, 1.0);
       layers.add(
-        Offstage(
-          offstage: fadeProgress <= 0.001,
-          child: Opacity(
-            key: const ValueKey('update-stock-layer-d'),
-            opacity: fadeProgress,
-            child: _buildCornerLinkedCard(
-              context: context,
-              index: dIndex,
-              frameFrom: slots.incomingBack,
-              frameTo: slots.third,
-              deckSize: deckSize,
-              keyPrefix: widget.backfillKeyPrefix,
-              generation: _previewGeneration,
-              progress: progress,
-            ),
+        KeyedSubtree(
+          key: const ValueKey('update-stock-layer-d'),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 48),
+            curve: Curves.linear,
+            builder: (context, smoothedProgress, _) {
+              if (_debugCardDProgressLogs) {
+                final sig = [
+                  'd=$dIndex',
+                  'raw=${progress.toStringAsFixed(3)}',
+                  'smooth=${smoothedProgress.toStringAsFixed(3)}',
+                  'gen=$_previewGeneration',
+                  'curr=${widget.currentIndex}',
+                ].join(' | ');
+                if (sig != _lastCardDProgressDebugSignature) {
+                  _lastCardDProgressDebugSignature = sig;
+                  debugPrint('[UpdateStockCardDeck][layer-d-progress] $sig');
+                }
+              }
+              return Opacity(
+                opacity: smoothedProgress.clamp(0.0, 1.0),
+                child: _buildCornerLinkedCard(
+                  context: context,
+                  index: dIndex,
+                  frameFrom: slots.incomingBack,
+                  frameTo: slots.third,
+                  deckSize: deckSize,
+                  keyPrefix: widget.backfillKeyPrefix,
+                  generation: _previewGeneration,
+                  progress: smoothedProgress,
+                ),
+              );
+            },
           ),
         ),
       );
@@ -479,7 +545,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
         alignment: Alignment.topLeft,
         child: KeyedSubtree(
           key: ValueKey(keyValue),
-          child: widget.cardBuilder(context, index),
+          child: RepaintBoundary(child: widget.cardBuilder(context, index)),
         ),
       ),
     );
@@ -502,7 +568,10 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     if (verticalOffsetPercentage <= 0) {
       return 0;
     }
-    return (verticalOffsetPercentage / 100).clamp(0.0, 1.0).toDouble();
+    // Downward restore felt over-sensitive; damp to match upward feel.
+    return (verticalOffsetPercentage / (100 * _downwardProgressDamping))
+        .clamp(0.0, 1.0)
+        .toDouble();
   }
 
   _DeckSlotMap _slotMapForDeckSize(Size deckSize) {
@@ -548,6 +617,17 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   Matrix4 _transformForFrame(_SlotFrame frame, Size deckSize) {
     final scaleX = frame.rect.width / deckSize.width;
     final scaleY = frame.rect.height / deckSize.height;
+    if (_debugCardDLogs && scaleX > 0 && scaleY > 0) {
+      final sig = [
+        'left=${frame.rect.left.toStringAsFixed(2)}',
+        'top=${frame.rect.top.toStringAsFixed(2)}',
+        'w=${frame.rect.width.toStringAsFixed(2)}',
+        'h=${frame.rect.height.toStringAsFixed(2)}',
+        'sx=${scaleX.toStringAsFixed(4)}',
+        'sy=${scaleY.toStringAsFixed(4)}',
+      ].join(' | ');
+      debugPrint('[UpdateStockCardDeck][frame-xform] $sig');
+    }
     return Matrix4.identity()
       ..translate(frame.rect.left, frame.rect.top)
       ..scale(scaleX, scaleY);
