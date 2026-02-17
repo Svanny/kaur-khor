@@ -378,7 +378,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                   ? _costInputDisabledTooltip
                   : null,
               value: _mode == StockInputMode.changes
-                  ? '${_formatNumber(draft.costDelta.abs())} $currencyCode'
+                  ? _unsignedCostLabel(
+                      draft.costDelta,
+                      currencyCode: currencyCode,
+                    )
                   : _currencyLabel(
                       draft.effectiveUnitCost,
                       currencyCode: currencyCode,
@@ -1066,4 +1069,10 @@ String _signedNumber(double value) {
     return '-${_formatNumber(value.abs())}';
   }
   return '0';
+}
+
+String _unsignedCostLabel(double value, {required String currencyCode}) {
+  final magnitude = value.abs();
+  final normalizedMagnitude = magnitude < 1e-9 ? 0.0 : magnitude;
+  return '${_formatNumber(normalizedMagnitude)} $currencyCode';
 }

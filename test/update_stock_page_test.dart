@@ -211,6 +211,27 @@ void main() {
     );
   });
 
+  testWidgets('cost in Changes mode is unsigned and + still increases value', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    final initialCost = tester
+        .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+        .data;
+    expect(initialCost, equals('0 USD'));
+
+    await tester.tap(find.byKey(const ValueKey('update-stock-cost-increment')));
+    await tester.pumpAndSettle();
+
+    final incrementedCost = tester
+        .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+        .data;
+    expect(incrementedCost, equals('0.25 USD'));
+    expect(incrementedCost, isNot(startsWith('+')));
+    expect(incrementedCost, isNot(startsWith('-')));
+  });
+
   testWidgets(
     'cost input is disabled with tooltip when count change is negative in Changes mode',
     (WidgetTester tester) async {
