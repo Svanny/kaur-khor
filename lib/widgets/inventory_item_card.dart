@@ -80,7 +80,7 @@ class _InventoryItemCard extends StatelessWidget {
                               vertical: AppThemeTokens.inventoryChipPadY,
                             ),
                             label: Text(
-                              'Units in Stock: ${_formatNumber(unitsInStock)}',
+                              '${_formatNumber(unitsInStock)} units in stock',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: AppThemeTokens.textPrimary),
                             ),

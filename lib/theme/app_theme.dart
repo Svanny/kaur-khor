@@ -50,6 +50,8 @@ class AppThemeTokens {
   static const double letterSpacingHeadline = -0.2;
   static const double iconSizeMedium = 6 * unit;
   static const double serviceSvgOutlineScale = 1.2;
+  static const double attachedLabelIconToTextRatio = 1.3125;
+  static const double attachedLabelIconGapToIconRatio = 2 / 7;
 
   // Shape and spacing
   static const double radiusMd = 3 * unit;
@@ -153,6 +155,14 @@ class AppThemeTokens {
   static const double stockStepperActionPadX = stockCounterPillPadX;
   static const double stockCardViewportWidthFactor = 0.95;
   static const double stockCardViewportHeightFactor = 0.85;
+
+  static double attachedLabelIconSize(double labelFontSize) {
+    return labelFontSize * attachedLabelIconToTextRatio;
+  }
+
+  static double attachedLabelIconGap(double iconSize) {
+    return iconSize * attachedLabelIconGapToIconRatio;
+  }
 
   // Component paddings
   static const double buttonPaddingX = space4;

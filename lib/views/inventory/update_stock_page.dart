@@ -118,7 +118,9 @@ class StockDraft {
   }) {
     final direction = increment ? 1 : -1;
     if (mode == StockInputMode.changes) {
-      return copyWith(costDelta: costDelta + (direction * step));
+      final nextDelta = math.max(0.0, costDelta + (direction * step));
+      final normalizedNextDelta = nextDelta < 1e-9 ? 0.0 : nextDelta;
+      return copyWith(costDelta: normalizedNextDelta);
     }
     final nextTotal = math.max(0.0, effectiveUnitCost + (direction * step));
     return copyWith(costDelta: nextTotal - baseUnitCost);
@@ -142,6 +144,7 @@ class UpdateStockPage extends StatefulWidget {
 class _UpdateStockPageState extends State<UpdateStockPage> {
   static const double _swipeVelocityThreshold = 220;
   static const Duration _switcherDuration = Duration(milliseconds: 220);
+  static const Duration _trendAnimationDuration = Duration(milliseconds: 180);
   static const String _costInputDisabledTooltip =
       'Cannot enter cost if change is negative.';
 
@@ -321,6 +324,19 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     required String currencyCode,
   }) {
     final isCostInputDisabled = _isCostInputDisabled(draft);
+    final countTrendDirection = _trendDirection(
+      current: draft.effectiveCount,
+      baseline: draft.baseCount,
+    );
+    final costTrendDirection = _trendDirection(
+      current: draft.effectiveUnitCost,
+      baseline: draft.baseUnitCost,
+    );
+    final totalTrendDirection = _trendDirection(
+      current: draft.effectiveTotalValue,
+      baseline: draft.baseCount * draft.baseUnitCost,
+    );
+    final totalValueStyle = Theme.of(context).textTheme.titleLarge;
 
     return Card(
       key: key,
@@ -349,24 +365,32 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
             ),
             _buildSkuTitleRow(sku.name),
-            Text(
-              _currencyLabel(
+            _CenteredTrendText(
+              text: _currencyLabel(
                 draft.effectiveTotalValue,
                 currencyCode: currencyCode,
               ),
-              key: const ValueKey('update-stock-total-value'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
+              textKey: const ValueKey('update-stock-total-value'),
+              style: totalValueStyle,
+              trendDirection: totalTrendDirection,
+              trendAnimationDuration: _trendAnimationDuration,
+              trendKeyPrefix: 'update-stock-total-value-trend',
             ),
-            const SizedBox(height: AppThemeTokens.sectionGap),
+            const SizedBox(
+              height: AppThemeTokens.sectionGap + AppThemeTokens.unit,
+            ),
             _StockStepper(
               label: 'Count',
+              labelIconAsset: _package2SvgAsset,
+              labelIconKey: const ValueKey('update-stock-count-label-icon'),
               valueKey: const ValueKey('update-stock-count-value'),
               valueContainerKey: const ValueKey(
                 'update-stock-count-value-pill',
               ),
               decrementKey: const ValueKey('update-stock-count-decrement'),
               incrementKey: const ValueKey('update-stock-count-increment'),
+              trendDirection: countTrendDirection,
+              trendAnimationDuration: _trendAnimationDuration,
               value: _mode == StockInputMode.changes
                   ? _signedNumber(draft.countDelta)
                   : _formatNumber(draft.effectiveCount),
@@ -390,10 +414,14 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             ),
             _StockStepper(
               label: 'Cost',
+              labelIconAsset: _paymentsSvgAsset,
+              labelIconKey: const ValueKey('update-stock-cost-label-icon'),
               valueKey: const ValueKey('update-stock-cost-value'),
               valueContainerKey: const ValueKey('update-stock-cost-value-pill'),
               decrementKey: const ValueKey('update-stock-cost-decrement'),
               incrementKey: const ValueKey('update-stock-cost-increment'),
+              trendDirection: costTrendDirection,
+              trendAnimationDuration: _trendAnimationDuration,
               actionsEnabled: !isCostInputDisabled,
               disabledTooltip: isCostInputDisabled
                   ? _costInputDisabledTooltip
@@ -446,7 +474,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         final desiredIconLeft =
             (constraints.maxWidth / 2) +
             (textWidth / 2) +
-            AppThemeTokens.space1;
+            AppThemeTokens.fieldLabelToControlGap;
         final clampedIconLeft = desiredIconLeft
             .clamp(0.0, math.max(0.0, constraints.maxWidth - actionSlotWidth))
             .toDouble();
@@ -478,12 +506,13 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                     onPressed: _resetCurrentDraft,
                     icon: Transform(
                       alignment: Alignment.center,
-                      transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
+                      transform: Matrix4.identity()
+                        ..scaleByDouble(-1.0, 1.0, 1.0, 1.0),
                       child: const Icon(
                         Icons.refresh,
                         size:
                             AppThemeTokens.iconSizeMedium +
-                            AppThemeTokens.space1,
+                            AppThemeTokens.fieldLabelToControlGap,
                         color: AppThemeTokens.primary,
                       ),
                     ),
@@ -726,9 +755,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       return maxWidth;
     }
 
-    const cellHorizontalPadding = AppThemeTokens.space2 * 2;
+    const cellHorizontalPadding = AppThemeTokens.groupedCardsHorizontalGap * 2;
     const checkAreaWidth =
-        AppThemeTokens.space1 + (AppThemeTokens.iconSizeMedium * 0.75);
+        AppThemeTokens.fieldLabelToControlGap +
+        (AppThemeTokens.iconSizeMedium * 0.75);
 
     return <double>[
       maxTextWidth((preset) => '${preset.label}:') + cellHorizontalPadding,
@@ -881,7 +911,7 @@ class _IncrementMenuCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const checkIconWidth = AppThemeTokens.iconSizeMedium * 0.75;
-    const checkSpacing = AppThemeTokens.space1;
+    const checkSpacing = AppThemeTokens.fieldLabelToControlGap;
     final trailingReserve = reserveCheckSpace || showCheck
         ? (checkSpacing + checkIconWidth)
         : 0.0;
@@ -895,7 +925,7 @@ class _IncrementMenuCell extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppThemeTokens.space2,
+          horizontal: AppThemeTokens.groupedCardsHorizontalGap,
           vertical: AppThemeTokens.dropdownOptionPadY,
         ),
         child: Stack(
@@ -968,10 +998,14 @@ class _IncrementSeparatorPainter extends CustomPainter {
 class _StockStepper extends StatelessWidget {
   const _StockStepper({
     required this.label,
+    this.labelIconAsset,
+    this.labelIconKey,
     required this.valueKey,
     required this.valueContainerKey,
     required this.decrementKey,
     required this.incrementKey,
+    required this.trendDirection,
+    required this.trendAnimationDuration,
     required this.value,
     required this.onDecrement,
     required this.onIncrement,
@@ -980,10 +1014,14 @@ class _StockStepper extends StatelessWidget {
   });
 
   final String label;
+  final String? labelIconAsset;
+  final Key? labelIconKey;
   final Key valueKey;
   final Key valueContainerKey;
   final Key decrementKey;
   final Key incrementKey;
+  final _TrendDirection trendDirection;
+  final Duration trendAnimationDuration;
   final String value;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
@@ -1005,7 +1043,7 @@ class _StockStepper extends StatelessWidget {
             _StepAction(
               key: decrementKey,
               icon: Icons.remove,
-              horizontalNudge: AppThemeTokens.space1,
+              horizontalNudge: AppThemeTokens.fieldLabelToControlGap,
               isEnabled: actionsEnabled,
               onTap: onDecrement,
             ),
@@ -1018,7 +1056,6 @@ class _StockStepper extends StatelessWidget {
               ),
               padding: const EdgeInsets.symmetric(
                 horizontal: AppThemeTokens.stockCounterPillPadX,
-                vertical: AppThemeTokens.stockCounterPillPadY,
               ),
               decoration: BoxDecoration(
                 color: actionsEnabled
@@ -1032,6 +1069,9 @@ class _StockStepper extends StatelessWidget {
                   key: valueKey,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontSize:
+                        AppThemeTokens.fontSizeBodyLarge + AppThemeTokens.unit,
+                    height: 1.0,
                     color: actionsEnabled
                         ? AppThemeTokens.textPrimary
                         : AppThemeTokens.disabledForeground,
@@ -1044,7 +1084,7 @@ class _StockStepper extends StatelessWidget {
             _StepAction(
               key: incrementKey,
               icon: Icons.add,
-              horizontalNudge: -AppThemeTokens.space1,
+              horizontalNudge: -AppThemeTokens.fieldLabelToControlGap,
               isEnabled: actionsEnabled,
               onTap: onIncrement,
             ),
@@ -1063,19 +1103,224 @@ class _StockStepper extends StatelessWidget {
           )
         : track;
 
+    final labelStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+    );
+    final labelTrendKeyPrefix = switch (label) {
+      'Count' => 'update-stock-count-label-trend',
+      'Cost' => 'update-stock-cost-label-trend',
+      _ => 'update-stock-stepper-label-trend',
+    };
+
     return Column(
       children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-          ),
+        _CenteredTrendText(
+          text: label,
+          textKey: ValueKey('update-stock-${label.toLowerCase()}-label'),
+          style: labelStyle,
+          trendDirection: trendDirection,
+          trendAnimationDuration: trendAnimationDuration,
+          trendKeyPrefix: labelTrendKeyPrefix,
+          labelIconAsset: labelIconAsset,
+          labelIconKey: labelIconKey,
+          centerText: true,
         ),
         const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         Align(alignment: Alignment.center, child: trackWithTooltip),
       ],
     );
   }
+}
+
+enum _TrendDirection { down, flat, up }
+
+class _CenteredTrendText extends StatelessWidget {
+  const _CenteredTrendText({
+    required this.text,
+    required this.textKey,
+    required this.style,
+    required this.trendDirection,
+    required this.trendAnimationDuration,
+    required this.trendKeyPrefix,
+    this.labelIconAsset,
+    this.labelIconKey,
+    this.centerText = false,
+  });
+
+  final String text;
+  final Key textKey;
+  final TextStyle? style;
+  final _TrendDirection trendDirection;
+  final Duration trendAnimationDuration;
+  final String trendKeyPrefix;
+  final String? labelIconAsset;
+  final Key? labelIconKey;
+  final bool centerText;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedStyle = style ?? Theme.of(context).textTheme.bodyLarge;
+    final fontSize =
+        resolvedStyle?.fontSize ?? AppThemeTokens.fontSizeBodyLarge;
+    final trendIconSize =
+        fontSize + AppThemeTokens.fieldLabelToControlGap + AppThemeTokens.unit;
+    const trendGap = AppThemeTokens.fieldLabelToControlGap;
+    final textWidget = Text(
+      text,
+      key: textKey,
+      textAlign: TextAlign.center,
+      style: resolvedStyle,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    if (labelIconAsset != null) {
+      return _FieldLabel(
+        label: text,
+        iconAsset: labelIconAsset,
+        iconKey: labelIconKey,
+        centerText: centerText,
+        textStyle: resolvedStyle,
+        trailing: _AnimatedTrendIndicator(
+          direction: trendDirection,
+          size: trendIconSize,
+          animationDuration: trendAnimationDuration,
+          keyPrefix: trendKeyPrefix,
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.maxWidth.isFinite) {
+          if (trendDirection == _TrendDirection.flat) {
+            return textWidget;
+          }
+
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              textWidget,
+              const SizedBox(width: trendGap),
+              _AnimatedTrendIndicator(
+                direction: trendDirection,
+                size: trendIconSize,
+                animationDuration: trendAnimationDuration,
+                keyPrefix: trendKeyPrefix,
+              ),
+            ],
+          );
+        }
+
+        final textPainter = TextPainter(
+          text: TextSpan(text: text, style: resolvedStyle),
+          textDirection: Directionality.of(context),
+          maxLines: 1,
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final textWidth = textPainter.width;
+        final desiredTrendLeft =
+            (constraints.maxWidth / 2) + (textWidth / 2) + trendGap;
+        final clampedTrendLeft = desiredTrendLeft
+            .clamp(0.0, math.max(0.0, constraints.maxWidth - trendIconSize))
+            .toDouble();
+        final contentHeight = math.max(textPainter.height, trendIconSize);
+
+        return SizedBox(
+          width: constraints.maxWidth,
+          height: contentHeight,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Center(child: textWidget),
+              Positioned(
+                left: clampedTrendLeft,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: _AnimatedTrendIndicator(
+                    direction: trendDirection,
+                    size: trendIconSize,
+                    animationDuration: trendAnimationDuration,
+                    keyPrefix: trendKeyPrefix,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AnimatedTrendIndicator extends StatelessWidget {
+  const _AnimatedTrendIndicator({
+    required this.direction,
+    required this.size,
+    required this.animationDuration,
+    required this.keyPrefix,
+  });
+
+  final _TrendDirection direction;
+  final double size;
+  final Duration animationDuration;
+  final String keyPrefix;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (direction) {
+      _TrendDirection.up => Icon(
+        Icons.arrow_drop_up_rounded,
+        key: ValueKey('$keyPrefix-up'),
+        color: AppThemeTokens.success,
+        size: size,
+      ),
+      _TrendDirection.down => Icon(
+        Icons.arrow_drop_down_rounded,
+        key: ValueKey('$keyPrefix-down'),
+        color: AppThemeTokens.error,
+        size: size,
+      ),
+      _TrendDirection.flat => SizedBox(
+        key: ValueKey('$keyPrefix-flat'),
+        width: size,
+        height: size,
+      ),
+    };
+
+    return AnimatedSwitcher(
+      duration: animationDuration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeInOut,
+        );
+        final scale = Tween<double>(begin: 0.8, end: 1.0).animate(fade);
+        return FadeTransition(
+          opacity: fade,
+          child: ScaleTransition(scale: scale, child: child),
+        );
+      },
+      child: icon,
+    );
+  }
+}
+
+_TrendDirection _trendDirection({
+  required double current,
+  required double baseline,
+  double epsilon = 1e-9,
+}) {
+  if (current > baseline + epsilon) {
+    return _TrendDirection.up;
+  }
+  if (current < baseline - epsilon) {
+    return _TrendDirection.down;
+  }
+  return _TrendDirection.flat;
 }
 
 class _StepAction extends StatelessWidget {
@@ -1100,6 +1345,7 @@ class _StepAction extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
         onTap: isEnabled ? onTap : null,
         child: SizedBox(
+          width: AppThemeTokens.stockStepActionHeight,
           height: AppThemeTokens.stockStepActionHeight,
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -1110,6 +1356,7 @@ class _StepAction extends StatelessWidget {
               child: Icon(
                 icon,
                 size: AppThemeTokens.iconSizeMedium * 0.8,
+                weight: AppThemeTokens.fontWeightBold,
                 color: isEnabled
                     ? AppThemeTokens.textPrimary
                     : AppThemeTokens.disabledForeground,

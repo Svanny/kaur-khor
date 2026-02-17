@@ -109,7 +109,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
 
     final unitsInStockError = SecurityValidators.validateNonNegativeDecimal(
       _unitsInStockController.text,
-      fieldName: 'Units in Stock',
+      fieldName: 'Units',
       maxValue: SecurityLimits.inventoryUnitsInStockMax,
     );
     if (unitsInStockError != null) {
@@ -160,7 +160,7 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
   bool get _unitsInStockHasError {
     return SecurityValidators.validateNonNegativeDecimal(
           _unitsInStockController.text,
-          fieldName: 'Units in Stock',
+          fieldName: 'Units',
           maxValue: SecurityLimits.inventoryUnitsInStockMax,
         ) !=
         null;
@@ -277,10 +277,14 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                               children: [
                                 Expanded(
                                   child: _FieldEditor(
-                                    label: 'Units in Stock',
+                                    label: 'Units',
+                                    labelIconAsset: _package2SvgAsset,
+                                    labelIconKey: const ValueKey(
+                                      'sku-units-in-stock-label-icon',
+                                    ),
                                     controller: _unitsInStockController,
                                     inputMode: _InputMode.decimal,
-                                    hintText: 'Enter units in stock',
+                                    hintText: 'Enter units',
                                     hasError:
                                         (_showValidationHighlights ||
                                             _unitsInStockBlurred) &&
@@ -298,6 +302,10 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                 Expanded(
                                   child: _CurrencyFieldWithCode(
                                     label: 'Cost / Unit',
+                                    labelIconAsset: _paymentsSvgAsset,
+                                    labelIconKey: const ValueKey(
+                                      'sku-cost-unit-label-icon',
+                                    ),
                                     controller: _costPerUnitController,
                                     inputMode: _InputMode.decimal,
                                     hintText: 'e.g. 4.50',
@@ -376,6 +384,10 @@ class _SkuDetailPageState extends State<SkuDetailPage> {
                                       builder: (_, currency, __) {
                                         return _CurrencyFieldWithCode(
                                           label: 'Product Price',
+                                          labelIconAsset: _pointOfSaleSvgAsset,
+                                          labelIconKey: const ValueKey(
+                                            'sku-product-price-label-icon',
+                                          ),
                                           controller: _productPriceController,
                                           inputMode: _InputMode.decimal,
                                           hintText: 'e.g. 12.00',

@@ -252,6 +252,10 @@ class _ViewAllPageState extends State<ViewAllPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
+                  leading: _sheetActionIcon(
+                    _defaultServicePictureAsset,
+                    key: const ValueKey('add-item-service-icon'),
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
                       AppThemeTokens.radiusMd,
@@ -264,6 +268,12 @@ class _ViewAllPageState extends State<ViewAllPage> {
                 ),
                 const SizedBox(height: AppThemeTokens.sectionGapCompact),
                 ListTile(
+                  leading: const Icon(
+                    _defaultSkuPictureIcon,
+                    key: ValueKey('add-item-sku-icon'),
+                    color: AppThemeTokens.textPrimary,
+                    size: AppThemeTokens.iconSizeMedium,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
                       AppThemeTokens.radiusMd,
@@ -291,6 +301,15 @@ class _ViewAllPageState extends State<ViewAllPage> {
       case _NewItemType.service:
         await _createService();
     }
+  }
+
+  Widget _sheetActionIcon(String assetPath, {required Key key}) {
+    return _inventorySvgIcon(
+      assetPath: assetPath,
+      key: key,
+      size: AppThemeTokens.iconSizeMedium,
+      color: AppThemeTokens.textPrimary,
+    );
   }
 
   Future<void> _createSku() async {

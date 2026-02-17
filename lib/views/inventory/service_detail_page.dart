@@ -77,7 +77,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
 
     final priceError = SecurityValidators.validateNonNegativeDecimal(
       _priceController.text,
-      fieldName: 'Price',
+      fieldName: 'Service Price',
       maxValue: SecurityLimits.monetaryAmountMax,
     );
     if (priceError != null) {
@@ -105,7 +105,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   bool get _priceHasError {
     return SecurityValidators.validateNonNegativeDecimal(
           _priceController.text,
-          fieldName: 'Price',
+          fieldName: 'Service Price',
           maxValue: SecurityLimits.monetaryAmountMax,
         ) !=
         null;
@@ -196,7 +196,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                       valueListenable: context.currencyController,
                       builder: (_, currency, __) {
                         return _CurrencyFieldWithCode(
-                          label: 'Price',
+                          label: 'Service Price',
+                          labelIconAsset: _pointOfSaleSvgAsset,
+                          labelIconKey: const ValueKey(
+                            'service-price-label-icon',
+                          ),
                           controller: _priceController,
                           inputMode: _InputMode.decimal,
                           currencyCode: currency.code,
@@ -211,9 +215,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                       },
                     ),
                     const SizedBox(height: AppThemeTokens.sectionGap),
-                    Text(
-                      'SKUs Used',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    const _FieldLabel(
+                      label: 'SKUs Used',
+                      iconAsset: _listAltSvgAsset,
+                      iconKey: ValueKey('service-skus-used-label-icon'),
                     ),
                     const SizedBox(height: AppThemeTokens.sectionCardOuterGap),
                     Card(
@@ -295,7 +300,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                               const SizedBox(
                                 width: AppThemeTokens.sectionCardInlineGap,
                               ),
-                              Icon(
+                              const Icon(
                                 Icons.chevron_right,
                                 color: AppThemeTokens.textSecondary,
                               ),
@@ -544,7 +549,7 @@ class _SkuUsedSelectorPageState extends State<SkuUsedSelectorPage> {
                           },
                           title: Text(sku.name),
                           subtitle: Text(
-                            'Units in Stock: ${_formatNumber(sku.unitsInStock)}',
+                            '${_formatNumber(sku.unitsInStock)} units in stock',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           checkboxScaleFactor: 1.0,

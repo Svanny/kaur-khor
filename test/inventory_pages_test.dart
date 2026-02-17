@@ -184,9 +184,7 @@ void main() {
       TextInputType.text,
     );
     expect(
-      tester
-          .widget<TextField>(textFieldByHint('Enter units in stock'))
-          .keyboardType,
+      tester.widget<TextField>(textFieldByHint('Enter units')).keyboardType,
       decimalKeyboard,
     );
     expect(
@@ -317,7 +315,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('SKUs Used'), findsOneWidget);
-    expect(find.text('Price'), findsAtLeastNWidgets(1));
+    expect(find.text('Service Price'), findsAtLeastNWidgets(1));
+    expect(
+      find.byKey(const ValueKey('service-price-label-icon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('service-skus-used-label-icon')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
     await tester.pumpAndSettle();
@@ -341,6 +347,24 @@ void main() {
     );
     expect(find.text('Sold as a Product'), findsOneWidget);
     expect(find.text('Cost / Unit'), findsAtLeastNWidgets(1));
+    expect(
+      find.byKey(const ValueKey('sku-units-in-stock-label-icon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('sku-cost-unit-label-icon')),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Product Price'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('sku-product-price-label-icon')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('service detail opens SKUs Used as a bottom sheet', (
@@ -663,7 +687,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Invalid fields'), findsOneWidget);
       expect(
-        find.textContaining('Price field must be a valid number'),
+        find.textContaining('Service Price field must be a valid number'),
         findsOneWidget,
       );
       expect(find.textContaining('Please fix'), findsNothing);
@@ -797,7 +821,7 @@ void main() {
     await pumpViewAll(tester);
     await openCard(tester, 'SKU #001');
 
-    await tester.enterText(textFieldByHint('Enter units in stock'), '3.5');
+    await tester.enterText(textFieldByHint('Enter units'), '3.5');
     await tester.pump();
 
     final saveButton = tester.widget<FilledButton>(
@@ -810,10 +834,7 @@ void main() {
 
     await openCard(tester, 'SKU #001');
     expect(
-      tester
-          .widget<TextField>(textFieldByHint('Enter units in stock'))
-          .controller
-          ?.text,
+      tester.widget<TextField>(textFieldByHint('Enter units')).controller?.text,
       '3.5',
     );
   });
@@ -824,7 +845,7 @@ void main() {
     await pumpViewAll(tester);
     await openCard(tester, 'SKU #001');
 
-    await tester.enterText(textFieldByHint('Enter units in stock'), '-1');
+    await tester.enterText(textFieldByHint('Enter units'), '-1');
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
@@ -832,13 +853,13 @@ void main() {
 
     expect(find.text('Invalid fields'), findsOneWidget);
     expect(
-      find.textContaining('Units in Stock field cannot be negative'),
+      find.textContaining('Units field cannot be negative'),
       findsOneWidget,
     );
     await tester.tap(find.text('Go Back'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(textFieldByHint('Enter units in stock'), '3a');
+    await tester.enterText(textFieldByHint('Enter units'), '3a');
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.arrow_back).first);
@@ -846,7 +867,7 @@ void main() {
 
     expect(find.text('Invalid fields'), findsOneWidget);
     expect(
-      find.textContaining('Units in Stock field must be a valid number'),
+      find.textContaining('Units field must be a valid number'),
       findsOneWidget,
     );
   });
@@ -1022,12 +1043,7 @@ void main() {
       textFieldByHint('Describe this SKU'),
     );
     final unitsCardRect = tester.getRect(
-      find
-          .ancestor(
-            of: find.text('Units in Stock'),
-            matching: find.byType(Card),
-          )
-          .first,
+      find.ancestor(of: find.text('Units'), matching: find.byType(Card)).first,
     );
 
     await tester.scrollUntilVisible(
@@ -1082,10 +1098,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final unitsCard = find
-          .ancestor(
-            of: find.text('Units in Stock'),
-            matching: find.byType(Card),
-          )
+          .ancestor(of: find.text('Units'), matching: find.byType(Card))
           .first;
       final unitsCardPaddings = tester.widgetList<Padding>(
         find.descendant(of: unitsCard, matching: find.byType(Padding)),
@@ -1262,7 +1275,7 @@ void main() {
     final costUnitField = textFieldByHint('e.g. 4.50');
     await tester.enterText(costUnitField, '4a');
     await tester.pump();
-    await tester.tap(find.text('Units in Stock'));
+    await tester.tap(find.text('Units'));
     await tester.pump();
 
     final saveButton = tester.widget<FilledButton>(
@@ -1304,6 +1317,25 @@ void main() {
     await tester.enterText(find.byType(TextField), 'NEW');
     await tester.pump();
     expect(find.text('SKU #NEW'), findsOneWidget);
+  });
+
+  testWidgets('add-item sheet shows service svg and sku box icon', (
+    WidgetTester tester,
+  ) async {
+    await pumpViewAll(tester);
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+
+    final serviceIcon = tester.widget<SvgPicture>(
+      find.byKey(const ValueKey('add-item-service-icon')),
+    );
+    final skuIcon = tester.widget<Icon>(
+      find.byKey(const ValueKey('add-item-sku-icon')),
+    );
+
+    expect(serviceIcon.bytesLoader, isA<SvgAssetLoader>());
+    expect(skuIcon.icon, equals(Icons.inventory_2_outlined));
   });
 
   testWidgets(

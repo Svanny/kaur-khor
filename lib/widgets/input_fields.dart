@@ -96,6 +96,8 @@ class _FieldEditor extends StatelessWidget {
     this.onChanged,
     this.maxLength,
     this.hintText,
+    this.labelIconAsset,
+    this.labelIconKey,
   });
 
   final String label;
@@ -107,13 +109,19 @@ class _FieldEditor extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final int? maxLength;
   final String? hintText;
+  final String? labelIconAsset;
+  final Key? labelIconKey;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        _FieldLabel(
+          label: label,
+          iconAsset: labelIconAsset,
+          iconKey: labelIconKey,
+        ),
         const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         if (maxLength == null)
           TextField(
@@ -220,6 +228,8 @@ class _CurrencyFieldWithCode extends StatelessWidget {
     this.inputMode = _InputMode.decimal,
     this.onTapOutside,
     this.onChanged,
+    this.labelIconAsset,
+    this.labelIconKey,
   });
 
   final String label;
@@ -230,13 +240,19 @@ class _CurrencyFieldWithCode extends StatelessWidget {
   final _InputMode inputMode;
   final VoidCallback? onTapOutside;
   final ValueChanged<String>? onChanged;
+  final String? labelIconAsset;
+  final Key? labelIconKey;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        _FieldLabel(
+          label: label,
+          iconAsset: labelIconAsset,
+          iconKey: labelIconKey,
+        ),
         const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         TextField(
           controller: controller,
@@ -290,6 +306,155 @@ class _CurrencyFieldWithCode extends StatelessWidget {
   }
 }
 
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({
+    required this.label,
+    this.iconAsset,
+    this.iconKey,
+    this.centerText = false,
+    this.textStyle,
+    this.trailing,
+  });
+
+  final String label;
+  final String? iconAsset;
+  final Key? iconKey;
+  final bool centerText;
+  final TextStyle? textStyle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedStyle = textStyle ?? Theme.of(context).textTheme.titleMedium;
+    final labelFontSize =
+        resolvedStyle?.fontSize ?? AppThemeTokens.fontSizeTitleMedium;
+    final iconSize = AppThemeTokens.attachedLabelIconSize(labelFontSize);
+    final iconGap = AppThemeTokens.attachedLabelIconGap(iconSize);
+    const trailingGap = AppThemeTokens.fieldLabelToControlGap;
+    final trailingWidth = trailing == null
+        ? 0.0
+        : (AppThemeTokens.attachedLabelIconSize(labelFontSize) +
+                  AppThemeTokens.unit)
+              .toDouble();
+
+    if (iconAsset == null) {
+      if (centerText) {
+        return Center(child: Text(label, style: resolvedStyle));
+      }
+      return Text(label, style: resolvedStyle);
+    }
+
+    if (!centerText) {
+      return Row(
+        children: [
+          _buildLabelIcon(iconSize),
+          SizedBox(width: iconGap),
+          Expanded(
+            child: Text(
+              label,
+              style: resolvedStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (trailing != null) const SizedBox(width: trailingGap),
+          if (trailing != null)
+            SizedBox(
+              width: trailingWidth,
+              child: Center(child: trailing),
+            ),
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textPainter = TextPainter(
+          text: TextSpan(text: label, style: resolvedStyle),
+          textDirection: Directionality.of(context),
+          maxLines: 1,
+        )..layout(maxWidth: constraints.maxWidth);
+
+        final textWidth = textPainter.width;
+        final trailingReserve = trailing == null
+            ? 0.0
+            : (trailingGap + trailingWidth);
+        final desiredIconLeft =
+            (constraints.maxWidth / 2) - (textWidth / 2) - iconGap - iconSize;
+        final desiredTrailingLeft =
+            (constraints.maxWidth / 2) + (textWidth / 2) + trailingGap;
+        final clampedIconLeft = desiredIconLeft
+            .clamp(0.0, math.max(0.0, constraints.maxWidth - iconSize))
+            .toDouble();
+        final clampedTrailingLeft = desiredTrailingLeft
+            .clamp(0.0, math.max(0.0, constraints.maxWidth - trailingWidth))
+            .toDouble();
+        final labelHeight = math.max(
+          textPainter.height,
+          math.max(iconSize, trailingWidth),
+        );
+        final safeTextMaxWidth = math.max(
+          0.0,
+          constraints.maxWidth - trailingReserve,
+        );
+
+        return SizedBox(
+          width: constraints.maxWidth,
+          height: labelHeight,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: safeTextMaxWidth),
+                  child: Text(
+                    label,
+                    style: resolvedStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: clampedIconLeft,
+                top: 0,
+                bottom: 0,
+                child: Center(child: _buildLabelIcon(iconSize)),
+              ),
+              if (trailing != null)
+                Positioned(
+                  left: clampedTrailingLeft,
+                  top: 0,
+                  bottom: 0,
+                  child: SizedBox(
+                    width: trailingWidth,
+                    child: Center(child: trailing),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLabelIcon(double iconSize) {
+    return ColorFiltered(
+      colorFilter: const ColorFilter.mode(
+        AppThemeTokens.textPrimary,
+        BlendMode.srcIn,
+      ),
+      child: SvgPicture.asset(
+        iconAsset!,
+        key: iconKey,
+        width: iconSize,
+        height: iconSize,
+      ),
+    );
+  }
+}
+
 class _AdaptiveCurrencyReadOnlyField extends StatelessWidget {
   const _AdaptiveCurrencyReadOnlyField({
     required this.label,
@@ -315,7 +480,7 @@ class _AdaptiveCurrencyReadOnlyField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        _FieldLabel(label: label),
         const SizedBox(height: AppThemeTokens.fieldLabelToControlGap),
         LayoutBuilder(
           builder: (context, constraints) {

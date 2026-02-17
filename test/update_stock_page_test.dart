@@ -390,6 +390,338 @@ void main() {
     expect(incrementedCost, isNot(startsWith('-')));
   });
 
+  testWidgets('cost change stays non-negative in Changes mode', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data,
+      equals('0 USD'),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('update-stock-cost-increment')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data,
+      equals('0.25 USD'),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data,
+      equals('0 USD'),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('update-stock-cost-decrement')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('update-stock-cost-value')))
+          .data,
+      equals('0 USD'),
+    );
+  });
+
+  testWidgets(
+    'trend arrows reflect baseline deltas for total, count, and cost',
+    (WidgetTester tester) async {
+      await pumpUpdateStockPage(tester);
+
+      expect(
+        find.byKey(const ValueKey('update-stock-total-value-trend-up')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-total-value-trend-down')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-count-label-trend-up')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-count-label-trend-down')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-cost-label-trend-up')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-cost-label-trend-down')),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-count-increment')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-count-label-trend-up')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-total-value-trend-up')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('update-stock-count-label-trend-up')),
+            )
+            .color,
+        equals(AppThemeTokens.success),
+      );
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('update-stock-total-value-trend-up')),
+            )
+            .color,
+        equals(AppThemeTokens.success),
+      );
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('update-stock-total-value-trend-up')),
+          matching: find.byType(AnimatedSwitcher),
+        ),
+        findsWidgets,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-count-decrement')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-count-label-trend-up')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-count-label-trend-down')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-total-value-trend-up')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-total-value-trend-down')),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-count-decrement')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-count-label-trend-down')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-total-value-trend-down')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('update-stock-count-label-trend-down')),
+            )
+            .color,
+        equals(AppThemeTokens.error),
+      );
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('update-stock-total-value-trend-down')),
+            )
+            .color,
+        equals(AppThemeTokens.error),
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-reset-current')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Total'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-cost-increment')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-cost-label-trend-up')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-total-value-trend-up')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('update-stock-cost-label-trend-up')),
+            )
+            .color,
+        equals(AppThemeTokens.success),
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-cost-decrement')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-cost-decrement')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('update-stock-cost-label-trend-down')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-total-value-trend-down')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Icon>(
+              find.byKey(const ValueKey('update-stock-cost-label-trend-down')),
+            )
+            .color,
+        equals(AppThemeTokens.error),
+      );
+
+      expect(
+        find.byKey(const ValueKey('update-stock-count-value-trend-up')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-count-value-trend-down')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-cost-value-trend-up')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('update-stock-cost-value-trend-down')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('stepper value text is bigger and action icons are bold', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    const expectedFontSize =
+        AppThemeTokens.fontSizeBodyLarge + AppThemeTokens.unit;
+    final countValue = tester.widget<Text>(
+      find.byKey(const ValueKey('update-stock-count-value')),
+    );
+    final costValue = tester.widget<Text>(
+      find.byKey(const ValueKey('update-stock-cost-value')),
+    );
+    expect(countValue.style?.fontSize, equals(expectedFontSize));
+    expect(costValue.style?.fontSize, equals(expectedFontSize));
+
+    Icon iconIn(Key key) {
+      return tester.widget<Icon>(
+        find.descendant(of: find.byKey(key), matching: find.byType(Icon)),
+      );
+    }
+
+    expect(
+      iconIn(const ValueKey('update-stock-count-decrement')).weight,
+      equals(AppThemeTokens.fontWeightBold),
+    );
+    expect(
+      iconIn(const ValueKey('update-stock-count-increment')).weight,
+      equals(AppThemeTokens.fontWeightBold),
+    );
+    expect(
+      iconIn(const ValueKey('update-stock-cost-decrement')).weight,
+      equals(AppThemeTokens.fontWeightBold),
+    );
+    expect(
+      iconIn(const ValueKey('update-stock-cost-increment')).weight,
+      equals(AppThemeTokens.fontWeightBold),
+    );
+    final countLabelIconFinder = find.byKey(
+      const ValueKey('update-stock-count-label-icon'),
+    );
+    final costLabelIconFinder = find.byKey(
+      const ValueKey('update-stock-cost-label-icon'),
+    );
+    expect(countLabelIconFinder, findsOneWidget);
+    expect(costLabelIconFinder, findsOneWidget);
+
+    final countValueRect = tester.getRect(
+      find.byKey(const ValueKey('update-stock-count-value-pill')),
+    );
+    final costValueRect = tester.getRect(
+      find.byKey(const ValueKey('update-stock-cost-value-pill')),
+    );
+    final countValueTextRect = tester.getRect(
+      find.byKey(const ValueKey('update-stock-count-value')),
+    );
+    final costValueTextRect = tester.getRect(
+      find.byKey(const ValueKey('update-stock-cost-value')),
+    );
+    final countLabelRect = tester.getRect(find.text('Count'));
+    final costLabelRect = tester.getRect(find.text('Cost'));
+    final countLabelIconRect = tester.getRect(countLabelIconFinder);
+    final costLabelIconRect = tester.getRect(costLabelIconFinder);
+    expect(
+      (countValueTextRect.center.dx - countValueRect.center.dx).abs(),
+      lessThanOrEqualTo(1.0),
+    );
+    expect(
+      (countValueTextRect.center.dy - countValueRect.center.dy).abs(),
+      lessThanOrEqualTo(1.0),
+    );
+    expect(
+      (costValueTextRect.center.dx - costValueRect.center.dx).abs(),
+      lessThanOrEqualTo(1.0),
+    );
+    expect(
+      (costValueTextRect.center.dy - costValueRect.center.dy).abs(),
+      lessThanOrEqualTo(1.0),
+    );
+    expect(
+      (countLabelRect.center.dx - countValueRect.center.dx).abs(),
+      lessThanOrEqualTo(1.0),
+    );
+    expect(
+      (costLabelRect.center.dx - costValueRect.center.dx).abs(),
+      lessThanOrEqualTo(1.0),
+    );
+    expect(
+      countLabelIconRect.right,
+      lessThanOrEqualTo(countLabelRect.left + 1),
+    );
+    expect(costLabelIconRect.right, lessThanOrEqualTo(costLabelRect.left + 1));
+    expect(
+      countLabelRect.left - countLabelIconRect.right,
+      lessThanOrEqualTo(AppThemeTokens.space2),
+    );
+    expect(
+      costLabelRect.left - costLabelIconRect.right,
+      lessThanOrEqualTo(AppThemeTokens.space2),
+    );
+  });
+
   testWidgets(
     'cost input is disabled with tooltip when count change is negative in Changes mode',
     (WidgetTester tester) async {
@@ -551,6 +883,6 @@ void main() {
           .unitsInStock,
       263,
     );
-    expect(find.text('Units in Stock: 263'), findsOneWidget);
+    expect(find.text('263 units in stock'), findsOneWidget);
   });
 }
