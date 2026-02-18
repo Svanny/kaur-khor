@@ -113,9 +113,12 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                 title: '',
                 onBack: _onBackPressed,
                 onCancel: _resetChanges,
-                onSave: _save,
+                onSave: _onSavePressed,
                 hasChanges: true,
                 isValid: true,
+                cancelIcon: Icons.refresh,
+                cancelTooltip: 'Reset order',
+                flipCancelIconHorizontally: true,
               ),
               const SizedBox(height: AppThemeTokens.headerToContentGap),
               Text(
@@ -476,30 +479,23 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   }
 
   Future<void> _onBackPressed() async {
-    final shouldPop = await _confirmExitIfNeeded();
-    if (!mounted || !shouldPop) {
+    final action = await _showSaveChangesPrompt();
+    if (!mounted || action == null || action == UnsavedExitAction.goBack) {
+      return;
+    }
+    if (action == UnsavedExitAction.confirm) {
+      _save();
       return;
     }
     _popWithoutSaving();
   }
 
-  Future<bool> _confirmExitIfNeeded() async {
-    if (!_hasChanges) {
-      return true;
-    }
-    final choice = await showUnsavedChangesDialog(
+  Future<UnsavedExitAction?> _showSaveChangesPrompt() {
+    return showUnsavedChangesDialog(
       context: context,
       isValid: true,
       validationErrors: const <String>[],
     );
-    if (!mounted) {
-      return false;
-    }
-    if (choice == UnsavedExitAction.confirm) {
-      _save();
-      return false;
-    }
-    return choice == UnsavedExitAction.discard;
   }
 
   void _popWithoutSaving() {
@@ -518,6 +514,14 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const ViewAllPage()));
+  }
+
+  Future<void> _onSavePressed() async {
+    final action = await _showSaveChangesPrompt();
+    if (!mounted || action != UnsavedExitAction.confirm) {
+      return;
+    }
+    _save();
   }
 
   String _groupedAmountLabel(double value) {

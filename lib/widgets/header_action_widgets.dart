@@ -11,6 +11,9 @@ class _DetailHeader extends StatelessWidget {
     this.actionsKey,
     this.actionSize = 40,
     this.backIcon = Icons.arrow_back,
+    this.cancelIcon = Icons.close,
+    this.cancelTooltip = 'Cancel',
+    this.flipCancelIconHorizontally = false,
   });
 
   final String title;
@@ -22,6 +25,9 @@ class _DetailHeader extends StatelessWidget {
   final Key? actionsKey;
   final double actionSize;
   final IconData backIcon;
+  final IconData cancelIcon;
+  final String cancelTooltip;
+  final bool flipCancelIconHorizontally;
 
   @override
   Widget build(BuildContext context) {
@@ -72,10 +78,11 @@ class _DetailHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _CircleOutlineAction(
-                icon: Icons.close,
+                icon: cancelIcon,
                 onPressed: onCancel,
-                tooltip: 'Cancel',
+                tooltip: cancelTooltip,
                 size: actionSize,
+                flipIconHorizontally: flipCancelIconHorizontally,
               ),
               const SizedBox(width: AppThemeTokens.sectionCardInlineGap),
               _CircleFilledAction(
@@ -134,12 +141,14 @@ class _CircleOutlineAction extends StatelessWidget {
     required this.onPressed,
     required this.tooltip,
     this.size = 40,
+    this.flipIconHorizontally = false,
   });
 
   final IconData icon;
   final VoidCallback onPressed;
   final String tooltip;
   final double size;
+  final bool flipIconHorizontally;
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +164,15 @@ class _CircleOutlineAction extends StatelessWidget {
             padding: EdgeInsets.zero,
             side: const BorderSide(color: AppThemeTokens.border, width: 2),
           ),
-          child: Icon(icon, size: size * 0.45),
+          child: Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.diagonal3Values(
+              flipIconHorizontally ? -1 : 1,
+              1,
+              1,
+            ),
+            child: Icon(icon, size: size * 0.45),
+          ),
         ),
       ),
     );

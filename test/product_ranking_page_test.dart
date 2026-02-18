@@ -189,7 +189,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.close));
+    await tester.tap(find.byIcon(Icons.refresh));
     await tester.pumpAndSettle();
 
     expect(
@@ -256,15 +256,30 @@ void main() {
     expect(find.text('Open Ranking'), findsOneWidget);
   });
 
-  testWidgets('save action is always visible and opens view-all page', (
+  testWidgets('back always prompts for save confirmation', (
     WidgetTester tester,
   ) async {
     await pumpRankingPage(tester);
 
-    expect(find.byIcon(Icons.close), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved changes'), findsOneWidget);
+  });
+
+  testWidgets('save action is always visible and confirms before view-all', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    expect(find.byIcon(Icons.refresh), findsOneWidget);
     expect(find.byIcon(Icons.check), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.check));
+    await tester.pumpAndSettle();
+    expect(find.text('Unsaved changes'), findsOneWidget);
+
+    await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
     expect(find.text('All Items'), findsOneWidget);
   });

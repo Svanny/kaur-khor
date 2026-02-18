@@ -12,6 +12,9 @@ Widget buildSaveChangeHeader({
   IconData? titleIcon,
   double actionSize = 40,
   IconData backIcon = Icons.arrow_back,
+  IconData cancelIcon = Icons.close,
+  String cancelTooltip = 'Cancel',
+  bool flipCancelIconHorizontally = false,
   Key? actionsKey,
 }) {
   return _DetailHeader(
@@ -23,6 +26,9 @@ Widget buildSaveChangeHeader({
     showActions: hasChanges,
     actionSize: actionSize,
     backIcon: backIcon,
+    cancelIcon: cancelIcon,
+    cancelTooltip: cancelTooltip,
+    flipCancelIconHorizontally: flipCancelIconHorizontally,
     actionsKey: actionsKey,
   );
 }
