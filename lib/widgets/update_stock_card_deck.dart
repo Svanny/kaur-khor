@@ -42,11 +42,11 @@ class UpdateStockCardDeck extends StatefulWidget {
 
 class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
   static const int _cacheWindowSize = 3;
+  static const double _scrollEpsilon = 0.5;
 
   late PageController _pageController;
   bool _isSyncingFromExternalState = false;
-
-  int get _endSentinelPage => widget.cardsCount;
+  bool _handledForwardBoundaryInCurrentScroll = false;
 
   @override
   void initState() {
@@ -59,7 +59,7 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
     super.didUpdateWidget(oldWidget);
     final needsControllerReset = oldWidget.cardsCount != widget.cardsCount;
     if (needsControllerReset) {
-      final initialPage = widget.currentIndex.clamp(0, widget.cardsCount);
+      final initialPage = widget.currentIndex.clamp(0, _maxPageIndex);
       _pageController.dispose();
       _pageController = PageController(initialPage: initialPage);
       return;
@@ -106,46 +106,57 @@ class _UpdateStockCardDeckState extends State<UpdateStockCardDeck> {
       fit: StackFit.expand,
       children: [
         _buildPreloadedCards(),
-        PageView.builder(
-          key: widget.swiperKey,
-          controller: _pageController,
-          scrollDirection: Axis.vertical,
-          padEnds: false,
-          itemCount: widget.cardsCount + 1,
-          onPageChanged: _onPageChanged,
-          itemBuilder: (context, index) {
-            if (index >= widget.cardsCount) {
-              return const SizedBox.shrink();
-            }
-            return KeyedSubtree(
-              key: ValueKey('${widget.stackCardKeyPrefix}$index'),
-              child: widget.cardBuilder(context, index),
-            );
-          },
+        NotificationListener<ScrollNotification>(
+          onNotification: _handleScrollNotification,
+          child: PageView.builder(
+            key: widget.swiperKey,
+            controller: _pageController,
+            scrollDirection: Axis.vertical,
+            padEnds: false,
+            itemCount: widget.cardsCount,
+            onPageChanged: _onPageChanged,
+            itemBuilder: (context, index) {
+              return KeyedSubtree(
+                key: ValueKey('${widget.stackCardKeyPrefix}$index'),
+                child: widget.cardBuilder(context, index),
+              );
+            },
+          ),
         ),
       ],
     );
   }
 
-  void _onPageChanged(int pageIndex) {
-    if (_isSyncingFromExternalState) {
-      return;
+  int get _maxPageIndex => widget.cardsCount <= 0 ? 0 : widget.cardsCount - 1;
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification ||
+        notification is ScrollEndNotification) {
+      _handledForwardBoundaryInCurrentScroll = false;
+      return false;
     }
 
-    if (pageIndex == _endSentinelPage) {
-      widget.onReachedEndForward();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_pageController.hasClients) {
-          return;
-        }
-        final currentPage =
-            _pageController.page?.round() ?? _pageController.initialPage;
-        if (currentPage != _endSentinelPage) {
-          return;
-        }
-        final target = widget.currentIndex.clamp(0, widget.cardsCount - 1);
-        _pageController.jumpToPage(target);
-      });
+    if (notification is! OverscrollNotification ||
+        _handledForwardBoundaryInCurrentScroll ||
+        widget.cardsCount <= 0) {
+      return false;
+    }
+
+    final metrics = notification.metrics;
+    final atForwardBoundary =
+        metrics.pixels >= (metrics.maxScrollExtent - _scrollEpsilon);
+    final isForwardOverscroll = notification.overscroll > 0;
+    if (!atForwardBoundary || !isForwardOverscroll) {
+      return false;
+    }
+
+    _handledForwardBoundaryInCurrentScroll = true;
+    widget.onReachedEndForward();
+    return false;
+  }
+
+  void _onPageChanged(int pageIndex) {
+    if (_isSyncingFromExternalState) {
       return;
     }
 

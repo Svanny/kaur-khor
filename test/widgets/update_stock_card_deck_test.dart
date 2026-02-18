@@ -57,7 +57,7 @@ void main() {
     );
   });
 
-  testWidgets('swipe up on the last card triggers end callback', (
+  testWidgets('swipe up on the last card springs back without changing index', (
     tester,
   ) async {
     await pumpDeckHarness(tester, cardsCount: 1);
@@ -77,12 +77,12 @@ void main() {
     );
     expect(
       tester.widget<Text>(find.byKey(const ValueKey('deck-end-count'))).data,
-      'end:1',
+      'end:0',
     );
   });
 
   testWidgets(
-    'end sentinel snaps back to current card when index is unchanged',
+    'repeated forward overscroll on the last card keeps index stable',
     (tester) async {
       await pumpDeckHarness(tester, cardsCount: 1);
 
@@ -102,7 +102,7 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.byKey(const ValueKey('deck-end-count'))).data,
-        'end:1',
+        'end:0',
       );
     },
   );
