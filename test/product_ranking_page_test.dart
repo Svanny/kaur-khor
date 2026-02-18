@@ -339,6 +339,50 @@ void main() {
     expect(find.text('All Items'), findsNothing);
   });
 
+  testWidgets('save dialog uses shared confirmation spacing', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    await tester.tap(find.byIcon(Icons.check));
+    await tester.pumpAndSettle();
+
+    final popupPadding = tester.widget<Padding>(
+      find
+          .ancestor(
+            of: find.text('Save ranking updates?'),
+            matching: find.byType(Padding),
+          )
+          .first,
+    );
+    expect(
+      popupPadding.padding,
+      const EdgeInsets.all(AppThemeTokens.popupInset),
+    );
+
+    final secondaryButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Back to edit'),
+    );
+    expect(
+      secondaryButton.style?.padding?.resolve(const <WidgetState>{}),
+      const EdgeInsets.symmetric(
+        horizontal: AppThemeTokens.buttonPaddingX,
+        vertical: AppThemeTokens.buttonPaddingY,
+      ),
+    );
+
+    final primaryButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Confirm'),
+    );
+    expect(
+      primaryButton.style?.padding?.resolve(const <WidgetState>{}),
+      const EdgeInsets.symmetric(
+        horizontal: AppThemeTokens.buttonPaddingX,
+        vertical: AppThemeTokens.buttonPaddingY,
+      ),
+    );
+  });
+
   testWidgets('reopening ranking starts from default order (no persistence)', (
     WidgetTester tester,
   ) async {

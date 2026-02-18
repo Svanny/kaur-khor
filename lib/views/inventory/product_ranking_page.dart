@@ -602,22 +602,6 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       primaryResult: true,
       barrierDismissResult: false,
       maxWidth: 420,
-      secondaryPadding: const EdgeInsets.symmetric(
-        horizontal: AppThemeTokens.space1,
-        vertical: AppThemeTokens.buttonPaddingY,
-      ),
-      primaryPadding: const EdgeInsets.symmetric(
-        horizontal: AppThemeTokens.space1,
-        vertical: AppThemeTokens.buttonPaddingY,
-      ),
-      compactSecondary: true,
-      compactPrimary: true,
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppThemeTokens.space4 + AppThemeTokens.unit,
-        AppThemeTokens.popupInset,
-        AppThemeTokens.space4 + AppThemeTokens.unit,
-        AppThemeTokens.popupInset,
-      ),
     );
     return selection ?? false;
   }
