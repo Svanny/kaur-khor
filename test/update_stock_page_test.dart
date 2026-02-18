@@ -118,6 +118,25 @@ void main() {
     expect(maskRect.width, lessThan(430));
   });
 
+  testWidgets('stock update title mask blurs only the mask widget', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    final maskFinder = find.byKey(
+      const ValueKey('update-stock-title-boundary-mask'),
+    );
+
+    expect(
+      find.ancestor(of: maskFinder, matching: find.byType(ImageFiltered)),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(of: maskFinder, matching: find.byType(BackdropFilter)),
+      findsNothing,
+    );
+  });
+
   testWidgets(
     'swipe up advances, swipe down goes back, and confirmation returns to card',
     (WidgetTester tester) async {

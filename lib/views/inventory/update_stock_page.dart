@@ -266,25 +266,21 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                   ),
                   Positioned(
                     top:
-                        _stockTitleOverlayHeight +
-                        AppThemeTokens.space4 -
+                        _stockTitleOverlayHeight -
                         (_titleBoundaryMaskHeight / 2),
                     left: 0,
                     right: 0,
                     child: IgnorePointer(
                       child: Align(
-                        child: FractionallySizedBox(
+                          child: FractionallySizedBox(
                           widthFactor:
                               AppThemeTokens.stockCardViewportWidthFactor,
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(AppThemeTokens.radiusMd),
-                              topRight: Radius.circular(
-                                AppThemeTokens.radiusMd,
+                          child: ClipRect(
+                            child: ImageFiltered(
+                              imageFilter: ui.ImageFilter.blur(
+                                sigmaY: 6,
+                                sigmaX: 0,
                               ),
-                            ),
-                            child: BackdropFilter(
-                              filter: ui.ImageFilter.blur(sigmaY: 6, sigmaX: 0),
                               child: DecoratedBox(
                                 key: const ValueKey(
                                   'update-stock-title-boundary-mask',
@@ -1466,9 +1462,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     _applySkuDrafts();
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => const ProductRankingPage(
-          initialBottomMessage: 'Stock updates saved.',
-        ),
+        builder: (_) =>
+            const ProductRankingPage(
+              initialBottomMessage: 'Stock updates saved.',
+            ),
       ),
     );
   }
