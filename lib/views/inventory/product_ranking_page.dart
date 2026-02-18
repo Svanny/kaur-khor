@@ -17,7 +17,9 @@ class _ProductRankingEntry {
 }
 
 class ProductRankingPage extends StatefulWidget {
-  const ProductRankingPage({super.key});
+  const ProductRankingPage({super.key, this.initialBottomMessage});
+
+  final String? initialBottomMessage;
 
   @override
   State<ProductRankingPage> createState() => _ProductRankingPageState();
@@ -42,6 +44,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   static const Duration _resetTextFadeDuration = Duration(milliseconds: 180);
 
   bool _initialized = false;
+  bool _didShowInitialBottomMessage = false;
   bool _allowPop = false;
   double _rowTextOpacity = 1;
   bool _resetAnimationInProgress = false;
@@ -87,6 +90,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
     ];
     _entries = List<_ProductRankingEntry>.of(_initialEntries);
     _initialized = true;
+    _showInitialBottomMessageIfAny();
   }
 
   @override
@@ -572,19 +576,13 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   }
 
   void _save() {
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const ViewAllPage()));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Sales ranking updates saved.')),
-        snackBarAnimationStyle: const AnimationStyle(
-          duration: Duration(milliseconds: 260),
-          reverseDuration: Duration(milliseconds: 180),
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => const ViewAllPage(
+          initialBottomMessage: 'Sales ranking updates saved.',
         ),
-      );
-    });
+      ),
+    );
   }
 
   Future<void> _onSavePressed() async {
@@ -596,124 +594,17 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   }
 
   Future<bool> _showSaveConfirmationDialog() async {
-    final selection = await showGeneralDialog<bool>(
+    final selection = await showTwoActionConfirmationDialog<bool>(
       context: context,
-      barrierDismissible: false,
       barrierLabel: 'Dismiss save confirmation',
-      barrierColor: Colors.transparent,
-      transitionDuration: Duration.zero,
-      pageBuilder: (_, __, ___) {
-        final width = math
-            .min(
-              MediaQuery.sizeOf(context).width -
-                  (AppThemeTokens.popupInset * 2),
-              360,
-            )
-            .toDouble();
-        final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: AppThemeTokens.textPrimary,
-          fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-        );
-        final bodyStyle = Theme.of(
-          context,
-        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.textSecondary);
-        final actionStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-        );
-
-        return Material(
-          color: Colors.transparent,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => Navigator.of(context).pop(false),
-                  child: ColoredBox(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              ),
-              Center(
-                child: GestureDetector(
-                  onTap: () {},
-                  child: Container(
-                    width: width,
-                    decoration: BoxDecoration(
-                      color: AppThemeTokens.surface,
-                      borderRadius: BorderRadius.circular(32),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppThemeTokens.popupInset),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Save ranking updates?', style: titleStyle),
-                          const SizedBox(
-                            height: AppThemeTokens.headerToContentGap,
-                          ),
-                          Text(
-                            'Confirm to save this sales ranking order.',
-                            style: bodyStyle,
-                          ),
-                          const SizedBox(height: AppThemeTokens.popupInset),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(false),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: AppThemeTokens.primary,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  padding: EdgeInsets.zero,
-                                ),
-                                child: Text(
-                                  'Back to edit',
-                                  style: actionStyle?.copyWith(
-                                    color: AppThemeTokens.primary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(
-                                width: AppThemeTokens.popupActionGap,
-                              ),
-                              FilledButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(true),
-                                style: FilledButton.styleFrom(
-                                  foregroundColor: AppThemeTokens.white,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  shape: const StadiumBorder(),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppThemeTokens.space2,
-                                    vertical: AppThemeTokens.buttonPaddingY,
-                                  ),
-                                ),
-                                child: Text(
-                                  'Confirm',
-                                  style: actionStyle?.copyWith(
-                                    color: AppThemeTokens.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-      transitionBuilder: (_, __, ___, child) => child,
+      title: 'Save ranking updates?',
+      message: 'Confirm to save this sales ranking order.',
+      secondaryLabel: 'Back to edit',
+      primaryLabel: 'Confirm',
+      secondaryResult: false,
+      primaryResult: true,
+      barrierDismissResult: false,
+      maxWidth: 420,
     );
     return selection ?? false;
   }
@@ -733,5 +624,28 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       return '$prefix$grouped';
     }
     return '$prefix$grouped.${parts[1]}';
+  }
+
+  void _showInitialBottomMessageIfAny() {
+    if (_didShowInitialBottomMessage) {
+      return;
+    }
+    final message = widget.initialBottomMessage;
+    if (message == null || message.isEmpty) {
+      return;
+    }
+    _didShowInitialBottomMessage = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+        snackBarAnimationStyle: const AnimationStyle(
+          duration: Duration(milliseconds: 260),
+          reverseDuration: Duration(milliseconds: 180),
+        ),
+      );
+    });
   }
 }

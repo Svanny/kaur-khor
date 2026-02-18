@@ -874,6 +874,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           '${preset.label} ${preset.countStepLabel} and ${preset.costStepLabel}',
       menuXAlignment: AppDropdownXAlignment.center,
       menuYAlignment: AppDropdownYAlignment.top,
+      triggerPadding: const EdgeInsets.symmetric(
+        horizontal: AppThemeTokens.inventoryChipPadX,
+        vertical: AppThemeTokens.chipPaddingY,
+      ),
       onChanged: (preset) => _onIncrementPresetChanged(context, preset),
       menuBuilder:
           (
@@ -987,7 +991,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       triggerBuilder: (context, isOpen, _) {
         final textStyle = Theme.of(
           context,
-        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white);
+        ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.white);
         return LayoutBuilder(
           builder: (context, constraints) {
             final targetWidth = _incrementTriggerContentWidth(
@@ -1118,8 +1122,8 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         textStyle ??
         Theme.of(
           context,
-        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white) ??
-        const TextStyle(fontSize: AppThemeTokens.fontSizeBodyLarge);
+        ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.white) ??
+        const TextStyle(fontSize: AppThemeTokens.fontSizeBodyMedium);
     final textScaler = MediaQuery.textScalerOf(context);
     final textDirection = Directionality.of(context);
     final labelWidth = _measureTextWidth(
@@ -1337,48 +1341,58 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       return;
     }
     final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(navigator.context);
+    final route = ModalRoute.of(context);
+    final transitionDuration =
+        route?.reverseTransitionDuration ?? route?.transitionDuration;
     if (action == UnsavedExitAction.confirm) {
       _applySkuDrafts();
       navigator.pop();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showBottomMessageAfterPop(
+        messenger: messenger,
+        message: 'Stock updates saved.',
+        popTransitionDuration: transitionDuration,
+      );
+      return;
+    }
+    navigator.pop();
+    _showBottomMessageAfterPop(
+      messenger: messenger,
+      message: 'Stock updates discarded.',
+      popTransitionDuration: transitionDuration,
+    );
+  }
+
+  void _showBottomMessageAfterPop({
+    required ScaffoldMessengerState? messenger,
+    required String message,
+    Duration? popTransitionDuration,
+  }) {
+    if (messenger == null) {
+      return;
+    }
+    final waitDuration = popTransitionDuration ?? Duration.zero;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(waitDuration, () {
         messenger.showSnackBar(
-          const SnackBar(content: Text('Stock updates saved.')),
+          SnackBar(content: Text(message)),
           snackBarAnimationStyle: const AnimationStyle(
             duration: Duration(milliseconds: 260),
             reverseDuration: Duration(milliseconds: 180),
           ),
         );
       });
-      return;
-    }
-    navigator.pop();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Stock updates discarded.')),
-        snackBarAnimationStyle: const AnimationStyle(
-          duration: Duration(milliseconds: 260),
-          reverseDuration: Duration(milliseconds: 180),
-        ),
-      );
     });
-  }
-
-  void _showBottomMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-      snackBarAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 260),
-        reverseDuration: Duration(milliseconds: 180),
-      ),
-    );
   }
 
   void _saveAllAndOpenRanking() {
     _applySkuDrafts();
-    _showBottomMessage('Stock updates saved.');
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ProductRankingPage()),
+      MaterialPageRoute(
+        builder: (_) => const ProductRankingPage(
+          initialBottomMessage: 'Stock updates saved.',
+        ),
+      ),
     );
   }
 

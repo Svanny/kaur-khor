@@ -1,7 +1,9 @@
 part of '../inventory_views.dart';
 
 class ViewAllPage extends StatefulWidget {
-  const ViewAllPage({super.key});
+  const ViewAllPage({super.key, this.initialBottomMessage});
+
+  final String? initialBottomMessage;
 
   @override
   State<ViewAllPage> createState() => _ViewAllPageState();
@@ -11,11 +13,41 @@ class _ViewAllPageState extends State<ViewAllPage> {
   final TextEditingController _searchController = TextEditingController();
   bool _showSkus = true;
   bool _showServices = true;
+  bool _didShowInitialBottomMessage = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _showInitialBottomMessageIfAny();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _showInitialBottomMessageIfAny() {
+    if (_didShowInitialBottomMessage) {
+      return;
+    }
+    final message = widget.initialBottomMessage;
+    if (message == null || message.isEmpty) {
+      return;
+    }
+    _didShowInitialBottomMessage = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+        snackBarAnimationStyle: const AnimationStyle(
+          duration: Duration(milliseconds: 260),
+          reverseDuration: Duration(milliseconds: 180),
+        ),
+      );
+    });
   }
 
   @override

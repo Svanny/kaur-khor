@@ -532,6 +532,30 @@ void main() {
     final triggerFinder = find.byKey(
       const ValueKey('update-stock-increment-toggle'),
     );
+    final initialTriggerLabel = tester.widget<Text>(
+      find.descendant(
+        of: triggerFinder,
+        matching: find.text('Increments · Small'),
+      ),
+    );
+    expect(
+      initialTriggerLabel.style?.fontSize,
+      equals(AppThemeTokens.fontSizeBodyMedium),
+    );
+    final triggerPadding = find.descendant(
+      of: triggerFinder,
+      matching: find.byWidgetPredicate((widget) {
+        if (widget is! Padding) {
+          return false;
+        }
+        return widget.padding ==
+            const EdgeInsets.symmetric(
+              horizontal: AppThemeTokens.inventoryChipPadX,
+              vertical: AppThemeTokens.chipPaddingY,
+            );
+      }),
+    );
+    expect(triggerPadding, findsOneWidget);
     final initialTriggerWidth = tester.getSize(triggerFinder).width;
     expect(
       find.descendant(
@@ -1386,6 +1410,9 @@ void main() {
       expect(find.text('Unsaved changes'), findsOneWidget);
 
       await tester.tap(find.text('Confirm'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('Stock updates saved.'), findsNothing);
       await tester.pumpAndSettle();
       expect(find.text('Open Stock Update'), findsOneWidget);
       expect(find.text('Stock updates saved.'), findsOneWidget);

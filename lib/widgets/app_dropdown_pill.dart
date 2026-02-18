@@ -46,6 +46,10 @@ class AppDropdownPill<T> extends StatefulWidget {
     this.backgroundColor = AppThemeTokens.primary,
     this.foregroundColor = AppThemeTokens.white,
     this.menuBackgroundColor = AppThemeTokens.primary,
+    this.triggerPadding = const EdgeInsets.symmetric(
+      horizontal: AppThemeTokens.chipPaddingX,
+      vertical: AppThemeTokens.chipPaddingY,
+    ),
   });
 
   final T value;
@@ -63,6 +67,7 @@ class AppDropdownPill<T> extends StatefulWidget {
   final Color backgroundColor;
   final Color foregroundColor;
   final Color menuBackgroundColor;
+  final EdgeInsetsGeometry triggerPadding;
 
   @override
   State<AppDropdownPill<T>> createState() => _AppDropdownPillState<T>();
@@ -589,10 +594,7 @@ class _AppDropdownPillState<T> extends State<AppDropdownPill<T>>
             borderRadius: BorderRadius.circular(AppThemeTokens.radiusPill),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppThemeTokens.chipPaddingX,
-              vertical: AppThemeTokens.chipPaddingY,
-            ),
+            padding: widget.triggerPadding,
             child: trigger,
           ),
         ),
