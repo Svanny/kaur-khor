@@ -1224,12 +1224,9 @@ void main() {
   });
 
   testWidgets(
-    'cost input is disabled with tooltip when count change is negative in Changes mode',
+    'cost input remains editable when count change is negative in Changes mode',
     (WidgetTester tester) async {
       await pumpUpdateStockPage(tester);
-      final enabledCostPillSize = tester.getSize(
-        find.byKey(const ValueKey('update-stock-cost-value-pill')),
-      );
 
       await tester.tap(
         find.byKey(const ValueKey('update-stock-count-decrement')),
@@ -1243,47 +1240,23 @@ void main() {
       );
       await tester.pumpAndSettle();
       final costAfter = stepperValueText(tester, 'update-stock-cost-value');
-      expect(costAfter, costBefore);
-      final disabledCostText = stepperField(tester, 'update-stock-cost-value');
-      expect(
-        disabledCostText.style?.color,
-        equals(AppThemeTokens.disabledForeground),
-      );
-      final disabledCostPill = tester.widget<Container>(
-        find.byKey(const ValueKey('update-stock-cost-value-pill')),
-      );
-      final disabledCostPillSize = tester.getSize(
-        find.byKey(const ValueKey('update-stock-cost-value-pill')),
-      );
-      expect(disabledCostPillSize.height, equals(enabledCostPillSize.height));
-      final disabledCostPillDecoration =
-          disabledCostPill.decoration as BoxDecoration;
-      expect(
-        disabledCostPillDecoration.color,
-        equals(AppThemeTokens.disabledBackground),
-      );
+      expect(costAfter, isNot(equals(costBefore)));
 
       await tester.tap(
         find.byKey(const ValueKey('update-stock-cost-value-pill')),
       );
       await tester.pump();
-      expect(
-        find.text('Cannot enter cost if change is negative.'),
-        findsOneWidget,
-      );
+      expect(find.text('Cannot enter cost if change is negative.'), findsNothing);
     },
   );
 
   testWidgets(
-    'cost input is disabled with tooltip when Total count drops below previous total',
+    'cost input remains editable when Total count drops below previous total',
     (WidgetTester tester) async {
       await pumpUpdateStockPage(tester);
 
       await tester.tap(find.text('Total'));
       await tester.pumpAndSettle();
-      final enabledCostPillSize = tester.getSize(
-        find.byKey(const ValueKey('update-stock-cost-value-pill')),
-      );
       await tester.tap(
         find.byKey(const ValueKey('update-stock-count-decrement')),
       );
@@ -1295,34 +1268,13 @@ void main() {
       );
       await tester.pumpAndSettle();
       final costAfter = stepperValueText(tester, 'update-stock-cost-value');
-      expect(costAfter, costBefore);
-      final disabledCostText = stepperField(tester, 'update-stock-cost-value');
-      expect(
-        disabledCostText.style?.color,
-        equals(AppThemeTokens.disabledForeground),
-      );
-      final disabledCostPill = tester.widget<Container>(
-        find.byKey(const ValueKey('update-stock-cost-value-pill')),
-      );
-      final disabledCostPillSize = tester.getSize(
-        find.byKey(const ValueKey('update-stock-cost-value-pill')),
-      );
-      expect(disabledCostPillSize.height, equals(enabledCostPillSize.height));
-      final disabledCostPillDecoration =
-          disabledCostPill.decoration as BoxDecoration;
-      expect(
-        disabledCostPillDecoration.color,
-        equals(AppThemeTokens.disabledBackground),
-      );
+      expect(costAfter, isNot(equals(costBefore)));
 
       await tester.tap(
         find.byKey(const ValueKey('update-stock-cost-value-pill')),
       );
       await tester.pump();
-      expect(
-        find.text('Cannot enter cost if change is negative.'),
-        findsOneWidget,
-      );
+      expect(find.text('Cannot enter cost if change is negative.'), findsNothing);
     },
   );
 

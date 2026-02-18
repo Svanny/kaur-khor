@@ -160,8 +160,6 @@ class UpdateStockPage extends StatefulWidget {
 class _UpdateStockPageState extends State<UpdateStockPage> {
   static const Duration _switcherDuration = Duration(milliseconds: 220);
   static const Duration _trendAnimationDuration = Duration(milliseconds: 180);
-  static const String _costInputDisabledTooltip =
-      'Cannot enter cost if change is negative.';
   static const String _costClampTooltip = 'Cost cannot go below zero';
   static const double _headerOverlayHeight = kMinInteractiveDimension;
   static const double _titleOverlayFallbackHeight = 0;
@@ -478,7 +476,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     required StockDraft draft,
     required String currencyCode,
   }) {
-    final isCostInputDisabled = _isCostInputDisabled(draft);
     final isCostDecrementClamped = _isCostDecrementClamped(draft);
     final countTrendDirection = _trendDirection(
       current: draft.effectiveCount,
@@ -615,15 +612,11 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
               ),
               trendDirection: costTrendDirection,
               trendAnimationDuration: _trendAnimationDuration,
-              valueEditable: !isCostInputDisabled,
-              actionsEnabled: !isCostInputDisabled,
+              valueEditable: true,
+              actionsEnabled: true,
               decrementEnabled: !isCostDecrementClamped,
-              decrementDisabledTooltip:
-                  !isCostInputDisabled && isCostDecrementClamped
+              decrementDisabledTooltip: isCostDecrementClamped
                   ? _costClampTooltip
-                  : null,
-              disabledTooltip: isCostInputDisabled
-                  ? _costInputDisabledTooltip
                   : null,
               value: _mode == StockInputMode.changes
                   ? _costDeltaLabel(draft.costDelta, currencyCode: currencyCode)
@@ -724,14 +717,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         );
       },
     );
-  }
-
-  bool _isCostInputDisabled(StockDraft draft) {
-    final isNegativeChangeInChangesMode =
-        _mode == StockInputMode.changes && draft.countDelta < 0;
-    final isCurrentTotalBelowPreviousTotal =
-        draft.effectiveCount < draft.baseCount;
-    return isNegativeChangeInChangesMode || isCurrentTotalBelowPreviousTotal;
   }
 
   bool _isCostDecrementClamped(StockDraft draft) {
