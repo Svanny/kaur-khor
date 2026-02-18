@@ -99,6 +99,10 @@ void main() {
       find.byKey(const ValueKey('product-ranking-header-price-icon')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('product-ranking-leaderboard-icon')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('reorder updates order and rank numbers', (
@@ -328,33 +332,43 @@ void main() {
     expect(find.text('KHR'), findsWidgets);
   });
 
+  testWidgets('amount column uses grouped format #,###.##', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    expect(find.text('2,200.00'), findsOneWidget);
+    expect(find.text('1,200.00'), findsOneWidget);
+    expect(find.text('16.00'), findsOneWidget);
+  });
+
   testWidgets('name and price column alignment follows header geometry', (
     WidgetTester tester,
   ) async {
     await pumpRankingPage(tester);
 
-    final nameHeaderRect = tester.getRect(
-      find.descendant(
-        of: find.byKey(const ValueKey('product-ranking-table-header')),
-        matching: find.text('Name'),
-      ),
+    final nameHeaderColumnRect = tester.getRect(
+      find.byKey(const ValueKey('product-ranking-name-header-column')),
     );
-    final firstRowNameRect = tester.getRect(find.text('Service #001'));
+    final nameHeaderGroupRect = tester.getRect(
+      find.byKey(const ValueKey('product-ranking-name-header-group')),
+    );
     expect(
-      (nameHeaderRect.left - firstRowNameRect.left).abs(),
+      (nameHeaderColumnRect.center.dx - nameHeaderGroupRect.center.dx).abs(),
       lessThanOrEqualTo(1.5),
     );
 
-    final priceHeaderGroupRect = tester.getRect(
+    final priceHeaderColumnRect = tester.getRect(
       find.byKey(const ValueKey('product-ranking-price-header-column')),
     );
+
     final firstRowPriceColumnRect = tester.getRect(
       find.byKey(
         const ValueKey('product-ranking-price-column-service:service-001'),
       ),
     );
     expect(
-      (priceHeaderGroupRect.width - firstRowPriceColumnRect.width).abs(),
+      (priceHeaderColumnRect.width - firstRowPriceColumnRect.width).abs(),
       lessThanOrEqualTo(1.0),
     );
 

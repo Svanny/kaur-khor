@@ -33,7 +33,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   static const double _rowDividerHeight = AppThemeTokens.iconSizeMedium;
   static const double _amountColumnWidth = 84;
   static const double _currencyColumnWidth = 52;
-  static const double _priceColumnsGap = AppThemeTokens.cardInlineGap;
+  static const double _priceColumnsGap = 2;
   static const double _priceAreaWidth =
       _amountColumnWidth + _priceColumnsGap + _currencyColumnWidth;
   static const double _rowHeight = 56;
@@ -114,7 +114,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                 onBack: _onBackPressed,
                 onCancel: _resetChanges,
                 onSave: _save,
-                hasChanges: _hasChanges,
+                hasChanges: true,
                 isValid: true,
               ),
               const SizedBox(height: AppThemeTokens.headerToContentGap),
@@ -128,7 +128,35 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                 ),
               ),
               const SizedBox(height: AppThemeTokens.sectionGap),
-              _buildTableHeader(context),
+              Row(
+                children: [
+                  SizedBox(
+                    width: _rankPillWidth,
+                    height: _rankPillWidth,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppThemeTokens.surface,
+                        borderRadius: BorderRadius.circular(
+                          AppThemeTokens.radiusMd,
+                        ),
+                        border: Border.all(color: AppThemeTokens.border),
+                      ),
+                      child: Center(
+                        child: _inventorySvgIcon(
+                          key: const ValueKey(
+                            'product-ranking-leaderboard-icon',
+                          ),
+                          assetPath: _leaderboardSvgAsset,
+                          size: AppThemeTokens.iconSizeMedium,
+                          color: AppThemeTokens.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: _rankGap),
+                  Expanded(child: _buildTableHeader(context)),
+                ],
+              ),
               const SizedBox(height: AppThemeTokens.sectionGapCompact),
               Expanded(
                 child: LayoutBuilder(
@@ -201,11 +229,6 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
         headerStyle?.fontSize ?? AppThemeTokens.fontSizeBodyLarge;
     final headerIconSize = AppThemeTokens.attachedLabelIconSize(labelFontSize);
     final headerIconGap = AppThemeTokens.attachedLabelIconGap(headerIconSize);
-    final nameHeaderLeadingSpace = math.max(
-      0.0,
-      (_rowHandleSize + _rowHandleGap) - (headerIconSize + headerIconGap),
-    );
-
     return Container(
       key: const ValueKey('product-ranking-table-header'),
       decoration: BoxDecoration(
@@ -219,21 +242,23 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       ),
       child: Row(
         children: [
-          const SizedBox(width: _rankPillWidth),
-          const SizedBox(width: _rankGap),
           Expanded(
-            child: Row(
-              children: [
-                SizedBox(width: nameHeaderLeadingSpace),
-                _inventorySvgIcon(
-                  key: const ValueKey('product-ranking-header-name-icon'),
-                  assetPath: _labelSvgAsset,
-                  size: headerIconSize,
-                  color: AppThemeTokens.textPrimary,
-                ),
-                SizedBox(width: headerIconGap),
-                Text('Name', style: headerStyle),
-              ],
+            key: const ValueKey('product-ranking-name-header-column'),
+            child: Center(
+              child: Row(
+                key: const ValueKey('product-ranking-name-header-group'),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _inventorySvgIcon(
+                    key: const ValueKey('product-ranking-header-name-icon'),
+                    assetPath: _labelSvgAsset,
+                    size: headerIconSize,
+                    color: AppThemeTokens.textPrimary,
+                  ),
+                  SizedBox(width: headerIconGap),
+                  Text('Name', style: headerStyle),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: _rowDividerGap),
@@ -297,7 +322,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                   key: ValueKey('product-ranking-drag-icon-${entry.id}'),
                   assetPath: _dragIndicatorSvgAsset,
                   size: _rowHandleSize,
-                  color: AppThemeTokens.textSecondary,
+                  color: AppThemeTokens.primary,
                 ),
                 const SizedBox(width: _rowHandleGap),
                 Expanded(
@@ -329,7 +354,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                         ),
                         width: _amountColumnWidth,
                         child: Text(
-                          _formatNumber(entry.price, maxFractionDigits: 2),
+                          _groupedAmountLabel(entry.price),
                           key: ValueKey('product-ranking-price-${entry.id}'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -493,5 +518,22 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const ViewAllPage()));
+  }
+
+  String _groupedAmountLabel(double value) {
+    final normalized = value.toStringAsFixed(2);
+    final parts = normalized.split('.');
+    final whole = parts.first;
+    final isNegative = whole.startsWith('-');
+    final digits = isNegative ? whole.substring(1) : whole;
+    final grouped = digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    final prefix = isNegative ? '-' : '';
+    if (parts.length == 1) {
+      return '$prefix$grouped';
+    }
+    return '$prefix$grouped.${parts[1]}';
   }
 }

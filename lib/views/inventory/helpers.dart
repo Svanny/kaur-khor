@@ -10,6 +10,8 @@ const String _descriptionSvgAsset =
     'icons/description_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 const String _showChartSvgAsset =
     'icons/show_chart_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
+const String _leaderboardSvgAsset =
+    'icons/leaderboard_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 const String _shoppingBagSvgAsset =
     'icons/shopping_bag_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 const String _package2SvgAsset =
