@@ -256,17 +256,12 @@ void main() {
     expect(find.text('Open Ranking'), findsOneWidget);
   });
 
-  testWidgets('save action appears after reorder and opens view-all page', (
+  testWidgets('save action is always visible and opens view-all page', (
     WidgetTester tester,
   ) async {
     await pumpRankingPage(tester);
 
-    expect(find.byIcon(Icons.check), findsNothing);
-    await dragHandle(
-      tester,
-      entryId: service001Id,
-      delta: const Offset(0, 260),
-    );
+    expect(find.byIcon(Icons.close), findsOneWidget);
     expect(find.byIcon(Icons.check), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.check));
