@@ -39,9 +39,12 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   static const double _rowHeight = 56;
   static const double _rowExtent =
       _rowHeight + AppThemeTokens.sectionGapCompact;
+  static const Duration _resetTextFadeDuration = Duration(milliseconds: 180);
 
   bool _initialized = false;
   bool _allowPop = false;
+  double _rowTextOpacity = 1;
+  bool _resetAnimationInProgress = false;
   final ScrollController _listScrollController = ScrollController();
   late List<_ProductRankingEntry> _initialEntries;
   late List<_ProductRankingEntry> _entries;
@@ -329,12 +332,18 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                 ),
                 const SizedBox(width: _rowHandleGap),
                 Expanded(
-                  child: Text(
-                    entry.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+                  child: AnimatedOpacity(
+                    key: ValueKey('product-ranking-text-fade-name-${entry.id}'),
+                    opacity: _rowTextOpacity,
+                    duration: _resetTextFadeDuration,
+                    curve: Curves.easeInOutCubic,
+                    child: Text(
+                      entry.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+                      ),
                     ),
                   ),
                 ),
@@ -356,18 +365,26 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                           'product-ranking-amount-column-${entry.id}',
                         ),
                         width: _amountColumnWidth,
-                        child: Text(
-                          _groupedAmountLabel(entry.price),
-                          key: ValueKey('product-ranking-price-${entry.id}'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                fontWeight: _fontWeight(
-                                  AppThemeTokens.fontWeightMedium,
+                        child: AnimatedOpacity(
+                          key: ValueKey(
+                            'product-ranking-text-fade-amount-${entry.id}',
+                          ),
+                          opacity: _rowTextOpacity,
+                          duration: _resetTextFadeDuration,
+                          curve: Curves.easeInOutCubic,
+                          child: Text(
+                            _groupedAmountLabel(entry.price),
+                            key: ValueKey('product-ranking-price-${entry.id}'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  fontWeight: _fontWeight(
+                                    AppThemeTokens.fontWeightMedium,
+                                  ),
                                 ),
-                              ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: _priceColumnsGap),
@@ -376,20 +393,28 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                           'product-ranking-currency-column-${entry.id}',
                         ),
                         width: _currencyColumnWidth,
-                        child: Text(
-                          currencyCode,
+                        child: AnimatedOpacity(
                           key: ValueKey(
-                            'product-ranking-price-currency-${entry.id}',
+                            'product-ranking-text-fade-currency-${entry.id}',
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                fontWeight: _fontWeight(
-                                  AppThemeTokens.fontWeightMedium,
+                          opacity: _rowTextOpacity,
+                          duration: _resetTextFadeDuration,
+                          curve: Curves.easeInOutCubic,
+                          child: Text(
+                            currencyCode,
+                            key: ValueKey(
+                              'product-ranking-price-currency-${entry.id}',
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  fontWeight: _fontWeight(
+                                    AppThemeTokens.fontWeightMedium,
+                                  ),
                                 ),
-                              ),
+                          ),
                         ),
                       ),
                     ],
@@ -487,6 +512,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       _save();
       return;
     }
+    _showBottomMessage('Sales ranking updates discarded.');
     _popWithoutSaving();
   }
 
@@ -504,13 +530,37 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   }
 
   void _resetChanges() {
+    unawaited(_animateResetWithTextFade());
+  }
+
+  Future<void> _animateResetWithTextFade() async {
     if (!_hasChanges) {
       return;
     }
-    setState(() => _entries = List<_ProductRankingEntry>.of(_initialEntries));
+    if (_resetAnimationInProgress) {
+      return;
+    }
+    setState(() {
+      _resetAnimationInProgress = true;
+      _rowTextOpacity = 0;
+    });
+    await Future<void>.delayed(_resetTextFadeDuration);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _entries = List<_ProductRankingEntry>.of(_initialEntries);
+      _rowTextOpacity = 1;
+    });
+    await Future<void>.delayed(_resetTextFadeDuration);
+    if (!mounted) {
+      return;
+    }
+    setState(() => _resetAnimationInProgress = false);
   }
 
   void _save() {
+    _showBottomMessage('Sales ranking updates saved.');
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const ViewAllPage()));
@@ -539,5 +589,11 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       return '$prefix$grouped';
     }
     return '$prefix$grouped.${parts[1]}';
+  }
+
+  void _showBottomMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }

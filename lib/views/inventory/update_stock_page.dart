@@ -187,6 +187,8 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   int get _confirmationCardIndex => _sourceSkus.length;
   bool get _isShowingConfirmationCard =>
       _selectedSkuIndex == _confirmationCardIndex;
+  bool get _hasDraftChanges =>
+      _drafts.any((draft) => draft.countDelta != 0 || draft.costDelta != 0);
 
   @override
   void didChangeDependencies() {
@@ -457,7 +459,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       children: [
         IconButton(
           key: const ValueKey('update-stock-back'),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _onBackPressed,
           icon: const Icon(Icons.arrow_back),
         ),
         const Spacer(),
@@ -1328,17 +1330,47 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   }
 
   void _saveAllAndOpenRanking() {
+    _applySkuDrafts();
+    _showBottomMessage('Stock updates saved.');
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const ProductRankingPage()),
+    );
+  }
+
+  Future<void> _onBackPressed() async {
+    if (!_hasDraftChanges) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final action = await showUnsavedChangesDialog(
+      context: context,
+      isValid: true,
+      validationErrors: const <String>[],
+    );
+    if (!mounted || action == null || action == UnsavedExitAction.goBack) {
+      return;
+    }
+    if (action == UnsavedExitAction.confirm) {
+      _applySkuDrafts();
+      _showBottomMessage('Stock updates saved.');
+    } else {
+      _showBottomMessage('Stock updates discarded.');
+    }
+    Navigator.of(context).pop();
+  }
+
+  void _applySkuDrafts() {
     final updatedSkus = <SkuItem>[
       for (var i = 0; i < _sourceSkus.length; i += 1)
         _drafts[i].applyToSku(_sourceSkus[i]),
     ];
     _inventoryController.applySkuStockUpdates(updatedSkus);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Stock updates saved.')));
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ProductRankingPage()),
-    );
+  }
+
+  void _showBottomMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -1357,10 +1389,10 @@ class _ChangesTotalToggle extends StatelessWidget {
       onChanged: (index) =>
           onChanged(index == 1 ? StockInputMode.total : StockInputMode.changes),
       contentDrivenWidth: true,
-      labelStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+      labelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
         fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
       ),
-      labelHorizontalPadding: AppThemeTokens.chipPaddingX,
+      labelHorizontalPadding: AppThemeTokens.inventoryChipPadX,
     );
   }
 }

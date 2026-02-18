@@ -198,6 +198,38 @@ void main() {
     );
   });
 
+  testWidgets('reset runs cubic fade on row texts before restoring order', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    await dragHandle(
+      tester,
+      entryId: service001Id,
+      delta: const Offset(0, 260),
+    );
+
+    await tester.tap(find.byIcon(Icons.refresh));
+    await tester.pump();
+
+    final fadingName = tester.widget<AnimatedOpacity>(
+      find.byKey(
+        const ValueKey('product-ranking-text-fade-name-service:service-001'),
+      ),
+    );
+    expect(fadingName.opacity, 0);
+    expect(fadingName.curve, Curves.easeInOutCubic);
+
+    await tester.pump(const Duration(milliseconds: 220));
+    final restoredName = tester.widget<AnimatedOpacity>(
+      find.byKey(
+        const ValueKey('product-ranking-text-fade-name-service:service-001'),
+      ),
+    );
+    expect(restoredName.opacity, 1);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('back with unsaved reorder can discard and pop', (
     WidgetTester tester,
   ) async {
@@ -254,6 +286,7 @@ void main() {
     await tester.tap(find.text('Discard'));
     await tester.pumpAndSettle();
     expect(find.text('Open Ranking'), findsOneWidget);
+    expect(find.text('Sales ranking updates discarded.'), findsOneWidget);
   });
 
   testWidgets('back always prompts for save confirmation', (
@@ -282,6 +315,7 @@ void main() {
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
     expect(find.text('All Items'), findsOneWidget);
+    expect(find.text('Sales ranking updates saved.'), findsOneWidget);
   });
 
   testWidgets('reopening ranking starts from default order (no persistence)', (

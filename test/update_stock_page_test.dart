@@ -687,11 +687,11 @@ void main() {
 
     expect(
       toggleLabel('Changes').style?.fontSize,
-      equals(AppThemeTokens.fontSizeBodyLarge),
+      equals(AppThemeTokens.fontSizeBodyMedium),
     );
     expect(
       toggleLabel('Total').style?.fontSize,
-      equals(AppThemeTokens.fontSizeBodyLarge),
+      equals(AppThemeTokens.fontSizeBodyMedium),
     );
 
     final toggleLabelPadding = find.descendant(
@@ -701,7 +701,9 @@ void main() {
           return false;
         }
         return widget.padding ==
-            const EdgeInsets.symmetric(horizontal: AppThemeTokens.chipPaddingX);
+            const EdgeInsets.symmetric(
+              horizontal: AppThemeTokens.inventoryChipPadX,
+            );
       }),
     );
     expect(toggleLabelPadding, findsAtLeastNWidgets(2));
@@ -1328,6 +1330,135 @@ void main() {
           .firstWhere((sku) => sku.id == 'sku-001')
           .unitsInStock,
       263,
+    );
+  });
+
+  testWidgets(
+    'back arrow with changes confirms save and shows bottom message',
+    (WidgetTester tester) async {
+      await setPhoneViewport(tester);
+      final inventoryController = InventoryController();
+      final currencyController = CurrencyController();
+      addTearDown(inventoryController.dispose);
+      addTearDown(currencyController.dispose);
+
+      await tester.pumpWidget(
+        AppInventoryScope(
+          controller: inventoryController,
+          child: AppCurrencyScope(
+            controller: currencyController,
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light(),
+              home: Builder(
+                builder: (context) {
+                  return Scaffold(
+                    body: Center(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const UpdateStockPage(),
+                            ),
+                          );
+                        },
+                        child: const Text('Open Stock Update'),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open Stock Update'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('update-stock-count-decrement')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('update-stock-back')));
+      await tester.pumpAndSettle();
+      expect(find.text('Unsaved changes'), findsOneWidget);
+
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+      expect(find.text('Open Stock Update'), findsOneWidget);
+      expect(find.text('Stock updates saved.'), findsOneWidget);
+      expect(
+        inventoryController.value.skus
+            .firstWhere((sku) => sku.id == 'sku-001')
+            .unitsInStock,
+        263,
+      );
+    },
+  );
+
+  testWidgets('back arrow with changes can discard and shows bottom message', (
+    WidgetTester tester,
+  ) async {
+    await setPhoneViewport(tester);
+    final inventoryController = InventoryController();
+    final currencyController = CurrencyController();
+    addTearDown(inventoryController.dispose);
+    addTearDown(currencyController.dispose);
+
+    await tester.pumpWidget(
+      AppInventoryScope(
+        controller: inventoryController,
+        child: AppCurrencyScope(
+          controller: currencyController,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light(),
+            home: Builder(
+              builder: (context) {
+                return Scaffold(
+                  body: Center(
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const UpdateStockPage(),
+                          ),
+                        );
+                      },
+                      child: const Text('Open Stock Update'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open Stock Update'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('update-stock-count-decrement')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('update-stock-back')));
+    await tester.pumpAndSettle();
+    expect(find.text('Unsaved changes'), findsOneWidget);
+
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open Stock Update'), findsOneWidget);
+    expect(find.text('Stock updates discarded.'), findsOneWidget);
+    expect(
+      inventoryController.value.skus
+          .firstWhere((sku) => sku.id == 'sku-001')
+          .unitsInStock,
+      264,
     );
   });
 }
