@@ -144,6 +144,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                             key: const ValueKey('product-ranking-list'),
                             scrollController: _listScrollController,
                             buildDefaultDragHandles: false,
+                            proxyDecorator: (child, _, __) => child,
                             padding: EdgeInsets.only(
                               bottom:
                                   MediaQuery.viewPaddingOf(context).bottom +
