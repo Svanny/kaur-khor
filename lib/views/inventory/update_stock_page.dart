@@ -163,7 +163,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   static const String _costClampTooltip = 'Cost cannot go below zero';
   static const double _headerOverlayHeight = kMinInteractiveDimension;
   static const double _titleOverlayFallbackHeight = 0;
-  static const double _titleBoundaryMaskHeight = AppThemeTokens.space1;
   static const bool _debugBoundaryMeasurementLogs = false;
 
   bool _initialized = false;
@@ -261,48 +260,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                         widthFactor:
                             AppThemeTokens.stockCardViewportWidthFactor,
                         child: _buildCardDeck(currencyCode: currencyCode),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top:
-                        _stockTitleOverlayHeight -
-                        (_titleBoundaryMaskHeight / 2),
-                    left: 0,
-                    right: 0,
-                    child: IgnorePointer(
-                      child: Align(
-                          child: FractionallySizedBox(
-                          widthFactor:
-                              AppThemeTokens.stockCardViewportWidthFactor,
-                          child: ClipRect(
-                            child: ImageFiltered(
-                              imageFilter: ui.ImageFilter.blur(
-                                sigmaY: 6,
-                                sigmaX: 0,
-                              ),
-                              child: DecoratedBox(
-                                key: const ValueKey(
-                                  'update-stock-title-boundary-mask',
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.transparent,
-                                      Theme.of(context).scaffoldBackgroundColor
-                                          .withValues(alpha: 0.16),
-                                    ],
-                                  ),
-                                ),
-                                child: const SizedBox(
-                                  height: _titleBoundaryMaskHeight,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
                       ),
                     ),
                   ),

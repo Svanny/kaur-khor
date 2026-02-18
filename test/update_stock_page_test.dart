@@ -103,36 +103,13 @@ void main() {
     expect(find.text("SKUs' Stock Update"), findsOneWidget);
   });
 
-  testWidgets('stock update title shows blurred card boundary mask', (
+  testWidgets('stock update title renders without boundary mask divider', (
     WidgetTester tester,
   ) async {
     await pumpUpdateStockPage(tester);
 
-    final titleRect = tester.getRect(find.text("SKUs' Stock Update"));
-    final maskRect = tester.getRect(
+    expect(
       find.byKey(const ValueKey('update-stock-title-boundary-mask')),
-    );
-
-    expect(maskRect.top, greaterThan(titleRect.bottom));
-    expect(maskRect.height, lessThanOrEqualTo(AppThemeTokens.space1));
-    expect(maskRect.width, lessThan(430));
-  });
-
-  testWidgets('stock update title mask blurs only the mask widget', (
-    WidgetTester tester,
-  ) async {
-    await pumpUpdateStockPage(tester);
-
-    final maskFinder = find.byKey(
-      const ValueKey('update-stock-title-boundary-mask'),
-    );
-
-    expect(
-      find.ancestor(of: maskFinder, matching: find.byType(ImageFiltered)),
-      findsOneWidget,
-    );
-    expect(
-      find.ancestor(of: maskFinder, matching: find.byType(BackdropFilter)),
       findsNothing,
     );
   });
