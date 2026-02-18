@@ -1461,4 +1461,15 @@ void main() {
       264,
     );
   });
+
+  testWidgets('back arrow always prompts confirmation even without changes', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    await tester.tap(find.byKey(const ValueKey('update-stock-back')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved changes'), findsOneWidget);
+  });
 }

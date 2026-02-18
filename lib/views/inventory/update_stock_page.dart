@@ -187,8 +187,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   int get _confirmationCardIndex => _sourceSkus.length;
   bool get _isShowingConfirmationCard =>
       _selectedSkuIndex == _confirmationCardIndex;
-  bool get _hasDraftChanges =>
-      _drafts.any((draft) => draft.countDelta != 0 || draft.costDelta != 0);
 
   @override
   void didChangeDependencies() {
@@ -1329,19 +1327,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     setState(() => _drafts = nextDrafts);
   }
 
-  void _saveAllAndOpenRanking() {
-    _applySkuDrafts();
-    _showBottomMessage('Stock updates saved.');
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ProductRankingPage()),
-    );
-  }
-
   Future<void> _onBackPressed() async {
-    if (!_hasDraftChanges) {
-      Navigator.of(context).pop();
-      return;
-    }
     final action = await showUnsavedChangesDialog(
       context: context,
       isValid: true,
@@ -1350,13 +1336,50 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     if (!mounted || action == null || action == UnsavedExitAction.goBack) {
       return;
     }
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     if (action == UnsavedExitAction.confirm) {
       _applySkuDrafts();
-      _showBottomMessage('Stock updates saved.');
-    } else {
-      _showBottomMessage('Stock updates discarded.');
+      navigator.pop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Stock updates saved.')),
+          snackBarAnimationStyle: const AnimationStyle(
+            duration: Duration(milliseconds: 260),
+            reverseDuration: Duration(milliseconds: 180),
+          ),
+        );
+      });
+      return;
     }
-    Navigator.of(context).pop();
+    navigator.pop();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Stock updates discarded.')),
+        snackBarAnimationStyle: const AnimationStyle(
+          duration: Duration(milliseconds: 260),
+          reverseDuration: Duration(milliseconds: 180),
+        ),
+      );
+    });
+  }
+
+  void _showBottomMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+      snackBarAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 260),
+        reverseDuration: Duration(milliseconds: 180),
+      ),
+    );
+  }
+
+  void _saveAllAndOpenRanking() {
+    _applySkuDrafts();
+    _showBottomMessage('Stock updates saved.');
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const ProductRankingPage()),
+    );
   }
 
   void _applySkuDrafts() {
@@ -1365,12 +1388,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         _drafts[i].applyToSku(_sourceSkus[i]),
     ];
     _inventoryController.applySkuStockUpdates(updatedSkus);
-  }
-
-  void _showBottomMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 

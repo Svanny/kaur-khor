@@ -300,7 +300,7 @@ void main() {
     expect(find.text('Unsaved changes'), findsOneWidget);
   });
 
-  testWidgets('save action is always visible and confirms before view-all', (
+  testWidgets('save action uses dedicated save dialog before view-all', (
     WidgetTester tester,
   ) async {
     await pumpRankingPage(tester);
@@ -310,12 +310,27 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.check));
     await tester.pumpAndSettle();
-    expect(find.text('Unsaved changes'), findsOneWidget);
+    expect(find.text('Save ranking updates?'), findsOneWidget);
+    expect(find.text('Back to edit'), findsOneWidget);
 
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
     expect(find.text('All Items'), findsOneWidget);
     expect(find.text('Sales ranking updates saved.'), findsOneWidget);
+  });
+
+  testWidgets('save dialog back to edit keeps ranking page open', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    await tester.tap(find.byIcon(Icons.check));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Back to edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sales Ranking Update'), findsOneWidget);
+    expect(find.text('All Items'), findsNothing);
   });
 
   testWidgets('reopening ranking starts from default order (no persistence)', (

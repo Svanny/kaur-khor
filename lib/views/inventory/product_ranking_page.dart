@@ -512,8 +512,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       _save();
       return;
     }
-    _showBottomMessage('Sales ranking updates discarded.');
-    _popWithoutSaving();
+    _popWithoutSaving(message: 'Sales ranking updates discarded.');
   }
 
   Future<UnsavedExitAction?> _showSaveChangesPrompt() {
@@ -524,9 +523,22 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
     );
   }
 
-  void _popWithoutSaving() {
+  void _popWithoutSaving({String? message}) {
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _allowPop = true);
     Navigator.of(context).popUntil((route) => route.isFirst);
+    if (message == null || message.isEmpty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(message)),
+        snackBarAnimationStyle: const AnimationStyle(
+          duration: Duration(milliseconds: 260),
+          reverseDuration: Duration(milliseconds: 180),
+        ),
+      );
+    });
   }
 
   void _resetChanges() {
@@ -560,18 +572,150 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   }
 
   void _save() {
-    _showBottomMessage('Sales ranking updates saved.');
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const ViewAllPage()));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Sales ranking updates saved.')),
+        snackBarAnimationStyle: const AnimationStyle(
+          duration: Duration(milliseconds: 260),
+          reverseDuration: Duration(milliseconds: 180),
+        ),
+      );
+    });
   }
 
   Future<void> _onSavePressed() async {
-    final action = await _showSaveChangesPrompt();
-    if (!mounted || action != UnsavedExitAction.confirm) {
+    final shouldSave = await _showSaveConfirmationDialog();
+    if (!mounted || !shouldSave) {
       return;
     }
     _save();
+  }
+
+  Future<bool> _showSaveConfirmationDialog() async {
+    final selection = await showGeneralDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Dismiss save confirmation',
+      barrierColor: Colors.transparent,
+      transitionDuration: Duration.zero,
+      pageBuilder: (_, __, ___) {
+        final width = math
+            .min(
+              MediaQuery.sizeOf(context).width -
+                  (AppThemeTokens.popupInset * 2),
+              360,
+            )
+            .toDouble();
+        final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: AppThemeTokens.textPrimary,
+          fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+        );
+        final bodyStyle = Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.textSecondary);
+        final actionStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+        );
+
+        return Material(
+          color: Colors.transparent,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).pop(false),
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+              Center(
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    width: width,
+                    decoration: BoxDecoration(
+                      color: AppThemeTokens.surface,
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppThemeTokens.popupInset),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Save ranking updates?', style: titleStyle),
+                          const SizedBox(
+                            height: AppThemeTokens.headerToContentGap,
+                          ),
+                          Text(
+                            'Confirm to save this sales ranking order.',
+                            style: bodyStyle,
+                          ),
+                          const SizedBox(height: AppThemeTokens.popupInset),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppThemeTokens.primary,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  padding: EdgeInsets.zero,
+                                ),
+                                child: Text(
+                                  'Back to edit',
+                                  style: actionStyle?.copyWith(
+                                    color: AppThemeTokens.primary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(
+                                width: AppThemeTokens.popupActionGap,
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
+                                style: FilledButton.styleFrom(
+                                  foregroundColor: AppThemeTokens.white,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppThemeTokens.space2,
+                                    vertical: AppThemeTokens.buttonPaddingY,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Confirm',
+                                  style: actionStyle?.copyWith(
+                                    color: AppThemeTokens.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      transitionBuilder: (_, __, ___, child) => child,
+    );
+    return selection ?? false;
   }
 
   String _groupedAmountLabel(double value) {
@@ -589,11 +733,5 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       return '$prefix$grouped';
     }
     return '$prefix$grouped.${parts[1]}';
-  }
-
-  void _showBottomMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
