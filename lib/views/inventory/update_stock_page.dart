@@ -1375,7 +1375,10 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future<void>.delayed(waitDuration, () {
         messenger.showSnackBar(
-          SnackBar(content: Text(message)),
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 3),
+          ),
           snackBarAnimationStyle: const AnimationStyle(
             duration: Duration(milliseconds: 260),
             reverseDuration: Duration(milliseconds: 180),

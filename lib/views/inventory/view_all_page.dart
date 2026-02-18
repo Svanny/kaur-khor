@@ -41,7 +41,10 @@ class _ViewAllPageState extends State<ViewAllPage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 3),
+        ),
         snackBarAnimationStyle: const AnimationStyle(
           duration: Duration(milliseconds: 260),
           reverseDuration: Duration(milliseconds: 180),

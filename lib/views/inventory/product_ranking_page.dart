@@ -536,7 +536,10 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       messenger.showSnackBar(
-        SnackBar(content: Text(message)),
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 3),
+        ),
         snackBarAnimationStyle: const AnimationStyle(
           duration: Duration(milliseconds: 260),
           reverseDuration: Duration(milliseconds: 180),
@@ -605,6 +608,13 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       primaryResult: true,
       barrierDismissResult: false,
       maxWidth: 420,
+      secondaryPadding: EdgeInsets.zero,
+      primaryPadding: const EdgeInsets.symmetric(
+        horizontal: AppThemeTokens.space1,
+        vertical: AppThemeTokens.buttonPaddingY,
+      ),
+      compactSecondary: true,
+      compactPrimary: true,
     );
     return selection ?? false;
   }
@@ -640,7 +650,10 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 3),
+        ),
         snackBarAnimationStyle: const AnimationStyle(
           duration: Duration(milliseconds: 260),
           reverseDuration: Duration(milliseconds: 180),
