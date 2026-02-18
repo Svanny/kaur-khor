@@ -235,48 +235,53 @@ class _TwoActionConfirmationPopup<T> extends StatelessWidget {
                       const SizedBox(height: AppThemeTokens.headerToContentGap),
                       Text(message, style: bodyStyle),
                       const SizedBox(height: AppThemeTokens.popupInset),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () =>
-                                Navigator.of(context).pop(secondaryResult),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppThemeTokens.primary,
-                              minimumSize: compactSecondary ? Size.zero : null,
-                              tapTargetSize: compactSecondary
-                                  ? MaterialTapTargetSize.shrinkWrap
-                                  : null,
-                              padding: secondaryPadding,
-                            ),
-                            child: Text(
-                              secondaryLabel,
-                              style: actionStyle?.copyWith(
-                                color: AppThemeTokens.primary,
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: AppThemeTokens.popupActionGap,
+                          runSpacing: AppThemeTokens.popupActionGap,
+                          children: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(context).pop(secondaryResult),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppThemeTokens.primary,
+                                minimumSize: compactSecondary ? Size.zero : null,
+                                tapTargetSize: compactSecondary
+                                    ? MaterialTapTargetSize.shrinkWrap
+                                    : null,
+                                padding: secondaryPadding,
+                              ),
+                              child: Text(
+                                secondaryLabel,
+                                style: actionStyle?.copyWith(
+                                  color: AppThemeTokens.primary,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: AppThemeTokens.popupActionGap),
-                          FilledButton(
-                            onPressed: () =>
-                                Navigator.of(context).pop(primaryResult),
-                            style: FilledButton.styleFrom(
-                              foregroundColor: AppThemeTokens.white,
-                              minimumSize: compactPrimary ? Size.zero : null,
-                              tapTargetSize: compactPrimary
-                                  ? MaterialTapTargetSize.shrinkWrap
-                                  : null,
-                              shape: const StadiumBorder(),
-                              padding: primaryPadding,
-                            ),
-                            child: Text(
-                              primaryLabel,
-                              style: actionStyle?.copyWith(
-                                color: AppThemeTokens.white,
+                            FilledButton(
+                              onPressed: () =>
+                                  Navigator.of(context).pop(primaryResult),
+                              style: FilledButton.styleFrom(
+                                foregroundColor: AppThemeTokens.white,
+                                minimumSize: compactPrimary ? Size.zero : null,
+                                tapTargetSize: compactPrimary
+                                    ? MaterialTapTargetSize.shrinkWrap
+                                    : null,
+                                shape: const StadiumBorder(),
+                                padding: primaryPadding,
+                              ),
+                              child: Text(
+                                primaryLabel,
+                                style: actionStyle?.copyWith(
+                                  color: AppThemeTokens.white,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
