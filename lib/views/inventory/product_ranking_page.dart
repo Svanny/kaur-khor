@@ -528,24 +528,18 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   }
 
   void _popWithoutSaving({String? message}) {
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(Navigator.of(context).context);
+    final transitionDuration = _routeExitTransitionDuration(context);
     setState(() => _allowPop = true);
     Navigator.of(context).popUntil((route) => route.isFirst);
     if (message == null || message.isEmpty) {
       return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 3),
-        ),
-        snackBarAnimationStyle: const AnimationStyle(
-          duration: Duration(milliseconds: 260),
-          reverseDuration: Duration(milliseconds: 180),
-        ),
-      );
-    });
+    _scheduleBottomMessage(
+      messenger: messenger,
+      message: message,
+      delay: transitionDuration,
+    );
   }
 
   void _resetChanges() {
@@ -608,13 +602,22 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       primaryResult: true,
       barrierDismissResult: false,
       maxWidth: 420,
-      secondaryPadding: EdgeInsets.zero,
+      secondaryPadding: const EdgeInsets.symmetric(
+        horizontal: AppThemeTokens.space1,
+        vertical: AppThemeTokens.buttonPaddingY,
+      ),
       primaryPadding: const EdgeInsets.symmetric(
         horizontal: AppThemeTokens.space1,
         vertical: AppThemeTokens.buttonPaddingY,
       ),
       compactSecondary: true,
       compactPrimary: true,
+      contentPadding: const EdgeInsets.fromLTRB(
+        AppThemeTokens.space4 + AppThemeTokens.unit,
+        AppThemeTokens.popupInset,
+        AppThemeTokens.space4 + AppThemeTokens.unit,
+        AppThemeTokens.popupInset,
+      ),
     );
     return selection ?? false;
   }
@@ -645,20 +648,10 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       return;
     }
     _didShowInitialBottomMessage = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 3),
-        ),
-        snackBarAnimationStyle: const AnimationStyle(
-          duration: Duration(milliseconds: 260),
-          reverseDuration: Duration(milliseconds: 180),
-        ),
-      );
-    });
+    _scheduleBottomMessage(
+      messenger: ScaffoldMessenger.maybeOf(context),
+      message: message,
+      delay: _routeEnterTransitionDuration(context),
+    );
   }
 }

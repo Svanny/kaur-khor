@@ -284,6 +284,9 @@ void main() {
     expect(find.text('Unsaved changes'), findsOneWidget);
 
     await tester.tap(find.text('Discard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Sales ranking updates discarded.'), findsNothing);
     await tester.pumpAndSettle();
     expect(find.text('Open Ranking'), findsOneWidget);
     expect(find.text('Sales ranking updates discarded.'), findsOneWidget);
@@ -314,6 +317,9 @@ void main() {
     expect(find.text('Back to edit'), findsOneWidget);
 
     await tester.tap(find.text('Confirm'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Sales ranking updates saved.'), findsNothing);
     await tester.pumpAndSettle();
     expect(find.text('All Items'), findsOneWidget);
     expect(find.text('Sales ranking updates saved.'), findsOneWidget);

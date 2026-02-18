@@ -36,21 +36,11 @@ class _ViewAllPageState extends State<ViewAllPage> {
       return;
     }
     _didShowInitialBottomMessage = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 3),
-        ),
-        snackBarAnimationStyle: const AnimationStyle(
-          duration: Duration(milliseconds: 260),
-          reverseDuration: Duration(milliseconds: 180),
-        ),
-      );
-    });
+    _scheduleBottomMessage(
+      messenger: ScaffoldMessenger.maybeOf(context),
+      message: message,
+      delay: _routeEnterTransitionDuration(context),
+    );
   }
 
   @override

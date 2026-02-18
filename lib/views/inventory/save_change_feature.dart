@@ -2,6 +2,52 @@ part of '../inventory_views.dart';
 
 enum UnsavedExitAction { confirm, discard, goBack }
 
+const Duration _bottomMessageVisibleDuration = Duration(seconds: 3);
+const AnimationStyle _bottomMessageAnimationStyle = AnimationStyle(
+  duration: Duration(milliseconds: 260),
+  reverseDuration: Duration(milliseconds: 180),
+);
+
+Duration _routeEnterTransitionDuration(BuildContext context) {
+  final route = ModalRoute.of(context);
+  return route?.transitionDuration ?? Duration.zero;
+}
+
+Duration _routeExitTransitionDuration(BuildContext context) {
+  final route = ModalRoute.of(context);
+  return route?.reverseTransitionDuration ??
+      route?.transitionDuration ??
+      Duration.zero;
+}
+
+void _showBottomMessage({
+  required ScaffoldMessengerState messenger,
+  required String message,
+}) {
+  messenger.showSnackBar(
+    SnackBar(content: Text(message), duration: _bottomMessageVisibleDuration),
+    snackBarAnimationStyle: _bottomMessageAnimationStyle,
+  );
+}
+
+void _scheduleBottomMessage({
+  required ScaffoldMessengerState? messenger,
+  required String message,
+  Duration delay = Duration.zero,
+}) {
+  if (messenger == null) {
+    return;
+  }
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future<void>.delayed(delay, () {
+      if (!messenger.mounted) {
+        return;
+      }
+      _showBottomMessage(messenger: messenger, message: message);
+    });
+  });
+}
+
 Widget buildSaveChangeHeader({
   required String title,
   required VoidCallback onBack,
@@ -79,6 +125,7 @@ Future<T?> showTwoActionConfirmationDialog<T>({
   ),
   bool compactSecondary = false,
   bool compactPrimary = false,
+  EdgeInsets contentPadding = const EdgeInsets.all(AppThemeTokens.popupInset),
 }) {
   return showGeneralDialog<T>(
     context: context,
@@ -99,6 +146,7 @@ Future<T?> showTwoActionConfirmationDialog<T>({
       primaryPadding: primaryPadding,
       compactSecondary: compactSecondary,
       compactPrimary: compactPrimary,
+      contentPadding: contentPadding,
     ),
     transitionBuilder: (_, __, ___, child) => child,
   );
@@ -118,6 +166,7 @@ class _TwoActionConfirmationPopup<T> extends StatelessWidget {
     required this.primaryPadding,
     required this.compactSecondary,
     required this.compactPrimary,
+    required this.contentPadding,
   });
 
   final String title;
@@ -132,6 +181,7 @@ class _TwoActionConfirmationPopup<T> extends StatelessWidget {
   final EdgeInsets primaryPadding;
   final bool compactSecondary;
   final bool compactPrimary;
+  final EdgeInsets contentPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +226,7 @@ class _TwoActionConfirmationPopup<T> extends StatelessWidget {
                   borderRadius: BorderRadius.circular(32),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(AppThemeTokens.popupInset),
+                  padding: contentPadding,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,

@@ -532,30 +532,6 @@ void main() {
     final triggerFinder = find.byKey(
       const ValueKey('update-stock-increment-toggle'),
     );
-    final initialTriggerLabel = tester.widget<Text>(
-      find.descendant(
-        of: triggerFinder,
-        matching: find.text('Increments · Small'),
-      ),
-    );
-    expect(
-      initialTriggerLabel.style?.fontSize,
-      equals(AppThemeTokens.fontSizeBodyMedium),
-    );
-    final triggerPadding = find.descendant(
-      of: triggerFinder,
-      matching: find.byWidgetPredicate((widget) {
-        if (widget is! Padding) {
-          return false;
-        }
-        return widget.padding ==
-            const EdgeInsets.symmetric(
-              horizontal: AppThemeTokens.inventoryChipPadX,
-              vertical: AppThemeTokens.chipPaddingY,
-            );
-      }),
-    );
-    expect(triggerPadding, findsOneWidget);
     final initialTriggerWidth = tester.getSize(triggerFinder).width;
     expect(
       find.descendant(

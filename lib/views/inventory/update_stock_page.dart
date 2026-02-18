@@ -874,10 +874,6 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           '${preset.label} ${preset.countStepLabel} and ${preset.costStepLabel}',
       menuXAlignment: AppDropdownXAlignment.center,
       menuYAlignment: AppDropdownYAlignment.top,
-      triggerPadding: const EdgeInsets.symmetric(
-        horizontal: AppThemeTokens.inventoryChipPadX,
-        vertical: AppThemeTokens.chipPaddingY,
-      ),
       onChanged: (preset) => _onIncrementPresetChanged(context, preset),
       menuBuilder:
           (
@@ -991,7 +987,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
       triggerBuilder: (context, isOpen, _) {
         final textStyle = Theme.of(
           context,
-        ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.white);
+        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white);
         return LayoutBuilder(
           builder: (context, constraints) {
             final targetWidth = _incrementTriggerContentWidth(
@@ -1122,8 +1118,8 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
         textStyle ??
         Theme.of(
           context,
-        ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.white) ??
-        const TextStyle(fontSize: AppThemeTokens.fontSizeBodyMedium);
+        ).textTheme.bodyLarge?.copyWith(color: AppThemeTokens.white) ??
+        const TextStyle(fontSize: AppThemeTokens.fontSizeBodyLarge);
     final textScaler = MediaQuery.textScalerOf(context);
     final textDirection = Directionality.of(context);
     final labelWidth = _measureTextWidth(
@@ -1342,9 +1338,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     }
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.maybeOf(navigator.context);
-    final route = ModalRoute.of(context);
-    final transitionDuration =
-        route?.reverseTransitionDuration ?? route?.transitionDuration;
+    final transitionDuration = _routeExitTransitionDuration(context);
     if (action == UnsavedExitAction.confirm) {
       _applySkuDrafts();
       navigator.pop();
@@ -1368,24 +1362,11 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     required String message,
     Duration? popTransitionDuration,
   }) {
-    if (messenger == null) {
-      return;
-    }
-    final waitDuration = popTransitionDuration ?? Duration.zero;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future<void>.delayed(waitDuration, () {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(message),
-            duration: const Duration(seconds: 3),
-          ),
-          snackBarAnimationStyle: const AnimationStyle(
-            duration: Duration(milliseconds: 260),
-            reverseDuration: Duration(milliseconds: 180),
-          ),
-        );
-      });
-    });
+    _scheduleBottomMessage(
+      messenger: messenger,
+      message: message,
+      delay: popTransitionDuration ?? Duration.zero,
+    );
   }
 
   void _saveAllAndOpenRanking() {
