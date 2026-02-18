@@ -24,8 +24,16 @@ class ProductRankingPage extends StatefulWidget {
 }
 
 class _ProductRankingPageState extends State<ProductRankingPage> {
+  static const double _rankPillWidth = 40;
+  static const double _rankGap = AppThemeTokens.cardInlineGap;
+  static const double _priceColumnWidth = 136;
+  static const double _rowHeight = 56;
+  static const double _rowExtent =
+      _rowHeight + AppThemeTokens.sectionGapCompact;
+
   bool _initialized = false;
   bool _allowPop = false;
+  final ScrollController _listScrollController = ScrollController();
   late List<_ProductRankingEntry> _initialEntries;
   late List<_ProductRankingEntry> _entries;
 
@@ -70,6 +78,12 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   }
 
   @override
+  void dispose() {
+    _listScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final edge = AppThemeTokens.screenEdgePadding(context);
     final currencyCode = context.currencyController.value.code;
@@ -87,7 +101,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
           child: Column(
             children: [
               buildSaveChangeHeader(
-                title: 'Update Services',
+                title: '',
                 onBack: _onBackPressed,
                 onCancel: _resetChanges,
                 onSave: _save,
@@ -96,40 +110,68 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
               ),
               const SizedBox(height: AppThemeTokens.headerToContentGap),
               Text(
-                'Update Ranking of Items Sold',
+                'Sales Ranking Update',
                 key: const ValueKey('product-ranking-title'),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+                  fontSize: AppThemeTokens.fontSizeTitleLarge,
                 ),
               ),
               const SizedBox(height: AppThemeTokens.sectionGap),
               _buildTableHeader(context),
               const SizedBox(height: AppThemeTokens.sectionGapCompact),
               Expanded(
-                child: ReorderableListView.builder(
-                  key: const ValueKey('product-ranking-list'),
-                  buildDefaultDragHandles: false,
-                  padding: EdgeInsets.only(
-                    bottom:
-                        MediaQuery.viewPaddingOf(context).bottom +
-                        AppThemeTokens.scrollBottomReservePrimary,
-                  ),
-                  itemCount: _entries.length,
-                  onReorder: _onReorder,
-                  itemBuilder: (context, index) {
-                    final entry = _entries[index];
-                    return Padding(
-                      key: ValueKey('product-ranking-row-${entry.id}'),
-                      padding: const EdgeInsets.only(
-                        bottom: AppThemeTokens.sectionGapCompact,
-                      ),
-                      child: _buildRow(
-                        context: context,
-                        index: index,
-                        entry: entry,
-                        currencyCode: currencyCode,
-                      ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Stack(
+                      children: [
+                        Positioned(
+                          top: 0,
+                          bottom: 0,
+                          left: 0,
+                          width: _rankPillWidth,
+                          child: IgnorePointer(
+                            child: _buildRankPillsOverlay(
+                              context: context,
+                              viewportHeight: constraints.maxHeight,
+                            ),
+                          ),
+                        ),
+                        Positioned.fill(
+                          left: _rankPillWidth + _rankGap,
+                          child: ReorderableListView.builder(
+                            key: const ValueKey('product-ranking-list'),
+                            scrollController: _listScrollController,
+                            buildDefaultDragHandles: false,
+                            padding: EdgeInsets.only(
+                              bottom:
+                                  MediaQuery.viewPaddingOf(context).bottom +
+                                  AppThemeTokens.scrollBottomReservePrimary,
+                            ),
+                            itemCount: _entries.length,
+                            onReorder: _onReorder,
+                            itemBuilder: (context, index) {
+                              final entry = _entries[index];
+                              return SizedBox(
+                                key: ValueKey(
+                                  'product-ranking-row-${entry.id}',
+                                ),
+                                height: _rowExtent,
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: _buildRow(
+                                    context: context,
+                                    index: index,
+                                    entry: entry,
+                                    currencyCode: currencyCode,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -145,8 +187,9 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
     return Container(
       key: const ValueKey('product-ranking-table-header'),
       decoration: BoxDecoration(
-        color: AppThemeTokens.border.withValues(alpha: 0.9),
+        color: AppThemeTokens.accentLighter,
         borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
+        border: Border.all(color: AppThemeTokens.border),
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppThemeTokens.cardInset,
@@ -154,20 +197,24 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
       ),
       child: Row(
         children: [
-          const SizedBox(width: 40),
-          const SizedBox(width: AppThemeTokens.cardInlineGap),
+          const SizedBox(width: _rankPillWidth),
+          const SizedBox(width: _rankGap),
           Expanded(
             child: Text(
               'Name',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
               ),
             ),
           ),
-          Text(
-            'Price',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+          SizedBox(
+            width: _priceColumnWidth,
+            child: Text(
+              'Price',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+              ),
             ),
           ),
           const SizedBox(width: AppThemeTokens.space8),
@@ -182,82 +229,123 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
     required _ProductRankingEntry entry,
     required String currencyCode,
   }) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 40,
-          child: Container(
-            key: ValueKey('product-ranking-rank-${entry.id}'),
-            decoration: BoxDecoration(
-              color: AppThemeTokens.surface,
-              borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-              border: Border.all(color: AppThemeTokens.border),
-            ),
-            alignment: Alignment.center,
+    return ReorderableDragStartListener(
+      key: ValueKey('product-ranking-draggable-${entry.id}'),
+      index: index,
+      child: SizedBox(
+        height: _rowHeight,
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
             padding: const EdgeInsets.symmetric(
-              vertical: AppThemeTokens.space2,
+              horizontal: AppThemeTokens.cardInset,
+              vertical: AppThemeTokens.sectionCardInset,
             ),
-            child: Text(
-              '${index + 1}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
-              ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.drag_handle,
+                  color: AppThemeTokens.textSecondary,
+                  size:
+                      AppThemeTokens.fontSizeBodyLarge + AppThemeTokens.space1,
+                ),
+                const SizedBox(width: AppThemeTokens.cardInlineGap),
+                Expanded(
+                  child: Text(
+                    entry.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppThemeTokens.cardInlineGap),
+                SizedBox(
+                  width: _priceColumnWidth,
+                  child: Text(
+                    _currencyLabel(entry.price, currencyCode: currencyCode),
+                    key: ValueKey('product-ranking-price-${entry.id}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: _fontWeight(
+                        entry.type == _ProductRankingItemType.service
+                            ? AppThemeTokens.fontWeightSemibold
+                            : AppThemeTokens.fontWeightMedium,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(width: AppThemeTokens.cardInlineGap),
-        Expanded(
-          child: ReorderableDelayedDragStartListener(
-            key: ValueKey('product-ranking-draggable-${entry.id}'),
-            index: index,
-            child: Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppThemeTokens.cardInset,
-                  vertical: AppThemeTokens.sectionCardInset,
-                ),
-                child: Row(
+      ),
+    );
+  }
+
+  Widget _buildRankPillsOverlay({
+    required BuildContext context,
+    required double viewportHeight,
+  }) {
+    return AnimatedBuilder(
+      animation: _listScrollController,
+      builder: (_, __) {
+        final offset = _listScrollController.hasClients
+            ? _listScrollController.offset
+            : 0.0;
+        final bottomPadding =
+            MediaQuery.viewPaddingOf(context).bottom +
+            AppThemeTokens.scrollBottomReservePrimary;
+        final contentHeight = (_entries.length * _rowExtent) + bottomPadding;
+
+        return ClipRect(
+          child: SizedBox(
+            height: viewportHeight,
+            child: Transform.translate(
+              offset: Offset(0, -offset),
+              child: SizedBox(
+                height: contentHeight,
+                child: Column(
                   children: [
-                    const Icon(
-                      Icons.drag_handle,
-                      color: AppThemeTokens.textSecondary,
-                    ),
-                    const SizedBox(width: AppThemeTokens.cardInlineGap),
-                    Expanded(
-                      child: Text(
-                        entry.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              fontWeight: _fontWeight(
-                                AppThemeTokens.fontWeightBold,
+                    for (var i = 0; i < _entries.length; i += 1)
+                      SizedBox(
+                        key: ValueKey('product-ranking-rank-slot-$i'),
+                        height: _rowExtent,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            width: _rankPillWidth,
+                            height: _rowHeight,
+                            decoration: BoxDecoration(
+                              color: AppThemeTokens.surface,
+                              borderRadius: BorderRadius.circular(
+                                AppThemeTokens.radiusMd,
                               ),
+                              border: Border.all(color: AppThemeTokens.border),
                             ),
-                      ),
-                    ),
-                    const SizedBox(width: AppThemeTokens.cardInlineGap),
-                    Text(
-                      _currencyLabel(entry.price, currencyCode: currencyCode),
-                      key: ValueKey('product-ranking-price-${entry.id}'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: _fontWeight(
-                          entry.type == _ProductRankingItemType.service
-                              ? AppThemeTokens.fontWeightSemibold
-                              : AppThemeTokens.fontWeightMedium,
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${i + 1}',
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    fontWeight: _fontWeight(
+                                      AppThemeTokens.fontWeightSemibold,
+                                    ),
+                                  ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 

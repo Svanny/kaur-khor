@@ -1322,7 +1322,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('update-stock-save-all')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Update Ranking of Items Sold'), findsOneWidget);
+    expect(find.text('Sales Ranking Update'), findsOneWidget);
     expect(
       inventoryController.value.skus
           .firstWhere((sku) => sku.id == 'sku-001')

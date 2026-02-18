@@ -83,7 +83,7 @@ void main() {
   ) async {
     await pumpRankingPage(tester);
 
-    expect(find.text('Update Ranking of Items Sold'), findsOneWidget);
+    expect(find.text('Sales Ranking Update'), findsOneWidget);
     expect(find.text('Service #001'), findsOneWidget);
     expect(find.text('Service #002'), findsOneWidget);
     expect(find.text('SKU #001'), findsOneWidget);
@@ -114,23 +114,15 @@ void main() {
       equals(const ['Service #002', 'SKU #001', 'SKU #003', 'Service #001']),
     );
     expect(
-      find.descendant(
-        of: find.byKey(
-          const ValueKey('product-ranking-rank-service:service-001'),
-        ),
-        matching: find.text('4'),
-      ),
+      find.byKey(const ValueKey('product-ranking-rank-slot-0')),
       findsOneWidget,
     );
     expect(
-      find.descendant(
-        of: find.byKey(
-          const ValueKey('product-ranking-rank-service:service-002'),
-        ),
-        matching: find.text('1'),
-      ),
+      find.byKey(const ValueKey('product-ranking-rank-slot-3')),
       findsOneWidget,
     );
+    expect(find.text('1'), findsWidgets);
+    expect(find.text('4'), findsWidgets);
   });
 
   testWidgets('header and table header stay fixed while list scrolls', (
