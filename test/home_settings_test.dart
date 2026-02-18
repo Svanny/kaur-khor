@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:banji/main.dart';
@@ -34,7 +35,8 @@ void main() {
     expect(find.text('Recent Activity'), findsOneWidget);
     expect(find.byIcon(Icons.format_list_bulleted), findsOneWidget);
     expect(find.byIcon(Icons.settings), findsOneWidget);
-    expect(find.byIcon(Icons.receipt_long_rounded), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-brand-logo')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-overlay-update-icon')), findsOneWidget);
   });
 
   testWidgets('home overlay receipt action is rendered as a rounded button', (
@@ -61,13 +63,14 @@ void main() {
         AppThemeTokens.primaryFabDiameter,
       ),
     );
-    final receiptIcon = tester.widget<Icon>(
+    final receiptIcon = tester.widget<SvgPicture>(
       find.descendant(
         of: receiptButtonFinder,
-        matching: find.byIcon(Icons.receipt_long_rounded),
+        matching: find.byKey(const ValueKey('home-overlay-update-icon')),
       ),
     );
-    expect(receiptIcon.size, AppThemeTokens.primaryFabIconSize);
+    expect(receiptIcon.width, AppThemeTokens.primaryFabIconSize);
+    expect(receiptIcon.height, AppThemeTokens.primaryFabIconSize);
   });
 
   testWidgets('home list action opens View All and back returns home', (

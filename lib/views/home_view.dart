@@ -35,9 +35,15 @@ class HomeView extends StatelessWidget {
             );
           },
           shape: const CircleBorder(),
-          child: const Icon(
-            Icons.receipt_long_rounded,
-            size: AppThemeTokens.primaryFabIconSize,
+          child: SvgPicture.asset(
+            'icons/assignment_add_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg',
+            key: const ValueKey('home-overlay-update-icon'),
+            width: AppThemeTokens.primaryFabIconSize,
+            height: AppThemeTokens.primaryFabIconSize,
+            colorFilter: const ColorFilter.mode(
+              AppThemeTokens.white,
+              BlendMode.srcIn,
+            ),
           ),
         ),
       ),
@@ -49,7 +55,11 @@ class HomeView extends StatelessWidget {
               height: logoHeight,
               child: AspectRatio(
                 aspectRatio: _logoAspectRatio,
-                child: SvgPicture.asset('icons/logo.svg', fit: BoxFit.contain),
+                child: SvgPicture.asset(
+                  'icons/logov2.svg',
+                  key: const ValueKey('home-brand-logo'),
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
             const SizedBox(width: AppThemeTokens.sectionGapCompact),

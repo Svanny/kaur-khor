@@ -574,10 +574,11 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
 
   void _save() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => const ViewAllPage(
-          initialBottomMessage: 'Sales ranking updates saved.',
-        ),
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            const ViewAllPage(
+              initialBottomMessage: 'Sales ranking updates saved.',
+            ),
       ),
     );
   }

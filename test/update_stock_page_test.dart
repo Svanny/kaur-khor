@@ -103,6 +103,21 @@ void main() {
     expect(find.text("SKUs' Stock Update"), findsOneWidget);
   });
 
+  testWidgets('stock update title shows blurred card boundary mask', (
+    WidgetTester tester,
+  ) async {
+    await pumpUpdateStockPage(tester);
+
+    final titleRect = tester.getRect(find.text("SKUs' Stock Update"));
+    final maskRect = tester.getRect(
+      find.byKey(const ValueKey('update-stock-title-boundary-mask')),
+    );
+
+    expect(maskRect.top, greaterThan(titleRect.bottom));
+    expect(maskRect.height, lessThanOrEqualTo(AppThemeTokens.space1));
+    expect(maskRect.width, lessThan(430));
+  });
+
   testWidgets(
     'swipe up advances, swipe down goes back, and confirmation returns to card',
     (WidgetTester tester) async {
@@ -386,12 +401,17 @@ void main() {
         final nextGap = afterNextRect.top - nextRect.bottom;
         expect((currentGap - nextGap).abs(), lessThanOrEqualTo(1.0));
       }
-      final titleRect = tester.getRect(find.text("SKUs' Stock Update"));
+      final cardRect = tester.getRect(
+        find.byKey(const ValueKey('update-stock-sku-card-0')),
+      );
       final incrementRect = tester.getRect(
         find.byKey(const ValueKey('update-stock-increment-toggle')),
       );
-      expect((firstRect.top - titleRect.top).abs(), lessThanOrEqualTo(1.0));
-      expect(lastRect.bottom, greaterThanOrEqualTo(incrementRect.top));
+      expect((firstRect.top - cardRect.top).abs(), lessThanOrEqualTo(1.0));
+      expect(
+        (lastRect.bottom - incrementRect.top).abs(),
+        lessThanOrEqualTo(1.0),
+      );
       final edgeRight =
           (430 * AppThemeTokens.screenEdgePaddingWidthFactor).clamp(
             AppThemeTokens.screenEdgePaddingMin,

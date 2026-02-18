@@ -163,6 +163,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   static const String _costClampTooltip = 'Cost cannot go below zero';
   static const double _headerOverlayHeight = kMinInteractiveDimension;
   static const double _titleOverlayFallbackHeight = 0;
+  static const double _titleBoundaryMaskHeight = AppThemeTokens.space1;
   static const bool _debugBoundaryMeasurementLogs = false;
 
   bool _initialized = false;
@@ -177,11 +178,15 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   int _incrementLabelSwapGeneration = 0;
   int _selectedSkuIndex = 0;
   final GlobalKey _stockUpdateTitleKey = GlobalKey();
+  final GlobalKey _stockContentKey = GlobalKey();
   final GlobalKey _stockDeckKey = GlobalKey();
+  final GlobalKey _incrementSelectorAnchorKey = GlobalKey();
   bool _fogRangeMeasurementScheduled = false;
   double _fogStartOffsetFromDeckTop = 0;
   double _fogEndOffsetFromDeckTop = -AppThemeTokens.sectionGap;
   double _stockTitleOverlayHeight = _titleOverlayFallbackHeight;
+  double _indicatorRailTopInset = 0;
+  double _indicatorRailBottomInset = 0;
   String? _lastBoundaryMeasurementDebugSignature;
 
   int get _confirmationCardIndex => _sourceSkus.length;
@@ -237,6 +242,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     required String currencyCode,
   }) {
     return Stack(
+      clipBehavior: Clip.none,
       children: [
         Column(
           children: [
@@ -244,6 +250,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
             const SizedBox(height: AppThemeTokens.headerToContentGap),
             Expanded(
               child: Stack(
+                key: _stockContentKey,
                 clipBehavior: Clip.none,
                 children: [
                   Padding(
@@ -258,9 +265,55 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                     ),
                   ),
                   Positioned(
+                    top:
+                        _stockTitleOverlayHeight +
+                        AppThemeTokens.space4 -
+                        (_titleBoundaryMaskHeight / 2),
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Align(
+                        child: FractionallySizedBox(
+                          widthFactor:
+                              AppThemeTokens.stockCardViewportWidthFactor,
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(AppThemeTokens.radiusMd),
+                              topRight: Radius.circular(
+                                AppThemeTokens.radiusMd,
+                              ),
+                            ),
+                            child: BackdropFilter(
+                              filter: ui.ImageFilter.blur(sigmaY: 6, sigmaX: 0),
+                              child: DecoratedBox(
+                                key: const ValueKey(
+                                  'update-stock-title-boundary-mask',
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Theme.of(context).scaffoldBackgroundColor
+                                          .withValues(alpha: 0.16),
+                                    ],
+                                  ),
+                                ),
+                                child: const SizedBox(
+                                  height: _titleBoundaryMaskHeight,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
                     right: -(edge.right / 2),
-                    top: 0,
-                    bottom: 0,
+                    top: _indicatorRailTopInset,
+                    bottom: _indicatorRailBottomInset,
                     child: IgnorePointer(
                       child: SkuIndicatorRail(
                         trackKey: const ValueKey(
@@ -288,6 +341,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           right: 0,
           bottom: 0,
           child: Align(
+            key: _incrementSelectorAnchorKey,
             alignment: Alignment.center,
             child: _buildIncrementSelector(),
           ),
@@ -302,13 +356,23 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           top: _headerOverlayHeight + AppThemeTokens.headerToContentGap,
           left: 0,
           right: 0,
-          child: Text(
-            "SKUs' Stock Update",
+          child: Column(
             key: _stockUpdateTitleKey,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
-            ),
-            textAlign: TextAlign.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "SKUs' Stock Update",
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(
+                height:
+                    AppThemeTokens.sectionGapCompact +
+                    AppThemeTokens.dividerSpace,
+              ),
+            ],
           ),
         ),
       ],
@@ -373,27 +437,35 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   }
 
   void _scheduleFogRangeMeasurement() {
-    if (_sourceSkus.isEmpty ||
-        _isShowingConfirmationCard ||
-        _fogRangeMeasurementScheduled) {
+    if (_sourceSkus.isEmpty || _fogRangeMeasurementScheduled) {
       return;
     }
     _fogRangeMeasurementScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fogRangeMeasurementScheduled = false;
-      if (!mounted || _isShowingConfirmationCard) {
+      if (!mounted) {
         return;
       }
 
       final titleContext = _stockUpdateTitleKey.currentContext;
+      final contentContext = _stockContentKey.currentContext;
       final deckContext = _stockDeckKey.currentContext;
-      if (titleContext == null || deckContext == null) {
+      final incrementContext = _incrementSelectorAnchorKey.currentContext;
+      if (titleContext == null ||
+          contentContext == null ||
+          deckContext == null ||
+          incrementContext == null) {
         return;
       }
 
       final titleObject = titleContext.findRenderObject();
+      final contentObject = contentContext.findRenderObject();
       final deckObject = deckContext.findRenderObject();
-      if (titleObject is! RenderBox || deckObject is! RenderBox) {
+      final incrementObject = incrementContext.findRenderObject();
+      if (titleObject is! RenderBox ||
+          contentObject is! RenderBox ||
+          deckObject is! RenderBox ||
+          incrementObject is! RenderBox) {
         return;
       }
 
@@ -402,16 +474,31 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
           .localToGlobal(titleObject.size.bottomLeft(Offset.zero))
           .dy;
       final nextTitleHeight = titleObject.size.height;
+      final contentTopGlobalY = contentObject.localToGlobal(Offset.zero).dy;
+      final contentBottomGlobalY =
+          contentTopGlobalY + contentObject.size.height;
       final deckTopGlobalY = deckObject.localToGlobal(Offset.zero).dy;
+      final incrementTopGlobalY = incrementObject.localToGlobal(Offset.zero).dy;
       final nextStart = -deckTopGlobalY;
       final nextEnd = titleBottomGlobalY - deckTopGlobalY;
+      final nextRailTop = math.max<double>(
+        0,
+        (deckTopGlobalY + AppThemeTokens.space4) - contentTopGlobalY,
+      );
+      final nextRailBottom = math.max<double>(
+        0,
+        contentBottomGlobalY - incrementTopGlobalY,
+      );
       if (_debugBoundaryMeasurementLogs) {
         final signature = [
           'titleTopGlobalY=${titleTopGlobalY.toStringAsFixed(2)}',
           'titleH=${nextTitleHeight.toStringAsFixed(2)}',
           'deckTopGlobalY=${deckTopGlobalY.toStringAsFixed(2)}',
+          'incrementTopGlobalY=${incrementTopGlobalY.toStringAsFixed(2)}',
           'nextStart=${nextStart.toStringAsFixed(2)}',
           'nextEnd=${nextEnd.toStringAsFixed(2)}',
+          'railTop=${nextRailTop.toStringAsFixed(2)}',
+          'railBottom=${nextRailBottom.toStringAsFixed(2)}',
           'currStart=${_fogStartOffsetFromDeckTop.toStringAsFixed(2)}',
           'currEnd=${_fogEndOffsetFromDeckTop.toStringAsFixed(2)}',
         ].join(' | ');
@@ -423,14 +510,20 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
 
       if ((nextStart - _fogStartOffsetFromDeckTop).abs() < 0.5 &&
           (nextEnd - _fogEndOffsetFromDeckTop).abs() < 0.5 &&
-          (nextTitleHeight - _stockTitleOverlayHeight).abs() < 0.5) {
+          (nextTitleHeight - _stockTitleOverlayHeight).abs() < 0.5 &&
+          (nextRailTop - _indicatorRailTopInset).abs() < 0.5 &&
+          (nextRailBottom - _indicatorRailBottomInset).abs() < 0.5) {
         return;
       }
 
       setState(() {
-        _fogStartOffsetFromDeckTop = nextStart;
-        _fogEndOffsetFromDeckTop = nextEnd;
+        if (!_isShowingConfirmationCard) {
+          _fogStartOffsetFromDeckTop = nextStart;
+          _fogEndOffsetFromDeckTop = nextEnd;
+        }
         _stockTitleOverlayHeight = nextTitleHeight;
+        _indicatorRailTopInset = nextRailTop;
+        _indicatorRailBottomInset = nextRailBottom;
       });
     });
   }
@@ -1372,7 +1465,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   void _saveAllAndOpenRanking() {
     _applySkuDrafts();
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (_) => const ProductRankingPage(
           initialBottomMessage: 'Stock updates saved.',
         ),
