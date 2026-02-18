@@ -91,6 +91,14 @@ void main() {
     expect(find.text('SKU #002'), findsNothing);
     expect(find.text('SKU #004'), findsNothing);
     expect(find.text('Price'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('product-ranking-header-name-icon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('product-ranking-header-price-icon')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('reorder updates order and rank numbers', (
@@ -311,6 +319,197 @@ void main() {
       find.byKey(const ValueKey('product-ranking-price-service:service-001')),
       findsOneWidget,
     );
-    expect(find.textContaining('KHR'), findsWidgets);
+    expect(
+      find.byKey(
+        const ValueKey('product-ranking-price-currency-service:service-001'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('KHR'), findsWidgets);
+  });
+
+  testWidgets('name and price column alignment follows header geometry', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    final nameHeaderRect = tester.getRect(
+      find.descendant(
+        of: find.byKey(const ValueKey('product-ranking-table-header')),
+        matching: find.text('Name'),
+      ),
+    );
+    final firstRowNameRect = tester.getRect(find.text('Service #001'));
+    expect(
+      (nameHeaderRect.left - firstRowNameRect.left).abs(),
+      lessThanOrEqualTo(1.5),
+    );
+
+    final priceHeaderGroupRect = tester.getRect(
+      find.byKey(const ValueKey('product-ranking-price-header-column')),
+    );
+    final firstRowPriceColumnRect = tester.getRect(
+      find.byKey(
+        const ValueKey('product-ranking-price-column-service:service-001'),
+      ),
+    );
+    expect(
+      (priceHeaderGroupRect.width - firstRowPriceColumnRect.width).abs(),
+      lessThanOrEqualTo(1.0),
+    );
+
+    final headerPriceText = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('product-ranking-table-header')),
+        matching: find.text('Price'),
+      ),
+    );
+    final rowPriceText = tester.widget<Text>(
+      find.byKey(const ValueKey('product-ranking-price-service:service-001')),
+    );
+    expect(headerPriceText.textAlign, TextAlign.center);
+    expect(rowPriceText.textAlign, TextAlign.right);
+  });
+
+  testWidgets('price header group remains centered within price column', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    final columnRect = tester.getRect(
+      find.byKey(const ValueKey('product-ranking-price-header-column')),
+    );
+    final groupRect = tester.getRect(
+      find.byKey(const ValueKey('product-ranking-price-header-group')),
+    );
+    expect(
+      (columnRect.center.dx - groupRect.center.dx).abs(),
+      lessThanOrEqualTo(1.5),
+    );
+  });
+
+  testWidgets('price rows are non-bold and row divider exists', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    final servicePrice = tester.widget<Text>(
+      find.byKey(const ValueKey('product-ranking-price-service:service-001')),
+    );
+    final skuPrice = tester.widget<Text>(
+      find.byKey(const ValueKey('product-ranking-price-sku:sku-001')),
+    );
+    expect(servicePrice.style?.fontWeight, FontWeight.w500);
+    expect(skuPrice.style?.fontWeight, FontWeight.w500);
+
+    expect(
+      find.byKey(
+        const ValueKey('product-ranking-row-divider-service:service-001'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('product-ranking-row-divider-sku:sku-001')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('product-ranking-header-divider')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('currency is on its own right-aligned row', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    final amountText = tester.widget<Text>(
+      find.byKey(const ValueKey('product-ranking-price-service:service-001')),
+    );
+    final currencyText = tester.widget<Text>(
+      find.byKey(
+        const ValueKey('product-ranking-price-currency-service:service-001'),
+      ),
+    );
+    expect(amountText.textAlign, TextAlign.right);
+    expect(currencyText.textAlign, TextAlign.right);
+    expect(
+      find.byKey(
+        const ValueKey('product-ranking-amount-column-service:service-001'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const ValueKey('product-ranking-currency-column-service:service-001'),
+      ),
+      findsOneWidget,
+    );
+    expect(currencyText.data, isNotNull);
+    expect(currencyText.data!.isNotEmpty, isTrue);
+  });
+
+  testWidgets('header divider aligns with row divider', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    final headerDividerRect = tester.getRect(
+      find.byKey(const ValueKey('product-ranking-header-divider')),
+    );
+    final rowDividerRect = tester.getRect(
+      find.byKey(
+        const ValueKey('product-ranking-row-divider-service:service-001'),
+      ),
+    );
+    expect(
+      (headerDividerRect.center.dx - rowDividerRect.center.dx).abs(),
+      lessThanOrEqualTo(1.5),
+    );
+  });
+
+  testWidgets('rank markers use pill radius', (WidgetTester tester) async {
+    await pumpRankingPage(tester);
+
+    final rankContainer = tester.widget<Container>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('product-ranking-rank-slot-0')),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final decoration = rankContainer.decoration as BoxDecoration?;
+    final radius = decoration?.borderRadius as BorderRadius?;
+    expect(radius?.topLeft.x, AppThemeTokens.radiusPill);
+  });
+
+  testWidgets('header icon size and gap follow attached-label rules', (
+    WidgetTester tester,
+  ) async {
+    await pumpRankingPage(tester);
+
+    final headerLabel = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('product-ranking-table-header')),
+        matching: find.text('Name'),
+      ),
+    );
+    final fontSize =
+        headerLabel.style?.fontSize ?? AppThemeTokens.fontSizeBodyLarge;
+    final expectedIconSize = AppThemeTokens.attachedLabelIconSize(fontSize);
+    final expectedGap = AppThemeTokens.attachedLabelIconGap(expectedIconSize);
+
+    final nameIconRect = tester.getRect(
+      find.byKey(const ValueKey('product-ranking-header-name-icon')),
+    );
+    final nameTextRect = tester.getRect(
+      find.descendant(
+        of: find.byKey(const ValueKey('product-ranking-table-header')),
+        matching: find.text('Name'),
+      ),
+    );
+    expect(nameIconRect.height, closeTo(expectedIconSize, 0.6));
+    expect(nameTextRect.left - nameIconRect.right, closeTo(expectedGap, 1.0));
   });
 }

@@ -26,7 +26,16 @@ class ProductRankingPage extends StatefulWidget {
 class _ProductRankingPageState extends State<ProductRankingPage> {
   static const double _rankPillWidth = 40;
   static const double _rankGap = AppThemeTokens.cardInlineGap;
-  static const double _priceColumnWidth = 136;
+  static const double _rowHandleSize =
+      AppThemeTokens.fontSizeBodyLarge + AppThemeTokens.space1;
+  static const double _rowHandleGap = AppThemeTokens.cardInlineGap;
+  static const double _rowDividerGap = AppThemeTokens.cardInlineGap;
+  static const double _rowDividerHeight = AppThemeTokens.iconSizeMedium;
+  static const double _amountColumnWidth = 84;
+  static const double _currencyColumnWidth = 52;
+  static const double _priceColumnsGap = AppThemeTokens.cardInlineGap;
+  static const double _priceAreaWidth =
+      _amountColumnWidth + _priceColumnsGap + _currencyColumnWidth;
   static const double _rowHeight = 56;
   static const double _rowExtent =
       _rowHeight + AppThemeTokens.sectionGapCompact;
@@ -185,6 +194,18 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
   }
 
   Widget _buildTableHeader(BuildContext context) {
+    final headerStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+    );
+    final labelFontSize =
+        headerStyle?.fontSize ?? AppThemeTokens.fontSizeBodyLarge;
+    final headerIconSize = AppThemeTokens.attachedLabelIconSize(labelFontSize);
+    final headerIconGap = AppThemeTokens.attachedLabelIconGap(headerIconSize);
+    final nameHeaderLeadingSpace = math.max(
+      0.0,
+      (_rowHandleSize + _rowHandleGap) - (headerIconSize + headerIconGap),
+    );
+
     return Container(
       key: const ValueKey('product-ranking-table-header'),
       decoration: BoxDecoration(
@@ -201,24 +222,52 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
           const SizedBox(width: _rankPillWidth),
           const SizedBox(width: _rankGap),
           Expanded(
-            child: Text(
-              'Name',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
-              ),
+            child: Row(
+              children: [
+                SizedBox(width: nameHeaderLeadingSpace),
+                _inventorySvgIcon(
+                  key: const ValueKey('product-ranking-header-name-icon'),
+                  assetPath: _labelSvgAsset,
+                  size: headerIconSize,
+                  color: AppThemeTokens.textPrimary,
+                ),
+                SizedBox(width: headerIconGap),
+                Text('Name', style: headerStyle),
+              ],
             ),
           ),
+          const SizedBox(width: _rowDividerGap),
+          Container(
+            key: const ValueKey('product-ranking-header-divider'),
+            width: AppThemeTokens.dividerThickness,
+            height: _rowDividerHeight,
+            color: AppThemeTokens.textPrimary.withValues(alpha: 0.28),
+          ),
+          const SizedBox(width: _rowDividerGap),
           SizedBox(
-            width: _priceColumnWidth,
-            child: Text(
-              'Price',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
+            key: const ValueKey('product-ranking-price-header-column'),
+            width: _priceAreaWidth,
+            child: Center(
+              child: Row(
+                key: const ValueKey('product-ranking-price-header-group'),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _inventorySvgIcon(
+                    key: const ValueKey('product-ranking-header-price-icon'),
+                    assetPath: _pointOfSaleSvgAsset,
+                    size: headerIconSize,
+                    color: AppThemeTokens.textPrimary,
+                  ),
+                  SizedBox(width: headerIconGap),
+                  Text(
+                    'Price',
+                    textAlign: TextAlign.center,
+                    style: headerStyle,
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(width: AppThemeTokens.space8),
         ],
       ),
     );
@@ -244,13 +293,13 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.drag_handle,
+                _inventorySvgIcon(
+                  key: ValueKey('product-ranking-drag-icon-${entry.id}'),
+                  assetPath: _dragIndicatorSvgAsset,
+                  size: _rowHandleSize,
                   color: AppThemeTokens.textSecondary,
-                  size:
-                      AppThemeTokens.fontSizeBodyLarge + AppThemeTokens.space1,
                 ),
-                const SizedBox(width: AppThemeTokens.cardInlineGap),
+                const SizedBox(width: _rowHandleGap),
                 Expanded(
                   child: Text(
                     entry.name,
@@ -261,22 +310,61 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                     ),
                   ),
                 ),
-                const SizedBox(width: AppThemeTokens.cardInlineGap),
+                const SizedBox(width: _rowDividerGap),
+                Container(
+                  key: ValueKey('product-ranking-row-divider-${entry.id}'),
+                  width: AppThemeTokens.dividerThickness,
+                  height: _rowDividerHeight,
+                  color: AppThemeTokens.textPrimary.withValues(alpha: 0.28),
+                ),
+                const SizedBox(width: _rowDividerGap),
                 SizedBox(
-                  width: _priceColumnWidth,
-                  child: Text(
-                    _currencyLabel(entry.price, currencyCode: currencyCode),
-                    key: ValueKey('product-ranking-price-${entry.id}'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: _fontWeight(
-                        entry.type == _ProductRankingItemType.service
-                            ? AppThemeTokens.fontWeightSemibold
-                            : AppThemeTokens.fontWeightMedium,
+                  key: ValueKey('product-ranking-price-column-${entry.id}'),
+                  width: _priceAreaWidth,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        key: ValueKey(
+                          'product-ranking-amount-column-${entry.id}',
+                        ),
+                        width: _amountColumnWidth,
+                        child: Text(
+                          _formatNumber(entry.price, maxFractionDigits: 2),
+                          key: ValueKey('product-ranking-price-${entry.id}'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                fontWeight: _fontWeight(
+                                  AppThemeTokens.fontWeightMedium,
+                                ),
+                              ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: _priceColumnsGap),
+                      SizedBox(
+                        key: ValueKey(
+                          'product-ranking-currency-column-${entry.id}',
+                        ),
+                        width: _currencyColumnWidth,
+                        child: Text(
+                          currencyCode,
+                          key: ValueKey(
+                            'product-ranking-price-currency-${entry.id}',
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                fontWeight: _fontWeight(
+                                  AppThemeTokens.fontWeightMedium,
+                                ),
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -323,7 +411,7 @@ class _ProductRankingPageState extends State<ProductRankingPage> {
                             decoration: BoxDecoration(
                               color: AppThemeTokens.surface,
                               borderRadius: BorderRadius.circular(
-                                AppThemeTokens.radiusMd,
+                                AppThemeTokens.radiusPill,
                               ),
                               border: Border.all(color: AppThemeTokens.border),
                             ),

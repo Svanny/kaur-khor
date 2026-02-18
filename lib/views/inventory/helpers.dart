@@ -16,6 +16,8 @@ const String _package2SvgAsset =
     'icons/package_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 const String _paymentsSvgAsset =
     'icons/payments_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
+const String _dragIndicatorSvgAsset =
+    'icons/drag_indicator_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg';
 
 double _inventorySvgIconWidth({
   required String assetPath,
