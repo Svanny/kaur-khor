@@ -766,7 +766,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
                     key: const ValueKey('update-stock-save-all'),
                     label: 'Save All',
                     isPrimary: true,
-                    onTap: _saveAllAndOpenViewAll,
+                    onTap: _saveAllAndOpenRanking,
                   ),
                 ],
               ),
@@ -778,7 +778,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
   }
 
   Widget _buildConfirmationTitleRow() {
-    final title = 'Confirm Changes';
+    const title = 'Confirm Changes';
     final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       fontWeight: _fontWeight(AppThemeTokens.fontWeightBold),
     );
@@ -1327,7 +1327,7 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     setState(() => _drafts = nextDrafts);
   }
 
-  void _saveAllAndOpenViewAll() {
+  void _saveAllAndOpenRanking() {
     final updatedSkus = <SkuItem>[
       for (var i = 0; i < _sourceSkus.length; i += 1)
         _drafts[i].applyToSku(_sourceSkus[i]),
@@ -1336,9 +1336,9 @@ class _UpdateStockPageState extends State<UpdateStockPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Stock updates saved.')));
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const ViewAllPage()));
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const ProductRankingPage()),
+    );
   }
 }
 
@@ -1490,7 +1490,6 @@ class _StockStepper extends StatelessWidget {
     this.actionsEnabled = true,
     this.decrementEnabled = true,
     this.decrementDisabledTooltip,
-    this.disabledTooltip,
   });
 
   final String label;
@@ -1511,7 +1510,6 @@ class _StockStepper extends StatelessWidget {
   final bool actionsEnabled;
   final bool decrementEnabled;
   final String? decrementDisabledTooltip;
-  final String? disabledTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -1583,23 +1581,6 @@ class _StockStepper extends StatelessWidget {
       ),
     );
 
-    final showDisabledTooltip =
-        !actionsEnabled && (disabledTooltip?.isNotEmpty ?? false);
-    final trackWithTooltip = showDisabledTooltip
-        ? Tooltip(
-            message: disabledTooltip!,
-            triggerMode: TooltipTriggerMode.tap,
-            decoration: BoxDecoration(
-              color: AppThemeTokens.warning,
-              borderRadius: BorderRadius.circular(AppThemeTokens.radiusMd),
-            ),
-            textStyle: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppThemeTokens.textPrimary),
-            child: track,
-          )
-        : track;
-
     final labelStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       fontWeight: _fontWeight(AppThemeTokens.fontWeightSemibold),
     );
@@ -1633,7 +1614,7 @@ class _StockStepper extends StatelessWidget {
         const SizedBox(
           height: AppThemeTokens.fieldLabelToControlGap + AppThemeTokens.unit,
         ),
-        Align(alignment: Alignment.center, child: trackWithTooltip),
+        Align(alignment: Alignment.center, child: track),
       ],
     );
   }

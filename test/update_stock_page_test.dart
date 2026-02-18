@@ -1246,7 +1246,10 @@ void main() {
         find.byKey(const ValueKey('update-stock-cost-value-pill')),
       );
       await tester.pump();
-      expect(find.text('Cannot enter cost if change is negative.'), findsNothing);
+      expect(
+        find.text('Cannot enter cost if change is negative.'),
+        findsNothing,
+      );
     },
   );
 
@@ -1274,11 +1277,14 @@ void main() {
         find.byKey(const ValueKey('update-stock-cost-value-pill')),
       );
       await tester.pump();
-      expect(find.text('Cannot enter cost if change is negative.'), findsNothing);
+      expect(
+        find.text('Cannot enter cost if change is negative.'),
+        findsNothing,
+      );
     },
   );
 
-  testWidgets('save all updates shared inventory and opens view all', (
+  testWidgets('save all updates shared inventory and opens ranking page', (
     WidgetTester tester,
   ) async {
     final inventoryController = await pumpUpdateStockPage(tester);
@@ -1316,7 +1322,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('update-stock-save-all')));
     await tester.pumpAndSettle();
 
-    expect(find.text('All Items'), findsOneWidget);
+    expect(find.text('Update Ranking of Items Sold'), findsOneWidget);
     expect(
       inventoryController.value.skus
           .firstWhere((sku) => sku.id == 'sku-001')

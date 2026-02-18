@@ -22,6 +22,7 @@ part 'inventory/view_all_page.dart';
 part 'inventory/sku_detail_page.dart';
 part 'inventory/service_detail_page.dart';
 part 'inventory/update_stock_page.dart';
+part 'inventory/product_ranking_page.dart';
 part 'inventory/save_change_feature.dart';
 part '../widgets/header_action_widgets.dart';
 part '../widgets/toggle_widgets.dart';
