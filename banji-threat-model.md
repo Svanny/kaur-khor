@@ -1,6 +1,6 @@
 # Banji Threat Model
 
-Date: 2026-02-15  
+Date: 2026-02-18  
 Scope: `/Users/svanny/banji` (Flutter client runtime + platform/web config + security gates)
 
 ## 1) System Model (Repo-Evidenced)
@@ -76,6 +76,18 @@ Out of scope: CI secrets management outside repo, backend/API controls (no backe
 - Mitigations now present:
   - Save-time filtering to existing SKU IDs:
     - `/Users/svanny/banji/lib/views/inventory/service_detail_page.dart:412`
+
+### T4: Visual text spoofing using bidi control characters
+- Likelihood: Medium
+- Impact: Medium
+- Priority: Medium
+- Path: User submits names/descriptions containing Unicode bidi controls; rendered text can visually differ from stored bytes and mislead human review.
+- Mitigations now present:
+  - Required-text validator rejects bidi override/isolation controls:
+    - `/Users/svanny/banji/lib/security/security_validators.dart:10`
+    - `/Users/svanny/banji/lib/security/security_validators.dart:30`
+  - Regression test coverage:
+    - `/Users/svanny/banji/test/security/security_validators_test.dart:70`
 
 ## 5) Existing Controls
 - Shared input normalization and validation:

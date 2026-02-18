@@ -1,13 +1,14 @@
 # Security Best Practices Report
 
-Date: 2026-02-15  
+Date: 2026-02-18  
 Repository: /Users/svanny/banji
 
 ## Executive Summary
-A targeted security review was performed across runtime Dart code, platform hardening policy checks, and security test coverage. No critical findings were identified. Three material issues were found and remediated in this change set:
+A targeted security review was performed across runtime Dart code, platform hardening policy checks, and security test coverage. No critical findings were identified. Four material issues were found and remediated in this change set:
 1. Android hardening checks were incomplete and could miss insecure manifest values.
 2. Numeric user inputs were validated for type/sign but not bounded to safe maximums.
 3. Service-to-SKU references were not defensively constrained at save time.
+4. Required-text validation allowed bidirectional control characters that can spoof visual text rendering.
 
 ## Critical Findings
 None.
@@ -38,6 +39,18 @@ None.
   - Added shared numeric maximums in `SecurityLimits`.
   - Extended validators with optional `maxValue` checks.
   - Applied max-value validation and save-time clamping for SKU/service numeric fields.
+- Status: Fixed.
+
+### SBP-004: Required-text validation allowed bidi control characters
+- Severity: Medium
+- Impact: Attackers can inject visual-direction control characters to obfuscate names/descriptions and mislead operators during review or edits.
+- Evidence (fixed):
+  - `/Users/svanny/banji/lib/security/security_validators.dart:10`
+  - `/Users/svanny/banji/lib/security/security_validators.dart:30`
+  - `/Users/svanny/banji/test/security/security_validators_test.dart:70`
+- Remediation:
+  - Added explicit rejection of Unicode bidi override/isolation controls (`U+202A..U+202E`, `U+2066..U+2069`) in required-text validation.
+  - Added security regression test coverage for bidi control payloads.
 - Status: Fixed.
 
 ### SBP-003: Service SKU IDs were not constrained to currently available SKUs at persistence boundary

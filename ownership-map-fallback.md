@@ -1,6 +1,6 @@
 # Security Ownership Map (Fallback)
 
-Date: 2026-02-15  
+Date: 2026-02-18  
 Scope: `/Users/svanny/banji`
 
 ## Tooling Status
@@ -8,8 +8,9 @@ Scope: `/Users/svanny/banji`
 - Blocker: `networkx` dependency unavailable in the current offline environment.
 
 ## Git-Based Fallback Results
-- Top contributors in scope (`lib`, `android`, `ios`, `macos`, `web`, `tool/security`):
-  - `66  svanny <lymonysovann@gmail.com>`
+- Top contributors in last 12 months:
+  - `109  svanny <lymonysovann@gmail.com>`
+  - `2  Monysovann Ly <115179959+Svanny@users.noreply.github.com>`
 - Security-sensitive files touched in last 12 months:
   - `/Users/svanny/banji/lib/security/id_generator.dart`
   - `/Users/svanny/banji/lib/security/security_limits.dart`
@@ -18,6 +19,8 @@ Scope: `/Users/svanny/banji`
   - `/Users/svanny/banji/tool/security/check_secret_patterns.sh`
   - `/Users/svanny/banji/tool/security/run_security_checks.sh`
   - `/Users/svanny/banji/android/app/src/main/AndroidManifest.xml`
+  - `/Users/svanny/banji/ios/Runner/Info.plist`
+  - `/Users/svanny/banji/macos/Runner/Release.entitlements`
   - `/Users/svanny/banji/web/index.html`
 
 ## Ownership Risk Summary

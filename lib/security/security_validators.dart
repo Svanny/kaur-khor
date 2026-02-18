@@ -5,6 +5,10 @@ class SecurityValidators {
   static final RegExp _unsafeControlChars = RegExp(
     r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]',
   );
+  // Reject bidi override/isolation controls that can visually spoof text.
+  static final RegExp _bidiControlChars = RegExp(
+    r'[\u202A-\u202E\u2066-\u2069]',
+  );
 
   static String normalizeText(
     String input, {
@@ -26,7 +30,8 @@ class SecurityValidators {
     required String fieldName,
     required int maxLength,
   }) {
-    if (_unsafeControlChars.hasMatch(value)) {
+    if (_unsafeControlChars.hasMatch(value) ||
+        _bidiControlChars.hasMatch(value)) {
       return '$fieldName field must not contain control characters.';
     }
 

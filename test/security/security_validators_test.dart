@@ -66,6 +66,15 @@ void main() {
       expect(error, 'Name field must not contain control characters.');
     });
 
+    test('rejects bidirectional control characters', () {
+      final error = SecurityValidators.validateRequiredText(
+        'Name\u202E',
+        fieldName: 'Name',
+        maxLength: 20,
+      );
+      expect(error, 'Name field must not contain control characters.');
+    });
+
     test('rejects over-limit values', () {
       final error = SecurityValidators.validateRequiredText(
         'abcdefghijklmnop',
