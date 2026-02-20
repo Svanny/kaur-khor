@@ -1,0 +1,89 @@
+## Core build to do list ranked from pillars to walls
+
+This is ordered so you can stand up the load bearing infrastructure first, then connect it with services, then harden it until it survives bad days.
+
+### Part A Core infrastructure
+
+#### Pillars, must have to make the system real
+
+1. Create the environment map and naming contract
+   Decide what exists and what it is called in every environment: dev, staging, prod. Decide service names, topic and queue prefixes, database naming, secret naming, and log naming. Done means a single short document that never changes casually and a set of environment variables that follow it.
+
+2. Stand up source control, CI, and release gates
+   Set up GitHub Actions pipelines for Rust build, tests, formatting, linting, container build, and deploy. Done means every merge produces a build artifact, every deploy is traceable to a commit, and migrations are enforced as a required step.
+
+3. Provision Postgres as the source of truth
+   Create PostgreSQL in each environment with backups enabled. Define a migration tool and process. Done means you can create schema from scratch from migrations, apply forward migrations automatically in deploy, and restore to a clean environment.
+
+4. Provision Redis for cache and lightweight coordination
+   Create Redis with a clear policy that it is never required for correctness. Done means the API can run with cache disabled, and cache keys include a schema version prefix.
+
+5. Provision Kafka for streaming logs
+   Create Apache Kafka, decide retention defaults, and create initial topics with partitions sized for your expected parallelism. Done means you can publish and consume from a test topic, you can observe consumer lag, and you have a clear topic naming convention.
+
+6. Provision RabbitMQ for job queues
+   Create RabbitMQ, define exchanges, queues, dead letter routing, and retry strategy. Done means you can enqueue a job, consume it, fail it, see it land in retry or dead letter, and recover it intentionally.
+
+7. Stand up secrets management and configuration boundaries
+   Use platform secrets for now, later a dedicated secret manager if needed. Done means no secrets in code or logs, rotation is possible without redeploying everything, and every service has only the secrets it needs.
+
+8. Establish observability baseline before features
+   Instrument Rust with OpenTelemetry, pick a metrics and logs destination, and ensure every request and job has a correlation id. Done means you can answer these questions in minutes: what is slow, what is failing, what is growing, what changed.
+
+#### Walls, resilience that keeps you calm in production
+
+9. Add database connection pooling
+   Introduce PgBouncer once you have more than one API instance or significant worker concurrency. Done means connection count is stable under load and deploys do not spike latency.
+
+10. Define backup and restore drills as a routine
+    Backups are not enough. Done means you can restore Postgres to a new environment and pass a basic validation script, and you have a cadence for doing this.
+
+11. Define Kafka retention, compaction, and replay policy
+    Decide what must be replayable and for how long. Done means you can rebuild projections from a checkpoint, and you can justify retention cost.
+
+12. Define RabbitMQ poison message and retry rules
+    Set limits on retries and define a process for dead letter triage. Done means poison messages do not stall your system and you have a repeatable recovery playbook.
+
+13. Add edge protections
+    Put a proper edge in front, often Cloudflare plus Railway routing. Done means TLS is handled, rate limits exist, request size limits exist, and your API is not exposed directly to the internet without guardrails.
+
+---
+
+### Part B Subsequent services that connect the infrastructure
+
+#### Pillars, the minimum set of services to make data flow end to end
+
+1. Rust API service
+   Implement auth verification, request validation, idempotency keys for writes, Postgres transactions, and cache read through for hot reads. Done means the client can perform a write, read it back, and retries do not duplicate state.
+
+2. Postgres outbox table and outbox relay service
+   Write an outbox row in the same transaction as the canonical write, then run a small Rust relay that publishes outbox rows into Kafka. Done means a committed DB write always produces a Kafka event, and failed publishes are retried without duplicates causing corruption.
+
+3. Event vocabulary and schema discipline
+   Define event types, required fields, versioning rules, and compatibility expectations. Done means producers and consumers validate payloads and a schema change is an explicit version increment, not a silent drift.
+
+4. Streaming consumer service for projections
+   Create a Rust consumer group that reads Kafka events and updates read optimized tables in Postgres. Done means your hottest read endpoints can hit projection tables with simple indexed queries.
+
+5. Job producer and worker services
+   API or consumers enqueue jobs to RabbitMQ for heavy algorithms. Workers consume, write run records, write results, and publish result events back to Kafka if needed. Done means jobs are idempotent, retriable, and every run is accountable in Postgres.
+
+6. Object storage integration for heavy artifacts
+   Use S3 compatible storage for exports, large intermediate files, and reports. Done means Postgres holds only metadata and references, and workers can produce artifacts without bloating the database.
+
+#### Walls, the service layer upgrades that prevent slow decay
+
+7. Rate limiting and abuse controls in the API layer
+   Implement per user and per device limits, plus backpressure behavior when Kafka or RabbitMQ is unhealthy. Done means overload degrades gracefully and does not cascade.
+
+8. End to end tracing across API, relay, consumers, and workers
+   Propagate correlation ids through Kafka headers and RabbitMQ metadata. Done means you can trace one user action through every hop.
+
+9. Replay and backfill tooling
+   Build a controlled tool or service that can replay Kafka ranges into projections and re run batch jobs safely. Done means you can rebuild derived state after algorithm changes without manual database surgery.
+
+10. SLOs and alerting tied to user pain
+    Alerts for API latency, error rate, Kafka consumer lag, RabbitMQ queue depth, worker failure rate, Postgres locks, and cache hit rate. Done means alerts predict incidents, not announce them after users complain.
+
+11. Staging environment parity and safe rollout controls
+    Ensure staging mirrors production topology and add feature flags for algorithm rollouts. Done means you can ship changes gradually and roll back fast.
