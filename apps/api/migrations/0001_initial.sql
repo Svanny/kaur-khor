@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS schema_migration_guard (
+  id BIGSERIAL PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -1,0 +1,126 @@
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      image_ref:
+        required: true
+        type: string
+      image_digest:
+        required: true
+        type: string
+      commit_sha:
+        required: true
+        type: string
+      migration_checksum:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      image_ref:
+        description: "Pinned image reference (ghcr.io/...@sha256:...)"
+        required: true
+        type: string
+      image_digest:
+        description: "Image digest (sha256:...)"
+        required: true
+        type: string
+      commit_sha:
+        description: "Commit SHA used to build the artifact"
+        required: true
+        type: string
+      migration_checksum:
+        description: "Migration checksum from build"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    env:
+      IMAGE_REF: ${{ inputs.image_ref || github.event.inputs.image_ref }}
+      IMAGE_DIGEST: ${{ inputs.image_digest || github.event.inputs.image_digest }}
+      COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
+      MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_SERVICE_ID }}
+      DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+      DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Assert image reference is digest-pinned
+        run: |
+          [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
+      - name: Install migration dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          rustup toolchain install stable --profile minimal
+          cargo +stable install sqlx-cli --no-default-features --features rustls,postgres
+      - name: Run migrations with advisory lock
+        env:
+          ADVISORY_LOCK_KEY: 184361
+        run: bash tool/ci/migrate_with_lock.sh
+      - name: Deploy exact image digest to Railway staging
+        run: bash tool/ci/railway_deploy.sh
+      - name: Write staging deployment summary
+        run: |
+          {
+            echo "## Staging Deployment";
+            echo "- Commit: \\`$COMMIT_SHA\\`";
+            echo "- Image: \\`$IMAGE_REF\\`";
+            echo "- Digest: \\`$IMAGE_DIGEST\\`";
+            echo "- Migration checksum: \\`$MIGRATION_CHECKSUM\\`";
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment: prod
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    env:
+      IMAGE_REF: ${{ inputs.image_ref || github.event.inputs.image_ref }}
+      IMAGE_DIGEST: ${{ inputs.image_digest || github.event.inputs.image_digest }}
+      COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
+      MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_SERVICE_ID }}
+      DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+      DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Assert image reference is digest-pinned
+        run: |
+          [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
+      - name: Install migration dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          rustup toolchain install stable --profile minimal
+          cargo +stable install sqlx-cli --no-default-features --features rustls,postgres
+      - name: Run migrations with advisory lock
+        env:
+          ADVISORY_LOCK_KEY: 184361
+        run: bash tool/ci/migrate_with_lock.sh
+      - name: Deploy exact image digest to Railway prod
+        run: bash tool/ci/railway_deploy.sh
+      - name: Write prod deployment summary
+        run: |
+          {
+            echo "## Production Deployment";
+            echo "- Commit: \\`$COMMIT_SHA\\`";
+            echo "- Image: \\`$IMAGE_REF\\`";
+            echo "- Digest: \\`$IMAGE_DIGEST\\`";
+            echo "- Migration checksum: \\`$MIGRATION_CHECKSUM\\`";
+          } >> "$GITHUB_STEP_SUMMARY"
