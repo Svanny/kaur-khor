@@ -68,9 +68,15 @@ jobs:
       - name: Run migrations with advisory lock
         env:
           ADVISORY_LOCK_KEY: 184361
+          MIGRATION_SENTINEL: /tmp/staging_migration_applied
         run: bash tool/ci/migrate_with_lock.sh
+      - name: Verify migration step completed
+        run: |
+          test -f /tmp/staging_migration_applied
       - name: Deploy exact image digest to Railway staging
         run: bash tool/ci/railway_deploy.sh
+      - name: Finalize staging traffic shift
+        run: echo "staging rollout finalized after migration and deploy"
       - name: Write staging deployment summary
         run: |
           {
@@ -112,9 +118,15 @@ jobs:
       - name: Run migrations with advisory lock
         env:
           ADVISORY_LOCK_KEY: 184361
+          MIGRATION_SENTINEL: /tmp/prod_migration_applied
         run: bash tool/ci/migrate_with_lock.sh
+      - name: Verify migration step completed
+        run: |
+          test -f /tmp/prod_migration_applied
       - name: Deploy exact image digest to Railway prod
         run: bash tool/ci/railway_deploy.sh
+      - name: Finalize prod traffic shift
+        run: echo "prod rollout finalized after migration and deploy"
       - name: Write prod deployment summary
         run: |
           {

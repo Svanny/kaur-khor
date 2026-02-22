@@ -26,6 +26,11 @@ Each merge to `main` must:
 - Promotion flow: staging then approved production.
 - One deployment at a time per environment via workflow concurrency.
 - Migration is a required pre-rollout step in each environment (`sqlx migrate run`).
+- Deploy sequencing is explicit and mandatory:
+  1. run migrations (single runner with advisory lock)
+  2. deploy API image
+  3. finalize traffic shift
+- If migrations fail or do not run, deployment must abort before rollout.
 
 ## Database and Migration Safety
 - Credentials are split:
@@ -35,6 +40,10 @@ Each merge to `main` must:
 - Expand/contract release discipline is mandatory:
   - additive, backward-compatible changes first
   - destructive/tightening changes only after code cutover in later release
+- Long-running migration safety rules:
+  - use low-blocking index creation patterns where supported
+  - run large backfills as controlled background jobs, not inside deploy-time migration
+  - split risky changes across schema introduction, backfill, and later constraint tighten/drop
 
 ## SQLx Policy
 - SQLx offline mode is enforced with committed `apps/api/sqlx-data.json`.

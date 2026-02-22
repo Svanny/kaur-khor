@@ -138,7 +138,10 @@ jobs:
       - name: Install sqlx-cli
         run: cargo +stable install sqlx-cli --no-default-features --features rustls,postgres
       - name: Validate migrations apply cleanly to fresh DB
-        run: sqlx migrate run --source apps/api/migrations --database-url "$DATABASE_URL"
+        run: |
+          sqlx migrate run --source apps/api/migrations --database-url "$DATABASE_URL"
+          # Re-run to verify idempotence and reduce local-dev drift risk.
+          sqlx migrate run --source apps/api/migrations --database-url "$DATABASE_URL"
 
   sqlx-offline-verify:
     runs-on: ubuntu-latest

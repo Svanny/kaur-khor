@@ -1,0 +1,76 @@
+name: postgres-restore-drill
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore-drill-dev:
+    runs-on: ubuntu-latest
+    env:
+      ENV_NAME: dev
+      SOURCE_DATABASE_URL: ${{ secrets.DEV_DATABASE_RUNTIME_URL }}
+      RESTORE_DATABASE_URL: ${{ secrets.DEV_DATABASE_RESTORE_URL }}
+      BACKUP_SOURCE_TIMESTAMP: ${{ github.run_started_at }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Install postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Run restore validation
+        run: bash tool/db/restore_validate.sh
+      - name: Upload dev restore drill artifacts
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: restore-drill-dev
+          path: build/restore-drill/
+          if-no-files-found: error
+
+  restore-drill-staging:
+    runs-on: ubuntu-latest
+    env:
+      ENV_NAME: staging
+      SOURCE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RUNTIME_URL }}
+      RESTORE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RESTORE_URL }}
+      BACKUP_SOURCE_TIMESTAMP: ${{ github.run_started_at }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Install postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Run restore validation
+        run: bash tool/db/restore_validate.sh
+      - name: Upload staging restore drill artifacts
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: restore-drill-staging
+          path: build/restore-drill/
+          if-no-files-found: error
+
+  restore-drill-prod:
+    runs-on: ubuntu-latest
+    env:
+      ENV_NAME: prod
+      SOURCE_DATABASE_URL: ${{ secrets.PROD_DATABASE_RUNTIME_URL }}
+      RESTORE_DATABASE_URL: ${{ secrets.PROD_DATABASE_RESTORE_URL }}
+      BACKUP_SOURCE_TIMESTAMP: ${{ github.run_started_at }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Install postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Run restore validation
+        run: bash tool/db/restore_validate.sh
+      - name: Upload prod restore drill artifacts
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: restore-drill-prod
+          path: build/restore-drill/
+          if-no-files-found: error
