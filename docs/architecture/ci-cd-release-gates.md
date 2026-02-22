@@ -62,3 +62,8 @@ For each deployable Railway service:
 - Wall-tier gates are implemented as non-blocking signals:
   - `cargo audit` in `rust-ci`
   - container vulnerability scan (`trivy`) in `release-build`
+
+## Redis Correctness Contract
+- Redis outages must not block correctness or write completion.
+- Correctness idempotency enforcement is Postgres-backed (`app.idempotency_request`), not Redis-backed.
+- Redis is fail-open and fail-fast, with circuit-breaking and timeout controls.

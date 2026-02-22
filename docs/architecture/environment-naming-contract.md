@@ -19,6 +19,7 @@ This contract defines canonical naming across `dev`, `staging`, and `prod`. It i
 - Service name: `{system_kebab}-{env_kebab}-{region_kebab}-{service_kebab}`
 - Postgres database: `{system_snake}_{env_snake}_{region_snake}_{db_snake}`
 - Secret path: `{system_kebab}/{env_kebab}/{region_kebab}/{scope}/{key}`
+- Redis key prefix: `{system_kebab}:{env_kebab}:{service_kebab}:{cache_schema_version}:{domain}`
 - Kafka topic: `{system_kebab}.{env_kebab}.{topic_kebab}`
 - Kafka consumer group: `{system_kebab}.{env_kebab}.{service_kebab}.{consumer_kebab}`
 - Rabbit exchange: `{system_kebab}.{env_kebab}.{exchange_kebab}`
@@ -31,6 +32,10 @@ This contract defines canonical naming across `dev`, `staging`, and `prod`. It i
 - Tracing service name: same as service name
 - Log stream key: `{system_kebab}/{env_kebab}/{region_kebab}/{service_kebab}/{channel}`
 - Deployment correlation: `BANJI_DEPLOYMENT_ID` is attached to logs/metrics/traces/events.
+
+Redis key examples:
+- `banji-core:dev:api:v1:cache:inventory:item:123`
+- `banji-core:prod:worker:v1:coord:lock:projection:abc`
 
 ## Environment Map
 Defaults:

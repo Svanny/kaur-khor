@@ -26,6 +26,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'missing required table app.migration_probe_event';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'app' AND table_name = 'idempotency_request'
+  ) THEN
+    RAISE EXCEPTION 'missing required table app.idempotency_request';
+  END IF;
 END
 $$;
 
@@ -53,6 +61,11 @@ BEGIN
   IF orphan_count > 0 THEN
     RAISE EXCEPTION 'found % orphan migration_probe_event rows', orphan_count;
   END IF;
+
+  PERFORM 1
+  FROM app.idempotency_request
+  WHERE status IN ('in_progress', 'completed', 'failed')
+  LIMIT 1;
 END
 $$;
 

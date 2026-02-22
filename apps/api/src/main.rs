@@ -10,6 +10,9 @@ async fn main() -> anyhow::Result<()> {
         .compact()
         .init();
 
+    let config = banji_api::config::AppConfig::from_env()?;
+    let state = banji_api::build_state(config).await?;
+
     let addr = std::env::var("API_BIND_ADDR")
         .ok()
         .and_then(|s| s.parse::<SocketAddr>().ok())
@@ -17,6 +20,6 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(%addr, "starting banji-api");
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, banji_api::app()).await?;
+    axum::serve(listener, banji_api::app_with_state(state)).await?;
     Ok(())
 }
