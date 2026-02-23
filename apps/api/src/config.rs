@@ -18,6 +18,16 @@ pub struct AppConfig {
     pub redis_circuit_cooldown: Duration,
     pub redis_log_rate_limit: Duration,
     pub event_payload_max_bytes: usize,
+    pub rabbit_url: Option<String>,
+    pub rabbit_vhost: String,
+    pub rabbit_exchange_jobs: String,
+    pub rabbit_dlx_exchange: String,
+    pub rabbit_retry_1_ttl_ms: u64,
+    pub rabbit_retry_2_ttl_ms: u64,
+    pub rabbit_retry_3_ttl_ms: u64,
+    pub rabbit_prefetch_fast: u16,
+    pub rabbit_prefetch_heavy: u16,
+    pub rabbit_max_attempts: u8,
     pub redis_url: Option<String>,
     pub database_runtime_url: Option<String>,
 }
@@ -56,6 +66,18 @@ impl AppConfig {
                 30,
             )?),
             event_payload_max_bytes: parse_u64("EVENT_PAYLOAD_MAX_BYTES", 65536)? as usize,
+            rabbit_url: env::var("RABBIT_URL").ok(),
+            rabbit_vhost: env::var("RABBIT_VHOST").unwrap_or_else(|_| "/".to_string()),
+            rabbit_exchange_jobs: env::var("RABBIT_EXCHANGE_JOBS")
+                .unwrap_or_else(|_| "banji-core.dev.jobs".to_string()),
+            rabbit_dlx_exchange: env::var("RABBIT_DLX_EXCHANGE")
+                .unwrap_or_else(|_| "banji-core.dev.jobs.dlx".to_string()),
+            rabbit_retry_1_ttl_ms: parse_u64("RABBIT_RETRY_1_TTL_MS", 30_000)?,
+            rabbit_retry_2_ttl_ms: parse_u64("RABBIT_RETRY_2_TTL_MS", 300_000)?,
+            rabbit_retry_3_ttl_ms: parse_u64("RABBIT_RETRY_3_TTL_MS", 1_800_000)?,
+            rabbit_prefetch_fast: parse_u16("RABBIT_PREFETCH_FAST", 20)?,
+            rabbit_prefetch_heavy: parse_u16("RABBIT_PREFETCH_HEAVY", 2)?,
+            rabbit_max_attempts: parse_u8("RABBIT_MAX_ATTEMPTS", 4)?,
             redis_url: env::var("REDIS_URL").ok(),
             database_runtime_url: env::var("DATABASE_RUNTIME_URL").ok(),
         })
@@ -94,6 +116,24 @@ fn parse_u32(name: &str, default: u32) -> Result<u32> {
     match env::var(name) {
         Ok(v) => v
             .parse::<u32>()
+            .with_context(|| format!("{name} must be an integer")),
+        Err(_) => Ok(default),
+    }
+}
+
+fn parse_u16(name: &str, default: u16) -> Result<u16> {
+    match env::var(name) {
+        Ok(v) => v
+            .parse::<u16>()
+            .with_context(|| format!("{name} must be an integer")),
+        Err(_) => Ok(default),
+    }
+}
+
+fn parse_u8(name: &str, default: u8) -> Result<u8> {
+    match env::var(name) {
+        Ok(v) => v
+            .parse::<u8>()
             .with_context(|| format!("{name} must be an integer")),
         Err(_) => Ok(default),
     }

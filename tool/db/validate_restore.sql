@@ -50,6 +50,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'missing required table app.event_consumer_checkpoint';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'app' AND table_name = 'job_outbox'
+  ) THEN
+    RAISE EXCEPTION 'missing required table app.job_outbox';
+  END IF;
 END
 $$;
 
@@ -90,4 +98,5 @@ SELECT
   (SELECT COUNT(*) FROM app.schema_migration_guard) AS guard_rows,
   (SELECT COUNT(*) FROM app.migration_probe_event) AS probe_rows,
   (SELECT COUNT(*) FROM app.event_log) AS event_rows,
-  (SELECT COUNT(*) FROM app.event_consumer_checkpoint) AS checkpoint_rows;
+  (SELECT COUNT(*) FROM app.event_consumer_checkpoint) AS checkpoint_rows,
+  (SELECT COUNT(*) FROM app.job_outbox) AS job_outbox_rows;

@@ -2,6 +2,7 @@ pub mod cache;
 pub mod config;
 pub mod events;
 pub mod idempotency;
+pub mod jobs;
 
 use axum::{
     extract::State,
@@ -271,6 +272,31 @@ async fn write_demo(
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(serde_json::json!({"error": format!("event publish failed: {err}")})),
+                );
+            }
+
+            let job_payload = serde_json::json!({
+                "operation": body.operation,
+                "caller_id": caller_id,
+                "idempotency_key": idempotency_key
+            });
+            let enqueue_key = format!("{}:{}:{}", state.config.service, caller_id, idempotency_key);
+            if let Err(err) = jobs::outbox::enqueue_tx(
+                &mut tx,
+                &enqueue_key,
+                "write-demo",
+                jobs::types::WorkloadClass::Fast,
+                "job.fast.write-demo",
+                &job_payload,
+            )
+            .await
+            {
+                let _ = tx.rollback().await;
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(
+                        serde_json::json!({"error": format!("failed to enqueue job outbox record: {err}")}),
+                    ),
                 );
             }
 

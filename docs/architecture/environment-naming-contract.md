@@ -55,6 +55,9 @@ Examples:
 - Rabbit queue `stock-update-jobs` in `staging`:
   - `banji-core.staging.stock-update-jobs`
   - DLQ: `banji-core.staging.stock-update-jobs.dlq`
+- Rabbit workload-class queues in `prod`:
+  - `banji-core.prod.fast-jobs` (DLQ: `banji-core.prod.fast-jobs.dlq`)
+  - `banji-core.prod.heavy-jobs` (DLQ: `banji-core.prod.heavy-jobs.dlq`)
 
 ## Messaging and Schema Rules
 - Region is not encoded in Kafka topic or RabbitMQ queue names. Region isolation is provided by cluster/vhost identity.

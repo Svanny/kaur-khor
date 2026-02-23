@@ -73,3 +73,9 @@ For each deployable Railway service:
 - Event publish must occur in the same transaction as canonical write/idempotency completion.
 - Event insertion is deterministic under retries via `(producer_service, idempotency_key)` dedupe rule.
 - Consumer lag is stream-scoped and must not use global max event id across streams.
+
+## RabbitMQ Reliability Contract
+- RabbitMQ is the current async job transport.
+- Postgres `app.job_outbox` is canonical enqueue intent; relay publishes with confirms.
+- Publish confirms are mandatory before acknowledging original messages on retry/DLQ republish.
+- Worker ack contract: acknowledge only after side effects are committed and confirmed handoff is complete.

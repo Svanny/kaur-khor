@@ -1,0 +1,41 @@
+flowchart LR
+    client["Client (Banji app / HTTP caller)"] -->|"POST /v1/write-demo\nGET /health"| api["Rust API (axum)"]
+
+    subgraph runtime["API Runtime (apps/api)"]
+      api --> sf["In-process singleflight lock\n(per cache key)"]
+      sf --> idem["Idempotency module\n(check_or_claim_tx / complete_tx)"]
+      sf --> cacheIface["CacheClient interface"]
+      cacheIface -->|"enabled + healthy"| redis["RedisCacheClient\n(timeout + circuit breaker + jitter TTL)"]
+      cacheIface -->|"disabled/unavailable"| noop["NoopCacheClient (fail-open)"]
+      api --> publisher["events::publisher::publish_in_tx\n(same DB transaction)"]
+    end
+
+    subgraph postgres["PostgreSQL (source of truth)"]
+      idemTbl[("app.idempotency_request")]
+      evLog[("app.event_log")]
+      cp[("app.event_consumer_checkpoint")]
+      cursor[("app.event_log_archive_export_cursor")]
+      archive[("app.event_log_archive\n(table provisioned)")]
+      mig[("app.schema_migration_guard\napp.migration_probe_event")]
+    end
+
+    idem -->|"FOR UPDATE + unique (caller_id, idempotency_key)"| idemTbl
+    publisher -->|"INSERT ON CONFLICT (producer_service, idempotency_key)"| evLog
+    redis -->|"idem replay cache + coord locks"| redisStore[("Redis")]
+    api -->|"commit success then best-effort cache set"| redis
+
+    worker["Projection / Worker consumers"] -->|"poll_stream(stream,id cursor)"| evLog
+    worker -->|"advance_checkpoint + heartbeat + errors"| cp
+    lag["events::lag::stream_lag"] --> cp
+    lag --> evLog
+
+    replay["tool/db/replay_event_log.sh"] -->|"read stream range"| evLog
+    export["tool/db/export_event_log.sh"] -->|"export rows before timestamp"| evLog
+    export -->|"record last_exported_event_id"| cursor
+    export -->|"optional prune after export"| evLog
+    export -->|"JSON lines archive"| obj["File/object storage"]
+
+    migrate["tool/ci/migrate_with_lock.sh\n(sqlx migrate + advisory lock)"] --> mig
+
+    note["Implemented behavior:\n- DB transaction couples idempotency + write-demo response + event publish\n- Cache is best-effort and never authoritative\n- Consumer progress is cursor-based by event_log.id"]
+    note -.-> api
