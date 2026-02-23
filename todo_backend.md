@@ -12,10 +12,10 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 2. [DONE] Stand up source control, CI, and release gates
    Set up GitHub Actions pipelines for Rust build, tests, formatting, linting, container build, and deploy. Done means every merge produces a build artifact, every deploy is traceable to a commit, and migrations are enforced as a required step.
 
-3. Provision postgres as the source of truth
+3. [DONE] Provision postgres as the source of truth
    Create postgresql in each environment with backups enabled. Define a migration tool and process. Done means you can create schema from scratch from migrations, apply forward migrations automatically in deploy, and restore to a clean environment.
 
-4. Provision Redis for cache and lightweight coordination
+4. [DONE] Provision Redis for cache and lightweight coordination
    Create Redis with a clear policy that it is never required for correctness. Done means the API can run with cache disabled, and cache keys include a schema version prefix.
 
 5. Provision Kafka for streaming logs
