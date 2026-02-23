@@ -17,6 +17,7 @@ pub struct AppConfig {
     pub redis_circuit_window: Duration,
     pub redis_circuit_cooldown: Duration,
     pub redis_log_rate_limit: Duration,
+    pub event_payload_max_bytes: usize,
     pub redis_url: Option<String>,
     pub database_runtime_url: Option<String>,
 }
@@ -54,6 +55,7 @@ impl AppConfig {
                 "REDIS_LOG_RATE_LIMIT_SECONDS",
                 30,
             )?),
+            event_payload_max_bytes: parse_u64("EVENT_PAYLOAD_MAX_BYTES", 65536)? as usize,
             redis_url: env::var("REDIS_URL").ok(),
             database_runtime_url: env::var("DATABASE_RUNTIME_URL").ok(),
         })

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, Row, Transaction};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PersistedResponse {
@@ -24,7 +24,17 @@ pub async fn check_or_claim(
     request_hash: &str,
 ) -> Result<IdempotencyResult> {
     let mut tx = db.begin().await?;
+    let result = check_or_claim_tx(&mut tx, caller_id, idempotency_key, request_hash).await?;
+    tx.commit().await?;
+    Ok(result)
+}
 
+pub async fn check_or_claim_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    caller_id: &str,
+    idempotency_key: &str,
+    request_hash: &str,
+) -> Result<IdempotencyResult> {
     if let Some(row) = sqlx::query(
         r#"
         SELECT request_hash, status, response_code, response_body
@@ -35,12 +45,11 @@ pub async fn check_or_claim(
     )
     .bind(caller_id)
     .bind(idempotency_key)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await?
     {
         let existing_hash: String = row.get("request_hash");
         if existing_hash != request_hash {
-            tx.commit().await?;
             return Ok(IdempotencyResult::Conflict);
         }
 
@@ -48,7 +57,6 @@ pub async fn check_or_claim(
         if status == "completed" {
             let status_code: i32 = row.get("response_code");
             let response_body: Value = row.get("response_body");
-            tx.commit().await?;
             return Ok(IdempotencyResult::Replay(PersistedResponse {
                 status_code,
                 body: response_body,
@@ -56,11 +64,9 @@ pub async fn check_or_claim(
         }
 
         if status == "in_progress" {
-            tx.commit().await?;
             return Ok(IdempotencyResult::InProgress);
         }
 
-        tx.commit().await?;
         return Ok(IdempotencyResult::Conflict);
     }
 
@@ -79,10 +85,9 @@ pub async fn check_or_claim(
     .bind(caller_id)
     .bind(idempotency_key)
     .bind(request_hash)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
-    tx.commit().await?;
     Ok(IdempotencyResult::Claimed)
 }
 
@@ -108,6 +113,32 @@ pub async fn complete(
     .bind(response.status_code)
     .bind(&response.body)
     .execute(db)
+    .await?;
+    Ok(())
+}
+
+pub async fn complete_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    caller_id: &str,
+    idempotency_key: &str,
+    response: &PersistedResponse,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE app.idempotency_request
+        SET
+            status = 'completed',
+            response_code = $3,
+            response_body = $4,
+            updated_at = NOW()
+        WHERE caller_id = $1 AND idempotency_key = $2
+        "#,
+    )
+    .bind(caller_id)
+    .bind(idempotency_key)
+    .bind(response.status_code)
+    .bind(&response.body)
+    .execute(&mut **tx)
     .await?;
     Ok(())
 }

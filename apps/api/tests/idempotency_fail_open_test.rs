@@ -18,6 +18,7 @@ fn test_config_with_bad_redis(db_url: Option<String>) -> AppConfig {
         redis_circuit_window: Duration::from_secs(3),
         redis_circuit_cooldown: Duration::from_secs(3),
         redis_log_rate_limit: Duration::from_secs(1),
+        event_payload_max_bytes: 65_536,
         redis_url: Some("redis://127.0.0.1:1".to_string()),
         database_runtime_url: db_url,
     }
@@ -52,6 +53,12 @@ async fn idempotent_write_remains_correct_with_redis_down() {
 
     sqlx::query("DELETE FROM app.idempotency_request WHERE caller_id = $1")
         .bind("test-caller")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM app.event_log WHERE producer_service = $1 AND idempotency_key = $2")
+        .bind("api")
+        .bind("idem-1")
         .execute(&pool)
         .await
         .unwrap();
@@ -103,4 +110,14 @@ async fn idempotent_write_remains_correct_with_redis_down() {
     .await
     .unwrap();
     assert_eq!(count, 1);
+
+    let event_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM app.event_log WHERE producer_service=$1 AND idempotency_key=$2",
+    )
+    .bind("api")
+    .bind("idem-1")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(event_count, 1);
 }

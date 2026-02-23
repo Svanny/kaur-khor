@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod config;
+pub mod events;
 pub mod idempotency;
 
 use axum::{
@@ -10,6 +11,7 @@ use axum::{
 };
 use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient};
 use config::AppConfig;
+use events::model::EventRecord;
 use idempotency::{IdempotencyResult, PersistedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -143,10 +145,23 @@ async fn write_demo(
     let request_value = serde_json::json!({"operation": body.operation, "payload": body.payload});
     let request_hash = idempotency::hash_request_body(&request_value);
 
+    let mut tx = match db.begin().await {
+        Ok(tx) => tx,
+        Err(err) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("transaction begin failed: {err}")})),
+            );
+        }
+    };
+
     let result =
-        match idempotency::check_or_claim(db, &caller_id, &idempotency_key, &request_hash).await {
+        match idempotency::check_or_claim_tx(&mut tx, &caller_id, &idempotency_key, &request_hash)
+            .await
+        {
             Ok(r) => r,
             Err(err) => {
+                let _ = tx.rollback().await;
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(serde_json::json!({"error": format!("idempotency check failed: {err}")})),
@@ -156,6 +171,7 @@ async fn write_demo(
 
     match result {
         IdempotencyResult::Replay(resp) => {
+            let _ = tx.commit().await;
             let serialized = serde_json::to_string(&resp).unwrap_or_default();
             let _ = state
                 .cache
@@ -166,16 +182,23 @@ async fn write_demo(
                 Json(resp.body),
             )
         }
-        IdempotencyResult::Conflict => (
-            StatusCode::CONFLICT,
-            Json(serde_json::json!({"error":"idempotency key reused with different payload"})),
-        ),
-        IdempotencyResult::InProgress => (
-            StatusCode::CONFLICT,
-            Json(serde_json::json!({"error":"request with same idempotency key is in progress"})),
-        ),
+        IdempotencyResult::Conflict => {
+            let _ = tx.commit().await;
+            (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({"error":"idempotency key reused with different payload"})),
+            )
+        }
+        IdempotencyResult::InProgress => {
+            let _ = tx.commit().await;
+            (
+                StatusCode::CONFLICT,
+                Json(
+                    serde_json::json!({"error":"request with same idempotency key is in progress"}),
+                ),
+            )
+        }
         IdempotencyResult::Claimed => {
-            // Demo handler: source-of-truth write result is persisted in Postgres idempotency row.
             let response_body = serde_json::json!({
                 "ok": true,
                 "operation": body.operation,
@@ -188,14 +211,73 @@ async fn write_demo(
             };
 
             if let Err(err) =
-                idempotency::complete(db, &caller_id, &idempotency_key, &persisted).await
+                idempotency::complete_tx(&mut tx, &caller_id, &idempotency_key, &persisted).await
             {
-                let _ = idempotency::fail(db, &caller_id, &idempotency_key, &err.to_string()).await;
+                let _ = tx.rollback().await;
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(
                         serde_json::json!({"error": format!("failed to persist idempotent response: {err}")}),
                     ),
+                );
+            }
+
+            let stream_name = format!(
+                "{}.{}.{}",
+                state.config.system, state.config.env, "inventory-updated"
+            );
+            let event_payload = serde_json::json!({
+                "operation": body.operation,
+                "payload": body.payload,
+                "caller_id": caller_id,
+                "idempotency_key": idempotency_key,
+                "result": response_body,
+            });
+
+            let event_payload_len = serde_json::to_vec(&event_payload)
+                .map(|v| v.len())
+                .unwrap_or(0);
+            if event_payload_len > state.config.event_payload_max_bytes {
+                let _ = tx.rollback().await;
+                return (
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    Json(serde_json::json!({
+                        "error": "event payload exceeds EVENT_PAYLOAD_MAX_BYTES; move large blobs to object storage and store pointer/checksum"
+                    })),
+                );
+            }
+
+            let event = EventRecord::new(
+                stream_name,
+                "inventory.write-demo.completed".to_string(),
+                1,
+                "write-demo".to_string(),
+                caller_id.clone(),
+                state.config.service.clone(),
+                Some(idempotency_key.clone()),
+                headers
+                    .get("x-correlation-id")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string()),
+                None,
+                event_payload,
+                serde_json::json!({
+                    "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
+                }),
+            );
+
+            if let Err(err) = events::publisher::publish_in_tx(&mut tx, &event).await {
+                let _ = tx.rollback().await;
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("event publish failed: {err}")})),
+                );
+            }
+
+            if let Err(err) = tx.commit().await {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("transaction commit failed: {err}")})),
                 );
             }
 

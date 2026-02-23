@@ -34,6 +34,22 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'missing required table app.idempotency_request';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'app' AND table_name = 'event_log'
+  ) THEN
+    RAISE EXCEPTION 'missing required table app.event_log';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'app' AND table_name = 'event_consumer_checkpoint'
+  ) THEN
+    RAISE EXCEPTION 'missing required table app.event_consumer_checkpoint';
+  END IF;
 END
 $$;
 
@@ -72,4 +88,6 @@ $$;
 SELECT
   (SELECT COUNT(*) FROM public._sqlx_migrations) AS applied_migrations,
   (SELECT COUNT(*) FROM app.schema_migration_guard) AS guard_rows,
-  (SELECT COUNT(*) FROM app.migration_probe_event) AS probe_rows;
+  (SELECT COUNT(*) FROM app.migration_probe_event) AS probe_rows,
+  (SELECT COUNT(*) FROM app.event_log) AS event_rows,
+  (SELECT COUNT(*) FROM app.event_consumer_checkpoint) AS checkpoint_rows;

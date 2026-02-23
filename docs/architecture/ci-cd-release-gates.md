@@ -67,3 +67,9 @@ For each deployable Railway service:
 - Redis outages must not block correctness or write completion.
 - Correctness idempotency enforcement is Postgres-backed (`app.idempotency_request`), not Redis-backed.
 - Redis is fail-open and fail-fast, with circuit-breaking and timeout controls.
+
+## Event Log Current-Fix Contract
+- Kafka is optional/future; current event stream transport is Postgres `app.event_log`.
+- Event publish must occur in the same transaction as canonical write/idempotency completion.
+- Event insertion is deterministic under retries via `(producer_service, idempotency_key)` dedupe rule.
+- Consumer lag is stream-scoped and must not use global max event id across streams.

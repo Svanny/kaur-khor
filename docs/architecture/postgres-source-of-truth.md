@@ -62,6 +62,16 @@ No runtime role may hold schema-altering privileges.
   - data invariants and representative query shape checks
 - Drill artifacts must record backup source timestamp, restore duration, and pass/fail details.
 
+## Event Log Current Fix (Kafka Substitute)
+- Current transport for streaming needs is `app.event_log` in PostgreSQL.
+- Event records are appended in the same transaction as canonical writes/idempotency completion.
+- Consumers poll by `id` cursor and persist progress in `app.event_consumer_checkpoint`.
+- Exactly one active consumer instance is allowed per `(service_name, consumer_name, stream_name)` tuple in this phase.
+- Horizontal scaling requires a later claim/sharding model.
+- Retention default is 30 days in primary DB, with object-storage export before prune.
+- Stream lag must be calculated per stream:
+  - `max(event_log.id WHERE stream_name=?) - checkpoint.last_event_id`
+
 ## Operational Telemetry Baseline
 Enable visibility for:
 - slow queries / top query patterns

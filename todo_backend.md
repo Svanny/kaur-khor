@@ -21,6 +21,9 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 5. [OPTIONAL / FUTURE] Provision Kafka for streaming logs
    Optional future track: create Apache Kafka, decide retention defaults, and create initial topics with partitions sized for your expected parallelism. Done means you can publish and consume from a test topic, you can observe consumer lag, and you have a clear topic naming convention.
 
+5a. [CURRENT FIX] Use PostgreSQL event log as Kafka substitute
+   Implement an append-only `app.event_log` table as the current event stream transport. Publish events in the same transaction as canonical writes (outbox style), then poll/process by cursor (`id` or `created_at`) from worker services. Done means you can publish and consume from a test event stream in Postgres, track consumer progress with a durable checkpoint table, replay ranges for backfill, and keep naming/versioning conventions aligned with the current event vocabulary.
+
 6. Provision RabbitMQ for job queues
    Create RabbitMQ, define exchanges, queues, dead letter routing, and retry strategy. Done means you can enqueue a job, consume it, fail it, see it land in retry or dead letter, and recover it intentionally.
 
@@ -41,6 +44,9 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 11. [OPTIONAL / FUTURE] Define Kafka retention, compaction, and replay policy
     Optional future track: decide what must be replayable and for how long. Done means you can rebuild projections from a checkpoint, and you can justify retention cost.
 
+11a. [CURRENT FIX] Define Postgres event log retention and replay policy
+    Define retention window, archive strategy, and replay procedure for `app.event_log` so projections can be rebuilt from checkpoints without Kafka. Done means you can replay event ranges from Postgres, prune safely after archival, and justify storage/cost tradeoffs.
+
 12. Define RabbitMQ poison message and retry rules
     Set limits on retries and define a process for dead letter triage. Done means poison messages do not stall your system and you have a repeatable recovery playbook.
 
@@ -59,11 +65,17 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 2. [OPTIONAL / FUTURE] Postgres outbox table and outbox relay service (Kafka path)
    Optional future track: write an outbox row in the same transaction as the canonical write, then run a small Rust relay that publishes outbox rows into Kafka. Done means a committed DB write always produces a Kafka event, and failed publishes are retried without duplicates causing corruption.
 
+2a. [CURRENT FIX] Postgres outbox table and Postgres event relay
+   Write an outbox row in the same transaction as the canonical write, then run a small Rust relay/poller that moves rows into `app.event_log` (or marks outbox rows as published if writing directly). Done means a committed DB write always produces a durable Postgres event, retries are safe, and duplicates are prevented via idempotent publish keys.
+
 3. Event vocabulary and schema discipline
    Define event types, required fields, versioning rules, and compatibility expectations. Done means producers and consumers validate payloads and a schema change is an explicit version increment, not a silent drift.
 
 4. [OPTIONAL / FUTURE] Streaming consumer service for projections (Kafka path)
    Optional future track: create a Rust consumer group that reads Kafka events and updates read optimized tables in Postgres. Done means your hottest read endpoints can hit projection tables with simple indexed queries.
+
+4a. [CURRENT FIX] Event-log consumer service for projections (Postgres path)
+   Create a Rust consumer worker that reads `app.event_log` by monotonic cursor and updates read optimized tables in Postgres. Done means projection consumers can resume from durable checkpoints and rebuild by replaying event ranges from Postgres.
 
 5. Job producer and worker services
    API or consumers enqueue jobs to RabbitMQ for heavy algorithms. Workers consume, write run records, write results, and publish result events back to Kafka only if/when the optional Kafka track is enabled. Done means jobs are idempotent, retriable, and every run is accountable in Postgres.
@@ -81,6 +93,9 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 
 9. [OPTIONAL / FUTURE] Replay and backfill tooling (Kafka replay path)
    Optional future track: build a controlled tool or service that can replay Kafka ranges into projections and re run batch jobs safely. Done means you can rebuild derived state after algorithm changes without manual database surgery.
+
+9a. [CURRENT FIX] Replay and backfill tooling (Postgres event-log path)
+   Build a controlled tool/service that replays `app.event_log` ranges into projections and re-runs batch jobs safely. Done means you can rebuild derived state after algorithm changes without Kafka.
 
 10. SLOs and alerting tied to user pain
     Alerts for API latency, error rate, RabbitMQ queue depth, worker failure rate, Postgres locks, and cache hit rate; include Kafka consumer lag only if the optional Kafka track is enabled. Done means alerts predict incidents, not announce them after users complain.
