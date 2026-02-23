@@ -1,6 +1,8 @@
 # Banji
 
-Banji is a Flutter inventory dashboard prototype with SKU/service management workflows, stock update tooling, product ranking, localization, and built-in security guardrails.
+Banji is an inventory platform prototype with:
+- A Flutter dashboard/product UI.
+- A Rust API workstream (`apps/api`) implementing core backend contracts (Postgres source of truth, idempotency, event log, Redis fail-open cache, RabbitMQ job/outbox patterns).
 
 ## What Is Implemented
 
@@ -15,11 +17,17 @@ Banji is a Flutter inventory dashboard prototype with SKU/service management wor
 
 ## Tech Stack
 
-- Flutter (Material)
-- Dart SDK `^3.9.0`
-- `flutter_svg`
-- `flutter_card_swiper`
-- `google_fonts`
+- Frontend:
+  - Flutter (Material)
+  - Dart SDK `^3.9.0`
+  - `flutter_svg`
+  - `flutter_card_swiper`
+  - `google_fonts`
+- Backend:
+  - Rust (`axum`, `sqlx`, `tokio`)
+  - PostgreSQL
+  - Redis (optional cache/coordination)
+  - RabbitMQ (jobs; outbox relay pattern)
 
 ## Project Structure
 
@@ -32,6 +40,23 @@ Banji is a Flutter inventory dashboard prototype with SKU/service management wor
 - `lib/localization/` and `lib/l10n/`: locale controller and generated/localized strings.
 - `test/`: widget, logic, and security tests.
 - `tool/security/`: merge-gate security checks.
+- `apps/api/`: Rust API service and backend modules.
+- `apps/api/migrations/`: SQLx schema migrations.
+- `config/env/`: environment variable templates for `dev`, `staging`, `prod`.
+- `docs/architecture/`: canonical backend contracts and architecture decisions.
+- `tool/`: operational scripts for naming, DB operations, and RabbitMQ operations.
+
+## Root Docs Index
+
+Root markdown files are intentionally prefixed for grouping and stable sorting:
+
+- `README.md`: project overview and usage.
+- `SECURITY.md`: security policy and baseline.
+- `20_ARCH_backend-process-diagram.md`: backend process diagram notes.
+- `30_RISK_banji-threat-model.md`: threat model.
+- `30_RISK_ownership-map-fallback.md`: ownership map fallback analysis.
+- `30_RISK_security-best-practices-report.md`: security best-practices report.
+- `40_PLAN_todo-backend.md`: backend delivery todo and future considerations.
 
 ## State and Architecture Notes
 
@@ -137,4 +162,8 @@ bash tool/sync_design_tokens.sh
 
 ## Current Status
 
-This repository is an actively evolving prototype. Some actions in the UI (for example backup/export/logout backends) are intentionally placeholder stubs pending integration design.
+This repository is an actively evolving prototype.
+
+- Flutter UI flows are implemented for inventory and ranking interactions.
+- Backend architecture and infrastructure contracts are being implemented incrementally in the Rust API workstream.
+- Some integration paths remain intentionally staged while contracts and operational tooling are finalized.
