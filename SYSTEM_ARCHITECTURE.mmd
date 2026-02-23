@@ -1,41 +1,75 @@
-flowchart LR
-    client["Client (Banji app / HTTP caller)"] -->|"POST /v1/write-demo\nGET /health"| api["Rust API (axum)"]
+%%{init: {
+  "theme": "base",
+  "flowchart": {
+    "curve": "linear",
+    "nodeSpacing": 55,
+    "rankSpacing": 80,
+    "htmlLabels": true
+  },
+  "themeVariables": {
+    "fontSize": "18px",
+    "fontFamily": "Menlo, Monaco, monospace",
+    "lineColor": "#334155",
+    "primaryTextColor": "#111827"
+  }
+}}%%
 
-    subgraph runtime["API Runtime (apps/api)"]
-      api --> sf["In-process singleflight lock\n(per cache key)"]
-      sf --> idem["Idempotency module\n(check_or_claim_tx / complete_tx)"]
-      sf --> cacheIface["CacheClient interface"]
-      cacheIface -->|"enabled + healthy"| redis["RedisCacheClient\n(timeout + circuit breaker + jitter TTL)"]
-      cacheIface -->|"disabled/unavailable"| noop["NoopCacheClient (fail-open)"]
-      api --> publisher["events::publisher::publish_in_tx\n(same DB transaction)"]
-    end
+flowchart TB
 
-    subgraph postgres["PostgreSQL (source of truth)"]
-      idemTbl[("app.idempotency_request")]
-      evLog[("app.event_log")]
-      cp[("app.event_consumer_checkpoint")]
-      cursor[("app.event_log_archive_export_cursor")]
-      archive[("app.event_log_archive\n(table provisioned)")]
-      mig[("app.schema_migration_guard\napp.migration_probe_event")]
-    end
+subgraph FLOW["Banji Runtime Flow (Current)"]
+  direction TB
 
-    idem -->|"FOR UPDATE + unique (caller_id, idempotency_key)"| idemTbl
-    publisher -->|"INSERT ON CONFLICT (producer_service, idempotency_key)"| evLog
-    redis -->|"idem replay cache + coord locks"| redisStore[("Redis")]
-    api -->|"commit success then best-effort cache set"| redis
+  client["Client Apps"] --> api["Rust API (axum)<br/>/health<br/>/v1/write-demo"]
 
-    worker["Projection / Worker consumers"] -->|"poll_stream(stream,id cursor)"| evLog
-    worker -->|"advance_checkpoint + heartbeat + errors"| cp
-    lag["events::lag::stream_lag"] --> cp
-    lag --> evLog
+  api --> idemp[("Postgres<br/>app.idempotency_request")]
+  api --> evlog[("Postgres<br/>app.event_log")]
+  api --> outbox[("Postgres<br/>app.job_outbox")]
+  api --> redis[("Redis optional<br/>cache + coordination")]
 
-    replay["tool/db/replay_event_log.sh"] -->|"read stream range"| evLog
-    export["tool/db/export_event_log.sh"] -->|"export rows before timestamp"| evLog
-    export -->|"record last_exported_event_id"| cursor
-    export -->|"optional prune after export"| evLog
-    export -->|"JSON lines archive"| obj["File/object storage"]
+  outbox --> relay["Outbox relay<br/>publish with confirms<br/>mark sent"]
+  relay --> rabbit["RabbitMQ jobs"]
 
-    migrate["tool/ci/migrate_with_lock.sh\n(sqlx migrate + advisory lock)"] --> mig
+  rabbit --> workers["Workers<br/>fast/heavy<br/>manual ack"]
+  workers --> classifier["Error classifier<br/>permanent->DLQ<br/>transient->retry"]
+  classifier --> rabbit
+  workers --> pgstate[("Postgres state writes")]
 
-    note["Implemented behavior:\n- DB transaction couples idempotency + write-demo response + event publish\n- Cache is best-effort and never authoritative\n- Consumer progress is cursor-based by event_log.id"]
-    note -.-> api
+  projection["Projection consumer<br/>poll by stream/id"] --> evlog
+  projection --> checkpoint[("Postgres<br/>app.event_consumer_checkpoint")]
+
+  operator["Operators"] --> replay["DLQ replay tool<br/>rate limit + audit"]
+  operator --> dbtools["DB tools<br/>replay/export/restore validate"]
+  replay --> rabbit
+  dbtools --> evlog
+
+  github["GitHub repo + PR"] --> gha["Actions disabled<br/>(.yml.disabled)"]
+  evlog -. "optional future mirror" .-> kafka["Kafka optional future<br/>not active"]
+end
+
+subgraph DETAILS["Reference Panels"]
+  direction LR
+
+  naming["Naming<br/>banji-core<br/>env: dev|staging|prod<br/>region: kh-pp<br/>queue/topic names omit region"]
+
+  rabbitDetail["Rabbit topology<br/>exchange: {system}.{env}.jobs<br/>dlx: {system}.{env}.jobs.dlx<br/>fast lane: primary + retry.1(30s) + retry.2(5m) + retry.3(30m) + dlq<br/>heavy lane: primary + retry.1(30s) + retry.2(5m) + retry.3(30m) + dlq"]
+
+  pgDetail["Postgres objects<br/>_sqlx_migrations<br/>app.idempotency_request<br/>app.event_log<br/>app.event_consumer_checkpoint<br/>app.job_outbox<br/>app.event_log_archive_export_cursor<br/>app.event_log_archive (optional)"]
+
+  redisDetail["Redis behavior<br/>fail-open + fail-fast<br/>timeouts + circuit breaker<br/>TTL jitter + single-flight"]
+end
+
+api -. "contract" .-> naming
+rabbit -. "topology" .-> rabbitDetail
+pgstate -. "schema" .-> pgDetail
+redis -. "runtime" .-> redisDetail
+
+%% Styling
+classDef db fill:#e8f5e9,stroke:#2e7d32,color:#0f172a;
+classDef mq fill:#e3f2fd,stroke:#1565c0,color:#0f172a;
+classDef critical fill:#fff3e0,stroke:#ef6c00,color:#0f172a;
+classDef optional fill:#f8fafc,stroke:#64748b,stroke-dasharray: 4 4,color:#0f172a;
+
+class idemp,evlog,outbox,pgstate,checkpoint,pgDetail db;
+class rabbit,rabbitDetail mq;
+class api,relay,workers,classifier critical;
+class redis,redisDetail,gha,kafka optional;
