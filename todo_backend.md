@@ -18,8 +18,8 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 4. [DONE] Provision Redis for cache and lightweight coordination
    Create Redis with a clear policy that it is never required for correctness. Done means the API can run with cache disabled, and cache keys include a schema version prefix.
 
-5. Provision Kafka for streaming logs
-   Create Apache Kafka, decide retention defaults, and create initial topics with partitions sized for your expected parallelism. Done means you can publish and consume from a test topic, you can observe consumer lag, and you have a clear topic naming convention.
+5. [OPTIONAL / FUTURE] Provision Kafka for streaming logs
+   Optional future track: create Apache Kafka, decide retention defaults, and create initial topics with partitions sized for your expected parallelism. Done means you can publish and consume from a test topic, you can observe consumer lag, and you have a clear topic naming convention.
 
 6. Provision RabbitMQ for job queues
    Create RabbitMQ, define exchanges, queues, dead letter routing, and retry strategy. Done means you can enqueue a job, consume it, fail it, see it land in retry or dead letter, and recover it intentionally.
@@ -38,8 +38,8 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 10. Define backup and restore drills as a routine
     Backups are not enough. Done means you can restore Postgres to a new environment and pass a basic validation script, and you have a cadence for doing this.
 
-11. Define Kafka retention, compaction, and replay policy
-    Decide what must be replayable and for how long. Done means you can rebuild projections from a checkpoint, and you can justify retention cost.
+11. [OPTIONAL / FUTURE] Define Kafka retention, compaction, and replay policy
+    Optional future track: decide what must be replayable and for how long. Done means you can rebuild projections from a checkpoint, and you can justify retention cost.
 
 12. Define RabbitMQ poison message and retry rules
     Set limits on retries and define a process for dead letter triage. Done means poison messages do not stall your system and you have a repeatable recovery playbook.
@@ -56,17 +56,17 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 1. Rust API service
    Implement auth verification, request validation, idempotency keys for writes, Postgres transactions, and cache read through for hot reads. Done means the client can perform a write, read it back, and retries do not duplicate state.
 
-2. Postgres outbox table and outbox relay service
-   Write an outbox row in the same transaction as the canonical write, then run a small Rust relay that publishes outbox rows into Kafka. Done means a committed DB write always produces a Kafka event, and failed publishes are retried without duplicates causing corruption.
+2. [OPTIONAL / FUTURE] Postgres outbox table and outbox relay service (Kafka path)
+   Optional future track: write an outbox row in the same transaction as the canonical write, then run a small Rust relay that publishes outbox rows into Kafka. Done means a committed DB write always produces a Kafka event, and failed publishes are retried without duplicates causing corruption.
 
 3. Event vocabulary and schema discipline
    Define event types, required fields, versioning rules, and compatibility expectations. Done means producers and consumers validate payloads and a schema change is an explicit version increment, not a silent drift.
 
-4. Streaming consumer service for projections
-   Create a Rust consumer group that reads Kafka events and updates read optimized tables in Postgres. Done means your hottest read endpoints can hit projection tables with simple indexed queries.
+4. [OPTIONAL / FUTURE] Streaming consumer service for projections (Kafka path)
+   Optional future track: create a Rust consumer group that reads Kafka events and updates read optimized tables in Postgres. Done means your hottest read endpoints can hit projection tables with simple indexed queries.
 
 5. Job producer and worker services
-   API or consumers enqueue jobs to RabbitMQ for heavy algorithms. Workers consume, write run records, write results, and publish result events back to Kafka if needed. Done means jobs are idempotent, retriable, and every run is accountable in Postgres.
+   API or consumers enqueue jobs to RabbitMQ for heavy algorithms. Workers consume, write run records, write results, and publish result events back to Kafka only if/when the optional Kafka track is enabled. Done means jobs are idempotent, retriable, and every run is accountable in Postgres.
 
 6. Object storage integration for heavy artifacts
    Use S3 compatible storage for exports, large intermediate files, and reports. Done means Postgres holds only metadata and references, and workers can produce artifacts without bloating the database.
@@ -74,16 +74,16 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 #### Walls, the service layer upgrades that prevent slow decay
 
 7. Rate limiting and abuse controls in the API layer
-   Implement per user and per device limits, plus backpressure behavior when Kafka or RabbitMQ is unhealthy. Done means overload degrades gracefully and does not cascade.
+   Implement per user and per device limits, plus backpressure behavior when RabbitMQ is unhealthy and Kafka is unhealthy only if the optional Kafka track is enabled. Done means overload degrades gracefully and does not cascade.
 
 8. End to end tracing across API, relay, consumers, and workers
-   Propagate correlation ids through Kafka headers and RabbitMQ metadata. Done means you can trace one user action through every hop.
+   Propagate correlation ids through RabbitMQ metadata, and through Kafka headers only if the optional Kafka track is enabled. Done means you can trace one user action through every hop.
 
-9. Replay and backfill tooling
-   Build a controlled tool or service that can replay Kafka ranges into projections and re run batch jobs safely. Done means you can rebuild derived state after algorithm changes without manual database surgery.
+9. [OPTIONAL / FUTURE] Replay and backfill tooling (Kafka replay path)
+   Optional future track: build a controlled tool or service that can replay Kafka ranges into projections and re run batch jobs safely. Done means you can rebuild derived state after algorithm changes without manual database surgery.
 
 10. SLOs and alerting tied to user pain
-    Alerts for API latency, error rate, Kafka consumer lag, RabbitMQ queue depth, worker failure rate, Postgres locks, and cache hit rate. Done means alerts predict incidents, not announce them after users complain.
+    Alerts for API latency, error rate, RabbitMQ queue depth, worker failure rate, Postgres locks, and cache hit rate; include Kafka consumer lag only if the optional Kafka track is enabled. Done means alerts predict incidents, not announce them after users complain.
 
 11. Staging environment parity and safe rollout controls
     Ensure staging mirrors production topology and add feature flags for algorithm rollouts. Done means you can ship changes gradually and roll back fast.
