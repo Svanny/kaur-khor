@@ -1,0 +1,13 @@
+/Users/svanny/banji/apps/api/target/debug/deps/opentelemetry_otlp-2e83fdc4fea441bc.d: /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/lib.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/mod.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/mod.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/metrics.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/trace.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/metric.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/span.rs
+
+/Users/svanny/banji/apps/api/target/debug/deps/libopentelemetry_otlp-2e83fdc4fea441bc.rmeta: /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/lib.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/mod.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/mod.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/metrics.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/trace.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/metric.rs /Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/span.rs
+
+/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/lib.rs:
+/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/mod.rs:
+/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/mod.rs:
+/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/metrics.rs:
+/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/exporter/tonic/trace.rs:
+/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/metric.rs:
+/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opentelemetry-otlp-0.14.0/src/span.rs:
+
+# env-dep:CARGO_PKG_VERSION=0.14.0
