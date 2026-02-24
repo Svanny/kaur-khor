@@ -2,6 +2,7 @@ use super::publisher::ConfirmingPublisher;
 use super::retry::{classify_error, next_destination};
 use super::types::{ErrorClass, JobEnvelope};
 use crate::config::AppConfig;
+use crate::observability::{metrics, propagation};
 use anyhow::Result;
 
 pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
@@ -17,10 +18,26 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
 
     envelope.attempt = decision.next_attempt;
 
+    let mut headers = super::publisher::MessageHeaders::new();
+    headers.insert(
+        "x-correlation-id".to_string(),
+        envelope.correlation_id.clone(),
+    );
+    propagation::inject_current_context_to_map(&mut headers);
+
     // Critical safety contract: confirm publish before original ack.
     publisher
-        .publish_with_confirm(exchange, &decision.destination_queue, &envelope)
+        .publish_with_confirm(exchange, &decision.destination_queue, &envelope, &headers)
         .await?;
+
+    if decision.dead_letter {
+        metrics::record_job_dlq(envelope.workload_class.as_str());
+    } else {
+        metrics::record_job_retry(
+            envelope.workload_class.as_str(),
+            envelope.attempt.saturating_sub(1).min(3),
+        );
+    }
 
     Ok(RepublishResult {
         error_class,

@@ -4,10 +4,12 @@ pub mod events;
 pub mod idempotency;
 pub mod jobs;
 pub mod logging;
+pub mod observability;
 
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
+    middleware,
     routing::{get, post},
     Json, Router,
 };
@@ -86,13 +88,20 @@ async fn health() -> Json<Health> {
 }
 
 pub fn app() -> Router {
-    Router::new().route("/health", get(health))
+    Router::new()
+        .route("/health", get(health))
+        .layer(middleware::from_fn(
+            observability::http_observability_middleware,
+        ))
 }
 
 pub fn app_with_state(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/v1/write-demo", post(write_demo))
+        .layer(middleware::from_fn(
+            observability::http_observability_middleware,
+        ))
         .with_state(state)
 }
 
@@ -246,6 +255,11 @@ async fn write_demo(
                 );
             }
 
+            let correlation_id = observability::propagation::correlation_id_from_headers_or_context(
+                &headers,
+                &opentelemetry::Context::current(),
+            );
+
             let event = EventRecord::new(
                 stream_name,
                 "inventory.write-demo.completed".to_string(),
@@ -254,10 +268,7 @@ async fn write_demo(
                 caller_id.clone(),
                 state.config.service.clone(),
                 Some(idempotency_key.clone()),
-                headers
-                    .get("x-correlation-id")
-                    .and_then(|v| v.to_str().ok())
-                    .map(|s| s.to_string()),
+                Some(correlation_id.clone()),
                 None,
                 event_payload,
                 serde_json::json!({
@@ -285,6 +296,7 @@ async fn write_demo(
                 "write-demo",
                 jobs::types::WorkloadClass::Fast,
                 "job.fast.write-demo",
+                &correlation_id,
                 &job_payload,
             )
             .await

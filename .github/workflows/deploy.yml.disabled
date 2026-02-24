@@ -58,10 +58,17 @@ jobs:
         env:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+          OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         run: |
           test -n "$DATABASE_MIGRATION_URL" || (echo "missing DATABASE_MIGRATION_URL" >&2; exit 1)
           test -n "$DATABASE_RUNTIME_URL" || (echo "missing DATABASE_RUNTIME_URL" >&2; exit 1)
           test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
+          if [[ "${OTEL_ENABLED,,}" == "true" ]]; then
+            test -n "$OTEL_EXPORTER_OTLP_ENDPOINT" || (echo "missing OTEL_EXPORTER_OTLP_ENDPOINT while OTEL_ENABLED=true" >&2; exit 1)
+            test -n "$OTEL_EXPORTER_OTLP_HEADERS" || (echo "missing OTEL_EXPORTER_OTLP_HEADERS while OTEL_ENABLED=true" >&2; exit 1)
+          fi
       - name: Assert image reference is digest-pinned
         run: |
           [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
@@ -116,10 +123,17 @@ jobs:
         env:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+          OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         run: |
           test -n "$DATABASE_MIGRATION_URL" || (echo "missing DATABASE_MIGRATION_URL" >&2; exit 1)
           test -n "$DATABASE_RUNTIME_URL" || (echo "missing DATABASE_RUNTIME_URL" >&2; exit 1)
           test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
+          if [[ "${OTEL_ENABLED,,}" == "true" ]]; then
+            test -n "$OTEL_EXPORTER_OTLP_ENDPOINT" || (echo "missing OTEL_EXPORTER_OTLP_ENDPOINT while OTEL_ENABLED=true" >&2; exit 1)
+            test -n "$OTEL_EXPORTER_OTLP_HEADERS" || (echo "missing OTEL_EXPORTER_OTLP_HEADERS while OTEL_ENABLED=true" >&2; exit 1)
+          fi
       - name: Assert image reference is digest-pinned
         run: |
           [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)

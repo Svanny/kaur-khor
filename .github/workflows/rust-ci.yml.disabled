@@ -10,6 +10,7 @@ on:
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - 'tool/ci/**'
+      - 'tool/otel/**'
       - 'tool/security/**'
   push:
     branches-ignore: [main]
@@ -20,6 +21,7 @@ on:
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - 'tool/ci/**'
+      - 'tool/otel/**'
       - 'tool/security/**'
 
 permissions:
@@ -107,6 +109,7 @@ jobs:
       CACHE_SCHEMA_VERSION: v1
       REDIS_URL: redis://localhost:6379
       CACHE_ENABLED: true
+      OTEL_ENABLED: false
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Cache cargo registry and build artifacts

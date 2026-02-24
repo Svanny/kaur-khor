@@ -20,6 +20,7 @@ impl ConfirmingPublisher for FailingPublisher {
         _exchange: &str,
         _routing_key: &str,
         _envelope: &JobEnvelope,
+        _headers: &banji_api::jobs::publisher::MessageHeaders,
     ) -> Result<()> {
         Err(anyhow!("broker unavailable"))
     }
@@ -80,6 +81,7 @@ async fn relay_publish_failures_are_requeued_as_pending() {
         "write-demo",
         WorkloadClass::Fast,
         "job.fast.write-demo",
+        "corr-relay-requeue-test",
         &serde_json::json!({"demo":true}),
     )
     .await

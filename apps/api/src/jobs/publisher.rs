@@ -1,6 +1,9 @@
 use super::types::JobEnvelope;
 use anyhow::Result;
 use async_trait::async_trait;
+use std::collections::BTreeMap;
+
+pub type MessageHeaders = BTreeMap<String, String>;
 
 #[async_trait]
 pub trait ConfirmingPublisher: Send + Sync {
@@ -9,6 +12,7 @@ pub trait ConfirmingPublisher: Send + Sync {
         exchange: &str,
         routing_key: &str,
         envelope: &JobEnvelope,
+        headers: &MessageHeaders,
     ) -> Result<()>;
 }
 
@@ -21,6 +25,7 @@ impl ConfirmingPublisher for NoopConfirmingPublisher {
         _exchange: &str,
         _routing_key: &str,
         _envelope: &JobEnvelope,
+        _headers: &MessageHeaders,
     ) -> Result<()> {
         Ok(())
     }

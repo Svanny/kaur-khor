@@ -2,20 +2,16 @@ use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info,banji_api=debug".to_string()),
-        )
-        .with_target(false)
-        .compact()
-        .init();
+    let telemetry = banji_api::observability::otel::init()?;
 
     if let Err(err) = run().await {
         let safe_error = banji_api::logging::redaction::redact_message(&format!("{:#}", err));
         tracing::error!(error = %safe_error, "banji-api startup failed");
+        telemetry.shutdown();
         return Err(anyhow::anyhow!(safe_error));
     }
 
+    telemetry.shutdown();
     Ok(())
 }
 

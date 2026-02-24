@@ -19,7 +19,7 @@ impl WorkloadClass {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobEnvelope {
     pub message_id: String,
-    pub correlation_id: Option<String>,
+    pub correlation_id: String,
     pub attempt: u8,
     pub job_type: String,
     pub workload_class: WorkloadClass,

@@ -10,7 +10,7 @@ This document defines the Kafka-substitute event stream implemented in PostgreSQ
 ## Current Operating Model
 - `app.event_log` is append-only transport for domain events.
 - Event write is in the same transaction as canonical write/idempotency completion.
-- Consumers poll by stream-scoped monotonic cursor (`id`).
+- Consumers poll by stream-scoped replay order (`created_at`, `id`).
 - Checkpointing is durable per `(service_name, consumer_name, stream_name)`.
 
 ## Single-Consumer-Now Rule

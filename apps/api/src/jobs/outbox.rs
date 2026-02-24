@@ -1,5 +1,5 @@
 use super::types::WorkloadClass;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use sqlx::{Postgres, Row, Transaction};
 
 pub async fn enqueue_tx(
@@ -8,8 +8,13 @@ pub async fn enqueue_tx(
     job_type: &str,
     workload_class: WorkloadClass,
     routing_key: &str,
+    correlation_id: &str,
     payload: &serde_json::Value,
 ) -> Result<i64> {
+    validate_correlation_id(correlation_id)?;
+    validate_label(job_type, "job_type")?;
+    validate_label(routing_key, "routing_key")?;
+
     let row = sqlx::query(
         r#"
         INSERT INTO app.job_outbox (
@@ -17,14 +22,16 @@ pub async fn enqueue_tx(
           job_type,
           workload_class,
           routing_key,
+          correlation_id,
           payload,
           attempt,
           status,
           updated_at
-        ) VALUES ($1, $2, $3, $4, $5, 1, 'pending', NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, 1, 'pending', NOW())
         ON CONFLICT (enqueue_key)
         DO UPDATE SET
-          updated_at = NOW()
+          updated_at = NOW(),
+          correlation_id = COALESCE(app.job_outbox.correlation_id, EXCLUDED.correlation_id)
         RETURNING id
         "#,
     )
@@ -32,6 +39,7 @@ pub async fn enqueue_tx(
     .bind(job_type)
     .bind(workload_class.as_str())
     .bind(routing_key)
+    .bind(correlation_id)
     .bind(payload)
     .fetch_one(&mut **tx)
     .await?;
@@ -58,7 +66,7 @@ pub async fn claim_pending_batch(
         SET status = 'publishing', updated_at = NOW()
         FROM cte
         WHERE o.id = cte.id
-        RETURNING o.id, o.job_type, o.workload_class, o.routing_key, o.payload, o.attempt, o.enqueue_key
+        RETURNING o.id, o.job_type, o.workload_class, o.routing_key, o.correlation_id, o.payload, o.attempt, o.enqueue_key
         "#,
     )
     .bind(workload_class.as_str())
@@ -76,6 +84,7 @@ pub async fn claim_pending_batch(
                 _ => WorkloadClass::Fast,
             },
             routing_key: r.get("routing_key"),
+            correlation_id: r.get("correlation_id"),
             payload: r.get("payload"),
             attempt: r.get::<i32, _>("attempt") as u8,
             enqueue_key: r.get("enqueue_key"),
@@ -89,6 +98,7 @@ pub struct JobOutboxRow {
     pub job_type: String,
     pub workload_class: WorkloadClass,
     pub routing_key: String,
+    pub correlation_id: String,
     pub payload: serde_json::Value,
     pub attempt: u8,
     pub enqueue_key: String,
@@ -101,6 +111,46 @@ pub async fn mark_sent_tx(tx: &mut Transaction<'_, Postgres>, id: i64) -> Result
     .bind(id)
     .execute(&mut **tx)
     .await?;
+    Ok(())
+}
+
+pub async fn count_pending(pool: &sqlx::PgPool, workload_class: WorkloadClass) -> Result<i64> {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM app.job_outbox WHERE status = 'pending' AND workload_class = $1",
+    )
+    .bind(workload_class.as_str())
+    .fetch_one(pool)
+    .await?;
+    Ok(count)
+}
+
+fn validate_label(value: &str, name: &str) -> Result<()> {
+    if value.is_empty() || value.len() > 64 {
+        return Err(anyhow!("{name} must be 1..64 characters"));
+    }
+    if !value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    {
+        return Err(anyhow!(
+            "{name} must contain only alphanumeric, '-', '_' or '.'"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_correlation_id(value: &str) -> Result<()> {
+    if value.is_empty() || value.len() > 64 {
+        return Err(anyhow!("correlation_id must be 1..64 characters"));
+    }
+    if !value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':'))
+    {
+        return Err(anyhow!(
+            "correlation_id must contain only alphanumeric, '-', '_', '.', ':'"
+        ));
+    }
     Ok(())
 }
 

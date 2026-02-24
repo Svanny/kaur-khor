@@ -1,0 +1,38 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+  resource:
+    attributes:
+      - key: banji.collector
+        value: railway
+        action: upsert
+
+exporters:
+  otlphttp/grafana:
+    endpoint: ${GRAFANA_OTLP_ENDPOINT}
+    headers:
+      Authorization: ${GRAFANA_OTLP_AUTH_HEADER}
+    compression: gzip
+    timeout: 10s
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlphttp/grafana]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlphttp/grafana]

@@ -45,6 +45,7 @@ Banji is an inventory platform prototype with:
 - `config/env/`: environment variable templates for `dev`, `staging`, `prod`.
 - `docs/architecture/`: canonical backend contracts and architecture decisions.
 - `tool/`: operational scripts for naming, DB operations, and RabbitMQ operations.
+- `tool/otel/`: OpenTelemetry collector config for traces/metrics export pipeline.
 
 ## Root Docs Index
 
@@ -57,6 +58,13 @@ Root markdown files are intentionally prefixed for grouping and stable sorting:
 - `30_RISK_ownership-map-fallback.md`: ownership map fallback analysis.
 - `30_RISK_security-best-practices-report.md`: security best-practices report.
 - `40_PLAN_todo-backend.md`: backend delivery todo and future considerations.
+
+## System Architecture
+
+![Banji System Architecture](SYSTEM_ARCHITECTURE.svg)
+
+Source:
+- `SYSTEM_ARCHITECTURE.mmd`
 
 ## State and Architecture Notes
 
@@ -166,4 +174,5 @@ This repository is an actively evolving prototype.
 
 - Flutter UI flows are implemented for inventory and ranking interactions.
 - Backend architecture and infrastructure contracts are being implemented incrementally in the Rust API workstream.
+- Observability baseline uses OpenTelemetry semantic-convention HTTP metrics, correlation IDs, and a collector-forwarded traces/metrics path.
 - Some integration paths remain intentionally staged while contracts and operational tooling are finalized.

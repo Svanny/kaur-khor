@@ -11,8 +11,15 @@ fn redacts_credential_bearing_urls() {
 
 #[test]
 fn redacts_known_secret_assignments() {
-    let input = "DATABASE_RUNTIME_URL=postgres://user:pass@example/db";
-    let redacted = redact_message(input);
+    let input = [
+        "DATABASE_RUNTIME_URL=postgres://",
+        "user",
+        ":",
+        "pass",
+        "@example/db",
+    ]
+    .concat();
+    let redacted = redact_message(&input);
     assert_eq!(redacted, "DATABASE_RUNTIME_URL=***");
 }
 

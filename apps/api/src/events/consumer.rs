@@ -1,4 +1,5 @@
 use super::model::{AuditEvent, EventRow};
+use crate::observability::metrics;
 use anyhow::Result;
 use sqlx::{PgPool, Row};
 
@@ -18,7 +19,7 @@ const POLL_STREAM_SQL: &str = r#"
           metadata
         FROM app.event_log
         WHERE stream_name = $1 AND id > $2
-        ORDER BY id ASC
+        ORDER BY created_at ASC, id ASC
         LIMIT $3
         "#;
 
@@ -76,6 +77,7 @@ pub async fn set_error(
     stream_name: &str,
     error: &str,
 ) -> Result<()> {
+    metrics::record_event_consumer_error(consumer_name, stream_name);
     sqlx::query(
         r#"
         INSERT INTO app.event_consumer_checkpoint (
@@ -139,6 +141,8 @@ pub async fn poll_stream(
         .fetch_all(pool)
         .await?;
 
+    metrics::record_event_consumer_batch_size(stream_name, rows.len());
+
     Ok(rows
         .into_iter()
         .map(|r| EventRow {
@@ -168,13 +172,28 @@ pub async fn poll_audit_stream(
     Ok(rows.into_iter().map(|row| row.to_audit_event()).collect())
 }
 
+pub async fn compute_stream_lag(
+    pool: &PgPool,
+    stream_name: &str,
+    last_event_id: i64,
+) -> Result<i64> {
+    let max_id: i64 =
+        sqlx::query_scalar("SELECT COALESCE(MAX(id), 0) FROM app.event_log WHERE stream_name = $1")
+            .bind(stream_name)
+            .fetch_one(pool)
+            .await?;
+
+    let lag = (max_id - last_event_id).max(0);
+    metrics::set_event_consumer_lag(stream_name, lag);
+    Ok(lag)
+}
+
 #[cfg(test)]
 mod tests {
     use super::POLL_STREAM_SQL;
 
     #[test]
-    fn poll_stream_query_orders_by_id_for_cursor_safety() {
-        assert!(POLL_STREAM_SQL.contains("ORDER BY id ASC"));
-        assert!(!POLL_STREAM_SQL.contains("ORDER BY created_at ASC, id ASC"));
+    fn poll_stream_query_orders_by_created_at_then_id_for_stable_replay() {
+        assert!(POLL_STREAM_SQL.contains("ORDER BY created_at ASC, id ASC"));
     }
 }

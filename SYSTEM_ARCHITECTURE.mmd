@@ -23,6 +23,8 @@ subgraph FLOW["Banji Runtime Plane (Current)"]
   rsecrets["Railway service secrets<br/>runtime secret source"] --> api
 
   api --> config["AppConfig + startup validation<br/>manual Debug redaction"]
+  api --> otelmw["HTTP observability middleware<br/>correlation precedence + W3C extract/inject<br/>response x-correlation-id"]
+  otelmw --> httpsem["OTel SemConv HTTP metrics<br/>http.server.request.duration (s)<br/>http.server.active_requests"]
   config --> idemp[("Postgres<br/>app.idempotency_request")]
   config --> evlog[("Postgres audit stream<br/>app.event_log")]
   config --> outbox[("Postgres<br/>app.job_outbox")]
@@ -31,21 +33,28 @@ subgraph FLOW["Banji Runtime Plane (Current)"]
 
   outbox --> relay["Outbox relay<br/>publish with confirms<br/>mark sent"]
   relay --> rabbit["RabbitMQ jobs"]
+  relay --> otelpub["Message propagation<br/>x-correlation-id + traceparent/tracestate/baggage"]
 
   rabbit --> workers["Workers<br/>fast/heavy<br/>manual ack"]
   workers --> classifier["Error classifier<br/>permanent->DLQ<br/>transient->retry"]
   classifier --> rabbit
   workers --> pgstate[("Postgres state writes")]
   workers --> plogs
+  workers --> otelpub
 
   projection["Projection consumer<br/>poll by created_at,id"] --> evlog
   projection --> checkpoint[("Postgres<br/>app.event_consumer_checkpoint")]
   projection --> plogs
+  projection --> otelpub
 
   operator["Operators"] --> replay["DLQ replay tool<br/>rate limit + audit"]
   operator --> dbtools["DB tools<br/>replay/export/restore validate"]
   replay --> rabbit
   dbtools --> evlog
+
+  otelmw --> collector["OTel Collector (Railway internal)<br/>OTLP receiver + batch + memory_limiter"]
+  otelpub --> collector
+  collector --> grafana["Grafana Cloud<br/>traces + metrics"]
 
   github["GitHub repo + PR"] --> gha["GitHub Actions currently disabled<br/>(*.yml.disabled)"]
   evlog -. "optional future mirror" .-> kafka["Kafka optional future<br/>not active"]
@@ -56,14 +65,16 @@ subgraph DELIVERY["Delivery and Secret Gates (when workflows are re-enabled)"]
 
   ci["rust-ci gates<br/>fmt + clippy + test + build<br/>migration validate + container build check<br/>sqlx offline verify + actionlint<br/>secret-scan required"]
   secscan["Secret scanner rules<br/>placeholder enforcement<br/>credential URL detection<br/>token-like assignment detection"]
-  deploy["deploy preflight<br/>required secret presence<br/>least-privilege scope checks"]
+  deploy["deploy preflight<br/>required secret presence<br/>least-privilege scope checks<br/>OTEL_ENABLED=>endpoint+headers required"]
   migrate["Migration step only<br/>has DATABASE_MIGRATION_URL"]
   runtimeenv["Runtime services only<br/>have DATABASE_RUNTIME_URL"]
+  otelsecret["Telemetry secret scope<br/>OTEL_EXPORTER_OTLP_HEADERS (preferred)<br/>OTEL_HEADERS fallback"]
 
   ci --> secscan
   secscan --> deploy
   deploy --> migrate
   deploy --> runtimeenv
+  deploy --> otelsecret
 end
 
 subgraph DETAILS["Reference Panels"]
@@ -77,6 +88,8 @@ subgraph DETAILS["Reference Panels"]
   pgDetail["Postgres objects<br/>_sqlx_migrations<br/>app.idempotency_request<br/>app.event_log (+ created_at,id replay index)<br/>app.event_consumer_checkpoint<br/>app.job_outbox<br/>app.event_log_archive_export_cursor<br/>app.event_log_archive (optional)"]
   redisDetail["Redis behavior<br/>optional + fail-open/fail-fast<br/>timeouts + circuit breaker<br/>TTL jitter + single-flight"]
   loggingSplit["Logging split<br/>Operational logs -> platform sink<br/>Audit/replay events -> Postgres app.event_log"]
+  obsDetail["Observability baseline<br/>services -> OTLP collector -> Grafana Cloud<br/>W3C propagation + correlation_id<br/>resource attrs include deployment.id"]
+  cardinality["Cardinality budget<br/>http.route templated (no raw path)<br/>job_type/workload/stream/consumer bounded<br/>no user data in metric labels"]
 end
 
 api -. "contract" .-> naming
@@ -89,6 +102,8 @@ redis -. "runtime" .-> redisDetail
 evlog -. "audit interface" .-> loggingSplit
 plogs -. "ops logging" .-> loggingSplit
 gha -. "release gates" .-> ci
+collector -. "pipeline" .-> obsDetail
+httpsem -. "metric labels" .-> cardinality
 
 %% Styling
 classDef db fill:#e8f5e9,stroke:#2e7d32,color:#0f172a;
@@ -96,9 +111,11 @@ classDef mq fill:#e3f2fd,stroke:#1565c0,color:#0f172a;
 classDef critical fill:#fff3e0,stroke:#ef6c00,color:#0f172a;
 classDef optional fill:#f8fafc,stroke:#64748b,stroke-dasharray: 4 4,color:#0f172a;
 classDef control fill:#fff8e1,stroke:#a16207,color:#0f172a;
+classDef observability fill:#e0f2fe,stroke:#0369a1,color:#0f172a;
 
 class idemp,evlog,outbox,pgstate,checkpoint,pgDetail db;
 class rabbit,rabbitDetail mq;
 class api,relay,workers,classifier critical;
 class redis,redisDetail,gha,kafka optional;
 class ci,secscan,deploy,migrate,runtimeenv,template,matrix,redaction,loggingSplit,plogs,rsecrets,config,naming control;
+class otelmw,otelpub,collector,grafana,httpsem,obsDetail,cardinality,otelsecret observability;

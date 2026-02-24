@@ -17,7 +17,8 @@ Secret keys:
 - `RABBIT_URL`
 - `OBJECT_STORAGE_ACCESS_KEY`
 - `OBJECT_STORAGE_SECRET_KEY`
-- `OTEL_HEADERS` (when credential-bearing)
+- `OTEL_EXPORTER_OTLP_HEADERS` (preferred, when credential-bearing)
+- `OTEL_HEADERS` (compatibility alias, when credential-bearing)
 - integration-specific credentials (for example `STRIPE_API_KEY`, `SENDGRID_API_KEY`)
 
 Non-secret keys:
@@ -77,7 +78,7 @@ No secrets in logs. Redaction is enforced in two layers:
 - exact configured secret env var names
 
 2) URL credential stripping:
-- redact `scheme://user:pass@host` as `scheme://***:***@host`
+- redact URL userinfo segment before host (`scheme://...@host`) to masked credentials
 
 This applies to structured fields and free-form error strings.
 
@@ -101,3 +102,8 @@ Dual-mode overlap (auth/verify secrets only):
 Operational runtime logs are platform-sink first (Railway/log drain), not Postgres-primary.
 
 Postgres stores audit stream events for replay/accountability (`app.event_log` contract), not high-volume operational log traffic.
+
+Observability transport in this phase:
+- app services export traces/metrics to in-platform OTLP collector
+- collector exports to Grafana Cloud
+- logs remain platform-first and are not routed through OTEL pipeline

@@ -30,7 +30,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 7. [DONE] Stand up secrets management and configuration boundaries
    Use platform secrets for now, later a dedicated secret manager if needed. Done means no secrets in code or logs, rotation is possible without redeploying everything, and every service has only the secrets it needs.
 
-8. Establish observability baseline before features
+8. [DONE] Establish observability baseline before features
    Instrument Rust with OpenTelemetry, pick a metrics and logs destination, and ensure every request and job has a correlation id. Done means you can answer these questions in minutes: what is slow, what is failing, what is growing, what changed.
 
 #### Walls, resilience that keeps you calm in production

@@ -69,6 +69,9 @@ For each deployable Railway service:
 - Deploy preflight must assert required deploy secrets are present.
 - `DATABASE_MIGRATION_URL` is scoped to migration step only and must not be injected into runtime service environments.
 - Runtime and migration database credentials must remain distinct.
+- If `OTEL_ENABLED=true`, deploy preflight must require:
+  - `OTEL_EXPORTER_OTLP_ENDPOINT`
+  - `OTEL_EXPORTER_OTLP_HEADERS`
 
 ## Redis Correctness Contract
 - Redis outages must not block correctness or write completion.
