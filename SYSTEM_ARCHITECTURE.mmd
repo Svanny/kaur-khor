@@ -23,11 +23,13 @@ subgraph FLOW["Banji Runtime Plane (Current)"]
   rsecrets["Railway service secrets<br/>runtime secret source"] --> api
 
   api --> config["AppConfig + startup validation<br/>manual Debug redaction"]
+  api --> sqlxpool["SQLx runtime pool<br/>max/min + acquire/connect timeouts<br/>warmup SELECT 1 before ready<br/>graceful drain + pool close on shutdown"]
+  sqlxpool --> pgbouncer["PgBouncer runtime endpoint<br/>transaction mode (staging/prod)<br/>statement cache disabled in SQLx"]
   api --> otelmw["HTTP observability middleware<br/>correlation precedence + W3C extract/inject<br/>response x-correlation-id"]
   otelmw --> httpsem["OTel SemConv HTTP metrics<br/>http.server.request.duration (s)<br/>http.server.active_requests"]
-  config --> idemp[("Postgres<br/>app.idempotency_request")]
-  config --> evlog[("Postgres audit stream<br/>app.event_log")]
-  config --> outbox[("Postgres<br/>app.job_outbox")]
+  pgbouncer --> idemp[("Postgres<br/>app.idempotency_request")]
+  pgbouncer --> evlog[("Postgres audit stream<br/>app.event_log")]
+  pgbouncer --> outbox[("Postgres<br/>app.job_outbox")]
   config --> redis[("Redis optional<br/>cache + coordination")]
   config --> plogs["Platform logs primary<br/>Railway / log drain"]
 
@@ -53,6 +55,8 @@ subgraph FLOW["Banji Runtime Plane (Current)"]
   dbtools --> evlog
 
   otelmw --> collector["OTel Collector (Railway internal)<br/>OTLP receiver + batch + memory_limiter"]
+  sqlxpool --> dbpoolmetrics["DB pool metrics<br/>banji.db.pool.acquire.failures.total<br/>banji.db.pool.acquire.wait.duration<br/>banji.db.pool.size + banji.db.pool.idle"]
+  dbpoolmetrics --> collector
   otelpub --> collector
   collector --> grafana["Grafana Cloud<br/>traces + metrics"]
 
@@ -66,12 +70,14 @@ subgraph DELIVERY["Delivery and Secret Gates (when workflows are re-enabled)"]
   ci["rust-ci gates<br/>fmt + clippy + test + build<br/>migration validate + container build check<br/>sqlx offline verify + actionlint<br/>secret-scan required"]
   secscan["Secret scanner rules<br/>placeholder enforcement<br/>credential URL detection<br/>token-like assignment detection"]
   deploy["deploy preflight<br/>required secret presence<br/>least-privilege scope checks<br/>OTEL_ENABLED=>endpoint+headers required"]
+  poolgate["pooling preflight (staging/prod)<br/>DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer<br/>PGBOUNCER_POOL_MODE=transaction"]
   migrate["Migration step only<br/>has DATABASE_MIGRATION_URL"]
   runtimeenv["Runtime services only<br/>have DATABASE_RUNTIME_URL"]
   otelsecret["Telemetry secret scope<br/>OTEL_EXPORTER_OTLP_HEADERS (preferred)<br/>OTEL_HEADERS fallback"]
 
   ci --> secscan
   secscan --> deploy
+  deploy --> poolgate
   deploy --> migrate
   deploy --> runtimeenv
   deploy --> otelsecret
@@ -90,12 +96,16 @@ subgraph DETAILS["Reference Panels"]
   loggingSplit["Logging split<br/>Operational logs -> platform sink<br/>Audit/replay events -> Postgres app.event_log"]
   obsDetail["Observability baseline<br/>services -> OTLP collector -> Grafana Cloud<br/>W3C propagation + correlation_id<br/>resource attrs include deployment.id"]
   cardinality["Cardinality budget<br/>http.route templated (no raw path)<br/>job_type/workload/stream/consumer bounded<br/>no user data in metric labels"]
+  poolDetail["Pooling contract<br/>DATABASE_RUNTIME_ENDPOINT_KIND + PGBOUNCER_POOL_MODE<br/>SQLX_POOL_* tuning and POSTGRES_CONNECTION_BUDGET_TOTAL<br/>budget rule: sum(replicas*SQLX_POOL_MAX_CONNECTIONS)<=client budget"]
+  sessionRule["Transaction-pool safety<br/>no session-persistent assumptions<br/>SET LOCAL or role-level defaults only<br/>session-mode escape hatch is explicit and scoped"]
 end
 
 api -. "contract" .-> naming
 api -. "template boundary" .-> template
 api -. "service scope" .-> matrix
 config -. "redaction" .-> redaction
+sqlxpool -. "pooling" .-> poolDetail
+pgbouncer -. "session rules" .-> sessionRule
 rabbit -. "topology" .-> rabbitDetail
 pgstate -. "schema" .-> pgDetail
 redis -. "runtime" .-> redisDetail
@@ -114,8 +124,8 @@ classDef control fill:#fff8e1,stroke:#a16207,color:#0f172a;
 classDef observability fill:#e0f2fe,stroke:#0369a1,color:#0f172a;
 
 class idemp,evlog,outbox,pgstate,checkpoint,pgDetail db;
-class rabbit,rabbitDetail mq;
+class rabbit,rabbitDetail,pgbouncer mq;
 class api,relay,workers,classifier critical;
 class redis,redisDetail,gha,kafka optional;
-class ci,secscan,deploy,migrate,runtimeenv,template,matrix,redaction,loggingSplit,plogs,rsecrets,config,naming control;
-class otelmw,otelpub,collector,grafana,httpsem,obsDetail,cardinality,otelsecret observability;
+class ci,secscan,deploy,poolgate,migrate,runtimeenv,template,matrix,redaction,loggingSplit,plogs,rsecrets,config,naming,poolDetail,sessionRule control;
+class otelmw,otelpub,collector,grafana,httpsem,obsDetail,cardinality,otelsecret,sqlxpool,dbpoolmetrics observability;

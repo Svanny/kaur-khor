@@ -45,6 +45,33 @@ Bootstrap SQL must set:
 
 No runtime role may hold schema-altering privileges.
 
+## Connection Pooling Contract (PgBouncer + SQLx)
+- Runtime endpoint identity is explicit:
+  - `DATABASE_RUNTIME_ENDPOINT_KIND=direct|pgbouncer`
+- PgBouncer mode expectation is explicit:
+  - `PGBOUNCER_POOL_MODE=transaction|session`
+  - `staging` and `prod` require `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer` and `PGBOUNCER_POOL_MODE=transaction`
+- SQLx client pool tuning is explicit:
+  - `SQLX_POOL_MAX_CONNECTIONS`, `SQLX_POOL_MIN_CONNECTIONS`
+  - `SQLX_POOL_ACQUIRE_TIMEOUT_MS`, `SQLX_POOL_CONNECT_TIMEOUT_MS`
+  - `SQLX_POOL_IDLE_TIMEOUT_SECONDS`, `SQLX_POOL_MAX_LIFETIME_SECONDS`
+- Global connection budget is explicit:
+  - `POSTGRES_CONNECTION_BUDGET_TOTAL`
+  - service allocation must satisfy:
+    - `sum(service_replicas * SQLX_POOL_MAX_CONNECTIONS) <= client_budget_to_pooler`
+
+## PgBouncer Transaction-Mode Safety
+- SQLx statement cache is disabled in PgBouncer transaction mode (`statement_cache_capacity=0`).
+- Session-persistent assumptions are disallowed on transaction-pooled runtime paths:
+  - no startup `SET` expected to persist
+  - no temp-table/session-state dependencies
+  - no LISTEN/NOTIFY dependency
+- If session-level behavior is required later:
+  - use `SET LOCAL` inside each transaction or role/database defaults, or
+  - introduce a narrowly scoped direct/session-mode connection path.
+- Reset-state assumption:
+  - platform PgBouncer reset behavior is assumed enabled between client assignments; if leakage is observed, treat it as a platform/config defect and escalate.
+
 ## Migration Safety Rules
 - Expand/contract is required.
 - Large index operations must use low-blocking strategies where supported.

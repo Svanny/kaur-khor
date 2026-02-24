@@ -31,6 +31,15 @@ fn test_config_with_bad_redis(db_url: Option<String>) -> AppConfig {
         rabbit_max_attempts: 4,
         redis_url: Some("redis://127.0.0.1:1".to_string()),
         database_runtime_url: db_url,
+        database_runtime_endpoint_kind: banji_api::config::DatabaseRuntimeEndpointKind::Direct,
+        pgbouncer_pool_mode: None,
+        sqlx_pool_max_connections: 10,
+        sqlx_pool_min_connections: 1,
+        sqlx_pool_acquire_timeout: Duration::from_millis(2_000),
+        sqlx_pool_connect_timeout: Duration::from_millis(2_000),
+        sqlx_pool_idle_timeout: Duration::from_secs(300),
+        sqlx_pool_max_lifetime: Duration::from_secs(1_800),
+        postgres_connection_budget_total: 80,
     }
 }
 

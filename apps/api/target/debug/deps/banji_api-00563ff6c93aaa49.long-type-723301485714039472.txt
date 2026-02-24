@@ -1,1 +1,0 @@
-Result<opentelemetry_sdk::metrics::MeterProvider, MetricsError>: opentelemetry::metrics::MeterProvider

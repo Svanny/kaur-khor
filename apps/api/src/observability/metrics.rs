@@ -84,8 +84,38 @@ static EVENT_CONSUMER_LAG: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
         .init()
 });
 
+static DB_POOL_ACQUIRE_FAILURES: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.db.pool.acquire.failures.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static DB_POOL_ACQUIRE_WAIT: Lazy<Histogram<f64>> = Lazy::new(|| {
+    METER
+        .f64_histogram("banji.db.pool.acquire.wait.duration")
+        .with_unit(Unit::new("s"))
+        .init()
+});
+
+static DB_POOL_SIZE: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.db.pool.size")
+        .with_unit(Unit::new("connections"))
+        .init()
+});
+
+static DB_POOL_IDLE: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.db.pool.idle")
+        .with_unit(Unit::new("connections"))
+        .init()
+});
+
 static OUTBOX_PENDING_LAST: AtomicI64 = AtomicI64::new(0);
 static LAG_BY_STREAM: Lazy<Mutex<HashMap<String, i64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static DB_POOL_SIZE_LAST: AtomicI64 = AtomicI64::new(0);
+static DB_POOL_IDLE_LAST: AtomicI64 = AtomicI64::new(0);
 
 pub fn record_http_active(delta: i64, method: &str, route: &str) {
     HTTP_ACTIVE_REQUESTS.add(
@@ -185,5 +215,29 @@ pub fn set_event_consumer_lag(stream_name: &str, current_lag: i64) {
             delta,
             &[KeyValue::new("stream_name", stream_name.to_string())],
         );
+    }
+}
+
+pub fn record_db_pool_acquire_wait(seconds: f64) {
+    DB_POOL_ACQUIRE_WAIT.record(seconds, &[]);
+}
+
+pub fn record_db_pool_acquire_failure(reason: &str) {
+    DB_POOL_ACQUIRE_FAILURES.add(1, &[KeyValue::new("reason", reason.to_string())]);
+}
+
+pub fn set_db_pool_size(current_size: i64) {
+    let previous = DB_POOL_SIZE_LAST.swap(current_size, Ordering::SeqCst);
+    let delta = current_size - previous;
+    if delta != 0 {
+        DB_POOL_SIZE.add(delta, &[]);
+    }
+}
+
+pub fn set_db_pool_idle(current_idle: i64) {
+    let previous = DB_POOL_IDLE_LAST.swap(current_idle, Ordering::SeqCst);
+    let delta = current_idle - previous;
+    if delta != 0 {
+        DB_POOL_IDLE.add(delta, &[]);
     }
 }

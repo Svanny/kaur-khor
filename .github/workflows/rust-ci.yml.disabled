@@ -39,6 +39,18 @@ jobs:
       - name: Scan tracked files for secret leakage
         run: bash tool/security/check_secret_patterns.sh
 
+  pooling-contract-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Validate pooled runtime env contracts
+        run: |
+          grep -q '^DATABASE_RUNTIME_ENDPOINT_KIND=direct$' config/env/dev.env
+          grep -q '^DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer$' config/env/staging.env
+          grep -q '^DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer$' config/env/prod.env
+          grep -q '^PGBOUNCER_POOL_MODE=transaction$' config/env/staging.env
+          grep -q '^PGBOUNCER_POOL_MODE=transaction$' config/env/prod.env
+
   fmt:
     runs-on: ubuntu-latest
     steps:
@@ -106,6 +118,15 @@ jobs:
           --health-retries 10
     env:
       DATABASE_RUNTIME_URL: postgres://postgres:postgres@localhost:5432/banji_ci
+      DATABASE_RUNTIME_ENDPOINT_KIND: direct
+      PGBOUNCER_POOL_MODE: session
+      SQLX_POOL_MAX_CONNECTIONS: 10
+      SQLX_POOL_MIN_CONNECTIONS: 1
+      SQLX_POOL_ACQUIRE_TIMEOUT_MS: 2000
+      SQLX_POOL_CONNECT_TIMEOUT_MS: 2000
+      SQLX_POOL_IDLE_TIMEOUT_SECONDS: 300
+      SQLX_POOL_MAX_LIFETIME_SECONDS: 1800
+      POSTGRES_CONNECTION_BUDGET_TOTAL: 80
       CACHE_SCHEMA_VERSION: v1
       REDIS_URL: redis://localhost:6379
       CACHE_ENABLED: true

@@ -3,6 +3,56 @@ use std::env;
 use std::fmt;
 use std::time::Duration;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DatabaseRuntimeEndpointKind {
+    Direct,
+    Pgbouncer,
+}
+
+impl DatabaseRuntimeEndpointKind {
+    fn parse(raw: &str) -> Result<Self> {
+        match raw.to_ascii_lowercase().as_str() {
+            "direct" => Ok(Self::Direct),
+            "pgbouncer" => Ok(Self::Pgbouncer),
+            _ => Err(anyhow!(
+                "DATABASE_RUNTIME_ENDPOINT_KIND must be one of: direct, pgbouncer"
+            )),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Direct => "direct",
+            Self::Pgbouncer => "pgbouncer",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PgbouncerPoolMode {
+    Transaction,
+    Session,
+}
+
+impl PgbouncerPoolMode {
+    fn parse(raw: &str) -> Result<Self> {
+        match raw.to_ascii_lowercase().as_str() {
+            "transaction" => Ok(Self::Transaction),
+            "session" => Ok(Self::Session),
+            _ => Err(anyhow!(
+                "PGBOUNCER_POOL_MODE must be one of: transaction, session"
+            )),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Transaction => "transaction",
+            Self::Session => "session",
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AppConfig {
     pub system: String,
@@ -31,6 +81,15 @@ pub struct AppConfig {
     pub rabbit_max_attempts: u8,
     pub redis_url: Option<String>,
     pub database_runtime_url: Option<String>,
+    pub database_runtime_endpoint_kind: DatabaseRuntimeEndpointKind,
+    pub pgbouncer_pool_mode: Option<PgbouncerPoolMode>,
+    pub sqlx_pool_max_connections: u32,
+    pub sqlx_pool_min_connections: u32,
+    pub sqlx_pool_acquire_timeout: Duration,
+    pub sqlx_pool_connect_timeout: Duration,
+    pub sqlx_pool_idle_timeout: Duration,
+    pub sqlx_pool_max_lifetime: Duration,
+    pub postgres_connection_budget_total: u32,
 }
 
 impl fmt::Debug for AppConfig {
@@ -75,17 +134,103 @@ impl fmt::Debug for AppConfig {
                 "database_runtime_url",
                 &redacted(&self.database_runtime_url),
             )
+            .field(
+                "database_runtime_endpoint_kind",
+                &self.database_runtime_endpoint_kind.as_str(),
+            )
+            .field(
+                "pgbouncer_pool_mode",
+                &self.pgbouncer_pool_mode.map(PgbouncerPoolMode::as_str),
+            )
+            .field("sqlx_pool_max_connections", &self.sqlx_pool_max_connections)
+            .field("sqlx_pool_min_connections", &self.sqlx_pool_min_connections)
+            .field("sqlx_pool_acquire_timeout", &self.sqlx_pool_acquire_timeout)
+            .field("sqlx_pool_connect_timeout", &self.sqlx_pool_connect_timeout)
+            .field("sqlx_pool_idle_timeout", &self.sqlx_pool_idle_timeout)
+            .field("sqlx_pool_max_lifetime", &self.sqlx_pool_max_lifetime)
+            .field(
+                "postgres_connection_budget_total",
+                &self.postgres_connection_budget_total,
+            )
             .finish()
     }
 }
 
 impl AppConfig {
     pub fn from_env() -> Result<Self> {
+        if optional_env("DATABASE_MIGRATION_URL").is_some() {
+            return Err(anyhow!(
+                "DATABASE_MIGRATION_URL must not be set in runtime service environments"
+            ));
+        }
+
         let cache_schema_version = required_env("CACHE_SCHEMA_VERSION")?;
+        let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
+        let database_runtime_url = optional_env("DATABASE_RUNTIME_URL");
+
+        let database_runtime_endpoint_kind =
+            DatabaseRuntimeEndpointKind::parse(&required_env("DATABASE_RUNTIME_ENDPOINT_KIND")?)?;
+
+        let pgbouncer_pool_mode = optional_env("PGBOUNCER_POOL_MODE")
+            .map(|raw| PgbouncerPoolMode::parse(&raw))
+            .transpose()?;
+
+        if database_runtime_endpoint_kind == DatabaseRuntimeEndpointKind::Pgbouncer
+            && pgbouncer_pool_mode.is_none()
+        {
+            return Err(anyhow!(
+                "PGBOUNCER_POOL_MODE is required when DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer"
+            ));
+        }
+
+        let sqlx_pool_max_connections = parse_u32("SQLX_POOL_MAX_CONNECTIONS", 10)?;
+        let sqlx_pool_min_connections = parse_u32("SQLX_POOL_MIN_CONNECTIONS", 1)?;
+        if sqlx_pool_max_connections == 0 {
+            return Err(anyhow!("SQLX_POOL_MAX_CONNECTIONS must be greater than 0"));
+        }
+        if sqlx_pool_min_connections > sqlx_pool_max_connections {
+            return Err(anyhow!(
+                "SQLX_POOL_MIN_CONNECTIONS must be less than or equal to SQLX_POOL_MAX_CONNECTIONS"
+            ));
+        }
+
+        let sqlx_pool_acquire_timeout =
+            Duration::from_millis(parse_u64("SQLX_POOL_ACQUIRE_TIMEOUT_MS", 2_000)?);
+        let sqlx_pool_connect_timeout =
+            Duration::from_millis(parse_u64("SQLX_POOL_CONNECT_TIMEOUT_MS", 2_000)?);
+        let sqlx_pool_idle_timeout =
+            Duration::from_secs(parse_u64("SQLX_POOL_IDLE_TIMEOUT_SECONDS", 300)?);
+        let sqlx_pool_max_lifetime =
+            Duration::from_secs(parse_u64("SQLX_POOL_MAX_LIFETIME_SECONDS", 1_800)?);
+        let postgres_connection_budget_total = parse_u32("POSTGRES_CONNECTION_BUDGET_TOTAL", 80)?;
+        if postgres_connection_budget_total == 0 {
+            return Err(anyhow!(
+                "POSTGRES_CONNECTION_BUDGET_TOTAL must be greater than 0"
+            ));
+        }
+
+        let strict_pooling_env = matches!(env_name.as_str(), "staging" | "prod");
+        if strict_pooling_env {
+            if database_runtime_url.is_none() {
+                return Err(anyhow!(
+                    "DATABASE_RUNTIME_URL is required in staging/prod runtime environments"
+                ));
+            }
+            if database_runtime_endpoint_kind != DatabaseRuntimeEndpointKind::Pgbouncer {
+                return Err(anyhow!(
+                    "staging/prod require DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer"
+                ));
+            }
+            if pgbouncer_pool_mode != Some(PgbouncerPoolMode::Transaction) {
+                return Err(anyhow!(
+                    "staging/prod require PGBOUNCER_POOL_MODE=transaction"
+                ));
+            }
+        }
 
         Ok(Self {
             system: env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string()),
-            env: env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string()),
+            env: env_name,
             service: env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string()),
             cache_enabled: parse_bool("CACHE_ENABLED", true)?,
             cache_schema_version,
@@ -125,8 +270,17 @@ impl AppConfig {
             rabbit_prefetch_fast: parse_u16("RABBIT_PREFETCH_FAST", 20)?,
             rabbit_prefetch_heavy: parse_u16("RABBIT_PREFETCH_HEAVY", 2)?,
             rabbit_max_attempts: parse_u8("RABBIT_MAX_ATTEMPTS", 4)?,
-            redis_url: env::var("REDIS_URL").ok(),
-            database_runtime_url: env::var("DATABASE_RUNTIME_URL").ok(),
+            redis_url: optional_env("REDIS_URL"),
+            database_runtime_url,
+            database_runtime_endpoint_kind,
+            pgbouncer_pool_mode,
+            sqlx_pool_max_connections,
+            sqlx_pool_min_connections,
+            sqlx_pool_acquire_timeout,
+            sqlx_pool_connect_timeout,
+            sqlx_pool_idle_timeout,
+            sqlx_pool_max_lifetime,
+            postgres_connection_budget_total,
         })
     }
 }
@@ -137,6 +291,13 @@ fn required_env(name: &str) -> Result<String> {
         return Err(anyhow!("{name} must not be empty"));
     }
     Ok(value)
+}
+
+fn optional_env(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn parse_bool(name: &str, default: bool) -> Result<bool> {

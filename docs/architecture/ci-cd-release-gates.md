@@ -69,9 +69,23 @@ For each deployable Railway service:
 - Deploy preflight must assert required deploy secrets are present.
 - `DATABASE_MIGRATION_URL` is scoped to migration step only and must not be injected into runtime service environments.
 - Runtime and migration database credentials must remain distinct.
+- Runtime DB pooling preflight in `staging` and `prod` must assert:
+  - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
+  - `PGBOUNCER_POOL_MODE=transaction`
 - If `OTEL_ENABLED=true`, deploy preflight must require:
   - `OTEL_EXPORTER_OTLP_ENDPOINT`
   - `OTEL_EXPORTER_OTLP_HEADERS`
+
+## Runtime Readiness and Drain Contract
+- Runtime startup must:
+  1. build SQLx pool
+  2. run DB warmup query (`SELECT 1`)
+  3. accept traffic only after warmup success
+- Runtime shutdown must:
+  1. stop accepting new requests
+  2. drain in-flight requests
+  3. close SQLx pool
+  4. exit
 
 ## Redis Correctness Contract
 - Redis outages must not block correctness or write completion.

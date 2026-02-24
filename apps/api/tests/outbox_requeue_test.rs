@@ -54,6 +54,15 @@ fn test_cfg(db_url: String) -> AppConfig {
         rabbit_max_attempts: 4,
         redis_url: None,
         database_runtime_url: Some(db_url),
+        database_runtime_endpoint_kind: banji_api::config::DatabaseRuntimeEndpointKind::Direct,
+        pgbouncer_pool_mode: None,
+        sqlx_pool_max_connections: 10,
+        sqlx_pool_min_connections: 1,
+        sqlx_pool_acquire_timeout: Duration::from_millis(2_000),
+        sqlx_pool_connect_timeout: Duration::from_millis(2_000),
+        sqlx_pool_idle_timeout: Duration::from_secs(300),
+        sqlx_pool_max_lifetime: Duration::from_secs(1_800),
+        postgres_connection_budget_total: 80,
     }
 }
 

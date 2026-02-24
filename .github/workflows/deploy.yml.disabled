@@ -52,12 +52,16 @@ jobs:
       RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_SERVICE_ID }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      DATABASE_RUNTIME_ENDPOINT_KIND: ${{ vars.DATABASE_RUNTIME_ENDPOINT_KIND }}
+      PGBOUNCER_POOL_MODE: ${{ vars.PGBOUNCER_POOL_MODE }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Preflight required deploy secrets
         env:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+          DATABASE_RUNTIME_ENDPOINT_KIND: ${{ vars.DATABASE_RUNTIME_ENDPOINT_KIND }}
+          PGBOUNCER_POOL_MODE: ${{ vars.PGBOUNCER_POOL_MODE }}
           OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -65,6 +69,8 @@ jobs:
           test -n "$DATABASE_MIGRATION_URL" || (echo "missing DATABASE_MIGRATION_URL" >&2; exit 1)
           test -n "$DATABASE_RUNTIME_URL" || (echo "missing DATABASE_RUNTIME_URL" >&2; exit 1)
           test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
+          test "$DATABASE_RUNTIME_ENDPOINT_KIND" = "pgbouncer" || (echo "staging deploy requires DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer" >&2; exit 1)
+          test "$PGBOUNCER_POOL_MODE" = "transaction" || (echo "staging deploy requires PGBOUNCER_POOL_MODE=transaction" >&2; exit 1)
           if [[ "${OTEL_ENABLED,,}" == "true" ]]; then
             test -n "$OTEL_EXPORTER_OTLP_ENDPOINT" || (echo "missing OTEL_EXPORTER_OTLP_ENDPOINT while OTEL_ENABLED=true" >&2; exit 1)
             test -n "$OTEL_EXPORTER_OTLP_HEADERS" || (echo "missing OTEL_EXPORTER_OTLP_HEADERS while OTEL_ENABLED=true" >&2; exit 1)
@@ -117,12 +123,16 @@ jobs:
       RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_SERVICE_ID }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      DATABASE_RUNTIME_ENDPOINT_KIND: ${{ vars.DATABASE_RUNTIME_ENDPOINT_KIND }}
+      PGBOUNCER_POOL_MODE: ${{ vars.PGBOUNCER_POOL_MODE }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Preflight required deploy secrets
         env:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+          DATABASE_RUNTIME_ENDPOINT_KIND: ${{ vars.DATABASE_RUNTIME_ENDPOINT_KIND }}
+          PGBOUNCER_POOL_MODE: ${{ vars.PGBOUNCER_POOL_MODE }}
           OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -130,6 +140,8 @@ jobs:
           test -n "$DATABASE_MIGRATION_URL" || (echo "missing DATABASE_MIGRATION_URL" >&2; exit 1)
           test -n "$DATABASE_RUNTIME_URL" || (echo "missing DATABASE_RUNTIME_URL" >&2; exit 1)
           test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
+          test "$DATABASE_RUNTIME_ENDPOINT_KIND" = "pgbouncer" || (echo "prod deploy requires DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer" >&2; exit 1)
+          test "$PGBOUNCER_POOL_MODE" = "transaction" || (echo "prod deploy requires PGBOUNCER_POOL_MODE=transaction" >&2; exit 1)
           if [[ "${OTEL_ENABLED,,}" == "true" ]]; then
             test -n "$OTEL_EXPORTER_OTLP_ENDPOINT" || (echo "missing OTEL_EXPORTER_OTLP_ENDPOINT while OTEL_ENABLED=true" >&2; exit 1)
             test -n "$OTEL_EXPORTER_OTLP_HEADERS" || (echo "missing OTEL_EXPORTER_OTLP_HEADERS while OTEL_ENABLED=true" >&2; exit 1)

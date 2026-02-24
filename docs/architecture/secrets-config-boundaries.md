@@ -23,6 +23,10 @@ Secret keys:
 
 Non-secret keys:
 - `BANJI_*`
+- `DATABASE_RUNTIME_ENDPOINT_KIND`
+- `PGBOUNCER_POOL_MODE`
+- `SQLX_POOL_*`
+- `POSTGRES_CONNECTION_BUDGET_TOTAL`
 - `CACHE_*`
 - `REDIS_*` timeout/circuit controls
 - `RABBIT_*` topology/retry/prefetch controls (except `RABBIT_URL`)
@@ -67,6 +71,9 @@ CI/deploy migration step only:
 - `DATABASE_MIGRATION_URL`
 
 Runtime services must never receive `DATABASE_MIGRATION_URL`.
+Runtime `staging` and `prod` environments must set:
+- `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
+- `PGBOUNCER_POOL_MODE=transaction`
 
 ## Logging and Redaction Contract
 

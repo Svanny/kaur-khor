@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod config;
+pub mod db;
 pub mod events;
 pub mod idempotency;
 pub mod jobs;
@@ -62,10 +63,11 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
         Arc::new(NoopCacheClient)
     };
 
-    let db = match &config.database_runtime_url {
-        Some(url) => Some(PgPool::connect(url).await?),
-        None => None,
-    };
+    let db = db::pool::build_runtime_pool(&config).await?;
+
+    if let Some(pool) = db.as_ref() {
+        spawn_db_pool_metrics_sampler(pool.clone());
+    }
 
     let key_builder = KeyBuilder::new(
         config.system.clone(),
@@ -153,7 +155,7 @@ async fn write_demo(
     let key_lock = get_singleflight_lock(&state, &cache_key).await;
     let _guard = key_lock.lock().await;
 
-    let mut tx = match db.begin().await {
+    let mut tx = match db::pool::begin_with_pool_metrics(db).await {
         Ok(tx) => tx,
         Err(err) => {
             return (
@@ -356,6 +358,20 @@ pub async fn best_effort_unlock(state: &AppState, lock: &cache::LockHandle) -> b
     state.cache.release_lock(lock).await.unwrap_or(false)
 }
 
+fn spawn_db_pool_metrics_sampler(pool: PgPool) {
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_secs(10));
+        loop {
+            ticker.tick().await;
+            observability::metrics::set_db_pool_size(pool.size() as i64);
+            observability::metrics::set_db_pool_idle(pool.num_idle() as i64);
+            if pool.is_closed() {
+                break;
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,6 +404,15 @@ mod tests {
             rabbit_max_attempts: 4,
             redis_url: None,
             database_runtime_url: None,
+            database_runtime_endpoint_kind: config::DatabaseRuntimeEndpointKind::Direct,
+            pgbouncer_pool_mode: None,
+            sqlx_pool_max_connections: 10,
+            sqlx_pool_min_connections: 1,
+            sqlx_pool_acquire_timeout: Duration::from_millis(2_000),
+            sqlx_pool_connect_timeout: Duration::from_millis(2_000),
+            sqlx_pool_idle_timeout: Duration::from_secs(300),
+            sqlx_pool_max_lifetime: Duration::from_secs(1_800),
+            postgres_connection_budget_total: 80,
         }
     }
 

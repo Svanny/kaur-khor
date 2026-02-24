@@ -1,4 +1,4 @@
-use banji_api::config::AppConfig;
+use banji_api::config::{AppConfig, DatabaseRuntimeEndpointKind, PgbouncerPoolMode};
 use std::sync::{Mutex, OnceLock};
 
 fn env_lock() -> &'static Mutex<()> {
@@ -11,12 +11,26 @@ fn missing_cache_schema_version_fails_validation() {
     let _guard = env_lock().lock().unwrap();
 
     let old = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
     std::env::remove_var("CACHE_SCHEMA_VERSION");
 
     let result = AppConfig::from_env();
 
     if let Some(v) = old {
         std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
     }
 
     assert!(result.is_err());
@@ -56,10 +70,119 @@ fn app_config_debug_redacts_secret_fields() {
         rabbit_max_attempts: 4,
         redis_url: Some("redis://:secret@redis.example:6379".to_string()),
         database_runtime_url: Some(db_url),
+        database_runtime_endpoint_kind: DatabaseRuntimeEndpointKind::Direct,
+        pgbouncer_pool_mode: Some(PgbouncerPoolMode::Session),
+        sqlx_pool_max_connections: 10,
+        sqlx_pool_min_connections: 1,
+        sqlx_pool_acquire_timeout: std::time::Duration::from_millis(2_000),
+        sqlx_pool_connect_timeout: std::time::Duration::from_millis(2_000),
+        sqlx_pool_idle_timeout: std::time::Duration::from_secs(300),
+        sqlx_pool_max_lifetime: std::time::Duration::from_secs(1_800),
+        postgres_connection_budget_total: 80,
     };
 
     let rendered = format!("{cfg:?}");
     assert!(!rendered.contains("user:pass"));
     assert!(!rendered.contains("secret@redis"));
     assert!(rendered.contains("<redacted>"));
+}
+
+#[test]
+fn staging_requires_pgbouncer_transaction_mode() {
+    let _guard = env_lock().lock().unwrap();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let direct_result = AppConfig::from_env();
+    assert!(direct_result.is_err());
+
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "session");
+    let session_result = AppConfig::from_env();
+    assert!(session_result.is_err());
+
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    let ok_result = AppConfig::from_env();
+    assert!(ok_result.is_ok());
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+}
+
+#[test]
+fn runtime_rejects_migration_url_presence() {
+    let _guard = env_lock().lock().unwrap();
+
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var(
+        "DATABASE_MIGRATION_URL",
+        "postgres://migrator@db.example/banji",
+    );
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
 }

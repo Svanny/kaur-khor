@@ -43,3 +43,18 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - `outbox-relay` (current phase): `DATABASE_RUNTIME_URL`, optional telemetry auth
 
 Runtime services must not receive `DATABASE_MIGRATION_URL`.
+
+## Pooling and DB Boundary Keys (Non-Secret)
+- `DATABASE_RUNTIME_ENDPOINT_KIND=direct|pgbouncer`
+- `PGBOUNCER_POOL_MODE=transaction|session`
+- `SQLX_POOL_MAX_CONNECTIONS`
+- `SQLX_POOL_MIN_CONNECTIONS`
+- `SQLX_POOL_ACQUIRE_TIMEOUT_MS`
+- `SQLX_POOL_CONNECT_TIMEOUT_MS`
+- `SQLX_POOL_IDLE_TIMEOUT_SECONDS`
+- `SQLX_POOL_MAX_LIFETIME_SECONDS`
+- `POSTGRES_CONNECTION_BUDGET_TOTAL`
+
+`staging` and `prod` must use:
+- `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
+- `PGBOUNCER_POOL_MODE=transaction`
