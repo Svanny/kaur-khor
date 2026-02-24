@@ -5,18 +5,22 @@ on:
     branches: [main]
     paths:
       - 'apps/api/**'
+      - 'config/env/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - 'tool/ci/**'
+      - 'tool/security/**'
   push:
     branches-ignore: [main]
     paths:
       - 'apps/api/**'
+      - 'config/env/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - 'tool/ci/**'
+      - 'tool/security/**'
 
 permissions:
   contents: read
@@ -26,6 +30,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Scan tracked files for secret leakage
+        run: bash tool/security/check_secret_patterns.sh
+
   fmt:
     runs-on: ubuntu-latest
     steps:

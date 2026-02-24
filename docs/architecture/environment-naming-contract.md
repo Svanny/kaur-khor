@@ -87,9 +87,16 @@ Shared infrastructure secret scopes:
 Service-specific external secrets:
 - Must be integration-specific (for example `stripe/api-key`, `sendgrid/api-key`), never generic names.
 
-Least-privilege access matrix (initial):
-- `api`: `postgres/*`, `redis/*`, `rabbit/*`, `kafka/*`, `object-storage/*`, `otel/*`, integration secrets required by API.
-- `worker`: `postgres/*`, `redis/*`, `rabbit/*`, `kafka/*`, `object-storage/*`, `otel/*`, integration secrets required by jobs.
-- `scheduler`: `rabbit/*`, `kafka/*`, `otel/*`, minimal additional scopes by approval.
+Tracked env templates must never contain real secrets. Secret-valued keys in templates may only be `__SET_IN_PLATFORM_SECRET__` or empty when explicitly allowed.
+
+Least-privilege access matrix (current + near-term):
+- `api`: `DATABASE_RUNTIME_URL`, optional `REDIS_URL`, optional `RABBIT_URL`, required API integration secrets, optional telemetry auth.
+- `worker`: `DATABASE_RUNTIME_URL`, `RABBIT_URL`, optional `REDIS_URL`, required worker integration secrets, optional telemetry auth.
+- `scheduler`: minimal `RABBIT_URL`, scheduler-specific integration secrets, optional telemetry auth.
+- `projection-consumer`: `DATABASE_RUNTIME_URL`, optional telemetry auth.
+- `outbox-relay` (current phase): `DATABASE_RUNTIME_URL`, optional telemetry auth. `RABBIT_URL` only if explicitly repurposed.
+- CI/deploy migration step only: `DATABASE_MIGRATION_URL`.
+
+Runtime services must not receive `DATABASE_MIGRATION_URL`.
 
 No wildcard secret-read grant is allowed unless explicitly approved.

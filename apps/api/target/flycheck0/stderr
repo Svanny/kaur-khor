@@ -1,5 +1,5 @@
-   0.179932208s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji_api"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("banji_api", ["lib"], "/Users/svanny/banji/apps/api/src/lib.rs", Edition2021) }
-   0.179975167s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji_api"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-98f26730afeff022/lib-banji_api`
+   0.149489583s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji_api"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("banji_api", ["lib"], "/Users/svanny/banji/apps/api/src/lib.rs", Edition2021) }
+   0.149538458s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji_api"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-3f68ca0c880c0d5e/lib-banji_api`
 
 Caused by:
     No such file or directory (os error 2)
@@ -23,8 +23,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.200122375s  INFO prepare_target{force=false package_id=redis v0.27.6 target="redis"}: cargo::core::compiler::fingerprint: fingerprint error for redis v0.27.6/Check { test: false }/TargetInner { benched: false, ..: lib_target("redis", ["lib"], "/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/redis-0.27.6/src/lib.rs", Edition2021) }
-   0.200138125s  INFO prepare_target{force=false package_id=redis v0.27.6 target="redis"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/redis-40cfe6660e190034/lib-redis`
+   0.171010666s  INFO prepare_target{force=false package_id=redis v0.27.6 target="redis"}: cargo::core::compiler::fingerprint: fingerprint error for redis v0.27.6/Check { test: false }/TargetInner { benched: false, ..: lib_target("redis", ["lib"], "/Users/svanny/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/redis-0.27.6/src/lib.rs", Edition2021) }
+   0.171025291s  INFO prepare_target{force=false package_id=redis v0.27.6 target="redis"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/redis-93732848a3bd5dce/lib-redis`
 
 Caused by:
     No such file or directory (os error 2)
@@ -49,8 +49,8 @@ Stack backtrace:
   16: std::rt::lang_start::<()>::{closure#0}
   17: std::rt::lang_start_internal
   18: _main
-   0.215067917s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji_api"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("banji_api", ["lib"], "/Users/svanny/banji/apps/api/src/lib.rs", Edition2021) }
-   0.215085750s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji_api"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-bccd2773a04cd154/test-lib-banji_api`
+   0.193303000s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji_api"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("banji_api", ["lib"], "/Users/svanny/banji/apps/api/src/lib.rs", Edition2021) }
+   0.193316375s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji_api"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-ab11c147df9720d2/test-lib-banji_api`
 
 Caused by:
     No such file or directory (os error 2)
@@ -74,8 +74,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.216536417s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji-api"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: false }/TargetInner { name: "banji-api", doc: true, ..: with_path("/Users/svanny/banji/apps/api/src/main.rs", Edition2021) }
-   0.216546083s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji-api"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-a905015e9b327f9e/bin-banji-api`
+   0.197134916s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji-api"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: false }/TargetInner { name: "banji-api", doc: true, ..: with_path("/Users/svanny/banji/apps/api/src/main.rs", Edition2021) }
+   0.197145666s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji-api"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-02b809ce06529752/bin-banji-api`
 
 Caused by:
     No such file or directory (os error 2)
@@ -99,8 +99,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.217327958s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji-api"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { name: "banji-api", doc: true, ..: with_path("/Users/svanny/banji/apps/api/src/main.rs", Edition2021) }
-   0.217334708s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji-api"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-5cda3d5e17181741/test-bin-banji-api`
+   0.197998750s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji-api"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { name: "banji-api", doc: true, ..: with_path("/Users/svanny/banji/apps/api/src/main.rs", Edition2021) }
+   0.198004125s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="banji-api"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-24fa5cc15b4314cc/test-bin-banji-api`
 
 Caused by:
     No such file or directory (os error 2)
@@ -124,8 +124,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.218138500s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="cache_contract_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "cache_contract_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/cache_contract_test.rs", Edition2021) }
-   0.218146458s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="cache_contract_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-051be3687a7e7b80/test-integration-test-cache_contract_test`
+   0.198794708s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="cache_contract_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "cache_contract_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/cache_contract_test.rs", Edition2021) }
+   0.198800000s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="cache_contract_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-5822fbba6528938e/test-integration-test-cache_contract_test`
 
 Caused by:
     No such file or directory (os error 2)
@@ -149,8 +149,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.218865875s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="config_contract_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "config_contract_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/config_contract_test.rs", Edition2021) }
-   0.218870958s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="config_contract_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-7ca443e3dbd4fd05/test-integration-test-config_contract_test`
+   0.199549500s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="config_contract_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "config_contract_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/config_contract_test.rs", Edition2021) }
+   0.199554083s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="config_contract_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-5695eecf54e06aa4/test-integration-test-config_contract_test`
 
 Caused by:
     No such file or directory (os error 2)
@@ -174,8 +174,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.219553792s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="events_contract_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "events_contract_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/events_contract_test.rs", Edition2021) }
-   0.219559250s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="events_contract_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-fb8fc1c8f98c7c2e/test-integration-test-events_contract_test`
+   0.200289250s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="events_contract_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "events_contract_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/events_contract_test.rs", Edition2021) }
+   0.200294125s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="events_contract_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-7e2e57062f9c084c/test-integration-test-events_contract_test`
 
 Caused by:
     No such file or directory (os error 2)
@@ -199,8 +199,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.220461250s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="health_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "health_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/health_test.rs", Edition2021) }
-   0.220473417s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="health_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-42cb7580b516b65f/test-integration-test-health_test`
+   0.201013833s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="health_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "health_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/health_test.rs", Edition2021) }
+   0.201018916s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="health_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-32c3a6555a68c42f/test-integration-test-health_test`
 
 Caused by:
     No such file or directory (os error 2)
@@ -224,8 +224,58 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.221320333s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="idempotency_fail_open_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "idempotency_fail_open_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/idempotency_fail_open_test.rs", Edition2021) }
-   0.221329792s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="idempotency_fail_open_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-7d61b108f450ded0/test-integration-test-idempotency_fail_open_test`
+   0.201755541s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="idempotency_fail_open_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "idempotency_fail_open_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/idempotency_fail_open_test.rs", Edition2021) }
+   0.201759375s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="idempotency_fail_open_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-f34e88b57eba6223/test-integration-test-idempotency_fail_open_test`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.202479000s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="jobs_retry_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "jobs_retry_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/jobs_retry_test.rs", Edition2021) }
+   0.202483416s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="jobs_retry_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-45bfaf59e10b34a2/test-integration-test-jobs_retry_test`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.203174000s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="logging_redaction_test"}: cargo::core::compiler::fingerprint: fingerprint error for banji-api v0.1.0 (/Users/svanny/banji/apps/api)/Check { test: true }/TargetInner { kind: "test", name: "logging_redaction_test", benched: false, ..: with_path("/Users/svanny/banji/apps/api/tests/logging_redaction_test.rs", Edition2021) }
+   0.203178125s  INFO prepare_target{force=false package_id=banji-api v0.1.0 (/Users/svanny/banji/apps/api) target="logging_redaction_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/svanny/banji/apps/api/target/debug/.fingerprint/banji-api-f0dc31b2dea85059/test-integration-test-logging_redaction_test`
 
 Caused by:
     No such file or directory (os error 2)
@@ -250,4 +300,5 @@ Stack backtrace:
   16: std::rt::lang_start_internal
   17: _main
     Checking redis v0.27.6
-error: could not compile `redis` (lib) due to 5 previous errors
+    Checking banji-api v0.1.0 (/Users/svanny/banji/apps/api)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.65s

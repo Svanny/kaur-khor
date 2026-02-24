@@ -18,13 +18,13 @@ impl KeyBuilder {
 
     pub fn build(&self, domain: &str, segments: &[&str]) -> String {
         let mut parts = vec![
-            sanitize(&self.system),
-            sanitize(&self.env),
-            sanitize(&self.service),
-            sanitize(&self.schema_version),
-            sanitize(domain),
+            encode_segment(&self.system),
+            encode_segment(&self.env),
+            encode_segment(&self.service),
+            encode_segment(&self.schema_version),
+            encode_segment(domain),
         ];
-        parts.extend(segments.iter().map(|s| sanitize(s)));
+        parts.extend(segments.iter().map(|s| encode_segment(s)));
         parts.join(":")
     }
 
@@ -37,17 +37,15 @@ impl KeyBuilder {
     }
 }
 
-fn sanitize(raw: &str) -> String {
+fn encode_segment(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
-    for c in raw.chars() {
-        if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-            out.push(c.to_ascii_lowercase());
+    for b in raw.bytes() {
+        if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' {
+            out.push(char::from(b));
         } else {
-            out.push('-');
+            out.push('~');
+            out.push_str(&format!("{b:02X}"));
         }
     }
-    while out.contains("--") {
-        out = out.replace("--", "-");
-    }
-    out.trim_matches('-').to_string()
+    out
 }

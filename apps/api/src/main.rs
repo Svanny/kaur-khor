@@ -10,6 +10,16 @@ async fn main() -> anyhow::Result<()> {
         .compact()
         .init();
 
+    if let Err(err) = run().await {
+        let safe_error = banji_api::logging::redaction::redact_message(&format!("{:#}", err));
+        tracing::error!(error = %safe_error, "banji-api startup failed");
+        return Err(anyhow::anyhow!(safe_error));
+    }
+
+    Ok(())
+}
+
+async fn run() -> anyhow::Result<()> {
     let config = banji_api::config::AppConfig::from_env()?;
     let state = banji_api::build_state(config).await?;
 

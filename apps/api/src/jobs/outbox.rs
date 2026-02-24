@@ -110,7 +110,7 @@ pub async fn mark_failed_tx(
     error: &str,
 ) -> Result<()> {
     sqlx::query(
-        "UPDATE app.job_outbox SET status = 'failed', last_error = $2, updated_at = NOW() WHERE id = $1",
+        "UPDATE app.job_outbox SET status = 'pending', last_error = $2, updated_at = NOW() WHERE id = $1",
     )
     .bind(id)
     .bind(error)

@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Context, Result};
 use std::env;
+use std::fmt;
 use std::time::Duration;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct AppConfig {
     pub system: String,
     pub env: String,
@@ -30,6 +31,52 @@ pub struct AppConfig {
     pub rabbit_max_attempts: u8,
     pub redis_url: Option<String>,
     pub database_runtime_url: Option<String>,
+}
+
+impl fmt::Debug for AppConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn redacted(value: &Option<String>) -> &'static str {
+            match value {
+                Some(v) if !v.trim().is_empty() => "<redacted>",
+                _ => "<unset>",
+            }
+        }
+
+        f.debug_struct("AppConfig")
+            .field("system", &self.system)
+            .field("env", &self.env)
+            .field("service", &self.service)
+            .field("cache_enabled", &self.cache_enabled)
+            .field("cache_schema_version", &self.cache_schema_version)
+            .field("cache_default_ttl", &self.cache_default_ttl)
+            .field("cache_ttl_jitter", &self.cache_ttl_jitter)
+            .field("redis_connect_timeout", &self.redis_connect_timeout)
+            .field("redis_command_timeout", &self.redis_command_timeout)
+            .field(
+                "redis_circuit_error_threshold",
+                &self.redis_circuit_error_threshold,
+            )
+            .field("redis_circuit_window", &self.redis_circuit_window)
+            .field("redis_circuit_cooldown", &self.redis_circuit_cooldown)
+            .field("redis_log_rate_limit", &self.redis_log_rate_limit)
+            .field("event_payload_max_bytes", &self.event_payload_max_bytes)
+            .field("rabbit_url", &redacted(&self.rabbit_url))
+            .field("rabbit_vhost", &self.rabbit_vhost)
+            .field("rabbit_exchange_jobs", &self.rabbit_exchange_jobs)
+            .field("rabbit_dlx_exchange", &self.rabbit_dlx_exchange)
+            .field("rabbit_retry_1_ttl_ms", &self.rabbit_retry_1_ttl_ms)
+            .field("rabbit_retry_2_ttl_ms", &self.rabbit_retry_2_ttl_ms)
+            .field("rabbit_retry_3_ttl_ms", &self.rabbit_retry_3_ttl_ms)
+            .field("rabbit_prefetch_fast", &self.rabbit_prefetch_fast)
+            .field("rabbit_prefetch_heavy", &self.rabbit_prefetch_heavy)
+            .field("rabbit_max_attempts", &self.rabbit_max_attempts)
+            .field("redis_url", &redacted(&self.redis_url))
+            .field(
+                "database_runtime_url",
+                &redacted(&self.database_runtime_url),
+            )
+            .finish()
+    }
 }
 
 impl AppConfig {

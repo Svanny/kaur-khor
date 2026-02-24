@@ -32,3 +32,8 @@ Order:
 4. `bash /Users/svanny/banji/tool/security/check_platform_hardening.sh`
 
 Policy: any finding fails the run.
+
+Secret-pattern gate includes:
+- detection of credential-bearing URLs (`scheme://user:pass@host`) in tracked files,
+- detection of token-like assignments for sensitive key names,
+- enforcement that tracked env templates use approved placeholders for secret-valued keys.

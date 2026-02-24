@@ -1,5 +1,6 @@
 use super::client::{CacheClient, LockHandle};
 use crate::config::AppConfig;
+use crate::logging::redaction::redact_message;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rand::RngCore;
@@ -141,7 +142,8 @@ impl RedisCacheClient {
             .unwrap_or(true);
 
         if should_log {
-            tracing::warn!(error = %msg, "redis operation failed, fail-open path active");
+            let safe = redact_message(msg);
+            tracing::warn!(error = %safe, "redis operation failed, fail-open path active");
             s.last_logged = Some(now);
         }
 

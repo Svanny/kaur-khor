@@ -3,6 +3,7 @@ pub mod config;
 pub mod events;
 pub mod idempotency;
 pub mod jobs;
+pub mod logging;
 
 use axum::{
     extract::State,
@@ -14,10 +15,15 @@ use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient};
 use config::AppConfig;
 use events::model::EventRecord;
 use idempotency::{IdempotencyResult, PersistedResponse};
+use logging::redaction::redact_message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgPool;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Weak},
+    time::Duration,
+};
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
@@ -26,7 +32,7 @@ pub struct AppState {
     pub db: Option<PgPool>,
     pub cache: Arc<dyn CacheClient>,
     pub key_builder: KeyBuilder,
-    pub singleflight: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
+    pub singleflight: Arc<Mutex<HashMap<String, Weak<Mutex<()>>>>>,
 }
 
 #[derive(Serialize)]
@@ -45,7 +51,8 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
         match RedisCacheClient::connect(&config).await {
             Ok(client) => Arc::new(client),
             Err(err) => {
-                tracing::warn!(error = %err, "redis unavailable at startup; using fail-open noop cache");
+                let safe_error = redact_message(&err.to_string());
+                tracing::warn!(error = %safe_error, "redis unavailable at startup; using fail-open noop cache");
                 Arc::new(NoopCacheClient)
             }
         }
@@ -131,20 +138,11 @@ async fn write_demo(
         .key_builder
         .idempotency_result_key(&caller_id, &idempotency_key);
 
-    let key_lock = get_singleflight_lock(&state, &cache_key).await;
-    let _guard = key_lock.lock().await;
-
-    if let Ok(Some(cached)) = state.cache.get_string(&cache_key).await {
-        if let Ok(resp) = serde_json::from_str::<PersistedResponse>(&cached) {
-            return (
-                StatusCode::from_u16(resp.status_code as u16).unwrap_or(StatusCode::OK),
-                Json(resp.body),
-            );
-        }
-    }
-
     let request_value = serde_json::json!({"operation": body.operation, "payload": body.payload});
     let request_hash = idempotency::hash_request_body(&request_value);
+
+    let key_lock = get_singleflight_lock(&state, &cache_key).await;
+    let _guard = key_lock.lock().await;
 
     let mut tx = match db.begin().await {
         Ok(tx) => tx,
@@ -320,9 +318,17 @@ async fn write_demo(
 
 async fn get_singleflight_lock(state: &AppState, key: &str) -> Arc<Mutex<()>> {
     let mut map = state.singleflight.lock().await;
-    map.entry(key.to_string())
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone()
+
+    // Keep only live lock entries so key cardinality does not grow unbounded.
+    map.retain(|_, weak_lock| weak_lock.strong_count() > 0);
+
+    if let Some(existing) = map.get(key).and_then(|weak_lock| weak_lock.upgrade()) {
+        return existing;
+    }
+
+    let new_lock = Arc::new(Mutex::new(()));
+    map.insert(key.to_string(), Arc::downgrade(&new_lock));
+    new_lock
 }
 
 pub async fn best_effort_lock(
@@ -336,4 +342,78 @@ pub async fn best_effort_lock(
 
 pub async fn best_effort_unlock(state: &AppState, lock: &cache::LockHandle) -> bool {
     state.cache.release_lock(lock).await.unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_config() -> AppConfig {
+        AppConfig {
+            system: "banji-core".to_string(),
+            env: "test".to_string(),
+            service: "api".to_string(),
+            cache_enabled: false,
+            cache_schema_version: "v1".to_string(),
+            cache_default_ttl: Duration::from_secs(300),
+            cache_ttl_jitter: Duration::from_secs(0),
+            redis_connect_timeout: Duration::from_millis(50),
+            redis_command_timeout: Duration::from_millis(50),
+            redis_circuit_error_threshold: 2,
+            redis_circuit_window: Duration::from_secs(3),
+            redis_circuit_cooldown: Duration::from_secs(3),
+            redis_log_rate_limit: Duration::from_secs(1),
+            event_payload_max_bytes: 65_536,
+            rabbit_url: None,
+            rabbit_vhost: "/".to_string(),
+            rabbit_exchange_jobs: "banji-core.test.jobs".to_string(),
+            rabbit_dlx_exchange: "banji-core.test.jobs.dlx".to_string(),
+            rabbit_retry_1_ttl_ms: 30_000,
+            rabbit_retry_2_ttl_ms: 300_000,
+            rabbit_retry_3_ttl_ms: 1_800_000,
+            rabbit_prefetch_fast: 20,
+            rabbit_prefetch_heavy: 2,
+            rabbit_max_attempts: 4,
+            redis_url: None,
+            database_runtime_url: None,
+        }
+    }
+
+    fn test_state() -> AppState {
+        let config = test_config();
+        AppState {
+            db: None,
+            cache: Arc::new(NoopCacheClient),
+            key_builder: KeyBuilder::new(
+                config.system.clone(),
+                config.env.clone(),
+                config.service.clone(),
+                config.cache_schema_version.clone(),
+            ),
+            singleflight: Arc::new(Mutex::new(HashMap::new())),
+            config,
+        }
+    }
+
+    #[tokio::test]
+    async fn singleflight_removes_stale_keys() {
+        let state = test_state();
+        let key_a = get_singleflight_lock(&state, "key-a").await;
+        drop(key_a);
+
+        let _key_b = get_singleflight_lock(&state, "key-b").await;
+        let map = state.singleflight.lock().await;
+
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key("key-b"));
+        assert!(!map.contains_key("key-a"));
+    }
+
+    #[tokio::test]
+    async fn singleflight_reuses_live_lock_for_same_key() {
+        let state = test_state();
+        let a = get_singleflight_lock(&state, "key-a").await;
+        let b = get_singleflight_lock(&state, "key-a").await;
+        assert!(Arc::ptr_eq(&a, &b));
+    }
 }

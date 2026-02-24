@@ -21,14 +21,31 @@ pub struct EventRecord {
 #[derive(Debug, Clone)]
 pub struct EventRow {
     pub id: i64,
+    pub occurred_at: String,
     pub stream_name: String,
     pub event_type: String,
     pub event_version: i32,
     pub aggregate_type: String,
     pub aggregate_id: String,
     pub producer_service: String,
+    pub idempotency_key: Option<String>,
+    pub correlation_id: Option<String>,
     pub payload: Value,
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEvent {
+    pub event_id: i64,
+    pub occurred_at: String,
+    pub service: String,
+    pub actor_id: Option<String>,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub event_type: String,
+    pub request_id: Option<String>,
+    pub idempotency_key: Option<String>,
+    pub payload: Value,
 }
 
 impl EventRecord {
@@ -64,6 +81,23 @@ impl EventRecord {
             causation_id,
             payload,
             metadata,
+        }
+    }
+}
+
+impl EventRow {
+    pub fn to_audit_event(self) -> AuditEvent {
+        AuditEvent {
+            event_id: self.id,
+            occurred_at: self.occurred_at,
+            service: self.producer_service,
+            actor_id: Some(self.aggregate_id.clone()),
+            entity_type: self.aggregate_type,
+            entity_id: self.aggregate_id,
+            event_type: self.event_type,
+            request_id: self.correlation_id,
+            idempotency_key: self.idempotency_key,
+            payload: self.payload,
         }
     }
 }

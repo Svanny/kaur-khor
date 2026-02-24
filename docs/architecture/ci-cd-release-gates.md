@@ -63,6 +63,13 @@ For each deployable Railway service:
   - `cargo audit` in `rust-ci`
   - container vulnerability scan (`trivy`) in `release-build`
 
+## Secrets and Config Gates
+- Secret scan (`tool/security/check_secret_patterns.sh`) is a required CI gate.
+- Tracked env templates may only use approved secret placeholders (`__SET_IN_PLATFORM_SECRET__`) for secret keys.
+- Deploy preflight must assert required deploy secrets are present.
+- `DATABASE_MIGRATION_URL` is scoped to migration step only and must not be injected into runtime service environments.
+- Runtime and migration database credentials must remain distinct.
+
 ## Redis Correctness Contract
 - Redis outages must not block correctness or write completion.
 - Correctness idempotency enforcement is Postgres-backed (`app.idempotency_request`), not Redis-backed.
@@ -73,6 +80,7 @@ For each deployable Railway service:
 - Event publish must occur in the same transaction as canonical write/idempotency completion.
 - Event insertion is deterministic under retries via `(producer_service, idempotency_key)` dedupe rule.
 - Consumer lag is stream-scoped and must not use global max event id across streams.
+- Operational runtime logs are platform-sink first (Railway/log drain); Postgres event stream is for audit/replay, not primary operational log sink.
 
 ## RabbitMQ Reliability Contract
 - RabbitMQ is the current async job transport.

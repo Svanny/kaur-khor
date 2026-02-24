@@ -1,6 +1,26 @@
-use super::model::EventRow;
+use super::model::{AuditEvent, EventRow};
 use anyhow::Result;
 use sqlx::{PgPool, Row};
+
+const POLL_STREAM_SQL: &str = r#"
+        SELECT
+          id,
+          created_at::text AS occurred_at,
+          stream_name,
+          event_type,
+          event_version,
+          aggregate_type,
+          aggregate_id,
+          producer_service,
+          idempotency_key,
+          correlation_id,
+          payload,
+          metadata
+        FROM app.event_log
+        WHERE stream_name = $1 AND id > $2
+        ORDER BY id ASC
+        LIMIT $3
+        "#;
 
 pub async fn get_checkpoint(
     pool: &PgPool,
@@ -112,33 +132,49 @@ pub async fn poll_stream(
     after_id: i64,
     batch_size: i64,
 ) -> Result<Vec<EventRow>> {
-    let rows = sqlx::query(
-        r#"
-        SELECT id, stream_name, event_type, event_version, aggregate_type, aggregate_id, producer_service, payload, metadata
-        FROM app.event_log
-        WHERE stream_name = $1 AND id > $2
-        ORDER BY id ASC
-        LIMIT $3
-        "#,
-    )
-    .bind(stream_name)
-    .bind(after_id)
-    .bind(batch_size)
-    .fetch_all(pool)
-    .await?;
+    let rows = sqlx::query(POLL_STREAM_SQL)
+        .bind(stream_name)
+        .bind(after_id)
+        .bind(batch_size)
+        .fetch_all(pool)
+        .await?;
 
     Ok(rows
         .into_iter()
         .map(|r| EventRow {
             id: r.get("id"),
+            occurred_at: r.get("occurred_at"),
             stream_name: r.get("stream_name"),
             event_type: r.get("event_type"),
             event_version: r.get("event_version"),
             aggregate_type: r.get("aggregate_type"),
             aggregate_id: r.get("aggregate_id"),
             producer_service: r.get("producer_service"),
+            idempotency_key: r.get("idempotency_key"),
+            correlation_id: r.get("correlation_id"),
             payload: r.get("payload"),
             metadata: r.get("metadata"),
         })
         .collect())
+}
+
+pub async fn poll_audit_stream(
+    pool: &PgPool,
+    stream_name: &str,
+    after_id: i64,
+    batch_size: i64,
+) -> Result<Vec<AuditEvent>> {
+    let rows = poll_stream(pool, stream_name, after_id, batch_size).await?;
+    Ok(rows.into_iter().map(|row| row.to_audit_event()).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::POLL_STREAM_SQL;
+
+    #[test]
+    fn poll_stream_query_orders_by_id_for_cursor_safety() {
+        assert!(POLL_STREAM_SQL.contains("ORDER BY id ASC"));
+        assert!(!POLL_STREAM_SQL.contains("ORDER BY created_at ASC, id ASC"));
+    }
 }

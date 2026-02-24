@@ -21,13 +21,13 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 5. [OPTIONAL / FUTURE] Provision Kafka for streaming logs
    Optional future track: create Apache Kafka, decide retention defaults, and create initial topics with partitions sized for your expected parallelism. Done means you can publish and consume from a test topic, you can observe consumer lag, and you have a clear topic naming convention.
 
-5a. [CURRENT FIX] Use PostgreSQL event log as Kafka substitute
+5a. [DONE / CURRENT FIX] Use PostgreSQL event log as Kafka substitute
    Implement an append-only `app.event_log` table as the current event stream transport. Publish events in the same transaction as canonical writes (outbox style), then poll/process by cursor (`id` or `created_at`) from worker services. Done means you can publish and consume from a test event stream in Postgres, track consumer progress with a durable checkpoint table, replay ranges for backfill, and keep naming/versioning conventions aligned with the current event vocabulary.
 
-6. Provision RabbitMQ for job queues
+6. [DONE] Provision RabbitMQ for job queues
    Create RabbitMQ, define exchanges, queues, dead letter routing, and retry strategy. Done means you can enqueue a job, consume it, fail it, see it land in retry or dead letter, and recover it intentionally.
 
-7. Stand up secrets management and configuration boundaries
+7. [DONE] Stand up secrets management and configuration boundaries
    Use platform secrets for now, later a dedicated secret manager if needed. Done means no secrets in code or logs, rotation is possible without redeploying everything, and every service has only the secrets it needs.
 
 8. Establish observability baseline before features

@@ -50,12 +50,18 @@ jobs:
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
       RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_SERVICE_ID }}
-      DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
-      DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Preflight required deploy secrets
+        env:
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+        run: |
+          test -n "$DATABASE_MIGRATION_URL" || (echo "missing DATABASE_MIGRATION_URL" >&2; exit 1)
+          test -n "$DATABASE_RUNTIME_URL" || (echo "missing DATABASE_RUNTIME_URL" >&2; exit 1)
+          test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
       - name: Assert image reference is digest-pinned
         run: |
           [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
@@ -69,6 +75,8 @@ jobs:
         env:
           ADVISORY_LOCK_KEY: 184361
           MIGRATION_SENTINEL: /tmp/staging_migration_applied
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/migrate_with_lock.sh
       - name: Verify migration step completed
         run: |
@@ -100,12 +108,18 @@ jobs:
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
       RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_SERVICE_ID }}
-      DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
-      DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Preflight required deploy secrets
+        env:
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+        run: |
+          test -n "$DATABASE_MIGRATION_URL" || (echo "missing DATABASE_MIGRATION_URL" >&2; exit 1)
+          test -n "$DATABASE_RUNTIME_URL" || (echo "missing DATABASE_RUNTIME_URL" >&2; exit 1)
+          test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
       - name: Assert image reference is digest-pinned
         run: |
           [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
@@ -119,6 +133,8 @@ jobs:
         env:
           ADVISORY_LOCK_KEY: 184361
           MIGRATION_SENTINEL: /tmp/prod_migration_applied
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/migrate_with_lock.sh
       - name: Verify migration step completed
         run: |
