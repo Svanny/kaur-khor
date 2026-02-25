@@ -52,16 +52,27 @@ jobs:
       RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_SERVICE_ID }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-      DATABASE_RUNTIME_ENDPOINT_KIND: ${{ vars.DATABASE_RUNTIME_ENDPOINT_KIND }}
-      PGBOUNCER_POOL_MODE: ${{ vars.PGBOUNCER_POOL_MODE }}
+      DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
+      PGBOUNCER_POOL_MODE: transaction
+      EDGE_ENFORCEMENT_ENABLED: true
+      EDGE_PROVIDER: cloudflare
+      EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+      EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Preflight required deploy secrets
         env:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-          DATABASE_RUNTIME_ENDPOINT_KIND: ${{ vars.DATABASE_RUNTIME_ENDPOINT_KIND }}
-          PGBOUNCER_POOL_MODE: ${{ vars.PGBOUNCER_POOL_MODE }}
+          DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
+          PGBOUNCER_POOL_MODE: transaction
+          EDGE_ENFORCEMENT_ENABLED: true
+          EDGE_PROVIDER: cloudflare
+          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+          EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
+          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -71,6 +82,13 @@ jobs:
           test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
           test "$DATABASE_RUNTIME_ENDPOINT_KIND" = "pgbouncer" || (echo "staging deploy requires DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer" >&2; exit 1)
           test "$PGBOUNCER_POOL_MODE" = "transaction" || (echo "staging deploy requires PGBOUNCER_POOL_MODE=transaction" >&2; exit 1)
+          test "${EDGE_ENFORCEMENT_ENABLED,,}" = "true" || (echo "staging deploy requires EDGE_ENFORCEMENT_ENABLED=true" >&2; exit 1)
+          test "$EDGE_PROVIDER" = "cloudflare" || (echo "staging deploy requires EDGE_PROVIDER=cloudflare" >&2; exit 1)
+          test -n "$EDGE_ORIGIN_AUTH_HEADER_NAME" || (echo "missing EDGE_ORIGIN_AUTH_HEADER_NAME" >&2; exit 1)
+          test -n "$EDGE_ORIGIN_AUTH_SECRET" || (echo "missing EDGE_ORIGIN_AUTH_SECRET" >&2; exit 1)
+          test -n "$EDGE_CORS_ALLOWED_ORIGINS" || (echo "missing EDGE_CORS_ALLOWED_ORIGINS" >&2; exit 1)
+          test -n "$CLOUDFLARE_API_TOKEN" || (echo "missing CLOUDFLARE_API_TOKEN" >&2; exit 1)
+          test -n "$CLOUDFLARE_ZONE_ID" || (echo "missing CLOUDFLARE_ZONE_ID" >&2; exit 1)
           if [[ "${OTEL_ENABLED,,}" == "true" ]]; then
             test -n "$OTEL_EXPORTER_OTLP_ENDPOINT" || (echo "missing OTEL_EXPORTER_OTLP_ENDPOINT while OTEL_ENABLED=true" >&2; exit 1)
             test -n "$OTEL_EXPORTER_OTLP_HEADERS" || (echo "missing OTEL_EXPORTER_OTLP_HEADERS while OTEL_ENABLED=true" >&2; exit 1)
@@ -78,6 +96,15 @@ jobs:
       - name: Assert image reference is digest-pinned
         run: |
           [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
+      - name: Verify Cloudflare edge controls (staging)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          bash tool/edge/cloudflare_verify.sh \
+            --env staging \
+            --zone-id "$CLOUDFLARE_ZONE_ID" \
+            --fingerprint-file tool/edge/fingerprints/staging.json
       - name: Install migration dependencies
         run: |
           sudo apt-get update
@@ -123,16 +150,27 @@ jobs:
       RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_SERVICE_ID }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-      DATABASE_RUNTIME_ENDPOINT_KIND: ${{ vars.DATABASE_RUNTIME_ENDPOINT_KIND }}
-      PGBOUNCER_POOL_MODE: ${{ vars.PGBOUNCER_POOL_MODE }}
+      DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
+      PGBOUNCER_POOL_MODE: transaction
+      EDGE_ENFORCEMENT_ENABLED: true
+      EDGE_PROVIDER: cloudflare
+      EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+      EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Preflight required deploy secrets
         env:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-          DATABASE_RUNTIME_ENDPOINT_KIND: ${{ vars.DATABASE_RUNTIME_ENDPOINT_KIND }}
-          PGBOUNCER_POOL_MODE: ${{ vars.PGBOUNCER_POOL_MODE }}
+          DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
+          PGBOUNCER_POOL_MODE: transaction
+          EDGE_ENFORCEMENT_ENABLED: true
+          EDGE_PROVIDER: cloudflare
+          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+          EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
+          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -142,6 +180,13 @@ jobs:
           test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
           test "$DATABASE_RUNTIME_ENDPOINT_KIND" = "pgbouncer" || (echo "prod deploy requires DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer" >&2; exit 1)
           test "$PGBOUNCER_POOL_MODE" = "transaction" || (echo "prod deploy requires PGBOUNCER_POOL_MODE=transaction" >&2; exit 1)
+          test "${EDGE_ENFORCEMENT_ENABLED,,}" = "true" || (echo "prod deploy requires EDGE_ENFORCEMENT_ENABLED=true" >&2; exit 1)
+          test "$EDGE_PROVIDER" = "cloudflare" || (echo "prod deploy requires EDGE_PROVIDER=cloudflare" >&2; exit 1)
+          test -n "$EDGE_ORIGIN_AUTH_HEADER_NAME" || (echo "missing EDGE_ORIGIN_AUTH_HEADER_NAME" >&2; exit 1)
+          test -n "$EDGE_ORIGIN_AUTH_SECRET" || (echo "missing EDGE_ORIGIN_AUTH_SECRET" >&2; exit 1)
+          test -n "$EDGE_CORS_ALLOWED_ORIGINS" || (echo "missing EDGE_CORS_ALLOWED_ORIGINS" >&2; exit 1)
+          test -n "$CLOUDFLARE_API_TOKEN" || (echo "missing CLOUDFLARE_API_TOKEN" >&2; exit 1)
+          test -n "$CLOUDFLARE_ZONE_ID" || (echo "missing CLOUDFLARE_ZONE_ID" >&2; exit 1)
           if [[ "${OTEL_ENABLED,,}" == "true" ]]; then
             test -n "$OTEL_EXPORTER_OTLP_ENDPOINT" || (echo "missing OTEL_EXPORTER_OTLP_ENDPOINT while OTEL_ENABLED=true" >&2; exit 1)
             test -n "$OTEL_EXPORTER_OTLP_HEADERS" || (echo "missing OTEL_EXPORTER_OTLP_HEADERS while OTEL_ENABLED=true" >&2; exit 1)
@@ -149,6 +194,15 @@ jobs:
       - name: Assert image reference is digest-pinned
         run: |
           [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
+      - name: Verify Cloudflare edge controls (prod)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          bash tool/edge/cloudflare_verify.sh \
+            --env prod \
+            --zone-id "$CLOUDFLARE_ZONE_ID" \
+            --fingerprint-file tool/edge/fingerprints/prod.json
       - name: Install migration dependencies
         run: |
           sudo apt-get update

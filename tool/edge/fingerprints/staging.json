@@ -1,0 +1,19 @@
+{
+  "env": "staging",
+  "zone_id": "__SET_IN_PLATFORM_SECRET__",
+  "updated_at": "1970-01-01T00:00:00Z",
+  "phases": {
+    "http_request_transform": {
+      "ruleset_id": "__SET_BY_TOOL_EDGE_APPLY__",
+      "rule_count": 0
+    },
+    "http_request_firewall_custom": {
+      "ruleset_id": "__SET_BY_TOOL_EDGE_APPLY__",
+      "rule_count": 0
+    },
+    "http_ratelimit": {
+      "ruleset_id": "__SET_BY_TOOL_EDGE_APPLY__",
+      "rule_count": 0
+    }
+  }
+}

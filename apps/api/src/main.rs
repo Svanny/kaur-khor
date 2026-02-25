@@ -31,9 +31,13 @@ async fn run() -> anyhow::Result<()> {
 
     tracing::info!(%addr, "starting banji-api");
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, banji_api::app_with_state(state))
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    let app = banji_api::app_with_state(state);
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
 
     if let Some(pool) = pool_for_shutdown {
         pool.close().await;

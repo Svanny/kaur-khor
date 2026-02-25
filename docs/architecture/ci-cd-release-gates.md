@@ -75,6 +75,22 @@ For each deployable Railway service:
 - If `OTEL_ENABLED=true`, deploy preflight must require:
   - `OTEL_EXPORTER_OTLP_ENDPOINT`
   - `OTEL_EXPORTER_OTLP_HEADERS`
+- Edge preflight in `staging` and `prod` must assert:
+  - `EDGE_ENFORCEMENT_ENABLED=true`
+  - `EDGE_PROVIDER=cloudflare`
+  - `EDGE_ORIGIN_AUTH_HEADER_NAME` is present
+  - `EDGE_ORIGIN_AUTH_SECRET` is present
+  - `EDGE_CORS_ALLOWED_ORIGINS` is present
+  - `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ZONE_ID` are present for verification
+- Deploy preflight must run `tool/edge/cloudflare_verify.sh` against the target environment fingerprint.
+- Deploy must verify target Railway service runtime contract variables after inject and before redeploy:
+  - `DATABASE_RUNTIME_ENDPOINT_KIND`
+  - `PGBOUNCER_POOL_MODE`
+  - `EDGE_ENFORCEMENT_ENABLED`
+  - `EDGE_PROVIDER`
+  - `EDGE_ORIGIN_AUTH_HEADER_NAME`
+  - `EDGE_CORS_ALLOWED_ORIGINS`
+- If Railway runtime values cannot be read or differ from expected deploy inputs, deployment must fail closed.
 
 ## Runtime Readiness and Drain Contract
 - Runtime startup must:
@@ -86,6 +102,14 @@ For each deployable Railway service:
   2. drain in-flight requests
   3. close SQLx pool
   4. exit
+
+## Edge Runtime Contract
+- In `staging` and `prod`, API ingress must be edge-enforced via Cloudflare front door.
+- Middleware order is locked:
+  - origin guard -> request size limit -> rate limit -> CORS -> observability -> handlers
+- Origin guard must accept current and next auth secret during rotation.
+- Forwarded client IP trust (`CF-Connecting-IP`) is valid only when origin guard passed.
+- Rate-limiter key must use matched route template, never raw path/query.
 
 ## Redis Correctness Contract
 - Redis outages must not block correctness or write completion.

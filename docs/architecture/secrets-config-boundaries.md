@@ -19,6 +19,11 @@ Secret keys:
 - `OBJECT_STORAGE_SECRET_KEY`
 - `OTEL_EXPORTER_OTLP_HEADERS` (preferred, when credential-bearing)
 - `OTEL_HEADERS` (compatibility alias, when credential-bearing)
+- `EDGE_ORIGIN_AUTH_SECRET`
+- `EDGE_ORIGIN_AUTH_SECRET_NEXT` (optional rotation overlap)
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ZONE_ID`
+- `CLOUDFLARE_ACCOUNT_ID`
 - integration-specific credentials (for example `STRIPE_API_KEY`, `SENDGRID_API_KEY`)
 
 Non-secret keys:
@@ -30,6 +35,7 @@ Non-secret keys:
 - `CACHE_*`
 - `REDIS_*` timeout/circuit controls
 - `RABBIT_*` topology/retry/prefetch controls (except `RABBIT_URL`)
+- `EDGE_*` runtime controls (except edge secrets above)
 - `EVENT_PAYLOAD_MAX_BYTES`
 - bind/log-level/runtime flags
 
@@ -74,6 +80,8 @@ Runtime services must never receive `DATABASE_MIGRATION_URL`.
 Runtime `staging` and `prod` environments must set:
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction`
+- `EDGE_ENFORCEMENT_ENABLED=true`
+- `EDGE_PROVIDER=cloudflare`
 
 ## Logging and Redaction Contract
 

@@ -81,6 +81,11 @@ if [[ "$atqc_mode" == "true" ]]; then
   fi
 
   if [[ "$query" == *"SELECT COUNT(*)"* && "$query" == *"id > :after_id"* ]]; then
+    if [[ "${MOCK_FORCE_EMPTY_BATCH:-}" == "true" ]]; then
+      echo "0"
+      exit 0
+    fi
+
     calls="0"
     if [[ -f "$MOCK_BATCH_COUNT_CALLS" ]]; then
       calls="$(cat "$MOCK_BATCH_COUNT_CALLS")"
@@ -145,6 +150,7 @@ run_replay() {
     export MOCK_RESET_VALUES="$case_dir/reset_values.log"
     export MOCK_CHECKPOINT_LOG="$case_dir/checkpoint.log"
     export DATABASE_URL="postgres://fake"
+    export MOCK_FORCE_EMPTY_BATCH="${MOCK_FORCE_EMPTY_BATCH:-}"
 
     bash "$SCRIPT" "$@"
   ) >"$output_file" 2>&1
@@ -201,5 +207,34 @@ run_replay "$case3" "1" \
 if [[ -f "$case3/checkpoint.log" ]]; then
   assert_not_contains "$case3/checkpoint.log" "advance"
 fi
+
+# 4) from-id 0 with empty range must not report negative end checkpoint
+case4="$TEST_TMP/case4"
+setup_mocks "$case4"
+set +e
+(
+  export PATH="$case4/bin:$PATH"
+  export MOCK_BATCH_COUNT_CALLS="$case4/batch_count_calls"
+  export MOCK_RESET_VALUES="$case4/reset_values.log"
+  export MOCK_CHECKPOINT_LOG="$case4/checkpoint.log"
+  export DATABASE_URL="postgres://fake"
+  export MOCK_FORCE_EMPTY_BATCH="true"
+
+  bash "$SCRIPT" \
+    --mode hot-apply \
+    --stream-name banji-core.dev.inventory-updated \
+    --service-name projection-consumer \
+    --consumer-name inventory-projector \
+    --handler-cmd 'cat >/dev/null' \
+    --from-id 0
+) >"$case4/output.txt" 2>&1
+case4_exit=$?
+set -e
+if [[ "$case4_exit" -ne 0 ]]; then
+  echo "assertion failed: expected success for empty-range replay, got exit=$case4_exit" >&2
+  cat "$case4/output.txt" >&2 || true
+  exit 1
+fi
+assert_contains "$case4/output.txt" "end_id=0"
 
 echo "replay event-log tests passed"

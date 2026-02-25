@@ -44,7 +44,7 @@ check_env_template_placeholders() {
         value="${value%\'}"
         value="${value#\'}"
 
-        if [[ "$key" =~ ^(DATABASE_RUNTIME_URL|DATABASE_MIGRATION_URL|REDIS_URL|RABBIT_URL|OBJECT_STORAGE_ACCESS_KEY|OBJECT_STORAGE_SECRET_KEY|OTEL_HEADERS|OTEL_EXPORTER_OTLP_HEADERS|.*(SECRET|TOKEN|PASSWORD|API_KEY|ACCESS_KEY))$ ]]; then
+        if [[ "$key" =~ ^(DATABASE_RUNTIME_URL|DATABASE_MIGRATION_URL|REDIS_URL|RABBIT_URL|OBJECT_STORAGE_ACCESS_KEY|OBJECT_STORAGE_SECRET_KEY|OTEL_HEADERS|OTEL_EXPORTER_OTLP_HEADERS|CLOUDFLARE_ZONE_ID|CLOUDFLARE_ACCOUNT_ID|.*(SECRET|TOKEN|PASSWORD|API_KEY|ACCESS_KEY))$ ]]; then
           if [[ -n "$value" && "$value" != "$APPROVED_SECRET_PLACEHOLDER" ]]; then
             report \
               "Template secret value must be placeholder or empty" \

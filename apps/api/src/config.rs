@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use axum::http::header::HeaderName;
 use std::env;
 use std::fmt;
 use std::time::Duration;
@@ -53,6 +54,29 @@ impl PgbouncerPoolMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EdgeProvider {
+    Cloudflare,
+    None,
+}
+
+impl EdgeProvider {
+    fn parse(raw: &str) -> Result<Self> {
+        match raw.to_ascii_lowercase().as_str() {
+            "cloudflare" => Ok(Self::Cloudflare),
+            "none" => Ok(Self::None),
+            _ => Err(anyhow!("EDGE_PROVIDER must be one of: cloudflare, none")),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Cloudflare => "cloudflare",
+            Self::None => "none",
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AppConfig {
     pub system: String,
@@ -92,6 +116,21 @@ pub struct AppConfig {
     pub sqlx_pool_idle_timeout: Duration,
     pub sqlx_pool_max_lifetime: Duration,
     pub postgres_connection_budget_total: u32,
+    pub edge_enforcement_enabled: bool,
+    pub edge_provider: EdgeProvider,
+    pub edge_origin_auth_header_name: String,
+    pub edge_origin_auth_secret: Option<String>,
+    pub edge_origin_auth_secret_next: Option<String>,
+    pub edge_rate_limit_enabled: bool,
+    pub edge_rate_limit_window: Duration,
+    pub edge_rate_limit_read_max: u32,
+    pub edge_rate_limit_write_max: u32,
+    pub edge_rate_limit_max_keys: usize,
+    pub edge_rate_limit_key_ttl: Duration,
+    pub edge_request_max_bytes: usize,
+    pub edge_write_request_max_bytes: usize,
+    pub edge_cors_allowed_origins: Vec<String>,
+    pub edge_trust_cf_connecting_ip: bool,
 }
 
 impl fmt::Debug for AppConfig {
@@ -162,6 +201,36 @@ impl fmt::Debug for AppConfig {
                 "postgres_connection_budget_total",
                 &self.postgres_connection_budget_total,
             )
+            .field("edge_enforcement_enabled", &self.edge_enforcement_enabled)
+            .field("edge_provider", &self.edge_provider.as_str())
+            .field(
+                "edge_origin_auth_header_name",
+                &self.edge_origin_auth_header_name,
+            )
+            .field(
+                "edge_origin_auth_secret",
+                &redacted(&self.edge_origin_auth_secret),
+            )
+            .field(
+                "edge_origin_auth_secret_next",
+                &redacted(&self.edge_origin_auth_secret_next),
+            )
+            .field("edge_rate_limit_enabled", &self.edge_rate_limit_enabled)
+            .field("edge_rate_limit_window", &self.edge_rate_limit_window)
+            .field("edge_rate_limit_read_max", &self.edge_rate_limit_read_max)
+            .field("edge_rate_limit_write_max", &self.edge_rate_limit_write_max)
+            .field("edge_rate_limit_max_keys", &self.edge_rate_limit_max_keys)
+            .field("edge_rate_limit_key_ttl", &self.edge_rate_limit_key_ttl)
+            .field("edge_request_max_bytes", &self.edge_request_max_bytes)
+            .field(
+                "edge_write_request_max_bytes",
+                &self.edge_write_request_max_bytes,
+            )
+            .field("edge_cors_allowed_origins", &self.edge_cors_allowed_origins)
+            .field(
+                "edge_trust_cf_connecting_ip",
+                &self.edge_trust_cf_connecting_ip,
+            )
             .finish()
     }
 }
@@ -176,6 +245,7 @@ impl AppConfig {
 
         let cache_schema_version = required_env("CACHE_SCHEMA_VERSION")?;
         let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
+        let strict_edge_env = matches!(env_name.as_str(), "staging" | "prod");
         let database_runtime_url = optional_env("DATABASE_RUNTIME_URL");
 
         let database_runtime_endpoint_kind =
@@ -218,6 +288,110 @@ impl AppConfig {
                 "POSTGRES_CONNECTION_BUDGET_TOTAL must be greater than 0"
             ));
         }
+
+        let edge_enforcement_enabled = parse_bool("EDGE_ENFORCEMENT_ENABLED", strict_edge_env)?;
+        let edge_provider_raw = env::var("EDGE_PROVIDER").unwrap_or_else(|_| {
+            if edge_enforcement_enabled {
+                "cloudflare".to_string()
+            } else {
+                "none".to_string()
+            }
+        });
+        let edge_provider = EdgeProvider::parse(&edge_provider_raw)?;
+        let edge_origin_auth_header_name = env::var("EDGE_ORIGIN_AUTH_HEADER_NAME")
+            .unwrap_or_else(|_| "x-banji-edge-auth".to_string())
+            .trim()
+            .to_string();
+        if edge_origin_auth_header_name.is_empty() {
+            return Err(anyhow!("EDGE_ORIGIN_AUTH_HEADER_NAME must not be empty"));
+        }
+        HeaderName::from_bytes(edge_origin_auth_header_name.as_bytes()).with_context(|| {
+            "EDGE_ORIGIN_AUTH_HEADER_NAME must be a valid HTTP header name".to_string()
+        })?;
+
+        let edge_origin_auth_secret = optional_env("EDGE_ORIGIN_AUTH_SECRET");
+        let edge_origin_auth_secret_next = optional_env("EDGE_ORIGIN_AUTH_SECRET_NEXT");
+
+        if edge_enforcement_enabled && edge_origin_auth_secret.is_none() {
+            return Err(anyhow!(
+                "EDGE_ORIGIN_AUTH_SECRET is required when EDGE_ENFORCEMENT_ENABLED=true"
+            ));
+        }
+
+        let edge_rate_limit_enabled = parse_bool("EDGE_RATE_LIMIT_ENABLED", true)?;
+        let edge_rate_limit_window =
+            Duration::from_secs(parse_u64("EDGE_RATE_LIMIT_WINDOW_SECONDS", 60)?);
+        let edge_rate_limit_read_max = parse_u32("EDGE_RATE_LIMIT_READ_MAX", 120)?;
+        let edge_rate_limit_write_max = parse_u32("EDGE_RATE_LIMIT_WRITE_MAX", 30)?;
+        let edge_rate_limit_max_keys = parse_usize("EDGE_RATE_LIMIT_MAX_KEYS", 10_000)?;
+        let edge_rate_limit_key_ttl =
+            Duration::from_secs(parse_u64("EDGE_RATE_LIMIT_KEY_TTL_SECONDS", 300)?);
+        let edge_request_max_bytes = parse_usize("EDGE_REQUEST_MAX_BYTES", 262_144)?;
+        let edge_write_request_max_bytes = parse_usize("EDGE_WRITE_REQUEST_MAX_BYTES", 65_536)?;
+        if edge_rate_limit_window.as_secs() == 0 {
+            return Err(anyhow!(
+                "EDGE_RATE_LIMIT_WINDOW_SECONDS must be greater than 0"
+            ));
+        }
+        if edge_rate_limit_read_max == 0 {
+            return Err(anyhow!("EDGE_RATE_LIMIT_READ_MAX must be greater than 0"));
+        }
+        if edge_rate_limit_write_max == 0 {
+            return Err(anyhow!("EDGE_RATE_LIMIT_WRITE_MAX must be greater than 0"));
+        }
+        if edge_rate_limit_max_keys == 0 {
+            return Err(anyhow!("EDGE_RATE_LIMIT_MAX_KEYS must be greater than 0"));
+        }
+        if edge_rate_limit_key_ttl.as_secs() == 0 {
+            return Err(anyhow!(
+                "EDGE_RATE_LIMIT_KEY_TTL_SECONDS must be greater than 0"
+            ));
+        }
+        if edge_request_max_bytes == 0 {
+            return Err(anyhow!("EDGE_REQUEST_MAX_BYTES must be greater than 0"));
+        }
+        if edge_write_request_max_bytes == 0 {
+            return Err(anyhow!(
+                "EDGE_WRITE_REQUEST_MAX_BYTES must be greater than 0"
+            ));
+        }
+        if edge_write_request_max_bytes > edge_request_max_bytes {
+            return Err(anyhow!(
+                "EDGE_WRITE_REQUEST_MAX_BYTES must be less than or equal to EDGE_REQUEST_MAX_BYTES"
+            ));
+        }
+
+        let edge_cors_allowed_origins = parse_csv_env("EDGE_CORS_ALLOWED_ORIGINS");
+        if strict_edge_env {
+            if !edge_enforcement_enabled {
+                return Err(anyhow!(
+                    "staging/prod require EDGE_ENFORCEMENT_ENABLED=true"
+                ));
+            }
+            if edge_provider != EdgeProvider::Cloudflare {
+                return Err(anyhow!("staging/prod require EDGE_PROVIDER=cloudflare"));
+            }
+            if edge_cors_allowed_origins.is_empty() {
+                return Err(anyhow!(
+                    "staging/prod require EDGE_CORS_ALLOWED_ORIGINS to be explicitly set"
+                ));
+            }
+            for origin in &edge_cors_allowed_origins {
+                if !origin.starts_with("https://") {
+                    return Err(anyhow!(
+                        "staging/prod EDGE_CORS_ALLOWED_ORIGINS entries must start with https://"
+                    ));
+                }
+                if origin.to_ascii_lowercase().contains("localhost") {
+                    return Err(anyhow!(
+                        "staging/prod EDGE_CORS_ALLOWED_ORIGINS must not include localhost"
+                    ));
+                }
+            }
+        }
+
+        let edge_trust_cf_connecting_ip =
+            parse_bool("EDGE_TRUST_CF_CONNECTING_IP", strict_edge_env)?;
 
         let strict_pooling_env = matches!(env_name.as_str(), "staging" | "prod");
         if strict_pooling_env {
@@ -293,6 +467,21 @@ impl AppConfig {
             sqlx_pool_idle_timeout,
             sqlx_pool_max_lifetime,
             postgres_connection_budget_total,
+            edge_enforcement_enabled,
+            edge_provider,
+            edge_origin_auth_header_name,
+            edge_origin_auth_secret,
+            edge_origin_auth_secret_next,
+            edge_rate_limit_enabled,
+            edge_rate_limit_window,
+            edge_rate_limit_read_max,
+            edge_rate_limit_write_max,
+            edge_rate_limit_max_keys,
+            edge_rate_limit_key_ttl,
+            edge_request_max_bytes,
+            edge_write_request_max_bytes,
+            edge_cors_allowed_origins,
+            edge_trust_cf_connecting_ip,
         })
     }
 }
@@ -357,4 +546,25 @@ fn parse_u8(name: &str, default: u8) -> Result<u8> {
             .with_context(|| format!("{name} must be an integer")),
         Err(_) => Ok(default),
     }
+}
+
+fn parse_usize(name: &str, default: usize) -> Result<usize> {
+    match env::var(name) {
+        Ok(v) => v
+            .parse::<usize>()
+            .with_context(|| format!("{name} must be an integer")),
+        Err(_) => Ok(default),
+    }
+}
+
+fn parse_csv_env(name: &str) -> Vec<String> {
+    env::var(name)
+        .ok()
+        .map(|raw| {
+            raw.split(',')
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
 }

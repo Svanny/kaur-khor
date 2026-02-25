@@ -19,6 +19,11 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - `OBJECT_STORAGE_SECRET_KEY`
 - `OTEL_HEADERS` (when credential-bearing)
 - `OTEL_EXPORTER_OTLP_HEADERS` (preferred OTLP auth header key)
+- `EDGE_ORIGIN_AUTH_SECRET`
+- `EDGE_ORIGIN_AUTH_SECRET_NEXT` (optional overlap secret for rotation)
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ZONE_ID`
+- `CLOUDFLARE_ACCOUNT_ID`
 - service integration keys (for example `STRIPE_API_KEY`, `SENDGRID_API_KEY`)
 
 ## Observability Baseline (OTel)
@@ -58,6 +63,27 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 `staging` and `prod` must use:
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction`
+
+## Edge Protection Keys (Non-Secret)
+- `EDGE_ENFORCEMENT_ENABLED`
+- `EDGE_PROVIDER=cloudflare|none`
+- `EDGE_ORIGIN_AUTH_HEADER_NAME`
+- `EDGE_RATE_LIMIT_ENABLED`
+- `EDGE_RATE_LIMIT_WINDOW_SECONDS`
+- `EDGE_RATE_LIMIT_READ_MAX`
+- `EDGE_RATE_LIMIT_WRITE_MAX`
+- `EDGE_RATE_LIMIT_MAX_KEYS`
+- `EDGE_RATE_LIMIT_KEY_TTL_SECONDS`
+- `EDGE_REQUEST_MAX_BYTES`
+- `EDGE_WRITE_REQUEST_MAX_BYTES`
+- `EDGE_CORS_ALLOWED_ORIGINS`
+- `EDGE_TRUST_CF_CONNECTING_IP`
+
+`staging` and `prod` contract:
+- `EDGE_ENFORCEMENT_ENABLED=true`
+- `EDGE_PROVIDER=cloudflare`
+- `EDGE_CORS_ALLOWED_ORIGINS` must be explicit `https://` origins only
+- `EDGE_CORS_ALLOWED_ORIGINS` must not include localhost entries
 
 ## RabbitMQ Replay Keys (Non-Secret)
 - `RABBIT_EXCHANGE_JOBS_REPLAY`

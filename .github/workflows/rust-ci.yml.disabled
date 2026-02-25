@@ -10,6 +10,7 @@ on:
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - 'tool/ci/**'
+      - 'tool/edge/**'
       - 'tool/otel/**'
       - 'tool/security/**'
   push:
@@ -21,6 +22,7 @@ on:
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - 'tool/ci/**'
+      - 'tool/edge/**'
       - 'tool/otel/**'
       - 'tool/security/**'
 
@@ -50,6 +52,10 @@ jobs:
           grep -q '^DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer$' config/env/prod.env
           grep -q '^PGBOUNCER_POOL_MODE=transaction$' config/env/staging.env
           grep -q '^PGBOUNCER_POOL_MODE=transaction$' config/env/prod.env
+          grep -q '^EDGE_ENFORCEMENT_ENABLED=true$' config/env/staging.env
+          grep -q '^EDGE_ENFORCEMENT_ENABLED=true$' config/env/prod.env
+          grep -q '^EDGE_PROVIDER=cloudflare$' config/env/staging.env
+          grep -q '^EDGE_PROVIDER=cloudflare$' config/env/prod.env
 
   fmt:
     runs-on: ubuntu-latest
