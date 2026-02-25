@@ -80,14 +80,31 @@ No runtime role may hold schema-altering privileges.
   - schema introduction
   - data backfill
   - constraint tighten/drop in later release
+- Risk markers are required for new migrations:
+  - header format: `-- @risk:low|high`
+  - `@risk:high` includes large-table index/constraint/partitioning or expected lock-heavy changes
+  - any deployed `@risk:high` migration triggers a mandatory manual `prod -> prod_restore` drill
 
 ## Restore Validation
-- Weekly restore drill per environment to a clean restore database.
+- Restore drill cadence:
+  - automated weekly `prod -> staging_restore`
+  - monthly manual `dev -> dev_restore`
+  - monthly manual `prod -> prod_restore`
+  - additional manual prod drill after any deployed `@risk:high` migration
+- Scheduled drill source contract:
+  - use dedicated repo/org secret `RESTORE_DRILL_SOURCE_PROD_DATABASE_URL` for `prod` source access in weekly drill
+- Hard safety invariants (script-enforced):
+  - restore target database name must end with `_restore`
+  - source and restore database names must differ
+  - source/restore URLs and validation SQL path are required
 - Validation includes:
-  - migration metadata presence
+  - migration metadata presence (`public._sqlx_migrations`)
   - required schema/table/index checks
-  - data invariants and representative query shape checks
-- Drill artifacts must record backup source timestamp, restore duration, and pass/fail details.
+  - baseline invariants and anti-orphan checks
+  - representative indexed query execution checks
+  - required extension checks when `REQUIRED_PG_EXTENSIONS` is configured
+- Successful drills clean restored objects immediately after validation.
+- Drill artifacts must record start/end timestamps, split restore/validate timings, source identifiers, and pass/fail details.
 
 ## Event Log Current Fix (Kafka Substitute)
 - Current transport for streaming needs is `app.event_log` in PostgreSQL.

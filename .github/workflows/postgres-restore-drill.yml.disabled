@@ -4,40 +4,35 @@ on:
   schedule:
     - cron: '0 3 * * 0'
   workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Target environment drill route (dev|staging|prod)'
+        required: true
+        default: staging
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      confirm_prod_restore:
+        description: 'Required for prod dispatch: type CONFIRM_PROD_RESTORE'
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  restore-drill-dev:
-    runs-on: ubuntu-latest
-    env:
-      ENV_NAME: dev
-      SOURCE_DATABASE_URL: ${{ secrets.DEV_DATABASE_RUNTIME_URL }}
-      RESTORE_DATABASE_URL: ${{ secrets.DEV_DATABASE_RESTORE_URL }}
-      BACKUP_SOURCE_TIMESTAMP: ${{ github.run_started_at }}
-    steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
-      - name: Install postgres client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-      - name: Run restore validation
-        run: bash tool/db/restore_validate.sh
-      - name: Upload dev restore drill artifacts
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
-        with:
-          name: restore-drill-dev
-          path: build/restore-drill/
-          if-no-files-found: error
-
-  restore-drill-staging:
+  restore-drill-staging-scheduled:
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     env:
       ENV_NAME: staging
-      SOURCE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RUNTIME_URL }}
+      SOURCE_DATABASE_URL: ${{ secrets.RESTORE_DRILL_SOURCE_PROD_DATABASE_URL }}
       RESTORE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RESTORE_URL }}
       BACKUP_SOURCE_TIMESTAMP: ${{ github.run_started_at }}
+      REQUIRED_PG_EXTENSIONS: ${{ vars.REQUIRED_PG_EXTENSIONS }}
+      RESTORE_DRILL_ALERT_WEBHOOK_URL: ${{ secrets.RESTORE_DRILL_ALERT_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Install postgres client
@@ -47,19 +42,44 @@ jobs:
       - name: Run restore validation
         run: bash tool/db/restore_validate.sh
       - name: Upload staging restore drill artifacts
+        if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
         with:
           name: restore-drill-staging
           path: build/restore-drill/
           if-no-files-found: error
+      - name: Append drill summary
+        if: always()
+        run: |
+          echo "## Postgres Restore Drill" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workflow path: scheduled prod -> staging_restore" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Job status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: ${ENV_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "build/restore-drill/report_${ENV_NAME}.json" ]]; then
+            echo "- Report:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "build/restore-drill/report_${ENV_NAME}.json" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Notify restore drill failure
+        if: failure() && env.RESTORE_DRILL_ALERT_WEBHOOK_URL != ''
+        run: |
+          curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            --data "{\"event\":\"postgres-restore-drill\",\"status\":\"failed\",\"environment\":\"${ENV_NAME}\",\"run_url\":\"https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$RESTORE_DRILL_ALERT_WEBHOOK_URL"
 
-  restore-drill-prod:
+  restore-drill-manual-dev:
+    if: github.event_name == 'workflow_dispatch' && inputs.target_env == 'dev'
     runs-on: ubuntu-latest
+    environment: dev
     env:
-      ENV_NAME: prod
-      SOURCE_DATABASE_URL: ${{ secrets.PROD_DATABASE_RUNTIME_URL }}
-      RESTORE_DATABASE_URL: ${{ secrets.PROD_DATABASE_RESTORE_URL }}
+      ENV_NAME: dev
+      SOURCE_DATABASE_URL: ${{ secrets.DEV_DATABASE_RUNTIME_URL }}
+      RESTORE_DATABASE_URL: ${{ secrets.DEV_DATABASE_RESTORE_URL }}
       BACKUP_SOURCE_TIMESTAMP: ${{ github.run_started_at }}
+      REQUIRED_PG_EXTENSIONS: ${{ vars.REQUIRED_PG_EXTENSIONS }}
+      RESTORE_DRILL_ALERT_WEBHOOK_URL: ${{ secrets.RESTORE_DRILL_ALERT_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Install postgres client
@@ -68,9 +88,130 @@ jobs:
           sudo apt-get install -y postgresql-client
       - name: Run restore validation
         run: bash tool/db/restore_validate.sh
-      - name: Upload prod restore drill artifacts
+      - name: Upload restore drill artifacts
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: restore-drill-dev
+          path: build/restore-drill/
+          if-no-files-found: error
+      - name: Append drill summary
+        if: always()
+        run: |
+          echo "## Postgres Restore Drill" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workflow path: manual dev" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Job status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: ${ENV_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "build/restore-drill/report_${ENV_NAME}.json" ]]; then
+            echo "- Report:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "build/restore-drill/report_${ENV_NAME}.json" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Notify restore drill failure
+        if: failure() && env.RESTORE_DRILL_ALERT_WEBHOOK_URL != ''
+        run: |
+          curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            --data "{\"event\":\"postgres-restore-drill\",\"status\":\"failed\",\"environment\":\"${ENV_NAME}\",\"run_url\":\"https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$RESTORE_DRILL_ALERT_WEBHOOK_URL"
+
+  restore-drill-manual-staging:
+    if: github.event_name == 'workflow_dispatch' && inputs.target_env == 'staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      ENV_NAME: staging
+      SOURCE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RUNTIME_URL }}
+      RESTORE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RESTORE_URL }}
+      BACKUP_SOURCE_TIMESTAMP: ${{ github.run_started_at }}
+      REQUIRED_PG_EXTENSIONS: ${{ vars.REQUIRED_PG_EXTENSIONS }}
+      RESTORE_DRILL_ALERT_WEBHOOK_URL: ${{ secrets.RESTORE_DRILL_ALERT_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Install postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Run restore validation
+        run: bash tool/db/restore_validate.sh
+      - name: Upload restore drill artifacts
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: restore-drill-staging
+          path: build/restore-drill/
+          if-no-files-found: error
+      - name: Append drill summary
+        if: always()
+        run: |
+          echo "## Postgres Restore Drill" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workflow path: manual staging" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Job status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: ${ENV_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "build/restore-drill/report_${ENV_NAME}.json" ]]; then
+            echo "- Report:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "build/restore-drill/report_${ENV_NAME}.json" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Notify restore drill failure
+        if: failure() && env.RESTORE_DRILL_ALERT_WEBHOOK_URL != ''
+        run: |
+          curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            --data "{\"event\":\"postgres-restore-drill\",\"status\":\"failed\",\"environment\":\"${ENV_NAME}\",\"run_url\":\"https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$RESTORE_DRILL_ALERT_WEBHOOK_URL"
+
+  restore-drill-manual-prod:
+    if: github.event_name == 'workflow_dispatch' && inputs.target_env == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      ENV_NAME: prod
+      SOURCE_DATABASE_URL: ${{ secrets.PROD_DATABASE_RUNTIME_URL }}
+      RESTORE_DATABASE_URL: ${{ secrets.PROD_DATABASE_RESTORE_URL }}
+      BACKUP_SOURCE_TIMESTAMP: ${{ github.run_started_at }}
+      REQUIRED_PG_EXTENSIONS: ${{ vars.REQUIRED_PG_EXTENSIONS }}
+      RESTORE_DRILL_ALERT_WEBHOOK_URL: ${{ secrets.RESTORE_DRILL_ALERT_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Validate prod confirmation
+        run: |
+          if [[ "${{ inputs.confirm_prod_restore }}" != "CONFIRM_PROD_RESTORE" ]]; then
+            echo "error: prod restore drill requires confirm_prod_restore=CONFIRM_PROD_RESTORE" >&2
+            exit 1
+          fi
+      - name: Install postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Run restore validation
+        run: bash tool/db/restore_validate.sh
+      - name: Upload restore drill artifacts
+        if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
         with:
           name: restore-drill-prod
           path: build/restore-drill/
           if-no-files-found: error
+      - name: Append drill summary
+        if: always()
+        run: |
+          echo "## Postgres Restore Drill" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workflow path: manual prod" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Job status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: ${ENV_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "build/restore-drill/report_${ENV_NAME}.json" ]]; then
+            echo "- Report:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "build/restore-drill/report_${ENV_NAME}.json" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Notify restore drill failure
+        if: failure() && env.RESTORE_DRILL_ALERT_WEBHOOK_URL != ''
+        run: |
+          curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            --data "{\"event\":\"postgres-restore-drill\",\"status\":\"failed\",\"environment\":\"${ENV_NAME}\",\"run_url\":\"https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$RESTORE_DRILL_ALERT_WEBHOOK_URL"

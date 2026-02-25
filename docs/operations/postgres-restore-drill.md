@@ -1,31 +1,96 @@
 # Postgres Restore Drill Runbook
 
 ## Purpose
-Prove that backups can be restored into a clean environment and pass baseline integrity checks.
+Prove recoverability by restoring into an isolated restore database and validating schema/data/query integrity before any runtime cutover.
 
-## Cadence
-- Weekly automated drill via GitHub Actions.
-- On-demand drill after major schema or infrastructure changes.
+## Drill Routes and Cadence
+- Automated weekly route:
+  - `prod -> staging_restore` via GitHub Actions workflow `postgres-restore-drill`.
+- Manual monthly routes:
+  - `dev -> dev_restore`
+  - `prod -> prod_restore`
+- Additional required manual prod drill:
+  - after any deployed migration marked `-- @risk:high`.
 
-## Inputs
-- `SOURCE_DATABASE_URL`: source database to clone/restore from.
-- `RESTORE_DATABASE_URL`: clean restore target database.
-- Optional `BACKUP_SOURCE_TIMESTAMP`: timestamp label for reporting.
+## Safety Invariants (Hard Fail)
+The drill script refuses to run when any invariant is violated:
+- source/restore URLs must be present
+- validation SQL file must exist
+- restore database name must end with `_restore`
+- source and restore database names must differ
+
+## Workflow Inputs
+Manual dispatch supports:
+- `target_env=dev|staging|prod`
+- `confirm_prod_restore`
+  - required for `target_env=prod`
+  - must equal `CONFIRM_PROD_RESTORE`
+
+## Inputs and Secrets
+- `SOURCE_DATABASE_URL`: source database URL
+- `RESTORE_DATABASE_URL`: restore target URL
+- `BACKUP_SOURCE_TIMESTAMP`: optional label (defaults to run start timestamp)
+- `REQUIRED_PG_EXTENSIONS`: optional comma-separated extension list to enforce
+- `RESTORE_DRILL_ALERT_WEBHOOK_URL`: optional failure notification webhook
+- `RESTORE_DRILL_SOURCE_PROD_DATABASE_URL`: repo/org-level source URL used by scheduled weekly drill (`prod -> staging_restore`)
 
 ## Procedure
-1. Drop/clean restore target objects.
-2. Copy source database into restore target.
-3. Run structural checks (`tool/db/validate_restore.sql`).
-4. Run invariant checks and capture pass/fail.
-5. Publish JSON report artifact.
+1. Resolve source/restore database names and enforce safety invariants.
+2. Clean restore target schema objects.
+3. Restore logical snapshot (`pg_dump | psql`) from source to restore target.
+4. Run validation SQL (`tool/db/validate_restore.sql`) with extension checks.
+5. Clean restored data immediately on successful validation.
+6. Upload machine-readable report and validation output as artifacts.
 
-## Acceptance Criteria
-- Restore completes within RTO target (60 minutes).
-- Effective data loss window is within RPO target (15 minutes) for scheduled checkpoints.
-- All required checks pass:
-  - `_sqlx_migrations` present and non-empty
-  - required `app.*` tables and indexes present
-  - representative integrity checks succeed
+## Validation Meaning
+Validation must prove:
+- migration table exists and has applied rows
+- required `app.*` tables and critical indexes exist
+- baseline invariants pass (non-empty seed/probe, anti-orphan checks)
+- representative indexed query path is executable
+- configured required extensions are installed
 
-## Incident Usage
-Use the same procedure for incident recovery, then repoint runtime secrets to the restored target only after validation passes.
+## Evidence Artifacts
+Each run must emit:
+- `build/restore-drill/report_<env>.json`
+- `build/restore-drill/validate_<env>.txt`
+
+Report fields:
+- `environment`
+- `started_at`, `ended_at`
+- `backup_source_timestamp`, `source_backup_reference`
+- `source_identifier`
+- `restore_seconds`, `validate_seconds`, `total_seconds`
+- `status`, `failure_reason`
+- `validation_output_file`
+
+## Failure Handling
+- Workflow writes concise status to GitHub job summary on every run.
+- If `RESTORE_DRILL_ALERT_WEBHOOK_URL` is configured, workflow posts failure notification payload.
+- For failed drills:
+  - inspect `validate_<env>.txt`
+  - fix root cause
+  - rerun drill before closing incident/task.
+
+## Manual Commands
+Run locally or in an operator shell:
+
+```bash
+ENV_NAME=dev \
+SOURCE_DATABASE_URL="$DEV_DATABASE_RUNTIME_URL" \
+RESTORE_DATABASE_URL="$DEV_DATABASE_RESTORE_URL" \
+BACKUP_SOURCE_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+REQUIRED_PG_EXTENSIONS="" \
+bash tool/db/restore_validate.sh
+```
+
+List high-risk migrations:
+
+```bash
+bash tool/db/check_risky_migrations.sh
+```
+
+## Access and Retention
+- Restore targets are non-runtime databases and access-restricted.
+- Successful drills do not retain restored data; only artifacts are retained.
+- Failed-drill restored state may be kept briefly for debugging, then cleaned.

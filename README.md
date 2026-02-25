@@ -175,4 +175,5 @@ This repository is an actively evolving prototype.
 - Flutter UI flows are implemented for inventory and ranking interactions.
 - Backend architecture and infrastructure contracts are being implemented incrementally in the Rust API workstream.
 - Observability baseline uses OpenTelemetry semantic-convention HTTP metrics, correlation IDs, and a collector-forwarded traces/metrics path.
+- Postgres restore drill routine is defined and scripted via `/.github/workflows/postgres-restore-drill.yml` and `/docs/operations/postgres-restore-drill.md`.
 - Some integration paths remain intentionally staged while contracts and operational tooling are finalized.

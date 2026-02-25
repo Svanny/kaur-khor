@@ -35,10 +35,10 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 
 #### Walls, resilience that keeps you calm in production
 
-9. Add database connection pooling
+9. [DONE] Add database connection pooling
    Introduce PgBouncer once you have more than one API instance or significant worker concurrency. Done means connection count is stable under load and deploys do not spike latency.
 
-10. Define backup and restore drills as a routine
+10. [DONE] Define backup and restore drills as a routine
     Backups are not enough. Done means you can restore Postgres to a new environment and pass a basic validation script, and you have a cadence for doing this.
 
 11. [OPTIONAL / FUTURE] Define Kafka retention, compaction, and replay policy

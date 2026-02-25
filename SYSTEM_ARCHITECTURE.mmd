@@ -1,131 +1,95 @@
 %%{init: {
   "theme": "base",
   "flowchart": {
-    "curve": "linear",
-    "nodeSpacing": 58,
-    "rankSpacing": 86,
+    "curve": "basis",
+    "nodeSpacing": 48,
+    "rankSpacing": 70,
     "htmlLabels": true
   },
   "themeVariables": {
-    "fontSize": "17px",
+    "fontSize": "18px",
     "fontFamily": "Menlo, Monaco, monospace",
     "lineColor": "#334155",
-    "primaryTextColor": "#111827"
+    "primaryTextColor": "#0f172a",
+    "clusterBkg": "#f8fafc",
+    "clusterBorder": "#cbd5e1"
   }
 }}%%
 
 flowchart TB
 
-subgraph FLOW["Banji Runtime Plane (Current)"]
+subgraph RUNTIME["Banji Runtime Plane (Current)"]
   direction TB
 
   client["Client Apps"] --> api["Rust API (axum)<br/>/health<br/>/v1/write-demo"]
-  rsecrets["Railway service secrets<br/>runtime secret source"] --> api
+  runtime_secrets["Railway runtime secrets"] --> cfg["AppConfig + startup validation<br/>redacted Debug"] --> api
 
-  api --> config["AppConfig + startup validation<br/>manual Debug redaction"]
-  api --> sqlxpool["SQLx runtime pool<br/>max/min + acquire/connect timeouts<br/>warmup SELECT 1 before ready<br/>graceful drain + pool close on shutdown"]
-  sqlxpool --> pgbouncer["PgBouncer runtime endpoint<br/>transaction mode (staging/prod)<br/>statement cache disabled in SQLx"]
-  api --> otelmw["HTTP observability middleware<br/>correlation precedence + W3C extract/inject<br/>response x-correlation-id"]
-  otelmw --> httpsem["OTel SemConv HTTP metrics<br/>http.server.request.duration (s)<br/>http.server.active_requests"]
-  pgbouncer --> idemp[("Postgres<br/>app.idempotency_request")]
-  pgbouncer --> evlog[("Postgres audit stream<br/>app.event_log")]
-  pgbouncer --> outbox[("Postgres<br/>app.job_outbox")]
-  config --> redis[("Redis optional<br/>cache + coordination")]
-  config --> plogs["Platform logs primary<br/>Railway / log drain"]
+  api --> sqlxpool["SQLx pool<br/>warmup before ready<br/>graceful drain on shutdown"]
+  sqlxpool --> pgbouncer["PgBouncer<br/>transaction mode"]
+  pgbouncer --> pg_core[("Postgres core<br/>app.idempotency_request<br/>app.event_log<br/>app.job_outbox<br/>app.event_consumer_checkpoint")]
 
-  outbox --> relay["Outbox relay<br/>publish with confirms<br/>mark sent"]
-  relay --> rabbit["RabbitMQ jobs"]
-  relay --> otelpub["Message propagation<br/>x-correlation-id + traceparent/tracestate/baggage"]
+  pg_core --> relay["Outbox relay<br/>publisher confirms"] --> rabbit["RabbitMQ jobs"]
+  rabbit --> workers["Workers<br/>fast/heavy + manual ack"] --> pg_state[("Postgres state writes")]
+  workers --> classifier["Error classifier<br/>permanent->DLQ<br/>transient->retry"] --> rabbit
+  replay["DLQ replay tool<br/>rate-limited + audited"] --> rabbit
 
-  rabbit --> workers["Workers<br/>fast/heavy<br/>manual ack"]
-  workers --> classifier["Error classifier<br/>permanent->DLQ<br/>transient->retry"]
-  classifier --> rabbit
-  workers --> pgstate[("Postgres state writes")]
-  workers --> plogs
-  workers --> otelpub
+  pg_core --> projection["Projection consumer<br/>poll by created_at,id"] --> pg_state
 
-  projection["Projection consumer<br/>poll by created_at,id"] --> evlog
-  projection --> checkpoint[("Postgres<br/>app.event_consumer_checkpoint")]
-  projection --> plogs
-  projection --> otelpub
+  cfg --> redis[("Redis optional<br/>cache + coordination")]
+  redis -. behavior .-> redis_policy["Fail-open + fail-fast<br/>timeouts + circuit breaker<br/>TTL jitter + single-flight"]
+  pg_core -. future mirror .-> kafka["Kafka optional future<br/>not active"]
 
-  operator["Operators"] --> replay["DLQ replay tool<br/>rate limit + audit"]
-  operator --> dbtools["DB tools<br/>replay/export/restore validate"]
-  replay --> rabbit
-  dbtools --> evlog
+  api --> otel_mw["HTTP telemetry middleware<br/>W3C propagation + correlation_id"]
+  otel_mw --> semconv["HTTP SemConv metrics<br/>request.duration + active_requests"]
+  sqlxpool --> db_metrics["DB pool metrics<br/>acquire failures + wait"]
+  relay --> msg_headers["Message headers<br/>x-correlation-id + traceparent"]
+  workers --> msg_headers
+  projection --> msg_headers
 
-  otelmw --> collector["OTel Collector (Railway internal)<br/>OTLP receiver + batch + memory_limiter"]
-  sqlxpool --> dbpoolmetrics["DB pool metrics<br/>banji.db.pool.acquire.failures.total<br/>banji.db.pool.acquire.wait.duration<br/>banji.db.pool.size + banji.db.pool.idle"]
-  dbpoolmetrics --> collector
-  otelpub --> collector
+  semconv --> collector["OTel Collector (internal)<br/>batch + memory_limiter"]
+  db_metrics --> collector
+  msg_headers --> collector
   collector --> grafana["Grafana Cloud<br/>traces + metrics"]
 
-  github["GitHub repo + PR"] --> gha["GitHub Actions currently disabled<br/>(*.yml.disabled)"]
-  evlog -. "optional future mirror" .-> kafka["Kafka optional future<br/>not active"]
+  api --> plogs["Platform logs (primary)<br/>Railway/log drain"]
+  workers --> plogs
+  projection --> plogs
 end
 
-subgraph DELIVERY["Delivery and Secret Gates (when workflows are re-enabled)"]
+subgraph DRILLS["Restore Drill Controls"]
   direction TB
+  repo["GitHub repo + PR"] --> actions["GitHub Actions<br/>most workflows disabled"] --> drillwf["postgres-restore-drill<br/>enabled"]
 
-  ci["rust-ci gates<br/>fmt + clippy + test + build<br/>migration validate + container build check<br/>sqlx offline verify + actionlint<br/>secret-scan required"]
-  secscan["Secret scanner rules<br/>placeholder enforcement<br/>credential URL detection<br/>token-like assignment detection"]
-  deploy["deploy preflight<br/>required secret presence<br/>least-privilege scope checks<br/>OTEL_ENABLED=>endpoint+headers required"]
-  poolgate["pooling preflight (staging/prod)<br/>DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer<br/>PGBOUNCER_POOL_MODE=transaction"]
-  migrate["Migration step only<br/>has DATABASE_MIGRATION_URL"]
-  runtimeenv["Runtime services only<br/>have DATABASE_RUNTIME_URL"]
-  otelsecret["Telemetry secret scope<br/>OTEL_EXPORTER_OTLP_HEADERS (preferred)<br/>OTEL_HEADERS fallback"]
+  prodsrc["Secret<br/>RESTORE_DRILL_SOURCE_PROD_DATABASE_URL"] --> route["Weekly route<br/>prod -> staging_restore"]
+  drillwf --> route --> restore_script["tool/db/restore_validate.sh<br/>hard safety invariants"]
+  restore_script --> validate_sql["tool/db/validate_restore.sql<br/>schema + index + invariant checks"]
+  validate_sql --> artifacts["Artifacts<br/>report_<env>.json<br/>validate_<env>.txt"]
+  restore_script --> cleanup["Success cleanup<br/>drop restored objects"]
 
-  ci --> secscan
-  secscan --> deploy
-  deploy --> poolgate
-  deploy --> migrate
-  deploy --> runtimeenv
-  deploy --> otelsecret
+  drillwf --> dispatch["workflow_dispatch<br/>target_env=dev|staging|prod"]
+  dispatch --> confirm["Prod confirmation required<br/>CONFIRM_PROD_RESTORE"]
+  confirm --> alerts["Failure webhook (optional)<br/>always writes step summary"]
 end
 
-subgraph DETAILS["Reference Panels"]
+subgraph CONTRACTS["Reference Contracts"]
   direction LR
-
-  naming["Naming contract<br/>system: banji-core<br/>env: dev|staging|prod<br/>region: kh-pp<br/>topics/queues omit region"]
-  template["Tracked env policy<br/>secret keys use __SET_IN_PLATFORM_SECRET__<br/>or documented empty only"]
-  matrix["Least-privilege secret matrix<br/>api/worker/scheduler/projection-consumer/outbox-relay<br/>outbox-relay current phase: no RABBIT_URL"]
-  redaction["Redaction contract<br/>sensitive key/header masking<br/>and URL userinfo stripping"]
-  rabbitDetail["Rabbit topology<br/>{system}.{env}.jobs + .dlx<br/>fast: primary + retry.1(30s) + retry.2(5m) + retry.3(30m) + dlq<br/>heavy: primary + retry.1(30s) + retry.2(5m) + retry.3(30m) + dlq"]
-  pgDetail["Postgres objects<br/>_sqlx_migrations<br/>app.idempotency_request<br/>app.event_log (+ created_at,id replay index)<br/>app.event_consumer_checkpoint<br/>app.job_outbox<br/>app.event_log_archive_export_cursor<br/>app.event_log_archive (optional)"]
-  redisDetail["Redis behavior<br/>optional + fail-open/fail-fast<br/>timeouts + circuit breaker<br/>TTL jitter + single-flight"]
-  loggingSplit["Logging split<br/>Operational logs -> platform sink<br/>Audit/replay events -> Postgres app.event_log"]
-  obsDetail["Observability baseline<br/>services -> OTLP collector -> Grafana Cloud<br/>W3C propagation + correlation_id<br/>resource attrs include deployment.id"]
-  cardinality["Cardinality budget<br/>http.route templated (no raw path)<br/>job_type/workload/stream/consumer bounded<br/>no user data in metric labels"]
-  poolDetail["Pooling contract<br/>DATABASE_RUNTIME_ENDPOINT_KIND + PGBOUNCER_POOL_MODE<br/>SQLX_POOL_* tuning and POSTGRES_CONNECTION_BUDGET_TOTAL<br/>budget rule: sum(replicas*SQLX_POOL_MAX_CONNECTIONS)<=client budget"]
-  sessionRule["Transaction-pool safety<br/>no session-persistent assumptions<br/>SET LOCAL or role-level defaults only<br/>session-mode escape hatch is explicit and scoped"]
+  c_naming["Naming<br/>banji-core + env + kh-pp<br/>topics/queues omit region"]
+  c_secrets["Secrets boundary<br/>tracked templates use placeholders only<br/>least privilege by service"]
+  c_pool["Pooling<br/>DATABASE_RUNTIME_ENDPOINT_KIND<br/>PGBOUNCER_POOL_MODE<br/>SQLX_POOL_* + budget"]
+  c_restore["Restore invariants<br/>target ends _restore<br/>source != target<br/>weekly + monthly cadence"]
+  c_logging["Logging split<br/>platform logs for ops<br/>Postgres event_log for audit/replay"]
 end
 
-api -. "contract" .-> naming
-api -. "template boundary" .-> template
-api -. "service scope" .-> matrix
-config -. "redaction" .-> redaction
-sqlxpool -. "pooling" .-> poolDetail
-pgbouncer -. "session rules" .-> sessionRule
-rabbit -. "topology" .-> rabbitDetail
-pgstate -. "schema" .-> pgDetail
-redis -. "runtime" .-> redisDetail
-evlog -. "audit interface" .-> loggingSplit
-plogs -. "ops logging" .-> loggingSplit
-gha -. "release gates" .-> ci
-collector -. "pipeline" .-> obsDetail
-httpsem -. "metric labels" .-> cardinality
-
-%% Styling
-classDef db fill:#e8f5e9,stroke:#2e7d32,color:#0f172a;
-classDef mq fill:#e3f2fd,stroke:#1565c0,color:#0f172a;
-classDef critical fill:#fff3e0,stroke:#ef6c00,color:#0f172a;
+classDef app fill:#fff7ed,stroke:#ea580c,color:#0f172a;
+classDef db fill:#ecfdf5,stroke:#16a34a,color:#0f172a;
+classDef mq fill:#eff6ff,stroke:#2563eb,color:#0f172a;
+classDef obs fill:#e0f2fe,stroke:#0284c7,color:#0f172a;
+classDef control fill:#fefce8,stroke:#a16207,color:#0f172a;
 classDef optional fill:#f8fafc,stroke:#64748b,stroke-dasharray: 4 4,color:#0f172a;
-classDef control fill:#fff8e1,stroke:#a16207,color:#0f172a;
-classDef observability fill:#e0f2fe,stroke:#0369a1,color:#0f172a;
 
-class idemp,evlog,outbox,pgstate,checkpoint,pgDetail db;
-class rabbit,rabbitDetail,pgbouncer mq;
-class api,relay,workers,classifier critical;
-class redis,redisDetail,gha,kafka optional;
-class ci,secscan,deploy,poolgate,migrate,runtimeenv,template,matrix,redaction,loggingSplit,plogs,rsecrets,config,naming,poolDetail,sessionRule control;
-class otelmw,otelpub,collector,grafana,httpsem,obsDetail,cardinality,otelsecret,sqlxpool,dbpoolmetrics observability;
+class client,api,cfg,relay,workers,projection app;
+class pg_core,pg_state db;
+class rabbit,classifier,replay mq;
+class otel_mw,semconv,db_metrics,msg_headers,collector,grafana,plogs obs;
+class runtime_secrets,repo,actions,drillwf,prodsrc,route,restore_script,validate_sql,artifacts,cleanup,dispatch,confirm,alerts,c_naming,c_secrets,c_pool,c_restore,c_logging control;
+class redis,redis_policy,kafka optional;
