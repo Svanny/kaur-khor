@@ -59,6 +59,19 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction`
 
+## RabbitMQ Replay Keys (Non-Secret)
+- `RABBIT_EXCHANGE_JOBS_REPLAY`
+- `RABBIT_REPLAY_MAX_MESSAGES`
+- `RABBIT_REPLAY_RATE_PER_MIN`
+- `RABBIT_REPLAY_RETAIN_ATTEMPT`
+- `RABBIT_REPLAY_TARGET_EXCHANGE`
+- `RABBIT_REPLAY_TARGET_ROUTING_KEY`
+- `RABBIT_REPLAY_PREFETCH_FAST`
+- `RABBIT_REPLAY_PREFETCH_HEAVY`
+
+Replay tooling rejects legacy names (`MAX_MESSAGES`, `REPLAY_RATE_PER_MIN`, `RETAIN_ATTEMPT`, `TARGET_ROUTING_KEY`) to prevent config drift.
+`BANJI_ENV` is required for all replay and cleanup operations.
+
 ## Event Log Retention / Archive Keys (Non-Secret)
 - `EVENT_LOG_RETENTION_DAYS`
 - `EVENT_LOG_PRUNE_BATCH_SIZE`

@@ -107,3 +107,8 @@ For each deployable Railway service:
 - Postgres `app.job_outbox` is canonical enqueue intent; relay publishes with confirms.
 - Publish confirms are mandatory before acknowledging original messages on retry/DLQ republish.
 - Worker ack contract: acknowledge only after side effects are committed and confirmed handoff is complete.
+- Retry/poison behavior is deterministic:
+  - attempt is envelope-owned and increments only on code routing decisions
+  - permanent errors route directly to DLQ
+  - transient errors follow retry ladder and terminate at DLQ ceiling
+- DLQ replay is copy-first and operator-audited; destructive cleanup is a separate explicit step.

@@ -9,6 +9,10 @@ for n in "${required[@]}"; do
   fi
 done
 
+BANJI_SYSTEM="${BANJI_SYSTEM:-banji-core}"
+BANJI_ENV="${BANJI_ENV:-dev}"
+RABBIT_EXCHANGE_JOBS_REPLAY="${RABBIT_EXCHANGE_JOBS_REPLAY:-${BANJI_SYSTEM}.${BANJI_ENV}.jobs.replay}"
+
 enc_vhost="$(python3 - <<'PY'
 import os, urllib.parse
 print(urllib.parse.quote(os.environ['RABBIT_VHOST'], safe=''))
@@ -46,22 +50,26 @@ bind_queue() {
 
 declare_exchange "$RABBIT_EXCHANGE_JOBS"
 declare_exchange "$RABBIT_DLX_EXCHANGE"
+declare_exchange "$RABBIT_EXCHANGE_JOBS_REPLAY"
 
 for cls in fast heavy; do
-  base="banji-core.${BANJI_ENV:-dev}.${cls}-jobs"
+  base="${BANJI_SYSTEM}.${BANJI_ENV}.${cls}-jobs"
   primary="$base"
   dlq="$base.dlq"
+  replay="$base.replay"
   r1="$base.retry.1"
   r2="$base.retry.2"
   r3="$base.retry.3"
 
   declare_queue "$primary" '{"x-queue-type":"quorum"}'
   declare_queue "$dlq" '{"x-queue-type":"quorum"}'
+  declare_queue "$replay" '{"x-queue-type":"quorum"}'
   declare_queue "$r1" "{\"x-queue-type\":\"quorum\",\"x-message-ttl\":${RABBIT_RETRY_1_TTL_MS:-30000},\"x-dead-letter-exchange\":\"${RABBIT_EXCHANGE_JOBS}\",\"x-dead-letter-routing-key\":\"job.${cls}\"}"
   declare_queue "$r2" "{\"x-queue-type\":\"quorum\",\"x-message-ttl\":${RABBIT_RETRY_2_TTL_MS:-300000},\"x-dead-letter-exchange\":\"${RABBIT_EXCHANGE_JOBS}\",\"x-dead-letter-routing-key\":\"job.${cls}\"}"
   declare_queue "$r3" "{\"x-queue-type\":\"quorum\",\"x-message-ttl\":${RABBIT_RETRY_3_TTL_MS:-1800000},\"x-dead-letter-exchange\":\"${RABBIT_EXCHANGE_JOBS}\",\"x-dead-letter-routing-key\":\"job.${cls}\"}"
 
   bind_queue "$RABBIT_EXCHANGE_JOBS" "$primary" "job.${cls}"
+  bind_queue "$RABBIT_EXCHANGE_JOBS_REPLAY" "$replay" "job.${cls}.replay"
   bind_queue "$RABBIT_DLX_EXCHANGE" "$dlq" "job.${cls}.dlq"
   bind_queue "$RABBIT_DLX_EXCHANGE" "$r1" "job.${cls}.retry.1"
   bind_queue "$RABBIT_DLX_EXCHANGE" "$r2" "job.${cls}.retry.2"

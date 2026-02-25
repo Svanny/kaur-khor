@@ -1,6 +1,6 @@
 use super::publisher::ConfirmingPublisher;
 use super::retry::{classify_error, next_destination};
-use super::types::{ErrorClass, JobEnvelope};
+use super::types::{ErrorClass, ErrorReasonCode, JobEnvelope};
 use crate::config::AppConfig;
 use crate::observability::{metrics, propagation};
 use anyhow::Result;
@@ -13,9 +13,15 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
     mut envelope: JobEnvelope,
     handler_error: &str,
 ) -> Result<RepublishResult> {
-    let error_class = classify_error(handler_error);
-    let decision = next_destination(cfg, class_queue_prefix, envelope.attempt, error_class);
+    let classification = classify_error(handler_error);
+    let decision = next_destination(
+        cfg,
+        class_queue_prefix,
+        envelope.attempt,
+        classification.class,
+    );
 
+    // Attempt ownership is envelope-based and only changes when this routing decision changes route.
     envelope.attempt = decision.next_attempt;
 
     let mut headers = super::publisher::MessageHeaders::new();
@@ -23,6 +29,19 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
         "x-correlation-id".to_string(),
         envelope.correlation_id.clone(),
     );
+    headers.insert(
+        "x-error-class".to_string(),
+        match classification.class {
+            ErrorClass::Permanent => "permanent",
+            ErrorClass::Transient => "transient",
+        }
+        .to_string(),
+    );
+    headers.insert(
+        "x-error-reason".to_string(),
+        classification.reason.as_str().to_string(),
+    );
+    headers.insert("x-attempt".to_string(), envelope.attempt.to_string());
     propagation::inject_current_context_to_map(&mut headers);
 
     // Critical safety contract: confirm publish before original ack.
@@ -40,7 +59,8 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
     }
 
     Ok(RepublishResult {
-        error_class,
+        error_class: classification.class,
+        error_reason: classification.reason,
         dead_lettered: decision.dead_letter,
         destination: decision.destination_queue,
         next_attempt: envelope.attempt,
@@ -50,6 +70,7 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
 #[derive(Debug, Clone)]
 pub struct RepublishResult {
     pub error_class: ErrorClass,
+    pub error_reason: ErrorReasonCode,
     pub dead_lettered: bool,
     pub destination: String,
     pub next_attempt: u8,

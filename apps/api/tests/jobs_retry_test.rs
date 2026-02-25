@@ -2,7 +2,7 @@ use banji_api::{
     config::AppConfig,
     jobs::{
         retry::{classify_error, next_destination},
-        types::ErrorClass,
+        types::{ErrorClass, ErrorReasonCode},
     },
 };
 use std::time::Duration;
@@ -32,6 +32,8 @@ fn test_cfg() -> AppConfig {
         rabbit_retry_3_ttl_ms: 1_800_000,
         rabbit_prefetch_fast: 20,
         rabbit_prefetch_heavy: 2,
+        rabbit_replay_prefetch_fast: 2,
+        rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
         redis_url: None,
         database_runtime_url: None,
@@ -74,13 +76,42 @@ fn transient_errors_follow_retry_ladder() {
 
 #[test]
 fn error_classifier_detects_permanent_patterns() {
-    assert_eq!(
-        classify_error("validation failed for schema"),
-        ErrorClass::Permanent
-    );
-    assert_eq!(
-        classify_error("missing required field"),
-        ErrorClass::Permanent
-    );
-    assert_eq!(classify_error("network timeout"), ErrorClass::Transient);
+    let c1 = classify_error("validation failed for schema");
+    assert_eq!(c1.class, ErrorClass::Permanent);
+    assert_eq!(c1.reason, ErrorReasonCode::SchemaInvalid);
+
+    let c2 = classify_error("missing required field");
+    assert_eq!(c2.class, ErrorClass::Permanent);
+    assert_eq!(c2.reason, ErrorReasonCode::MissingRequiredRef);
+
+    let c3 = classify_error("network timeout");
+    assert_eq!(c3.class, ErrorClass::Transient);
+    assert_eq!(c3.reason, ErrorReasonCode::DependencyTimeout);
+}
+
+#[test]
+fn transient_retry_never_treadmills_past_dlq_ceiling() {
+    let cfg = test_cfg();
+    let mut attempt = 1u8;
+    let mut safety_counter = 0usize;
+
+    loop {
+        safety_counter += 1;
+        let decision = next_destination(
+            &cfg,
+            "banji-core.test.heavy-jobs",
+            attempt,
+            ErrorClass::Transient,
+        );
+        attempt = decision.next_attempt;
+
+        if decision.dead_letter {
+            assert_eq!(decision.destination_queue, "banji-core.test.heavy-jobs.dlq");
+            assert_eq!(attempt, cfg.rabbit_max_attempts);
+            break;
+        }
+
+        assert!(attempt <= cfg.rabbit_max_attempts);
+        assert!(safety_counter <= (cfg.rabbit_max_attempts as usize + 2));
+    }
 }

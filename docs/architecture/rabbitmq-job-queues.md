@@ -30,9 +30,19 @@ Queue type: quorum, durable.
 
 ## Attempt and Error Taxonomy
 - Attempt count in envelope (`attempt`) is primary retry source-of-truth.
+- Attempt increments only when worker code makes an explicit routing decision.
+- RabbitMQ redelivery alone must not increment attempts.
 - `x-death` is advisory/diagnostic.
 - Permanent errors (schema/domain impossible/missing required immutable refs): direct DLQ.
 - Transient errors: retry ladder then DLQ.
+- Error reason codes:
+  - `schema_invalid`
+  - `missing_required_ref`
+  - `impossible_domain_state`
+  - `dependency_timeout`
+  - `dependency_unavailable`
+  - `unknown_transient`
+  - `unknown_permanent`
 
 ## Prefetch Policy
 Per-class prefetch settings:
@@ -41,9 +51,32 @@ Per-class prefetch settings:
 
 ## Replay Tooling
 Replay uses RabbitMQ Management HTTP API.
-- record operator id, reason, replay timestamp
-- enforce max batch size and replay rate limit
-- optional retain/reset attempt behavior (default retain)
+- default mode is copy-first: replay publishes copies and leaves DLQ originals intact
+- cleanup/removal is a separate explicit operator step and must be scoped by replay id
+- replay guardrails:
+  - source queue must match `*.dlq`
+  - `BANJI_ENV` must be set
+  - target exchange must be allowlisted (replay exchange default)
+  - hard cap + rate limit are mandatory
+  - fail fast on first unrouted publish
+- replay marker headers:
+  - `x-replayed=true`
+  - `x-replay-id`
+  - `x-replay-operator`
+  - `x-replay-reason`
+  - `x-replayed-at`
+- configuration names are locked to `RABBIT_REPLAY_*` variables
+- legacy replay variable names are rejected by tooling to prevent drift
+
+## Replay Choke-Point Topology
+- Replay exchange: `{system}.{env}.jobs.replay`
+- Replay queues:
+  - `{system}.{env}.fast-jobs.replay`
+  - `{system}.{env}.heavy-jobs.replay`
+- Replay routing keys:
+  - `job.fast.replay`
+  - `job.heavy.replay`
+- Replay consumers should run with lower prefetch/concurrency than primary queues.
 
 ## Operational Metrics
 Track per class:

@@ -78,6 +78,8 @@ pub struct AppConfig {
     pub rabbit_retry_3_ttl_ms: u64,
     pub rabbit_prefetch_fast: u16,
     pub rabbit_prefetch_heavy: u16,
+    pub rabbit_replay_prefetch_fast: u16,
+    pub rabbit_replay_prefetch_heavy: u16,
     pub rabbit_max_attempts: u8,
     pub redis_url: Option<String>,
     pub database_runtime_url: Option<String>,
@@ -128,6 +130,14 @@ impl fmt::Debug for AppConfig {
             .field("rabbit_retry_3_ttl_ms", &self.rabbit_retry_3_ttl_ms)
             .field("rabbit_prefetch_fast", &self.rabbit_prefetch_fast)
             .field("rabbit_prefetch_heavy", &self.rabbit_prefetch_heavy)
+            .field(
+                "rabbit_replay_prefetch_fast",
+                &self.rabbit_replay_prefetch_fast,
+            )
+            .field(
+                "rabbit_replay_prefetch_heavy",
+                &self.rabbit_replay_prefetch_heavy,
+            )
             .field("rabbit_max_attempts", &self.rabbit_max_attempts)
             .field("redis_url", &redacted(&self.redis_url))
             .field(
@@ -269,6 +279,8 @@ impl AppConfig {
             rabbit_retry_3_ttl_ms: parse_u64("RABBIT_RETRY_3_TTL_MS", 1_800_000)?,
             rabbit_prefetch_fast: parse_u16("RABBIT_PREFETCH_FAST", 20)?,
             rabbit_prefetch_heavy: parse_u16("RABBIT_PREFETCH_HEAVY", 2)?,
+            rabbit_replay_prefetch_fast: parse_u16("RABBIT_REPLAY_PREFETCH_FAST", 2)?,
+            rabbit_replay_prefetch_heavy: parse_u16("RABBIT_REPLAY_PREFETCH_HEAVY", 1)?,
             rabbit_max_attempts: parse_u8("RABBIT_MAX_ATTEMPTS", 4)?,
             redis_url: optional_env("REDIS_URL"),
             database_runtime_url,

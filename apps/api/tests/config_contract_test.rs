@@ -67,6 +67,8 @@ fn app_config_debug_redacts_secret_fields() {
         rabbit_retry_3_ttl_ms: 1_800_000,
         rabbit_prefetch_fast: 20,
         rabbit_prefetch_heavy: 2,
+        rabbit_replay_prefetch_fast: 2,
+        rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
         redis_url: Some("redis://:secret@redis.example:6379".to_string()),
         database_runtime_url: Some(db_url),
@@ -179,6 +181,60 @@ fn runtime_rejects_migration_url_presence() {
         std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
     } else {
         std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+}
+
+#[test]
+fn replay_prefetch_env_values_are_parsed() {
+    let _guard = env_lock().lock().unwrap();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_replay_fast = std::env::var("RABBIT_REPLAY_PREFETCH_FAST").ok();
+    let old_replay_heavy = std::env::var("RABBIT_REPLAY_PREFETCH_HEAVY").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("BANJI_ENV", "dev");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var("RABBIT_REPLAY_PREFETCH_FAST", "7");
+    std::env::set_var("RABBIT_REPLAY_PREFETCH_HEAVY", "3");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let cfg = AppConfig::from_env().expect("config should parse");
+    assert_eq!(cfg.rabbit_replay_prefetch_fast, 7);
+    assert_eq!(cfg.rabbit_replay_prefetch_heavy, 3);
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_replay_fast {
+        std::env::set_var("RABBIT_REPLAY_PREFETCH_FAST", v);
+    } else {
+        std::env::remove_var("RABBIT_REPLAY_PREFETCH_FAST");
+    }
+    if let Some(v) = old_replay_heavy {
+        std::env::set_var("RABBIT_REPLAY_PREFETCH_HEAVY", v);
+    } else {
+        std::env::remove_var("RABBIT_REPLAY_PREFETCH_HEAVY");
     }
     if let Some(v) = old_migration_url {
         std::env::set_var("DATABASE_MIGRATION_URL", v);

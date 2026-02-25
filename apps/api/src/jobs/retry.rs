@@ -1,4 +1,4 @@
-use super::types::ErrorClass;
+use super::types::{ErrorClass, ErrorReasonCode};
 use crate::config::AppConfig;
 
 #[derive(Debug, Clone)]
@@ -8,16 +8,69 @@ pub struct RetryDecision {
     pub dead_letter: bool,
 }
 
-pub fn classify_error(error_message: &str) -> ErrorClass {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ErrorClassification {
+    pub class: ErrorClass,
+    pub reason: ErrorReasonCode,
+}
+
+pub fn classify_error(error_message: &str) -> ErrorClassification {
     let lower = error_message.to_ascii_lowercase();
-    if lower.contains("validation")
-        || lower.contains("schema")
-        || lower.contains("missing required")
-        || lower.contains("impossible domain")
+    if lower.contains("validation") || lower.contains("schema") {
+        return ErrorClassification {
+            class: ErrorClass::Permanent,
+            reason: ErrorReasonCode::SchemaInvalid,
+        };
+    }
+
+    if lower.contains("missing required")
+        || lower.contains("missing immutable")
+        || lower.contains("required ref")
     {
-        ErrorClass::Permanent
-    } else {
-        ErrorClass::Transient
+        return ErrorClassification {
+            class: ErrorClass::Permanent,
+            reason: ErrorReasonCode::MissingRequiredRef,
+        };
+    }
+
+    if lower.contains("impossible domain")
+        || lower.contains("invariant")
+        || lower.contains("non-retryable")
+    {
+        return ErrorClassification {
+            class: ErrorClass::Permanent,
+            reason: ErrorReasonCode::ImpossibleDomainState,
+        };
+    }
+
+    if lower.contains("timeout") || lower.contains("timed out") {
+        return ErrorClassification {
+            class: ErrorClass::Transient,
+            reason: ErrorReasonCode::DependencyTimeout,
+        };
+    }
+
+    if lower.contains("unavailable")
+        || lower.contains("temporarily unavailable")
+        || lower.contains("connection refused")
+        || lower.contains("network")
+    {
+        return ErrorClassification {
+            class: ErrorClass::Transient,
+            reason: ErrorReasonCode::DependencyUnavailable,
+        };
+    }
+
+    if lower.contains("unknown permanent") || lower.contains("fatal permanent") {
+        return ErrorClassification {
+            class: ErrorClass::Permanent,
+            reason: ErrorReasonCode::UnknownPermanent,
+        };
+    }
+
+    ErrorClassification {
+        class: ErrorClass::Transient,
+        reason: ErrorReasonCode::UnknownTransient,
     }
 }
 

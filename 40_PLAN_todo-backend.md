@@ -47,8 +47,8 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 11a. [DONE / CURRENT FIX] Define Postgres event log retention and replay policy
     Define retention window, archive strategy, and replay procedure for `app.event_log` so projections can be rebuilt from checkpoints without Kafka. Done means you can replay event ranges from Postgres, prune safely after archival, and justify storage/cost tradeoffs.
 
-12. Define RabbitMQ poison message and retry rules
-    Set limits on retries and define a process for dead letter triage. Done means poison messages do not stall your system and you have a repeatable recovery playbook.
+12. [DONE] Define RabbitMQ poison message and retry rules
+   Set limits on retries and define a process for dead letter triage. Done means poison messages do not stall your system and you have a repeatable recovery playbook.
 
 13. Add edge protections
     Put a proper edge in front, often Cloudflare plus Railway routing. Done means TLS is handled, rate limits exist, request size limits exist, and your API is not exposed directly to the internet without guardrails.

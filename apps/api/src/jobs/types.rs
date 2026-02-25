@@ -31,3 +31,28 @@ pub enum ErrorClass {
     Permanent,
     Transient,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorReasonCode {
+    SchemaInvalid,
+    MissingRequiredRef,
+    ImpossibleDomainState,
+    DependencyTimeout,
+    DependencyUnavailable,
+    UnknownTransient,
+    UnknownPermanent,
+}
+
+impl ErrorReasonCode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::SchemaInvalid => "schema_invalid",
+            Self::MissingRequiredRef => "missing_required_ref",
+            Self::ImpossibleDomainState => "impossible_domain_state",
+            Self::DependencyTimeout => "dependency_timeout",
+            Self::DependencyUnavailable => "dependency_unavailable",
+            Self::UnknownTransient => "unknown_transient",
+            Self::UnknownPermanent => "unknown_permanent",
+        }
+    }
+}
