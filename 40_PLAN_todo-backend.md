@@ -44,7 +44,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 11. [OPTIONAL / FUTURE] Define Kafka retention, compaction, and replay policy
     Optional future track: decide what must be replayable and for how long. Done means you can rebuild projections from a checkpoint, and you can justify retention cost.
 
-11a. [CURRENT FIX] Define Postgres event log retention and replay policy
+11a. [DONE / CURRENT FIX] Define Postgres event log retention and replay policy
     Define retention window, archive strategy, and replay procedure for `app.event_log` so projections can be rebuilt from checkpoints without Kafka. Done means you can replay event ranges from Postgres, prune safely after archival, and justify storage/cost tradeoffs.
 
 12. Define RabbitMQ poison message and retry rules

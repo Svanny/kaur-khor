@@ -1,0 +1,144 @@
+name: event-log-maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      stream_name:
+        description: "Event stream name ({system}.{env}.{topic})"
+        required: true
+        type: string
+      before:
+        description: "Optional cutoff timestamp (RFC3339)"
+        required: false
+        type: string
+      to_id:
+        description: "Optional explicit max id boundary"
+        required: false
+        type: string
+      prune:
+        description: "Prune exported range"
+        required: true
+        default: false
+        type: boolean
+      dry_run:
+        description: "Run export in dry-run mode"
+        required: true
+        default: true
+        type: boolean
+      replay_from_id:
+        description: "Replay preview from id"
+        required: false
+        default: "0"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  maintenance:
+    name: storage-report-export-replay-preview
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve DATABASE_URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ inputs.target_env }}" in
+            dev)
+              echo "DATABASE_URL=${{ secrets.DEV_DATABASE_RUNTIME_URL }}" >> "$GITHUB_ENV"
+              ;;
+            staging)
+              echo "DATABASE_URL=${{ secrets.STAGING_DATABASE_RUNTIME_URL }}" >> "$GITHUB_ENV"
+              ;;
+            prod)
+              echo "DATABASE_URL=${{ secrets.PROD_DATABASE_RUNTIME_URL }}" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "invalid target env" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client jq
+
+      - name: Storage report
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$DATABASE_URL" \
+          EVENT_LOG_RETENTION_DAYS=30 \
+          bash tool/db/event_log_storage_report.sh \
+            --output-json build/event-log/storage_report.json \
+            --output-text build/event-log/storage_report.txt
+
+      - name: Export and verify
+        shell: bash
+        env:
+          EVENT_LOG_ARCHIVE_ENCRYPTION_REQUIRED: "true"
+          EVENT_LOG_RETENTION_DAYS: "30"
+          EVENT_LOG_PRUNE_BATCH_SIZE: "1000"
+          EVENT_LOG_ARCHIVE_PREFIX: event-log
+        run: |
+          set -euo pipefail
+          ARGS=(
+            --stream-name "${{ inputs.stream_name }}"
+            --output "build/event-log/export.jsonl"
+            --manifest-output "build/event-log/export.manifest.json"
+            --archive-uri "file://$PWD/build/event-log/export.remote.jsonl"
+          )
+
+          if [[ -n "${{ inputs.before }}" ]]; then
+            ARGS+=(--before "${{ inputs.before }}")
+          fi
+
+          if [[ -n "${{ inputs.to_id }}" ]]; then
+            ARGS+=(--to-id "${{ inputs.to_id }}")
+          fi
+
+          if [[ "${{ inputs.prune }}" == "true" ]]; then
+            ARGS+=(--prune)
+          fi
+
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            ARGS+=(--dry-run)
+          fi
+
+          DATABASE_URL="$DATABASE_URL" bash tool/db/export_event_log.sh "${ARGS[@]}"
+
+      - name: Replay preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$DATABASE_URL" \
+          EVENT_LOG_REPLAY_BATCH_SIZE=1000 \
+          bash tool/db/replay_event_log.sh \
+            --mode hot-preview \
+            --stream-name "${{ inputs.stream_name }}" \
+            --service-name projection-consumer \
+            --consumer-name replay-maintenance-preview \
+            --from-id "${{ inputs.replay_from_id }}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-log-maintenance-${{ inputs.target_env }}
+          path: build/event-log
+
+# NOTE: this workflow remains disabled by filename (.yml.disabled) until explicitly enabled.

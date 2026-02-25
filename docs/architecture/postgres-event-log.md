@@ -1,68 +1,85 @@
 # PostgreSQL Event Log (Current Fix)
 
 ## Scope
-This document defines the Kafka-substitute event stream implemented in PostgreSQL.
+This document defines the Kafka-substitute event stream implemented in PostgreSQL for `app.event_log`.
 
 ## Audit vs Operational Logs
-- Operational runtime logs are written to platform log sinks (Railway/log drain).
-- `app.event_log` is an audit/replay stream, not the primary sink for high-volume operational logs.
+- Operational runtime logs go to platform sink (Railway/log drain).
+- `app.event_log` is the canonical audit/replay interface, not a high-volume operational log sink.
 
-## Current Operating Model
-- `app.event_log` is append-only transport for domain events.
-- Event write is in the same transaction as canonical write/idempotency completion.
-- Consumers poll by stream-scoped replay order (`created_at`, `id`).
-- Checkpointing is durable per `(service_name, consumer_name, stream_name)`.
+## Replay Horizon Contract
+- Hot replay horizon: latest `EVENT_LOG_RETENTION_DAYS=30` days in primary DB.
+- Cold replay horizon: object-storage JSONL archive rehydrated into a clean restore DB, then replayed from Postgres there.
+- Cold replay procedure:
+  1. prepare clean restore DB,
+  2. rehydrate archived JSONL segments,
+  3. run replay by checkpoint cursor.
 
-## Single-Consumer-Now Rule
-Only one active consumer instance is allowed per checkpoint tuple.
-Running multiple identical instances against one tuple is out of contract until claiming/sharding is implemented.
+## Event Model and Ordering Contract
+- `stream_name` format: `{system}.{env}.{topic}`.
+- Checkpoints are durable per `(service_name, consumer_name, stream_name)`.
+- Canonical replay ordering is `ORDER BY id ASC` only.
+- `created_at` is metadata and must not drive replay order.
+- In replay apply mode, checkpoints must advance only after batch handler success.
 
-## Horizontal Scale Migration Path (Later)
-- Option A: claim/work table using row claiming (`FOR UPDATE SKIP LOCKED`).
-- Option B: explicit sharding by stream/topic key with disjoint tuples.
-
-## Event Naming and Versioning
-- `stream_name` follows naming contract: `{system}.{env}.{topic}`.
-- `event_version` carries payload compatibility version.
-- Stream names stay stable; schema versioning is in event payload/version.
-
-## Canonical Audit Interface (Current Mapping)
-The current canonical audit interface maps to `app.event_log`:
-- `event_id` -> `id`
-- `occurred_at` -> `created_at`
-- `service` -> `producer_service`
-- `actor_id` -> `aggregate_id` (nullable semantics handled by producer)
-- `entity_type` -> `aggregate_type`
-- `entity_id` -> `aggregate_id`
-- `event_type` -> `event_type`
-- `request_id` -> `correlation_id`
-- `idempotency_key` -> `idempotency_key`
-- `payload` -> `payload`
-
-Ordering contract:
-- replay order is `created_at ASC, id ASC`.
-
-## Idempotency and Deterministic Event Insert
+## Idempotency and Deterministic Insert
 - Canonical write idempotency remains Postgres source of truth.
-- Event insert dedupe uses partial unique index:
-  - `(producer_service, idempotency_key)` where key is not null.
-- Retries with same idempotency key do not create duplicate event rows.
+- Event insert dedupe index:
+  - `(producer_service, idempotency_key)` where `idempotency_key IS NOT NULL`.
+- Idempotent retries must not emit duplicate event rows.
 
-## Retention and Archive
-- Primary DB retention default: 30 days.
-- Long-term archive target: object storage export (JSONL now, extensible later).
-- Prune only after successful export watermark update.
-- Prune in chunks to reduce lock/vacuum pressure.
+## Retention and Archive Lifecycle
+- Canonical archive sink: object storage JSONL.
+- Export/prune boundary authority is event id, not timestamp.
+- Retention cutoff timestamp is resolved to concrete `eligible_max_id` per stream.
+- All export/prune operations are constrained to `id <= eligible_max_id`.
+- Timestamp selectors (`--before`) are convenience only; persisted cursor/watermark is ID.
 
-## Lag and Observability
-- Lag is stream scoped:
-  - `max(event_log.id for stream) - checkpoint.last_event_id`
-- `event_consumer_checkpoint` tracks:
-  - `last_event_id`
-  - `last_heartbeat_at`
-  - `last_error`
+## Export Integrity Gates (Required)
+Each run writes a manifest with:
+- `stream_name`
+- `from_id`
+- `to_id`
+- `candidate_row_count`
+- `exported_row_count`
+- `file_size_bytes`
+- `sha256`
+- `created_at`
+- `archive_uri`
 
-## Payload Budget
-- `EVENT_PAYLOAD_MAX_BYTES` enforces payload size limit.
-- Oversized data must move to object storage with pointer/checksum in event payload metadata.
-- Sensitive fields (tokens/credentials/password-like keys and credential-bearing URLs) are rejected at publish time.
+Cursor advance is allowed only after all checks pass:
+- rowcount gate: `candidate_row_count == exported_row_count`
+- archive object metadata gate: `file_size_bytes` matches remote object size
+- integrity gate: remote metadata `sha256` matches expected (or sidecar manifest hash match)
+
+## Prune Contract
+- Prune is forbidden before verified export.
+- Deletes run in chunks and must match verified stream/range exactly.
+- Final deleted count must equal manifest candidate count.
+
+## Concurrency Contract
+- Maintenance acquires per-stream advisory lock.
+- Lock key is deterministic from `stream_name`.
+- Lock contention exits non-zero with `lock_contended`; no partial work.
+
+## Storage/Cost Evidence Contract
+`event_log_storage_report` output labels metrics explicitly:
+- exact: total table bytes, per-stream row counts
+- estimated: per-stream byte size and growth projections
+
+Estimated values must never be labeled as exact.
+
+## Archive Security and Deletion Policy
+- Archive objects must be encrypted at rest.
+- Access must be least-privilege to maintenance/operator identities.
+- Lifecycle deletion is mandatory:
+  - `EVENT_LOG_ARCHIVE_RETENTION_DAYS=365` default.
+
+## Scale Upgrade Trigger
+Create partitioning ADR when either threshold is hit:
+- `app.event_log` total size > 50 GB, or
+- prune volume > 1,000,000 rows/day for 7 consecutive days.
+
+Upgrade target:
+- daily range partitioning,
+- partition-drop pruning instead of row deletes.

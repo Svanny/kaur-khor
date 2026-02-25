@@ -110,11 +110,20 @@ No runtime role may hold schema-altering privileges.
 - Current transport for streaming needs is `app.event_log` in PostgreSQL.
 - Event records are appended in the same transaction as canonical writes/idempotency completion.
 - Consumers poll by `id` cursor and persist progress in `app.event_consumer_checkpoint`.
+- Replay ordering contract is `ORDER BY id ASC` only.
 - Exactly one active consumer instance is allowed per `(service_name, consumer_name, stream_name)` tuple in this phase.
 - Horizontal scaling requires a later claim/sharding model.
-- Retention default is 30 days in primary DB, with object-storage export before prune.
+- Retention default is 30 days in primary DB (`EVENT_LOG_RETENTION_DAYS=30`), with object-storage JSONL export before prune.
+- Export and prune boundaries are id-watermark based (`eligible_max_id`), not timestamp-based.
+- Maintenance runs are serialized with per-stream advisory locks.
+- Cursor advance is gated by rowcount + archive size/hash verification.
+- Cold replay for long horizon rebuilds is supported by archive rehydration into restore DB.
+- Archive lifecycle/deletion default is `EVENT_LOG_ARCHIVE_RETENTION_DAYS=365`.
 - Stream lag must be calculated per stream:
   - `max(event_log.id WHERE stream_name=?) - checkpoint.last_event_id`
+- Partitioning ADR trigger:
+  - total table size > 50 GB, or
+  - daily prune volume > 1,000,000 rows for 7 consecutive days.
 
 ## Operational Telemetry Baseline
 Enable visibility for:

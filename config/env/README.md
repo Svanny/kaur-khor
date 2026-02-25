@@ -58,3 +58,21 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 `staging` and `prod` must use:
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction`
+
+## Event Log Retention / Archive Keys (Non-Secret)
+- `EVENT_LOG_RETENTION_DAYS`
+- `EVENT_LOG_PRUNE_BATCH_SIZE`
+- `EVENT_LOG_REPLAY_BATCH_SIZE`
+- `EVENT_LOG_ARCHIVE_PREFIX`
+- `EVENT_LOG_ARCHIVE_RETENTION_DAYS`
+- `EVENT_LOG_ARCHIVE_ENCRYPTION_REQUIRED`
+
+Defaults for current fix:
+- hot retention: `EVENT_LOG_RETENTION_DAYS=30`
+- archive retention: `EVENT_LOG_ARCHIVE_RETENTION_DAYS=365`
+- prune/replay batch size: `1000`
+
+## Archive Upload Secrets (Platform-Only)
+- `OBJECT_STORAGE_ACCESS_KEY`
+- `OBJECT_STORAGE_SECRET_KEY`
+- provider-specific bucket/endpoint secret keys where required by deployment platform

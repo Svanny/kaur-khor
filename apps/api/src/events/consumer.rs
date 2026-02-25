@@ -19,7 +19,7 @@ const POLL_STREAM_SQL: &str = r#"
           metadata
         FROM app.event_log
         WHERE stream_name = $1 AND id > $2
-        ORDER BY created_at ASC, id ASC
+        ORDER BY id ASC
         LIMIT $3
         "#;
 
@@ -193,7 +193,7 @@ mod tests {
     use super::POLL_STREAM_SQL;
 
     #[test]
-    fn poll_stream_query_orders_by_created_at_then_id_for_stable_replay() {
-        assert!(POLL_STREAM_SQL.contains("ORDER BY created_at ASC, id ASC"));
+    fn poll_stream_query_orders_by_id_for_stable_replay() {
+        assert!(POLL_STREAM_SQL.contains("ORDER BY id ASC"));
     }
 }

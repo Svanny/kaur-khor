@@ -1,0 +1,127 @@
+# Postgres Event Log Maintenance Runbook
+
+## Purpose
+Operate retention, archive, replay, and cost visibility for `app.event_log` while Kafka is optional/future.
+
+## Contracts
+- Hot replay horizon: `EVENT_LOG_RETENTION_DAYS` (default 30 days).
+- Cold replay horizon: archive JSONL rehydrated into restore DB.
+- Boundary authority: event id watermark (`eligible_max_id`).
+- Replay order: `id ASC`.
+- Archive retention default: `EVENT_LOG_ARCHIVE_RETENTION_DAYS=365`.
+
+## Required Env Inputs
+- `DATABASE_URL`
+- `EVENT_LOG_RETENTION_DAYS`
+- `EVENT_LOG_PRUNE_BATCH_SIZE`
+- `EVENT_LOG_REPLAY_BATCH_SIZE`
+- `EVENT_LOG_ARCHIVE_PREFIX`
+- `EVENT_LOG_ARCHIVE_RETENTION_DAYS`
+- `EVENT_LOG_ARCHIVE_ENCRYPTION_REQUIRED`
+
+For S3 archive upload/verification:
+- AWS credentials with least-privilege object read/write/head to archive prefix.
+
+## Export + Verify (+ Optional Prune)
+Example for one stream:
+
+```bash
+DATABASE_URL="$DATABASE_RUNTIME_URL" \
+EVENT_LOG_RETENTION_DAYS=30 \
+EVENT_LOG_PRUNE_BATCH_SIZE=1000 \
+bash tool/db/export_event_log.sh \
+  --stream-name banji-core.prod.inventory-updated \
+  --output build/event-log/banji-core.prod.inventory-updated.jsonl \
+  --manifest-output build/event-log/banji-core.prod.inventory-updated.manifest.json \
+  --archive-uri s3://banji-core-prod-kh-pp-events/event-log/banji-core.prod.inventory-updated-$(date -u +%Y%m%dT%H%M%SZ).jsonl \
+  --prune
+```
+
+Dry run:
+
+```bash
+DATABASE_URL="$DATABASE_RUNTIME_URL" \
+bash tool/db/export_event_log.sh \
+  --stream-name banji-core.prod.inventory-updated \
+  --output build/event-log/preview.jsonl \
+  --manifest-output build/event-log/preview.manifest.json \
+  --dry-run
+```
+
+## Replay (Hot)
+Preview range:
+
+```bash
+DATABASE_URL="$DATABASE_RUNTIME_URL" \
+bash tool/db/replay_event_log.sh \
+  --mode hot-preview \
+  --stream-name banji-core.prod.inventory-updated \
+  --service-name projection-consumer \
+  --consumer-name inventory-projector \
+  --from-id 0
+```
+
+Apply replay from checkpoint reset:
+
+```bash
+DATABASE_URL="$DATABASE_RUNTIME_URL" \
+bash tool/db/replay_event_log.sh \
+  --mode hot-apply \
+  --stream-name banji-core.prod.inventory-updated \
+  --service-name projection-consumer \
+  --consumer-name inventory-projector \
+  --handler-cmd "cat >/dev/null" \
+  --from-id 0
+```
+
+For `*-apply` modes, checkpoint advancement occurs only after `--handler-cmd` exits successfully for each batch.
+Replace the no-op example handler above with the real projection/job apply command.
+
+## Replay (Cold)
+1) Rehydrate archive segments into restore DB:
+
+```bash
+DATABASE_URL="$PROD_DATABASE_RESTORE_URL" \
+bash tool/db/rehydrate_event_log_archive.sh \
+  --stream-name banji-core.prod.inventory-updated \
+  --input build/event-log/segment-1.jsonl \
+  --input build/event-log/segment-2.jsonl
+```
+
+2) Run replay against restore DB:
+
+```bash
+DATABASE_URL="$PROD_DATABASE_RESTORE_URL" \
+bash tool/db/replay_event_log.sh \
+  --mode cold-apply \
+  --stream-name banji-core.prod.inventory-updated \
+  --service-name projection-consumer \
+  --consumer-name inventory-projector \
+  --handler-cmd "cat >/dev/null" \
+  --from-id 0
+```
+
+## Storage / Cost Evidence
+
+```bash
+DATABASE_URL="$DATABASE_RUNTIME_URL" \
+EVENT_LOG_RETENTION_DAYS=30 \
+bash tool/db/event_log_storage_report.sh \
+  --output-json build/event-log/storage_report.json \
+  --output-text build/event-log/storage_report.txt
+```
+
+Interpretation rule:
+- `row_count_exact` and total table bytes are exact.
+- byte/growth projections are estimates.
+
+## Failure Triage
+- `lock_contended`: rerun later; another maintenance run is active for the stream.
+- rowcount mismatch: do not prune; investigate query/filter drift.
+- remote size/hash mismatch: do not advance cursor; fix upload/integrity path.
+- prune count mismatch: halt and reconcile stream state before next run.
+
+## Scale Upgrade Trigger
+Escalate to partitioning ADR when:
+- total table size exceeds 50 GB, or
+- daily prune volume exceeds 1,000,000 rows for 7 consecutive days.
