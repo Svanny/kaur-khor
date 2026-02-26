@@ -95,9 +95,15 @@ check_phase() {
   local phase="$1"
   local expected_id
   expected_id="$(jq -r --arg phase "$phase" '.phases[$phase].ruleset_id // empty' "$FINGERPRINT_FILE")"
+  local expected_managed_rule_id
+  expected_managed_rule_id="$(jq -r --arg phase "$phase" '.phases[$phase].managed_rule_id // empty' "$FINGERPRINT_FILE")"
 
   if [[ -z "$expected_id" ]]; then
     echo "error: fingerprint missing ruleset_id for phase $phase" >&2
+    exit 1
+  fi
+  if [[ -z "$expected_managed_rule_id" ]]; then
+    echo "error: fingerprint missing managed_rule_id for phase $phase" >&2
     exit 1
   fi
 
@@ -108,6 +114,13 @@ check_phase() {
 
   if [[ "$actual_id" != "$expected_id" ]]; then
     echo "error: phase $phase ruleset mismatch; expected '$expected_id' got '$actual_id'" >&2
+    exit 1
+  fi
+
+  local actual_managed_rule_id
+  actual_managed_rule_id="$(echo "$response" | jq -r --arg rid "$expected_managed_rule_id" '.result.rules[]? | select(.id == $rid) | .id' | head -n 1)"
+  if [[ "$actual_managed_rule_id" != "$expected_managed_rule_id" ]]; then
+    echo "error: phase $phase missing managed rule id '$expected_managed_rule_id'" >&2
     exit 1
   fi
 }

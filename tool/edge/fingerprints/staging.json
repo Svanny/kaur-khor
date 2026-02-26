@@ -5,14 +5,17 @@
   "phases": {
     "http_request_transform": {
       "ruleset_id": "__SET_BY_TOOL_EDGE_APPLY__",
+      "managed_rule_id": "__SET_BY_TOOL_EDGE_APPLY__",
       "rule_count": 0
     },
     "http_request_firewall_custom": {
       "ruleset_id": "__SET_BY_TOOL_EDGE_APPLY__",
+      "managed_rule_id": "__SET_BY_TOOL_EDGE_APPLY__",
       "rule_count": 0
     },
     "http_ratelimit": {
       "ruleset_id": "__SET_BY_TOOL_EDGE_APPLY__",
+      "managed_rule_id": "__SET_BY_TOOL_EDGE_APPLY__",
       "rule_count": 0
     }
   }

@@ -8,12 +8,14 @@ This folder contains deterministic Cloudflare apply/verify scripts for `staging`
   - requires explicit `--env` and `--zone-id`
   - supports `--dry-run`
   - applies idempotent zone settings (`ssl=strict`, `always_use_https=on`)
-  - captures phase entrypoint ruleset IDs and writes fingerprint file
+  - idempotently creates/updates one managed rule per required phase
+  - captures phase entrypoint ruleset IDs + managed rule IDs and writes fingerprint file
   - runs immediate verification
 
 - `tool/edge/cloudflare_verify.sh`
   - validates zone settings (`ssl=strict`, `always_use_https=on`)
   - validates phase entrypoint ruleset IDs against fingerprint file
+  - validates required managed rule IDs exist in each phase ruleset
   - fails non-zero on any missing/mismatched control
 
 ## Fingerprints
@@ -27,6 +29,7 @@ Run `cloudflare_apply.sh` to refresh with current rule IDs.
 ## Required Environment
 
 - `CLOUDFLARE_API_TOKEN` (secret)
+- `EDGE_ORIGIN_AUTH_SECRET` (secret; used to inject origin auth header in managed transform rule)
 - Optional: `CLOUDFLARE_API_BASE`
 
 ## Example
