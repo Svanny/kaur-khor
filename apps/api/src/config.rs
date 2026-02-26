@@ -77,8 +77,32 @@ impl EdgeProvider {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppRole {
+    Api,
+    EventRelay,
+}
+
+impl AppRole {
+    fn parse(raw: &str) -> Result<Self> {
+        match raw.to_ascii_lowercase().as_str() {
+            "api" => Ok(Self::Api),
+            "event-relay" => Ok(Self::EventRelay),
+            _ => Err(anyhow!("APP_ROLE must be one of: api, event-relay")),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Api => "api",
+            Self::EventRelay => "event-relay",
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AppConfig {
+    pub app_role: AppRole,
     pub system: String,
     pub env: String,
     pub service: String,
@@ -101,6 +125,12 @@ pub struct AppConfig {
     pub redis_circuit_cooldown: Duration,
     pub redis_log_rate_limit: Duration,
     pub event_payload_max_bytes: usize,
+    pub event_relay_batch_size: u32,
+    pub event_relay_poll_interval: Duration,
+    pub event_relay_retry_backoff: Duration,
+    pub event_relay_max_backoff: Duration,
+    pub event_relay_block_after_attempts: u32,
+    pub event_outbox_published_retention_days: u32,
     pub rabbit_url: Option<String>,
     pub rabbit_vhost: String,
     pub rabbit_exchange_jobs: String,
@@ -149,6 +179,7 @@ impl fmt::Debug for AppConfig {
         }
 
         f.debug_struct("AppConfig")
+            .field("app_role", &self.app_role.as_str())
             .field("system", &self.system)
             .field("env", &self.env)
             .field("service", &self.service)
@@ -177,6 +208,18 @@ impl fmt::Debug for AppConfig {
             .field("redis_circuit_cooldown", &self.redis_circuit_cooldown)
             .field("redis_log_rate_limit", &self.redis_log_rate_limit)
             .field("event_payload_max_bytes", &self.event_payload_max_bytes)
+            .field("event_relay_batch_size", &self.event_relay_batch_size)
+            .field("event_relay_poll_interval", &self.event_relay_poll_interval)
+            .field("event_relay_retry_backoff", &self.event_relay_retry_backoff)
+            .field("event_relay_max_backoff", &self.event_relay_max_backoff)
+            .field(
+                "event_relay_block_after_attempts",
+                &self.event_relay_block_after_attempts,
+            )
+            .field(
+                "event_outbox_published_retention_days",
+                &self.event_outbox_published_retention_days,
+            )
             .field("rabbit_url", &redacted(&self.rabbit_url))
             .field("rabbit_vhost", &self.rabbit_vhost)
             .field("rabbit_exchange_jobs", &self.rabbit_exchange_jobs)
@@ -254,8 +297,10 @@ impl AppConfig {
 
         let cache_schema_version = required_env("CACHE_SCHEMA_VERSION")?;
         let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
+        let app_role = AppRole::parse(&env::var("APP_ROLE").unwrap_or_else(|_| "api".to_string()))?;
         let strict_edge_env = matches!(env_name.as_str(), "staging" | "prod");
-        let auth_enabled = parse_bool("AUTH_ENABLED", strict_edge_env)?;
+        let strict_api_env = strict_edge_env && app_role == AppRole::Api;
+        let auth_enabled = parse_bool("AUTH_ENABLED", strict_api_env)?;
         let auth_jwks_url = optional_env("AUTH_JWKS_URL");
         let auth_issuer = optional_env("AUTH_ISSUER");
         let auth_audience = optional_env("AUTH_AUDIENCE");
@@ -275,14 +320,15 @@ impl AppConfig {
         if idempotency_retention_days == 0 {
             return Err(anyhow!("IDEMPOTENCY_RETENTION_DAYS must be greater than 0"));
         }
-        if auth_enabled
+        if app_role == AppRole::Api
+            && auth_enabled
             && (auth_jwks_url.is_none() || auth_issuer.is_none() || auth_audience.is_none())
         {
             return Err(anyhow!(
                 "AUTH_JWKS_URL, AUTH_ISSUER, and AUTH_AUDIENCE are required when AUTH_ENABLED=true"
             ));
         }
-        if strict_edge_env && !auth_enabled {
+        if strict_api_env && !auth_enabled {
             return Err(anyhow!("staging/prod require AUTH_ENABLED=true"));
         }
         let database_runtime_url = optional_env("DATABASE_RUNTIME_URL");
@@ -328,7 +374,7 @@ impl AppConfig {
             ));
         }
 
-        let edge_enforcement_enabled = parse_bool("EDGE_ENFORCEMENT_ENABLED", strict_edge_env)?;
+        let edge_enforcement_enabled = parse_bool("EDGE_ENFORCEMENT_ENABLED", strict_api_env)?;
         let edge_provider_raw = env::var("EDGE_PROVIDER").unwrap_or_else(|_| {
             if edge_enforcement_enabled {
                 "cloudflare".to_string()
@@ -401,7 +447,7 @@ impl AppConfig {
         }
 
         let edge_cors_allowed_origins = parse_csv_env("EDGE_CORS_ALLOWED_ORIGINS");
-        if strict_edge_env {
+        if strict_api_env {
             if !edge_enforcement_enabled {
                 return Err(anyhow!(
                     "staging/prod require EDGE_ENFORCEMENT_ENABLED=true"
@@ -431,6 +477,44 @@ impl AppConfig {
 
         let edge_trust_cf_connecting_ip =
             parse_bool("EDGE_TRUST_CF_CONNECTING_IP", strict_edge_env)?;
+        let event_relay_batch_size = parse_u32("EVENT_RELAY_BATCH_SIZE", 100)?;
+        let event_relay_poll_interval =
+            Duration::from_millis(parse_u64("EVENT_RELAY_POLL_INTERVAL_MS", 500)?);
+        let event_relay_retry_backoff =
+            Duration::from_millis(parse_u64("EVENT_RELAY_RETRY_BACKOFF_MS", 1_000)?);
+        let event_relay_max_backoff =
+            Duration::from_millis(parse_u64("EVENT_RELAY_MAX_BACKOFF_MS", 60_000)?);
+        let event_relay_block_after_attempts = parse_u32("EVENT_RELAY_BLOCK_AFTER_ATTEMPTS", 25)?;
+        let event_outbox_published_retention_days =
+            parse_u32("EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS", 7)?;
+        if event_relay_batch_size == 0 {
+            return Err(anyhow!("EVENT_RELAY_BATCH_SIZE must be greater than 0"));
+        }
+        if event_relay_poll_interval.is_zero() {
+            return Err(anyhow!(
+                "EVENT_RELAY_POLL_INTERVAL_MS must be greater than 0"
+            ));
+        }
+        if event_relay_retry_backoff.is_zero() {
+            return Err(anyhow!(
+                "EVENT_RELAY_RETRY_BACKOFF_MS must be greater than 0"
+            ));
+        }
+        if event_relay_max_backoff < event_relay_retry_backoff {
+            return Err(anyhow!(
+                "EVENT_RELAY_MAX_BACKOFF_MS must be greater than or equal to EVENT_RELAY_RETRY_BACKOFF_MS"
+            ));
+        }
+        if event_relay_block_after_attempts == 0 {
+            return Err(anyhow!(
+                "EVENT_RELAY_BLOCK_AFTER_ATTEMPTS must be greater than 0"
+            ));
+        }
+        if event_outbox_published_retention_days == 0 {
+            return Err(anyhow!(
+                "EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS must be greater than 0"
+            ));
+        }
         let rabbit_prefetch_fast = parse_u16("RABBIT_PREFETCH_FAST", 20)?;
         let rabbit_prefetch_heavy = parse_u16("RABBIT_PREFETCH_HEAVY", 2)?;
         if rabbit_prefetch_fast == 0 || rabbit_prefetch_heavy == 0 {
@@ -455,8 +539,14 @@ impl AppConfig {
                 ));
             }
         }
+        if app_role == AppRole::EventRelay && database_runtime_url.is_none() {
+            return Err(anyhow!(
+                "APP_ROLE=event-relay requires DATABASE_RUNTIME_URL"
+            ));
+        }
 
         Ok(Self {
+            app_role,
             system: env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string()),
             env: env_name,
             service: env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string()),
@@ -494,6 +584,12 @@ impl AppConfig {
                 30,
             )?),
             event_payload_max_bytes: parse_u64("EVENT_PAYLOAD_MAX_BYTES", 65536)? as usize,
+            event_relay_batch_size,
+            event_relay_poll_interval,
+            event_relay_retry_backoff,
+            event_relay_max_backoff,
+            event_relay_block_after_attempts,
+            event_outbox_published_retention_days,
             rabbit_url: env::var("RABBIT_URL").ok(),
             rabbit_vhost: env::var("RABBIT_VHOST").unwrap_or_else(|_| "/".to_string()),
             rabbit_exchange_jobs: env::var("RABBIT_EXCHANGE_JOBS")

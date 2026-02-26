@@ -406,17 +406,17 @@ async fn create_item(
                 state.config.service.clone(),
                 Some(idempotency_key.clone()),
                 Some(correlation_id.clone()),
-                None,
+                idempotency_key.clone(),
                 event_payload,
                 serde_json::json!({
                     "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
                 }),
             );
-            if let Err(err) = events::publisher::publish_in_tx(&mut tx, &event).await {
+            if let Err(err) = events::outbox::enqueue_tx(&mut tx, &event).await {
                 let _ = tx.rollback().await;
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error":"event insert failed", "details": format!("{err}")})),
+                    Json(serde_json::json!({"error":"failed to enqueue event outbox", "details": format!("{err}")})),
                 )
                     .into_response();
             }
@@ -720,18 +720,20 @@ async fn write_demo(
                 state.config.service.clone(),
                 Some(idempotency_key.clone()),
                 Some(correlation_id.clone()),
-                None,
+                idempotency_key.clone(),
                 event_payload,
                 serde_json::json!({
                     "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
                 }),
             );
 
-            if let Err(err) = events::publisher::publish_in_tx(&mut tx, &event).await {
+            if let Err(err) = events::outbox::enqueue_tx(&mut tx, &event).await {
                 let _ = tx.rollback().await;
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": format!("event publish failed: {err}")})),
+                    Json(
+                        serde_json::json!({"error": format!("failed to enqueue event outbox: {err}")}),
+                    ),
                 );
             }
 
@@ -836,6 +838,7 @@ mod tests {
 
     fn test_config() -> AppConfig {
         AppConfig {
+            app_role: config::AppRole::Api,
             system: "banji-core".to_string(),
             env: "test".to_string(),
             service: "api".to_string(),
@@ -858,6 +861,12 @@ mod tests {
             redis_circuit_cooldown: Duration::from_secs(3),
             redis_log_rate_limit: Duration::from_secs(1),
             event_payload_max_bytes: 65_536,
+            event_relay_batch_size: 100,
+            event_relay_poll_interval: Duration::from_millis(500),
+            event_relay_retry_backoff: Duration::from_millis(1_000),
+            event_relay_max_backoff: Duration::from_millis(60_000),
+            event_relay_block_after_attempts: 25,
+            event_outbox_published_retention_days: 7,
             rabbit_url: None,
             rabbit_vhost: "/".to_string(),
             rabbit_exchange_jobs: "banji-core.test.jobs".to_string(),

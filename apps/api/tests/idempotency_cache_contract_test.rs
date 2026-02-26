@@ -37,6 +37,7 @@ impl CacheClient for StaticReplayCache {
 
 fn test_config(db_url: String) -> AppConfig {
     AppConfig {
+        app_role: banji_api::config::AppRole::Api,
         system: "banji-core".to_string(),
         env: "test".to_string(),
         service: "api".to_string(),
@@ -59,6 +60,12 @@ fn test_config(db_url: String) -> AppConfig {
         redis_circuit_cooldown: Duration::from_secs(3),
         redis_log_rate_limit: Duration::from_secs(1),
         event_payload_max_bytes: 65_536,
+        event_relay_batch_size: 100,
+        event_relay_poll_interval: Duration::from_millis(500),
+        event_relay_retry_backoff: Duration::from_millis(1_000),
+        event_relay_max_backoff: Duration::from_millis(60_000),
+        event_relay_block_after_attempts: 25,
+        event_outbox_published_retention_days: 7,
         rabbit_url: None,
         rabbit_vhost: "/".to_string(),
         rabbit_exchange_jobs: "banji-core.test.jobs".to_string(),

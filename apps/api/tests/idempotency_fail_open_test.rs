@@ -8,6 +8,7 @@ use std::{env, time::Duration};
 
 fn test_config_with_bad_redis(db_url: Option<String>) -> AppConfig {
     AppConfig {
+        app_role: banji_api::config::AppRole::Api,
         system: "banji-core".to_string(),
         env: "test".to_string(),
         service: "api".to_string(),
@@ -30,6 +31,12 @@ fn test_config_with_bad_redis(db_url: Option<String>) -> AppConfig {
         redis_circuit_cooldown: Duration::from_secs(3),
         redis_log_rate_limit: Duration::from_secs(1),
         event_payload_max_bytes: 65_536,
+        event_relay_batch_size: 100,
+        event_relay_poll_interval: Duration::from_millis(500),
+        event_relay_retry_backoff: Duration::from_millis(1_000),
+        event_relay_max_backoff: Duration::from_millis(60_000),
+        event_relay_block_after_attempts: 25,
+        event_outbox_published_retention_days: 7,
         rabbit_url: None,
         rabbit_vhost: "/".to_string(),
         rabbit_exchange_jobs: "banji-core.test.jobs".to_string(),
@@ -101,12 +108,14 @@ async fn idempotent_write_remains_correct_with_redis_down() {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query("DELETE FROM app.event_log WHERE producer_service = $1 AND idempotency_key = $2")
-        .bind("api")
-        .bind("idem-1")
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "DELETE FROM app.event_outbox WHERE producer_service = $1 AND idempotency_key = $2",
+    )
+    .bind("api")
+    .bind("idem-1")
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let state = build_state(test_config_with_bad_redis(Some(db_url)))
         .await
@@ -157,7 +166,7 @@ async fn idempotent_write_remains_correct_with_redis_down() {
     assert_eq!(count, 1);
 
     let event_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM app.event_log WHERE producer_service=$1 AND idempotency_key=$2",
+        "SELECT COUNT(*) FROM app.event_outbox WHERE producer_service=$1 AND idempotency_key=$2",
     )
     .bind("api")
     .bind("idem-1")

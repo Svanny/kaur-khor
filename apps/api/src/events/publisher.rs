@@ -9,6 +9,7 @@ pub async fn publish_in_tx(tx: &mut Transaction<'_, Postgres>, event: &EventReco
     let inserted = sqlx::query(
         r#"
         INSERT INTO app.event_log (
+          publish_key,
           stream_name,
           env_name,
           topic_name,
@@ -22,13 +23,12 @@ pub async fn publish_in_tx(tx: &mut Transaction<'_, Postgres>, event: &EventReco
           causation_id,
           payload,
           metadata
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-        ON CONFLICT (producer_service, idempotency_key)
-        WHERE idempotency_key IS NOT NULL
-        DO NOTHING
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        ON CONFLICT (publish_key) DO NOTHING
         RETURNING id
         "#,
     )
+    .bind(&event.publish_key)
     .bind(&event.stream_name)
     .bind(&event.env_name)
     .bind(&event.topic_name)
@@ -49,24 +49,20 @@ pub async fn publish_in_tx(tx: &mut Transaction<'_, Postgres>, event: &EventReco
         return Ok(row.get("id"));
     }
 
-    if let Some(idempotency_key) = &event.idempotency_key {
-        let row = sqlx::query(
-            r#"
-            SELECT id
-            FROM app.event_log
-            WHERE producer_service = $1 AND idempotency_key = $2
-            ORDER BY id DESC
-            LIMIT 1
-            "#,
-        )
-        .bind(&event.producer_service)
-        .bind(idempotency_key)
-        .fetch_optional(&mut **tx)
-        .await?;
+    let row = sqlx::query(
+        r#"
+        SELECT id
+        FROM app.event_log
+        WHERE publish_key = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(&event.publish_key)
+    .fetch_optional(&mut **tx)
+    .await?;
 
-        if let Some(found) = row {
-            return Ok(found.get("id"));
-        }
+    if let Some(found) = row {
+        return Ok(found.get("id"));
     }
 
     Err(anyhow!(

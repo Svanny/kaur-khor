@@ -2,16 +2,27 @@
 
 ## Purpose
 Operate retention, archive, replay, and cost visibility for `app.event_log` while Kafka is optional/future.
+Also operate `app.event_outbox` relay and retention.
 
 ## Contracts
+- Event intents are written to `app.event_outbox` in the same transaction as canonical writes.
+- `APP_ROLE=event-relay` is the only role that publishes to `app.event_log`.
 - Hot replay horizon: `EVENT_LOG_RETENTION_DAYS` (default 30 days).
 - Cold replay horizon: archive JSONL rehydrated into restore DB.
 - Boundary authority: event id watermark (`eligible_max_id`).
 - Replay order: `id ASC`.
 - Archive retention default: `EVENT_LOG_ARCHIVE_RETENTION_DAYS=365`.
+- Outbox published-row retention default: `EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS=7`.
 
 ## Required Env Inputs
 - `DATABASE_URL`
+- `APP_ROLE`
+- `EVENT_RELAY_BATCH_SIZE`
+- `EVENT_RELAY_POLL_INTERVAL_MS`
+- `EVENT_RELAY_RETRY_BACKOFF_MS`
+- `EVENT_RELAY_MAX_BACKOFF_MS`
+- `EVENT_RELAY_BLOCK_AFTER_ATTEMPTS`
+- `EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS`
 - `EVENT_LOG_RETENTION_DAYS`
 - `EVENT_LOG_PRUNE_BATCH_SIZE`
 - `EVENT_LOG_REPLAY_BATCH_SIZE`
@@ -21,6 +32,27 @@ Operate retention, archive, replay, and cost visibility for `app.event_log` whil
 
 For S3 archive upload/verification:
 - AWS credentials with least-privilege object read/write/head to archive prefix.
+
+## Event Relay Runtime
+Run relay service using the same image with role override:
+
+```bash
+APP_ROLE=event-relay \
+DATABASE_RUNTIME_URL="$DATABASE_RUNTIME_URL" \
+cargo run --bin banji-api
+```
+
+Relay guarantees:
+- pending outbox rows are published idempotently to `app.event_log`
+- failures back off and eventually move to `blocked` when attempt threshold is reached
+
+## Event Outbox Cleanup
+
+```bash
+DATABASE_RUNTIME_URL="$DATABASE_RUNTIME_URL" \
+EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS=7 \
+bash tool/db/prune_event_outbox.sh
+```
 
 ## Export + Verify (+ Optional Prune)
 Example for one stream:

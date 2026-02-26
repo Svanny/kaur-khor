@@ -65,7 +65,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 2. [OPTIONAL / FUTURE] Postgres outbox table and outbox relay service (Kafka path)
    Optional future track: write an outbox row in the same transaction as the canonical write, then run a small Rust relay that publishes outbox rows into Kafka. Done means a committed DB write always produces a Kafka event, and failed publishes are retried without duplicates causing corruption.
 
-2a. [CURRENT FIX] Postgres outbox table and Postgres event relay
+2a. [DONE / CURRENT FIX] Postgres outbox table and Postgres event relay
    Write an outbox row in the same transaction as the canonical write, then run a small Rust relay/poller that moves rows into `app.event_log` (or marks outbox rows as published if writing directly). Done means a committed DB write always produces a durable Postgres event, retries are safe, and duplicates are prevented via idempotent publish keys.
 
 3. Event vocabulary and schema discipline

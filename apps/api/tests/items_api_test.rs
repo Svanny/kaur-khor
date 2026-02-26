@@ -145,6 +145,7 @@ fn jwk_for(kid: &str, private_key: &RsaPrivateKey) -> serde_json::Value {
 
 fn test_config(db_url: String, jwks_url: String) -> AppConfig {
     AppConfig {
+        app_role: banji_api::config::AppRole::Api,
         system: "banji-core".to_string(),
         env: "test".to_string(),
         service: "api".to_string(),
@@ -167,6 +168,12 @@ fn test_config(db_url: String, jwks_url: String) -> AppConfig {
         redis_circuit_cooldown: Duration::from_secs(60),
         redis_log_rate_limit: Duration::from_secs(30),
         event_payload_max_bytes: 65_536,
+        event_relay_batch_size: 100,
+        event_relay_poll_interval: Duration::from_millis(500),
+        event_relay_retry_backoff: Duration::from_millis(1_000),
+        event_relay_max_backoff: Duration::from_millis(60_000),
+        event_relay_block_after_attempts: 25,
+        event_outbox_published_retention_days: 7,
         rabbit_url: None,
         rabbit_vhost: "/".to_string(),
         rabbit_exchange_jobs: "banji-core.test.jobs".to_string(),
@@ -268,7 +275,7 @@ async fn create_read_replay_is_owner_scoped_and_idempotent() {
     let jwks_server = start_jwks_server(json!({"keys":[jwk_for("k1", &key_a)]})).await;
 
     let cfg = test_config(db_url.clone(), format!("{}/jwks", jwks_server.base_url));
-    let addr = launch_api(cfg, pool.clone(), Arc::new(MemoryCache::default())).await;
+    let addr = launch_api(cfg.clone(), pool.clone(), Arc::new(MemoryCache::default())).await;
 
     let token_a = build_jwt(
         "user-a",
@@ -364,6 +371,31 @@ async fn create_read_replay_is_owner_scoped_and_idempotent() {
     .await
     .unwrap();
     assert_eq!(count, 1);
+
+    let outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM app.event_outbox WHERE producer_service = $1 AND idempotency_key = $2",
+    )
+    .bind("api")
+    .bind("idem-item-a-1")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(outbox_count, 1);
+
+    let relay_stats = banji_api::events::relay::relay_once(&pool, &cfg)
+        .await
+        .unwrap();
+    assert!(relay_stats.published >= 1);
+
+    let event_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM app.event_log WHERE producer_service = $1 AND idempotency_key = $2",
+    )
+    .bind("api")
+    .bind("idem-item-a-1")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(event_count, 1);
 
     let missing_auth = client
         .post(format!("http://{addr}/v1/items"))

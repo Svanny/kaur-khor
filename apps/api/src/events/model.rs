@@ -3,6 +3,7 @@ use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventRecord {
+    pub publish_key: String,
     pub stream_name: String,
     pub env_name: String,
     pub topic_name: String,
@@ -13,7 +14,7 @@ pub struct EventRecord {
     pub producer_service: String,
     pub idempotency_key: Option<String>,
     pub correlation_id: Option<String>,
-    pub causation_id: Option<String>,
+    pub causation_id: String,
     pub payload: Value,
     pub metadata: Value,
 }
@@ -58,7 +59,7 @@ impl EventRecord {
         producer_service: String,
         idempotency_key: Option<String>,
         correlation_id: Option<String>,
-        causation_id: Option<String>,
+        causation_id: String,
         payload: Value,
         metadata: Value,
     ) -> Self {
@@ -67,7 +68,16 @@ impl EventRecord {
         let env_name = parts.next().unwrap_or("unknown").to_string();
         let topic_name = parts.next().unwrap_or("unknown").to_string();
 
+        let publish_key = super::key::derive_publish_key(
+            &producer_service,
+            &event_type,
+            &aggregate_type,
+            &aggregate_id,
+            &causation_id,
+        );
+
         Self {
+            publish_key,
             stream_name,
             env_name,
             topic_name,

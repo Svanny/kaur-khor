@@ -50,6 +50,7 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 Runtime services must not receive `DATABASE_MIGRATION_URL`.
 
 ## Pooling and DB Boundary Keys (Non-Secret)
+- `APP_ROLE=api|event-relay`
 - `DATABASE_RUNTIME_ENDPOINT_KIND=direct|pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction|session`
 - `AUTH_ENABLED`
@@ -67,12 +68,22 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `SQLX_POOL_IDLE_TIMEOUT_SECONDS`
 - `SQLX_POOL_MAX_LIFETIME_SECONDS`
 - `POSTGRES_CONNECTION_BUDGET_TOTAL`
+- `EVENT_RELAY_BATCH_SIZE`
+- `EVENT_RELAY_POLL_INTERVAL_MS`
+- `EVENT_RELAY_RETRY_BACKOFF_MS`
+- `EVENT_RELAY_MAX_BACKOFF_MS`
+- `EVENT_RELAY_BLOCK_AFTER_ATTEMPTS`
+- `EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS`
 
 `staging` and `prod` must use:
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction`
 - `AUTH_ENABLED=true`
 - `AUTH_JWKS_URL`, `AUTH_ISSUER`, and `AUTH_AUDIENCE` must be set
+
+`APP_ROLE=event-relay` startup contract:
+- `DATABASE_RUNTIME_URL` is required
+- HTTP-edge/auth keys are optional for this role
 
 ## Edge Protection Keys (Non-Secret)
 - `EDGE_ENFORCEMENT_ENABLED`

@@ -108,7 +108,8 @@ No runtime role may hold schema-altering privileges.
 
 ## Event Log Current Fix (Kafka Substitute)
 - Current transport for streaming needs is `app.event_log` in PostgreSQL.
-- Event records are appended in the same transaction as canonical writes/idempotency completion.
+- Event intents are appended to `app.event_outbox` in the same transaction as canonical writes/idempotency completion.
+- `event-relay` publishes from `app.event_outbox` into `app.event_log` asynchronously with idempotent `publish_key` dedupe.
 - Consumers poll by `id` cursor and persist progress in `app.event_consumer_checkpoint`.
 - Replay ordering contract is `ORDER BY id ASC` only.
 - Exactly one active consumer instance is allowed per `(service_name, consumer_name, stream_name)` tuple in this phase.

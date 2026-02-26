@@ -1,7 +1,7 @@
 # PostgreSQL Event Log (Current Fix)
 
 ## Scope
-This document defines the Kafka-substitute event stream implemented in PostgreSQL for `app.event_log`.
+This document defines the Kafka-substitute event stream implemented in PostgreSQL for `app.event_log` with outbox-first durability.
 
 ## Audit vs Operational Logs
 - Operational runtime logs go to platform sink (Railway/log drain).
@@ -17,6 +17,8 @@ This document defines the Kafka-substitute event stream implemented in PostgreSQ
 
 ## Event Model and Ordering Contract
 - `stream_name` format: `{system}.{env}.{topic}`.
+- API writes persist event intent in `app.event_outbox` in the same transaction as canonical state.
+- `event-relay` is the only runtime role that publishes rows from `app.event_outbox` to `app.event_log`.
 - Checkpoints are durable per `(service_name, consumer_name, stream_name)`.
 - Canonical replay ordering is `ORDER BY id ASC` only.
 - `created_at` is metadata and must not drive replay order.
@@ -24,9 +26,25 @@ This document defines the Kafka-substitute event stream implemented in PostgreSQ
 
 ## Idempotency and Deterministic Insert
 - Canonical write idempotency remains Postgres source of truth.
+- Event identity is `publish_key = sha256("{producer_service}|{event_type}|{aggregate_type}|{aggregate_id}|{causation_id}")`.
+- `causation_id` is required for outbox intents:
+  - request events use request `idempotency_key`
+  - non-request events use a stable emission id (for example job run id)
 - Event insert dedupe index:
-  - `(producer_service, idempotency_key)` where `idempotency_key IS NOT NULL`.
+  - `UNIQUE (publish_key)` on `app.event_log`.
 - Idempotent retries must not emit duplicate event rows.
+
+## Relay Processing Contract
+- Relay claims one pending row at a time via `FOR UPDATE SKIP LOCKED` inside a transaction.
+- Success path:
+  1. insert into `app.event_log` (dedupe on `publish_key`)
+  2. resolve `event_log_id` deterministically on conflict
+  3. mark outbox row `published`
+- Failure path:
+  - increment `attempt_count`
+  - set `last_error`
+  - set `next_attempt_at` with capped exponential backoff
+  - mark `blocked` when attempts exceed threshold
 
 ## Retention and Archive Lifecycle
 - Canonical archive sink: object storage JSONL.

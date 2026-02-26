@@ -77,6 +77,27 @@ static OUTBOX_PENDING: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
         .init()
 });
 
+static EVENT_OUTBOX_PUBLISH_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.events.outbox.publish.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static EVENT_OUTBOX_PENDING: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.events.outbox.pending")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static EVENT_OUTBOX_OLDEST_AGE: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.events.outbox.oldest_age")
+        .with_unit(Unit::new("s"))
+        .init()
+});
+
 static EVENT_CONSUMER_LAG: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
     METER
         .i64_up_down_counter("banji.events.consumer.lag")
@@ -113,6 +134,8 @@ static DB_POOL_IDLE: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
 });
 
 static OUTBOX_PENDING_LAST: AtomicI64 = AtomicI64::new(0);
+static EVENT_OUTBOX_PENDING_LAST: AtomicI64 = AtomicI64::new(0);
+static EVENT_OUTBOX_OLDEST_AGE_LAST: AtomicI64 = AtomicI64::new(0);
 static LAG_BY_STREAM: Lazy<Mutex<HashMap<String, i64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 static DB_POOL_SIZE_LAST: AtomicI64 = AtomicI64::new(0);
 static DB_POOL_IDLE_LAST: AtomicI64 = AtomicI64::new(0);
@@ -181,6 +204,29 @@ pub fn set_outbox_pending(current_pending: i64) {
     let delta = current_pending - previous;
     if delta != 0 {
         OUTBOX_PENDING.add(delta, &[]);
+    }
+}
+
+pub fn record_event_outbox_publish(result: &str, count: u64) {
+    if count == 0 {
+        return;
+    }
+    EVENT_OUTBOX_PUBLISH_TOTAL.add(count, &[KeyValue::new("result", result.to_string())]);
+}
+
+pub fn set_event_outbox_pending(current_pending: i64) {
+    let previous = EVENT_OUTBOX_PENDING_LAST.swap(current_pending, Ordering::SeqCst);
+    let delta = current_pending - previous;
+    if delta != 0 {
+        EVENT_OUTBOX_PENDING.add(delta, &[]);
+    }
+}
+
+pub fn set_event_outbox_oldest_age(current_age_seconds: i64) {
+    let previous = EVENT_OUTBOX_OLDEST_AGE_LAST.swap(current_age_seconds, Ordering::SeqCst);
+    let delta = current_age_seconds - previous;
+    if delta != 0 {
+        EVENT_OUTBOX_OLDEST_AGE.add(delta, &[]);
     }
 }
 

@@ -1,4 +1,6 @@
-use banji_api::config::{AppConfig, DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode};
+use banji_api::config::{
+    AppConfig, AppRole, DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode,
+};
 use std::sync::{Mutex, OnceLock};
 
 fn env_lock() -> &'static Mutex<()> {
@@ -50,6 +52,7 @@ fn app_config_debug_redacts_secret_fields() {
     let db_url = format!("postgres://{db_creds}@db.example/banji");
 
     let cfg = AppConfig {
+        app_role: AppRole::Api,
         system: "banji-core".to_string(),
         env: "dev".to_string(),
         service: "api".to_string(),
@@ -72,6 +75,12 @@ fn app_config_debug_redacts_secret_fields() {
         redis_circuit_cooldown: std::time::Duration::from_secs(60),
         redis_log_rate_limit: std::time::Duration::from_secs(30),
         event_payload_max_bytes: 65_536,
+        event_relay_batch_size: 100,
+        event_relay_poll_interval: std::time::Duration::from_millis(500),
+        event_relay_retry_backoff: std::time::Duration::from_millis(1_000),
+        event_relay_max_backoff: std::time::Duration::from_millis(60_000),
+        event_relay_block_after_attempts: 25,
+        event_outbox_published_retention_days: 7,
         rabbit_url: Some(rabbit_url),
         rabbit_vhost: "/".to_string(),
         rabbit_exchange_jobs: "banji-core.dev.jobs".to_string(),
@@ -237,6 +246,126 @@ fn staging_requires_pgbouncer_transaction_mode() {
         std::env::set_var("AUTH_AUDIENCE", v);
     } else {
         std::env::remove_var("AUTH_AUDIENCE");
+    }
+}
+
+#[test]
+fn event_relay_role_does_not_require_http_edge_or_auth_settings() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_role = std::env::var("APP_ROLE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_edge_enabled = std::env::var("EDGE_ENFORCEMENT_ENABLED").ok();
+    let old_edge_provider = std::env::var("EDGE_PROVIDER").ok();
+    let old_edge_secret = std::env::var("EDGE_ORIGIN_AUTH_SECRET").ok();
+    let old_edge_cors = std::env::var("EDGE_CORS_ALLOWED_ORIGINS").ok();
+    let old_auth_enabled = std::env::var("AUTH_ENABLED").ok();
+    let old_auth_jwks_url = std::env::var("AUTH_JWKS_URL").ok();
+    let old_auth_issuer = std::env::var("AUTH_ISSUER").ok();
+    let old_auth_audience = std::env::var("AUTH_AUDIENCE").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "event-relay");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::remove_var("EDGE_ENFORCEMENT_ENABLED");
+    std::env::remove_var("EDGE_PROVIDER");
+    std::env::remove_var("EDGE_ORIGIN_AUTH_SECRET");
+    std::env::remove_var("EDGE_CORS_ALLOWED_ORIGINS");
+    std::env::remove_var("AUTH_ENABLED");
+    std::env::remove_var("AUTH_JWKS_URL");
+    std::env::remove_var("AUTH_ISSUER");
+    std::env::remove_var("AUTH_AUDIENCE");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let result = AppConfig::from_env();
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().app_role, AppRole::EventRelay);
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_role {
+        std::env::set_var("APP_ROLE", v);
+    } else {
+        std::env::remove_var("APP_ROLE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_edge_enabled {
+        std::env::set_var("EDGE_ENFORCEMENT_ENABLED", v);
+    } else {
+        std::env::remove_var("EDGE_ENFORCEMENT_ENABLED");
+    }
+    if let Some(v) = old_edge_provider {
+        std::env::set_var("EDGE_PROVIDER", v);
+    } else {
+        std::env::remove_var("EDGE_PROVIDER");
+    }
+    if let Some(v) = old_edge_secret {
+        std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", v);
+    } else {
+        std::env::remove_var("EDGE_ORIGIN_AUTH_SECRET");
+    }
+    if let Some(v) = old_edge_cors {
+        std::env::set_var("EDGE_CORS_ALLOWED_ORIGINS", v);
+    } else {
+        std::env::remove_var("EDGE_CORS_ALLOWED_ORIGINS");
+    }
+    if let Some(v) = old_auth_enabled {
+        std::env::set_var("AUTH_ENABLED", v);
+    } else {
+        std::env::remove_var("AUTH_ENABLED");
+    }
+    if let Some(v) = old_auth_jwks_url {
+        std::env::set_var("AUTH_JWKS_URL", v);
+    } else {
+        std::env::remove_var("AUTH_JWKS_URL");
+    }
+    if let Some(v) = old_auth_issuer {
+        std::env::set_var("AUTH_ISSUER", v);
+    } else {
+        std::env::remove_var("AUTH_ISSUER");
+    }
+    if let Some(v) = old_auth_audience {
+        std::env::set_var("AUTH_AUDIENCE", v);
+    } else {
+        std::env::remove_var("AUTH_AUDIENCE");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
     }
 }
 

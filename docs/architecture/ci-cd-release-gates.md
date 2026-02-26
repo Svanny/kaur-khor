@@ -124,8 +124,10 @@ For each deployable Railway service:
 
 ## Event Log Current-Fix Contract
 - Kafka is optional/future; current event stream transport is Postgres `app.event_log`.
-- Event publish must occur in the same transaction as canonical write/idempotency completion.
-- Event insertion is deterministic under retries via `(producer_service, idempotency_key)` dedupe rule.
+- Canonical write transactions persist event intent in `app.event_outbox` (not direct `event_log` insert).
+- `event-relay` role is the only publisher from `app.event_outbox` to `app.event_log`.
+- Event insertion is deterministic under retries via `publish_key` dedupe.
+- `publish_key` is derived from `producer_service|event_type|aggregate_type|aggregate_id|causation_id`.
 - Consumer lag is stream-scoped and must not use global max event id across streams.
 - Replay order contract is `ORDER BY id ASC`.
 - Retention/export/prune maintenance uses id watermarks, stream advisory locks, and manifest verification gates (rowcount + size/hash).
