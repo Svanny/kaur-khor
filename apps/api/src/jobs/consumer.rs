@@ -13,6 +13,13 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
     mut envelope: JobEnvelope,
     handler_error: &str,
 ) -> Result<RepublishResult> {
+    let primary_prefetch = envelope.workload_class.primary_prefetch(cfg);
+    tracing::debug!(
+        workload_class = envelope.workload_class.as_str(),
+        primary_prefetch,
+        "using configured primary queue prefetch policy"
+    );
+
     let classification = classify_error(handler_error);
     let decision = next_destination(
         cfg,

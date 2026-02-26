@@ -1,24 +1,29 @@
+pub mod auth;
 pub mod cache;
 pub mod config;
 pub mod db;
 pub mod edge;
 pub mod events;
 pub mod idempotency;
+pub mod items;
 pub mod jobs;
 pub mod logging;
 pub mod observability;
 
+use auth::{AuthPrincipal, JwtVerifier};
 use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Path, State},
+    http::{header::HeaderName, HeaderMap, HeaderValue, StatusCode},
     middleware,
+    response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient};
 use config::AppConfig;
 use events::model::EventRecord;
 use idempotency::{IdempotencyResult, PersistedResponse};
+use items::types::{CreateItemRequest, ItemRecord};
 use logging::redaction::redact_message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -35,6 +40,7 @@ pub struct AppState {
     pub config: AppConfig,
     pub db: Option<PgPool>,
     pub cache: Arc<dyn CacheClient>,
+    pub jwt_verifier: Option<Arc<JwtVerifier>>,
     pub key_builder: KeyBuilder,
     pub singleflight: Arc<Mutex<HashMap<String, Weak<Mutex<()>>>>>,
     pub rate_limiter: Arc<edge::rate_limit::InMemoryRateLimiter>,
@@ -78,10 +84,33 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
         config.cache_schema_version.clone(),
     );
 
+    let jwt_verifier = if config.auth_enabled {
+        Some(Arc::new(JwtVerifier::new(
+            config
+                .auth_jwks_url
+                .clone()
+                .expect("AUTH_JWKS_URL validated when auth enabled"),
+            config
+                .auth_issuer
+                .clone()
+                .expect("AUTH_ISSUER validated when auth enabled"),
+            config
+                .auth_audience
+                .clone()
+                .expect("AUTH_AUDIENCE validated when auth enabled"),
+            config.auth_jwks_cache_ttl,
+            config.auth_jwks_timeout,
+            config.auth_clock_skew,
+        )?))
+    } else {
+        None
+    };
+
     Ok(AppState {
         config,
         db,
         cache,
+        jwt_verifier,
         key_builder,
         singleflight: Arc::new(Mutex::new(HashMap::new())),
         rate_limiter: Arc::new(edge::rate_limit::InMemoryRateLimiter::new()),
@@ -102,10 +131,19 @@ pub fn app() -> Router {
 
 pub fn app_with_state(state: AppState) -> Router {
     // Layer order is intentionally reverse-applied by Axum:
-    // origin guard -> request size limit -> rate limit -> CORS -> observability -> handlers.
+    // origin guard -> request size limit -> rate limit -> CORS -> observability -> auth -> handlers.
+    let protected = Router::new()
+        .route("/v1/write-demo", post(write_demo))
+        .route("/v1/items", post(create_item))
+        .route("/v1/items/:item_id", get(get_item))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::middleware::auth_middleware,
+        ));
+
     Router::new()
         .route("/health", get(health))
-        .route("/v1/write-demo", post(write_demo))
+        .merge(protected)
         .layer(middleware::from_fn(
             observability::http_observability_middleware,
         ))
@@ -126,6 +164,396 @@ pub fn app_with_state(state: AppState) -> Router {
             edge::origin_guard::origin_guard_middleware,
         ))
         .with_state(state)
+}
+
+async fn create_item(
+    State(state): State<AppState>,
+    Extension(principal): Extension<AuthPrincipal>,
+    headers: HeaderMap,
+    Json(body): Json<CreateItemRequest>,
+) -> axum::response::Response {
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+
+    if let Err(err) = body.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error_code":"REQUEST_VALIDATION_FAILED",
+                "error": err.to_string()
+            })),
+        )
+            .into_response();
+    }
+
+    let idempotency_key = match idempotency::ensure_header(
+        headers.get("idempotency-key").and_then(|v| v.to_str().ok()),
+        "idempotency-key",
+    ) {
+        Ok(v) => v,
+        Err(err) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error_code":"REQUEST_VALIDATION_FAILED",
+                    "error": err.to_string()
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let caller_sub = principal.sub;
+    let request_value = serde_json::json!({
+      "item_id": body.item_id,
+      "sku": body.sku,
+      "name": body.normalized_name(),
+      "quantity": body.quantity
+    });
+    let request_hash = idempotency::hash_http_request("POST", "/v1/items", &request_value);
+
+    let idem_cache_key = state
+        .key_builder
+        .idempotency_result_key(&caller_sub, &idempotency_key);
+    let item_cache_key = state
+        .key_builder
+        .inventory_item_key(&caller_sub, &body.item_id);
+
+    let key_lock = get_singleflight_lock(&state, &idem_cache_key).await;
+    let _guard = key_lock.lock().await;
+
+    let mut tx = match db::pool::begin_with_pool_metrics(db).await {
+        Ok(tx) => tx,
+        Err(err) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error":"transaction begin failed", "details": format!("{err}")})),
+            )
+                .into_response();
+        }
+    };
+
+    let idem_result = match idempotency::check_or_claim_tx(
+        &mut tx,
+        &caller_sub,
+        &idempotency_key,
+        &request_hash,
+    )
+    .await
+    {
+        Ok(v) => v,
+        Err(err) => {
+            let _ = tx.rollback().await;
+            return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error":"idempotency check failed", "details": format!("{err}")})),
+                )
+                    .into_response();
+        }
+    };
+
+    match idem_result {
+        IdempotencyResult::Replay(resp) => {
+            let _ = tx.commit().await;
+            let serialized = serde_json::to_string(&resp).unwrap_or_default();
+            let _ = state
+                .cache
+                .set_string(&idem_cache_key, &serialized, state.config.cache_default_ttl)
+                .await;
+            if let Some(item_value) = resp.body.get("item") {
+                if let Ok(serialized_item) = serde_json::to_string(item_value) {
+                    let _ = state
+                        .cache
+                        .set_string(
+                            &item_cache_key,
+                            &serialized_item,
+                            state.config.cache_default_ttl,
+                        )
+                        .await;
+                }
+            }
+            let status =
+                StatusCode::from_u16(resp.status_code as u16).unwrap_or(StatusCode::CREATED);
+            let mut response = (status, Json(resp.body)).into_response();
+            response.headers_mut().insert(
+                HeaderName::from_static("x-idempotency-replayed"),
+                HeaderValue::from_static("true"),
+            );
+            response
+        }
+        IdempotencyResult::Conflict => {
+            let _ = tx.commit().await;
+            (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({
+                    "error_code":"IDEMPOTENCY_CONFLICT",
+                    "error":"idempotency key reused with different payload"
+                })),
+            )
+                .into_response()
+        }
+        IdempotencyResult::InProgress => {
+            let _ = tx.commit().await;
+            (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({
+                    "error_code":"IDEMPOTENCY_IN_PROGRESS",
+                    "error":"request with same idempotency key is in progress"
+                })),
+            )
+                .into_response()
+        }
+        IdempotencyResult::Claimed => {
+            let name = body.normalized_name();
+            let created = match items::repository::insert_tx(
+                &mut tx,
+                &caller_sub,
+                &body.item_id,
+                &body.sku,
+                &name,
+                body.quantity,
+            )
+            .await
+            {
+                Ok(item) => item,
+                Err(err) if is_unique_violation(&err) => {
+                    let conflict_body = serde_json::json!({
+                      "error_code":"ITEM_ALREADY_EXISTS",
+                      "error":"item already exists for this owner"
+                    });
+                    let persisted = PersistedResponse {
+                        status_code: StatusCode::CONFLICT.as_u16() as i32,
+                        body: conflict_body.clone(),
+                    };
+                    if let Err(err) =
+                        idempotency::complete_tx(&mut tx, &caller_sub, &idempotency_key, &persisted)
+                            .await
+                    {
+                        let _ = tx.rollback().await;
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(serde_json::json!({"error":"failed to persist idempotent conflict response", "details": format!("{err}")})),
+                        )
+                            .into_response();
+                    }
+                    if let Err(err) = tx.commit().await {
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(serde_json::json!({"error":"transaction commit failed", "details": format!("{err}")})),
+                        )
+                            .into_response();
+                    }
+                    let mut response = (StatusCode::CONFLICT, Json(conflict_body)).into_response();
+                    response.headers_mut().insert(
+                        HeaderName::from_static("x-idempotency-replayed"),
+                        HeaderValue::from_static("false"),
+                    );
+                    return response;
+                }
+                Err(err) => {
+                    let _ = tx.rollback().await;
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error":"failed to create item", "details": format!("{err}")})),
+                    )
+                        .into_response();
+                }
+            };
+
+            let response_body = serde_json::json!({"item": created});
+            let persisted = PersistedResponse {
+                status_code: StatusCode::CREATED.as_u16() as i32,
+                body: response_body.clone(),
+            };
+            if let Err(err) =
+                idempotency::complete_tx(&mut tx, &caller_sub, &idempotency_key, &persisted).await
+            {
+                let _ = tx.rollback().await;
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error":"failed to persist idempotent response", "details": format!("{err}")})),
+                )
+                    .into_response();
+            }
+
+            let stream_name = format!(
+                "{}.{}.{}",
+                state.config.system, state.config.env, "inventory-updated"
+            );
+            let correlation_id = observability::propagation::correlation_id_from_headers_or_context(
+                &headers,
+                &opentelemetry::Context::current(),
+            );
+            let event_payload = serde_json::json!({
+                "owner_sub": caller_sub,
+                "item_id": body.item_id,
+                "sku": body.sku,
+                "name": name,
+                "quantity": body.quantity,
+                "idempotency_key": idempotency_key
+            });
+            let event = EventRecord::new(
+                stream_name,
+                "inventory.item.created".to_string(),
+                1,
+                "item".to_string(),
+                body.item_id.clone(),
+                state.config.service.clone(),
+                Some(idempotency_key.clone()),
+                Some(correlation_id.clone()),
+                None,
+                event_payload,
+                serde_json::json!({
+                    "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
+                }),
+            );
+            if let Err(err) = events::publisher::publish_in_tx(&mut tx, &event).await {
+                let _ = tx.rollback().await;
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error":"event insert failed", "details": format!("{err}")})),
+                )
+                    .into_response();
+            }
+
+            let job_payload = serde_json::json!({
+                "owner_sub": caller_sub,
+                "item_id": body.item_id,
+                "idempotency_key": idempotency_key
+            });
+            let enqueue_key = format!(
+                "{}:{}:{}",
+                state.config.service, caller_sub, idempotency_key
+            );
+            if let Err(err) = jobs::outbox::enqueue_tx(
+                &mut tx,
+                &enqueue_key,
+                "item-created",
+                jobs::types::WorkloadClass::Fast,
+                "job.fast.item-created",
+                &correlation_id,
+                &job_payload,
+            )
+            .await
+            {
+                let _ = tx.rollback().await;
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(
+                        serde_json::json!({"error":"failed to enqueue outbox record", "details": format!("{err}")}),
+                    ),
+                )
+                    .into_response();
+            }
+
+            if let Err(err) = tx.commit().await {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error":"transaction commit failed", "details": format!("{err}")})),
+                )
+                    .into_response();
+            }
+
+            let serialized = serde_json::to_string(&persisted).unwrap_or_default();
+            let _ = state
+                .cache
+                .set_string(&idem_cache_key, &serialized, state.config.cache_default_ttl)
+                .await;
+            if let Ok(item_json) = serde_json::to_string(
+                response_body
+                    .get("item")
+                    .unwrap_or(&serde_json::Value::Null),
+            ) {
+                let _ = state
+                    .cache
+                    .set_string(&item_cache_key, &item_json, state.config.cache_default_ttl)
+                    .await;
+            }
+
+            (StatusCode::CREATED, Json(response_body)).into_response()
+        }
+    }
+}
+
+async fn get_item(
+    State(state): State<AppState>,
+    Extension(principal): Extension<AuthPrincipal>,
+    Path(item_id): Path<String>,
+) -> axum::response::Response {
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+
+    if let Err(err) = items::types::validate_item_id(&item_id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error_code":"REQUEST_VALIDATION_FAILED",
+                "error": err.to_string()
+            })),
+        )
+            .into_response();
+    }
+
+    let cache_key = state
+        .key_builder
+        .inventory_item_key(&principal.sub, &item_id);
+
+    if let Ok(Some(cached)) = state.cache.get_string(&cache_key).await {
+        if let Ok(item) = serde_json::from_str::<ItemRecord>(&cached) {
+            let mut response =
+                (StatusCode::OK, Json(serde_json::json!({"item": item}))).into_response();
+            response.headers_mut().insert(
+                HeaderName::from_static("x-cache"),
+                HeaderValue::from_static("hit"),
+            );
+            return response;
+        }
+    }
+
+    match items::repository::get_by_owner_and_id(db, &principal.sub, &item_id).await {
+        Ok(Some(item)) => {
+            if let Ok(serialized) = serde_json::to_string(&item) {
+                let _ = state
+                    .cache
+                    .set_string(&cache_key, &serialized, state.config.cache_default_ttl)
+                    .await;
+            }
+            let mut response =
+                (StatusCode::OK, Json(serde_json::json!({"item": item}))).into_response();
+            response.headers_mut().insert(
+                HeaderName::from_static("x-cache"),
+                HeaderValue::from_static("miss"),
+            );
+            response
+        }
+        Ok(None) => {
+            let mut response = (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"item not found"})),
+            )
+                .into_response();
+            response.headers_mut().insert(
+                HeaderName::from_static("x-cache"),
+                HeaderValue::from_static("miss"),
+            );
+            response
+        }
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error":"failed to read item", "details": format!("{err}")})),
+        )
+            .into_response(),
+    }
 }
 
 async fn write_demo(
@@ -351,6 +779,15 @@ async fn write_demo(
     }
 }
 
+fn is_unique_violation(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<sqlx::Error>()
+        .and_then(|sqlx_err| match sqlx_err {
+            sqlx::Error::Database(db_err) => db_err.code().map(|code| code == "23505"),
+            _ => None,
+        })
+        .unwrap_or(false)
+}
+
 async fn get_singleflight_lock(state: &AppState, key: &str) -> Arc<Mutex<()>> {
     let mut map = state.singleflight.lock().await;
 
@@ -402,6 +839,14 @@ mod tests {
             system: "banji-core".to_string(),
             env: "test".to_string(),
             service: "api".to_string(),
+            auth_enabled: false,
+            auth_jwks_url: None,
+            auth_issuer: None,
+            auth_audience: None,
+            auth_jwks_cache_ttl: Duration::from_secs(300),
+            auth_jwks_timeout: Duration::from_millis(1_000),
+            auth_clock_skew: Duration::from_secs(30),
+            idempotency_retention_days: 30,
             cache_enabled: false,
             cache_schema_version: "v1".to_string(),
             cache_default_ttl: Duration::from_secs(300),
@@ -422,8 +867,6 @@ mod tests {
             rabbit_retry_3_ttl_ms: 1_800_000,
             rabbit_prefetch_fast: 20,
             rabbit_prefetch_heavy: 2,
-            rabbit_replay_prefetch_fast: 2,
-            rabbit_replay_prefetch_heavy: 1,
             rabbit_max_attempts: 4,
             redis_url: None,
             database_runtime_url: None,
@@ -459,6 +902,7 @@ mod tests {
         AppState {
             db: None,
             cache: Arc::new(NoopCacheClient),
+            jwt_verifier: None,
             key_builder: KeyBuilder::new(
                 config.system.clone(),
                 config.env.clone(),

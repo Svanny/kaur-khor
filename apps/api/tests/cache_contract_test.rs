@@ -43,3 +43,18 @@ fn key_builder_encoding_is_collision_safe_for_common_variants() {
     let punct_b = kb.idempotency_result_key("a-b", "idem");
     assert_ne!(punct_a, punct_b);
 }
+
+#[test]
+fn inventory_item_key_is_owner_scoped() {
+    let kb = KeyBuilder::new(
+        "banji-core".into(),
+        "prod".into(),
+        "api".into(),
+        "v1".into(),
+    );
+
+    let owner_a = kb.inventory_item_key("user-a", "item-1");
+    let owner_b = kb.inventory_item_key("user-b", "item-1");
+    assert_ne!(owner_a, owner_b);
+    assert!(owner_a.contains(":cache:inventory~3Aitem:user-a:item-1"));
+}

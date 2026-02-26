@@ -14,6 +14,13 @@ impl WorkloadClass {
             WorkloadClass::Heavy => "heavy",
         }
     }
+
+    pub fn primary_prefetch(&self, cfg: &crate::config::AppConfig) -> u16 {
+        match self {
+            WorkloadClass::Fast => cfg.rabbit_prefetch_fast,
+            WorkloadClass::Heavy => cfg.rabbit_prefetch_heavy,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

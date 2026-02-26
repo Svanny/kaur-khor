@@ -82,6 +82,14 @@ pub struct AppConfig {
     pub system: String,
     pub env: String,
     pub service: String,
+    pub auth_enabled: bool,
+    pub auth_jwks_url: Option<String>,
+    pub auth_issuer: Option<String>,
+    pub auth_audience: Option<String>,
+    pub auth_jwks_cache_ttl: Duration,
+    pub auth_jwks_timeout: Duration,
+    pub auth_clock_skew: Duration,
+    pub idempotency_retention_days: u64,
     pub cache_enabled: bool,
     pub cache_schema_version: String,
     pub cache_default_ttl: Duration,
@@ -102,8 +110,6 @@ pub struct AppConfig {
     pub rabbit_retry_3_ttl_ms: u64,
     pub rabbit_prefetch_fast: u16,
     pub rabbit_prefetch_heavy: u16,
-    pub rabbit_replay_prefetch_fast: u16,
-    pub rabbit_replay_prefetch_heavy: u16,
     pub rabbit_max_attempts: u8,
     pub redis_url: Option<String>,
     pub database_runtime_url: Option<String>,
@@ -146,6 +152,17 @@ impl fmt::Debug for AppConfig {
             .field("system", &self.system)
             .field("env", &self.env)
             .field("service", &self.service)
+            .field("auth_enabled", &self.auth_enabled)
+            .field("auth_jwks_url", &self.auth_jwks_url)
+            .field("auth_issuer", &self.auth_issuer)
+            .field("auth_audience", &self.auth_audience)
+            .field("auth_jwks_cache_ttl", &self.auth_jwks_cache_ttl)
+            .field("auth_jwks_timeout", &self.auth_jwks_timeout)
+            .field("auth_clock_skew", &self.auth_clock_skew)
+            .field(
+                "idempotency_retention_days",
+                &self.idempotency_retention_days,
+            )
             .field("cache_enabled", &self.cache_enabled)
             .field("cache_schema_version", &self.cache_schema_version)
             .field("cache_default_ttl", &self.cache_default_ttl)
@@ -169,14 +186,6 @@ impl fmt::Debug for AppConfig {
             .field("rabbit_retry_3_ttl_ms", &self.rabbit_retry_3_ttl_ms)
             .field("rabbit_prefetch_fast", &self.rabbit_prefetch_fast)
             .field("rabbit_prefetch_heavy", &self.rabbit_prefetch_heavy)
-            .field(
-                "rabbit_replay_prefetch_fast",
-                &self.rabbit_replay_prefetch_fast,
-            )
-            .field(
-                "rabbit_replay_prefetch_heavy",
-                &self.rabbit_replay_prefetch_heavy,
-            )
             .field("rabbit_max_attempts", &self.rabbit_max_attempts)
             .field("redis_url", &redacted(&self.redis_url))
             .field(
@@ -246,6 +255,36 @@ impl AppConfig {
         let cache_schema_version = required_env("CACHE_SCHEMA_VERSION")?;
         let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
         let strict_edge_env = matches!(env_name.as_str(), "staging" | "prod");
+        let auth_enabled = parse_bool("AUTH_ENABLED", strict_edge_env)?;
+        let auth_jwks_url = optional_env("AUTH_JWKS_URL");
+        let auth_issuer = optional_env("AUTH_ISSUER");
+        let auth_audience = optional_env("AUTH_AUDIENCE");
+        let auth_jwks_cache_ttl =
+            Duration::from_secs(parse_u64("AUTH_JWKS_CACHE_TTL_SECONDS", 300)?);
+        let auth_jwks_timeout = Duration::from_millis(parse_u64("AUTH_JWKS_TIMEOUT_MS", 1_000)?);
+        let auth_clock_skew = Duration::from_secs(parse_u64("AUTH_CLOCK_SKEW_SECONDS", 30)?);
+        let idempotency_retention_days = parse_u64("IDEMPOTENCY_RETENTION_DAYS", 30)?;
+        if auth_jwks_cache_ttl.as_secs() == 0 {
+            return Err(anyhow!(
+                "AUTH_JWKS_CACHE_TTL_SECONDS must be greater than 0"
+            ));
+        }
+        if auth_jwks_timeout.is_zero() {
+            return Err(anyhow!("AUTH_JWKS_TIMEOUT_MS must be greater than 0"));
+        }
+        if idempotency_retention_days == 0 {
+            return Err(anyhow!("IDEMPOTENCY_RETENTION_DAYS must be greater than 0"));
+        }
+        if auth_enabled
+            && (auth_jwks_url.is_none() || auth_issuer.is_none() || auth_audience.is_none())
+        {
+            return Err(anyhow!(
+                "AUTH_JWKS_URL, AUTH_ISSUER, and AUTH_AUDIENCE are required when AUTH_ENABLED=true"
+            ));
+        }
+        if strict_edge_env && !auth_enabled {
+            return Err(anyhow!("staging/prod require AUTH_ENABLED=true"));
+        }
         let database_runtime_url = optional_env("DATABASE_RUNTIME_URL");
 
         let database_runtime_endpoint_kind =
@@ -392,6 +431,11 @@ impl AppConfig {
 
         let edge_trust_cf_connecting_ip =
             parse_bool("EDGE_TRUST_CF_CONNECTING_IP", strict_edge_env)?;
+        let rabbit_prefetch_fast = parse_u16("RABBIT_PREFETCH_FAST", 20)?;
+        let rabbit_prefetch_heavy = parse_u16("RABBIT_PREFETCH_HEAVY", 2)?;
+        if rabbit_prefetch_fast == 0 || rabbit_prefetch_heavy == 0 {
+            return Err(anyhow!("Rabbit prefetch values must all be greater than 0"));
+        }
 
         let strict_pooling_env = matches!(env_name.as_str(), "staging" | "prod");
         if strict_pooling_env {
@@ -416,6 +460,14 @@ impl AppConfig {
             system: env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string()),
             env: env_name,
             service: env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string()),
+            auth_enabled,
+            auth_jwks_url,
+            auth_issuer,
+            auth_audience,
+            auth_jwks_cache_ttl,
+            auth_jwks_timeout,
+            auth_clock_skew,
+            idempotency_retention_days,
             cache_enabled: parse_bool("CACHE_ENABLED", true)?,
             cache_schema_version,
             cache_default_ttl: Duration::from_secs(parse_u64("CACHE_DEFAULT_TTL_SECONDS", 300)?),
@@ -451,10 +503,8 @@ impl AppConfig {
             rabbit_retry_1_ttl_ms: parse_u64("RABBIT_RETRY_1_TTL_MS", 30_000)?,
             rabbit_retry_2_ttl_ms: parse_u64("RABBIT_RETRY_2_TTL_MS", 300_000)?,
             rabbit_retry_3_ttl_ms: parse_u64("RABBIT_RETRY_3_TTL_MS", 1_800_000)?,
-            rabbit_prefetch_fast: parse_u16("RABBIT_PREFETCH_FAST", 20)?,
-            rabbit_prefetch_heavy: parse_u16("RABBIT_PREFETCH_HEAVY", 2)?,
-            rabbit_replay_prefetch_fast: parse_u16("RABBIT_REPLAY_PREFETCH_FAST", 2)?,
-            rabbit_replay_prefetch_heavy: parse_u16("RABBIT_REPLAY_PREFETCH_HEAVY", 1)?,
+            rabbit_prefetch_fast,
+            rabbit_prefetch_heavy,
             rabbit_max_attempts: parse_u8("RABBIT_MAX_ATTEMPTS", 4)?,
             redis_url: optional_env("REDIS_URL"),
             database_runtime_url,

@@ -53,6 +53,14 @@ fn app_config_debug_redacts_secret_fields() {
         system: "banji-core".to_string(),
         env: "dev".to_string(),
         service: "api".to_string(),
+        auth_enabled: false,
+        auth_jwks_url: None,
+        auth_issuer: None,
+        auth_audience: None,
+        auth_jwks_cache_ttl: std::time::Duration::from_secs(300),
+        auth_jwks_timeout: std::time::Duration::from_millis(1_000),
+        auth_clock_skew: std::time::Duration::from_secs(30),
+        idempotency_retention_days: 30,
         cache_enabled: true,
         cache_schema_version: "v1".to_string(),
         cache_default_ttl: std::time::Duration::from_secs(300),
@@ -73,8 +81,6 @@ fn app_config_debug_redacts_secret_fields() {
         rabbit_retry_3_ttl_ms: 1_800_000,
         rabbit_prefetch_fast: 20,
         rabbit_prefetch_heavy: 2,
-        rabbit_replay_prefetch_fast: 2,
-        rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
         redis_url: Some("redis://:secret@redis.example:6379".to_string()),
         database_runtime_url: Some(db_url),
@@ -124,6 +130,10 @@ fn staging_requires_pgbouncer_transaction_mode() {
     let old_edge_secret = std::env::var("EDGE_ORIGIN_AUTH_SECRET").ok();
     let old_edge_cors = std::env::var("EDGE_CORS_ALLOWED_ORIGINS").ok();
     let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    let old_auth_enabled = std::env::var("AUTH_ENABLED").ok();
+    let old_auth_jwks_url = std::env::var("AUTH_JWKS_URL").ok();
+    let old_auth_issuer = std::env::var("AUTH_ISSUER").ok();
+    let old_auth_audience = std::env::var("AUTH_AUDIENCE").ok();
 
     std::env::set_var("BANJI_ENV", "staging");
     std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
@@ -137,6 +147,13 @@ fn staging_requires_pgbouncer_transaction_mode() {
     std::env::set_var("EDGE_PROVIDER", "cloudflare");
     std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", "edge-secret");
     std::env::set_var("EDGE_CORS_ALLOWED_ORIGINS", "https://staging.example.com");
+    std::env::set_var("AUTH_ENABLED", "true");
+    std::env::set_var(
+        "AUTH_JWKS_URL",
+        "https://issuer.example/.well-known/jwks.json",
+    );
+    std::env::set_var("AUTH_ISSUER", "https://issuer.example/");
+    std::env::set_var("AUTH_AUDIENCE", "banji-api");
     std::env::remove_var("DATABASE_MIGRATION_URL");
 
     let direct_result = AppConfig::from_env();
@@ -201,6 +218,26 @@ fn staging_requires_pgbouncer_transaction_mode() {
     } else {
         std::env::remove_var("DATABASE_MIGRATION_URL");
     }
+    if let Some(v) = old_auth_enabled {
+        std::env::set_var("AUTH_ENABLED", v);
+    } else {
+        std::env::remove_var("AUTH_ENABLED");
+    }
+    if let Some(v) = old_auth_jwks_url {
+        std::env::set_var("AUTH_JWKS_URL", v);
+    } else {
+        std::env::remove_var("AUTH_JWKS_URL");
+    }
+    if let Some(v) = old_auth_issuer {
+        std::env::set_var("AUTH_ISSUER", v);
+    } else {
+        std::env::remove_var("AUTH_ISSUER");
+    }
+    if let Some(v) = old_auth_audience {
+        std::env::set_var("AUTH_AUDIENCE", v);
+    } else {
+        std::env::remove_var("AUTH_AUDIENCE");
+    }
 }
 
 #[test]
@@ -239,26 +276,99 @@ fn runtime_rejects_migration_url_presence() {
 }
 
 #[test]
-fn replay_prefetch_env_values_are_parsed() {
+fn auth_enabled_requires_jwks_issuer_and_audience() {
+    let _guard = lock_env();
+
+    let old_auth_enabled = std::env::var("AUTH_ENABLED").ok();
+    let old_auth_jwks_url = std::env::var("AUTH_JWKS_URL").ok();
+    let old_auth_issuer = std::env::var("AUTH_ISSUER").ok();
+    let old_auth_audience = std::env::var("AUTH_AUDIENCE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    let old_env = std::env::var("BANJI_ENV").ok();
+
+    std::env::set_var("BANJI_ENV", "dev");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+    std::env::set_var("AUTH_ENABLED", "true");
+    std::env::remove_var("AUTH_JWKS_URL");
+    std::env::remove_var("AUTH_ISSUER");
+    std::env::remove_var("AUTH_AUDIENCE");
+    assert!(AppConfig::from_env().is_err());
+
+    std::env::set_var(
+        "AUTH_JWKS_URL",
+        "https://issuer.example/.well-known/jwks.json",
+    );
+    std::env::set_var("AUTH_ISSUER", "https://issuer.example/");
+    std::env::set_var("AUTH_AUDIENCE", "banji-api");
+    assert!(AppConfig::from_env().is_ok());
+
+    if let Some(v) = old_auth_enabled {
+        std::env::set_var("AUTH_ENABLED", v);
+    } else {
+        std::env::remove_var("AUTH_ENABLED");
+    }
+    if let Some(v) = old_auth_jwks_url {
+        std::env::set_var("AUTH_JWKS_URL", v);
+    } else {
+        std::env::remove_var("AUTH_JWKS_URL");
+    }
+    if let Some(v) = old_auth_issuer {
+        std::env::set_var("AUTH_ISSUER", v);
+    } else {
+        std::env::remove_var("AUTH_ISSUER");
+    }
+    if let Some(v) = old_auth_audience {
+        std::env::set_var("AUTH_AUDIENCE", v);
+    } else {
+        std::env::remove_var("AUTH_AUDIENCE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+}
+
+#[test]
+fn rabbit_prefetch_env_values_are_parsed() {
     let _guard = lock_env();
 
     let old_env = std::env::var("BANJI_ENV").ok();
     let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
     let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
-    let old_replay_fast = std::env::var("RABBIT_REPLAY_PREFETCH_FAST").ok();
-    let old_replay_heavy = std::env::var("RABBIT_REPLAY_PREFETCH_HEAVY").ok();
+    let old_prefetch_fast = std::env::var("RABBIT_PREFETCH_FAST").ok();
+    let old_prefetch_heavy = std::env::var("RABBIT_PREFETCH_HEAVY").ok();
     let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
 
     std::env::set_var("BANJI_ENV", "dev");
     std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
     std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
-    std::env::set_var("RABBIT_REPLAY_PREFETCH_FAST", "7");
-    std::env::set_var("RABBIT_REPLAY_PREFETCH_HEAVY", "3");
+    std::env::set_var("RABBIT_PREFETCH_FAST", "10");
+    std::env::set_var("RABBIT_PREFETCH_HEAVY", "4");
     std::env::remove_var("DATABASE_MIGRATION_URL");
 
     let cfg = AppConfig::from_env().expect("config should parse");
-    assert_eq!(cfg.rabbit_replay_prefetch_fast, 7);
-    assert_eq!(cfg.rabbit_replay_prefetch_heavy, 3);
+    assert_eq!(cfg.rabbit_prefetch_fast, 10);
+    assert_eq!(cfg.rabbit_prefetch_heavy, 4);
 
     if let Some(v) = old_env {
         std::env::set_var("BANJI_ENV", v);
@@ -275,15 +385,61 @@ fn replay_prefetch_env_values_are_parsed() {
     } else {
         std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
     }
-    if let Some(v) = old_replay_fast {
-        std::env::set_var("RABBIT_REPLAY_PREFETCH_FAST", v);
+    if let Some(v) = old_prefetch_fast {
+        std::env::set_var("RABBIT_PREFETCH_FAST", v);
     } else {
-        std::env::remove_var("RABBIT_REPLAY_PREFETCH_FAST");
+        std::env::remove_var("RABBIT_PREFETCH_FAST");
     }
-    if let Some(v) = old_replay_heavy {
-        std::env::set_var("RABBIT_REPLAY_PREFETCH_HEAVY", v);
+    if let Some(v) = old_prefetch_heavy {
+        std::env::set_var("RABBIT_PREFETCH_HEAVY", v);
     } else {
-        std::env::remove_var("RABBIT_REPLAY_PREFETCH_HEAVY");
+        std::env::remove_var("RABBIT_PREFETCH_HEAVY");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+}
+
+#[test]
+fn rabbit_prefetch_values_must_be_positive() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_prefetch_fast = std::env::var("RABBIT_PREFETCH_FAST").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("BANJI_ENV", "dev");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var("RABBIT_PREFETCH_FAST", "0");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_prefetch_fast {
+        std::env::set_var("RABBIT_PREFETCH_FAST", v);
+    } else {
+        std::env::remove_var("RABBIT_PREFETCH_FAST");
     }
     if let Some(v) = old_migration_url {
         std::env::set_var("DATABASE_MIGRATION_URL", v);
@@ -366,6 +522,10 @@ fn staging_rejects_non_https_and_localhost_cors_origins() {
     let old_edge_secret = std::env::var("EDGE_ORIGIN_AUTH_SECRET").ok();
     let old_cors = std::env::var("EDGE_CORS_ALLOWED_ORIGINS").ok();
     let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    let old_auth_enabled = std::env::var("AUTH_ENABLED").ok();
+    let old_auth_jwks_url = std::env::var("AUTH_JWKS_URL").ok();
+    let old_auth_issuer = std::env::var("AUTH_ISSUER").ok();
+    let old_auth_audience = std::env::var("AUTH_AUDIENCE").ok();
 
     std::env::set_var("BANJI_ENV", "staging");
     std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
@@ -378,6 +538,13 @@ fn staging_rejects_non_https_and_localhost_cors_origins() {
     std::env::set_var("EDGE_ENFORCEMENT_ENABLED", "true");
     std::env::set_var("EDGE_PROVIDER", "cloudflare");
     std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", "edge-secret");
+    std::env::set_var("AUTH_ENABLED", "true");
+    std::env::set_var(
+        "AUTH_JWKS_URL",
+        "https://issuer.example/.well-known/jwks.json",
+    );
+    std::env::set_var("AUTH_ISSUER", "https://issuer.example/");
+    std::env::set_var("AUTH_AUDIENCE", "banji-api");
     std::env::remove_var("DATABASE_MIGRATION_URL");
 
     std::env::set_var(
@@ -447,5 +614,25 @@ fn staging_rejects_non_https_and_localhost_cors_origins() {
         std::env::set_var("DATABASE_MIGRATION_URL", v);
     } else {
         std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+    if let Some(v) = old_auth_enabled {
+        std::env::set_var("AUTH_ENABLED", v);
+    } else {
+        std::env::remove_var("AUTH_ENABLED");
+    }
+    if let Some(v) = old_auth_jwks_url {
+        std::env::set_var("AUTH_JWKS_URL", v);
+    } else {
+        std::env::remove_var("AUTH_JWKS_URL");
+    }
+    if let Some(v) = old_auth_issuer {
+        std::env::set_var("AUTH_ISSUER", v);
+    } else {
+        std::env::remove_var("AUTH_ISSUER");
+    }
+    if let Some(v) = old_auth_audience {
+        std::env::set_var("AUTH_AUDIENCE", v);
+    } else {
+        std::env::remove_var("AUTH_AUDIENCE");
     }
 }

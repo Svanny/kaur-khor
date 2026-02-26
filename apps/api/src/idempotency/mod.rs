@@ -168,17 +168,97 @@ pub async fn fail(
 }
 
 pub fn hash_request_body(body: &Value) -> String {
+    hash_canonical_value(&canonicalize_json(body))
+}
+
+pub fn hash_http_request(method: &str, route: &str, body: &Value) -> String {
+    let envelope = serde_json::json!({
+        "method": method.to_ascii_uppercase(),
+        "route": route,
+        "body": canonicalize_json(body),
+    });
+    hash_canonical_value(&envelope)
+}
+
+fn hash_canonical_value(value: &Value) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
-    let bytes = serde_json::to_vec(body).unwrap_or_default();
+    let bytes = serde_json::to_vec(value).unwrap_or_default();
     hasher.update(bytes);
     format!("{:x}", hasher.finalize())
 }
 
+fn canonicalize_json(value: &Value) -> Value {
+    match value {
+        Value::Array(arr) => Value::Array(arr.iter().map(canonicalize_json).collect()),
+        Value::Object(map) => {
+            let mut sorted = serde_json::Map::with_capacity(map.len());
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort_unstable();
+            for key in keys {
+                if let Some(v) = map.get(key) {
+                    sorted.insert(key.clone(), canonicalize_json(v));
+                }
+            }
+            Value::Object(sorted)
+        }
+        _ => value.clone(),
+    }
+}
+
 pub fn ensure_header(value: Option<&str>, name: &str) -> Result<String> {
     let v = value.ok_or_else(|| anyhow!("missing required header: {name}"))?;
-    if v.trim().is_empty() {
+    let trimmed = v.trim();
+    if trimmed.is_empty() {
         return Err(anyhow!("header {name} must not be empty"));
     }
-    Ok(v.to_string())
+    if name.eq_ignore_ascii_case("idempotency-key") {
+        validate_idempotency_key(trimmed)?;
+    }
+    Ok(trimmed.to_string())
+}
+
+fn validate_idempotency_key(value: &str) -> Result<()> {
+    if value.len() > 128 {
+        return Err(anyhow!(
+            "header idempotency-key must be at most 128 characters"
+        ));
+    }
+    if !value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    {
+        return Err(anyhow!(
+            "header idempotency-key must contain only alphanumeric, '-', '_' or '.'"
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn canonical_hash_ignores_object_field_order() {
+        let a = json!({"a":1,"b":{"x":1,"y":2}});
+        let b = json!({"b":{"y":2,"x":1},"a":1});
+        assert_eq!(hash_request_body(&a), hash_request_body(&b));
+    }
+
+    #[test]
+    fn http_request_hash_includes_method_and_route() {
+        let body = json!({"item_id":"abc"});
+        let post_hash = hash_http_request("POST", "/v1/items", &body);
+        let get_hash = hash_http_request("GET", "/v1/items", &body);
+        assert_ne!(post_hash, get_hash);
+    }
+
+    #[test]
+    fn idempotency_key_validation_enforces_contract() {
+        assert!(ensure_header(Some("abc-123._"), "idempotency-key").is_ok());
+        assert!(ensure_header(Some("has space"), "idempotency-key").is_err());
+        assert!(ensure_header(Some(&"a".repeat(129)), "idempotency-key").is_err());
+    }
 }

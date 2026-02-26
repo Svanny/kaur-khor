@@ -35,6 +35,10 @@ impl KeyBuilder {
     pub fn cache_key(&self, entity: &str, id: &str) -> String {
         self.build("cache", &[entity, id])
     }
+
+    pub fn inventory_item_key(&self, owner_sub: &str, item_id: &str) -> String {
+        self.build("cache", &["inventory:item", owner_sub, item_id])
+    }
 }
 
 fn encode_segment(raw: &str) -> String {
