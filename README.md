@@ -175,6 +175,7 @@ This repository is an actively evolving prototype.
 
 - Flutter UI flows are implemented for inventory and ranking interactions.
 - Backend architecture and infrastructure contracts are being implemented incrementally in the Rust API workstream.
+- Rust API milestone baseline includes JWT-authenticated owner-scoped item APIs (`POST /v1/items`, `GET /v1/items/:item_id`) with Postgres-backed idempotent writes and read-through cache behavior.
 - Observability baseline uses OpenTelemetry semantic-convention HTTP metrics, correlation IDs, and a collector-forwarded traces/metrics path.
 - Postgres restore drill routine is defined via `.github/workflows/postgres-restore-drill.yml.disabled` and `docs/operations/postgres-restore-drill.md`.
 - Postgres event-log lifecycle (retention/archive/replay) is defined via `docs/architecture/postgres-event-log.md` and `docs/operations/postgres-event-log-maintenance.md`.

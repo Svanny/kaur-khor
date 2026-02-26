@@ -52,6 +52,14 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 ## Pooling and DB Boundary Keys (Non-Secret)
 - `DATABASE_RUNTIME_ENDPOINT_KIND=direct|pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction|session`
+- `AUTH_ENABLED`
+- `AUTH_JWKS_URL`
+- `AUTH_ISSUER`
+- `AUTH_AUDIENCE`
+- `AUTH_JWKS_CACHE_TTL_SECONDS`
+- `AUTH_JWKS_TIMEOUT_MS`
+- `AUTH_CLOCK_SKEW_SECONDS`
+- `IDEMPOTENCY_RETENTION_DAYS`
 - `SQLX_POOL_MAX_CONNECTIONS`
 - `SQLX_POOL_MIN_CONNECTIONS`
 - `SQLX_POOL_ACQUIRE_TIMEOUT_MS`
@@ -63,6 +71,8 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 `staging` and `prod` must use:
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction`
+- `AUTH_ENABLED=true`
+- `AUTH_JWKS_URL`, `AUTH_ISSUER`, and `AUTH_AUDIENCE` must be set
 
 ## Edge Protection Keys (Non-Secret)
 - `EDGE_ENFORCEMENT_ENABLED`
@@ -92,8 +102,6 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `RABBIT_REPLAY_RETAIN_ATTEMPT`
 - `RABBIT_REPLAY_TARGET_EXCHANGE`
 - `RABBIT_REPLAY_TARGET_ROUTING_KEY`
-- `RABBIT_REPLAY_PREFETCH_FAST`
-- `RABBIT_REPLAY_PREFETCH_HEAVY`
 
 Replay tooling rejects legacy names (`MAX_MESSAGES`, `REPLAY_RATE_PER_MIN`, `RETAIN_ATTEMPT`, `TARGET_ROUTING_KEY`) to prevent config drift.
 `BANJI_ENV` is required for all replay and cleanup operations.

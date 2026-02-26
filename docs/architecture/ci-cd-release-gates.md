@@ -69,6 +69,11 @@ For each deployable Railway service:
 - Deploy preflight must assert required deploy secrets are present.
 - `DATABASE_MIGRATION_URL` is scoped to migration step only and must not be injected into runtime service environments.
 - Runtime and migration database credentials must remain distinct.
+- Runtime auth preflight in `staging` and `prod` must assert:
+  - `AUTH_ENABLED=true`
+  - `AUTH_JWKS_URL`
+  - `AUTH_ISSUER`
+  - `AUTH_AUDIENCE`
 - Runtime DB pooling preflight in `staging` and `prod` must assert:
   - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
   - `PGBOUNCER_POOL_MODE=transaction`
@@ -115,6 +120,7 @@ For each deployable Railway service:
 - Redis outages must not block correctness or write completion.
 - Correctness idempotency enforcement is Postgres-backed (`app.idempotency_request`), not Redis-backed.
 - Redis is fail-open and fail-fast, with circuit-breaking and timeout controls.
+- Idempotency key scope is `(caller_sub, idempotency_key)` and request hash includes method + route + canonical JSON body.
 
 ## Event Log Current-Fix Contract
 - Kafka is optional/future; current event stream transport is Postgres `app.event_log`.

@@ -59,7 +59,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 
 #### Pillars, the minimum set of services to make data flow end to end
 
-1. Rust API service
+1. [DONE] Rust API service
    Implement auth verification, request validation, idempotency keys for writes, Postgres transactions, and cache read through for hot reads. Done means the client can perform a write, read it back, and retries do not duplicate state.
 
 2. [OPTIONAL / FUTURE] Postgres outbox table and outbox relay service (Kafka path)
