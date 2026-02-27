@@ -124,6 +124,41 @@ cf_api() {
   fi
 }
 
+ensure_phase_entrypoint_ruleset() {
+  local phase="$1"
+  local entrypoint_json=""
+  local ruleset_id=""
+
+  if entrypoint_json="$(cf_api GET "/zones/${ZONE_ID}/rulesets/phases/${phase}/entrypoint" 2>/dev/null)"; then
+    ruleset_id="$(echo "$entrypoint_json" | jq -r '.result.id // empty')"
+  fi
+
+  if [[ -n "$ruleset_id" ]]; then
+    echo "$ruleset_id"
+    return 0
+  fi
+
+  local create_payload
+  create_payload="$(jq -n \
+    --arg phase "$phase" \
+    --arg name "banji-managed-${phase}-entrypoint" \
+    '{
+      name: $name,
+      kind: "zone",
+      phase: $phase
+    }')"
+
+  local created_json
+  created_json="$(cf_api POST "/zones/${ZONE_ID}/rulesets" "$create_payload")"
+  ruleset_id="$(echo "$created_json" | jq -r '.result.id // empty')"
+  if [[ -z "$ruleset_id" ]]; then
+    echo "error: failed to create entrypoint ruleset for phase $phase" >&2
+    exit 1
+  fi
+
+  echo "$ruleset_id"
+}
+
 apply_zone_setting() {
   local name="$1"
   local value="$2"
@@ -150,6 +185,8 @@ upsert_managed_rule() {
   local phase="$1"
   local description="$2"
   local payload="$3"
+
+  ensure_phase_entrypoint_ruleset "$phase" >/dev/null
 
   local entrypoint_json
   entrypoint_json="$(cf_api GET "/zones/${ZONE_ID}/rulesets/phases/${phase}/entrypoint")"
