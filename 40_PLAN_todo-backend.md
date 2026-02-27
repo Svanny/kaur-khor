@@ -68,7 +68,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 2a. [DONE / CURRENT FIX] Postgres outbox table and Postgres event relay
    Write an outbox row in the same transaction as the canonical write, then run a small Rust relay/poller that moves rows into `app.event_log` (or marks outbox rows as published if writing directly). Done means a committed DB write always produces a durable Postgres event, retries are safe, and duplicates are prevented via idempotent publish keys.
 
-3. Event vocabulary and schema discipline
+3. [DONE] Event vocabulary and schema discipline
    Define event types, required fields, versioning rules, and compatibility expectations. Done means producers and consumers validate payloads and a schema change is an explicit version increment, not a silent drift.
 
 4. [OPTIONAL / FUTURE] Streaming consumer service for projections (Kafka path)

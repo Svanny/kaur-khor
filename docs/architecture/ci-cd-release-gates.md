@@ -128,6 +128,8 @@ For each deployable Railway service:
 - `event-relay` role is the only publisher from `app.event_outbox` to `app.event_log`.
 - Event insertion is deterministic under retries via `publish_key` dedupe.
 - `publish_key` is derived from `producer_service|event_type|aggregate_type|aggregate_id|causation_id`.
+- Event vocabulary and schema are code-authoritative and full-record validated (envelope + payload) before outbox enqueue and before relay publish.
+- Payload schema changes require explicit `event_version` increment; silent shape drift is forbidden.
 - Consumer lag is stream-scoped and must not use global max event id across streams.
 - Replay order contract is `ORDER BY id ASC`.
 - Retention/export/prune maintenance uses id watermarks, stream advisory locks, and manifest verification gates (rowcount + size/hash).

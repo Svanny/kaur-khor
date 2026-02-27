@@ -6,3 +6,5 @@ pub mod model;
 pub mod outbox;
 pub mod publisher;
 pub mod relay;
+pub mod schema;
+pub mod schema_types;

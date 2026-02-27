@@ -1,4 +1,6 @@
 use super::model::{AuditEvent, EventRow};
+use super::schema::decode_event_row;
+use super::schema_types::{InvalidEventPolicy, KnownEvent};
 use crate::observability::metrics;
 use anyhow::Result;
 use sqlx::{PgPool, Row};
@@ -7,7 +9,10 @@ const POLL_STREAM_SQL: &str = r#"
         SELECT
           id,
           created_at::text AS occurred_at,
+          publish_key,
           stream_name,
+          env_name,
+          topic_name,
           event_type,
           event_version,
           aggregate_type,
@@ -15,6 +20,7 @@ const POLL_STREAM_SQL: &str = r#"
           producer_service,
           idempotency_key,
           correlation_id,
+          causation_id,
           payload,
           metadata
         FROM app.event_log
@@ -148,7 +154,10 @@ pub async fn poll_stream(
         .map(|r| EventRow {
             id: r.get("id"),
             occurred_at: r.get("occurred_at"),
+            publish_key: r.get("publish_key"),
             stream_name: r.get("stream_name"),
+            env_name: r.get("env_name"),
+            topic_name: r.get("topic_name"),
             event_type: r.get("event_type"),
             event_version: r.get("event_version"),
             aggregate_type: r.get("aggregate_type"),
@@ -156,10 +165,62 @@ pub async fn poll_stream(
             producer_service: r.get("producer_service"),
             idempotency_key: r.get("idempotency_key"),
             correlation_id: r.get("correlation_id"),
+            causation_id: r.get("causation_id"),
             payload: r.get("payload"),
             metadata: r.get("metadata"),
         })
         .collect())
+}
+
+#[derive(Debug, Default)]
+pub struct DecodedEventBatch {
+    pub events: Vec<(i64, KnownEvent)>,
+    pub invalid_event_ids: Vec<i64>,
+}
+
+pub async fn poll_and_decode_stream(
+    pool: &PgPool,
+    service_name: &str,
+    consumer_name: &str,
+    stream_name: &str,
+    after_id: i64,
+    batch_size: i64,
+    policy: InvalidEventPolicy,
+) -> Result<DecodedEventBatch> {
+    let rows = poll_stream(pool, stream_name, after_id, batch_size).await?;
+    let mut decoded = DecodedEventBatch::default();
+
+    for row in rows {
+        match decode_event_row(&row, policy) {
+            Ok(event) => decoded.events.push((row.id, event)),
+            Err(err) => {
+                let err_msg = format!("{} (event_id={})", err, row.id);
+                set_error(pool, service_name, consumer_name, stream_name, &err_msg).await?;
+                decoded.invalid_event_ids.push(row.id);
+
+                match err.action {
+                    super::schema_types::InvalidEventAction::Halt => {
+                        return Err(anyhow::anyhow!(err_msg));
+                    }
+                    super::schema_types::InvalidEventAction::Skip => {}
+                    super::schema_types::InvalidEventAction::Quarantine => {
+                        quarantine_invalid_event(
+                            pool,
+                            service_name,
+                            consumer_name,
+                            stream_name,
+                            &row,
+                            err.code.as_str(),
+                            &err.message,
+                        )
+                        .await?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(decoded)
 }
 
 pub async fn poll_audit_stream(
@@ -186,6 +247,52 @@ pub async fn compute_stream_lag(
     let lag = (max_id - last_event_id).max(0);
     metrics::set_event_consumer_lag(stream_name, lag);
     Ok(lag)
+}
+
+pub async fn quarantine_invalid_event(
+    pool: &PgPool,
+    service_name: &str,
+    consumer_name: &str,
+    stream_name: &str,
+    row: &EventRow,
+    error_code: &str,
+    error_message: &str,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO app.event_consumer_quarantine (
+          service_name,
+          consumer_name,
+          stream_name,
+          event_id,
+          event_type,
+          event_version,
+          error_code,
+          error_message,
+          payload,
+          metadata
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        ON CONFLICT (service_name, consumer_name, stream_name, event_id, error_code)
+        DO UPDATE SET
+          error_message = EXCLUDED.error_message,
+          payload = EXCLUDED.payload,
+          metadata = EXCLUDED.metadata,
+          created_at = NOW()
+        "#,
+    )
+    .bind(service_name)
+    .bind(consumer_name)
+    .bind(stream_name)
+    .bind(row.id)
+    .bind(&row.event_type)
+    .bind(row.event_version)
+    .bind(error_code)
+    .bind(error_message)
+    .bind(&row.payload)
+    .bind(&row.metadata)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 #[cfg(test)]

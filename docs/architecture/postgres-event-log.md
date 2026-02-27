@@ -19,6 +19,7 @@ This document defines the Kafka-substitute event stream implemented in PostgreSQ
 - `stream_name` format: `{system}.{env}.{topic}`.
 - API writes persist event intent in `app.event_outbox` in the same transaction as canonical state.
 - `event-relay` is the only runtime role that publishes rows from `app.event_outbox` to `app.event_log`.
+- Event schema authority is code-based full-record validation (`events/schema.rs`) for both producers and consumers.
 - Checkpoints are durable per `(service_name, consumer_name, stream_name)`.
 - Canonical replay ordering is `ORDER BY id ASC` only.
 - `created_at` is metadata and must not drive replay order.
@@ -30,6 +31,7 @@ This document defines the Kafka-substitute event stream implemented in PostgreSQ
 - `causation_id` is required for outbox intents:
   - request events use request `idempotency_key`
   - non-request events use a stable emission id (for example job run id)
+- `idempotency_key` is envelope-owned and must not be duplicated in payload schema.
 - Event insert dedupe index:
   - `UNIQUE (publish_key)` on `app.event_log`.
 - Idempotent retries must not emit duplicate event rows.
@@ -44,7 +46,15 @@ This document defines the Kafka-substitute event stream implemented in PostgreSQ
   - increment `attempt_count`
   - set `last_error`
   - set `next_attempt_at` with capped exponential backoff
-  - mark `blocked` when attempts exceed threshold
+  - mark `blocked` when attempts exceed threshold or schema validation fails
+  - set `blocked_at` on blocked rows for triage visibility
+
+## Consumer Invalid-Event Policy
+- Consumers decode events via registry and apply per-consumer invalid policy:
+  - `Halt` (default): set checkpoint error and stop.
+  - `Skip`: set checkpoint error and continue without decoding row.
+  - `Quarantine`: persist invalid row+reason and continue.
+- Production default remains `Halt` for correctness-sensitive consumers.
 
 ## Retention and Archive Lifecycle
 - Canonical archive sink: object storage JSONL.

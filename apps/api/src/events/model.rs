@@ -23,7 +23,10 @@ pub struct EventRecord {
 pub struct EventRow {
     pub id: i64,
     pub occurred_at: String,
+    pub publish_key: String,
     pub stream_name: String,
+    pub env_name: String,
+    pub topic_name: String,
     pub event_type: String,
     pub event_version: i32,
     pub aggregate_type: String,
@@ -31,6 +34,7 @@ pub struct EventRow {
     pub producer_service: String,
     pub idempotency_key: Option<String>,
     pub correlation_id: Option<String>,
+    pub causation_id: String,
     pub payload: Value,
     pub metadata: Value,
 }

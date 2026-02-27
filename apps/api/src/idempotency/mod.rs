@@ -218,7 +218,7 @@ pub fn ensure_header(value: Option<&str>, name: &str) -> Result<String> {
     Ok(trimmed.to_string())
 }
 
-fn validate_idempotency_key(value: &str) -> Result<()> {
+pub fn validate_idempotency_key(value: &str) -> Result<()> {
     if value.len() > 128 {
         return Err(anyhow!(
             "header idempotency-key must be at most 128 characters"

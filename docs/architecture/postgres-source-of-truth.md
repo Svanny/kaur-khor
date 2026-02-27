@@ -110,6 +110,7 @@ No runtime role may hold schema-altering privileges.
 - Current transport for streaming needs is `app.event_log` in PostgreSQL.
 - Event intents are appended to `app.event_outbox` in the same transaction as canonical writes/idempotency completion.
 - `event-relay` publishes from `app.event_outbox` into `app.event_log` asynchronously with idempotent `publish_key` dedupe.
+- Event vocabulary/schema is code-authoritative and validates full record (envelope + payload) before enqueue/publish.
 - Consumers poll by `id` cursor and persist progress in `app.event_consumer_checkpoint`.
 - Replay ordering contract is `ORDER BY id ASC` only.
 - Exactly one active consumer instance is allowed per `(service_name, consumer_name, stream_name)` tuple in this phase.

@@ -21,7 +21,6 @@ use axum::{
 };
 use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient};
 use config::AppConfig;
-use events::model::EventRecord;
 use idempotency::{IdempotencyResult, PersistedResponse};
 use items::types::{CreateItemRequest, ItemRecord};
 use logging::redaction::redact_message;
@@ -389,29 +388,30 @@ async fn create_item(
                 &headers,
                 &opentelemetry::Context::current(),
             );
-            let event_payload = serde_json::json!({
-                "owner_sub": caller_sub,
-                "item_id": body.item_id,
-                "sku": body.sku,
-                "name": name,
-                "quantity": body.quantity,
-                "idempotency_key": idempotency_key
-            });
-            let event = EventRecord::new(
+            let event = match events::schema::build_inventory_item_created_v1(
                 stream_name,
-                "inventory.item.created".to_string(),
-                1,
-                "item".to_string(),
-                body.item_id.clone(),
                 state.config.service.clone(),
-                Some(idempotency_key.clone()),
-                Some(correlation_id.clone()),
+                caller_sub.clone(),
+                body.item_id.clone(),
+                body.sku.clone(),
+                name.clone(),
+                body.quantity,
                 idempotency_key.clone(),
-                event_payload,
+                Some(correlation_id.clone()),
                 serde_json::json!({
                     "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
                 }),
-            );
+            ) {
+                Ok(event) => event,
+                Err(err) => {
+                    let _ = tx.rollback().await;
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error_code": err.code.as_str(), "error": err.to_string()})),
+                    )
+                        .into_response();
+                }
+            };
             if let Err(err) = events::outbox::enqueue_tx(&mut tx, &event).await {
                 let _ = tx.rollback().await;
                 return (
@@ -689,7 +689,6 @@ async fn write_demo(
                 "operation": body.operation,
                 "payload": body.payload,
                 "caller_id": caller_id,
-                "idempotency_key": idempotency_key,
                 "result": response_body,
             });
 
@@ -711,21 +710,30 @@ async fn write_demo(
                 &opentelemetry::Context::current(),
             );
 
-            let event = EventRecord::new(
+            let event = match events::schema::build_inventory_write_demo_completed_v1(
                 stream_name,
-                "inventory.write-demo.completed".to_string(),
-                1,
-                "write-demo".to_string(),
-                caller_id.clone(),
                 state.config.service.clone(),
-                Some(idempotency_key.clone()),
-                Some(correlation_id.clone()),
+                caller_id.clone(),
+                body.operation.clone(),
+                body.payload.clone(),
+                response_body.clone(),
                 idempotency_key.clone(),
-                event_payload,
+                Some(correlation_id.clone()),
                 serde_json::json!({
                     "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
                 }),
-            );
+            ) {
+                Ok(event) => event,
+                Err(err) => {
+                    let _ = tx.rollback().await;
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(
+                            serde_json::json!({"error_code": err.code.as_str(), "error": err.to_string()}),
+                        ),
+                    );
+                }
+            };
 
             if let Err(err) = events::outbox::enqueue_tx(&mut tx, &event).await {
                 let _ = tx.rollback().await;

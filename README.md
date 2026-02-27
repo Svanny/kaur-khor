@@ -180,5 +180,6 @@ This repository is an actively evolving prototype.
 - Observability baseline uses OpenTelemetry semantic-convention HTTP metrics, correlation IDs, and a collector-forwarded traces/metrics path.
 - Postgres restore drill routine is defined via `.github/workflows/postgres-restore-drill.yml.disabled` and `docs/operations/postgres-restore-drill.md`.
 - Postgres event-log lifecycle (retention/archive/replay) is defined via `docs/architecture/postgres-event-log.md` and `docs/operations/postgres-event-log-maintenance.md`.
+- Event vocabulary and schema discipline is defined via `docs/architecture/event-vocabulary-schema-discipline.md`.
 - Edge protection baseline (Cloudflare front door + app-layer guardrails) is defined via `docs/architecture/edge-protections.md` and `docs/operations/edge-operations-runbook.md`.
 - Some integration paths remain intentionally staged while contracts and operational tooling are finalized.

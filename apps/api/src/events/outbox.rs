@@ -1,5 +1,6 @@
 use super::model::EventRecord;
 use super::publisher::validate_event_payload_contract;
+use super::schema::validate_event_record;
 use anyhow::{anyhow, Result};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use std::time::Duration;
@@ -46,6 +47,7 @@ impl EventOutboxRow {
 }
 
 pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, event: &EventRecord) -> Result<i64> {
+    validate_event_record(event).map_err(anyhow::Error::new)?;
     validate_event_payload_contract(&event.payload, &event.metadata)?;
 
     let inserted_or_matched = sqlx::query(
@@ -199,6 +201,7 @@ pub async fn mark_published_tx(
           status = 'published',
           event_log_id = $2,
           published_at = NOW(),
+          blocked_at = NULL,
           last_error = NULL,
           updated_at = NOW()
         WHERE id = $1
@@ -217,9 +220,10 @@ pub async fn mark_failed_or_blocked_tx(
     error: &str,
     block_after_attempts: i32,
     retry_delay: Duration,
+    force_block: bool,
 ) -> Result<bool> {
     let next_attempt = row.attempt_count.saturating_add(1);
-    let is_blocked = next_attempt >= block_after_attempts;
+    let is_blocked = force_block || next_attempt >= block_after_attempts;
 
     let delay_ms = retry_delay.as_millis() as i64;
     sqlx::query(
@@ -228,6 +232,7 @@ pub async fn mark_failed_or_blocked_tx(
         SET
           status = CASE WHEN $3 THEN 'blocked' ELSE 'pending' END,
           attempt_count = $2,
+          blocked_at = CASE WHEN $3 THEN NOW() ELSE NULL END,
           next_attempt_at = CASE
             WHEN $3 THEN NOW()
             ELSE NOW() + ($4::bigint * INTERVAL '1 millisecond')

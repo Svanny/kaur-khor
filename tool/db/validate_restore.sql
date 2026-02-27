@@ -54,6 +54,22 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM information_schema.tables
+    WHERE table_schema = 'app' AND table_name = 'event_outbox'
+  ) THEN
+    RAISE EXCEPTION 'missing required table app.event_outbox';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'app' AND table_name = 'event_consumer_quarantine'
+  ) THEN
+    RAISE EXCEPTION 'missing required table app.event_consumer_quarantine';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.tables
     WHERE table_schema = 'app' AND table_name = 'job_outbox'
   ) THEN
     RAISE EXCEPTION 'missing required table app.job_outbox';
@@ -67,11 +83,15 @@ DECLARE
   required_indexes TEXT[] := ARRAY[
     'idx_idempotency_status_created',
     'idx_idempotency_caller_created',
-    'uq_event_log_producer_idempotency',
+    'uq_event_log_publish_key',
     'idx_event_log_stream_id',
     'idx_event_log_topic_id',
     'idx_event_log_created_at_brin',
     'idx_event_log_created_at_id',
+    'idx_event_outbox_status_next_id',
+    'idx_event_outbox_stream_id',
+    'idx_event_outbox_published_at',
+    'idx_event_consumer_quarantine_stream_event',
     'idx_job_outbox_status_created',
     'idx_job_outbox_workload_status',
     'idx_job_outbox_correlation_id'
@@ -177,4 +197,6 @@ SELECT
   (SELECT COUNT(*) FROM app.idempotency_request) AS idempotency_rows,
   (SELECT COUNT(*) FROM app.event_log) AS event_rows,
   (SELECT COUNT(*) FROM app.event_consumer_checkpoint) AS checkpoint_rows,
+  (SELECT COUNT(*) FROM app.event_outbox) AS event_outbox_rows,
+  (SELECT COUNT(*) FROM app.event_consumer_quarantine) AS event_quarantine_rows,
   (SELECT COUNT(*) FROM app.job_outbox) AS job_outbox_rows;

@@ -1,4 +1,4 @@
-use super::{outbox, publisher};
+use super::{outbox, publisher, schema::SchemaError};
 use crate::{config::AppConfig, observability::metrics};
 use anyhow::Result;
 use sqlx::PgPool;
@@ -31,6 +31,7 @@ pub async fn relay_once(pool: &PgPool, cfg: &AppConfig) -> Result<RelayStats> {
                 stats.published += 1;
             }
             Err(err) => {
+                let is_schema_error = err.downcast_ref::<SchemaError>().is_some();
                 let retry_delay = compute_retry_delay(
                     row.attempt_count,
                     cfg.event_relay_retry_backoff,
@@ -42,6 +43,7 @@ pub async fn relay_once(pool: &PgPool, cfg: &AppConfig) -> Result<RelayStats> {
                     &err.to_string(),
                     cfg.event_relay_block_after_attempts as i32,
                     retry_delay,
+                    is_schema_error,
                 )
                 .await?;
                 if blocked {

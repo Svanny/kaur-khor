@@ -7,6 +7,7 @@ Also operate `app.event_outbox` relay and retention.
 ## Contracts
 - Event intents are written to `app.event_outbox` in the same transaction as canonical writes.
 - `APP_ROLE=event-relay` is the only role that publishes to `app.event_log`.
+- Relay validates full event schema (envelope + payload) before publish.
 - Hot replay horizon: `EVENT_LOG_RETENTION_DAYS` (default 30 days).
 - Cold replay horizon: archive JSONL rehydrated into restore DB.
 - Boundary authority: event id watermark (`eligible_max_id`).
@@ -44,7 +45,13 @@ cargo run --bin banji-api
 
 Relay guarantees:
 - pending outbox rows are published idempotently to `app.event_log`
-- failures back off and eventually move to `blocked` when attempt threshold is reached
+- schema poison rows move directly to `blocked` with `blocked_at` and structured `last_error`
+- non-schema failures back off and eventually move to `blocked` when attempt threshold is reached
+
+Consumer invalid-event policy:
+- default `Halt`: checkpoint error is set and loop stops
+- optional `Skip`: error recorded and processing continues
+- optional `Quarantine`: invalid event row + reason stored in `app.event_consumer_quarantine`
 
 ## Event Outbox Cleanup
 

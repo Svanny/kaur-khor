@@ -1,9 +1,11 @@
 use super::model::EventRecord;
+use super::schema::validate_event_record;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 use sqlx::{Postgres, Row, Transaction};
 
 pub async fn publish_in_tx(tx: &mut Transaction<'_, Postgres>, event: &EventRecord) -> Result<i64> {
+    validate_event_record(event).map_err(anyhow::Error::new)?;
     validate_event_payload_contract(&event.payload, &event.metadata)?;
 
     let inserted = sqlx::query(

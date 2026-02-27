@@ -68,7 +68,13 @@ async fn event_outbox_rejects_payload_drift_for_same_publish_key() {
         Some(causation_id.clone()),
         Some("corr-1".to_string()),
         causation_id.clone(),
-        serde_json::json!({"value":"a"}),
+        serde_json::json!({
+            "owner_sub":"user-a",
+            "item_id":"item-1",
+            "sku":"SKU-1",
+            "name":"Name",
+            "quantity":1
+        }),
         serde_json::json!({"m":"1"}),
     );
 
@@ -83,7 +89,13 @@ async fn event_outbox_rejects_payload_drift_for_same_publish_key() {
     tx.commit().await.unwrap();
 
     let drifted = EventRecord {
-        payload: serde_json::json!({"value":"b"}),
+        payload: serde_json::json!({
+            "owner_sub":"user-a",
+            "item_id":"item-1",
+            "sku":"SKU-1",
+            "name":"Name",
+            "quantity":2
+        }),
         ..event.clone()
     };
 
