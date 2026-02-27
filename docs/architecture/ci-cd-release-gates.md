@@ -115,6 +115,8 @@ For each deployable Railway service:
 - Origin guard must accept current and next auth secret during rotation.
 - Forwarded client IP trust (`CF-Connecting-IP`) is valid only when origin guard passed.
 - Rate-limiter key must use matched route template, never raw path/query.
+- Shared API rate limiting uses Redis in normal operation and may degrade to per-instance fallback during Redis incidents when failover is enabled.
+- `/v1/*` routes require `x-banji-device-id` except `OPTIONS`; this is an app-install identifier, not a hardware fingerprint.
 
 ## Redis Correctness Contract
 - Redis outages must not block correctness or write completion.
@@ -151,6 +153,7 @@ For each deployable Railway service:
   - `APP_ROLE=worker` requires `DATABASE_RUNTIME_URL`, `RABBIT_URL`, and object-storage config/secrets
   - `JOB_RESULT_KAFKA_ENABLED=true` must fail startup until a future Kafka publisher milestone exists
 - Replay queue consumers must use `RABBIT_REPLAY_PREFETCH_FAST` / `RABBIT_REPLAY_PREFETCH_HEAVY`, not the primary queue prefetch values.
+- API backpressure must reject new async-producing writes with `503` + `Retry-After` before opening DB transactions when sampled outbox/run pressure breaches thresholds.
 
 ## Object Storage Artifact Contract
 - Worker artifact storage is S3-compatible and metadata-only from Postgres.

@@ -10,9 +10,9 @@ This contract defines ingress hardening for `staging` and `prod`.
 Middleware execution order is strict:
 1. origin guard
 2. request-size limit
-3. rate limit
-4. CORS
-5. observability
+3. CORS
+4. observability
+5. route-specific auth / identity / backpressure / rate limit
 6. handlers
 
 ## Origin Guard Contract
@@ -37,16 +37,41 @@ Middleware execution order is strict:
 - If a path cannot enforce cap safely, request must be rejected.
 
 ## Rate Limiter Contract
-- Key: `{client_ip}:{method}:{matched_route}`.
-- Route key uses templated route (`MatchedPath`), never raw path/query.
+- Public route key: `{prefix}:{env}:ip:{client_ip}:public-read:{window_start}`.
+- Application route keys:
+  - user bucket: `{prefix}:{env}:user:{user_id}:{read|write}:{window_start}`
+  - device bucket: `{prefix}:{env}:device:{user_id}:{device_id}:{read|write}:{window_start}`
+- Application routes use shared read/write buckets, not per-route buckets.
 - Controls:
   - `EDGE_RATE_LIMIT_WINDOW_SECONDS`
   - `EDGE_RATE_LIMIT_READ_MAX`
-  - `EDGE_RATE_LIMIT_WRITE_MAX`
-  - `EDGE_RATE_LIMIT_MAX_KEYS`
+  - `EDGE_RATE_LIMIT_USER_READ_MAX`
+  - `EDGE_RATE_LIMIT_USER_WRITE_MAX`
+  - `EDGE_RATE_LIMIT_DEVICE_READ_MAX`
+  - `EDGE_RATE_LIMIT_DEVICE_WRITE_MAX`
+  - `EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS`
   - `EDGE_RATE_LIMIT_KEY_TTL_SECONDS`
+  - `EDGE_RATE_LIMIT_REDIS_PREFIX`
+  - `EDGE_RATE_LIMIT_FAILOVER_ENABLED`
 - `OPTIONS` preflight is not write-throttled.
-- Key map is bounded and evicts oldest idle entries at cap.
+- Primary enforcement is Redis-backed and shared across API instances.
+- If Redis is unavailable and failover is enabled, limiter degrades to per-instance in-memory enforcement.
+
+## Device Identity Contract
+- `x-banji-device-id` is required on `/v1/*` requests except `OPTIONS`.
+- It identifies an app installation, not a hardware device.
+- Recommended client generation: UUIDv4 stored in secure storage and rotated on logout or reinstall.
+- The server uses it only as a rate-limit dimension; it is never authentication.
+
+## Backpressure Contract
+- Async-producing write routes (`POST /v1/items`, `POST /v1/write-demo`) are rejected with `503` + `Retry-After` when sampled dependency pressure is unhealthy.
+- Pressure signals:
+  - Rabbit publish pressure via `app.job_outbox` pending count / oldest age
+  - worker completion pressure via `app.job_run` queued or retrying count / oldest age
+  - Kafka result pressure via `app.job_result` only when `JOB_RESULT_KAFKA_ENABLED=true`
+- Hysteresis:
+  - `EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY`
+  - `EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY`
 
 ## CORS Contract
 - Explicit allowlist only: `EDGE_CORS_ALLOWED_ORIGINS`.

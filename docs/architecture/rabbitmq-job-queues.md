@@ -136,3 +136,9 @@ Track per class:
 - worker run totals/duration by `job_type` and `workload_class`
 - duplicate-detected and lease-steal counts
 - last-error totals by bounded `error_reason`
+
+## API Backpressure Integration
+- API write backpressure does not poll RabbitMQ on the request path.
+- The API samples Postgres-observable publish health from `app.job_outbox` and completion health from `app.job_run`.
+- High `job_outbox` pending/age indicates publish-to-Rabbit degradation.
+- High `job_run` queued/retrying pending/age indicates workers are not draining work quickly enough.
