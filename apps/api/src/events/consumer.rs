@@ -452,8 +452,16 @@ mod tests {
 
     #[test]
     fn advisory_lock_key_is_stable() {
-        let a = derive_lock_key("projection-consumer", "inventory-projector", "banji-core.dev.inventory-updated");
-        let b = derive_lock_key("projection-consumer", "inventory-projector", "banji-core.dev.inventory-updated");
+        let a = derive_lock_key(
+            "projection-consumer",
+            "inventory-projector",
+            "banji-core.dev.inventory-updated",
+        );
+        let b = derive_lock_key(
+            "projection-consumer",
+            "inventory-projector",
+            "banji-core.dev.inventory-updated",
+        );
         assert_eq!(a, b);
     }
 }

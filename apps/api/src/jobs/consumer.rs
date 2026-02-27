@@ -8,7 +8,6 @@ use anyhow::Result;
 pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
     publisher: &P,
     cfg: &AppConfig,
-    class_queue_prefix: &str,
     exchange: &str,
     mut envelope: JobEnvelope,
     handler_error: &str,
@@ -23,7 +22,7 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
     let classification = classify_error(handler_error);
     let decision = next_destination(
         cfg,
-        class_queue_prefix,
+        &envelope.workload_class,
         envelope.attempt,
         classification.class,
     );
@@ -53,7 +52,12 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
 
     // Critical safety contract: confirm publish before original ack.
     publisher
-        .publish_with_confirm(exchange, &decision.destination_queue, &envelope, &headers)
+        .publish_with_confirm(
+            exchange,
+            &decision.destination_routing_key,
+            &envelope,
+            &headers,
+        )
         .await?;
 
     if decision.dead_letter {
@@ -61,7 +65,7 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
     } else {
         metrics::record_job_retry(
             envelope.workload_class.as_str(),
-            envelope.attempt.saturating_sub(1).min(3),
+            decision.retry_tier.unwrap_or_default(),
         );
     }
 
@@ -69,7 +73,7 @@ pub async fn republish_with_confirm_before_ack<P: ConfirmingPublisher>(
         error_class: classification.class,
         error_reason: classification.reason,
         dead_lettered: decision.dead_letter,
-        destination: decision.destination_queue,
+        destination: decision.destination_routing_key,
         next_attempt: envelope.attempt,
     })
 }

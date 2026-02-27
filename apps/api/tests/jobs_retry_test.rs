@@ -2,7 +2,7 @@ use banji_api::{
     config::{AppConfig, EdgeProvider},
     jobs::{
         retry::{classify_error, next_destination},
-        types::{ErrorClass, ErrorReasonCode},
+        types::{ErrorClass, ErrorReasonCode, WorkloadClass},
     },
 };
 use std::time::Duration;
@@ -47,6 +47,8 @@ fn test_cfg() -> AppConfig {
         rabbit_retry_3_ttl_ms: 1_800_000,
         rabbit_prefetch_fast: 20,
         rabbit_prefetch_heavy: 2,
+        rabbit_replay_prefetch_fast: 5,
+        rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
         redis_url: None,
         database_runtime_url: None,
@@ -80,25 +82,25 @@ fn test_cfg() -> AppConfig {
 #[test]
 fn permanent_errors_go_to_dlq_immediately() {
     let cfg = test_cfg();
-    let d = next_destination(&cfg, "banji-core.test.fast-jobs", 1, ErrorClass::Permanent);
+    let d = next_destination(&cfg, &WorkloadClass::Fast, 1, ErrorClass::Permanent);
     assert!(d.dead_letter);
-    assert_eq!(d.destination_queue, "banji-core.test.fast-jobs.dlq");
+    assert_eq!(d.destination_routing_key, "job.fast.dlq");
 }
 
 #[test]
 fn transient_errors_follow_retry_ladder() {
     let cfg = test_cfg();
-    let d1 = next_destination(&cfg, "banji-core.test.fast-jobs", 1, ErrorClass::Transient);
-    assert_eq!(d1.destination_queue, "banji-core.test.fast-jobs.retry.1");
+    let d1 = next_destination(&cfg, &WorkloadClass::Fast, 1, ErrorClass::Transient);
+    assert_eq!(d1.destination_routing_key, "job.fast.retry.1");
     assert_eq!(d1.next_attempt, 2);
 
-    let d2 = next_destination(&cfg, "banji-core.test.fast-jobs", 2, ErrorClass::Transient);
-    assert_eq!(d2.destination_queue, "banji-core.test.fast-jobs.retry.2");
+    let d2 = next_destination(&cfg, &WorkloadClass::Fast, 2, ErrorClass::Transient);
+    assert_eq!(d2.destination_routing_key, "job.fast.retry.2");
 
-    let d3 = next_destination(&cfg, "banji-core.test.fast-jobs", 3, ErrorClass::Transient);
-    assert_eq!(d3.destination_queue, "banji-core.test.fast-jobs.retry.3");
+    let d3 = next_destination(&cfg, &WorkloadClass::Fast, 3, ErrorClass::Transient);
+    assert_eq!(d3.destination_routing_key, "job.fast.retry.3");
 
-    let d4 = next_destination(&cfg, "banji-core.test.fast-jobs", 4, ErrorClass::Transient);
+    let d4 = next_destination(&cfg, &WorkloadClass::Fast, 4, ErrorClass::Transient);
     assert!(d4.dead_letter);
 }
 
@@ -125,16 +127,12 @@ fn transient_retry_never_treadmills_past_dlq_ceiling() {
 
     loop {
         safety_counter += 1;
-        let decision = next_destination(
-            &cfg,
-            "banji-core.test.heavy-jobs",
-            attempt,
-            ErrorClass::Transient,
-        );
+        let decision =
+            next_destination(&cfg, &WorkloadClass::Heavy, attempt, ErrorClass::Transient);
         attempt = decision.next_attempt;
 
         if decision.dead_letter {
-            assert_eq!(decision.destination_queue, "banji-core.test.heavy-jobs.dlq");
+            assert_eq!(decision.destination_routing_key, "job.heavy.dlq");
             assert_eq!(attempt, cfg.rabbit_max_attempts);
             break;
         }

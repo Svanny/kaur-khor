@@ -10,8 +10,13 @@ async fn seed_inventory_event(pool: &sqlx::PgPool, suffix: &str) -> i64 {
     let owner_sub = format!("projection-user-{suffix}");
     let item_id = format!("item-{suffix}");
     let causation_id = format!("projection-causation-{suffix}");
-    let publish_key =
-        derive_publish_key("api", "inventory.item.created", "item", &item_id, &causation_id);
+    let publish_key = derive_publish_key(
+        "api",
+        "inventory.item.created",
+        "item",
+        &item_id,
+        &causation_id,
+    );
 
     sqlx::query("DELETE FROM app.event_log WHERE publish_key = $1")
         .bind(&publish_key)

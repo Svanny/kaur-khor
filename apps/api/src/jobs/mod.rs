@@ -1,6 +1,14 @@
 pub mod consumer;
+pub mod handlers;
+pub mod key;
 pub mod outbox;
 pub mod publisher;
 pub mod relay;
+pub mod repository;
+pub mod result_publisher;
 pub mod retry;
+pub mod schema;
+pub mod schema_types;
+pub mod service;
 pub mod types;
+pub mod worker;

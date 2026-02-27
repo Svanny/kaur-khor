@@ -8,6 +8,8 @@ anyhow = "1.0"
 axum = { version = "0.7", features = ["json"] }
 async-trait = "0.1"
 base64 = "0.22"
+futures-util = "0.3"
+lapin = "2.5"
 rand = "0.8"
 redis = { version = "0.27", features = ["tokio-rustls-comp"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

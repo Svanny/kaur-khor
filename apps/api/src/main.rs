@@ -22,6 +22,7 @@ async fn run() -> anyhow::Result<()> {
         banji_api::config::AppRole::Api => run_api(config).await,
         banji_api::config::AppRole::EventRelay => run_event_relay(config).await,
         banji_api::config::AppRole::ProjectionConsumer => run_projection_consumer(config).await,
+        banji_api::config::AppRole::Worker => run_worker(config).await,
     }
 }
 
@@ -127,6 +128,28 @@ async fn run_projection_consumer(config: banji_api::config::AppConfig) -> anyhow
     };
 
     lock.release().await?;
+    pool.close().await;
+    result
+}
+
+async fn run_worker(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
+    let pool = banji_api::db::pool::build_runtime_pool(&config)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("DATABASE_RUNTIME_URL is required for APP_ROLE=worker"))?;
+
+    banji_api::db::pool::warmup_runtime_pool(&pool).await?;
+    let worker_cfg = config.worker_config()?;
+    tracing::info!(
+        role = %config.app_role.as_str(),
+        worker_id = %worker_cfg.worker_id,
+        enabled_classes = ?worker_cfg.enabled_classes.iter().map(|class| class.as_str()).collect::<Vec<_>>(),
+        poll_interval_ms = worker_cfg.poll_interval.as_millis(),
+        consume_replay_queues = worker_cfg.consume_replay_queues,
+        "starting worker runtime"
+    );
+
+    let result =
+        banji_api::jobs::worker::run_worker_loop(pool.clone(), config, shutdown_signal()).await;
     pool.close().await;
     result
 }
@@ -257,7 +280,8 @@ async fn run_inventory_projection_replay(
     }
 
     loop {
-        let iteration = apply_inventory_projection_iteration(pool, cfg, after_id, cfg.replay_to_id).await?;
+        let iteration =
+            apply_inventory_projection_iteration(pool, cfg, after_id, cfg.replay_to_id).await?;
         let Some(next_after_id) = iteration.advanced_to else {
             break;
         };

@@ -6,6 +6,7 @@ use banji_api::{
         outbox,
         publisher::ConfirmingPublisher,
         relay::relay_once,
+        schema::build_write_demo_job_v1,
         types::{JobEnvelope, WorkloadClass},
     },
 };
@@ -66,6 +67,8 @@ fn test_cfg(db_url: String) -> AppConfig {
         rabbit_retry_3_ttl_ms: 1_800_000,
         rabbit_prefetch_fast: 20,
         rabbit_prefetch_heavy: 2,
+        rabbit_replay_prefetch_fast: 5,
+        rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
         redis_url: None,
         database_runtime_url: Some(db_url),
@@ -106,25 +109,31 @@ async fn relay_publish_failures_are_requeued_as_pending() {
     let pool = sqlx::PgPool::connect(&db_url).await.unwrap();
     sqlx::migrate!("./migrations").run(&pool).await.unwrap();
 
-    let enqueue_key = "relay-requeue-test-key";
+    let enqueue_key = banji_api::jobs::key::derive_job_key(
+        "api",
+        "write-demo",
+        "write-demo",
+        "caller-relay:relay-requeue",
+        "idem-relay-requeue",
+    );
     sqlx::query("DELETE FROM app.job_outbox WHERE enqueue_key = $1")
-        .bind(enqueue_key)
+        .bind(&enqueue_key)
         .execute(&pool)
         .await
         .unwrap();
 
     let mut tx = pool.begin().await.unwrap();
-    let row_id = outbox::enqueue_tx(
-        &mut tx,
-        enqueue_key,
-        "write-demo",
-        WorkloadClass::Fast,
-        "job.fast.write-demo",
-        "corr-relay-requeue-test",
-        &serde_json::json!({"demo":true}),
+    let job = build_write_demo_job_v1(
+        "api".to_string(),
+        "relay-requeue".to_string(),
+        "caller-relay".to_string(),
+        "idem-relay-requeue".to_string(),
+        "corr-relay-requeue-test".to_string(),
+        4,
     )
-    .await
     .unwrap();
+    assert_eq!(job.job_key, enqueue_key);
+    let row_id = outbox::enqueue_tx(&mut tx, &job).await.unwrap();
     tx.commit().await.unwrap();
 
     let cfg = test_cfg(db_url);

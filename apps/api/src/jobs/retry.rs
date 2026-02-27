@@ -3,9 +3,11 @@ use crate::config::AppConfig;
 
 #[derive(Debug, Clone)]
 pub struct RetryDecision {
-    pub destination_queue: String,
+    pub destination_routing_key: String,
     pub next_attempt: u8,
     pub dead_letter: bool,
+    pub retry_tier: Option<u8>,
+    pub estimated_delay_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +70,13 @@ pub fn classify_error(error_message: &str) -> ErrorClassification {
         };
     }
 
+    if lower.contains("missing job run") {
+        return ErrorClassification {
+            class: ErrorClass::Permanent,
+            reason: ErrorReasonCode::MissingJobRun,
+        };
+    }
+
     ErrorClassification {
         class: ErrorClass::Transient,
         reason: ErrorReasonCode::UnknownTransient,
@@ -76,22 +85,30 @@ pub fn classify_error(error_message: &str) -> ErrorClassification {
 
 pub fn next_destination(
     cfg: &AppConfig,
-    class_queue_prefix: &str,
+    workload_class: &super::types::WorkloadClass,
     current_attempt: u8,
     error_class: ErrorClass,
 ) -> RetryDecision {
     if error_class == ErrorClass::Permanent || current_attempt >= cfg.rabbit_max_attempts {
         return RetryDecision {
-            destination_queue: format!("{}.dlq", class_queue_prefix),
+            destination_routing_key: workload_class.dlq_routing_key(),
             next_attempt: current_attempt,
             dead_letter: true,
+            retry_tier: None,
+            estimated_delay_ms: None,
         };
     }
 
     let tier = current_attempt.min(3);
     RetryDecision {
-        destination_queue: format!("{}.retry.{}", class_queue_prefix, tier),
+        destination_routing_key: workload_class.retry_routing_key(tier),
         next_attempt: current_attempt.saturating_add(1),
         dead_letter: false,
+        retry_tier: Some(tier),
+        estimated_delay_ms: Some(match tier {
+            1 => cfg.rabbit_retry_1_ttl_ms,
+            2 => cfg.rabbit_retry_2_ttl_ms,
+            _ => cfg.rabbit_retry_3_ttl_ms,
+        }),
     }
 }

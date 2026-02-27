@@ -44,6 +44,8 @@ fn test_cfg(db_url: String) -> AppConfig {
         rabbit_retry_3_ttl_ms: 1_800_000,
         rabbit_prefetch_fast: 20,
         rabbit_prefetch_heavy: 2,
+        rabbit_replay_prefetch_fast: 5,
+        rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
         redis_url: None,
         database_runtime_url: Some(db_url),

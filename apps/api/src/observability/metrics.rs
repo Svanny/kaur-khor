@@ -56,6 +56,48 @@ static JOBS_RUN_DURATION: Lazy<Histogram<f64>> = Lazy::new(|| {
         .init()
 });
 
+static JOBS_RUN_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.jobs.run.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static JOBS_RESULT_WRITE_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.jobs.result.write.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static JOBS_RESULT_PUBLISH_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.jobs.result.publish.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static JOBS_DUPLICATE_DETECTED_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.jobs.duplicate_detected.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static JOBS_LEASE_STEAL_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.jobs.lease_steal.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static JOBS_LAST_ERROR_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.jobs.run.last_error.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
 static EVENT_CONSUMER_ERRORS_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
     METER
         .u64_counter("banji.events.consumer.errors.total")
@@ -195,6 +237,61 @@ pub fn record_job_run_duration(workload_class: &str, job_type: &str, result: &st
             KeyValue::new("workload_class", workload_class.to_string()),
             KeyValue::new("job_type", job_type.to_string()),
             KeyValue::new("result", result.to_string()),
+        ],
+    );
+}
+
+pub fn record_job_run_total(workload_class: &str, job_type: &str, result: &str) {
+    JOBS_RUN_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("workload_class", workload_class.to_string()),
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("result", result.to_string()),
+        ],
+    );
+}
+
+pub fn record_job_result_write(job_type: &str, publish_status: &str) {
+    JOBS_RESULT_WRITE_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("publish_status", publish_status.to_string()),
+        ],
+    );
+}
+
+pub fn record_job_result_publish(job_type: &str, publish_status: &str) {
+    JOBS_RESULT_PUBLISH_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("publish_status", publish_status.to_string()),
+        ],
+    );
+}
+
+pub fn record_job_duplicate_detected(job_type: &str, reason: &str) {
+    JOBS_DUPLICATE_DETECTED_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("reason", reason.to_string()),
+        ],
+    );
+}
+
+pub fn record_job_lease_steal(job_type: &str) {
+    JOBS_LEASE_STEAL_TOTAL.add(1, &[KeyValue::new("job_type", job_type.to_string())]);
+}
+
+pub fn record_job_last_error(job_type: &str, error_reason: &str) {
+    JOBS_LAST_ERROR_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("error_reason", error_reason.to_string()),
         ],
     );
 }

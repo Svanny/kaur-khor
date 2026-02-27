@@ -33,7 +33,7 @@ pub async fn apply_inventory_item_created_tx(
           source_event_id = EXCLUDED.source_event_id,
           updated_at = NOW()
         WHERE EXCLUDED.source_event_id > app.inventory_item_projection.source_event_id
-        "#
+        "#,
     )
     .bind(&payload.owner_sub)
     .bind(&payload.item_id)

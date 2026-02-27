@@ -419,23 +419,14 @@ async fn create_item(
                     .into_response();
             }
 
-            let job_payload = serde_json::json!({
-                "owner_sub": caller_sub,
-                "item_id": body.item_id,
-                "idempotency_key": idempotency_key
-            });
-            let enqueue_key = format!(
-                "{}:{}:{}",
-                state.config.service, caller_sub, idempotency_key
-            );
-            if let Err(err) = jobs::outbox::enqueue_tx(
+            if let Err(err) = jobs::service::schedule_item_created_tx(
                 &mut tx,
-                &enqueue_key,
-                "item-created",
-                jobs::types::WorkloadClass::Fast,
-                "job.fast.item-created",
-                &correlation_id,
-                &job_payload,
+                state.config.service.clone(),
+                caller_sub.clone(),
+                body.item_id.clone(),
+                idempotency_key.clone(),
+                correlation_id.clone(),
+                state.config.rabbit_max_attempts,
             )
             .await
             {
@@ -740,20 +731,14 @@ async fn write_demo(
                 );
             }
 
-            let job_payload = serde_json::json!({
-                "operation": body.operation,
-                "caller_id": caller_id,
-                "idempotency_key": idempotency_key
-            });
-            let enqueue_key = format!("{}:{}:{}", state.config.service, caller_id, idempotency_key);
-            if let Err(err) = jobs::outbox::enqueue_tx(
+            if let Err(err) = jobs::service::schedule_write_demo_tx(
                 &mut tx,
-                &enqueue_key,
-                "write-demo",
-                jobs::types::WorkloadClass::Fast,
-                "job.fast.write-demo",
-                &correlation_id,
-                &job_payload,
+                state.config.service.clone(),
+                body.operation.clone(),
+                caller_id.clone(),
+                idempotency_key.clone(),
+                correlation_id.clone(),
+                state.config.rabbit_max_attempts,
             )
             .await
             {
@@ -879,6 +864,8 @@ mod tests {
             rabbit_retry_3_ttl_ms: 1_800_000,
             rabbit_prefetch_fast: 20,
             rabbit_prefetch_heavy: 2,
+            rabbit_replay_prefetch_fast: 5,
+            rabbit_replay_prefetch_heavy: 1,
             rabbit_max_attempts: 4,
             redis_url: None,
             database_runtime_url: None,

@@ -1,5 +1,5 @@
 use banji_api::config::{
-    AppConfig, AppRole, DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode,
+    AppConfig, AppRole, DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode, WorkerConfig,
 };
 use std::sync::{Mutex, OnceLock};
 
@@ -90,6 +90,8 @@ fn app_config_debug_redacts_secret_fields() {
         rabbit_retry_3_ttl_ms: 1_800_000,
         rabbit_prefetch_fast: 20,
         rabbit_prefetch_heavy: 2,
+        rabbit_replay_prefetch_fast: 5,
+        rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
         redis_url: Some("redis://:secret@redis.example:6379".to_string()),
         database_runtime_url: Some(db_url),
@@ -271,6 +273,7 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
     let old_run_mode = std::env::var("EVENT_CONSUMER_RUN_MODE").ok();
     let old_replay_from = std::env::var("EVENT_CONSUMER_REPLAY_FROM_ID").ok();
     let old_replay_to = std::env::var("EVENT_CONSUMER_REPLAY_TO_ID").ok();
+    let old_rabbit_url = std::env::var("RABBIT_URL").ok();
 
     std::env::set_var("BANJI_ENV", "staging");
     std::env::set_var("APP_ROLE", "event-relay");
@@ -302,6 +305,12 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
         projection_result.unwrap().app_role,
         AppRole::ProjectionConsumer
     );
+
+    std::env::set_var("APP_ROLE", "worker");
+    std::env::set_var("RABBIT_URL", "amqp://guest:guest@localhost:5672/%2f");
+    let worker_result = AppConfig::from_env();
+    assert!(worker_result.is_ok());
+    assert_eq!(worker_result.unwrap().app_role, AppRole::Worker);
 
     if let Some(v) = old_env {
         std::env::set_var("BANJI_ENV", v);
@@ -392,6 +401,119 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
         std::env::set_var("EVENT_CONSUMER_REPLAY_TO_ID", v);
     } else {
         std::env::remove_var("EVENT_CONSUMER_REPLAY_TO_ID");
+    }
+    if let Some(v) = old_rabbit_url {
+        std::env::set_var("RABBIT_URL", v);
+    } else {
+        std::env::remove_var("RABBIT_URL");
+    }
+}
+
+#[test]
+fn worker_requires_rabbit_url() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_role = std::env::var("APP_ROLE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_rabbit_url = std::env::var("RABBIT_URL").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "worker");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::remove_var("RABBIT_URL");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("APP_ROLE=worker requires RABBIT_URL"));
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_role {
+        std::env::set_var("APP_ROLE", v);
+    } else {
+        std::env::remove_var("APP_ROLE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_rabbit_url {
+        std::env::set_var("RABBIT_URL", v);
+    } else {
+        std::env::remove_var("RABBIT_URL");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+}
+
+#[test]
+fn worker_default_id_includes_host_identity_when_available() {
+    let _guard = lock_env();
+
+    let old_worker_id = std::env::var("WORKER_ID").ok();
+    let old_hostname = std::env::var("HOSTNAME").ok();
+    let old_replica = std::env::var("RAILWAY_REPLICA_ID").ok();
+
+    std::env::remove_var("WORKER_ID");
+    std::env::set_var("HOSTNAME", "worker-host-42");
+    std::env::remove_var("RAILWAY_REPLICA_ID");
+
+    let worker_cfg = WorkerConfig::from_env().unwrap();
+
+    assert!(worker_cfg.worker_id.starts_with("worker-worker-host-42-"));
+    assert!(worker_cfg.worker_id.len() > "worker-worker-host-42-".len());
+
+    if let Some(v) = old_worker_id {
+        std::env::set_var("WORKER_ID", v);
+    } else {
+        std::env::remove_var("WORKER_ID");
+    }
+    if let Some(v) = old_hostname {
+        std::env::set_var("HOSTNAME", v);
+    } else {
+        std::env::remove_var("HOSTNAME");
+    }
+    if let Some(v) = old_replica {
+        std::env::set_var("RAILWAY_REPLICA_ID", v);
+    } else {
+        std::env::remove_var("RAILWAY_REPLICA_ID");
     }
 }
 

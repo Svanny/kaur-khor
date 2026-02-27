@@ -9,7 +9,10 @@ async fn projection_consumer_lock_allows_only_one_active_holder() {
     };
 
     let service_name = "projection-consumer";
-    let consumer_name = format!("inventory-projector-{}", &uuid::Uuid::new_v4().to_string()[..8]);
+    let consumer_name = format!(
+        "inventory-projector-{}",
+        &uuid::Uuid::new_v4().to_string()[..8]
+    );
     let stream_name = "banji-core.test.inventory-updated";
 
     let first = acquire_consumer_lock(&db_url, service_name, &consumer_name, stream_name)

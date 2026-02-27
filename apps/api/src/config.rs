@@ -1,10 +1,11 @@
-use anyhow::{anyhow, Context, Result};
-use axum::http::header::HeaderName;
 use crate::events::schema_types::InvalidEventPolicy;
 use crate::events::streams;
+use crate::jobs::types::WorkloadClass;
+use anyhow::{anyhow, Context, Result};
+use axum::http::header::HeaderName;
 use std::env;
 use std::fmt;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DatabaseRuntimeEndpointKind {
@@ -84,6 +85,7 @@ pub enum AppRole {
     Api,
     EventRelay,
     ProjectionConsumer,
+    Worker,
 }
 
 impl AppRole {
@@ -92,8 +94,9 @@ impl AppRole {
             "api" => Ok(Self::Api),
             "event-relay" => Ok(Self::EventRelay),
             "projection-consumer" => Ok(Self::ProjectionConsumer),
+            "worker" => Ok(Self::Worker),
             _ => Err(anyhow!(
-                "APP_ROLE must be one of: api, event-relay, projection-consumer"
+                "APP_ROLE must be one of: api, event-relay, projection-consumer, worker"
             )),
         }
     }
@@ -103,6 +106,7 @@ impl AppRole {
             Self::Api => "api",
             Self::EventRelay => "event-relay",
             Self::ProjectionConsumer => "projection-consumer",
+            Self::Worker => "worker",
         }
     }
 }
@@ -150,6 +154,21 @@ pub struct ProjectionConsumerConfig {
     pub replay_truncate_projection: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkerConfig {
+    pub worker_id: String,
+    pub enabled_classes: Vec<WorkloadClass>,
+    pub poll_interval: Duration,
+    pub shutdown_grace: Duration,
+    pub attempt_lease: Duration,
+    pub attempt_heartbeat: Duration,
+    pub handler_max_runtime: Option<Duration>,
+    pub job_result_kafka_enabled: bool,
+    pub job_result_kafka_topic_prefix: Option<String>,
+    pub consume_replay_queues: bool,
+    pub job_relay_batch_size: i64,
+}
+
 #[derive(Clone)]
 pub struct AppConfig {
     pub app_role: AppRole,
@@ -190,6 +209,8 @@ pub struct AppConfig {
     pub rabbit_retry_3_ttl_ms: u64,
     pub rabbit_prefetch_fast: u16,
     pub rabbit_prefetch_heavy: u16,
+    pub rabbit_replay_prefetch_fast: u16,
+    pub rabbit_replay_prefetch_heavy: u16,
     pub rabbit_max_attempts: u8,
     pub redis_url: Option<String>,
     pub database_runtime_url: Option<String>,
@@ -279,6 +300,14 @@ impl fmt::Debug for AppConfig {
             .field("rabbit_retry_3_ttl_ms", &self.rabbit_retry_3_ttl_ms)
             .field("rabbit_prefetch_fast", &self.rabbit_prefetch_fast)
             .field("rabbit_prefetch_heavy", &self.rabbit_prefetch_heavy)
+            .field(
+                "rabbit_replay_prefetch_fast",
+                &self.rabbit_replay_prefetch_fast,
+            )
+            .field(
+                "rabbit_replay_prefetch_heavy",
+                &self.rabbit_replay_prefetch_heavy,
+            )
             .field("rabbit_max_attempts", &self.rabbit_max_attempts)
             .field("redis_url", &redacted(&self.redis_url))
             .field(
@@ -569,7 +598,13 @@ impl AppConfig {
         }
         let rabbit_prefetch_fast = parse_u16("RABBIT_PREFETCH_FAST", 20)?;
         let rabbit_prefetch_heavy = parse_u16("RABBIT_PREFETCH_HEAVY", 2)?;
-        if rabbit_prefetch_fast == 0 || rabbit_prefetch_heavy == 0 {
+        let rabbit_replay_prefetch_fast = parse_u16("RABBIT_REPLAY_PREFETCH_FAST", 5)?;
+        let rabbit_replay_prefetch_heavy = parse_u16("RABBIT_REPLAY_PREFETCH_HEAVY", 1)?;
+        if rabbit_prefetch_fast == 0
+            || rabbit_prefetch_heavy == 0
+            || rabbit_replay_prefetch_fast == 0
+            || rabbit_replay_prefetch_heavy == 0
+        {
             return Err(anyhow!("Rabbit prefetch values must all be greater than 0"));
         }
 
@@ -591,16 +626,25 @@ impl AppConfig {
                 ));
             }
         }
-        if matches!(app_role, AppRole::EventRelay | AppRole::ProjectionConsumer)
-            && database_runtime_url.is_none()
+        if matches!(
+            app_role,
+            AppRole::EventRelay | AppRole::ProjectionConsumer | AppRole::Worker
+        ) && database_runtime_url.is_none()
         {
             return Err(anyhow!(
-                "APP_ROLE=event-relay|projection-consumer requires DATABASE_RUNTIME_URL"
+                "APP_ROLE=event-relay|projection-consumer|worker requires DATABASE_RUNTIME_URL"
             ));
+        }
+
+        if app_role == AppRole::Worker && env::var("RABBIT_URL").ok().is_none() {
+            return Err(anyhow!("APP_ROLE=worker requires RABBIT_URL"));
         }
 
         if app_role == AppRole::ProjectionConsumer {
             let _ = ProjectionConsumerConfig::from_env(&system_name, &env_name)?;
+        }
+        if app_role == AppRole::Worker {
+            let _ = WorkerConfig::from_env()?;
         }
 
         Ok(Self {
@@ -659,6 +703,8 @@ impl AppConfig {
             rabbit_retry_3_ttl_ms: parse_u64("RABBIT_RETRY_3_TTL_MS", 1_800_000)?,
             rabbit_prefetch_fast,
             rabbit_prefetch_heavy,
+            rabbit_replay_prefetch_fast,
+            rabbit_replay_prefetch_heavy,
             rabbit_max_attempts: parse_u8("RABBIT_MAX_ATTEMPTS", 4)?,
             redis_url: optional_env("REDIS_URL"),
             database_runtime_url,
@@ -692,6 +738,10 @@ impl AppConfig {
     pub fn projection_consumer_config(&self) -> Result<ProjectionConsumerConfig> {
         ProjectionConsumerConfig::from_env(&self.system, &self.env)
     }
+
+    pub fn worker_config(&self) -> Result<WorkerConfig> {
+        WorkerConfig::from_env()
+    }
 }
 
 impl ProjectionConsumerConfig {
@@ -724,8 +774,7 @@ impl ProjectionConsumerConfig {
                     .with_context(|| "EVENT_CONSUMER_REPLAY_TO_ID must be an integer".to_string())
             })
             .transpose()?;
-        let replay_reset_checkpoint =
-            parse_bool("EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT", false)?;
+        let replay_reset_checkpoint = parse_bool("EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT", false)?;
         let replay_truncate_projection =
             parse_bool("EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION", false)?;
 
@@ -784,6 +833,128 @@ impl ProjectionConsumerConfig {
             replay_truncate_projection,
         })
     }
+}
+
+impl WorkerConfig {
+    pub fn from_env() -> Result<Self> {
+        let worker_id = env::var("WORKER_ID")
+            .unwrap_or_else(|_| default_worker_id())
+            .trim()
+            .to_string();
+        let enabled_classes_raw =
+            env::var("WORKER_ENABLED_CLASSES").unwrap_or_else(|_| "fast,heavy".to_string());
+        let enabled_classes = parse_csv_env_value(&enabled_classes_raw)
+            .into_iter()
+            .map(|value| {
+                WorkloadClass::parse(&value).ok_or_else(|| {
+                    anyhow!("WORKER_ENABLED_CLASSES contains invalid class '{value}'")
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let poll_interval = Duration::from_millis(parse_u64("WORKER_POLL_INTERVAL_MS", 250)?);
+        let shutdown_grace = Duration::from_secs(parse_u64("WORKER_SHUTDOWN_GRACE_SECONDS", 30)?);
+        let attempt_lease = Duration::from_secs(parse_u64("JOB_ATTEMPT_LEASE_SECONDS", 60)?);
+        let attempt_heartbeat =
+            Duration::from_secs(parse_u64("JOB_ATTEMPT_HEARTBEAT_SECONDS", 15)?);
+        let handler_max_runtime = optional_env("JOB_HANDLER_MAX_RUNTIME_SECONDS")
+            .map(|raw| {
+                raw.parse::<u64>()
+                    .map(Duration::from_secs)
+                    .with_context(|| {
+                        "JOB_HANDLER_MAX_RUNTIME_SECONDS must be an integer".to_string()
+                    })
+            })
+            .transpose()?;
+        let job_result_kafka_enabled = parse_bool("JOB_RESULT_KAFKA_ENABLED", false)?;
+        let job_result_kafka_topic_prefix = optional_env("JOB_RESULT_KAFKA_TOPIC_PREFIX");
+        let consume_replay_queues = parse_bool("WORKER_CONSUME_REPLAY_QUEUES", false)?;
+        let job_relay_batch_size = parse_i64("WORKER_JOB_RELAY_BATCH_SIZE", 100)?;
+
+        if worker_id.is_empty() {
+            return Err(anyhow!("WORKER_ID must not be empty"));
+        }
+        if enabled_classes.is_empty() {
+            return Err(anyhow!("WORKER_ENABLED_CLASSES must not be empty"));
+        }
+        if poll_interval.is_zero() {
+            return Err(anyhow!("WORKER_POLL_INTERVAL_MS must be greater than 0"));
+        }
+        if shutdown_grace.is_zero() {
+            return Err(anyhow!(
+                "WORKER_SHUTDOWN_GRACE_SECONDS must be greater than 0"
+            ));
+        }
+        if attempt_lease.is_zero() {
+            return Err(anyhow!("JOB_ATTEMPT_LEASE_SECONDS must be greater than 0"));
+        }
+        if attempt_heartbeat.is_zero() || attempt_heartbeat >= attempt_lease {
+            return Err(anyhow!(
+                "JOB_ATTEMPT_HEARTBEAT_SECONDS must be greater than 0 and less than JOB_ATTEMPT_LEASE_SECONDS"
+            ));
+        }
+        if job_relay_batch_size <= 0 {
+            return Err(anyhow!(
+                "WORKER_JOB_RELAY_BATCH_SIZE must be greater than 0"
+            ));
+        }
+        if job_result_kafka_enabled {
+            return Err(anyhow!(
+                "JOB_RESULT_KAFKA_ENABLED=true is not supported until the Kafka result publisher milestone is implemented"
+            ));
+        }
+
+        Ok(Self {
+            worker_id,
+            enabled_classes,
+            poll_interval,
+            shutdown_grace,
+            attempt_lease,
+            attempt_heartbeat,
+            handler_max_runtime,
+            job_result_kafka_enabled,
+            job_result_kafka_topic_prefix,
+            consume_replay_queues,
+            job_relay_batch_size,
+        })
+    }
+}
+
+fn default_worker_id() -> String {
+    let pid = std::process::id();
+    let host = [
+        "RAILWAY_REPLICA_ID",
+        "HOSTNAME",
+        "COMPUTERNAME",
+        "RAILWAY_PUBLIC_DOMAIN",
+    ]
+    .into_iter()
+    .filter_map(|name| optional_env(name))
+    .find(|value| !value.trim().is_empty());
+
+    match host {
+        Some(host) => format!("worker-{}-{pid}", sanitize_worker_id_component(&host)),
+        None => {
+            let started_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_millis())
+                .unwrap_or_default();
+            format!("worker-{pid}-{started_ms}")
+        }
+    }
+}
+
+fn sanitize_worker_id_component(value: &str) -> String {
+    let sanitized = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    sanitized.trim_matches('-').to_string()
 }
 
 fn required_env(name: &str) -> Result<String> {
@@ -869,13 +1040,15 @@ fn parse_usize(name: &str, default: usize) -> Result<usize> {
 fn parse_csv_env(name: &str) -> Vec<String> {
     env::var(name)
         .ok()
-        .map(|raw| {
-            raw.split(',')
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty())
-                .collect::<Vec<_>>()
-        })
+        .map(|raw| parse_csv_env_value(&raw))
         .unwrap_or_default()
+}
+
+fn parse_csv_env_value(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
 }
 
 fn parse_invalid_event_policy(raw: &str) -> Result<InvalidEventPolicy> {
