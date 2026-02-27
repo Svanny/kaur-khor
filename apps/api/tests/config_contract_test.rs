@@ -3,6 +3,22 @@ use banji_api::config::{
 };
 use std::sync::{Mutex, OnceLock};
 
+const WORKER_OBJECT_STORAGE_ENV_KEYS: &[&str] = &[
+    "OBJECT_STORAGE_ENABLED",
+    "OBJECT_STORAGE_ENDPOINT",
+    "OBJECT_STORAGE_REGION",
+    "OBJECT_STORAGE_BUCKET_ARTIFACTS",
+    "OBJECT_STORAGE_FORCE_PATH_STYLE",
+    "OBJECT_STORAGE_ARTIFACT_PREFIX",
+    "OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS",
+    "OBJECT_STORAGE_CONNECT_TIMEOUT_MS",
+    "OBJECT_STORAGE_REQUEST_TIMEOUT_MS",
+    "OBJECT_STORAGE_MAX_ARTIFACT_BYTES",
+    "ARTIFACT_TMP_DIR",
+    "OBJECT_STORAGE_ACCESS_KEY",
+    "OBJECT_STORAGE_SECRET_KEY",
+];
+
 fn env_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
@@ -12,6 +28,38 @@ fn lock_env() -> std::sync::MutexGuard<'static, ()> {
     env_lock()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn capture_env(keys: &'static [&'static str]) -> Vec<(&'static str, Option<String>)> {
+    keys.iter()
+        .map(|key| (*key, std::env::var(key).ok()))
+        .collect()
+}
+
+fn restore_env(values: Vec<(&'static str, Option<String>)>) {
+    for (key, value) in values {
+        if let Some(value) = value {
+            std::env::set_var(key, value);
+        } else {
+            std::env::remove_var(key);
+        }
+    }
+}
+
+fn set_minimal_worker_object_storage_env() {
+    std::env::set_var("OBJECT_STORAGE_ENABLED", "true");
+    std::env::set_var("OBJECT_STORAGE_ENDPOINT", "http://minio.local:9000");
+    std::env::set_var("OBJECT_STORAGE_REGION", "us-east-1");
+    std::env::set_var("OBJECT_STORAGE_BUCKET_ARTIFACTS", "banji-dev-artifacts");
+    std::env::set_var("OBJECT_STORAGE_FORCE_PATH_STYLE", "true");
+    std::env::set_var("OBJECT_STORAGE_ARTIFACT_PREFIX", "worker");
+    std::env::set_var("OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS", "30");
+    std::env::set_var("OBJECT_STORAGE_CONNECT_TIMEOUT_MS", "3000");
+    std::env::set_var("OBJECT_STORAGE_REQUEST_TIMEOUT_MS", "30000");
+    std::env::set_var("OBJECT_STORAGE_MAX_ARTIFACT_BYTES", "104857600");
+    std::env::set_var("ARTIFACT_TMP_DIR", "/tmp/banji-artifacts");
+    std::env::set_var("OBJECT_STORAGE_ACCESS_KEY", "access");
+    std::env::set_var("OBJECT_STORAGE_SECRET_KEY", "secret");
 }
 
 #[test]
@@ -274,6 +322,7 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
     let old_replay_from = std::env::var("EVENT_CONSUMER_REPLAY_FROM_ID").ok();
     let old_replay_to = std::env::var("EVENT_CONSUMER_REPLAY_TO_ID").ok();
     let old_rabbit_url = std::env::var("RABBIT_URL").ok();
+    let old_object_storage = capture_env(WORKER_OBJECT_STORAGE_ENV_KEYS);
 
     std::env::set_var("BANJI_ENV", "staging");
     std::env::set_var("APP_ROLE", "event-relay");
@@ -308,6 +357,7 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
 
     std::env::set_var("APP_ROLE", "worker");
     std::env::set_var("RABBIT_URL", "amqp://guest:guest@localhost:5672/%2f");
+    set_minimal_worker_object_storage_env();
     let worker_result = AppConfig::from_env();
     assert!(worker_result.is_ok());
     assert_eq!(worker_result.unwrap().app_role, AppRole::Worker);
@@ -407,6 +457,7 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
     } else {
         std::env::remove_var("RABBIT_URL");
     }
+    restore_env(old_object_storage);
 }
 
 #[test]
@@ -421,6 +472,7 @@ fn worker_requires_rabbit_url() {
     let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
     let old_rabbit_url = std::env::var("RABBIT_URL").ok();
     let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    let old_object_storage = capture_env(WORKER_OBJECT_STORAGE_ENV_KEYS);
 
     std::env::set_var("BANJI_ENV", "staging");
     std::env::set_var("APP_ROLE", "worker");
@@ -432,6 +484,7 @@ fn worker_requires_rabbit_url() {
     std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
     std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
     std::env::remove_var("RABBIT_URL");
+    set_minimal_worker_object_storage_env();
     std::env::remove_var("DATABASE_MIGRATION_URL");
 
     let result = AppConfig::from_env();
@@ -481,6 +534,84 @@ fn worker_requires_rabbit_url() {
     } else {
         std::env::remove_var("DATABASE_MIGRATION_URL");
     }
+    restore_env(old_object_storage);
+}
+
+#[test]
+fn worker_requires_object_storage_config() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_role = std::env::var("APP_ROLE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_rabbit_url = std::env::var("RABBIT_URL").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    let old_object_storage = capture_env(WORKER_OBJECT_STORAGE_ENV_KEYS);
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "worker");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::set_var("RABBIT_URL", "amqp://guest:guest@localhost:5672/%2f");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+    std::env::remove_var("OBJECT_STORAGE_ENABLED");
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("OBJECT_STORAGE_ENABLED"));
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_role {
+        std::env::set_var("APP_ROLE", v);
+    } else {
+        std::env::remove_var("APP_ROLE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_rabbit_url {
+        std::env::set_var("RABBIT_URL", v);
+    } else {
+        std::env::remove_var("RABBIT_URL");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+    restore_env(old_object_storage);
 }
 
 #[test]
@@ -490,10 +621,12 @@ fn worker_default_id_includes_host_identity_when_available() {
     let old_worker_id = std::env::var("WORKER_ID").ok();
     let old_hostname = std::env::var("HOSTNAME").ok();
     let old_replica = std::env::var("RAILWAY_REPLICA_ID").ok();
+    let old_object_storage = capture_env(WORKER_OBJECT_STORAGE_ENV_KEYS);
 
     std::env::remove_var("WORKER_ID");
     std::env::set_var("HOSTNAME", "worker-host-42");
     std::env::remove_var("RAILWAY_REPLICA_ID");
+    set_minimal_worker_object_storage_env();
 
     let worker_cfg = WorkerConfig::from_env().unwrap();
 
@@ -515,6 +648,7 @@ fn worker_default_id_includes_host_identity_when_available() {
     } else {
         std::env::remove_var("RAILWAY_REPLICA_ID");
     }
+    restore_env(old_object_storage);
 }
 
 #[test]

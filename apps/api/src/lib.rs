@@ -10,6 +10,7 @@ pub mod jobs;
 pub mod logging;
 pub mod observability;
 pub mod projections;
+pub mod storage;
 
 use auth::{AuthPrincipal, JwtVerifier};
 use axum::{

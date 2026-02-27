@@ -1,9 +1,11 @@
 use super::schema_types::{JobRecord, JobResultRecord};
 use super::types::{ErrorClass, ErrorReasonCode};
 use crate::jobs::types::JobEnvelope;
+use crate::storage::types::StoredArtifact;
 use anyhow::{anyhow, Result};
 use sqlx::{postgres::PgRow, PgPool, Postgres, Row, Transaction};
 use std::time::Duration;
+use time::OffsetDateTime;
 
 #[derive(Debug, Clone)]
 pub struct JobRunRow {
@@ -22,6 +24,7 @@ pub struct JobRunRow {
     pub current_attempt: i32,
     pub max_attempts: i32,
     pub result_id: Option<i64>,
+    pub created_at: OffsetDateTime,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,7 +76,7 @@ pub async fn upsert_job_run_tx(
         RETURNING
           id, job_key, job_type, payload_version, workload_class, producer_service,
           aggregate_type, aggregate_id, causation_id, correlation_id, status,
-          payload, current_attempt, max_attempts, result_id
+          payload, current_attempt, max_attempts, result_id, created_at
         "#,
     )
     .bind(&job.job_key)
@@ -99,7 +102,7 @@ pub async fn upsert_job_run_tx(
         SELECT
           id, job_key, job_type, payload_version, workload_class, producer_service,
           aggregate_type, aggregate_id, causation_id, correlation_id, status,
-          payload, current_attempt, max_attempts, result_id
+          payload, current_attempt, max_attempts, result_id, created_at
         FROM app.job_run
         WHERE job_key = $1
         LIMIT 1
@@ -130,7 +133,7 @@ pub async fn get_job_run_for_update_tx(
         SELECT
           id, job_key, job_type, payload_version, workload_class, producer_service,
           aggregate_type, aggregate_id, causation_id, correlation_id, status,
-          payload, current_attempt, max_attempts, result_id
+          payload, current_attempt, max_attempts, result_id, created_at
         FROM app.job_run
         WHERE job_key = $1
         FOR UPDATE
@@ -502,6 +505,129 @@ pub async fn mark_attempt_failed_tx(
     Ok(())
 }
 
+pub async fn upsert_object_artifact_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    artifact: &StoredArtifact,
+) -> Result<i64> {
+    let inserted_or_matched = sqlx::query(
+        r#"
+        INSERT INTO app.object_artifact (
+          artifact_key,
+          storage_provider,
+          producer_service,
+          producer_role,
+          job_key,
+          job_type,
+          artifact_role,
+          artifact_version,
+          bucket_name,
+          object_key,
+          object_uri,
+          content_type,
+          content_length,
+          sha256,
+          etag,
+          metadata,
+          retention_until,
+          uploaded_at,
+          updated_at
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW()
+        )
+        ON CONFLICT (artifact_key)
+        DO UPDATE
+        SET
+          object_uri = EXCLUDED.object_uri,
+          updated_at = NOW()
+        WHERE app.object_artifact.storage_provider = EXCLUDED.storage_provider
+          AND app.object_artifact.producer_service = EXCLUDED.producer_service
+          AND app.object_artifact.producer_role = EXCLUDED.producer_role
+          AND app.object_artifact.job_key IS NOT DISTINCT FROM EXCLUDED.job_key
+          AND app.object_artifact.job_type IS NOT DISTINCT FROM EXCLUDED.job_type
+          AND app.object_artifact.artifact_role = EXCLUDED.artifact_role
+          AND app.object_artifact.artifact_version = EXCLUDED.artifact_version
+          AND app.object_artifact.bucket_name = EXCLUDED.bucket_name
+          AND app.object_artifact.object_key = EXCLUDED.object_key
+          AND app.object_artifact.content_type = EXCLUDED.content_type
+          AND app.object_artifact.content_length = EXCLUDED.content_length
+          AND app.object_artifact.sha256 = EXCLUDED.sha256
+          AND app.object_artifact.etag IS NOT DISTINCT FROM EXCLUDED.etag
+          AND app.object_artifact.metadata = EXCLUDED.metadata
+          AND app.object_artifact.retention_until IS NOT DISTINCT FROM EXCLUDED.retention_until
+          AND app.object_artifact.uploaded_at = EXCLUDED.uploaded_at
+        RETURNING id
+        "#,
+    )
+    .bind(&artifact.artifact_key)
+    .bind(&artifact.storage_provider)
+    .bind(&artifact.producer_service)
+    .bind(&artifact.producer_role)
+    .bind(&artifact.job_key)
+    .bind(&artifact.job_type)
+    .bind(&artifact.artifact_role)
+    .bind(artifact.artifact_version)
+    .bind(&artifact.bucket_name)
+    .bind(&artifact.object_key)
+    .bind(&artifact.object_uri)
+    .bind(&artifact.content_type)
+    .bind(artifact.content_length)
+    .bind(&artifact.sha256)
+    .bind(&artifact.etag)
+    .bind(&artifact.metadata)
+    .bind(artifact.retention_until)
+    .bind(artifact.uploaded_at)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(row) = inserted_or_matched {
+        return Ok(row.get("id"));
+    }
+
+    let existing: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM app.object_artifact WHERE artifact_key = $1 LIMIT 1")
+            .bind(&artifact.artifact_key)
+            .fetch_optional(&mut **tx)
+            .await?;
+
+    if existing.is_some() {
+        return Err(anyhow!(
+            "object_artifact conflict with mismatched storage metadata"
+        ));
+    }
+
+    Err(anyhow!(
+        "object_artifact upsert conflict could not be resolved for artifact_key"
+    ))
+}
+
+pub async fn link_job_result_artifact_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    job_result_id: i64,
+    artifact_id: i64,
+    artifact_role: &str,
+    is_primary: bool,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO app.job_result_artifact (
+          job_result_id,
+          artifact_id,
+          artifact_role,
+          is_primary
+        ) VALUES ($1, $2, $3, $4)
+        ON CONFLICT (job_result_id, artifact_id)
+        DO NOTHING
+        "#,
+    )
+    .bind(job_result_id)
+    .bind(artifact_id)
+    .bind(artifact_role)
+    .bind(is_primary)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 pub async fn record_delivery_violation_tx(
     tx: &mut Transaction<'_, Postgres>,
     worker_id: &str,
@@ -598,5 +724,6 @@ fn job_run_from_row(row: &PgRow) -> JobRunRow {
         current_attempt: row.get("current_attempt"),
         max_attempts: row.get("max_attempts"),
         result_id: row.get("result_id"),
+        created_at: row.get("created_at"),
     }
 }

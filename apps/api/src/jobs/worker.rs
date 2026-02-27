@@ -12,6 +12,11 @@ use crate::{
     config::{AppConfig, WorkerConfig},
     logging::redaction::redact_message,
     observability::metrics,
+    storage::{
+        key::{derive_artifact_key, object_key_for_job_artifact},
+        types::{ArtifactUploadSpec, StoredArtifact},
+        ObjectStorageClient, S3ObjectStorageClient,
+    },
 };
 use anyhow::{anyhow, Result};
 use base64::Engine;
@@ -23,6 +28,7 @@ use lapin::{
     Channel, Connection, ConnectionProperties,
 };
 use std::{future::Future, sync::Arc, time::Duration};
+use time::Duration as TimeDuration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkerDisposition {
@@ -43,6 +49,8 @@ where
     let connection = Connection::connect(&rabbit_url, ConnectionProperties::default()).await?;
     let connection = Arc::new(connection);
     let result_publisher = Arc::new(DisabledJobResultPublisher);
+    let storage_client: Arc<dyn ObjectStorageClient> =
+        Arc::new(S3ObjectStorageClient::new(worker_cfg.object_storage.clone()).await?);
 
     let mut tasks = Vec::new();
 
@@ -77,6 +85,7 @@ where
             worker_cfg.clone(),
             connection.clone(),
             result_publisher.clone(),
+            storage_client.clone(),
             primary_queue,
             class.primary_prefetch(&cfg),
         ));
@@ -89,6 +98,7 @@ where
                 worker_cfg.clone(),
                 connection.clone(),
                 result_publisher.clone(),
+                storage_client.clone(),
                 replay_queue,
                 class.replay_prefetch(&cfg),
             ));
@@ -111,6 +121,7 @@ fn spawn_consumer_task(
     worker_cfg: WorkerConfig,
     connection: Arc<Connection>,
     result_publisher: Arc<dyn JobResultPublisher>,
+    storage_client: Arc<dyn ObjectStorageClient>,
     queue_name: String,
     prefetch: u16,
 ) -> tokio::task::JoinHandle<Result<()>> {
@@ -137,6 +148,7 @@ fn spawn_consumer_task(
             consumer,
             publisher,
             result_publisher,
+            storage_client,
         )
         .await
     })
@@ -151,6 +163,7 @@ async fn consume_loop(
     mut consumer: lapin::Consumer,
     publisher: RabbitConfirmingPublisher,
     result_publisher: Arc<dyn JobResultPublisher>,
+    storage_client: Arc<dyn ObjectStorageClient>,
 ) -> Result<()> {
     while let Some(next) = consumer.next().await {
         let delivery = next?;
@@ -160,6 +173,7 @@ async fn consume_loop(
             &worker_cfg,
             &publisher,
             result_publisher.as_ref(),
+            storage_client.as_ref(),
             &queue_name,
             delivery,
         )
@@ -174,6 +188,7 @@ async fn process_delivery(
     worker_cfg: &WorkerConfig,
     publisher: &impl ConfirmingPublisher,
     result_publisher: &dyn JobResultPublisher,
+    storage_client: &dyn ObjectStorageClient,
     queue_name: &str,
     delivery: Delivery,
 ) -> Result<()> {
@@ -263,6 +278,7 @@ async fn process_delivery(
         worker_cfg,
         publisher,
         result_publisher,
+        storage_client,
         &envelope,
     )
     .await?;
@@ -292,6 +308,7 @@ pub async fn process_job_envelope(
     worker_cfg: &WorkerConfig,
     publisher: &impl ConfirmingPublisher,
     result_publisher: &dyn JobResultPublisher,
+    storage_client: &dyn ObjectStorageClient,
     envelope: &JobEnvelope,
 ) -> Result<WorkerDisposition> {
     let started = std::time::Instant::now();
@@ -443,7 +460,14 @@ pub async fn process_job_envelope(
         }
     });
 
-    let handler_future = handlers::handle_job(pool, &job_run.job_key, &known_job);
+    let execution_ctx = handlers::JobExecutionContext {
+        job_key: job_run.job_key.clone(),
+        job_created_at: job_run.created_at,
+        artifact_tmp_dir: worker_cfg.object_storage.tmp_dir.clone(),
+        producer_service: cfg.service.clone(),
+        producer_role: cfg.app_role.as_str().to_string(),
+    };
+    let handler_future = handlers::handle_job(pool, &execution_ctx, &known_job);
     let handler_result = match worker_cfg.handler_max_runtime {
         Some(limit) => tokio::time::timeout(limit, handler_future)
             .await
@@ -455,91 +479,276 @@ pub async fn process_job_envelope(
     let _ = heartbeat_task.await;
 
     match handler_result {
-        Ok(result) => {
-            handlers::validate_handler_result(&result).map_err(anyhow::Error::new)?;
-            let publish_status = result_publisher.publish_status_for(&result)?;
-            let mut tx = pool.begin().await?;
-            let result_id = repository::upsert_job_result_tx(
-                &mut tx,
-                job_run.id,
-                &result,
-                publish_status.as_str(),
+        Ok(output) => {
+            handlers::validate_handler_result(&output).map_err(anyhow::Error::new)?;
+            let finalize_result = finalize_execution(
+                pool,
+                cfg,
+                worker_cfg,
+                result_publisher,
+                storage_client,
+                &job_run,
+                envelope,
+                &output,
             )
-            .await?;
-            repository::mark_attempt_succeeded_tx(
-                &mut tx,
-                job_run.id,
-                envelope.attempt,
-                &worker_cfg.worker_id,
-                result_id,
-            )
-            .await?;
-            tx.commit().await?;
-            metrics::record_job_run_total(
-                envelope.workload_class.as_str(),
+            .await;
+            handlers::cleanup_execution_paths(&output.cleanup_paths);
+            metrics::record_object_storage_temp_cleanup(
                 &envelope.job_type,
-                "success",
+                if output.cleanup_paths.is_empty() {
+                    "none"
+                } else {
+                    "success"
+                },
             );
-            metrics::record_job_result_write(&envelope.job_type, publish_status.as_str());
-            metrics::record_job_run_duration(
-                envelope.workload_class.as_str(),
-                &envelope.job_type,
-                "success",
-                started.elapsed().as_secs_f64(),
-            );
-            Ok(WorkerDisposition::Ack)
+
+            match finalize_result {
+                Ok(publish_status) => {
+                    metrics::record_job_run_total(
+                        envelope.workload_class.as_str(),
+                        &envelope.job_type,
+                        "success",
+                    );
+                    metrics::record_job_result_write(&envelope.job_type, publish_status.as_str());
+                    metrics::record_job_run_duration(
+                        envelope.workload_class.as_str(),
+                        &envelope.job_type,
+                        "success",
+                        started.elapsed().as_secs_f64(),
+                    );
+                    Ok(WorkerDisposition::Ack)
+                }
+                Err(err) => {
+                    handle_job_failure(
+                        pool, cfg, worker_cfg, publisher, &job_run, envelope, started, err,
+                    )
+                    .await
+                }
+            }
         }
         Err(err) => {
-            let error_message = sanitize_error_message(&err.to_string());
-            let classification = super::retry::classify_error(&error_message);
-            let decision = super::retry::next_destination(
-                cfg,
-                &envelope.workload_class,
-                envelope.attempt,
-                classification.class,
-            );
-            let mut tx = pool.begin().await?;
-            repository::mark_attempt_failed_tx(
-                &mut tx,
-                job_run.id,
-                envelope.attempt,
-                &worker_cfg.worker_id,
-                classification.class,
-                classification.reason,
-                &error_message,
-                decision.estimated_delay_ms.map(Duration::from_millis),
-                !decision.dead_letter,
+            handle_job_failure(
+                pool, cfg, worker_cfg, publisher, &job_run, envelope, started, err,
             )
-            .await?;
-            tx.commit().await?;
-            let result = republish_with_confirm_before_ack(
-                publisher,
-                cfg,
-                &cfg.rabbit_dlx_exchange,
-                envelope.clone(),
-                &error_message,
-            )
-            .await?;
-            let outcome = if result.dead_lettered {
-                "failed"
-            } else {
-                "retry"
-            };
-            metrics::record_job_run_total(
-                envelope.workload_class.as_str(),
-                &envelope.job_type,
-                outcome,
-            );
-            metrics::record_job_last_error(&envelope.job_type, classification.reason.as_str());
-            metrics::record_job_run_duration(
-                envelope.workload_class.as_str(),
-                &envelope.job_type,
-                outcome,
-                started.elapsed().as_secs_f64(),
-            );
-            Ok(WorkerDisposition::Ack)
+            .await
         }
     }
+}
+
+async fn finalize_execution(
+    pool: &sqlx::PgPool,
+    cfg: &AppConfig,
+    worker_cfg: &WorkerConfig,
+    result_publisher: &dyn JobResultPublisher,
+    storage_client: &dyn ObjectStorageClient,
+    job_run: &repository::JobRunRow,
+    envelope: &JobEnvelope,
+    output: &super::schema_types::JobExecutionOutput,
+) -> Result<super::result_publisher::JobResultPublishStatus> {
+    let publish_status = result_publisher.publish_status_for(&output.result)?;
+    let stored_artifacts = upload_artifacts(
+        storage_client,
+        &worker_cfg.object_storage,
+        cfg,
+        job_run,
+        &output.artifacts,
+    )
+    .await?;
+
+    let mut tx = pool.begin().await?;
+    let result_id = repository::upsert_job_result_tx(
+        &mut tx,
+        job_run.id,
+        &output.result,
+        publish_status.as_str(),
+    )
+    .await?;
+
+    for (index, artifact) in stored_artifacts.iter().enumerate() {
+        let artifact_id = repository::upsert_object_artifact_tx(&mut tx, artifact).await?;
+        repository::link_job_result_artifact_tx(
+            &mut tx,
+            result_id,
+            artifact_id,
+            &artifact.artifact_role,
+            index == 0,
+        )
+        .await?;
+    }
+
+    repository::mark_attempt_succeeded_tx(
+        &mut tx,
+        job_run.id,
+        envelope.attempt,
+        &worker_cfg.worker_id,
+        result_id,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(publish_status)
+}
+
+async fn upload_artifacts(
+    storage_client: &dyn ObjectStorageClient,
+    storage_cfg: &crate::config::ObjectStorageConfig,
+    cfg: &AppConfig,
+    job_run: &repository::JobRunRow,
+    artifacts: &[crate::jobs::schema_types::JobArtifactOutput],
+) -> Result<Vec<StoredArtifact>> {
+    let mut stored = Vec::with_capacity(artifacts.len());
+
+    for artifact in artifacts {
+        let started = std::time::Instant::now();
+        let expected_artifact_key =
+            derive_artifact_key(&crate::storage::types::ArtifactIdentity {
+                producer_service: cfg.service.clone(),
+                producer_role: cfg.app_role.as_str().to_string(),
+                job_type: job_run.job_type.clone(),
+                job_key: job_run.job_key.clone(),
+                artifact_role: artifact.artifact_role.clone(),
+                artifact_version: artifact.artifact_version,
+            })?;
+        if expected_artifact_key != artifact.artifact_key {
+            metrics::record_object_storage_error(
+                &job_run.job_type,
+                &artifact.artifact_role,
+                "artifact_key_mismatch",
+            );
+            return Err(anyhow!(
+                "non-retryable artifact contract violation: handler artifact_key does not match canonical artifact identity"
+            ));
+        }
+        let object_key = object_key_for_job_artifact(
+            &storage_cfg.artifact_prefix,
+            job_run.created_at,
+            &job_run.job_type,
+            &job_run.job_key,
+            &artifact.artifact_role,
+            artifact.artifact_version,
+            &artifact.file_extension,
+        );
+        let spec = ArtifactUploadSpec {
+            artifact_key: artifact.artifact_key.clone(),
+            bucket_name: storage_cfg.bucket_artifacts.clone(),
+            object_key: object_key.clone(),
+            content_type: artifact.content_type.clone(),
+            artifact_role: artifact.artifact_role.clone(),
+            artifact_version: artifact.artifact_version,
+            producer_service: cfg.service.clone(),
+            producer_role: cfg.app_role.as_str().to_string(),
+            job_key: Some(job_run.job_key.clone()),
+            job_type: Some(job_run.job_type.clone()),
+            local_path: artifact.local_path.clone(),
+            retention_until: None,
+            metadata: artifact.metadata.clone(),
+        };
+
+        let mut uploaded = match storage_client.put_file_and_verify(&spec).await {
+            Ok(uploaded) => uploaded,
+            Err(err) => {
+                metrics::record_object_storage_error(
+                    &job_run.job_type,
+                    &artifact.artifact_role,
+                    "upload_failed",
+                );
+                return Err(err);
+            }
+        };
+        uploaded.retention_until = Some(
+            uploaded.uploaded_at
+                + TimeDuration::days(i64::from(storage_cfg.artifact_retention_days)),
+        );
+        let storage_result = if uploaded.reused_existing {
+            "existing_match"
+        } else {
+            "uploaded"
+        };
+
+        metrics::record_object_storage_upload_total(
+            &job_run.job_type,
+            &artifact.artifact_role,
+            storage_result,
+        );
+        metrics::record_object_storage_upload_duration(
+            &job_run.job_type,
+            &artifact.artifact_role,
+            storage_result,
+            started.elapsed().as_secs_f64(),
+        );
+        metrics::record_object_storage_upload_bytes(
+            &job_run.job_type,
+            &artifact.artifact_role,
+            artifact.content_length,
+        );
+        metrics::record_object_storage_verify(
+            &job_run.job_type,
+            &artifact.artifact_role,
+            "success",
+        );
+        stored.push(uploaded);
+    }
+
+    Ok(stored)
+}
+
+async fn handle_job_failure(
+    pool: &sqlx::PgPool,
+    cfg: &AppConfig,
+    worker_cfg: &WorkerConfig,
+    publisher: &impl ConfirmingPublisher,
+    job_run: &repository::JobRunRow,
+    envelope: &JobEnvelope,
+    started: std::time::Instant,
+    err: anyhow::Error,
+) -> Result<WorkerDisposition> {
+    let error_message = sanitize_error_message(&err.to_string());
+    let classification = super::retry::classify_error(&error_message);
+    let decision = super::retry::next_destination(
+        cfg,
+        &envelope.workload_class,
+        envelope.attempt,
+        classification.class,
+    );
+    let mut tx = pool.begin().await?;
+    repository::mark_attempt_failed_tx(
+        &mut tx,
+        job_run.id,
+        envelope.attempt,
+        &worker_cfg.worker_id,
+        classification.class,
+        classification.reason,
+        &error_message,
+        decision.estimated_delay_ms.map(Duration::from_millis),
+        !decision.dead_letter,
+    )
+    .await?;
+    tx.commit().await?;
+    let result = republish_with_confirm_before_ack(
+        publisher,
+        cfg,
+        &cfg.rabbit_dlx_exchange,
+        envelope.clone(),
+        &error_message,
+    )
+    .await?;
+    let outcome = if result.dead_lettered {
+        "failed"
+    } else {
+        "retry"
+    };
+    metrics::record_job_run_total(
+        envelope.workload_class.as_str(),
+        &envelope.job_type,
+        outcome,
+    );
+    metrics::record_job_last_error(&envelope.job_type, classification.reason.as_str());
+    metrics::record_job_run_duration(
+        envelope.workload_class.as_str(),
+        &envelope.job_type,
+        outcome,
+        started.elapsed().as_secs_f64(),
+    );
+    Ok(WorkerDisposition::Ack)
 }
 
 async fn handle_invalid_envelope(

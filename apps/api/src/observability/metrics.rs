@@ -98,6 +98,48 @@ static JOBS_LAST_ERROR_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
         .init()
 });
 
+static OBJECT_STORAGE_UPLOAD_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.object_storage.upload.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static OBJECT_STORAGE_UPLOAD_DURATION: Lazy<Histogram<f64>> = Lazy::new(|| {
+    METER
+        .f64_histogram("banji.object_storage.upload.duration")
+        .with_unit(Unit::new("s"))
+        .init()
+});
+
+static OBJECT_STORAGE_UPLOAD_BYTES: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.object_storage.upload.bytes")
+        .with_unit(Unit::new("By"))
+        .init()
+});
+
+static OBJECT_STORAGE_VERIFY_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.object_storage.verify.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static OBJECT_STORAGE_ERROR_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.object_storage.error.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static OBJECT_STORAGE_TEMP_CLEANUP_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.object_storage.temp_cleanup.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
 static EVENT_CONSUMER_ERRORS_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
     METER
         .u64_counter("banji.events.consumer.errors.total")
@@ -292,6 +334,78 @@ pub fn record_job_last_error(job_type: &str, error_reason: &str) {
         &[
             KeyValue::new("job_type", job_type.to_string()),
             KeyValue::new("error_reason", error_reason.to_string()),
+        ],
+    );
+}
+
+pub fn record_object_storage_upload_total(job_type: &str, artifact_role: &str, result: &str) {
+    OBJECT_STORAGE_UPLOAD_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("artifact_role", artifact_role.to_string()),
+            KeyValue::new("result", result.to_string()),
+        ],
+    );
+}
+
+pub fn record_object_storage_upload_duration(
+    job_type: &str,
+    artifact_role: &str,
+    result: &str,
+    seconds: f64,
+) {
+    OBJECT_STORAGE_UPLOAD_DURATION.record(
+        seconds,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("artifact_role", artifact_role.to_string()),
+            KeyValue::new("result", result.to_string()),
+        ],
+    );
+}
+
+pub fn record_object_storage_upload_bytes(job_type: &str, artifact_role: &str, bytes: i64) {
+    if bytes < 0 {
+        return;
+    }
+    OBJECT_STORAGE_UPLOAD_BYTES.add(
+        bytes as u64,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("artifact_role", artifact_role.to_string()),
+        ],
+    );
+}
+
+pub fn record_object_storage_verify(job_type: &str, artifact_role: &str, result: &str) {
+    OBJECT_STORAGE_VERIFY_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("artifact_role", artifact_role.to_string()),
+            KeyValue::new("result", result.to_string()),
+        ],
+    );
+}
+
+pub fn record_object_storage_error(job_type: &str, artifact_role: &str, error_reason: &str) {
+    OBJECT_STORAGE_ERROR_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("artifact_role", artifact_role.to_string()),
+            KeyValue::new("error_reason", error_reason.to_string()),
+        ],
+    );
+}
+
+pub fn record_object_storage_temp_cleanup(job_type: &str, result: &str) {
+    OBJECT_STORAGE_TEMP_CLEANUP_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("job_type", job_type.to_string()),
+            KeyValue::new("result", result.to_string()),
         ],
     );
 }

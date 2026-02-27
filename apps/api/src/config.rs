@@ -5,6 +5,7 @@ use anyhow::{anyhow, Context, Result};
 use axum::http::header::HeaderName;
 use std::env;
 use std::fmt;
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -154,6 +155,41 @@ pub struct ProjectionConsumerConfig {
     pub replay_truncate_projection: bool,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct ObjectStorageConfig {
+    pub endpoint: String,
+    pub region: String,
+    pub bucket_artifacts: String,
+    pub force_path_style: bool,
+    pub artifact_prefix: String,
+    pub artifact_retention_days: u32,
+    pub connect_timeout: Duration,
+    pub request_timeout: Duration,
+    pub max_artifact_bytes: u64,
+    pub tmp_dir: PathBuf,
+    pub access_key: String,
+    pub secret_key: String,
+}
+
+impl fmt::Debug for ObjectStorageConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ObjectStorageConfig")
+            .field("endpoint", &self.endpoint)
+            .field("region", &self.region)
+            .field("bucket_artifacts", &self.bucket_artifacts)
+            .field("force_path_style", &self.force_path_style)
+            .field("artifact_prefix", &self.artifact_prefix)
+            .field("artifact_retention_days", &self.artifact_retention_days)
+            .field("connect_timeout", &self.connect_timeout)
+            .field("request_timeout", &self.request_timeout)
+            .field("max_artifact_bytes", &self.max_artifact_bytes)
+            .field("tmp_dir", &self.tmp_dir)
+            .field("access_key", &"<redacted>")
+            .field("secret_key", &"<redacted>")
+            .finish()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkerConfig {
     pub worker_id: String,
@@ -167,6 +203,7 @@ pub struct WorkerConfig {
     pub job_result_kafka_topic_prefix: Option<String>,
     pub consume_replay_queues: bool,
     pub job_relay_batch_size: i64,
+    pub object_storage: ObjectStorageConfig,
 }
 
 #[derive(Clone)]
@@ -869,6 +906,8 @@ impl WorkerConfig {
         let job_result_kafka_topic_prefix = optional_env("JOB_RESULT_KAFKA_TOPIC_PREFIX");
         let consume_replay_queues = parse_bool("WORKER_CONSUME_REPLAY_QUEUES", false)?;
         let job_relay_batch_size = parse_i64("WORKER_JOB_RELAY_BATCH_SIZE", 100)?;
+        let object_storage_enabled = parse_bool("OBJECT_STORAGE_ENABLED", false)?;
+        let object_storage = ObjectStorageConfig::from_env(object_storage_enabled)?;
 
         if worker_id.is_empty() {
             return Err(anyhow!("WORKER_ID must not be empty"));
@@ -902,6 +941,11 @@ impl WorkerConfig {
                 "JOB_RESULT_KAFKA_ENABLED=true is not supported until the Kafka result publisher milestone is implemented"
             ));
         }
+        if !object_storage_enabled {
+            return Err(anyhow!(
+                "APP_ROLE=worker requires OBJECT_STORAGE_ENABLED=true"
+            ));
+        }
 
         Ok(Self {
             worker_id,
@@ -915,6 +959,75 @@ impl WorkerConfig {
             job_result_kafka_topic_prefix,
             consume_replay_queues,
             job_relay_batch_size,
+            object_storage,
+        })
+    }
+}
+
+impl ObjectStorageConfig {
+    fn from_env(enabled: bool) -> Result<Self> {
+        if !enabled {
+            return Err(anyhow!("OBJECT_STORAGE_ENABLED must be true"));
+        }
+
+        let endpoint = required_env("OBJECT_STORAGE_ENDPOINT")?;
+        let region = required_env("OBJECT_STORAGE_REGION")?;
+        let bucket_artifacts = required_env("OBJECT_STORAGE_BUCKET_ARTIFACTS")?;
+        let force_path_style = parse_bool("OBJECT_STORAGE_FORCE_PATH_STYLE", false)?;
+        let artifact_prefix =
+            env::var("OBJECT_STORAGE_ARTIFACT_PREFIX").unwrap_or_else(|_| "worker".to_string());
+        let artifact_retention_days = parse_u32("OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS", 30)?;
+        let connect_timeout =
+            Duration::from_millis(parse_u64("OBJECT_STORAGE_CONNECT_TIMEOUT_MS", 3_000)?);
+        let request_timeout =
+            Duration::from_millis(parse_u64("OBJECT_STORAGE_REQUEST_TIMEOUT_MS", 30_000)?);
+        let max_artifact_bytes = parse_u64("OBJECT_STORAGE_MAX_ARTIFACT_BYTES", 104_857_600)?;
+        let tmp_dir = PathBuf::from(
+            env::var("ARTIFACT_TMP_DIR").unwrap_or_else(|_| "/tmp/banji-artifacts".to_string()),
+        );
+        let access_key = required_env("OBJECT_STORAGE_ACCESS_KEY")?;
+        let secret_key = required_env("OBJECT_STORAGE_SECRET_KEY")?;
+
+        if artifact_prefix.trim().is_empty() {
+            return Err(anyhow!("OBJECT_STORAGE_ARTIFACT_PREFIX must not be empty"));
+        }
+        if artifact_retention_days == 0 {
+            return Err(anyhow!(
+                "OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS must be greater than 0"
+            ));
+        }
+        if connect_timeout.is_zero() {
+            return Err(anyhow!(
+                "OBJECT_STORAGE_CONNECT_TIMEOUT_MS must be greater than 0"
+            ));
+        }
+        if request_timeout.is_zero() {
+            return Err(anyhow!(
+                "OBJECT_STORAGE_REQUEST_TIMEOUT_MS must be greater than 0"
+            ));
+        }
+        if max_artifact_bytes == 0 {
+            return Err(anyhow!(
+                "OBJECT_STORAGE_MAX_ARTIFACT_BYTES must be greater than 0"
+            ));
+        }
+        if tmp_dir.as_os_str().is_empty() {
+            return Err(anyhow!("ARTIFACT_TMP_DIR must not be empty"));
+        }
+
+        Ok(Self {
+            endpoint,
+            region,
+            bucket_artifacts,
+            force_path_style,
+            artifact_prefix: artifact_prefix.trim_matches('/').to_string(),
+            artifact_retention_days,
+            connect_timeout,
+            request_timeout,
+            max_artifact_bytes,
+            tmp_dir,
+            access_key,
+            secret_key,
         })
     }
 }

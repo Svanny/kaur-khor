@@ -1,6 +1,7 @@
 use super::types::WorkloadClass;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -40,6 +41,19 @@ pub struct WriteDemoJobV1Result {
     pub result: Value,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WriteDemoJobV2Result {
+    pub operation: String,
+    pub caller_id: String,
+    pub algorithm_version: String,
+    pub artifact_count: i32,
+    pub primary_artifact_role: String,
+    pub primary_artifact_key: String,
+    pub primary_artifact_sha256: String,
+    pub primary_artifact_bytes: i64,
+}
+
 #[derive(Debug, Clone)]
 pub enum KnownJob {
     ItemCreatedV1(ItemCreatedJobV1Payload),
@@ -50,6 +64,7 @@ pub enum KnownJob {
 pub enum KnownJobResult {
     ItemCreatedV1(ItemCreatedJobV1Result),
     WriteDemoV1(WriteDemoJobV1Result),
+    WriteDemoV2(WriteDemoJobV2Result),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,4 +125,24 @@ pub struct JobResultRecord {
     pub job_type: String,
     pub result_version: i32,
     pub payload: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct JobArtifactOutput {
+    pub artifact_role: String,
+    pub artifact_version: i32,
+    pub artifact_key: String,
+    pub content_type: String,
+    pub file_extension: String,
+    pub local_path: PathBuf,
+    pub sha256: String,
+    pub content_length: i64,
+    pub metadata: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct JobExecutionOutput {
+    pub result: JobResultRecord,
+    pub artifacts: Vec<JobArtifactOutput>,
+    pub cleanup_paths: Vec<PathBuf>,
 }

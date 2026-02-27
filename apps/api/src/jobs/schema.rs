@@ -3,7 +3,7 @@ use super::{
     schema_types::{
         ItemCreatedJobV1Payload, ItemCreatedJobV1Result, JobRecord, JobResultRecord,
         JobSchemaErrorCode, JobSchemaManifestEntry, KnownJob, KnownJobResult,
-        WriteDemoJobV1Payload, WriteDemoJobV1Result,
+        WriteDemoJobV1Payload, WriteDemoJobV1Result, WriteDemoJobV2Result,
     },
     types::{JobEnvelope, WorkloadClass},
 };
@@ -18,6 +18,7 @@ const ITEM_CREATED: &str = "item-created";
 const WRITE_DEMO: &str = "write-demo";
 
 const V1: [i32; 1] = [1];
+const V1_V2: [i32; 2] = [1, 2];
 const PRODUCER_API_ONLY: [&str; 1] = ["api"];
 
 const JOB_SCHEMA_MANIFEST: [JobSchemaManifestEntry; 2] = [
@@ -36,8 +37,8 @@ const JOB_SCHEMA_MANIFEST: [JobSchemaManifestEntry; 2] = [
         job_type: WRITE_DEMO,
         latest_payload_version: 1,
         supported_payload_versions: &V1,
-        latest_result_version: 1,
-        supported_result_versions: &V1,
+        latest_result_version: 2,
+        supported_result_versions: &V1_V2,
         workload_class: WorkloadClass::Fast,
         aggregate_type: "write-demo",
         routing_key: "job.fast",
@@ -152,6 +153,17 @@ pub fn validate_job_result(
                 })?;
             validate_write_demo_result(&result)?;
             Ok(KnownJobResult::WriteDemoV1(result))
+        }
+        (WRITE_DEMO, 2) => {
+            let result: WriteDemoJobV2Result =
+                serde_json::from_value(payload.clone()).map_err(|err| {
+                    JobSchemaError::new(
+                        JobSchemaErrorCode::ResultValidationFailed,
+                        format!("write-demo result v2 decode failed: {err}"),
+                    )
+                })?;
+            validate_write_demo_result_v2(&result)?;
+            Ok(KnownJobResult::WriteDemoV2(result))
         }
         (_, version) => Err(JobSchemaError::new(
             JobSchemaErrorCode::UnsupportedResultVersion,
@@ -304,6 +316,35 @@ pub fn build_write_demo_result_v1(
         job_key: String::new(),
         job_type: WRITE_DEMO.to_string(),
         result_version: 1,
+        payload,
+    })
+}
+
+pub fn build_write_demo_result_v2(
+    operation: String,
+    caller_id: String,
+    algorithm_version: &str,
+    artifact_count: i32,
+    primary_artifact_role: String,
+    primary_artifact_key: String,
+    primary_artifact_sha256: String,
+    primary_artifact_bytes: i64,
+) -> Result<JobResultRecord, JobSchemaError> {
+    let payload = json!({
+        "operation": operation,
+        "caller_id": caller_id,
+        "algorithm_version": algorithm_version,
+        "artifact_count": artifact_count,
+        "primary_artifact_role": primary_artifact_role,
+        "primary_artifact_key": primary_artifact_key,
+        "primary_artifact_sha256": primary_artifact_sha256,
+        "primary_artifact_bytes": primary_artifact_bytes,
+    });
+    validate_job_result(WRITE_DEMO, 2, &payload)?;
+    Ok(JobResultRecord {
+        job_key: String::new(),
+        job_type: WRITE_DEMO.to_string(),
+        result_version: 2,
         payload,
     })
 }
@@ -524,6 +565,34 @@ fn validate_write_demo_result(result: &WriteDemoJobV1Result) -> Result<(), JobSc
     Ok(())
 }
 
+fn validate_write_demo_result_v2(result: &WriteDemoJobV2Result) -> Result<(), JobSchemaError> {
+    if result.operation.trim().is_empty()
+        || result.caller_id.trim().is_empty()
+        || result.algorithm_version.trim().is_empty()
+        || result.primary_artifact_role.trim().is_empty()
+        || result.primary_artifact_key.trim().is_empty()
+        || result.primary_artifact_sha256.trim().is_empty()
+    {
+        return Err(JobSchemaError::new(
+            JobSchemaErrorCode::ResultValidationFailed,
+            "write-demo v2 summary fields must not be empty",
+        ));
+    }
+    if result.artifact_count < 0 {
+        return Err(JobSchemaError::new(
+            JobSchemaErrorCode::ResultValidationFailed,
+            "artifact_count must be >= 0",
+        ));
+    }
+    if result.primary_artifact_bytes < 0 {
+        return Err(JobSchemaError::new(
+            JobSchemaErrorCode::ResultValidationFailed,
+            "primary_artifact_bytes must be >= 0",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_owner_sub(value: &str) -> Result<(), JobSchemaError> {
     if value.trim().is_empty() || value.len() > 128 {
         return Err(JobSchemaError::new(
@@ -595,5 +664,23 @@ mod tests {
         };
         let err = validate_job_envelope(&envelope).unwrap_err();
         assert_eq!(err.code.as_str(), "UNKNOWN_JOB_TYPE");
+    }
+
+    #[test]
+    fn write_demo_result_v2_validates() {
+        let result = build_write_demo_result_v2(
+            "export".to_string(),
+            "caller-a".to_string(),
+            "write-demo-v2",
+            1,
+            "report".to_string(),
+            "artifact-123".to_string(),
+            "abc123".to_string(),
+            512,
+        )
+        .unwrap();
+
+        let decoded = validate_job_result("write-demo", 2, &result.payload).unwrap();
+        assert!(matches!(decoded, KnownJobResult::WriteDemoV2(_)));
     }
 }
