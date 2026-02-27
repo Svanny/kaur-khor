@@ -250,7 +250,7 @@ fn staging_requires_pgbouncer_transaction_mode() {
 }
 
 #[test]
-fn event_relay_role_does_not_require_http_edge_or_auth_settings() {
+fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
     let _guard = lock_env();
 
     let old_env = std::env::var("BANJI_ENV").ok();
@@ -291,6 +291,14 @@ fn event_relay_role_does_not_require_http_edge_or_auth_settings() {
     let result = AppConfig::from_env();
     assert!(result.is_ok());
     assert_eq!(result.unwrap().app_role, AppRole::EventRelay);
+
+    std::env::set_var("APP_ROLE", "projection-consumer");
+    let projection_result = AppConfig::from_env();
+    assert!(projection_result.is_ok());
+    assert_eq!(
+        projection_result.unwrap().app_role,
+        AppRole::ProjectionConsumer
+    );
 
     if let Some(v) = old_env {
         std::env::set_var("BANJI_ENV", v);

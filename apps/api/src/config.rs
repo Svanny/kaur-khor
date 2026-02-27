@@ -81,6 +81,7 @@ impl EdgeProvider {
 pub enum AppRole {
     Api,
     EventRelay,
+    ProjectionConsumer,
 }
 
 impl AppRole {
@@ -88,7 +89,10 @@ impl AppRole {
         match raw.to_ascii_lowercase().as_str() {
             "api" => Ok(Self::Api),
             "event-relay" => Ok(Self::EventRelay),
-            _ => Err(anyhow!("APP_ROLE must be one of: api, event-relay")),
+            "projection-consumer" => Ok(Self::ProjectionConsumer),
+            _ => Err(anyhow!(
+                "APP_ROLE must be one of: api, event-relay, projection-consumer"
+            )),
         }
     }
 
@@ -96,6 +100,7 @@ impl AppRole {
         match self {
             Self::Api => "api",
             Self::EventRelay => "event-relay",
+            Self::ProjectionConsumer => "projection-consumer",
         }
     }
 }
@@ -539,9 +544,11 @@ impl AppConfig {
                 ));
             }
         }
-        if app_role == AppRole::EventRelay && database_runtime_url.is_none() {
+        if matches!(app_role, AppRole::EventRelay | AppRole::ProjectionConsumer)
+            && database_runtime_url.is_none()
+        {
             return Err(anyhow!(
-                "APP_ROLE=event-relay requires DATABASE_RUNTIME_URL"
+                "APP_ROLE=event-relay|projection-consumer requires DATABASE_RUNTIME_URL"
             ));
         }
 
