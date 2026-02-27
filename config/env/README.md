@@ -85,6 +85,17 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `JOB_RESULT_KAFKA_TOPIC_PREFIX`
 - `WORKER_CONSUME_REPLAY_QUEUES`
 - `WORKER_JOB_RELAY_BATCH_SIZE`
+- `OBJECT_STORAGE_ENABLED`
+- `OBJECT_STORAGE_ENDPOINT`
+- `OBJECT_STORAGE_REGION`
+- `OBJECT_STORAGE_BUCKET_ARTIFACTS`
+- `OBJECT_STORAGE_FORCE_PATH_STYLE`
+- `OBJECT_STORAGE_ARTIFACT_PREFIX`
+- `OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS`
+- `OBJECT_STORAGE_CONNECT_TIMEOUT_MS`
+- `OBJECT_STORAGE_REQUEST_TIMEOUT_MS`
+- `OBJECT_STORAGE_MAX_ARTIFACT_BYTES`
+- `ARTIFACT_TMP_DIR`
 
 `staging` and `prod` must use:
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
@@ -115,6 +126,7 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 `APP_ROLE=worker` startup contract:
 - `DATABASE_RUNTIME_URL` is required
 - `RABBIT_URL` is required
+- object storage config + secrets are required
 - HTTP-edge/auth keys are optional for this role
 - Kafka result publication remains disabled by default in this milestone
 - worker runtime contract is driven by:
@@ -129,6 +141,17 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
   - `JOB_RESULT_KAFKA_TOPIC_PREFIX`
   - `WORKER_CONSUME_REPLAY_QUEUES`
   - `WORKER_JOB_RELAY_BATCH_SIZE`
+  - `OBJECT_STORAGE_ENABLED`
+  - `OBJECT_STORAGE_ENDPOINT`
+  - `OBJECT_STORAGE_REGION`
+  - `OBJECT_STORAGE_BUCKET_ARTIFACTS`
+  - `OBJECT_STORAGE_FORCE_PATH_STYLE`
+  - `OBJECT_STORAGE_ARTIFACT_PREFIX`
+  - `OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS`
+  - `OBJECT_STORAGE_CONNECT_TIMEOUT_MS`
+  - `OBJECT_STORAGE_REQUEST_TIMEOUT_MS`
+  - `OBJECT_STORAGE_MAX_ARTIFACT_BYTES`
+  - `ARTIFACT_TMP_DIR`
 
 ## Edge Protection Keys (Non-Secret)
 - `EDGE_ENFORCEMENT_ENABLED`
@@ -185,3 +208,9 @@ Defaults for current fix:
 - `OBJECT_STORAGE_ACCESS_KEY`
 - `OBJECT_STORAGE_SECRET_KEY`
 - provider-specific bucket/endpoint secret keys where required by deployment platform
+
+## Worker Artifact Storage (Current Fix)
+- worker artifacts use S3-compatible object storage; PostgreSQL stores metadata only
+- `OBJECT_STORAGE_BUCKET_ARTIFACTS` bucket must already exist before worker startup
+- the configured artifact prefix must have an external lifecycle rule that expires objects after `OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS`
+- `bucket_name + object_key` is the authoritative object identity; `object_uri` is convenience only

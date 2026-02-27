@@ -148,6 +148,19 @@ For each deployable Railway service:
   - transient errors follow retry ladder and terminate at DLQ ceiling
 - DLQ replay is copy-first and operator-audited; destructive cleanup is a separate explicit step.
 - Worker startup contract:
-  - `APP_ROLE=worker` requires `DATABASE_RUNTIME_URL` and `RABBIT_URL`
+  - `APP_ROLE=worker` requires `DATABASE_RUNTIME_URL`, `RABBIT_URL`, and object-storage config/secrets
   - `JOB_RESULT_KAFKA_ENABLED=true` must fail startup until a future Kafka publisher milestone exists
 - Replay queue consumers must use `RABBIT_REPLAY_PREFETCH_FAST` / `RABBIT_REPLAY_PREFETCH_HEAVY`, not the primary queue prefetch values.
+
+## Object Storage Artifact Contract
+- Worker artifact storage is S3-compatible and metadata-only from Postgres.
+- Deploy preflight for worker services must assert:
+  - `OBJECT_STORAGE_ENABLED=true`
+  - `OBJECT_STORAGE_ENDPOINT`
+  - `OBJECT_STORAGE_REGION`
+  - `OBJECT_STORAGE_BUCKET_ARTIFACTS`
+  - `OBJECT_STORAGE_ACCESS_KEY`
+  - `OBJECT_STORAGE_SECRET_KEY`
+  - `ARTIFACT_TMP_DIR`
+- Bucket provisioning is external and must exist before deploy.
+- The configured artifact prefix must have a lifecycle rule that expires objects after `OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS`.

@@ -180,10 +180,12 @@ This repository is an actively evolving prototype.
 - Inventory projections now use a dedicated `APP_ROLE=projection-consumer` worker that reads `app.event_log`, updates `app.inventory_item_projection`, and resumes from durable checkpoints with single-instance advisory locking.
 - Projection replay is now built into the Rust `projection-consumer` runtime (`continuous`, `replay-preview`, `replay-apply`), while public `GET /v1/items/:item_id` still reads the canonical `app.inventory_item` table.
 - Job execution now uses a dedicated `APP_ROLE=worker` runtime that consumes RabbitMQ deliveries, writes `app.job_run` / `app.job_run_attempt` / `app.job_result` accountability records in Postgres, and enforces deterministic `job_key` identity plus duplicate-delivery-safe attempt leases.
+- Worker artifacts now use S3-compatible object storage with deterministic `artifact_key` / object-key derivation, `HEAD`-first idempotent uploads, and Postgres metadata-only tracking in `app.object_artifact` / `app.job_result_artifact`.
 - Observability baseline uses OpenTelemetry semantic-convention HTTP metrics, correlation IDs, and a collector-forwarded traces/metrics path.
 - Postgres restore drill routine is defined via `.github/workflows/postgres-restore-drill.yml.disabled` and `docs/operations/postgres-restore-drill.md`.
 - Postgres event-log lifecycle (retention/archive/replay) is defined via `docs/architecture/postgres-event-log.md` and `docs/operations/postgres-event-log-maintenance.md`.
 - Event vocabulary and schema discipline is defined via `docs/architecture/event-vocabulary-schema-discipline.md`.
 - Job worker operations are defined via `docs/operations/job-worker-runbook.md`.
+- Object storage artifact contracts are defined via `docs/architecture/object-storage-artifacts.md` and `docs/operations/object-storage-runbook.md`.
 - Edge protection baseline (Cloudflare front door + app-layer guardrails) is defined via `docs/architecture/edge-protections.md` and `docs/operations/edge-operations-runbook.md`.
 - Some integration paths remain intentionally staged while contracts and operational tooling are finalized.

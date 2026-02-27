@@ -80,7 +80,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 5. [DONE] Job producer and worker services
    API or consumers enqueue jobs to RabbitMQ for heavy algorithms. Workers consume, write run records, write results, and publish result events back to Kafka only if/when the optional Kafka track is enabled. Done means jobs are idempotent, retriable, and every run is accountable in Postgres.
 
-6. Object storage integration for heavy artifacts
+6. [DONE] Object storage integration for heavy artifacts
    Use S3 compatible storage for exports, large intermediate files, and reports. Done means Postgres holds only metadata and references, and workers can produce artifacts without bloating the database.
 
 #### Walls, the service layer upgrades that prevent slow decay

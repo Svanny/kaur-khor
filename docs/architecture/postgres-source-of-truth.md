@@ -138,6 +138,18 @@ No runtime role may hold schema-altering privileges.
 - Workers must not create missing `job_run` rows; missing logical runs are recorded as `missing_job_run` violations.
 - Result durability is Postgres-first; Kafka result publication is disabled by default in this phase.
 
+## Object Artifact Current Fix
+- Heavy worker artifacts live in S3-compatible object storage; PostgreSQL stores metadata and references only.
+- Current metadata tables:
+  - `app.object_artifact`
+  - `app.job_result_artifact`
+- `bucket_name + object_key` is the authoritative object identity; `object_uri` is convenience only.
+- Worker artifact uploads are idempotent:
+  - deterministic `artifact_key`
+  - deterministic object key from `job_run.created_at`
+  - `HEAD` first, upload only when missing, verify by content length + metadata `sha256`
+- If upload succeeds and the Postgres metadata transaction fails, retry must reuse the same object key and converge by matching the existing object.
+
 ## Operational Telemetry Baseline
 Enable visibility for:
 - slow queries / top query patterns

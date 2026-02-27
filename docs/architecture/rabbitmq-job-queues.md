@@ -80,6 +80,17 @@ Worker contract:
 - If a worker crashes and the lease expires, another worker may steal the lease and continue.
 - If a job already succeeded, redelivery is acknowledged without recomputing.
 
+## Worker Artifact Storage
+- Workers may produce heavy artifacts for some job types.
+- Artifact bytes must not be stored in `app.job_result.payload`.
+- Current artifact producer:
+  - `write-demo` emits result `v2` summary fields in Postgres and stores the full report in S3-compatible object storage.
+- Artifact metadata is persisted only after upload verification succeeds.
+- Upload contract is `HEAD`-first:
+  - existing object with matching `sha256` + content length => reuse
+  - existing mismatch at the deterministic key => hard failure
+  - missing object => upload then `HEAD` verify
+
 ## Prefetch Policy
 Per-class prefetch settings:
 - fast: `RABBIT_PREFETCH_FAST` (default 20)
