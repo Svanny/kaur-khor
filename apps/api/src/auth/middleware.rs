@@ -15,14 +15,18 @@ pub async fn auth_middleware(
     next: Next,
 ) -> Response {
     if !state.config.auth_enabled {
-        let fallback = request
-            .headers()
-            .get("x-caller-id")
-            .and_then(|v| v.to_str().ok())
-            .map(str::trim)
-            .filter(|v| !v.is_empty())
-            .unwrap_or("dev-anon")
-            .to_string();
+        let fallback = if state.config.env == "dev" {
+            request
+                .headers()
+                .get("x-caller-id")
+                .and_then(|v| v.to_str().ok())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .unwrap_or("dev-anon")
+                .to_string()
+        } else {
+            "anonymous".to_string()
+        };
         request
             .extensions_mut()
             .insert(crate::auth::AuthPrincipal { sub: fallback });

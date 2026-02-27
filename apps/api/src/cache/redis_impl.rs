@@ -28,21 +28,20 @@ impl CircuitState {
     }
 }
 
-pub struct RedisCacheClient {
+pub struct RedisRuntime {
     client: redis::Client,
     cfg: AppConfig,
     state: Arc<Mutex<CircuitState>>,
 }
 
-impl RedisCacheClient {
+impl RedisRuntime {
     pub async fn connect(cfg: &AppConfig) -> Result<Self> {
         let url = cfg
             .redis_url
             .clone()
-            .ok_or_else(|| anyhow!("REDIS_URL is required when cache enabled"))?;
+            .ok_or_else(|| anyhow!("REDIS_URL is required for Redis-backed features"))?;
         let client = redis::Client::open(url)?;
 
-        // Fail fast check during startup.
         let mut conn = tokio::time::timeout(
             cfg.redis_connect_timeout,
             client.get_multiplexed_async_connection(),
@@ -63,7 +62,7 @@ impl RedisCacheClient {
         })
     }
 
-    async fn with_connection<T, F, Fut>(&self, action: F) -> Result<T>
+    pub async fn with_connection<T, F, Fut>(&self, action: F) -> Result<T>
     where
         F: FnOnce(redis::aio::MultiplexedConnection) -> Fut + Send,
         Fut: std::future::Future<Output = Result<T>> + Send,
@@ -105,6 +104,17 @@ impl RedisCacheClient {
                 Err(anyhow!("redis connect timeout"))
             }
         }
+    }
+
+    pub fn ttl_secs(&self, ttl: Duration) -> u64 {
+        let base = ttl.as_secs().max(1);
+        let jitter = self.cfg.cache_ttl_jitter.as_secs();
+        if jitter == 0 {
+            return base;
+        }
+        let mut rng = rand::thread_rng();
+        let extra = (rng.next_u64() % (jitter + 1)).min(jitter);
+        base.saturating_add(extra)
     }
 
     async fn ensure_circuit_closed(&self) -> Result<()> {
@@ -152,39 +162,50 @@ impl RedisCacheClient {
             s.errors_in_window = 0;
         }
     }
+}
 
-    fn ttl_secs(&self, ttl: Duration) -> u64 {
-        let base = ttl.as_secs().max(1);
-        let jitter = self.cfg.cache_ttl_jitter.as_secs();
-        if jitter == 0 {
-            return base;
-        }
-        let mut rng = rand::thread_rng();
-        let extra = (rng.next_u64() % (jitter + 1)).min(jitter);
-        base.saturating_add(extra)
+pub struct RedisCacheClient {
+    runtime: Arc<RedisRuntime>,
+}
+
+impl RedisCacheClient {
+    pub async fn connect(cfg: &AppConfig) -> Result<Self> {
+        Ok(Self {
+            runtime: Arc::new(RedisRuntime::connect(cfg).await?),
+        })
+    }
+
+    pub fn from_runtime(runtime: Arc<RedisRuntime>) -> Self {
+        Self { runtime }
+    }
+
+    pub fn runtime(&self) -> Arc<RedisRuntime> {
+        self.runtime.clone()
     }
 }
 
 #[async_trait]
 impl CacheClient for RedisCacheClient {
     async fn get_string(&self, key: &str) -> Result<Option<String>> {
-        self.with_connection(|mut conn| async move {
-            let value: Option<String> = conn.get(key).await?;
-            Ok(value)
-        })
-        .await
+        self.runtime
+            .with_connection(|mut conn| async move {
+                let value: Option<String> = conn.get(key).await?;
+                Ok(value)
+            })
+            .await
     }
 
     async fn set_string(&self, key: &str, value: &str, ttl: Duration) -> Result<()> {
         let key = key.to_string();
         let value = value.to_string();
-        let ttl = self.ttl_secs(ttl);
+        let ttl = self.runtime.ttl_secs(ttl);
 
-        self.with_connection(|mut conn| async move {
-            let _: () = conn.set_ex(key, value, ttl).await?;
-            Ok(())
-        })
-        .await
+        self.runtime
+            .with_connection(|mut conn| async move {
+                let _: () = conn.set_ex(key, value, ttl).await?;
+                Ok(())
+            })
+            .await
     }
 
     async fn acquire_lock(&self, key: &str, ttl: Duration) -> Result<Option<LockHandle>> {
@@ -192,36 +213,38 @@ impl CacheClient for RedisCacheClient {
         let token = uuid::Uuid::new_v4().to_string();
         let seconds = ttl.as_secs().max(1) as i64;
 
-        self.with_connection(|mut conn| async move {
-            let acquired: Option<String> = redis::cmd("SET")
-                .arg(&key)
-                .arg(&token)
-                .arg("NX")
-                .arg("EX")
-                .arg(seconds)
-                .query_async(&mut conn)
-                .await?;
+        self.runtime
+            .with_connection(|mut conn| async move {
+                let acquired: Option<String> = redis::cmd("SET")
+                    .arg(&key)
+                    .arg(&token)
+                    .arg("NX")
+                    .arg("EX")
+                    .arg(seconds)
+                    .query_async(&mut conn)
+                    .await?;
 
-            if acquired.is_some() {
-                Ok(Some(LockHandle { key, token }))
-            } else {
-                Ok(None)
-            }
-        })
-        .await
+                if acquired.is_some() {
+                    Ok(Some(LockHandle { key, token }))
+                } else {
+                    Ok(None)
+                }
+            })
+            .await
     }
 
     async fn release_lock(&self, lock: &LockHandle) -> Result<bool> {
         let key = lock.key.clone();
         let token = lock.token.clone();
 
-        self.with_connection(|mut conn| async move {
-            let script = Script::new(
-                "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
-            );
-            let deleted: i32 = script.key(key).arg(token).invoke_async(&mut conn).await?;
-            Ok(deleted == 1)
-        })
-        .await
+        self.runtime
+            .with_connection(|mut conn| async move {
+                let script = Script::new(
+                    "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
+                );
+                let deleted: i32 = script.key(key).arg(token).invoke_async(&mut conn).await?;
+                Ok(deleted == 1)
+            })
+            .await
     }
 }

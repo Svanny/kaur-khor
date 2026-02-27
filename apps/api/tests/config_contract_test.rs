@@ -30,13 +30,13 @@ fn lock_env() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn capture_env(keys: &'static [&'static str]) -> Vec<(&'static str, Option<String>)> {
+fn capture_env<'a>(keys: &'a [&'a str]) -> Vec<(&'a str, Option<String>)> {
     keys.iter()
         .map(|key| (*key, std::env::var(key).ok()))
         .collect()
 }
 
-fn restore_env(values: Vec<(&'static str, Option<String>)>) {
+fn restore_env<'a>(values: Vec<(&'a str, Option<String>)>) {
     for (key, value) in values {
         if let Some(value) = value {
             std::env::set_var(key, value);
@@ -141,6 +141,8 @@ fn app_config_debug_redacts_secret_fields() {
         rabbit_replay_prefetch_fast: 5,
         rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
+        job_result_kafka_enabled: false,
+        job_result_kafka_topic_prefix: None,
         redis_url: Some("redis://:secret@redis.example:6379".to_string()),
         database_runtime_url: Some(db_url),
         database_runtime_endpoint_kind: DatabaseRuntimeEndpointKind::Direct,
@@ -159,10 +161,26 @@ fn app_config_debug_redacts_secret_fields() {
         edge_origin_auth_secret_next: None,
         edge_rate_limit_enabled: true,
         edge_rate_limit_window: std::time::Duration::from_secs(60),
-        edge_rate_limit_read_max: 120,
-        edge_rate_limit_write_max: 30,
-        edge_rate_limit_max_keys: 1_000,
+        edge_rate_limit_public_read_max: 120,
+        edge_rate_limit_user_read_max: 240,
+        edge_rate_limit_user_write_max: 60,
+        edge_rate_limit_device_read_max: 120,
+        edge_rate_limit_device_write_max: 30,
+        edge_rate_limit_fallback_max_keys: 1_000,
         edge_rate_limit_key_ttl: std::time::Duration::from_secs(300),
+        edge_rate_limit_redis_prefix: "rate-limit".to_string(),
+        edge_rate_limit_failover_enabled: true,
+        edge_backpressure_enabled: true,
+        edge_backpressure_poll_interval: std::time::Duration::from_millis(1_000),
+        edge_backpressure_retry_after_seconds: 5,
+        edge_backpressure_consecutive_unhealthy: 2,
+        edge_backpressure_consecutive_healthy: 2,
+        edge_backpressure_job_outbox_pending_max: 1_000,
+        edge_backpressure_job_outbox_oldest_age_seconds_max: 30,
+        edge_backpressure_job_run_pending_max: 2_000,
+        edge_backpressure_job_run_oldest_age_seconds_max: 60,
+        edge_backpressure_kafka_pending_max: 500,
+        edge_backpressure_kafka_oldest_age_seconds_max: 30,
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec![],
@@ -173,6 +191,121 @@ fn app_config_debug_redacts_secret_fields() {
     assert!(!rendered.contains("user:pass"));
     assert!(!rendered.contains("secret@redis"));
     assert!(rendered.contains("<redacted>"));
+}
+
+#[test]
+fn api_rejects_auth_disabled_outside_dev() {
+    let _guard = lock_env();
+    let keys = [
+        "BANJI_ENV",
+        "APP_ROLE",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "DATABASE_MIGRATION_URL",
+        "AUTH_ENABLED",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "test");
+    std::env::set_var("APP_ROLE", "api");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var("AUTH_ENABLED", "false");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let result = AppConfig::from_env();
+    restore_env(old);
+
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("AUTH_ENABLED=false in dev"));
+}
+
+#[test]
+fn new_edge_rate_limit_and_backpressure_values_are_parsed() {
+    let _guard = lock_env();
+    let keys = [
+        "BANJI_ENV",
+        "APP_ROLE",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "DATABASE_MIGRATION_URL",
+        "AUTH_ENABLED",
+        "EDGE_RATE_LIMIT_USER_READ_MAX",
+        "EDGE_RATE_LIMIT_USER_WRITE_MAX",
+        "EDGE_RATE_LIMIT_DEVICE_READ_MAX",
+        "EDGE_RATE_LIMIT_DEVICE_WRITE_MAX",
+        "EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS",
+        "EDGE_RATE_LIMIT_REDIS_PREFIX",
+        "EDGE_RATE_LIMIT_FAILOVER_ENABLED",
+        "EDGE_BACKPRESSURE_ENABLED",
+        "EDGE_BACKPRESSURE_POLL_INTERVAL_MS",
+        "EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS",
+        "EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY",
+        "EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY",
+        "EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX",
+        "EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX",
+        "EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX",
+        "EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX",
+        "EDGE_BACKPRESSURE_KAFKA_PENDING_MAX",
+        "EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX",
+        "JOB_RESULT_KAFKA_ENABLED",
+        "JOB_RESULT_KAFKA_TOPIC_PREFIX",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "dev");
+    std::env::set_var("APP_ROLE", "api");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var("AUTH_ENABLED", "false");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+    std::env::set_var("EDGE_RATE_LIMIT_USER_READ_MAX", "301");
+    std::env::set_var("EDGE_RATE_LIMIT_USER_WRITE_MAX", "71");
+    std::env::set_var("EDGE_RATE_LIMIT_DEVICE_READ_MAX", "151");
+    std::env::set_var("EDGE_RATE_LIMIT_DEVICE_WRITE_MAX", "21");
+    std::env::set_var("EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS", "3333");
+    std::env::set_var("EDGE_RATE_LIMIT_REDIS_PREFIX", "shared-rl");
+    std::env::set_var("EDGE_RATE_LIMIT_FAILOVER_ENABLED", "false");
+    std::env::set_var("EDGE_BACKPRESSURE_ENABLED", "true");
+    std::env::set_var("EDGE_BACKPRESSURE_POLL_INTERVAL_MS", "1500");
+    std::env::set_var("EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS", "7");
+    std::env::set_var("EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY", "3");
+    std::env::set_var("EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY", "4");
+    std::env::set_var("EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX", "11");
+    std::env::set_var("EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX", "12");
+    std::env::set_var("EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX", "13");
+    std::env::set_var("EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX", "14");
+    std::env::set_var("EDGE_BACKPRESSURE_KAFKA_PENDING_MAX", "15");
+    std::env::set_var("EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX", "16");
+    std::env::set_var("JOB_RESULT_KAFKA_ENABLED", "true");
+    std::env::set_var("JOB_RESULT_KAFKA_TOPIC_PREFIX", "banji-results");
+
+    let result = AppConfig::from_env();
+    restore_env(old);
+    let cfg = result.expect("config should parse");
+
+    assert_eq!(cfg.edge_rate_limit_user_read_max, 301);
+    assert_eq!(cfg.edge_rate_limit_user_write_max, 71);
+    assert_eq!(cfg.edge_rate_limit_device_read_max, 151);
+    assert_eq!(cfg.edge_rate_limit_device_write_max, 21);
+    assert_eq!(cfg.edge_rate_limit_fallback_max_keys, 3333);
+    assert_eq!(cfg.edge_rate_limit_redis_prefix, "shared-rl");
+    assert!(!cfg.edge_rate_limit_failover_enabled);
+    assert_eq!(cfg.edge_backpressure_poll_interval.as_millis(), 1500);
+    assert_eq!(cfg.edge_backpressure_retry_after_seconds, 7);
+    assert_eq!(cfg.edge_backpressure_consecutive_unhealthy, 3);
+    assert_eq!(cfg.edge_backpressure_consecutive_healthy, 4);
+    assert_eq!(cfg.edge_backpressure_job_outbox_pending_max, 11);
+    assert_eq!(cfg.edge_backpressure_job_run_pending_max, 13);
+    assert_eq!(cfg.edge_backpressure_kafka_pending_max, 15);
+    assert!(cfg.job_result_kafka_enabled);
+    assert_eq!(
+        cfg.job_result_kafka_topic_prefix.as_deref(),
+        Some("banji-results")
+    );
 }
 
 #[test]

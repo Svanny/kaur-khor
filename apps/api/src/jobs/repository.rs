@@ -380,6 +380,54 @@ pub async fn upsert_job_result_tx(
     ))
 }
 
+pub async fn queued_or_retrying_pressure(pool: &PgPool) -> Result<(i64, i64)> {
+    let row = sqlx::query(
+        r#"
+        SELECT
+          COUNT(*)::bigint AS pending_count,
+          COALESCE(
+            MAX(
+              GREATEST(
+                (EXTRACT(EPOCH FROM (NOW() - created_at)))::bigint,
+                0
+              )
+            ),
+            0
+          ) AS oldest_age_seconds
+        FROM app.job_run
+        WHERE status IN ('queued', 'retrying')
+        "#,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok((row.get("pending_count"), row.get("oldest_age_seconds")))
+}
+
+pub async fn kafka_result_pressure(pool: &PgPool) -> Result<(i64, i64)> {
+    let row = sqlx::query(
+        r#"
+        SELECT
+          COUNT(*)::bigint AS pending_count,
+          COALESCE(
+            MAX(
+              GREATEST(
+                (EXTRACT(EPOCH FROM (NOW() - updated_at)))::bigint,
+                0
+              )
+            ),
+            0
+          ) AS oldest_age_seconds
+        FROM app.job_result
+        WHERE kafka_publish_status IN ('pending', 'failed')
+        "#,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok((row.get("pending_count"), row.get("oldest_age_seconds")))
+}
+
 pub async fn mark_attempt_succeeded_tx(
     tx: &mut Transaction<'_, Postgres>,
     job_run_id: i64,

@@ -21,7 +21,7 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
-use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient};
+use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient, RedisRuntime};
 use config::AppConfig;
 use idempotency::{IdempotencyResult, PersistedResponse};
 use items::types::{CreateItemRequest, ItemRecord};
@@ -44,7 +44,8 @@ pub struct AppState {
     pub jwt_verifier: Option<Arc<JwtVerifier>>,
     pub key_builder: KeyBuilder,
     pub singleflight: Arc<Mutex<HashMap<String, Weak<Mutex<()>>>>>,
-    pub rate_limiter: Arc<edge::rate_limit::InMemoryRateLimiter>,
+    pub rate_limiter: Arc<edge::rate_limit::SharedRateLimiter>,
+    pub backpressure_gate: Arc<edge::backpressure::BackpressureGate>,
 }
 
 #[derive(Serialize)]
@@ -59,14 +60,27 @@ struct WriteDemoRequest {
 }
 
 pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
-    let cache: Arc<dyn CacheClient> = if config.cache_enabled {
-        match RedisCacheClient::connect(&config).await {
-            Ok(client) => Arc::new(client),
+    let redis_runtime = if config.redis_url.is_some() {
+        match RedisRuntime::connect(&config).await {
+            Ok(runtime) => Some(Arc::new(runtime)),
             Err(err) => {
                 let safe_error = redact_message(&err.to_string());
-                tracing::warn!(error = %safe_error, "redis unavailable at startup; using fail-open noop cache");
-                Arc::new(NoopCacheClient)
+                tracing::warn!(
+                    error = %safe_error,
+                    "redis unavailable at startup; using local fallback for shared features"
+                );
+                None
             }
+        }
+    } else {
+        None
+    };
+
+    let cache: Arc<dyn CacheClient> = if config.cache_enabled {
+        if let Some(runtime) = redis_runtime.clone() {
+            Arc::new(RedisCacheClient::from_runtime(runtime))
+        } else {
+            Arc::new(NoopCacheClient)
         }
     } else {
         Arc::new(NoopCacheClient)
@@ -107,6 +121,22 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
         None
     };
 
+    let rate_limiter = Arc::new(edge::rate_limit::SharedRateLimiter::new(
+        &config,
+        redis_runtime.clone(),
+    ));
+    let backpressure_gate = Arc::new(edge::backpressure::BackpressureGate::new(&config));
+
+    if config.app_role == config::AppRole::Api {
+        if let Some(pool) = db.as_ref() {
+            edge::backpressure::spawn_backpressure_sampler(
+                backpressure_gate.clone(),
+                pool.clone(),
+                config.job_result_kafka_enabled,
+            );
+        }
+    }
+
     Ok(AppState {
         config,
         db,
@@ -114,7 +144,8 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
         jwt_verifier,
         key_builder,
         singleflight: Arc::new(Mutex::new(HashMap::new())),
-        rate_limiter: Arc::new(edge::rate_limit::InMemoryRateLimiter::new()),
+        rate_limiter,
+        backpressure_gate,
     })
 }
 
@@ -131,30 +162,45 @@ pub fn app() -> Router {
 }
 
 pub fn app_with_state(state: AppState) -> Router {
+    let public = Router::new()
+        .route("/health", get(health))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            edge::rate_limit::rate_limit_middleware,
+        ));
+
     // Layer order is intentionally reverse-applied by Axum:
-    // origin guard -> request size limit -> rate limit -> CORS -> observability -> auth -> handlers.
-    let protected = Router::new()
+    // auth -> identity -> backpressure -> rate limit -> handlers.
+    let application = Router::new()
         .route("/v1/write-demo", post(write_demo))
         .route("/v1/items", post(create_item))
         .route("/v1/items/:item_id", get(get_item))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            edge::rate_limit::rate_limit_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            edge::backpressure::backpressure_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            edge::identity::identity_middleware,
+        ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::middleware::auth_middleware,
         ));
 
     Router::new()
-        .route("/health", get(health))
-        .merge(protected)
+        .merge(public)
+        .merge(application)
         .layer(middleware::from_fn(
             observability::http_observability_middleware,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             edge::cors::cors_middleware,
-        ))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            edge::rate_limit::rate_limit_middleware,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -868,6 +914,8 @@ mod tests {
             rabbit_replay_prefetch_fast: 5,
             rabbit_replay_prefetch_heavy: 1,
             rabbit_max_attempts: 4,
+            job_result_kafka_enabled: false,
+            job_result_kafka_topic_prefix: None,
             redis_url: None,
             database_runtime_url: None,
             database_runtime_endpoint_kind: config::DatabaseRuntimeEndpointKind::Direct,
@@ -886,10 +934,26 @@ mod tests {
             edge_origin_auth_secret_next: None,
             edge_rate_limit_enabled: true,
             edge_rate_limit_window: Duration::from_secs(60),
-            edge_rate_limit_read_max: 120,
-            edge_rate_limit_write_max: 30,
-            edge_rate_limit_max_keys: 1_000,
+            edge_rate_limit_public_read_max: 120,
+            edge_rate_limit_user_read_max: 240,
+            edge_rate_limit_user_write_max: 60,
+            edge_rate_limit_device_read_max: 120,
+            edge_rate_limit_device_write_max: 30,
+            edge_rate_limit_fallback_max_keys: 1_000,
             edge_rate_limit_key_ttl: Duration::from_secs(300),
+            edge_rate_limit_redis_prefix: "rate-limit".to_string(),
+            edge_rate_limit_failover_enabled: true,
+            edge_backpressure_enabled: true,
+            edge_backpressure_poll_interval: Duration::from_millis(1_000),
+            edge_backpressure_retry_after_seconds: 5,
+            edge_backpressure_consecutive_unhealthy: 2,
+            edge_backpressure_consecutive_healthy: 2,
+            edge_backpressure_job_outbox_pending_max: 1_000,
+            edge_backpressure_job_outbox_oldest_age_seconds_max: 30,
+            edge_backpressure_job_run_pending_max: 2_000,
+            edge_backpressure_job_run_oldest_age_seconds_max: 60,
+            edge_backpressure_kafka_pending_max: 500,
+            edge_backpressure_kafka_oldest_age_seconds_max: 30,
             edge_request_max_bytes: 262_144,
             edge_write_request_max_bytes: 65_536,
             edge_cors_allowed_origins: vec![],
@@ -910,7 +974,8 @@ mod tests {
                 config.cache_schema_version.clone(),
             ),
             singleflight: Arc::new(Mutex::new(HashMap::new())),
-            rate_limiter: Arc::new(edge::rate_limit::InMemoryRateLimiter::new()),
+            rate_limiter: Arc::new(edge::rate_limit::SharedRateLimiter::new(&config, None)),
+            backpressure_gate: Arc::new(edge::backpressure::BackpressureGate::new(&config)),
             config,
         }
     }

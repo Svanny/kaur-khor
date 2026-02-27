@@ -198,6 +198,25 @@ pub async fn count_pending(pool: &sqlx::PgPool, workload_class: WorkloadClass) -
     Ok(count)
 }
 
+pub async fn oldest_pending_age_seconds(pool: &sqlx::PgPool) -> Result<i64> {
+    let age: Option<i64> = sqlx::query_scalar(
+        r#"
+        SELECT MAX(
+          GREATEST(
+            (EXTRACT(EPOCH FROM (NOW() - created_at)))::bigint,
+            0
+          )
+        )
+        FROM app.job_outbox
+        WHERE status = 'pending'
+        "#,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(age.unwrap_or(0))
+}
+
 fn validate_record(job: &JobRecord) -> Result<()> {
     validate_label(&job.job_type, "job_type")?;
     validate_label(&job.routing_key, "routing_key")?;

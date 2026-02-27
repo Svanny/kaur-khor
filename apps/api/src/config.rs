@@ -249,6 +249,8 @@ pub struct AppConfig {
     pub rabbit_replay_prefetch_fast: u16,
     pub rabbit_replay_prefetch_heavy: u16,
     pub rabbit_max_attempts: u8,
+    pub job_result_kafka_enabled: bool,
+    pub job_result_kafka_topic_prefix: Option<String>,
     pub redis_url: Option<String>,
     pub database_runtime_url: Option<String>,
     pub database_runtime_endpoint_kind: DatabaseRuntimeEndpointKind,
@@ -267,10 +269,26 @@ pub struct AppConfig {
     pub edge_origin_auth_secret_next: Option<String>,
     pub edge_rate_limit_enabled: bool,
     pub edge_rate_limit_window: Duration,
-    pub edge_rate_limit_read_max: u32,
-    pub edge_rate_limit_write_max: u32,
-    pub edge_rate_limit_max_keys: usize,
+    pub edge_rate_limit_public_read_max: u32,
+    pub edge_rate_limit_user_read_max: u32,
+    pub edge_rate_limit_user_write_max: u32,
+    pub edge_rate_limit_device_read_max: u32,
+    pub edge_rate_limit_device_write_max: u32,
+    pub edge_rate_limit_fallback_max_keys: usize,
     pub edge_rate_limit_key_ttl: Duration,
+    pub edge_rate_limit_redis_prefix: String,
+    pub edge_rate_limit_failover_enabled: bool,
+    pub edge_backpressure_enabled: bool,
+    pub edge_backpressure_poll_interval: Duration,
+    pub edge_backpressure_retry_after_seconds: u64,
+    pub edge_backpressure_consecutive_unhealthy: u32,
+    pub edge_backpressure_consecutive_healthy: u32,
+    pub edge_backpressure_job_outbox_pending_max: i64,
+    pub edge_backpressure_job_outbox_oldest_age_seconds_max: i64,
+    pub edge_backpressure_job_run_pending_max: i64,
+    pub edge_backpressure_job_run_oldest_age_seconds_max: i64,
+    pub edge_backpressure_kafka_pending_max: i64,
+    pub edge_backpressure_kafka_oldest_age_seconds_max: i64,
     pub edge_request_max_bytes: usize,
     pub edge_write_request_max_bytes: usize,
     pub edge_cors_allowed_origins: Vec<String>,
@@ -346,6 +364,11 @@ impl fmt::Debug for AppConfig {
                 &self.rabbit_replay_prefetch_heavy,
             )
             .field("rabbit_max_attempts", &self.rabbit_max_attempts)
+            .field("job_result_kafka_enabled", &self.job_result_kafka_enabled)
+            .field(
+                "job_result_kafka_topic_prefix",
+                &self.job_result_kafka_topic_prefix,
+            )
             .field("redis_url", &redacted(&self.redis_url))
             .field(
                 "database_runtime_url",
@@ -385,10 +408,80 @@ impl fmt::Debug for AppConfig {
             )
             .field("edge_rate_limit_enabled", &self.edge_rate_limit_enabled)
             .field("edge_rate_limit_window", &self.edge_rate_limit_window)
-            .field("edge_rate_limit_read_max", &self.edge_rate_limit_read_max)
-            .field("edge_rate_limit_write_max", &self.edge_rate_limit_write_max)
-            .field("edge_rate_limit_max_keys", &self.edge_rate_limit_max_keys)
+            .field(
+                "edge_rate_limit_public_read_max",
+                &self.edge_rate_limit_public_read_max,
+            )
+            .field(
+                "edge_rate_limit_user_read_max",
+                &self.edge_rate_limit_user_read_max,
+            )
+            .field(
+                "edge_rate_limit_user_write_max",
+                &self.edge_rate_limit_user_write_max,
+            )
+            .field(
+                "edge_rate_limit_device_read_max",
+                &self.edge_rate_limit_device_read_max,
+            )
+            .field(
+                "edge_rate_limit_device_write_max",
+                &self.edge_rate_limit_device_write_max,
+            )
+            .field(
+                "edge_rate_limit_fallback_max_keys",
+                &self.edge_rate_limit_fallback_max_keys,
+            )
             .field("edge_rate_limit_key_ttl", &self.edge_rate_limit_key_ttl)
+            .field(
+                "edge_rate_limit_redis_prefix",
+                &self.edge_rate_limit_redis_prefix,
+            )
+            .field(
+                "edge_rate_limit_failover_enabled",
+                &self.edge_rate_limit_failover_enabled,
+            )
+            .field("edge_backpressure_enabled", &self.edge_backpressure_enabled)
+            .field(
+                "edge_backpressure_poll_interval",
+                &self.edge_backpressure_poll_interval,
+            )
+            .field(
+                "edge_backpressure_retry_after_seconds",
+                &self.edge_backpressure_retry_after_seconds,
+            )
+            .field(
+                "edge_backpressure_consecutive_unhealthy",
+                &self.edge_backpressure_consecutive_unhealthy,
+            )
+            .field(
+                "edge_backpressure_consecutive_healthy",
+                &self.edge_backpressure_consecutive_healthy,
+            )
+            .field(
+                "edge_backpressure_job_outbox_pending_max",
+                &self.edge_backpressure_job_outbox_pending_max,
+            )
+            .field(
+                "edge_backpressure_job_outbox_oldest_age_seconds_max",
+                &self.edge_backpressure_job_outbox_oldest_age_seconds_max,
+            )
+            .field(
+                "edge_backpressure_job_run_pending_max",
+                &self.edge_backpressure_job_run_pending_max,
+            )
+            .field(
+                "edge_backpressure_job_run_oldest_age_seconds_max",
+                &self.edge_backpressure_job_run_oldest_age_seconds_max,
+            )
+            .field(
+                "edge_backpressure_kafka_pending_max",
+                &self.edge_backpressure_kafka_pending_max,
+            )
+            .field(
+                "edge_backpressure_kafka_oldest_age_seconds_max",
+                &self.edge_backpressure_kafka_oldest_age_seconds_max,
+            )
             .field("edge_request_max_bytes", &self.edge_request_max_bytes)
             .field(
                 "edge_write_request_max_bytes",
@@ -448,6 +541,11 @@ impl AppConfig {
         }
         if strict_api_env && !auth_enabled {
             return Err(anyhow!("staging/prod require AUTH_ENABLED=true"));
+        }
+        if app_role == AppRole::Api && env_name != "dev" && !auth_enabled {
+            return Err(anyhow!(
+                "APP_ROLE=api only allows AUTH_ENABLED=false in dev"
+            ));
         }
         let database_runtime_url = optional_env("DATABASE_RUNTIME_URL");
 
@@ -524,11 +622,52 @@ impl AppConfig {
         let edge_rate_limit_enabled = parse_bool("EDGE_RATE_LIMIT_ENABLED", true)?;
         let edge_rate_limit_window =
             Duration::from_secs(parse_u64("EDGE_RATE_LIMIT_WINDOW_SECONDS", 60)?);
-        let edge_rate_limit_read_max = parse_u32("EDGE_RATE_LIMIT_READ_MAX", 120)?;
-        let edge_rate_limit_write_max = parse_u32("EDGE_RATE_LIMIT_WRITE_MAX", 30)?;
-        let edge_rate_limit_max_keys = parse_usize("EDGE_RATE_LIMIT_MAX_KEYS", 10_000)?;
+        let edge_rate_limit_public_read_max = parse_u32("EDGE_RATE_LIMIT_READ_MAX", 120)?;
+        let edge_rate_limit_user_read_max =
+            parse_u32("EDGE_RATE_LIMIT_USER_READ_MAX", 240)?;
+        let edge_rate_limit_user_write_max =
+            parse_u32("EDGE_RATE_LIMIT_USER_WRITE_MAX", 60)?;
+        let edge_rate_limit_device_read_max =
+            parse_u32("EDGE_RATE_LIMIT_DEVICE_READ_MAX", 120)?;
+        let edge_rate_limit_device_write_max =
+            parse_u32("EDGE_RATE_LIMIT_DEVICE_WRITE_MAX", 30)?;
+        let edge_rate_limit_fallback_max_keys =
+            parse_usize("EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS", 10_000)?;
         let edge_rate_limit_key_ttl =
             Duration::from_secs(parse_u64("EDGE_RATE_LIMIT_KEY_TTL_SECONDS", 300)?);
+        let edge_rate_limit_redis_prefix =
+            env::var("EDGE_RATE_LIMIT_REDIS_PREFIX").unwrap_or_else(|_| "rate-limit".to_string());
+        let edge_rate_limit_failover_enabled =
+            parse_bool("EDGE_RATE_LIMIT_FAILOVER_ENABLED", true)?;
+        let edge_backpressure_enabled = parse_bool("EDGE_BACKPRESSURE_ENABLED", true)?;
+        let edge_backpressure_poll_interval = Duration::from_millis(parse_u64(
+            "EDGE_BACKPRESSURE_POLL_INTERVAL_MS",
+            1_000,
+        )?);
+        let edge_backpressure_retry_after_seconds =
+            parse_u64("EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS", 5)?;
+        let edge_backpressure_consecutive_unhealthy =
+            parse_u32("EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY", 2)?;
+        let edge_backpressure_consecutive_healthy =
+            parse_u32("EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY", 2)?;
+        let edge_backpressure_job_outbox_pending_max =
+            parse_i64("EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX", 1_000)?;
+        let edge_backpressure_job_outbox_oldest_age_seconds_max = parse_i64(
+            "EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX",
+            30,
+        )?;
+        let edge_backpressure_job_run_pending_max =
+            parse_i64("EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX", 2_000)?;
+        let edge_backpressure_job_run_oldest_age_seconds_max = parse_i64(
+            "EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX",
+            60,
+        )?;
+        let edge_backpressure_kafka_pending_max =
+            parse_i64("EDGE_BACKPRESSURE_KAFKA_PENDING_MAX", 500)?;
+        let edge_backpressure_kafka_oldest_age_seconds_max = parse_i64(
+            "EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX",
+            30,
+        )?;
         let edge_request_max_bytes = parse_usize("EDGE_REQUEST_MAX_BYTES", 262_144)?;
         let edge_write_request_max_bytes = parse_usize("EDGE_WRITE_REQUEST_MAX_BYTES", 65_536)?;
         if edge_rate_limit_window.as_secs() == 0 {
@@ -536,19 +675,93 @@ impl AppConfig {
                 "EDGE_RATE_LIMIT_WINDOW_SECONDS must be greater than 0"
             ));
         }
-        if edge_rate_limit_read_max == 0 {
+        if edge_rate_limit_public_read_max == 0 {
             return Err(anyhow!("EDGE_RATE_LIMIT_READ_MAX must be greater than 0"));
         }
-        if edge_rate_limit_write_max == 0 {
-            return Err(anyhow!("EDGE_RATE_LIMIT_WRITE_MAX must be greater than 0"));
+        if edge_rate_limit_user_read_max == 0 {
+            return Err(anyhow!(
+                "EDGE_RATE_LIMIT_USER_READ_MAX must be greater than 0"
+            ));
         }
-        if edge_rate_limit_max_keys == 0 {
-            return Err(anyhow!("EDGE_RATE_LIMIT_MAX_KEYS must be greater than 0"));
+        if edge_rate_limit_user_write_max == 0 {
+            return Err(anyhow!(
+                "EDGE_RATE_LIMIT_USER_WRITE_MAX must be greater than 0"
+            ));
+        }
+        if edge_rate_limit_device_read_max == 0 {
+            return Err(anyhow!(
+                "EDGE_RATE_LIMIT_DEVICE_READ_MAX must be greater than 0"
+            ));
+        }
+        if edge_rate_limit_device_write_max == 0 {
+            return Err(anyhow!(
+                "EDGE_RATE_LIMIT_DEVICE_WRITE_MAX must be greater than 0"
+            ));
+        }
+        if edge_rate_limit_fallback_max_keys == 0 {
+            return Err(anyhow!(
+                "EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS must be greater than 0"
+            ));
         }
         if edge_rate_limit_key_ttl.as_secs() == 0 {
             return Err(anyhow!(
                 "EDGE_RATE_LIMIT_KEY_TTL_SECONDS must be greater than 0"
             ));
+        }
+        if edge_rate_limit_redis_prefix.trim().is_empty() {
+            return Err(anyhow!(
+                "EDGE_RATE_LIMIT_REDIS_PREFIX must not be empty"
+            ));
+        }
+        if edge_backpressure_poll_interval.is_zero() {
+            return Err(anyhow!(
+                "EDGE_BACKPRESSURE_POLL_INTERVAL_MS must be greater than 0"
+            ));
+        }
+        if edge_backpressure_retry_after_seconds == 0 {
+            return Err(anyhow!(
+                "EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS must be greater than 0"
+            ));
+        }
+        if edge_backpressure_consecutive_unhealthy == 0 {
+            return Err(anyhow!(
+                "EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY must be greater than 0"
+            ));
+        }
+        if edge_backpressure_consecutive_healthy == 0 {
+            return Err(anyhow!(
+                "EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY must be greater than 0"
+            ));
+        }
+        for (name, value) in [
+            (
+                "EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX",
+                edge_backpressure_job_outbox_pending_max,
+            ),
+            (
+                "EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX",
+                edge_backpressure_job_outbox_oldest_age_seconds_max,
+            ),
+            (
+                "EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX",
+                edge_backpressure_job_run_pending_max,
+            ),
+            (
+                "EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX",
+                edge_backpressure_job_run_oldest_age_seconds_max,
+            ),
+            (
+                "EDGE_BACKPRESSURE_KAFKA_PENDING_MAX",
+                edge_backpressure_kafka_pending_max,
+            ),
+            (
+                "EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX",
+                edge_backpressure_kafka_oldest_age_seconds_max,
+            ),
+        ] {
+            if value <= 0 {
+                return Err(anyhow!("{name} must be greater than 0"));
+            }
         }
         if edge_request_max_bytes == 0 {
             return Err(anyhow!("EDGE_REQUEST_MAX_BYTES must be greater than 0"));
@@ -637,6 +850,8 @@ impl AppConfig {
         let rabbit_prefetch_heavy = parse_u16("RABBIT_PREFETCH_HEAVY", 2)?;
         let rabbit_replay_prefetch_fast = parse_u16("RABBIT_REPLAY_PREFETCH_FAST", 5)?;
         let rabbit_replay_prefetch_heavy = parse_u16("RABBIT_REPLAY_PREFETCH_HEAVY", 1)?;
+        let job_result_kafka_enabled = parse_bool("JOB_RESULT_KAFKA_ENABLED", false)?;
+        let job_result_kafka_topic_prefix = optional_env("JOB_RESULT_KAFKA_TOPIC_PREFIX");
         if rabbit_prefetch_fast == 0
             || rabbit_prefetch_heavy == 0
             || rabbit_replay_prefetch_fast == 0
@@ -743,6 +958,8 @@ impl AppConfig {
             rabbit_replay_prefetch_fast,
             rabbit_replay_prefetch_heavy,
             rabbit_max_attempts: parse_u8("RABBIT_MAX_ATTEMPTS", 4)?,
+            job_result_kafka_enabled,
+            job_result_kafka_topic_prefix,
             redis_url: optional_env("REDIS_URL"),
             database_runtime_url,
             database_runtime_endpoint_kind,
@@ -761,10 +978,26 @@ impl AppConfig {
             edge_origin_auth_secret_next,
             edge_rate_limit_enabled,
             edge_rate_limit_window,
-            edge_rate_limit_read_max,
-            edge_rate_limit_write_max,
-            edge_rate_limit_max_keys,
+            edge_rate_limit_public_read_max,
+            edge_rate_limit_user_read_max,
+            edge_rate_limit_user_write_max,
+            edge_rate_limit_device_read_max,
+            edge_rate_limit_device_write_max,
+            edge_rate_limit_fallback_max_keys,
             edge_rate_limit_key_ttl,
+            edge_rate_limit_redis_prefix,
+            edge_rate_limit_failover_enabled,
+            edge_backpressure_enabled,
+            edge_backpressure_poll_interval,
+            edge_backpressure_retry_after_seconds,
+            edge_backpressure_consecutive_unhealthy,
+            edge_backpressure_consecutive_healthy,
+            edge_backpressure_job_outbox_pending_max,
+            edge_backpressure_job_outbox_oldest_age_seconds_max,
+            edge_backpressure_job_run_pending_max,
+            edge_backpressure_job_run_oldest_age_seconds_max,
+            edge_backpressure_kafka_pending_max,
+            edge_backpressure_kafka_oldest_age_seconds_max,
             edge_request_max_bytes,
             edge_write_request_max_bytes,
             edge_cors_allowed_origins,

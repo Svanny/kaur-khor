@@ -48,6 +48,8 @@ fn base_config() -> AppConfig {
         rabbit_replay_prefetch_fast: 5,
         rabbit_replay_prefetch_heavy: 1,
         rabbit_max_attempts: 4,
+        job_result_kafka_enabled: false,
+        job_result_kafka_topic_prefix: None,
         redis_url: None,
         database_runtime_url: None,
         database_runtime_endpoint_kind: DatabaseRuntimeEndpointKind::Direct,
@@ -66,10 +68,26 @@ fn base_config() -> AppConfig {
         edge_origin_auth_secret_next: None,
         edge_rate_limit_enabled: true,
         edge_rate_limit_window: Duration::from_secs(60),
-        edge_rate_limit_read_max: 120,
-        edge_rate_limit_write_max: 30,
-        edge_rate_limit_max_keys: 10_000,
+        edge_rate_limit_public_read_max: 120,
+        edge_rate_limit_user_read_max: 240,
+        edge_rate_limit_user_write_max: 60,
+        edge_rate_limit_device_read_max: 120,
+        edge_rate_limit_device_write_max: 30,
+        edge_rate_limit_fallback_max_keys: 10_000,
         edge_rate_limit_key_ttl: Duration::from_secs(300),
+        edge_rate_limit_redis_prefix: "rate-limit".to_string(),
+        edge_rate_limit_failover_enabled: true,
+        edge_backpressure_enabled: true,
+        edge_backpressure_poll_interval: Duration::from_millis(1_000),
+        edge_backpressure_retry_after_seconds: 5,
+        edge_backpressure_consecutive_unhealthy: 2,
+        edge_backpressure_consecutive_healthy: 2,
+        edge_backpressure_job_outbox_pending_max: 1_000,
+        edge_backpressure_job_outbox_oldest_age_seconds_max: 30,
+        edge_backpressure_job_run_pending_max: 2_000,
+        edge_backpressure_job_run_oldest_age_seconds_max: 60,
+        edge_backpressure_kafka_pending_max: 500,
+        edge_backpressure_kafka_oldest_age_seconds_max: 30,
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec!["https://app.example.com".to_string()],
@@ -79,6 +97,10 @@ fn base_config() -> AppConfig {
 
 async fn spawn(cfg: AppConfig) -> std::net::SocketAddr {
     let state = build_state(cfg).await.expect("state should build");
+    spawn_state(state).await
+}
+
+async fn spawn_state(state: banji_api::AppState) -> std::net::SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("listener should bind");
@@ -91,6 +113,13 @@ async fn spawn(cfg: AppConfig) -> std::net::SocketAddr {
     });
 
     addr
+}
+
+fn write_demo_payload() -> serde_json::Value {
+    serde_json::json!({
+        "operation": "write",
+        "payload": {"sku":"sku-1","qty":1}
+    })
 }
 
 #[tokio::test]
@@ -132,7 +161,7 @@ async fn guarded_health_requires_origin_auth_header() {
 #[tokio::test]
 async fn cf_connecting_ip_is_ignored_when_origin_guard_not_enforced() {
     let mut cfg = base_config();
-    cfg.edge_rate_limit_read_max = 1;
+    cfg.edge_rate_limit_public_read_max = 1;
     cfg.edge_trust_cf_connecting_ip = true;
 
     let addr = spawn(cfg).await;
@@ -162,7 +191,7 @@ async fn cf_connecting_ip_is_used_only_after_guard_passes() {
     cfg.edge_enforcement_enabled = true;
     cfg.edge_provider = EdgeProvider::Cloudflare;
     cfg.edge_origin_auth_secret = Some("edge-secret".to_string());
-    cfg.edge_rate_limit_read_max = 1;
+    cfg.edge_rate_limit_public_read_max = 1;
     cfg.edge_trust_cf_connecting_ip = true;
 
     let addr = spawn(cfg).await;
@@ -190,7 +219,7 @@ async fn cf_connecting_ip_is_used_only_after_guard_passes() {
 #[tokio::test]
 async fn rate_key_uses_matched_route_not_raw_query_path() {
     let mut cfg = base_config();
-    cfg.edge_rate_limit_read_max = 1;
+    cfg.edge_rate_limit_public_read_max = 1;
 
     let addr = spawn(cfg).await;
     let client = Client::new();
@@ -213,8 +242,8 @@ async fn rate_key_uses_matched_route_not_raw_query_path() {
 #[tokio::test]
 async fn options_preflight_is_not_write_throttled() {
     let mut cfg = base_config();
-    cfg.edge_rate_limit_read_max = 1;
-    cfg.edge_rate_limit_write_max = 1;
+    cfg.edge_rate_limit_public_read_max = 1;
+    cfg.edge_rate_limit_device_write_max = 1;
 
     let addr = spawn(cfg).await;
     let client = Client::new();
@@ -284,4 +313,103 @@ async fn guarded_http_proto_misconfiguration_is_rejected() {
         .expect("request should complete");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn write_demo_requires_device_id_header() {
+    let cfg = base_config();
+    let addr = spawn(cfg).await;
+
+    let response = Client::new()
+        .post(format!("http://{addr}/v1/write-demo"))
+        .header("content-type", "application/json")
+        .header("x-caller-id", "caller-1")
+        .body(write_demo_payload().to_string())
+        .send()
+        .await
+        .expect("request should complete");
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = response.json().await.expect("body should parse");
+    assert_eq!(body["error_code"], "REQUEST_VALIDATION_FAILED");
+}
+
+#[tokio::test]
+async fn write_demo_rate_limit_returns_retry_after_headers() {
+    let mut cfg = base_config();
+    cfg.edge_rate_limit_user_write_max = 10;
+    cfg.edge_rate_limit_device_write_max = 1;
+    let addr = spawn(cfg).await;
+    let client = Client::new();
+
+    let first = client
+        .post(format!("http://{addr}/v1/write-demo"))
+        .header("content-type", "application/json")
+        .header("x-caller-id", "caller-1")
+        .header("x-banji-device-id", "device-1234")
+        .body(write_demo_payload().to_string())
+        .send()
+        .await
+        .expect("request should complete");
+    assert_eq!(first.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let second = client
+        .post(format!("http://{addr}/v1/write-demo"))
+        .header("content-type", "application/json")
+        .header("x-caller-id", "caller-1")
+        .header("x-banji-device-id", "device-1234")
+        .body(write_demo_payload().to_string())
+        .send()
+        .await
+        .expect("request should complete");
+
+    // Without a DB the first write short-circuits at the handler, but the quota was still consumed.
+    assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(second.headers().contains_key("retry-after"));
+    assert_eq!(
+        second
+            .headers()
+            .get("x-ratelimit-scope")
+            .and_then(|v| v.to_str().ok()),
+        Some("device")
+    );
+}
+
+#[tokio::test]
+async fn backpressure_rejects_async_writes_with_retry_after() {
+    let mut cfg = base_config();
+    cfg.edge_backpressure_job_outbox_pending_max = 1;
+    let state = build_state(cfg).await.expect("state should build");
+    let unhealthy = state.backpressure_gate.rabbit_publish_state(2, 0);
+    let healthy_worker = state.backpressure_gate.worker_completion_state(0, 0);
+    state
+        .backpressure_gate
+        .update_sample(unhealthy, healthy_worker, None)
+        .await;
+    state
+        .backpressure_gate
+        .update_sample(unhealthy, healthy_worker, None)
+        .await;
+
+    let addr = spawn_state(state).await;
+    let response = Client::new()
+        .post(format!("http://{addr}/v1/write-demo"))
+        .header("content-type", "application/json")
+        .header("x-caller-id", "caller-1")
+        .header("x-banji-device-id", "device-1234")
+        .body(write_demo_payload().to_string())
+        .send()
+        .await
+        .expect("request should complete");
+
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok()),
+        Some("5")
+    );
+    let body: serde_json::Value = response.json().await.expect("body should parse");
+    assert_eq!(body["error_code"], "DEPENDENCY_BACKPRESSURE");
 }

@@ -217,12 +217,58 @@ static DB_POOL_IDLE: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
         .init()
 });
 
+static RATE_LIMIT_REJECT_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.edge.rate_limit.reject.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static RATE_LIMIT_FALLBACK_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.edge.rate_limit.fallback.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static BACKPRESSURE_REJECT_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.edge.backpressure.reject.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static BACKPRESSURE_STALE_SNAPSHOT_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.edge.backpressure.stale_snapshot.total")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static BACKPRESSURE_PENDING: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.edge.backpressure.pending")
+        .with_unit(Unit::new("events"))
+        .init()
+});
+
+static BACKPRESSURE_OLDEST_AGE: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.edge.backpressure.oldest_age")
+        .with_unit(Unit::new("s"))
+        .init()
+});
+
 static OUTBOX_PENDING_LAST: AtomicI64 = AtomicI64::new(0);
 static EVENT_OUTBOX_PENDING_LAST: AtomicI64 = AtomicI64::new(0);
 static EVENT_OUTBOX_OLDEST_AGE_LAST: AtomicI64 = AtomicI64::new(0);
 static LAG_BY_STREAM: Lazy<Mutex<HashMap<String, i64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 static DB_POOL_SIZE_LAST: AtomicI64 = AtomicI64::new(0);
 static DB_POOL_IDLE_LAST: AtomicI64 = AtomicI64::new(0);
+static BACKPRESSURE_PENDING_BY_SIGNAL: Lazy<Mutex<HashMap<String, i64>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static BACKPRESSURE_AGE_BY_SIGNAL: Lazy<Mutex<HashMap<String, i64>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 pub fn record_http_active(delta: i64, method: &str, route: &str) {
     HTTP_ACTIVE_REQUESTS.add(
@@ -496,5 +542,47 @@ pub fn set_db_pool_idle(current_idle: i64) {
     let delta = current_idle - previous;
     if delta != 0 {
         DB_POOL_IDLE.add(delta, &[]);
+    }
+}
+
+pub fn record_rate_limit_reject(scope: &str, mode: &str) {
+    RATE_LIMIT_REJECT_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("scope", scope.to_string()),
+            KeyValue::new("mode", mode.to_string()),
+        ],
+    );
+}
+
+pub fn record_rate_limit_fallback_activation(reason: &str) {
+    RATE_LIMIT_FALLBACK_TOTAL.add(1, &[KeyValue::new("reason", reason.to_string())]);
+}
+
+pub fn record_backpressure_reject(signal: &str) {
+    BACKPRESSURE_REJECT_TOTAL.add(1, &[KeyValue::new("signal", signal.to_string())]);
+}
+
+pub fn record_backpressure_stale_snapshot() {
+    BACKPRESSURE_STALE_SNAPSHOT_TOTAL.add(1, &[]);
+}
+
+pub fn set_backpressure_signal(signal: &str, current_pending: i64, current_oldest_age: i64) {
+    if let Ok(mut pending_map) = BACKPRESSURE_PENDING_BY_SIGNAL.lock() {
+        let previous = pending_map.insert(signal.to_string(), current_pending).unwrap_or(0);
+        let delta = current_pending - previous;
+        if delta != 0 {
+            BACKPRESSURE_PENDING.add(delta, &[KeyValue::new("signal", signal.to_string())]);
+        }
+    }
+
+    if let Ok(mut age_map) = BACKPRESSURE_AGE_BY_SIGNAL.lock() {
+        let previous = age_map
+            .insert(signal.to_string(), current_oldest_age)
+            .unwrap_or(0);
+        let delta = current_oldest_age - previous;
+        if delta != 0 {
+            BACKPRESSURE_OLDEST_AGE.add(delta, &[KeyValue::new("signal", signal.to_string())]);
+        }
     }
 }
