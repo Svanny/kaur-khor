@@ -268,6 +268,9 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
     let old_auth_issuer = std::env::var("AUTH_ISSUER").ok();
     let old_auth_audience = std::env::var("AUTH_AUDIENCE").ok();
     let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    let old_run_mode = std::env::var("EVENT_CONSUMER_RUN_MODE").ok();
+    let old_replay_from = std::env::var("EVENT_CONSUMER_REPLAY_FROM_ID").ok();
+    let old_replay_to = std::env::var("EVENT_CONSUMER_REPLAY_TO_ID").ok();
 
     std::env::set_var("BANJI_ENV", "staging");
     std::env::set_var("APP_ROLE", "event-relay");
@@ -369,6 +372,274 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
         std::env::set_var("AUTH_AUDIENCE", v);
     } else {
         std::env::remove_var("AUTH_AUDIENCE");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+    if let Some(v) = old_run_mode {
+        std::env::set_var("EVENT_CONSUMER_RUN_MODE", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_RUN_MODE");
+    }
+    if let Some(v) = old_replay_from {
+        std::env::set_var("EVENT_CONSUMER_REPLAY_FROM_ID", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_REPLAY_FROM_ID");
+    }
+    if let Some(v) = old_replay_to {
+        std::env::set_var("EVENT_CONSUMER_REPLAY_TO_ID", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_REPLAY_TO_ID");
+    }
+}
+
+#[test]
+fn projection_consumer_validates_replay_bounds() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_role = std::env::var("APP_ROLE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_run_mode = std::env::var("EVENT_CONSUMER_RUN_MODE").ok();
+    let old_replay_from = std::env::var("EVENT_CONSUMER_REPLAY_FROM_ID").ok();
+    let old_replay_to = std::env::var("EVENT_CONSUMER_REPLAY_TO_ID").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "projection-consumer");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::set_var("EVENT_CONSUMER_RUN_MODE", "replay-apply");
+    std::env::set_var("EVENT_CONSUMER_REPLAY_FROM_ID", "10");
+    std::env::set_var("EVENT_CONSUMER_REPLAY_TO_ID", "9");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("EVENT_CONSUMER_REPLAY_TO_ID"));
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_role {
+        std::env::set_var("APP_ROLE", v);
+    } else {
+        std::env::remove_var("APP_ROLE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_run_mode {
+        std::env::set_var("EVENT_CONSUMER_RUN_MODE", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_RUN_MODE");
+    }
+    if let Some(v) = old_replay_from {
+        std::env::set_var("EVENT_CONSUMER_REPLAY_FROM_ID", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_REPLAY_FROM_ID");
+    }
+    if let Some(v) = old_replay_to {
+        std::env::set_var("EVENT_CONSUMER_REPLAY_TO_ID", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_REPLAY_TO_ID");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+}
+
+#[test]
+fn projection_consumer_rejects_truncate_without_checkpoint_reset() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_role = std::env::var("APP_ROLE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_run_mode = std::env::var("EVENT_CONSUMER_RUN_MODE").ok();
+    let old_reset = std::env::var("EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT").ok();
+    let old_truncate = std::env::var("EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "projection-consumer");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::set_var("EVENT_CONSUMER_RUN_MODE", "replay-apply");
+    std::env::set_var("EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT", "false");
+    std::env::set_var("EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION", "true");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION"));
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_role {
+        std::env::set_var("APP_ROLE", v);
+    } else {
+        std::env::remove_var("APP_ROLE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_run_mode {
+        std::env::set_var("EVENT_CONSUMER_RUN_MODE", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_RUN_MODE");
+    }
+    if let Some(v) = old_reset {
+        std::env::set_var("EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT");
+    }
+    if let Some(v) = old_truncate {
+        std::env::set_var("EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+}
+
+#[test]
+fn projection_consumer_rejects_non_inventory_stream() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_role = std::env::var("APP_ROLE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_stream_name = std::env::var("EVENT_CONSUMER_STREAM_NAME").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "projection-consumer");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::set_var(
+        "EVENT_CONSUMER_STREAM_NAME",
+        "banji-core.staging.write-demo-completed",
+    );
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("EVENT_CONSUMER_STREAM_NAME must be"));
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_role {
+        std::env::set_var("APP_ROLE", v);
+    } else {
+        std::env::remove_var("APP_ROLE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_stream_name {
+        std::env::set_var("EVENT_CONSUMER_STREAM_NAME", v);
+    } else {
+        std::env::remove_var("EVENT_CONSUMER_STREAM_NAME");
     }
     if let Some(v) = old_migration_url {
         std::env::set_var("DATABASE_MIGRATION_URL", v);

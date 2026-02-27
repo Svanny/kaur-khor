@@ -9,6 +9,7 @@ pub mod items;
 pub mod jobs;
 pub mod logging;
 pub mod observability;
+pub mod projections;
 
 use auth::{AuthPrincipal, JwtVerifier};
 use axum::{
@@ -380,16 +381,13 @@ async fn create_item(
                     .into_response();
             }
 
-            let stream_name = format!(
-                "{}.{}.{}",
-                state.config.system, state.config.env, "inventory-updated"
-            );
             let correlation_id = observability::propagation::correlation_id_from_headers_or_context(
                 &headers,
                 &opentelemetry::Context::current(),
             );
             let event = match events::schema::build_inventory_item_created_v1(
-                stream_name,
+                &state.config.system,
+                &state.config.env,
                 state.config.service.clone(),
                 caller_sub.clone(),
                 body.item_id.clone(),
@@ -681,10 +679,6 @@ async fn write_demo(
                 );
             }
 
-            let stream_name = format!(
-                "{}.{}.{}",
-                state.config.system, state.config.env, "inventory-updated"
-            );
             let event_payload = serde_json::json!({
                 "operation": body.operation,
                 "payload": body.payload,
@@ -711,7 +705,8 @@ async fn write_demo(
             );
 
             let event = match events::schema::build_inventory_write_demo_completed_v1(
-                stream_name,
+                &state.config.system,
+                &state.config.env,
                 state.config.service.clone(),
                 caller_id.clone(),
                 body.operation.clone(),

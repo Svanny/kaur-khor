@@ -3,9 +3,10 @@ use super::schema::decode_event_row;
 use super::schema_types::{InvalidEventPolicy, KnownEvent};
 use crate::observability::metrics;
 use anyhow::Result;
-use sqlx::{PgPool, Row};
+use sha2::{Digest, Sha256};
+use sqlx::{Connection, PgConnection, PgPool, Postgres, Row, Transaction};
 
-const POLL_STREAM_SQL: &str = r#"
+const POLL_STREAM_RANGE_SQL: &str = r#"
         SELECT
           id,
           created_at::text AS occurred_at,
@@ -24,10 +25,65 @@ const POLL_STREAM_SQL: &str = r#"
           payload,
           metadata
         FROM app.event_log
-        WHERE stream_name = $1 AND id > $2
+        WHERE stream_name = $1 AND id > $2 AND ($3::bigint IS NULL OR id <= $3)
         ORDER BY id ASC
-        LIMIT $3
+        LIMIT $4
         "#;
+
+#[derive(Debug)]
+pub struct ConsumerAdvisoryLock {
+    connection: PgConnection,
+    lock_key: i64,
+}
+
+impl ConsumerAdvisoryLock {
+    pub async fn release(mut self) -> Result<()> {
+        let _ = sqlx::query_scalar::<_, bool>("SELECT pg_advisory_unlock($1)")
+            .bind(self.lock_key)
+            .fetch_one(&mut self.connection)
+            .await;
+        let _ = sqlx::query("ROLLBACK").execute(&mut self.connection).await;
+        self.connection.close().await?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct StreamRangeSummary {
+    pub candidate_count: i64,
+    pub max_event_id: Option<i64>,
+}
+
+pub async fn acquire_consumer_lock(
+    database_url: &str,
+    service_name: &str,
+    consumer_name: &str,
+    stream_name: &str,
+) -> Result<ConsumerAdvisoryLock> {
+    let lock_key = derive_lock_key(service_name, consumer_name, stream_name);
+    let mut connection = PgConnection::connect(database_url).await?;
+
+    // Keep a transaction open on a dedicated connection so the lock remains stable even when
+    // the runtime database endpoint is PgBouncer in transaction mode.
+    sqlx::query("BEGIN").execute(&mut connection).await?;
+    let acquired = sqlx::query_scalar::<_, bool>("SELECT pg_try_advisory_lock($1)")
+        .bind(lock_key)
+        .fetch_one(&mut connection)
+        .await?;
+
+    if !acquired {
+        let _ = sqlx::query("ROLLBACK").execute(&mut connection).await;
+        connection.close().await?;
+        return Err(anyhow::anyhow!(
+            "consumer lock already held for service={service_name} consumer={consumer_name} stream={stream_name}"
+        ));
+    }
+
+    Ok(ConsumerAdvisoryLock {
+        connection,
+        lock_key,
+    })
+}
 
 pub async fn get_checkpoint(
     pool: &PgPool,
@@ -134,15 +190,55 @@ pub async fn advance_checkpoint(
     Ok(())
 }
 
+pub async fn set_checkpoint_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    service_name: &str,
+    consumer_name: &str,
+    stream_name: &str,
+    last_event_id: i64,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO app.event_consumer_checkpoint (
+          service_name, consumer_name, stream_name, last_event_id, last_heartbeat_at, updated_at, last_error
+        ) VALUES ($1, $2, $3, $4, NOW(), NOW(), NULL)
+        ON CONFLICT (service_name, consumer_name, stream_name)
+        DO UPDATE SET
+          last_event_id = EXCLUDED.last_event_id,
+          last_heartbeat_at = NOW(),
+          updated_at = NOW(),
+          last_error = NULL
+        "#,
+    )
+    .bind(service_name)
+    .bind(consumer_name)
+    .bind(stream_name)
+    .bind(last_event_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 pub async fn poll_stream(
     pool: &PgPool,
     stream_name: &str,
     after_id: i64,
     batch_size: i64,
 ) -> Result<Vec<EventRow>> {
-    let rows = sqlx::query(POLL_STREAM_SQL)
+    poll_stream_in_range(pool, stream_name, after_id, None, batch_size).await
+}
+
+pub async fn poll_stream_in_range(
+    pool: &PgPool,
+    stream_name: &str,
+    after_id: i64,
+    to_id: Option<i64>,
+    batch_size: i64,
+) -> Result<Vec<EventRow>> {
+    let rows = sqlx::query(POLL_STREAM_RANGE_SQL)
         .bind(stream_name)
         .bind(after_id)
+        .bind(to_id)
         .bind(batch_size)
         .fetch_all(pool)
         .await?;
@@ -187,7 +283,30 @@ pub async fn poll_and_decode_stream(
     batch_size: i64,
     policy: InvalidEventPolicy,
 ) -> Result<DecodedEventBatch> {
-    let rows = poll_stream(pool, stream_name, after_id, batch_size).await?;
+    poll_and_decode_stream_in_range(
+        pool,
+        service_name,
+        consumer_name,
+        stream_name,
+        after_id,
+        None,
+        batch_size,
+        policy,
+    )
+    .await
+}
+
+pub async fn poll_and_decode_stream_in_range(
+    pool: &PgPool,
+    service_name: &str,
+    consumer_name: &str,
+    stream_name: &str,
+    after_id: i64,
+    to_id: Option<i64>,
+    batch_size: i64,
+    policy: InvalidEventPolicy,
+) -> Result<DecodedEventBatch> {
+    let rows = poll_stream_in_range(pool, stream_name, after_id, to_id, batch_size).await?;
     let mut decoded = DecodedEventBatch::default();
 
     for row in rows {
@@ -221,6 +340,33 @@ pub async fn poll_and_decode_stream(
     }
 
     Ok(decoded)
+}
+
+pub async fn summarize_stream_range(
+    pool: &PgPool,
+    stream_name: &str,
+    after_id: i64,
+    to_id: Option<i64>,
+) -> Result<StreamRangeSummary> {
+    let row = sqlx::query(
+        r#"
+        SELECT
+          COUNT(*)::bigint AS candidate_count,
+          NULLIF(MAX(id), 0) AS max_event_id
+        FROM app.event_log
+        WHERE stream_name = $1 AND id > $2 AND ($3::bigint IS NULL OR id <= $3)
+        "#,
+    )
+    .bind(stream_name)
+    .bind(after_id)
+    .bind(to_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(StreamRangeSummary {
+        candidate_count: row.get("candidate_count"),
+        max_event_id: row.get("max_event_id"),
+    })
 }
 
 pub async fn poll_audit_stream(
@@ -297,10 +443,31 @@ pub async fn quarantine_invalid_event(
 
 #[cfg(test)]
 mod tests {
-    use super::POLL_STREAM_SQL;
+    use super::{derive_lock_key, POLL_STREAM_RANGE_SQL};
 
     #[test]
     fn poll_stream_query_orders_by_id_for_stable_replay() {
-        assert!(POLL_STREAM_SQL.contains("ORDER BY id ASC"));
+        assert!(POLL_STREAM_RANGE_SQL.contains("ORDER BY id ASC"));
     }
+
+    #[test]
+    fn advisory_lock_key_is_stable() {
+        let a = derive_lock_key("projection-consumer", "inventory-projector", "banji-core.dev.inventory-updated");
+        let b = derive_lock_key("projection-consumer", "inventory-projector", "banji-core.dev.inventory-updated");
+        assert_eq!(a, b);
+    }
+}
+
+fn derive_lock_key(service_name: &str, consumer_name: &str, stream_name: &str) -> i64 {
+    let mut hasher = Sha256::new();
+    hasher.update(service_name.as_bytes());
+    hasher.update(b"|");
+    hasher.update(consumer_name.as_bytes());
+    hasher.update(b"|");
+    hasher.update(stream_name.as_bytes());
+
+    let digest = hasher.finalize();
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&digest[..8]);
+    i64::from_be_bytes(bytes)
 }

@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use axum::http::header::HeaderName;
+use crate::events::schema_types::InvalidEventPolicy;
+use crate::events::streams;
 use std::env;
 use std::fmt;
 use std::time::Duration;
@@ -103,6 +105,49 @@ impl AppRole {
             Self::ProjectionConsumer => "projection-consumer",
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProjectionConsumerRunMode {
+    Continuous,
+    ReplayPreview,
+    ReplayApply,
+}
+
+impl ProjectionConsumerRunMode {
+    fn parse(raw: &str) -> Result<Self> {
+        match raw.to_ascii_lowercase().as_str() {
+            "continuous" => Ok(Self::Continuous),
+            "replay-preview" => Ok(Self::ReplayPreview),
+            "replay-apply" => Ok(Self::ReplayApply),
+            _ => Err(anyhow!(
+                "EVENT_CONSUMER_RUN_MODE must be one of: continuous, replay-preview, replay-apply"
+            )),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Continuous => "continuous",
+            Self::ReplayPreview => "replay-preview",
+            Self::ReplayApply => "replay-apply",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectionConsumerConfig {
+    pub service_name: String,
+    pub consumer_name: String,
+    pub stream_name: String,
+    pub batch_size: i64,
+    pub poll_interval: Duration,
+    pub invalid_policy: InvalidEventPolicy,
+    pub run_mode: ProjectionConsumerRunMode,
+    pub replay_from_id: i64,
+    pub replay_to_id: Option<i64>,
+    pub replay_reset_checkpoint: bool,
+    pub replay_truncate_projection: bool,
 }
 
 #[derive(Clone)]
@@ -302,6 +347,8 @@ impl AppConfig {
 
         let cache_schema_version = required_env("CACHE_SCHEMA_VERSION")?;
         let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
+        let system_name = env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string());
+        let service_name = env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string());
         let app_role = AppRole::parse(&env::var("APP_ROLE").unwrap_or_else(|_| "api".to_string()))?;
         let strict_edge_env = matches!(env_name.as_str(), "staging" | "prod");
         let strict_api_env = strict_edge_env && app_role == AppRole::Api;
@@ -552,11 +599,15 @@ impl AppConfig {
             ));
         }
 
+        if app_role == AppRole::ProjectionConsumer {
+            let _ = ProjectionConsumerConfig::from_env(&system_name, &env_name)?;
+        }
+
         Ok(Self {
             app_role,
-            system: env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string()),
+            system: system_name,
             env: env_name,
-            service: env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string()),
+            service: service_name,
             auth_enabled,
             auth_jwks_url,
             auth_issuer,
@@ -637,6 +688,102 @@ impl AppConfig {
             edge_trust_cf_connecting_ip,
         })
     }
+
+    pub fn projection_consumer_config(&self) -> Result<ProjectionConsumerConfig> {
+        ProjectionConsumerConfig::from_env(&self.system, &self.env)
+    }
+}
+
+impl ProjectionConsumerConfig {
+    pub fn from_env(system: &str, env_name: &str) -> Result<Self> {
+        let service_name = env::var("EVENT_CONSUMER_SERVICE_NAME")
+            .unwrap_or_else(|_| "projection-consumer".to_string())
+            .trim()
+            .to_string();
+        let consumer_name = env::var("EVENT_CONSUMER_NAME")
+            .unwrap_or_else(|_| "inventory-projector".to_string())
+            .trim()
+            .to_string();
+        let stream_name = env::var("EVENT_CONSUMER_STREAM_NAME")
+            .unwrap_or_else(|_| format!("{system}.{env_name}.inventory-updated"))
+            .trim()
+            .to_string();
+        let batch_size = parse_i64("EVENT_CONSUMER_BATCH_SIZE", 100)?;
+        let poll_interval =
+            Duration::from_millis(parse_u64("EVENT_CONSUMER_POLL_INTERVAL_MS", 500)?);
+        let invalid_policy = parse_invalid_event_policy(
+            &env::var("EVENT_CONSUMER_INVALID_POLICY").unwrap_or_else(|_| "halt".to_string()),
+        )?;
+        let run_mode = ProjectionConsumerRunMode::parse(
+            &env::var("EVENT_CONSUMER_RUN_MODE").unwrap_or_else(|_| "continuous".to_string()),
+        )?;
+        let replay_from_id = parse_i64("EVENT_CONSUMER_REPLAY_FROM_ID", 0)?;
+        let replay_to_id = optional_env("EVENT_CONSUMER_REPLAY_TO_ID")
+            .map(|raw| {
+                raw.parse::<i64>()
+                    .with_context(|| "EVENT_CONSUMER_REPLAY_TO_ID must be an integer".to_string())
+            })
+            .transpose()?;
+        let replay_reset_checkpoint =
+            parse_bool("EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT", false)?;
+        let replay_truncate_projection =
+            parse_bool("EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION", false)?;
+
+        if service_name.is_empty() {
+            return Err(anyhow!("EVENT_CONSUMER_SERVICE_NAME must not be empty"));
+        }
+        if consumer_name.is_empty() {
+            return Err(anyhow!("EVENT_CONSUMER_NAME must not be empty"));
+        }
+        if stream_name.is_empty() {
+            return Err(anyhow!("EVENT_CONSUMER_STREAM_NAME must not be empty"));
+        }
+        if batch_size <= 0 {
+            return Err(anyhow!("EVENT_CONSUMER_BATCH_SIZE must be greater than 0"));
+        }
+        if poll_interval.is_zero() {
+            return Err(anyhow!(
+                "EVENT_CONSUMER_POLL_INTERVAL_MS must be greater than 0"
+            ));
+        }
+        if replay_from_id < 0 {
+            return Err(anyhow!(
+                "EVENT_CONSUMER_REPLAY_FROM_ID must be greater than or equal to 0"
+            ));
+        }
+        if let Some(to_id) = replay_to_id {
+            if to_id < replay_from_id {
+                return Err(anyhow!(
+                    "EVENT_CONSUMER_REPLAY_TO_ID must be greater than or equal to EVENT_CONSUMER_REPLAY_FROM_ID"
+                ));
+            }
+        }
+        let expected_stream = streams::inventory_updated_stream(system, env_name);
+        if stream_name != expected_stream {
+            return Err(anyhow!(
+                "EVENT_CONSUMER_STREAM_NAME must be {expected_stream} for the inventory projector"
+            ));
+        }
+        if replay_truncate_projection && !replay_reset_checkpoint {
+            return Err(anyhow!(
+                "EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION requires EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT=true"
+            ));
+        }
+
+        Ok(Self {
+            service_name,
+            consumer_name,
+            stream_name,
+            batch_size,
+            poll_interval,
+            invalid_policy,
+            run_mode,
+            replay_from_id,
+            replay_to_id,
+            replay_reset_checkpoint,
+            replay_truncate_projection,
+        })
+    }
 }
 
 fn required_env(name: &str) -> Result<String> {
@@ -669,6 +816,15 @@ fn parse_u64(name: &str, default: u64) -> Result<u64> {
     match env::var(name) {
         Ok(v) => v
             .parse::<u64>()
+            .with_context(|| format!("{name} must be an integer")),
+        Err(_) => Ok(default),
+    }
+}
+
+fn parse_i64(name: &str, default: i64) -> Result<i64> {
+    match env::var(name) {
+        Ok(v) => v
+            .parse::<i64>()
             .with_context(|| format!("{name} must be an integer")),
         Err(_) => Ok(default),
     }
@@ -720,4 +876,15 @@ fn parse_csv_env(name: &str) -> Vec<String> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default()
+}
+
+fn parse_invalid_event_policy(raw: &str) -> Result<InvalidEventPolicy> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "halt" => Ok(InvalidEventPolicy::Halt),
+        "skip" => Ok(InvalidEventPolicy::Skip),
+        "quarantine" => Ok(InvalidEventPolicy::Quarantine),
+        _ => Err(anyhow!(
+            "EVENT_CONSUMER_INVALID_POLICY must be one of: halt, skip, quarantine"
+        )),
+    }
 }

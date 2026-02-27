@@ -1,5 +1,5 @@
-use banji_api::events::schema_types::InvalidEventPolicy;
-use std::{env, net::SocketAddr, time::Duration};
+use banji_api::config::{ProjectionConsumerConfig, ProjectionConsumerRunMode};
+use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -84,132 +84,291 @@ async fn run_projection_consumer(config: banji_api::config::AppConfig) -> anyhow
         })?;
 
     banji_api::db::pool::warmup_runtime_pool(&pool).await?;
-
-    let service_name = env::var("EVENT_CONSUMER_SERVICE_NAME")
-        .unwrap_or_else(|_| "projection-consumer".to_string());
-    let consumer_name =
-        env::var("EVENT_CONSUMER_NAME").unwrap_or_else(|_| "inventory-projector".to_string());
-    let stream_name = env::var("EVENT_CONSUMER_STREAM_NAME")
-        .unwrap_or_else(|_| format!("{}.{}.inventory-updated", config.system, config.env));
-    let batch_size = parse_u32_env("EVENT_CONSUMER_BATCH_SIZE", 100)? as i64;
-    let poll_interval =
-        Duration::from_millis(parse_u64_env("EVENT_CONSUMER_POLL_INTERVAL_MS", 500)?);
-    let invalid_policy = parse_invalid_event_policy(
-        &env::var("EVENT_CONSUMER_INVALID_POLICY").unwrap_or_else(|_| "halt".to_string()),
-    )?;
+    let projection_cfg = config.projection_consumer_config()?;
+    let database_url = config.database_runtime_url.clone().ok_or_else(|| {
+        anyhow::anyhow!("DATABASE_RUNTIME_URL is required for APP_ROLE=projection-consumer")
+    })?;
+    let lock = banji_api::events::consumer::acquire_consumer_lock(
+        &database_url,
+        &projection_cfg.service_name,
+        &projection_cfg.consumer_name,
+        &projection_cfg.stream_name,
+    )
+    .await?;
+    tracing::info!(
+        service_name = %projection_cfg.service_name,
+        consumer_name = %projection_cfg.consumer_name,
+        stream_name = %projection_cfg.stream_name,
+        "projection consumer advisory lock acquired"
+    );
 
     tracing::info!(
         role = %config.app_role.as_str(),
-        service_name = %service_name,
-        consumer_name = %consumer_name,
-        stream_name = %stream_name,
-        batch_size = batch_size,
-        poll_interval_ms = poll_interval.as_millis(),
-        invalid_policy = ?invalid_policy,
-        "starting projection consumer loop"
+        service_name = %projection_cfg.service_name,
+        consumer_name = %projection_cfg.consumer_name,
+        stream_name = %projection_cfg.stream_name,
+        batch_size = projection_cfg.batch_size,
+        poll_interval_ms = projection_cfg.poll_interval.as_millis(),
+        invalid_policy = ?projection_cfg.invalid_policy,
+        run_mode = %projection_cfg.run_mode.as_str(),
+        "starting projection consumer"
     );
 
-    let mut ticker = tokio::time::interval(poll_interval);
-    let shutdown = shutdown_signal();
+    let result = match projection_cfg.run_mode {
+        ProjectionConsumerRunMode::Continuous => {
+            run_inventory_projection_loop(&pool, &projection_cfg, shutdown_signal()).await
+        }
+        ProjectionConsumerRunMode::ReplayPreview => {
+            run_inventory_projection_preview(&pool, &projection_cfg).await
+        }
+        ProjectionConsumerRunMode::ReplayApply => {
+            run_inventory_projection_replay(&pool, &projection_cfg).await
+        }
+    };
+
+    lock.release().await?;
+    pool.close().await;
+    result
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+struct ProjectionIteration {
+    advanced_to: Option<i64>,
+    applied_count: usize,
+    invalid_count: usize,
+}
+
+async fn run_inventory_projection_loop<F>(
+    pool: &sqlx::PgPool,
+    cfg: &ProjectionConsumerConfig,
+    shutdown: F,
+) -> anyhow::Result<()>
+where
+    F: std::future::Future<Output = ()>,
+{
+    let mut ticker = tokio::time::interval(cfg.poll_interval);
     tokio::pin!(shutdown);
 
     loop {
         tokio::select! {
             _ = &mut shutdown => break,
             _ = ticker.tick() => {
-                banji_api::events::consumer::heartbeat(&pool, &service_name, &consumer_name, &stream_name).await?;
-                let checkpoint = banji_api::events::consumer::get_checkpoint(&pool, &service_name, &consumer_name, &stream_name).await?;
-                let batch = match banji_api::events::consumer::poll_and_decode_stream(
-                    &pool,
-                    &service_name,
-                    &consumer_name,
-                    &stream_name,
+                banji_api::events::consumer::heartbeat(
+                    pool,
+                    &cfg.service_name,
+                    &cfg.consumer_name,
+                    &cfg.stream_name,
+                ).await?;
+                let checkpoint = banji_api::events::consumer::get_checkpoint(
+                    pool,
+                    &cfg.service_name,
+                    &cfg.consumer_name,
+                    &cfg.stream_name,
+                ).await?;
+                let iteration = apply_inventory_projection_iteration(
+                    pool,
+                    cfg,
                     checkpoint,
-                    batch_size,
-                    invalid_policy,
-                ).await {
-                    Ok(batch) => batch,
-                    Err(err) => {
-                        tracing::error!(error = %err, "projection consumer halted due to invalid event policy");
-                        return Err(err);
-                    }
-                };
-
-                for (_event_id, _event) in &batch.events {
-                    // Consumer scaffold intentionally validates/decode-gates first.
-                }
-
-                let max_seen = batch
-                    .events
-                    .iter()
-                    .map(|(id, _)| *id)
-                    .chain(batch.invalid_event_ids.iter().copied())
-                    .max();
-
-                if let Some(last_event_id) = max_seen {
-                    banji_api::events::consumer::advance_checkpoint(
-                        &pool,
-                        &service_name,
-                        &consumer_name,
-                        &stream_name,
-                        last_event_id,
-                    ).await?;
-                }
-
-                let current_checkpoint = max_seen.unwrap_or(checkpoint);
+                    None,
+                ).await?;
+                let lag_checkpoint = iteration.advanced_to.unwrap_or(checkpoint);
                 let _ = banji_api::events::consumer::compute_stream_lag(
-                    &pool,
-                    &stream_name,
-                    current_checkpoint,
+                    pool,
+                    &cfg.stream_name,
+                    lag_checkpoint,
                 ).await;
             }
         }
     }
 
-    pool.close().await;
     Ok(())
 }
 
-fn parse_u32_env(name: &str, default: u32) -> anyhow::Result<u32> {
-    match env::var(name) {
-        Ok(v) => v
-            .parse::<u32>()
-            .map_err(|_| anyhow::anyhow!("{name} must be an integer > 0"))
-            .and_then(|n| {
-                if n == 0 {
-                    Err(anyhow::anyhow!("{name} must be greater than 0"))
-                } else {
-                    Ok(n)
-                }
-            }),
-        Err(_) => Ok(default),
+async fn run_inventory_projection_preview(
+    pool: &sqlx::PgPool,
+    cfg: &ProjectionConsumerConfig,
+) -> anyhow::Result<()> {
+    let checkpoint = banji_api::events::consumer::get_checkpoint(
+        pool,
+        &cfg.service_name,
+        &cfg.consumer_name,
+        &cfg.stream_name,
+    )
+    .await?;
+    let after_id = replay_after_id(checkpoint, cfg);
+    let summary = banji_api::events::consumer::summarize_stream_range(
+        pool,
+        &cfg.stream_name,
+        after_id,
+        cfg.replay_to_id,
+    )
+    .await?;
+
+    tracing::info!(
+        service_name = %cfg.service_name,
+        consumer_name = %cfg.consumer_name,
+        stream_name = %cfg.stream_name,
+        current_checkpoint = checkpoint,
+        preview_after_id = after_id,
+        replay_from_id = cfg.replay_from_id,
+        replay_to_id = cfg.replay_to_id,
+        candidate_count = summary.candidate_count,
+        max_event_id = summary.max_event_id,
+        truncate_projection = cfg.replay_truncate_projection,
+        reset_checkpoint = cfg.replay_reset_checkpoint,
+        "projection replay preview"
+    );
+
+    Ok(())
+}
+
+async fn run_inventory_projection_replay(
+    pool: &sqlx::PgPool,
+    cfg: &ProjectionConsumerConfig,
+) -> anyhow::Result<()> {
+    let checkpoint = banji_api::events::consumer::get_checkpoint(
+        pool,
+        &cfg.service_name,
+        &cfg.consumer_name,
+        &cfg.stream_name,
+    )
+    .await?;
+    let mut after_id = replay_after_id(checkpoint, cfg);
+
+    if cfg.replay_truncate_projection || cfg.replay_reset_checkpoint {
+        let mut tx = pool.begin().await?;
+        if cfg.replay_truncate_projection {
+            banji_api::projections::inventory::truncate_inventory_projection_tx(&mut tx).await?;
+        }
+        if cfg.replay_reset_checkpoint {
+            banji_api::events::consumer::set_checkpoint_tx(
+                &mut tx,
+                &cfg.service_name,
+                &cfg.consumer_name,
+                &cfg.stream_name,
+                reset_checkpoint_value(cfg.replay_from_id),
+            )
+            .await?;
+        }
+        tx.commit().await?;
+        if cfg.replay_reset_checkpoint {
+            after_id = inclusive_replay_after_id(cfg.replay_from_id);
+        }
+    }
+
+    loop {
+        let iteration = apply_inventory_projection_iteration(pool, cfg, after_id, cfg.replay_to_id).await?;
+        let Some(next_after_id) = iteration.advanced_to else {
+            break;
+        };
+        tracing::info!(
+            stream_name = %cfg.stream_name,
+            advanced_to = next_after_id,
+            applied_count = iteration.applied_count,
+            invalid_count = iteration.invalid_count,
+            "projection replay batch applied"
+        );
+        after_id = next_after_id;
+        if let Some(to_id) = cfg.replay_to_id {
+            if after_id >= to_id {
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn apply_inventory_projection_iteration(
+    pool: &sqlx::PgPool,
+    cfg: &ProjectionConsumerConfig,
+    after_id: i64,
+    to_id: Option<i64>,
+) -> anyhow::Result<ProjectionIteration> {
+    let batch = banji_api::events::consumer::poll_and_decode_stream_in_range(
+        pool,
+        &cfg.service_name,
+        &cfg.consumer_name,
+        &cfg.stream_name,
+        after_id,
+        to_id,
+        cfg.batch_size,
+        cfg.invalid_policy,
+    )
+    .await?;
+
+    if batch.events.is_empty() && batch.invalid_event_ids.is_empty() {
+        return Ok(ProjectionIteration::default());
+    }
+
+    let mut tx = pool.begin().await?;
+    let apply_stats = match banji_api::projections::inventory::apply_inventory_projection_batch_tx(
+        &mut tx,
+        &batch.events,
+    )
+    .await
+    {
+        Ok(stats) => stats,
+        Err(err) => {
+            tx.rollback().await?;
+            banji_api::events::consumer::set_error(
+                pool,
+                &cfg.service_name,
+                &cfg.consumer_name,
+                &cfg.stream_name,
+                &err.to_string(),
+            )
+            .await?;
+            return Err(err);
+        }
+    };
+
+    let checkpoint_target = apply_stats
+        .last_applied_event_id
+        .into_iter()
+        .chain(batch.invalid_event_ids.iter().copied())
+        .max();
+
+    if let Some(last_event_id) = checkpoint_target {
+        banji_api::events::consumer::set_checkpoint_tx(
+            &mut tx,
+            &cfg.service_name,
+            &cfg.consumer_name,
+            &cfg.stream_name,
+            last_event_id,
+        )
+        .await?;
+    }
+    tx.commit().await?;
+
+    Ok(ProjectionIteration {
+        advanced_to: checkpoint_target,
+        applied_count: apply_stats.applied_count,
+        invalid_count: batch.invalid_event_ids.len(),
+    })
+}
+
+fn inclusive_replay_after_id(from_id: i64) -> i64 {
+    if from_id <= 0 {
+        -1
+    } else {
+        from_id - 1
     }
 }
 
-fn parse_u64_env(name: &str, default: u64) -> anyhow::Result<u64> {
-    match env::var(name) {
-        Ok(v) => v
-            .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("{name} must be an integer > 0"))
-            .and_then(|n| {
-                if n == 0 {
-                    Err(anyhow::anyhow!("{name} must be greater than 0"))
-                } else {
-                    Ok(n)
-                }
-            }),
-        Err(_) => Ok(default),
+fn replay_after_id(current_checkpoint: i64, cfg: &ProjectionConsumerConfig) -> i64 {
+    if cfg.replay_reset_checkpoint {
+        inclusive_replay_after_id(cfg.replay_from_id)
+    } else {
+        current_checkpoint.max(inclusive_replay_after_id(cfg.replay_from_id))
     }
 }
 
-fn parse_invalid_event_policy(raw: &str) -> anyhow::Result<InvalidEventPolicy> {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "halt" => Ok(InvalidEventPolicy::Halt),
-        "skip" => Ok(InvalidEventPolicy::Skip),
-        "quarantine" => Ok(InvalidEventPolicy::Quarantine),
-        _ => Err(anyhow::anyhow!(
-            "EVENT_CONSUMER_INVALID_POLICY must be one of: halt, skip, quarantine"
-        )),
+fn reset_checkpoint_value(from_id: i64) -> i64 {
+    if from_id <= 0 {
+        0
+    } else {
+        from_id - 1
     }
 }
 

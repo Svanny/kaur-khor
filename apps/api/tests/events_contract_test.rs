@@ -1,6 +1,7 @@
 use banji_api::events::model::EventRecord;
 use banji_api::events::outbox;
 use banji_api::events::publisher::validate_event_payload_contract;
+use banji_api::events::schema;
 use std::env;
 
 #[test]
@@ -111,4 +112,43 @@ async fn event_outbox_rejects_payload_drift_for_same_publish_key() {
         .execute(&pool)
         .await
         .unwrap();
+}
+
+#[test]
+fn built_in_event_builders_derive_owned_streams() {
+    let item_event = schema::build_inventory_item_created_v1(
+        "banji-core",
+        "prod",
+        "api".to_string(),
+        "user-a".to_string(),
+        "item-1".to_string(),
+        "SKU-1".to_string(),
+        "Item".to_string(),
+        1,
+        "idem-item-1".to_string(),
+        Some("corr-1".to_string()),
+        serde_json::json!({}),
+    )
+    .unwrap();
+    assert_eq!(item_event.stream_name, "banji-core.prod.inventory-updated");
+    assert_eq!(item_event.topic_name, "inventory-updated");
+
+    let demo_event = schema::build_inventory_write_demo_completed_v1(
+        "banji-core",
+        "prod",
+        "api".to_string(),
+        "caller-1".to_string(),
+        "reserve".to_string(),
+        serde_json::json!({"sku":"SKU-1"}),
+        serde_json::json!({"ok":true}),
+        "idem-demo-1".to_string(),
+        Some("corr-2".to_string()),
+        serde_json::json!({}),
+    )
+    .unwrap();
+    assert_eq!(
+        demo_event.stream_name,
+        "banji-core.prod.write-demo-completed"
+    );
+    assert_eq!(demo_event.topic_name, "write-demo-completed");
 }

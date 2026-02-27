@@ -6,6 +6,7 @@ use super::{
         InventoryItemCreatedV1Payload, InventoryWriteDemoCompletedV1Payload, KnownEvent,
         SchemaErrorCode,
     },
+    streams,
 };
 use crate::{
     idempotency::validate_idempotency_key,
@@ -103,7 +104,8 @@ pub fn decode_event_row(
 }
 
 pub fn build_inventory_item_created_v1(
-    stream_name: String,
+    system: &str,
+    env: &str,
     producer_service: String,
     owner_sub: String,
     item_id: String,
@@ -114,6 +116,7 @@ pub fn build_inventory_item_created_v1(
     correlation_id: Option<String>,
     metadata: Value,
 ) -> Result<EventRecord, SchemaError> {
+    let stream_name = streams::inventory_updated_stream(system, env);
     let payload = json!({
         "owner_sub": owner_sub,
         "item_id": item_id,
@@ -140,7 +143,8 @@ pub fn build_inventory_item_created_v1(
 }
 
 pub fn build_inventory_write_demo_completed_v1(
-    stream_name: String,
+    system: &str,
+    env: &str,
     producer_service: String,
     caller_id: String,
     operation: String,
@@ -150,6 +154,7 @@ pub fn build_inventory_write_demo_completed_v1(
     correlation_id: Option<String>,
     metadata: Value,
 ) -> Result<EventRecord, SchemaError> {
+    let stream_name = streams::write_demo_completed_stream(system, env);
     let event_payload = json!({
         "operation": operation,
         "payload": payload,
@@ -311,6 +316,15 @@ fn validate_inventory_item_created_v1(
     record: &EventRecord,
     payload: &InventoryItemCreatedV1Payload,
 ) -> Result<(), SchemaError> {
+    if record.topic_name != streams::inventory_updated_topic() {
+        return Err(SchemaError::new(
+            SchemaErrorCode::EnvelopeValidationFailed,
+            format!(
+                "inventory.item.created must publish to topic '{}'",
+                streams::inventory_updated_topic()
+            ),
+        ));
+    }
     ensure_non_empty("payload.owner_sub", &payload.owner_sub)?;
     validate_item_id(&payload.item_id).map_err(|err| {
         SchemaError::new(
@@ -362,6 +376,15 @@ fn validate_write_demo_completed_v1(
     record: &EventRecord,
     payload: &InventoryWriteDemoCompletedV1Payload,
 ) -> Result<(), SchemaError> {
+    if record.topic_name != streams::write_demo_completed_topic() {
+        return Err(SchemaError::new(
+            SchemaErrorCode::EnvelopeValidationFailed,
+            format!(
+                "inventory.write-demo.completed must publish to topic '{}'",
+                streams::write_demo_completed_topic()
+            ),
+        ));
+    }
     ensure_non_empty("payload.operation", &payload.operation)?;
     ensure_non_empty("payload.caller_id", &payload.caller_id)?;
     if record.aggregate_id != payload.caller_id {
