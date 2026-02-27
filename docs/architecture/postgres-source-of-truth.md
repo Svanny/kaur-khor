@@ -127,6 +127,17 @@ No runtime role may hold schema-altering privileges.
   - total table size > 50 GB, or
   - daily prune volume > 1,000,000 rows for 7 consecutive days.
 
+## Job Accountability Current Fix
+- RabbitMQ is the current async job transport for heavy work.
+- Logical job scheduling is Postgres-backed:
+  - `app.job_run`
+  - `app.job_run_attempt`
+  - `app.job_result`
+  - `app.job_delivery_violation`
+- Producers must write `app.job_run` and `app.job_outbox` in the same transaction as canonical writes.
+- Workers must not create missing `job_run` rows; missing logical runs are recorded as `missing_job_run` violations.
+- Result durability is Postgres-first; Kafka result publication is disabled by default in this phase.
+
 ## Operational Telemetry Baseline
 Enable visibility for:
 - slow queries / top query patterns

@@ -139,6 +139,7 @@ For each deployable Railway service:
 ## RabbitMQ Reliability Contract
 - RabbitMQ is the current async job transport.
 - Postgres `app.job_outbox` is canonical enqueue intent; relay publishes with confirms.
+- Producers must also create `app.job_run` in the same transaction as `app.job_outbox`.
 - Publish confirms are mandatory before acknowledging original messages on retry/DLQ republish.
 - Worker ack contract: acknowledge only after side effects are committed and confirmed handoff is complete.
 - Retry/poison behavior is deterministic:
@@ -146,3 +147,7 @@ For each deployable Railway service:
   - permanent errors route directly to DLQ
   - transient errors follow retry ladder and terminate at DLQ ceiling
 - DLQ replay is copy-first and operator-audited; destructive cleanup is a separate explicit step.
+- Worker startup contract:
+  - `APP_ROLE=worker` requires `DATABASE_RUNTIME_URL` and `RABBIT_URL`
+  - `JOB_RESULT_KAFKA_ENABLED=true` must fail startup until a future Kafka publisher milestone exists
+- Replay queue consumers must use `RABBIT_REPLAY_PREFETCH_FAST` / `RABBIT_REPLAY_PREFETCH_HEAVY`, not the primary queue prefetch values.

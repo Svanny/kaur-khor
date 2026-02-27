@@ -77,7 +77,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 4a. [DONE / CURRENT FIX] Event-log consumer service for projections (Postgres path)
    Create a Rust consumer worker that reads `app.event_log` by monotonic cursor and updates read optimized tables in Postgres. Done means projection consumers can resume from durable checkpoints and rebuild by replaying event ranges from Postgres.
 
-5. Job producer and worker services
+5. [DONE] Job producer and worker services
    API or consumers enqueue jobs to RabbitMQ for heavy algorithms. Workers consume, write run records, write results, and publish result events back to Kafka only if/when the optional Kafka track is enabled. Done means jobs are idempotent, retriable, and every run is accountable in Postgres.
 
 6. Object storage integration for heavy artifacts

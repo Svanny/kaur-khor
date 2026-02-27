@@ -45,12 +45,12 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - `worker`: `DATABASE_RUNTIME_URL`, `RABBIT_URL`, optional `REDIS_URL`, integration secrets, optional telemetry auth
 - `scheduler`: minimal `RABBIT_URL`, scheduler-specific integration secrets, optional telemetry auth
 - `projection-consumer`: `DATABASE_RUNTIME_URL`, optional telemetry auth
-- `outbox-relay` (current phase): `DATABASE_RUNTIME_URL`, optional telemetry auth
+- `event-relay`: `DATABASE_RUNTIME_URL`, optional telemetry auth
 
 Runtime services must not receive `DATABASE_MIGRATION_URL`.
 
 ## Pooling and DB Boundary Keys (Non-Secret)
-- `APP_ROLE=api|event-relay|projection-consumer`
+- `APP_ROLE=api|event-relay|projection-consumer|worker`
 - `DATABASE_RUNTIME_ENDPOINT_KIND=direct|pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction|session`
 - `AUTH_ENABLED`
@@ -74,6 +74,17 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `EVENT_RELAY_MAX_BACKOFF_MS`
 - `EVENT_RELAY_BLOCK_AFTER_ATTEMPTS`
 - `EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS`
+- `WORKER_ID`
+- `WORKER_ENABLED_CLASSES`
+- `WORKER_POLL_INTERVAL_MS`
+- `WORKER_SHUTDOWN_GRACE_SECONDS`
+- `JOB_ATTEMPT_LEASE_SECONDS`
+- `JOB_ATTEMPT_HEARTBEAT_SECONDS`
+- `JOB_HANDLER_MAX_RUNTIME_SECONDS`
+- `JOB_RESULT_KAFKA_ENABLED`
+- `JOB_RESULT_KAFKA_TOPIC_PREFIX`
+- `WORKER_CONSUME_REPLAY_QUEUES`
+- `WORKER_JOB_RELAY_BATCH_SIZE`
 
 `staging` and `prod` must use:
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
@@ -101,6 +112,24 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
   - `EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT`
   - `EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION`
 
+`APP_ROLE=worker` startup contract:
+- `DATABASE_RUNTIME_URL` is required
+- `RABBIT_URL` is required
+- HTTP-edge/auth keys are optional for this role
+- Kafka result publication remains disabled by default in this milestone
+- worker runtime contract is driven by:
+  - `WORKER_ID`
+  - `WORKER_ENABLED_CLASSES`
+  - `WORKER_POLL_INTERVAL_MS`
+  - `WORKER_SHUTDOWN_GRACE_SECONDS`
+  - `JOB_ATTEMPT_LEASE_SECONDS`
+  - `JOB_ATTEMPT_HEARTBEAT_SECONDS`
+  - `JOB_HANDLER_MAX_RUNTIME_SECONDS`
+  - `JOB_RESULT_KAFKA_ENABLED`
+  - `JOB_RESULT_KAFKA_TOPIC_PREFIX`
+  - `WORKER_CONSUME_REPLAY_QUEUES`
+  - `WORKER_JOB_RELAY_BATCH_SIZE`
+
 ## Edge Protection Keys (Non-Secret)
 - `EDGE_ENFORCEMENT_ENABLED`
 - `EDGE_PROVIDER=cloudflare|none`
@@ -123,6 +152,8 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `EDGE_CORS_ALLOWED_ORIGINS` must not include localhost entries
 
 ## RabbitMQ Replay Keys (Non-Secret)
+- `RABBIT_REPLAY_PREFETCH_FAST`
+- `RABBIT_REPLAY_PREFETCH_HEAVY`
 - `RABBIT_EXCHANGE_JOBS_REPLAY`
 - `RABBIT_REPLAY_MAX_MESSAGES`
 - `RABBIT_REPLAY_RATE_PER_MIN`
@@ -132,6 +163,10 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 
 Replay tooling rejects legacy names (`MAX_MESSAGES`, `REPLAY_RATE_PER_MIN`, `RETAIN_ATTEMPT`, `TARGET_ROUTING_KEY`) to prevent config drift.
 `BANJI_ENV` is required for all replay and cleanup operations.
+
+Worker replay consumption uses:
+- `RABBIT_REPLAY_PREFETCH_FAST`
+- `RABBIT_REPLAY_PREFETCH_HEAVY`
 
 ## Event Log Retention / Archive Keys (Non-Secret)
 - `EVENT_LOG_RETENTION_DAYS`

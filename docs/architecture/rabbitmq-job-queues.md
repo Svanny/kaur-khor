@@ -13,8 +13,21 @@ RabbitMQ is the current async job transport. Kafka remains optional/future.
 
 ## Postgres Canonical Outbox
 - `app.job_outbox` is canonical enqueue intent/audit.
-- API writes canonical data and outbox record in the same DB transaction.
+- API/consumers write canonical data, `app.job_run`, and `app.job_outbox` in the same DB transaction.
 - Relay publishes outbox rows to RabbitMQ with confirms and marks sent only after confirm.
+
+## Deterministic Job Identity
+- `job_key` is the canonical logical job identity.
+- In `app.job_outbox`, the persisted column name remains `enqueue_key`, but the value is the `job_key`.
+- `job_key` is derived from:
+  - `producer_service`
+  - `job_type`
+  - `aggregate_type`
+  - `aggregate_id`
+  - `causation_id`
+- Current derivation:
+  - `sha256("{producer_service}|{job_type}|{aggregate_type}|{aggregate_id}|{causation_id}")`
+- Request-sourced jobs use the request `idempotency_key` as `causation_id`.
 
 ## Workload Classes and Queue Topology
 Default classes:
@@ -28,8 +41,23 @@ Per class:
 
 Queue type: quorum, durable.
 
+## Accountable Run Tables
+- `app.job_run`: logical job lifecycle (`queued`, `running`, `retrying`, `succeeded`, `failed`)
+- `app.job_run_attempt`: one row per explicit attempt number with lease/heartbeat state
+- `app.job_result`: successful typed result payload keyed by `job_key`
+- `app.job_delivery_violation`: orphan or invalid deliveries such as `missing_job_run`
+
+Worker contract:
+- worker must not silently create `job_run`
+- if a Rabbit delivery arrives with no matching `job_run`, record `missing_job_run` and DLQ it
+- result rows are idempotent by `job_key`
+
 ## Attempt and Error Taxonomy
 - Attempt count in envelope (`attempt`) is primary retry source-of-truth.
+- Attempt means total tries including the first execution.
+- With the current ladder, `RABBIT_MAX_ATTEMPTS=4` means:
+  - first try `attempt=1`
+  - retries `attempt=2,3,4`
 - Attempt increments only when worker code makes an explicit routing decision.
 - RabbitMQ redelivery alone must not increment attempts.
 - `x-death` is advisory/diagnostic.
@@ -43,11 +71,21 @@ Queue type: quorum, durable.
   - `dependency_unavailable`
   - `unknown_transient`
   - `unknown_permanent`
+  - `missing_job_run`
+
+## Worker Duplicate-Delivery Safety
+- Duplicate deliveries are expected.
+- Worker claims a lightweight attempt lease in `app.job_run_attempt`.
+- If another worker already holds a fresh lease for the same `(job_key, attempt)`, the duplicate delivery must not compute and is requeued without incrementing attempt.
+- If a worker crashes and the lease expires, another worker may steal the lease and continue.
+- If a job already succeeded, redelivery is acknowledged without recomputing.
 
 ## Prefetch Policy
 Per-class prefetch settings:
 - fast: `RABBIT_PREFETCH_FAST` (default 20)
 - heavy: `RABBIT_PREFETCH_HEAVY` (default 2)
+- replay fast: `RABBIT_REPLAY_PREFETCH_FAST` (default 5)
+- replay heavy: `RABBIT_REPLAY_PREFETCH_HEAVY` (default 1)
 
 ## Replay Tooling
 Replay uses RabbitMQ Management HTTP API.
@@ -84,3 +122,6 @@ Track per class:
 - consumer throughput and failures
 - publish confirm failures
 - replay actions (who/why/when)
+- worker run totals/duration by `job_type` and `workload_class`
+- duplicate-detected and lease-steal counts
+- last-error totals by bounded `error_reason`
