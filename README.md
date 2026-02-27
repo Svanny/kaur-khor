@@ -177,6 +177,8 @@ This repository is an actively evolving prototype.
 - Backend architecture and infrastructure contracts are being implemented incrementally in the Rust API workstream.
 - Rust API milestone baseline includes JWT-authenticated owner-scoped item APIs (`POST /v1/items`, `GET /v1/items/:item_id`) with Postgres-backed idempotent writes and read-through cache behavior.
 - Event delivery now uses Postgres outbox-first intent (`app.event_outbox`) with a dedicated relay role (`APP_ROLE=event-relay`) that publishes idempotently into `app.event_log`.
+- Inventory projections now use a dedicated `APP_ROLE=projection-consumer` worker that reads `app.event_log`, updates `app.inventory_item_projection`, and resumes from durable checkpoints with single-instance advisory locking.
+- Projection replay is now built into the Rust `projection-consumer` runtime (`continuous`, `replay-preview`, `replay-apply`), while public `GET /v1/items/:item_id` still reads the canonical `app.inventory_item` table.
 - Observability baseline uses OpenTelemetry semantic-convention HTTP metrics, correlation IDs, and a collector-forwarded traces/metrics path.
 - Postgres restore drill routine is defined via `.github/workflows/postgres-restore-drill.yml.disabled` and `docs/operations/postgres-restore-drill.md`.
 - Postgres event-log lifecycle (retention/archive/replay) is defined via `docs/architecture/postgres-event-log.md` and `docs/operations/postgres-event-log-maintenance.md`.

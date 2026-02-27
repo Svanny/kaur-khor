@@ -17,6 +17,11 @@ This contract defines event schema governance for the current Postgres event tra
 | `inventory.item.created` | `v1` | `item` | `owner_sub`, `item_id`, `sku`, `name`, `quantity` |
 | `inventory.write-demo.completed` | `v1` | `write-demo` | `operation`, `payload`, `caller_id`, `result` |
 
+## Stream Ownership
+- `inventory.item.created` derives its stream internally and must publish to `{system}.{env}.inventory-updated`.
+- `inventory.write-demo.completed` derives its stream internally and must publish to `{system}.{env}.write-demo-completed`.
+- Built-in producer paths must not supply arbitrary stream names for these event types.
+
 ## Full-Record Validation Rules
 - Validation applies to the full record (`EventRecord`), not payload alone.
 - Envelope rules include:

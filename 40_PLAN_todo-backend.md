@@ -74,7 +74,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 4. [OPTIONAL / FUTURE] Streaming consumer service for projections (Kafka path)
    Optional future track: create a Rust consumer group that reads Kafka events and updates read optimized tables in Postgres. Done means your hottest read endpoints can hit projection tables with simple indexed queries.
 
-4a. [CURRENT FIX] Event-log consumer service for projections (Postgres path)
+4a. [DONE / CURRENT FIX] Event-log consumer service for projections (Postgres path)
    Create a Rust consumer worker that reads `app.event_log` by monotonic cursor and updates read optimized tables in Postgres. Done means projection consumers can resume from durable checkpoints and rebuild by replaying event ranges from Postgres.
 
 5. Job producer and worker services

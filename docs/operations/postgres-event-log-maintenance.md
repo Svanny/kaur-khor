@@ -53,6 +53,23 @@ Consumer invalid-event policy:
 - optional `Skip`: error recorded and processing continues
 - optional `Quarantine`: invalid event row + reason stored in `app.event_consumer_quarantine`
 
+Projection consumer runtime:
+
+```bash
+APP_ROLE=projection-consumer \
+DATABASE_RUNTIME_URL="$DATABASE_RUNTIME_URL" \
+EVENT_CONSUMER_SERVICE_NAME=projection-consumer \
+EVENT_CONSUMER_NAME=inventory-projector \
+EVENT_CONSUMER_STREAM_NAME=banji-core.prod.inventory-updated \
+cargo run --bin banji-api
+```
+
+Projection consumer guarantees:
+- acquires a single-active-instance advisory lock before consuming
+- applies projection rows and checkpoint advancement in one DB transaction
+- replays in `id ASC` order only
+- keeps public API reads on canonical tables until a later cutover milestone
+
 ## Event Outbox Cleanup
 
 ```bash
@@ -87,34 +104,39 @@ bash tool/db/export_event_log.sh \
   --dry-run
 ```
 
-## Replay (Hot)
+## Replay (Projection Consumer Primary Path)
 Preview range:
 
 ```bash
-DATABASE_URL="$DATABASE_RUNTIME_URL" \
-bash tool/db/replay_event_log.sh \
-  --mode hot-preview \
-  --stream-name banji-core.prod.inventory-updated \
-  --service-name projection-consumer \
-  --consumer-name inventory-projector \
-  --from-id 0
+APP_ROLE=projection-consumer \
+DATABASE_RUNTIME_URL="$DATABASE_RUNTIME_URL" \
+EVENT_CONSUMER_SERVICE_NAME=projection-consumer \
+EVENT_CONSUMER_NAME=inventory-projector \
+EVENT_CONSUMER_STREAM_NAME=banji-core.prod.inventory-updated \
+EVENT_CONSUMER_RUN_MODE=replay-preview \
+EVENT_CONSUMER_REPLAY_FROM_ID=0 \
+cargo run --bin banji-api
 ```
 
 Apply replay from checkpoint reset:
 
 ```bash
-DATABASE_URL="$DATABASE_RUNTIME_URL" \
-bash tool/db/replay_event_log.sh \
-  --mode hot-apply \
-  --stream-name banji-core.prod.inventory-updated \
-  --service-name projection-consumer \
-  --consumer-name inventory-projector \
-  --handler-cmd "cat >/dev/null" \
-  --from-id 0
+APP_ROLE=projection-consumer \
+DATABASE_RUNTIME_URL="$DATABASE_RUNTIME_URL" \
+EVENT_CONSUMER_SERVICE_NAME=projection-consumer \
+EVENT_CONSUMER_NAME=inventory-projector \
+EVENT_CONSUMER_STREAM_NAME=banji-core.prod.inventory-updated \
+EVENT_CONSUMER_RUN_MODE=replay-apply \
+EVENT_CONSUMER_REPLAY_FROM_ID=0 \
+EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT=true \
+EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION=true \
+cargo run --bin banji-api
 ```
 
-For `*-apply` modes, checkpoint advancement occurs only after `--handler-cmd` exits successfully for each batch.
-Replace the no-op example handler above with the real projection/job apply command.
+For replay apply, checkpoint advancement occurs only after the projection batch transaction commits successfully.
+
+## Replay (Legacy Shell Tooling)
+Shell replay scripts remain available for preview/maintenance workflows, but the authoritative projection rebuild path is the Rust `projection-consumer` runtime above.
 
 ## Replay (Cold)
 1) Rehydrate archive segments into restore DB:

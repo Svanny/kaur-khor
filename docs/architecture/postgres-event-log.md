@@ -19,11 +19,24 @@ This document defines the Kafka-substitute event stream implemented in PostgreSQ
 - `stream_name` format: `{system}.{env}.{topic}`.
 - API writes persist event intent in `app.event_outbox` in the same transaction as canonical state.
 - `event-relay` is the only runtime role that publishes rows from `app.event_outbox` to `app.event_log`.
+- Projection consumers rebuild derived tables from `app.event_log`, not from canonical write tables.
 - Event schema authority is code-based full-record validation (`events/schema.rs`) for both producers and consumers.
 - Checkpoints are durable per `(service_name, consumer_name, stream_name)`.
 - Canonical replay ordering is `ORDER BY id ASC` only.
 - `created_at` is metadata and must not drive replay order.
 - In replay apply mode, checkpoints must advance only after batch handler success.
+
+## Stream Ownership Contract
+- `inventory.item.created` publishes only to `{system}.{env}.inventory-updated`.
+- `inventory.write-demo.completed` publishes only to `{system}.{env}.write-demo-completed`.
+- Inventory projection consumers own only the inventory stream and must halt on any contract drift on that stream.
+
+## Inventory Projection Consumer Contract
+- Runtime role: `APP_ROLE=projection-consumer`.
+- Projection target table: `app.inventory_item_projection`.
+- Projection writes and checkpoint advancement must happen in the same transaction.
+- Projection rows store `source_event_id` and ignore duplicate/stale replays.
+- A single projector instance is enforced by a dedicated Postgres advisory lock keyed by `(service_name, consumer_name, stream_name)`.
 
 ## Idempotency and Deterministic Insert
 - Canonical write idempotency remains Postgres source of truth.
