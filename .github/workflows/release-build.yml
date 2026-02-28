@@ -88,9 +88,15 @@ jobs:
       - name: Container vulnerability scan (wall-tier, non-blocking)
         continue-on-error: true
         env:
-          IMAGE_REF: ${{ steps.meta.outputs.image_ref }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
-          docker run --rm aquasec/trivy:0.59.1 image --severity HIGH,CRITICAL "$IMAGE_REF"
+          set -euo pipefail
+          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE_NAME="ghcr.io/${OWNER_LC}/banji-api"
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.59.1 \
+            image --severity HIGH,CRITICAL "$IMAGE_NAME:$COMMIT_SHA"
 
   deploy:
     needs: container-build-push
