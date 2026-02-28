@@ -17,6 +17,18 @@ exit 0
 EOF
 chmod +x "$stub_binary"
 
+repo_like_root="$tmp_dir/repo-like"
+mkdir -p "$repo_like_root/target/release"
+cp "$start_script" "$repo_like_root/start.sh"
+cp "$stub_binary" "$repo_like_root/target/release/banji-api"
+chmod +x "$repo_like_root/start.sh" "$repo_like_root/target/release/banji-api"
+
+image_like_root="$tmp_dir/image-like"
+mkdir -p "$image_like_root"
+cp "$start_script" "$image_like_root/start.sh"
+cp "$stub_binary" "$image_like_root/banji-api"
+chmod +x "$image_like_root/start.sh" "$image_like_root/banji-api"
+
 run_start() {
   env \
     -i \
@@ -59,8 +71,23 @@ if [[ "$worker_output" == *"API_BIND_ADDR="* ]]; then
   exit 1
 fi
 
+backfill_output="$(run_start APP_ROLE=backfill-controller)"
+assert_contains "$backfill_output" "APP_ROLE=backfill-controller"
+assert_contains "$backfill_output" "BANJI_SERVICE=backfill-controller"
+if [[ "$backfill_output" == *"API_BIND_ADDR="* ]]; then
+  echo "backfill-controller output should not contain API_BIND_ADDR" >&2
+  echo "$backfill_output" >&2
+  exit 1
+fi
+
 custom_service="$(run_start APP_ROLE=event-relay BANJI_SERVICE=relay-runtime)"
 assert_contains "$custom_service" "BANJI_SERVICE=relay-runtime"
+
+repo_style_default="$(env -i PATH="$PATH" HOME="${HOME:-$tmp_dir}" BANJI_START_DRY_RUN=1 APP_ROLE=api "$repo_like_root/start.sh")"
+assert_contains "$repo_style_default" "EXEC=$repo_like_root/target/release/banji-api"
+
+image_style_default="$(env -i PATH="$PATH" HOME="${HOME:-$tmp_dir}" BANJI_START_DRY_RUN=1 APP_ROLE=api "$image_like_root/start.sh")"
+assert_contains "$image_style_default" "EXEC=$image_like_root/banji-api"
 
 if run_start APP_ROLE=invalid-role >"$invalid_out" 2>"$invalid_err"; then
   echo "expected invalid APP_ROLE to fail" >&2

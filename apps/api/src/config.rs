@@ -5,6 +5,7 @@ use anyhow::{anyhow, Context, Result};
 use axum::http::header::HeaderName;
 use std::env;
 use std::fmt;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
@@ -114,6 +115,32 @@ impl AppRole {
             Self::BackfillController => "backfill-controller",
         }
     }
+}
+
+pub fn resolve_service_name_from_env(app_role: AppRole) -> String {
+    env::var("BANJI_SERVICE").unwrap_or_else(|_| app_role.as_str().to_string())
+}
+
+pub fn resolve_service_name_with_fallback() -> String {
+    let app_role = env::var("APP_ROLE")
+        .ok()
+        .and_then(|raw| AppRole::parse(&raw).ok())
+        .unwrap_or(AppRole::Api);
+    resolve_service_name_from_env(app_role)
+}
+
+pub fn resolve_api_bind_addr() -> SocketAddr {
+    if let Ok(bind_addr) = env::var("API_BIND_ADDR") {
+        if let Ok(addr) = bind_addr.parse::<SocketAddr>() {
+            return addr;
+        }
+    }
+
+    let port = env::var("PORT")
+        .ok()
+        .and_then(|raw| raw.parse::<u16>().ok())
+        .unwrap_or(8080);
+    SocketAddr::from(([0, 0, 0, 0], port))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -698,9 +725,10 @@ impl AppConfig {
         let cache_schema_version = required_env("CACHE_SCHEMA_VERSION")?;
         let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
         let system_name = env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string());
-        let service_name = env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string());
         let instance_id = resolve_instance_id();
-        let app_role = AppRole::parse(&env::var("APP_ROLE").unwrap_or_else(|_| "api".to_string()))?;
+        let app_role =
+            AppRole::parse(&env::var("APP_ROLE").unwrap_or_else(|_| "api".to_string()))?;
+        let service_name = resolve_service_name_from_env(app_role);
         let strict_edge_env = matches!(env_name.as_str(), "staging" | "prod");
         let strict_api_env = strict_edge_env && app_role == AppRole::Api;
         let auth_enabled = parse_bool("AUTH_ENABLED", strict_api_env)?;
