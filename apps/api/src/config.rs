@@ -7,6 +7,7 @@ use std::env;
 use std::fmt;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DatabaseRuntimeEndpointKind {
@@ -87,6 +88,7 @@ pub enum AppRole {
     EventRelay,
     ProjectionConsumer,
     Worker,
+    BackfillController,
 }
 
 impl AppRole {
@@ -96,8 +98,9 @@ impl AppRole {
             "event-relay" => Ok(Self::EventRelay),
             "projection-consumer" => Ok(Self::ProjectionConsumer),
             "worker" => Ok(Self::Worker),
+            "backfill-controller" => Ok(Self::BackfillController),
             _ => Err(anyhow!(
-                "APP_ROLE must be one of: api, event-relay, projection-consumer, worker"
+                "APP_ROLE must be one of: api, event-relay, projection-consumer, worker, backfill-controller"
             )),
         }
     }
@@ -108,6 +111,103 @@ impl AppRole {
             Self::EventRelay => "event-relay",
             Self::ProjectionConsumer => "projection-consumer",
             Self::Worker => "worker",
+            Self::BackfillController => "backfill-controller",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackfillKind {
+    Projection,
+    Jobs,
+}
+
+impl BackfillKind {
+    fn parse(raw: &str) -> Result<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "projection" => Ok(Self::Projection),
+            "jobs" => Ok(Self::Jobs),
+            _ => Err(anyhow!("BACKFILL_KIND must be one of: projection, jobs")),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Projection => "projection",
+            Self::Jobs => "jobs",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackfillMode {
+    Preview,
+    Apply,
+}
+
+impl BackfillMode {
+    fn parse(raw: &str) -> Result<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "preview" => Ok(Self::Preview),
+            "apply" => Ok(Self::Apply),
+            _ => Err(anyhow!("BACKFILL_MODE must be one of: preview, apply")),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Preview => "preview",
+            Self::Apply => "apply",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackfillDatabaseKind {
+    Primary,
+    Restore,
+}
+
+impl BackfillDatabaseKind {
+    fn parse(raw: &str) -> Result<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "primary" => Ok(Self::Primary),
+            "restore" => Ok(Self::Restore),
+            _ => Err(anyhow!(
+                "BACKFILL_DATABASE_KIND must be one of: primary, restore"
+            )),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Primary => "primary",
+            Self::Restore => "restore",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackfillRunStatus {
+    Planned,
+    Running,
+    Waiting,
+    Succeeded,
+    CompletedWithFailures,
+    Failed,
+    Cancelled,
+}
+
+impl BackfillRunStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Planned => "planned",
+            Self::Running => "running",
+            Self::Waiting => "waiting",
+            Self::Succeeded => "succeeded",
+            Self::CompletedWithFailures => "completed_with_failures",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
         }
     }
 }
@@ -155,6 +255,30 @@ pub struct ProjectionConsumerConfig {
     pub replay_truncate_projection: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackfillConfig {
+    pub kind: BackfillKind,
+    pub mode: BackfillMode,
+    pub stream_name: String,
+    pub batch_size: i64,
+    pub invalid_event_policy: InvalidEventPolicy,
+    pub database_kind: BackfillDatabaseKind,
+    pub run_id: Option<Uuid>,
+    pub operator_id: Option<String>,
+    pub reason: Option<String>,
+    pub from_event_id: Option<i64>,
+    pub to_event_id: Option<i64>,
+    pub service_name: String,
+    pub consumer_name: String,
+    pub reset_checkpoint: bool,
+    pub truncate_projection: bool,
+    pub job_types: Vec<String>,
+    pub wait_for_workers: bool,
+    pub worker_poll_interval: Duration,
+    pub max_wait: Duration,
+    pub allow_broker_publish: bool,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct ObjectStorageConfig {
     pub endpoint: String,
@@ -190,7 +314,7 @@ impl fmt::Debug for ObjectStorageConfig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct WorkerConfig {
     pub worker_id: String,
     pub enabled_classes: Vec<WorkloadClass>,
@@ -203,6 +327,8 @@ pub struct WorkerConfig {
     pub job_result_kafka_topic_prefix: Option<String>,
     pub consume_replay_queues: bool,
     pub job_relay_batch_size: i64,
+    pub algorithm_rollout_hash_salt: String,
+    pub algorithm_rollout_hash_salt_version: String,
     pub object_storage: ObjectStorageConfig,
 }
 
@@ -212,6 +338,7 @@ pub struct AppConfig {
     pub system: String,
     pub env: String,
     pub service: String,
+    pub instance_id: String,
     pub auth_enabled: bool,
     pub auth_jwks_url: Option<String>,
     pub auth_issuer: Option<String>,
@@ -240,7 +367,11 @@ pub struct AppConfig {
     pub rabbit_url: Option<String>,
     pub rabbit_vhost: String,
     pub rabbit_exchange_jobs: String,
+    pub rabbit_exchange_jobs_replay: String,
     pub rabbit_dlx_exchange: String,
+    pub rabbit_management_api_base_url: Option<String>,
+    pub rabbit_management_username: Option<String>,
+    pub rabbit_management_password: Option<String>,
     pub rabbit_retry_1_ttl_ms: u64,
     pub rabbit_retry_2_ttl_ms: u64,
     pub rabbit_retry_3_ttl_ms: u64,
@@ -289,6 +420,9 @@ pub struct AppConfig {
     pub edge_backpressure_job_run_oldest_age_seconds_max: i64,
     pub edge_backpressure_kafka_pending_max: i64,
     pub edge_backpressure_kafka_oldest_age_seconds_max: i64,
+    pub observability_rabbit_queue_poll_interval: Duration,
+    pub observability_postgres_lock_poll_interval: Duration,
+    pub observability_job_pressure_poll_interval: Duration,
     pub edge_request_max_bytes: usize,
     pub edge_write_request_max_bytes: usize,
     pub edge_cors_allowed_origins: Vec<String>,
@@ -309,6 +443,7 @@ impl fmt::Debug for AppConfig {
             .field("system", &self.system)
             .field("env", &self.env)
             .field("service", &self.service)
+            .field("instance_id", &self.instance_id)
             .field("auth_enabled", &self.auth_enabled)
             .field("auth_jwks_url", &self.auth_jwks_url)
             .field("auth_issuer", &self.auth_issuer)
@@ -349,7 +484,23 @@ impl fmt::Debug for AppConfig {
             .field("rabbit_url", &redacted(&self.rabbit_url))
             .field("rabbit_vhost", &self.rabbit_vhost)
             .field("rabbit_exchange_jobs", &self.rabbit_exchange_jobs)
+            .field(
+                "rabbit_exchange_jobs_replay",
+                &self.rabbit_exchange_jobs_replay,
+            )
             .field("rabbit_dlx_exchange", &self.rabbit_dlx_exchange)
+            .field(
+                "rabbit_management_api_base_url",
+                &self.rabbit_management_api_base_url,
+            )
+            .field(
+                "rabbit_management_username",
+                &redacted(&self.rabbit_management_username),
+            )
+            .field(
+                "rabbit_management_password",
+                &redacted(&self.rabbit_management_password),
+            )
             .field("rabbit_retry_1_ttl_ms", &self.rabbit_retry_1_ttl_ms)
             .field("rabbit_retry_2_ttl_ms", &self.rabbit_retry_2_ttl_ms)
             .field("rabbit_retry_3_ttl_ms", &self.rabbit_retry_3_ttl_ms)
@@ -482,6 +633,18 @@ impl fmt::Debug for AppConfig {
                 "edge_backpressure_kafka_oldest_age_seconds_max",
                 &self.edge_backpressure_kafka_oldest_age_seconds_max,
             )
+            .field(
+                "observability_rabbit_queue_poll_interval",
+                &self.observability_rabbit_queue_poll_interval,
+            )
+            .field(
+                "observability_postgres_lock_poll_interval",
+                &self.observability_postgres_lock_poll_interval,
+            )
+            .field(
+                "observability_job_pressure_poll_interval",
+                &self.observability_job_pressure_poll_interval,
+            )
             .field("edge_request_max_bytes", &self.edge_request_max_bytes)
             .field(
                 "edge_write_request_max_bytes",
@@ -492,6 +655,33 @@ impl fmt::Debug for AppConfig {
                 "edge_trust_cf_connecting_ip",
                 &self.edge_trust_cf_connecting_ip,
             )
+            .finish()
+    }
+}
+
+impl fmt::Debug for WorkerConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WorkerConfig")
+            .field("worker_id", &self.worker_id)
+            .field("enabled_classes", &self.enabled_classes)
+            .field("poll_interval", &self.poll_interval)
+            .field("shutdown_grace", &self.shutdown_grace)
+            .field("attempt_lease", &self.attempt_lease)
+            .field("attempt_heartbeat", &self.attempt_heartbeat)
+            .field("handler_max_runtime", &self.handler_max_runtime)
+            .field("job_result_kafka_enabled", &self.job_result_kafka_enabled)
+            .field(
+                "job_result_kafka_topic_prefix",
+                &self.job_result_kafka_topic_prefix,
+            )
+            .field("consume_replay_queues", &self.consume_replay_queues)
+            .field("job_relay_batch_size", &self.job_relay_batch_size)
+            .field("algorithm_rollout_hash_salt", &"<redacted>")
+            .field(
+                "algorithm_rollout_hash_salt_version",
+                &self.algorithm_rollout_hash_salt_version,
+            )
+            .field("object_storage", &self.object_storage)
             .finish()
     }
 }
@@ -508,6 +698,7 @@ impl AppConfig {
         let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
         let system_name = env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string());
         let service_name = env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string());
+        let instance_id = resolve_instance_id();
         let app_role = AppRole::parse(&env::var("APP_ROLE").unwrap_or_else(|_| "api".to_string()))?;
         let strict_edge_env = matches!(env_name.as_str(), "staging" | "prod");
         let strict_api_env = strict_edge_env && app_role == AppRole::Api;
@@ -623,14 +814,10 @@ impl AppConfig {
         let edge_rate_limit_window =
             Duration::from_secs(parse_u64("EDGE_RATE_LIMIT_WINDOW_SECONDS", 60)?);
         let edge_rate_limit_public_read_max = parse_u32("EDGE_RATE_LIMIT_READ_MAX", 120)?;
-        let edge_rate_limit_user_read_max =
-            parse_u32("EDGE_RATE_LIMIT_USER_READ_MAX", 240)?;
-        let edge_rate_limit_user_write_max =
-            parse_u32("EDGE_RATE_LIMIT_USER_WRITE_MAX", 60)?;
-        let edge_rate_limit_device_read_max =
-            parse_u32("EDGE_RATE_LIMIT_DEVICE_READ_MAX", 120)?;
-        let edge_rate_limit_device_write_max =
-            parse_u32("EDGE_RATE_LIMIT_DEVICE_WRITE_MAX", 30)?;
+        let edge_rate_limit_user_read_max = parse_u32("EDGE_RATE_LIMIT_USER_READ_MAX", 240)?;
+        let edge_rate_limit_user_write_max = parse_u32("EDGE_RATE_LIMIT_USER_WRITE_MAX", 60)?;
+        let edge_rate_limit_device_read_max = parse_u32("EDGE_RATE_LIMIT_DEVICE_READ_MAX", 120)?;
+        let edge_rate_limit_device_write_max = parse_u32("EDGE_RATE_LIMIT_DEVICE_WRITE_MAX", 30)?;
         let edge_rate_limit_fallback_max_keys =
             parse_usize("EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS", 10_000)?;
         let edge_rate_limit_key_ttl =
@@ -640,10 +827,8 @@ impl AppConfig {
         let edge_rate_limit_failover_enabled =
             parse_bool("EDGE_RATE_LIMIT_FAILOVER_ENABLED", true)?;
         let edge_backpressure_enabled = parse_bool("EDGE_BACKPRESSURE_ENABLED", true)?;
-        let edge_backpressure_poll_interval = Duration::from_millis(parse_u64(
-            "EDGE_BACKPRESSURE_POLL_INTERVAL_MS",
-            1_000,
-        )?);
+        let edge_backpressure_poll_interval =
+            Duration::from_millis(parse_u64("EDGE_BACKPRESSURE_POLL_INTERVAL_MS", 1_000)?);
         let edge_backpressure_retry_after_seconds =
             parse_u64("EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS", 5)?;
         let edge_backpressure_consecutive_unhealthy =
@@ -652,22 +837,16 @@ impl AppConfig {
             parse_u32("EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY", 2)?;
         let edge_backpressure_job_outbox_pending_max =
             parse_i64("EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX", 1_000)?;
-        let edge_backpressure_job_outbox_oldest_age_seconds_max = parse_i64(
-            "EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX",
-            30,
-        )?;
+        let edge_backpressure_job_outbox_oldest_age_seconds_max =
+            parse_i64("EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX", 30)?;
         let edge_backpressure_job_run_pending_max =
             parse_i64("EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX", 2_000)?;
-        let edge_backpressure_job_run_oldest_age_seconds_max = parse_i64(
-            "EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX",
-            60,
-        )?;
+        let edge_backpressure_job_run_oldest_age_seconds_max =
+            parse_i64("EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX", 60)?;
         let edge_backpressure_kafka_pending_max =
             parse_i64("EDGE_BACKPRESSURE_KAFKA_PENDING_MAX", 500)?;
-        let edge_backpressure_kafka_oldest_age_seconds_max = parse_i64(
-            "EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX",
-            30,
-        )?;
+        let edge_backpressure_kafka_oldest_age_seconds_max =
+            parse_i64("EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX", 30)?;
         let edge_request_max_bytes = parse_usize("EDGE_REQUEST_MAX_BYTES", 262_144)?;
         let edge_write_request_max_bytes = parse_usize("EDGE_WRITE_REQUEST_MAX_BYTES", 65_536)?;
         if edge_rate_limit_window.as_secs() == 0 {
@@ -709,9 +888,7 @@ impl AppConfig {
             ));
         }
         if edge_rate_limit_redis_prefix.trim().is_empty() {
-            return Err(anyhow!(
-                "EDGE_RATE_LIMIT_REDIS_PREFIX must not be empty"
-            ));
+            return Err(anyhow!("EDGE_RATE_LIMIT_REDIS_PREFIX must not be empty"));
         }
         if edge_backpressure_poll_interval.is_zero() {
             return Err(anyhow!(
@@ -850,14 +1027,48 @@ impl AppConfig {
         let rabbit_prefetch_heavy = parse_u16("RABBIT_PREFETCH_HEAVY", 2)?;
         let rabbit_replay_prefetch_fast = parse_u16("RABBIT_REPLAY_PREFETCH_FAST", 5)?;
         let rabbit_replay_prefetch_heavy = parse_u16("RABBIT_REPLAY_PREFETCH_HEAVY", 1)?;
+        let rabbit_exchange_jobs = env::var("RABBIT_EXCHANGE_JOBS")
+            .unwrap_or_else(|_| format!("{system_name}.{env_name}.jobs"));
+        let rabbit_exchange_jobs_replay = env::var("RABBIT_EXCHANGE_JOBS_REPLAY")
+            .unwrap_or_else(|_| format!("{system_name}.{env_name}.jobs.replay"));
+        let rabbit_dlx_exchange = env::var("RABBIT_DLX_EXCHANGE")
+            .unwrap_or_else(|_| format!("{system_name}.{env_name}.jobs.dlx"));
         let job_result_kafka_enabled = parse_bool("JOB_RESULT_KAFKA_ENABLED", false)?;
         let job_result_kafka_topic_prefix = optional_env("JOB_RESULT_KAFKA_TOPIC_PREFIX");
+        let rabbit_management_api_base_url = optional_env("RABBIT_MANAGEMENT_API_BASE_URL");
+        let rabbit_management_username = optional_env("RABBIT_MANAGEMENT_USERNAME");
+        let rabbit_management_password = optional_env("RABBIT_MANAGEMENT_PASSWORD");
+        validate_rabbit_management_config(
+            rabbit_management_api_base_url.as_deref(),
+            rabbit_management_username.as_deref(),
+            rabbit_management_password.as_deref(),
+        )?;
         if rabbit_prefetch_fast == 0
             || rabbit_prefetch_heavy == 0
             || rabbit_replay_prefetch_fast == 0
             || rabbit_replay_prefetch_heavy == 0
         {
             return Err(anyhow!("Rabbit prefetch values must all be greater than 0"));
+        }
+        let observability_rabbit_queue_poll_interval = Duration::from_millis(parse_u64(
+            "OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS",
+            15_000,
+        )?);
+        let observability_postgres_lock_poll_interval = Duration::from_millis(parse_u64(
+            "OBSERVABILITY_POSTGRES_LOCK_POLL_INTERVAL_MS",
+            15_000,
+        )?);
+        let observability_job_pressure_poll_interval = Duration::from_millis(parse_u64(
+            "OBSERVABILITY_JOB_PRESSURE_POLL_INTERVAL_MS",
+            15_000,
+        )?);
+        if observability_rabbit_queue_poll_interval.is_zero()
+            || observability_postgres_lock_poll_interval.is_zero()
+            || observability_job_pressure_poll_interval.is_zero()
+        {
+            return Err(anyhow!(
+                "observability sampler poll intervals must be greater than 0"
+            ));
         }
 
         let strict_pooling_env = matches!(env_name.as_str(), "staging" | "prod");
@@ -880,11 +1091,14 @@ impl AppConfig {
         }
         if matches!(
             app_role,
-            AppRole::EventRelay | AppRole::ProjectionConsumer | AppRole::Worker
+            AppRole::EventRelay
+                | AppRole::ProjectionConsumer
+                | AppRole::Worker
+                | AppRole::BackfillController
         ) && database_runtime_url.is_none()
         {
             return Err(anyhow!(
-                "APP_ROLE=event-relay|projection-consumer|worker requires DATABASE_RUNTIME_URL"
+                "APP_ROLE=event-relay|projection-consumer|worker|backfill-controller requires DATABASE_RUNTIME_URL"
             ));
         }
 
@@ -898,12 +1112,16 @@ impl AppConfig {
         if app_role == AppRole::Worker {
             let _ = WorkerConfig::from_env()?;
         }
+        if app_role == AppRole::BackfillController {
+            let _ = BackfillConfig::from_env(&system_name, &env_name)?;
+        }
 
         Ok(Self {
             app_role,
             system: system_name,
             env: env_name,
             service: service_name,
+            instance_id,
             auth_enabled,
             auth_jwks_url,
             auth_issuer,
@@ -946,10 +1164,12 @@ impl AppConfig {
             event_outbox_published_retention_days,
             rabbit_url: env::var("RABBIT_URL").ok(),
             rabbit_vhost: env::var("RABBIT_VHOST").unwrap_or_else(|_| "/".to_string()),
-            rabbit_exchange_jobs: env::var("RABBIT_EXCHANGE_JOBS")
-                .unwrap_or_else(|_| "banji-core.dev.jobs".to_string()),
-            rabbit_dlx_exchange: env::var("RABBIT_DLX_EXCHANGE")
-                .unwrap_or_else(|_| "banji-core.dev.jobs.dlx".to_string()),
+            rabbit_exchange_jobs,
+            rabbit_exchange_jobs_replay,
+            rabbit_dlx_exchange,
+            rabbit_management_api_base_url,
+            rabbit_management_username,
+            rabbit_management_password,
             rabbit_retry_1_ttl_ms: parse_u64("RABBIT_RETRY_1_TTL_MS", 30_000)?,
             rabbit_retry_2_ttl_ms: parse_u64("RABBIT_RETRY_2_TTL_MS", 300_000)?,
             rabbit_retry_3_ttl_ms: parse_u64("RABBIT_RETRY_3_TTL_MS", 1_800_000)?,
@@ -998,6 +1218,9 @@ impl AppConfig {
             edge_backpressure_job_run_oldest_age_seconds_max,
             edge_backpressure_kafka_pending_max,
             edge_backpressure_kafka_oldest_age_seconds_max,
+            observability_rabbit_queue_poll_interval,
+            observability_postgres_lock_poll_interval,
+            observability_job_pressure_poll_interval,
             edge_request_max_bytes,
             edge_write_request_max_bytes,
             edge_cors_allowed_origins,
@@ -1011,6 +1234,10 @@ impl AppConfig {
 
     pub fn worker_config(&self) -> Result<WorkerConfig> {
         WorkerConfig::from_env()
+    }
+
+    pub fn backfill_config(&self) -> Result<BackfillConfig> {
+        BackfillConfig::from_env(&self.system, &self.env)
     }
 }
 
@@ -1105,8 +1332,174 @@ impl ProjectionConsumerConfig {
     }
 }
 
+impl BackfillConfig {
+    pub fn from_env(system: &str, env_name: &str) -> Result<Self> {
+        let kind = BackfillKind::parse(
+            &env::var("BACKFILL_KIND").unwrap_or_else(|_| "projection".to_string()),
+        )?;
+        let mode = BackfillMode::parse(
+            &env::var("BACKFILL_MODE").unwrap_or_else(|_| "preview".to_string()),
+        )?;
+        let stream_name = required_env("BACKFILL_STREAM_NAME")?;
+        let batch_size = parse_i64(
+            "BACKFILL_BATCH_SIZE",
+            parse_i64("EVENT_LOG_REPLAY_BATCH_SIZE", 1_000)?,
+        )?;
+        let invalid_event_policy = parse_backfill_invalid_event_policy(
+            &env::var("BACKFILL_INVALID_EVENT_POLICY").unwrap_or_else(|_| "halt".to_string()),
+        )?;
+        let database_kind = BackfillDatabaseKind::parse(
+            &env::var("BACKFILL_DATABASE_KIND").unwrap_or_else(|_| "primary".to_string()),
+        )?;
+        let run_id = optional_env("BACKFILL_RUN_ID")
+            .map(|raw| {
+                Uuid::parse_str(&raw)
+                    .with_context(|| "BACKFILL_RUN_ID must be a valid UUID".to_string())
+            })
+            .transpose()?;
+        let operator_id = optional_env("BACKFILL_OPERATOR_ID");
+        let reason = optional_env("BACKFILL_REASON");
+        let from_event_id = optional_env("BACKFILL_FROM_EVENT_ID")
+            .map(|raw| {
+                raw.parse::<i64>()
+                    .with_context(|| "BACKFILL_FROM_EVENT_ID must be an integer".to_string())
+            })
+            .transpose()?;
+        let to_event_id = optional_env("BACKFILL_TO_EVENT_ID")
+            .map(|raw| {
+                raw.parse::<i64>()
+                    .with_context(|| "BACKFILL_TO_EVENT_ID must be an integer".to_string())
+            })
+            .transpose()?;
+        let service_name = env::var("BACKFILL_SERVICE_NAME")
+            .unwrap_or_else(|_| "projection-consumer".to_string())
+            .trim()
+            .to_string();
+        let consumer_name = env::var("BACKFILL_CONSUMER_NAME")
+            .unwrap_or_else(|_| "inventory-projector".to_string())
+            .trim()
+            .to_string();
+        let reset_checkpoint = parse_bool("BACKFILL_RESET_CHECKPOINT", false)?;
+        let truncate_projection = parse_bool("BACKFILL_TRUNCATE_PROJECTION", false)?;
+        let job_types = parse_csv_env("BACKFILL_JOB_TYPES");
+        let wait_for_workers = parse_bool("BACKFILL_WAIT_FOR_WORKERS", true)?;
+        let worker_poll_interval =
+            Duration::from_millis(parse_u64("BACKFILL_WORKER_POLL_INTERVAL_MS", 5_000)?);
+        let max_wait = Duration::from_secs(parse_u64("BACKFILL_MAX_WAIT_SECONDS", 900)?);
+        let allow_broker_publish = parse_bool("BACKFILL_ALLOW_BROKER_PUBLISH", false)?;
+
+        if stream_name.trim().is_empty() {
+            return Err(anyhow!("BACKFILL_STREAM_NAME must not be empty"));
+        }
+        if batch_size <= 0 {
+            return Err(anyhow!("BACKFILL_BATCH_SIZE must be greater than 0"));
+        }
+        if worker_poll_interval.is_zero() {
+            return Err(anyhow!(
+                "BACKFILL_WORKER_POLL_INTERVAL_MS must be greater than 0"
+            ));
+        }
+        if max_wait.is_zero() {
+            return Err(anyhow!("BACKFILL_MAX_WAIT_SECONDS must be greater than 0"));
+        }
+        if truncate_projection && !reset_checkpoint {
+            return Err(anyhow!(
+                "BACKFILL_TRUNCATE_PROJECTION requires BACKFILL_RESET_CHECKPOINT=true"
+            ));
+        }
+        if let Some(from_event_id) = from_event_id {
+            if from_event_id < 0 {
+                return Err(anyhow!(
+                    "BACKFILL_FROM_EVENT_ID must be greater than or equal to 0"
+                ));
+            }
+        }
+        if let (Some(from_event_id), Some(to_event_id)) = (from_event_id, to_event_id) {
+            if to_event_id < from_event_id {
+                return Err(anyhow!(
+                    "BACKFILL_TO_EVENT_ID must be greater than or equal to BACKFILL_FROM_EVENT_ID"
+                ));
+            }
+        }
+
+        if run_id.is_none() {
+            if operator_id.as_deref().unwrap_or_default().trim().is_empty() {
+                return Err(anyhow!(
+                    "BACKFILL_OPERATOR_ID is required when BACKFILL_RUN_ID is not provided"
+                ));
+            }
+            if reason.as_deref().unwrap_or_default().trim().is_empty() {
+                return Err(anyhow!(
+                    "BACKFILL_REASON is required when BACKFILL_RUN_ID is not provided"
+                ));
+            }
+            if from_event_id.is_none() {
+                return Err(anyhow!(
+                    "BACKFILL_FROM_EVENT_ID is required when BACKFILL_RUN_ID is not provided"
+                ));
+            }
+        }
+
+        match kind {
+            BackfillKind::Projection => {
+                let expected_stream = streams::inventory_updated_stream(system, env_name);
+                if stream_name != expected_stream {
+                    return Err(anyhow!(
+                        "BACKFILL_STREAM_NAME must be {expected_stream} for projection backfill"
+                    ));
+                }
+            }
+            BackfillKind::Jobs => {
+                let allowed_streams = [
+                    streams::inventory_updated_stream(system, env_name),
+                    streams::write_demo_completed_stream(system, env_name),
+                ];
+                if !allowed_streams.iter().any(|value| value == &stream_name) {
+                    return Err(anyhow!(
+                        "BACKFILL_STREAM_NAME must be one of the registered backfill streams for BACKFILL_KIND=jobs"
+                    ));
+                }
+                if database_kind == BackfillDatabaseKind::Restore {
+                    return Err(anyhow!(
+                        "BACKFILL_KIND=jobs does not support BACKFILL_DATABASE_KIND=restore"
+                    ));
+                }
+                if mode == BackfillMode::Apply && !allow_broker_publish {
+                    return Err(anyhow!(
+                        "BACKFILL_KIND=jobs with BACKFILL_MODE=apply requires BACKFILL_ALLOW_BROKER_PUBLISH=true"
+                    ));
+                }
+            }
+        }
+
+        Ok(Self {
+            kind,
+            mode,
+            stream_name,
+            batch_size,
+            invalid_event_policy,
+            database_kind,
+            run_id,
+            operator_id,
+            reason,
+            from_event_id,
+            to_event_id,
+            service_name,
+            consumer_name,
+            reset_checkpoint,
+            truncate_projection,
+            job_types,
+            wait_for_workers,
+            worker_poll_interval,
+            max_wait,
+            allow_broker_publish,
+        })
+    }
+}
+
 impl WorkerConfig {
     pub fn from_env() -> Result<Self> {
+        let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
         let worker_id = env::var("WORKER_ID")
             .unwrap_or_else(|_| default_worker_id())
             .trim()
@@ -1139,6 +1532,27 @@ impl WorkerConfig {
         let job_result_kafka_topic_prefix = optional_env("JOB_RESULT_KAFKA_TOPIC_PREFIX");
         let consume_replay_queues = parse_bool("WORKER_CONSUME_REPLAY_QUEUES", false)?;
         let job_relay_batch_size = parse_i64("WORKER_JOB_RELAY_BATCH_SIZE", 100)?;
+        let algorithm_rollout_hash_salt = optional_env("ALGORITHM_ROLLOUT_HASH_SALT")
+            .unwrap_or_else(|| {
+                if matches!(env_name.as_str(), "staging" | "prod") {
+                    String::new()
+                } else {
+                    "dev-local-salt".to_string()
+                }
+            })
+            .trim()
+            .to_string();
+        let algorithm_rollout_hash_salt_version =
+            optional_env("ALGORITHM_ROLLOUT_HASH_SALT_VERSION")
+                .unwrap_or_else(|| {
+                    if matches!(env_name.as_str(), "staging" | "prod") {
+                        String::new()
+                    } else {
+                        "dev-local".to_string()
+                    }
+                })
+                .trim()
+                .to_string();
         let object_storage_enabled = parse_bool("OBJECT_STORAGE_ENABLED", false)?;
         let object_storage = ObjectStorageConfig::from_env(object_storage_enabled)?;
 
@@ -1169,6 +1583,16 @@ impl WorkerConfig {
                 "WORKER_JOB_RELAY_BATCH_SIZE must be greater than 0"
             ));
         }
+        if algorithm_rollout_hash_salt.is_empty() {
+            return Err(anyhow!(
+                "ALGORITHM_ROLLOUT_HASH_SALT must not be empty for APP_ROLE=worker"
+            ));
+        }
+        if algorithm_rollout_hash_salt_version.is_empty() {
+            return Err(anyhow!(
+                "ALGORITHM_ROLLOUT_HASH_SALT_VERSION must not be empty for APP_ROLE=worker"
+            ));
+        }
         if job_result_kafka_enabled {
             return Err(anyhow!(
                 "JOB_RESULT_KAFKA_ENABLED=true is not supported until the Kafka result publisher milestone is implemented"
@@ -1192,6 +1616,8 @@ impl WorkerConfig {
             job_result_kafka_topic_prefix,
             consume_replay_queues,
             job_relay_batch_size,
+            algorithm_rollout_hash_salt,
+            algorithm_rollout_hash_salt_version,
             object_storage,
         })
     }
@@ -1286,6 +1712,41 @@ fn default_worker_id() -> String {
                 .unwrap_or_default();
             format!("worker-{pid}-{started_ms}")
         }
+    }
+}
+
+fn resolve_instance_id() -> String {
+    optional_env("BANJI_INSTANCE_ID")
+        .or_else(|| optional_env("HOSTNAME"))
+        .or_else(|| optional_env("COMPUTERNAME"))
+        .or_else(|| optional_env("RAILWAY_REPLICA_ID"))
+        .unwrap_or_else(|| "unknown-instance".to_string())
+}
+
+fn validate_rabbit_management_config(
+    base_url: Option<&str>,
+    username: Option<&str>,
+    password: Option<&str>,
+) -> Result<()> {
+    match (base_url, username, password) {
+        (Some(base_url), Some(_), Some(_)) => {
+            let parsed = reqwest::Url::parse(base_url).with_context(|| {
+                "RABBIT_MANAGEMENT_API_BASE_URL must be a valid URL".to_string()
+            })?;
+            if !parsed.username().is_empty() || parsed.password().is_some() {
+                return Err(anyhow!(
+                    "RABBIT_MANAGEMENT_API_BASE_URL must not embed credentials"
+                ));
+            }
+            Ok(())
+        }
+        (Some(_), _, _) => Err(anyhow!(
+            "RABBIT_MANAGEMENT_USERNAME and RABBIT_MANAGEMENT_PASSWORD are required when RABBIT_MANAGEMENT_API_BASE_URL is set"
+        )),
+        (None, None, None) => Ok(()),
+        (None, _, _) => Err(anyhow!(
+            "RABBIT_MANAGEMENT_API_BASE_URL is required when Rabbit management credentials are set"
+        )),
     }
 }
 
@@ -1404,6 +1865,131 @@ fn parse_invalid_event_policy(raw: &str) -> Result<InvalidEventPolicy> {
         "quarantine" => Ok(InvalidEventPolicy::Quarantine),
         _ => Err(anyhow!(
             "EVENT_CONSUMER_INVALID_POLICY must be one of: halt, skip, quarantine"
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppConfig;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn set_env(name: &str, value: &str) {
+        unsafe {
+            std::env::set_var(name, value);
+        }
+    }
+
+    fn remove_env(name: &str) {
+        unsafe {
+            std::env::remove_var(name);
+        }
+    }
+
+    fn apply_minimal_runtime_env() {
+        set_env("CACHE_SCHEMA_VERSION", "v1");
+        set_env("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+        set_env("APP_ROLE", "api");
+        set_env("BANJI_ENV", "dev");
+        set_env("EDGE_ENFORCEMENT_ENABLED", "false");
+        set_env("AUTH_ENABLED", "false");
+    }
+
+    #[test]
+    fn app_config_parses_observability_management_settings() {
+        let _guard = env_lock().lock().unwrap();
+        apply_minimal_runtime_env();
+        set_env("BANJI_INSTANCE_ID", "api-01");
+        set_env(
+            "RABBIT_MANAGEMENT_API_BASE_URL",
+            "https://rabbit.example.com",
+        );
+        set_env("RABBIT_MANAGEMENT_USERNAME", "banji");
+        set_env("RABBIT_MANAGEMENT_PASSWORD", "secret");
+        set_env("OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS", "10000");
+        set_env("OBSERVABILITY_POSTGRES_LOCK_POLL_INTERVAL_MS", "11000");
+        set_env("OBSERVABILITY_JOB_PRESSURE_POLL_INTERVAL_MS", "12000");
+
+        let config = AppConfig::from_env().unwrap();
+        assert_eq!(config.instance_id, "api-01");
+        assert_eq!(
+            config.rabbit_management_api_base_url.as_deref(),
+            Some("https://rabbit.example.com")
+        );
+        assert_eq!(
+            config.observability_rabbit_queue_poll_interval.as_millis(),
+            10_000
+        );
+        assert_eq!(
+            config.observability_postgres_lock_poll_interval.as_millis(),
+            11_000
+        );
+        assert_eq!(
+            config.observability_job_pressure_poll_interval.as_millis(),
+            12_000
+        );
+
+        for name in [
+            "BANJI_INSTANCE_ID",
+            "RABBIT_MANAGEMENT_API_BASE_URL",
+            "RABBIT_MANAGEMENT_USERNAME",
+            "RABBIT_MANAGEMENT_PASSWORD",
+            "OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS",
+            "OBSERVABILITY_POSTGRES_LOCK_POLL_INTERVAL_MS",
+            "OBSERVABILITY_JOB_PRESSURE_POLL_INTERVAL_MS",
+            "CACHE_SCHEMA_VERSION",
+            "DATABASE_RUNTIME_ENDPOINT_KIND",
+            "APP_ROLE",
+            "BANJI_ENV",
+            "EDGE_ENFORCEMENT_ENABLED",
+            "AUTH_ENABLED",
+        ] {
+            remove_env(name);
+        }
+    }
+
+    #[test]
+    fn app_config_rejects_partial_rabbit_management_auth() {
+        let _guard = env_lock().lock().unwrap();
+        apply_minimal_runtime_env();
+        set_env(
+            "RABBIT_MANAGEMENT_API_BASE_URL",
+            "https://rabbit.example.com",
+        );
+        set_env("RABBIT_MANAGEMENT_USERNAME", "banji");
+        remove_env("RABBIT_MANAGEMENT_PASSWORD");
+
+        let err = AppConfig::from_env().unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("RABBIT_MANAGEMENT_USERNAME and RABBIT_MANAGEMENT_PASSWORD are required"));
+
+        for name in [
+            "RABBIT_MANAGEMENT_API_BASE_URL",
+            "RABBIT_MANAGEMENT_USERNAME",
+            "CACHE_SCHEMA_VERSION",
+            "DATABASE_RUNTIME_ENDPOINT_KIND",
+            "APP_ROLE",
+            "BANJI_ENV",
+            "EDGE_ENFORCEMENT_ENABLED",
+            "AUTH_ENABLED",
+        ] {
+            remove_env(name);
+        }
+    }
+}
+
+fn parse_backfill_invalid_event_policy(raw: &str) -> Result<InvalidEventPolicy> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "halt" => Ok(InvalidEventPolicy::Halt),
+        "quarantine" => Ok(InvalidEventPolicy::Quarantine),
+        _ => Err(anyhow!(
+            "BACKFILL_INVALID_EVENT_POLICY must be one of: halt, quarantine"
         )),
     }
 }

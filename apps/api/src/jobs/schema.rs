@@ -5,7 +5,7 @@ use super::{
         JobSchemaErrorCode, JobSchemaManifestEntry, KnownJob, KnownJobResult,
         WriteDemoJobV1Payload, WriteDemoJobV1Result, WriteDemoJobV2Result,
     },
-    types::{JobEnvelope, WorkloadClass},
+    types::{JobDeliveryMode, JobEnvelope, WorkloadClass},
 };
 use crate::{idempotency::validate_idempotency_key, items::types::validate_item_id};
 use serde_json::{json, Value};
@@ -208,6 +208,10 @@ pub fn build_item_created_job_v1(
         correlation_id,
         routing_key: WorkloadClass::Fast.primary_routing_key().to_string(),
         payload,
+        metadata: json!({}),
+        delivery_mode: JobDeliveryMode::Primary,
+        backfill_run_id: None,
+        source_event_id: None,
         max_attempts: i32::from(max_attempts),
     };
 
@@ -252,6 +256,10 @@ pub fn build_write_demo_job_v1(
         correlation_id,
         routing_key: WorkloadClass::Fast.primary_routing_key().to_string(),
         payload,
+        metadata: json!({}),
+        delivery_mode: JobDeliveryMode::Primary,
+        backfill_run_id: None,
+        source_event_id: None,
         max_attempts: i32::from(max_attempts),
     };
 

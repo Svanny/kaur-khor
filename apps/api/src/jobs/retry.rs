@@ -77,6 +77,20 @@ pub fn classify_error(error_message: &str) -> ErrorClassification {
         };
     }
 
+    if lower.contains("missing_rollout_policy") {
+        return ErrorClassification {
+            class: ErrorClass::Permanent,
+            reason: ErrorReasonCode::MissingRolloutPolicy,
+        };
+    }
+
+    if lower.contains("unsupported_rollout_version") {
+        return ErrorClassification {
+            class: ErrorClass::Permanent,
+            reason: ErrorReasonCode::UnsupportedRolloutVersion,
+        };
+    }
+
     ErrorClassification {
         class: ErrorClass::Transient,
         reason: ErrorReasonCode::UnknownTransient,

@@ -1,6 +1,29 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JobDeliveryMode {
+    Primary,
+    Replay,
+}
+
+impl JobDeliveryMode {
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "primary" => Some(Self::Primary),
+            "replay" => Some(Self::Replay),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Primary => "primary",
+            Self::Replay => "replay",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkloadClass {
     Fast,
@@ -89,6 +112,8 @@ pub enum ErrorReasonCode {
     DependencyTimeout,
     DependencyUnavailable,
     MissingJobRun,
+    MissingRolloutPolicy,
+    UnsupportedRolloutVersion,
     UnknownTransient,
     UnknownPermanent,
 }
@@ -102,6 +127,8 @@ impl ErrorReasonCode {
             Self::DependencyTimeout => "dependency_timeout",
             Self::DependencyUnavailable => "dependency_unavailable",
             Self::MissingJobRun => "missing_job_run",
+            Self::MissingRolloutPolicy => "missing_rollout_policy",
+            Self::UnsupportedRolloutVersion => "unsupported_rollout_version",
             Self::UnknownTransient => "unknown_transient",
             Self::UnknownPermanent => "unknown_permanent",
         }

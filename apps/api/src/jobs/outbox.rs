@@ -1,9 +1,10 @@
 use super::{
     schema_types::JobRecord,
-    types::{JobEnvelope, WorkloadClass},
+    types::{JobDeliveryMode, JobEnvelope, WorkloadClass},
 };
 use anyhow::{anyhow, Result};
 use sqlx::{Postgres, Row, Transaction};
+use uuid::Uuid;
 
 pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, job: &JobRecord) -> Result<i64> {
     validate_record(job)?;
@@ -21,11 +22,15 @@ pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, job: &JobRecord) -> 
           aggregate_type,
           aggregate_id,
           causation_id,
+          metadata,
+          delivery_mode,
+          backfill_run_id,
+          source_event_id,
           payload,
           attempt,
           status,
           updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, 'pending', NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 1, 'pending', NOW())
         ON CONFLICT (enqueue_key)
         DO UPDATE
         SET updated_at = NOW()
@@ -38,6 +43,10 @@ pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, job: &JobRecord) -> 
           AND app.job_outbox.aggregate_type = EXCLUDED.aggregate_type
           AND app.job_outbox.aggregate_id = EXCLUDED.aggregate_id
           AND app.job_outbox.causation_id = EXCLUDED.causation_id
+          AND app.job_outbox.metadata = EXCLUDED.metadata
+          AND app.job_outbox.delivery_mode = EXCLUDED.delivery_mode
+          AND app.job_outbox.backfill_run_id IS NOT DISTINCT FROM EXCLUDED.backfill_run_id
+          AND app.job_outbox.source_event_id IS NOT DISTINCT FROM EXCLUDED.source_event_id
           AND app.job_outbox.payload = EXCLUDED.payload
         RETURNING id
         "#,
@@ -52,6 +61,10 @@ pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, job: &JobRecord) -> 
     .bind(&job.aggregate_type)
     .bind(&job.aggregate_id)
     .bind(&job.causation_id)
+    .bind(&job.metadata)
+    .bind(job.delivery_mode.as_str())
+    .bind(job.backfill_run_id)
+    .bind(job.source_event_id)
     .bind(&job.payload)
     .fetch_optional(&mut **tx)
     .await?;
@@ -114,6 +127,10 @@ pub async fn claim_pending_batch(
           o.aggregate_type,
           o.aggregate_id,
           o.causation_id,
+          o.metadata,
+          COALESCE(o.delivery_mode, 'primary') AS delivery_mode,
+          o.backfill_run_id,
+          o.source_event_id,
           o.payload,
           o.attempt
         "#,
@@ -131,6 +148,10 @@ pub struct JobOutboxRow {
     pub id: i64,
     pub envelope: JobEnvelope,
     pub routing_key: String,
+    pub metadata: serde_json::Value,
+    pub delivery_mode: JobDeliveryMode,
+    pub backfill_run_id: Option<Uuid>,
+    pub source_event_id: Option<i64>,
 }
 
 impl JobOutboxRow {
@@ -146,6 +167,11 @@ impl JobOutboxRow {
         Ok(Self {
             id: row.get("id"),
             routing_key: row.get("routing_key"),
+            metadata: row.get("metadata"),
+            delivery_mode: JobDeliveryMode::parse(&row.get::<String, _>("delivery_mode"))
+                .ok_or_else(|| anyhow!("invalid delivery_mode in app.job_outbox"))?,
+            backfill_run_id: row.get("backfill_run_id"),
+            source_event_id: row.get("source_event_id"),
             envelope: JobEnvelope {
                 message_id: row.get("enqueue_key"),
                 correlation_id: row.get("correlation_id"),

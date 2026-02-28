@@ -1,0 +1,224 @@
+groups:
+  - name: banji-slo-burn
+    rules:
+      - alert: BanjiApiAvailabilityFastBurn
+        expr: |
+          (
+            sum(rate(banji_sli_api_availability_total{classification=~"failure_server|failure_backpressure"}[5m]))
+            /
+            clamp_min(sum(rate(banji_sli_api_availability_total{classification=~"success|failure_server|failure_backpressure"}[5m])), 0.001)
+          ) > (0.005 * 14.4)
+          and
+          (
+            sum(rate(banji_sli_api_availability_total{classification=~"failure_server|failure_backpressure"}[1h]))
+            /
+            clamp_min(sum(rate(banji_sli_api_availability_total{classification=~"success|failure_server|failure_backpressure"}[1h])), 0.001)
+          ) > (0.005 * 14.4)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: API availability is burning budget too quickly
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiApiAvailabilitySlowBurn
+        expr: |
+          (
+            sum(rate(banji_sli_api_availability_total{classification=~"failure_server|failure_backpressure"}[30m]))
+            /
+            clamp_min(sum(rate(banji_sli_api_availability_total{classification=~"success|failure_server|failure_backpressure"}[30m])), 0.001)
+          ) > (0.005 * 6)
+          and
+          (
+            sum(rate(banji_sli_api_availability_total{classification=~"failure_server|failure_backpressure"}[6h]))
+            /
+            clamp_min(sum(rate(banji_sli_api_availability_total{classification=~"success|failure_server|failure_backpressure"}[6h])), 0.001)
+          ) > (0.005 * 6)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: API availability is on a sustained burn path
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiApiLatencyFastBurn
+        expr: |
+          (
+            sum(rate(banji_sli_api_latency_total{classification="over_slo"}[5m]))
+            /
+            clamp_min(sum(rate(banji_sli_api_latency_total[5m])), 0.001)
+          ) > (0.05 * 14.4)
+          and
+          (
+            sum(rate(banji_sli_api_latency_total{classification="over_slo"}[1h]))
+            /
+            clamp_min(sum(rate(banji_sli_api_latency_total[1h])), 0.001)
+          ) > (0.05 * 14.4)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: API latency SLO budget is burning quickly
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiApiLatencySlowBurn
+        expr: |
+          (
+            sum(rate(banji_sli_api_latency_total{classification="over_slo"}[30m]))
+            /
+            clamp_min(sum(rate(banji_sli_api_latency_total[30m])), 0.001)
+          ) > (0.05 * 6)
+          and
+          (
+            sum(rate(banji_sli_api_latency_total{classification="over_slo"}[6h]))
+            /
+            clamp_min(sum(rate(banji_sli_api_latency_total[6h])), 0.001)
+          ) > (0.05 * 6)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: API latency SLO budget is trending toward breach
+          runbook: docs/operations/slo-alerting.md
+
+  - name: banji-diagnostics
+    rules:
+      - alert: BanjiGeneric5xxWarning
+        expr: |
+          sum(rate(http_server_request_duration_count{http_route=~"/v1/.*", http_response_status_code=~"5.."}[10m]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_count{http_route=~"/v1/.*"}[10m])), 0.001)
+          > 0.01
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Generic API 5xx rate is elevated
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiBackpressureCritical
+        expr: |
+          sum(rate(banji_edge_backpressure_reject_total[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Dependency backpressure is rejecting visible user traffic
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiFairness429Warning
+        expr: |
+          (
+            sum(rate(banji_edge_rate_limit_reject_total{banji_env="prod"}[15m]))
+            /
+            clamp_min(sum(rate(http_server_request_duration_count{http_route=~"/v1/.*", banji_env="prod"}[15m])), 0.001)
+          ) > 0.02
+        for: 15m
+        labels:
+          severity: warning
+          paging: "false"
+        annotations:
+          summary: Rate limiting is affecting a meaningful share of requests
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiRabbitReadyBacklogCritical
+        expr: |
+          max by (workload_class) (banji_rabbit_queue_ready{queue_kind=~"primary|retry_1|retry_2|retry_3"}) > 100
+          and
+          max(banji_edge_backpressure_oldest_age{signal="worker_completion"}) > 120
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Rabbit ready backlog is growing faster than workers drain it
+          runbook: docs/operations/job-worker-runbook.md
+
+      - alert: BanjiRabbitInFlightStuckCritical
+        expr: |
+          max by (workload_class) (banji_rabbit_queue_unacked{queue_kind=~"primary|retry_1|retry_2|retry_3"}) > 25
+          and
+          (
+            max(banji_jobs_attempt_oldest_running_age_seconds) > 300
+            or
+            max(banji_jobs_attempt_stale_heartbeat) > 0
+          )
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Workers are consuming jobs but not finishing them
+          runbook: docs/operations/job-worker-runbook.md
+
+      - alert: BanjiDlqGrowthCritical
+        expr: |
+          sum(increase(banji_jobs_dlq_total[10m])) > 5
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: DLQ growth indicates poison or persistent worker failures
+          runbook: docs/operations/rabbitmq-dlq-triage.md
+
+      - alert: BanjiPostgresLockCritical
+        expr: |
+          max(banji_postgres_lock_blocking_sessions) > 0
+          and
+          max(banji_postgres_lock_oldest_wait_seconds) > 15
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blocking database locks are now user-visible risk
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiDbPoolSaturationCritical
+        expr: |
+          sum(rate(banji_db_pool_acquire_failures_total[5m])) > 0
+          or
+          histogram_quantile(0.95, sum by (le) (rate(banji_db_pool_acquire_wait_duration_bucket[5m]))) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Database pool saturation is likely amplifying contention or dependency latency
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiCacheHitRateWarning
+        expr: |
+          (
+            sum(rate(banji_cache_lookup_total{surface="item_read", result="hit", banji_env=~"staging|prod"}[30m]))
+            /
+            clamp_min(
+              sum(rate(banji_cache_lookup_total{surface="item_read", result=~"hit|miss|error", banji_env=~"staging|prod"}[30m])),
+              0.001
+            )
+          ) < 0.80
+          and
+          sum(increase(banji_cache_lookup_total{surface="item_read", result=~"hit|miss|error", banji_env=~"staging|prod"}[30m])) > 200
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Cache hit rate is below expectation on repeated item reads
+          runbook: docs/operations/slo-alerting.md
+
+      - alert: BanjiCacheHitRateCritical
+        expr: |
+          (
+            sum(rate(banji_cache_lookup_total{surface="item_read", result="hit", banji_env="prod"}[30m]))
+            /
+            clamp_min(
+              sum(rate(banji_cache_lookup_total{surface="item_read", result=~"hit|miss|error", banji_env="prod"}[30m])),
+              0.001
+            )
+          ) < 0.60
+          and
+          sum(increase(banji_cache_lookup_total{surface="item_read", result=~"hit|miss|error", banji_env="prod"}[30m])) > 500
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: Cache effectiveness has collapsed on a cache-beneficial endpoint
+          runbook: docs/operations/slo-alerting.md
+
+# Kafka lag intentionally deferred until JOB_RESULT_KAFKA_ENABLED can be enabled in runtime.

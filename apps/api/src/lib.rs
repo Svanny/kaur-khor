@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod backfill;
 pub mod cache;
 pub mod config;
 pub mod db;
@@ -41,6 +42,7 @@ pub struct AppState {
     pub config: AppConfig,
     pub db: Option<PgPool>,
     pub cache: Arc<dyn CacheClient>,
+    pub cache_runtime_enabled: bool,
     pub jwt_verifier: Option<Arc<JwtVerifier>>,
     pub key_builder: KeyBuilder,
     pub singleflight: Arc<Mutex<HashMap<String, Weak<Mutex<()>>>>>,
@@ -87,6 +89,7 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
     };
 
     let db = db::pool::build_runtime_pool(&config).await?;
+    let cache_runtime_enabled = config.cache_enabled && redis_runtime.is_some();
 
     if let Some(pool) = db.as_ref() {
         spawn_db_pool_metrics_sampler(pool.clone());
@@ -134,6 +137,10 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
                 pool.clone(),
                 config.job_result_kafka_enabled,
             );
+            observability::dependency_samplers::spawn_dependency_samplers(
+                config.clone(),
+                pool.clone(),
+            );
         }
     }
 
@@ -141,6 +148,7 @@ pub async fn build_state(config: AppConfig) -> anyhow::Result<AppState> {
         config,
         db,
         cache,
+        cache_runtime_enabled,
         jwt_verifier,
         key_builder,
         singleflight: Arc::new(Mutex::new(HashMap::new())),
@@ -544,16 +552,26 @@ async fn get_item(
         .key_builder
         .inventory_item_key(&principal.sub, &item_id);
 
-    if let Ok(Some(cached)) = state.cache.get_string(&cache_key).await {
-        if let Ok(item) = serde_json::from_str::<ItemRecord>(&cached) {
-            let mut response =
-                (StatusCode::OK, Json(serde_json::json!({"item": item}))).into_response();
-            response.headers_mut().insert(
-                HeaderName::from_static("x-cache"),
-                HeaderValue::from_static("hit"),
-            );
-            return response;
+    if state.cache_runtime_enabled {
+        match state.cache.get_string(&cache_key).await {
+            Ok(Some(cached)) => match serde_json::from_str::<ItemRecord>(&cached) {
+                Ok(item) => {
+                    observability::metrics::record_cache_lookup("item_read", "hit");
+                    let mut response =
+                        (StatusCode::OK, Json(serde_json::json!({"item": item}))).into_response();
+                    response.headers_mut().insert(
+                        HeaderName::from_static("x-cache"),
+                        HeaderValue::from_static("hit"),
+                    );
+                    return response;
+                }
+                Err(_) => observability::metrics::record_cache_lookup("item_read", "error"),
+            },
+            Ok(None) => observability::metrics::record_cache_lookup("item_read", "miss"),
+            Err(_) => observability::metrics::record_cache_lookup("item_read", "error"),
         }
+    } else {
+        observability::metrics::record_cache_lookup("item_read", "disabled");
     }
 
     match items::repository::get_by_owner_and_id(db, &principal.sub, &item_id).await {
@@ -877,6 +895,7 @@ mod tests {
             system: "banji-core".to_string(),
             env: "test".to_string(),
             service: "api".to_string(),
+            instance_id: "api-test-1".to_string(),
             auth_enabled: false,
             auth_jwks_url: None,
             auth_issuer: None,
@@ -905,7 +924,11 @@ mod tests {
             rabbit_url: None,
             rabbit_vhost: "/".to_string(),
             rabbit_exchange_jobs: "banji-core.test.jobs".to_string(),
+            rabbit_exchange_jobs_replay: "banji-core.test.jobs.replay".to_string(),
             rabbit_dlx_exchange: "banji-core.test.jobs.dlx".to_string(),
+            rabbit_management_api_base_url: None,
+            rabbit_management_username: None,
+            rabbit_management_password: None,
             rabbit_retry_1_ttl_ms: 30_000,
             rabbit_retry_2_ttl_ms: 300_000,
             rabbit_retry_3_ttl_ms: 1_800_000,
@@ -954,6 +977,9 @@ mod tests {
             edge_backpressure_job_run_oldest_age_seconds_max: 60,
             edge_backpressure_kafka_pending_max: 500,
             edge_backpressure_kafka_oldest_age_seconds_max: 30,
+            observability_rabbit_queue_poll_interval: Duration::from_secs(15),
+            observability_postgres_lock_poll_interval: Duration::from_secs(15),
+            observability_job_pressure_poll_interval: Duration::from_secs(15),
             edge_request_max_bytes: 262_144,
             edge_write_request_max_bytes: 65_536,
             edge_cors_allowed_origins: vec![],
@@ -966,6 +992,7 @@ mod tests {
         AppState {
             db: None,
             cache: Arc::new(NoopCacheClient),
+            cache_runtime_enabled: false,
             jwt_verifier: None,
             key_builder: KeyBuilder::new(
                 config.system.clone(),

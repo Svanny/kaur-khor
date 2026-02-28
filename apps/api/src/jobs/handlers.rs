@@ -1,4 +1,5 @@
 use super::{
+    rollout::JobAlgorithmDecisionSource,
     schema::{
         build_item_created_result_v1, build_write_demo_result_v2, validate_job_result,
         JobSchemaError,
@@ -22,9 +23,6 @@ use std::{
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-const ITEM_CREATED_ALGORITHM_VERSION: &str = "item-created-v1";
-const WRITE_DEMO_ALGORITHM_VERSION: &str = "write-demo-v2";
-
 #[derive(Debug, Clone)]
 pub struct JobExecutionContext {
     pub job_key: String,
@@ -32,6 +30,8 @@ pub struct JobExecutionContext {
     pub artifact_tmp_dir: PathBuf,
     pub producer_service: String,
     pub producer_role: String,
+    pub algorithm_version: String,
+    pub algorithm_decision_source: JobAlgorithmDecisionSource,
 }
 
 pub async fn handle_job(
@@ -41,6 +41,12 @@ pub async fn handle_job(
 ) -> Result<JobExecutionOutput> {
     match job {
         KnownJob::ItemCreatedV1(payload) => {
+            if ctx.algorithm_version != "item-created-v1" {
+                return Err(anyhow!(
+                    "unsupported_rollout_version: item-created algorithm version {} is not implemented",
+                    ctx.algorithm_version
+                ));
+            }
             let item = repository::get_by_owner_and_id(pool, &payload.owner_sub, &payload.item_id)
                 .await?
                 .ok_or_else(|| anyhow!("missing required ref: inventory item not found"))?;
@@ -51,7 +57,7 @@ pub async fn handle_job(
                 item.sku,
                 item.name,
                 item.quantity,
-                ITEM_CREATED_ALGORITHM_VERSION,
+                &ctx.algorithm_version,
             )
             .map_err(anyhow::Error::new)?;
             result.job_key = ctx.job_key.clone();
@@ -61,7 +67,14 @@ pub async fn handle_job(
                 cleanup_paths: Vec::new(),
             })
         }
-        KnownJob::WriteDemoV1(payload) => build_write_demo_output(ctx, payload),
+        KnownJob::WriteDemoV1(payload) => match ctx.algorithm_version.as_str() {
+            "write-demo-v2" => build_write_demo_output_v2(ctx, payload),
+            "write-demo-v3" => build_write_demo_output_v3(ctx, payload),
+            _ => Err(anyhow!(
+                "unsupported_rollout_version: write-demo algorithm version {} is not implemented",
+                ctx.algorithm_version
+            )),
+        },
     }
 }
 
@@ -117,9 +130,27 @@ pub fn validate_handler_result(output: &JobExecutionOutput) -> Result<(), JobSch
     Ok(())
 }
 
+fn build_write_demo_output_v2(
+    ctx: &JobExecutionContext,
+    payload: &super::schema_types::WriteDemoJobV1Payload,
+) -> Result<JobExecutionOutput> {
+    build_write_demo_output(ctx, payload, write_demo_v2_report)
+}
+
+fn build_write_demo_output_v3(
+    ctx: &JobExecutionContext,
+    payload: &super::schema_types::WriteDemoJobV1Payload,
+) -> Result<JobExecutionOutput> {
+    build_write_demo_output(ctx, payload, write_demo_v3_report)
+}
+
 fn build_write_demo_output(
     ctx: &JobExecutionContext,
     payload: &super::schema_types::WriteDemoJobV1Payload,
+    report_builder: fn(
+        &JobExecutionContext,
+        &super::schema_types::WriteDemoJobV1Payload,
+    ) -> serde_json::Value,
 ) -> Result<JobExecutionOutput> {
     fs::create_dir_all(&ctx.artifact_tmp_dir)?;
     let temp_dir = ctx
@@ -129,26 +160,7 @@ fn build_write_demo_output(
     let temp_dir_guard = TempPathGuard::new(temp_dir);
 
     let report_path = temp_dir_guard.path().join("report.json");
-    let checksum = checksum_for(&[
-        payload.operation.as_str(),
-        payload.caller_id.as_str(),
-        payload.idempotency_key.as_str(),
-        &ctx.job_key,
-    ]);
-    let report = json!({
-        "job_key": ctx.job_key,
-        "operation": payload.operation,
-        "caller_id": payload.caller_id,
-        "algorithm_version": WRITE_DEMO_ALGORITHM_VERSION,
-        "generated_at": ctx.job_created_at.unix_timestamp(),
-        "derived_output": {
-            "checksum": checksum,
-            "echo": {
-                "operation": payload.operation,
-                "caller_id": payload.caller_id,
-            }
-        }
-    });
+    let report = report_builder(ctx, payload);
 
     let bytes = serde_json::to_vec_pretty(&report)?;
     fs::write(&report_path, &bytes)?;
@@ -167,7 +179,7 @@ fn build_write_demo_output(
     let mut result = build_write_demo_result_v2(
         payload.operation.clone(),
         payload.caller_id.clone(),
-        WRITE_DEMO_ALGORITHM_VERSION,
+        &ctx.algorithm_version,
         1,
         "report".to_string(),
         artifact_key.clone(),
@@ -192,10 +204,68 @@ fn build_write_demo_output(
             metadata: json!({
                 "operation": payload.operation,
                 "caller_id": payload.caller_id,
-                "algorithm_version": WRITE_DEMO_ALGORITHM_VERSION,
+                "algorithm_version": ctx.algorithm_version,
+                "algorithm_decision_source": ctx.algorithm_decision_source.as_str(),
             }),
         }],
         cleanup_paths: vec![cleanup_path],
+    })
+}
+
+fn write_demo_v2_report(
+    ctx: &JobExecutionContext,
+    payload: &super::schema_types::WriteDemoJobV1Payload,
+) -> serde_json::Value {
+    let checksum = checksum_for(&[
+        payload.operation.as_str(),
+        payload.caller_id.as_str(),
+        payload.idempotency_key.as_str(),
+        &ctx.job_key,
+    ]);
+
+    json!({
+        "job_key": ctx.job_key,
+        "operation": payload.operation,
+        "caller_id": payload.caller_id,
+        "algorithm_version": ctx.algorithm_version,
+        "generated_at": ctx.job_created_at.unix_timestamp(),
+        "derived_output": {
+            "checksum": checksum,
+            "echo": {
+                "operation": payload.operation,
+                "caller_id": payload.caller_id,
+            }
+        }
+    })
+}
+
+fn write_demo_v3_report(
+    ctx: &JobExecutionContext,
+    payload: &super::schema_types::WriteDemoJobV1Payload,
+) -> serde_json::Value {
+    let checksum = checksum_for(&[
+        "write-demo-v3",
+        &ctx.job_key,
+        payload.caller_id.as_str(),
+        payload.operation.as_str(),
+        payload.idempotency_key.as_str(),
+    ]);
+
+    json!({
+        "job_key": ctx.job_key,
+        "operation": payload.operation,
+        "caller_id": payload.caller_id,
+        "algorithm_version": ctx.algorithm_version,
+        "generated_at": ctx.job_created_at.unix_timestamp(),
+        "derived_output": {
+            "checksum": checksum,
+            "operation_length": payload.operation.len(),
+            "echo": {
+                "operation": payload.operation,
+                "caller_id": payload.caller_id,
+                "variant": "v3",
+            }
+        }
     })
 }
 
@@ -269,6 +339,8 @@ mod tests {
             artifact_tmp_dir: temp_root.clone(),
             producer_service: "api".to_string(),
             producer_role: "worker".to_string(),
+            algorithm_version: "write-demo-v2".to_string(),
+            algorithm_decision_source: JobAlgorithmDecisionSource::Stable,
         };
         let output = handle_job(
             &sqlx::PgPool::connect_lazy("postgres://user:pass@localhost/test").unwrap(),
@@ -286,6 +358,38 @@ mod tests {
         assert_eq!(output.artifacts.len(), 1);
         assert!(output.result.payload.get("result").is_none());
         assert!(output.result.payload.get("primary_artifact_key").is_some());
+        cleanup_execution_paths(&output.cleanup_paths);
+    }
+
+    #[tokio::test]
+    async fn write_demo_v3_handler_returns_valid_summary_and_artifact() {
+        let temp_root = std::env::temp_dir().join(format!("banji-handler-test-{}", Uuid::new_v4()));
+        let ctx = JobExecutionContext {
+            job_key: "job-456".to_string(),
+            job_created_at: OffsetDateTime::now_utc(),
+            artifact_tmp_dir: temp_root.clone(),
+            producer_service: "api".to_string(),
+            producer_role: "worker".to_string(),
+            algorithm_version: "write-demo-v3".to_string(),
+            algorithm_decision_source: JobAlgorithmDecisionSource::Candidate,
+        };
+        let output = handle_job(
+            &sqlx::PgPool::connect_lazy("postgres://user:pass@localhost/test").unwrap(),
+            &ctx,
+            &KnownJob::WriteDemoV1(super::super::schema_types::WriteDemoJobV1Payload {
+                operation: "export".to_string(),
+                caller_id: "caller-a".to_string(),
+                idempotency_key: "idem-1".to_string(),
+            }),
+        )
+        .await
+        .unwrap();
+
+        validate_handler_result(&output).unwrap();
+        assert_eq!(
+            output.result.payload.get("algorithm_version").unwrap(),
+            "write-demo-v3"
+        );
         cleanup_execution_paths(&output.cleanup_paths);
     }
 

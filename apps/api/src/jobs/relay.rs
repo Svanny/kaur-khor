@@ -23,15 +23,34 @@ pub async fn relay_once<P: ConfirmingPublisher>(
             "x-correlation-id".to_string(),
             row.envelope.correlation_id.clone(),
         );
+        if let Some(backfill_run_id) = row.backfill_run_id {
+            headers.insert("x-backfill-run-id".to_string(), backfill_run_id.to_string());
+        }
+        if let Some(source_event_id) = row.source_event_id {
+            headers.insert("x-source-event-id".to_string(), source_event_id.to_string());
+        }
+        if row.delivery_mode == super::types::JobDeliveryMode::Replay {
+            headers.insert("x-replayed".to_string(), "true".to_string());
+            if let Some(operator_id) = row
+                .metadata
+                .get("operator_id")
+                .and_then(|value| value.as_str())
+            {
+                headers.insert("x-replay-operator".to_string(), operator_id.to_string());
+            }
+            if let Some(reason) = row.metadata.get("reason").and_then(|value| value.as_str()) {
+                headers.insert("x-replay-reason".to_string(), reason.to_string());
+            }
+        }
         propagation::inject_current_context_to_map(&mut headers);
 
+        let exchange = match row.delivery_mode {
+            super::types::JobDeliveryMode::Primary => &cfg.rabbit_exchange_jobs,
+            super::types::JobDeliveryMode::Replay => &cfg.rabbit_exchange_jobs_replay,
+        };
+
         let publish_res = publisher
-            .publish_with_confirm(
-                &cfg.rabbit_exchange_jobs,
-                &row.routing_key,
-                &row.envelope,
-                &headers,
-            )
+            .publish_with_confirm(exchange, &row.routing_key, &row.envelope, &headers)
             .await;
 
         match publish_res {

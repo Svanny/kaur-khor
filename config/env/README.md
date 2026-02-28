@@ -15,8 +15,11 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - `DATABASE_MIGRATION_URL` (CI/deploy migration step only)
 - `REDIS_URL`
 - `RABBIT_URL`
+- `RABBIT_MANAGEMENT_USERNAME`
+- `RABBIT_MANAGEMENT_PASSWORD`
 - `OBJECT_STORAGE_ACCESS_KEY`
 - `OBJECT_STORAGE_SECRET_KEY`
+- `ALGORITHM_ROLLOUT_HASH_SALT`
 - `OTEL_HEADERS` (when credential-bearing)
 - `OTEL_EXPORTER_OTLP_HEADERS` (preferred OTLP auth header key)
 - `EDGE_ORIGIN_AUTH_SECRET`
@@ -41,16 +44,21 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - When `OTEL_ENABLED=true`, endpoint + headers must be set in platform secrets/config.
 
 ## Service Access Matrix (Current + Near-Term)
-- `api`: `DATABASE_RUNTIME_URL`, optional `REDIS_URL`, optional `RABBIT_URL`, integration secrets, optional telemetry auth
+- `api`: `DATABASE_RUNTIME_URL`, optional `REDIS_URL`, optional `RABBIT_URL`, optional Rabbit management credentials, integration secrets, optional telemetry auth
 - `worker`: `DATABASE_RUNTIME_URL`, `RABBIT_URL`, optional `REDIS_URL`, integration secrets, optional telemetry auth
 - `scheduler`: minimal `RABBIT_URL`, scheduler-specific integration secrets, optional telemetry auth
 - `projection-consumer`: `DATABASE_RUNTIME_URL`, optional telemetry auth
 - `event-relay`: `DATABASE_RUNTIME_URL`, optional telemetry auth
 
 Runtime services must not receive `DATABASE_MIGRATION_URL`.
+Role environments must remain least-privilege:
+- `api` must not receive object-storage secrets.
+- `event-relay` and `projection-consumer` must not receive Rabbit, object-storage, auth, or edge secrets.
+- `worker` must not receive auth or edge secrets.
 
 ## Pooling and DB Boundary Keys (Non-Secret)
 - `APP_ROLE=api|event-relay|projection-consumer|worker`
+- `BANJI_INSTANCE_ID`
 - `DATABASE_RUNTIME_ENDPOINT_KIND=direct|pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction|session`
 - `AUTH_ENABLED`
@@ -74,6 +82,7 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `EVENT_RELAY_MAX_BACKOFF_MS`
 - `EVENT_RELAY_BLOCK_AFTER_ATTEMPTS`
 - `EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS`
+- `RABBIT_MANAGEMENT_API_BASE_URL`
 - `WORKER_ID`
 - `WORKER_ENABLED_CLASSES`
 - `WORKER_POLL_INTERVAL_MS`
@@ -85,6 +94,7 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `JOB_RESULT_KAFKA_TOPIC_PREFIX`
 - `WORKER_CONSUME_REPLAY_QUEUES`
 - `WORKER_JOB_RELAY_BATCH_SIZE`
+- `ALGORITHM_ROLLOUT_HASH_SALT_VERSION`
 - `OBJECT_STORAGE_ENABLED`
 - `OBJECT_STORAGE_ENDPOINT`
 - `OBJECT_STORAGE_REGION`
@@ -96,6 +106,9 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `OBJECT_STORAGE_REQUEST_TIMEOUT_MS`
 - `OBJECT_STORAGE_MAX_ARTIFACT_BYTES`
 - `ARTIFACT_TMP_DIR`
+- `OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS`
+- `OBSERVABILITY_POSTGRES_LOCK_POLL_INTERVAL_MS`
+- `OBSERVABILITY_JOB_PRESSURE_POLL_INTERVAL_MS`
 
 `staging` and `prod` must use:
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
@@ -127,6 +140,8 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `DATABASE_RUNTIME_URL` is required
 - `RABBIT_URL` is required
 - object storage config + secrets are required
+- `ALGORITHM_ROLLOUT_HASH_SALT` is required in `staging` and `prod`
+- `ALGORITHM_ROLLOUT_HASH_SALT_VERSION` is required for auditability
 - HTTP-edge/auth keys are optional for this role
 - Kafka result publication remains disabled by default in this milestone
 - worker runtime contract is driven by:
@@ -141,6 +156,8 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
   - `JOB_RESULT_KAFKA_TOPIC_PREFIX`
   - `WORKER_CONSUME_REPLAY_QUEUES`
   - `WORKER_JOB_RELAY_BATCH_SIZE`
+  - `ALGORITHM_ROLLOUT_HASH_SALT`
+  - `ALGORITHM_ROLLOUT_HASH_SALT_VERSION`
   - `OBJECT_STORAGE_ENABLED`
   - `OBJECT_STORAGE_ENDPOINT`
   - `OBJECT_STORAGE_REGION`

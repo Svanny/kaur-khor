@@ -1,7 +1,7 @@
 use crate::{
     cache::RedisRuntime,
     edge::{identity::RequestIdentity, OriginGuardOutcome},
-    observability::metrics,
+    observability::{metrics, ResponseClassification},
     AppState,
 };
 use anyhow::Result;
@@ -113,10 +113,7 @@ impl SharedRateLimiter {
         let retry_after_seconds = current_window_retry_after(self.window);
         let specs = self.bucket_limits(client_ip, identity, window_start);
         if let Some(redis) = &self.redis {
-            match redis
-                .check(&specs, self.key_ttl, retry_after_seconds)
-                .await
-            {
+            match redis.check(&specs, self.key_ttl, retry_after_seconds).await {
                 Ok(decision) => return decision,
                 Err(err) => {
                     tracing::warn!(error = %err, "shared rate limiter unavailable");
@@ -128,15 +125,13 @@ impl SharedRateLimiter {
         }
 
         if self.failover_enabled {
-            return self
-                .fallback
-                .check(
-                    &specs,
-                    self.window,
-                    fallback_max_keys,
-                    self.key_ttl,
-                    retry_after_seconds,
-                );
+            return self.fallback.check(
+                &specs,
+                self.window,
+                fallback_max_keys,
+                self.key_ttl,
+                retry_after_seconds,
+            );
         }
 
         RateLimitDecision {
@@ -279,12 +274,14 @@ impl RedisRateLimitStore {
                 let scope_index = raw[3];
                 let limit = raw[4].max(0) as u32;
                 let scope = if allowed {
-                    specs.iter()
+                    specs
+                        .iter()
                         .min_by_key(|spec| spec.max)
                         .map(|spec| spec.scope)
                         .unwrap_or(RateLimitScope::Ip)
                 } else {
-                    specs.get(scope_index.saturating_sub(1) as usize)
+                    specs
+                        .get(scope_index.saturating_sub(1) as usize)
                         .map(|spec| spec.scope)
                         .unwrap_or(RateLimitScope::Ip)
                 };
@@ -451,6 +448,9 @@ pub async fn rate_limit_middleware(
         )
             .into_response();
         apply_limit_headers(&mut response, decision);
+        response
+            .extensions_mut()
+            .insert(ResponseClassification::RateLimited);
         return response;
     }
 
@@ -576,8 +576,10 @@ mod tests {
         };
 
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let allowed = rt.block_on(limiter.check_request("127.0.0.1".to_string(), Some(&first), 100));
-        let blocked = rt.block_on(limiter.check_request("127.0.0.1".to_string(), Some(&second), 100));
+        let allowed =
+            rt.block_on(limiter.check_request("127.0.0.1".to_string(), Some(&first), 100));
+        let blocked =
+            rt.block_on(limiter.check_request("127.0.0.1".to_string(), Some(&second), 100));
 
         assert!(allowed.allowed);
         assert!(!blocked.allowed);

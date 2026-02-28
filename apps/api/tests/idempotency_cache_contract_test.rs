@@ -41,6 +41,7 @@ fn test_config(db_url: String) -> AppConfig {
         system: "banji-core".to_string(),
         env: "test".to_string(),
         service: "api".to_string(),
+        instance_id: "api-test-1".to_string(),
         auth_enabled: false,
         auth_jwks_url: None,
         auth_issuer: None,
@@ -69,7 +70,11 @@ fn test_config(db_url: String) -> AppConfig {
         rabbit_url: None,
         rabbit_vhost: "/".to_string(),
         rabbit_exchange_jobs: "banji-core.test.jobs".to_string(),
+        rabbit_exchange_jobs_replay: "banji-core.test.jobs.replay".to_string(),
         rabbit_dlx_exchange: "banji-core.test.jobs.dlx".to_string(),
+        rabbit_management_api_base_url: None,
+        rabbit_management_username: None,
+        rabbit_management_password: None,
         rabbit_retry_1_ttl_ms: 30_000,
         rabbit_retry_2_ttl_ms: 300_000,
         rabbit_retry_3_ttl_ms: 1_800_000,
@@ -118,6 +123,9 @@ fn test_config(db_url: String) -> AppConfig {
         edge_backpressure_job_run_oldest_age_seconds_max: 60,
         edge_backpressure_kafka_pending_max: 500,
         edge_backpressure_kafka_oldest_age_seconds_max: 30,
+        observability_rabbit_queue_poll_interval: Duration::from_secs(15),
+        observability_postgres_lock_poll_interval: Duration::from_secs(15),
+        observability_job_pressure_poll_interval: Duration::from_secs(15),
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec![],
@@ -185,6 +193,7 @@ async fn cache_hit_does_not_bypass_conflict_detection() {
         config: cfg.clone(),
         db: Some(pool),
         cache,
+        cache_runtime_enabled: true,
         jwt_verifier: None,
         key_builder: KeyBuilder::new(
             cfg.system.clone(),
@@ -193,7 +202,9 @@ async fn cache_hit_does_not_bypass_conflict_detection() {
             cfg.cache_schema_version.clone(),
         ),
         singleflight: Arc::new(Mutex::new(HashMap::new())),
-        rate_limiter: Arc::new(banji_api::edge::rate_limit::SharedRateLimiter::new(&cfg, None)),
+        rate_limiter: Arc::new(banji_api::edge::rate_limit::SharedRateLimiter::new(
+            &cfg, None,
+        )),
         backpressure_gate: Arc::new(banji_api::edge::backpressure::BackpressureGate::new(&cfg)),
     };
 
