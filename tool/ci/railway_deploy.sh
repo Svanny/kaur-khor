@@ -3,6 +3,8 @@ set -euo pipefail
 
 RAILWAY_BIN="${RAILWAY_BIN:-railway}"
 SKIP_RAILWAY_INSTALL="${SKIP_RAILWAY_INSTALL:-false}"
+echo "warning: tool/ci/railway_deploy.sh is deprecated for the repo-root Railpack deployment path" >&2
+echo "warning: Railway should build from the connected repo using railway.toml and start.sh" >&2
 
 required=(
   RAILWAY_TOKEN

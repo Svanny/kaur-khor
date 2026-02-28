@@ -1,3 +1,5 @@
+# Legacy disabled workflow for the retired Docker/GHCR Railway path.
+# Active Railway deploys now build from the connected repo via railpack + start.sh.
 name: release-build
 
 on:

@@ -16,13 +16,16 @@ Branch protection on `main` must require:
 
 ## Artifact Policy
 Each merge to `main` must:
-- Build and publish `ghcr.io/svanny/banji-api:<commit_sha>`
-- Publish rolling trace tag `ghcr.io/svanny/banji-api:main-<run_number>`
-- Resolve and record immutable digest
-- Upload `build-metadata.json` containing commit SHA, run ID, image digest/ref, migration checksum
+- Produce a repo state that Railway can build from the connected repository root
+- Keep the Rust release build command stable:
+  - `cargo build --release --manifest-path apps/api/Cargo.toml`
+- Keep deployment entrypoint configuration under version control:
+  - [`railway.toml`](/Users/svanny/banji/railway.toml)
+  - [`start.sh`](/Users/svanny/banji/start.sh)
+- Upload `build-metadata.json` only if a future CI release flow is re-enabled for traceability
 
 ## Deployment Policy
-- Deploy exact digest (`ghcr.io/...@sha256:...`), never moving tags.
+- Deploy from the connected repository via Railway Railpack config-as-code.
 - Promotion flow: staging then approved production.
 - One deployment at a time per environment via workflow concurrency.
 - Migration is a required pre-rollout step in each environment (`sqlx migrate run`).
@@ -31,14 +34,14 @@ Each merge to `main` must:
   - `event-relay`
   - `projection-consumer`
   - `worker`
-- Every role in an environment must run the same pinned `IMAGE_REF` digest.
+- Every role in an environment must run the same deployed revision.
 - Deploy sequencing is explicit and mandatory:
   1. run migrations (single runner with advisory lock)
   2. deploy `event-relay`
   3. deploy `projection-consumer`
   4. deploy `worker`
   5. deploy `api`
-  6. verify same-image parity across roles
+  6. verify same-revision parity across roles
   7. finalize traffic shift
 - If migrations fail or do not run, deployment must abort before rollout.
 
@@ -61,9 +64,15 @@ Each merge to `main` must:
 
 ## Railway Deployment Requirements
 For each deployable Railway service:
-- Service must deploy from external GHCR image, not build-from-repo.
-- Service image must be pinned by digest.
-- If GHCR image is private, Railway must have valid registry pull credentials.
+- Service must deploy from the connected repository via Railpack config-as-code.
+- Service root is the repository root.
+- Build command must remain:
+  - `cargo build --release --manifest-path apps/api/Cargo.toml`
+- Start command must remain:
+  - `./start.sh`
+- `start.sh` must translate Railway `PORT` into `API_BIND_ADDR` for `APP_ROLE=api`.
+- Non-HTTP roles (`event-relay`, `projection-consumer`, `worker`) must share the same `start.sh` without synthesizing `API_BIND_ADDR`.
+- [`apps/api/Dockerfile`](/Users/svanny/banji/apps/api/Dockerfile) is retained for legacy/local-only use and is no longer the Railway deployment contract.
 
 ## Additional Hardening
 - Workflows use explicit permissions with least privilege.
@@ -99,8 +108,7 @@ For each deployable Railway service:
   - `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ZONE_ID` are present for verification
 - Deploy preflight must run `tool/edge/cloudflare_verify.sh` against the target environment fingerprint.
 - Deploy preflight must run `tool/ci/check_topology_parity.sh` and fail on role-set drift or duplicated Railway service ids.
-- Deploy must verify target Railway service runtime contract variables after inject and before redeploy:
-  - `IMAGE_REF`
+- Railway runtime configuration for each service must still satisfy:
   - `APP_ROLE`
   - `BANJI_SERVICE`
   - `DATABASE_RUNTIME_ENDPOINT_KIND`
@@ -110,7 +118,7 @@ For each deployable Railway service:
   - `EDGE_ORIGIN_AUTH_HEADER_NAME`
   - `EDGE_CORS_ALLOWED_ORIGINS`
 - Deploy must also enforce role-specific forbidden variables so least-privilege secrets are not sprayed across services.
-- If Railway runtime values cannot be read or differ from expected deploy inputs, deployment must fail closed.
+- If a future deploy automation reintroduces image or runtime mutation, it must fail closed when Railway runtime values cannot be read or differ from expected deploy inputs.
 
 ## Runtime Readiness and Drain Contract
 - Runtime startup must:

@@ -15,7 +15,7 @@
 │ cargo clippy as errors                                         │
 │ cargo test                                                     │
 │ cargo build release                                            │
-│ docker build check for apps/api/Dockerfile                     │
+│ shell smoke test for start.sh                                  │
 │ sqlx migrate run on fresh CI Postgres                          │
 │ sqlx offline verify via tool/ci/sqlx_offline_verify.sh         │
 │ actionlint for workflow validity                               │
@@ -34,35 +34,28 @@
 └───────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────────────────────────────────────────────────────────────┐
-│ release-build.yml produces immutable artifact                  │
+│ Railway connected repo remains deployment source of truth      │
 │                                                               │
-│ Build image using apps/api/Dockerfile                          │
-│ Push to GHCR with tags                                         │
-│ Resolve digest and create pinned image reference               │
-│ image_ref equals ghcr.io owner banji-api at sha256 digest      │
+│ Railpack reads railway.toml from repo root                     │
+│ Build command compiles apps/api release binary                 │
+│ Start command uses ./start.sh                                  │
+│ start.sh maps PORT to API_BIND_ADDR for APP_ROLE=api           │
 │ Compute migration checksum from apps/api/migrations            │
-│ Write build-metadata.json and upload it as workflow artifact   │
-│ Optional scan non blocking                                     │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ release-build.yml calls .github/workflows/deploy.yml           │
-│ Inputs passed                                                  │
-│ image_ref  image_digest  commit_sha  migration_checksum        │
+│ Build metadata is optional until CI release flow is re-enabled │
 └───────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────────────────────────────────────────────────────────────┐
 │ deploy.yml job deploy-staging in environment staging           │
 │                                                               │
-│ Gate 1 immutability                                            │
-│ Assert image_ref is digest pinned                              │
+│ Gate 1 config correctness                                      │
+│ Railway repo-root config uses railpack + ./start.sh            │
 │                                                               │
 │ Gate 2 schema readiness                                        │
 │ Run tool/ci/migrate_with_lock.sh against staging DB            │
 │ Uses Postgres advisory lock plus sqlx migrate run               │
 │                                                               │
 │ Rollout                                                       │
-│ Run tool/ci/railway_deploy.sh to Railway staging service       │
+│ Railway builds connected repo and starts via start.sh          │
 │ Write GitHub step summary                                      │
 └───────────────────────────────────────────────────────────────┘
                               ↓
@@ -76,13 +69,13 @@
 ┌───────────────────────────────────────────────────────────────┐
 │ deploy.yml job deploy-prod in environment prod                 │
 │                                                               │
-│ Assert same pinned image_ref as staging                        │
+│ Assert same repo revision as staging                           │
 │ Run tool/ci/migrate_with_lock.sh against prod DB               │
-│ Run tool/ci/railway_deploy.sh to Railway prod service          │
+│ Railway builds connected repo and starts via start.sh          │
 │ Write GitHub step summary                                      │
 └───────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────────────────────────────────────────────────────────────┐
-│ Production is running the exact same image digest as staging   │
+│ Production is running the same repo revision as staging        │
 │ Database migrations were applied before rollout                │
 └───────────────────────────────────────────────────────────────┘
