@@ -36,8 +36,8 @@
 ┌───────────────────────────────────────────────────────────────┐
 │ Railway connected repo remains deployment source of truth      │
 │                                                               │
-│ Railpack reads railway.toml from repo root                     │
-│ Build command compiles apps/api release binary                 │
+│ Railpack reads apps/api/railway.toml from the service root     │
+│ Build command compiles the release binary from apps/api        │
 │ Start command uses ./start.sh                                  │
 │ start.sh maps PORT to API_BIND_ADDR for APP_ROLE=api           │
 │ Compute migration checksum from apps/api/migrations            │
@@ -48,7 +48,7 @@
 │ deploy.yml job deploy-staging in environment staging           │
 │                                                               │
 │ Gate 1 config correctness                                      │
-│ Railway repo-root config uses railpack + ./start.sh            │
+│ Railway service root is apps/api with railpack + ./start.sh    │
 │                                                               │
 │ Gate 2 schema readiness                                        │
 │ Run tool/ci/migrate_with_lock.sh against staging DB            │

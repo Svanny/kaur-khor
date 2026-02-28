@@ -16,12 +16,12 @@ Branch protection on `main` must require:
 
 ## Artifact Policy
 Each merge to `main` must:
-- Produce a repo state that Railway can build from the connected repository root
+- Produce a repo state that Railway can build from the `apps/api` service root
 - Keep the Rust release build command stable:
-  - `cargo build --release --manifest-path apps/api/Cargo.toml`
+  - `cargo build --release`
 - Keep deployment entrypoint configuration under version control:
-  - [`railway.toml`](/Users/svanny/banji/railway.toml)
-  - [`start.sh`](/Users/svanny/banji/start.sh)
+  - [`apps/api/railway.toml`](/Users/svanny/banji/apps/api/railway.toml)
+  - [`apps/api/start.sh`](/Users/svanny/banji/apps/api/start.sh)
 - Upload `build-metadata.json` only if a future CI release flow is re-enabled for traceability
 
 ## Deployment Policy
@@ -65,9 +65,9 @@ Each merge to `main` must:
 ## Railway Deployment Requirements
 For each deployable Railway service:
 - Service must deploy from the connected repository via Railpack config-as-code.
-- Service root is the repository root.
+- Service root must be `apps/api` so Railpack provisions the Rust toolchain from the detected service source.
 - Build command must remain:
-  - `cargo build --release --manifest-path apps/api/Cargo.toml`
+  - `cargo build --release`
 - Start command must remain:
   - `./start.sh`
 - `start.sh` must translate Railway `PORT` into `API_BIND_ADDR` for `APP_ROLE=api`.

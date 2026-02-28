@@ -1,6 +1,0 @@
-[build]
-builder = "RAILPACK"
-buildCommand = "cargo build --release --manifest-path apps/api/Cargo.toml"
-
-[deploy]
-startCommand = "./start.sh"

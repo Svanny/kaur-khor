@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-binary_path="${BANJI_API_BINARY:-$repo_root/apps/api/target/release/banji-api}"
+service_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+binary_path="${BANJI_API_BINARY:-$service_root/target/release/banji-api}"
 app_role="${APP_ROLE:-api}"
 
 case "$app_role" in

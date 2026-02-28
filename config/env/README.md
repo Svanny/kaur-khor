@@ -59,8 +59,8 @@ Role environments must remain least-privilege:
 - `backfill-controller` uses `DATABASE_RUNTIME_URL` for primary runs and `RESTORE_DATABASE_URL` for restore projection runs.
 
 ## Railway Runtime Startup
-- Railway deploys the Rust service from the repository root via Railpack config-as-code.
-- [`start.sh`](/Users/svanny/banji/start.sh) is the shared runtime entrypoint for all Railway service roles.
+- Railway deploys the Rust service from the `apps/api` service root via Railpack config-as-code.
+- [`apps/api/start.sh`](/Users/svanny/banji/apps/api/start.sh) is the shared runtime entrypoint for all Railway service roles.
 - When `APP_ROLE=api`, `start.sh` maps Railway `PORT` to `API_BIND_ADDR`, defaulting to `0.0.0.0:8080` when `PORT` is absent.
 - When `APP_ROLE` is `event-relay`, `projection-consumer`, or `worker`, `start.sh` does not synthesize `API_BIND_ADDR`.
 - `BANJI_SERVICE` defaults to `APP_ROLE` in `start.sh` when not explicitly set.
