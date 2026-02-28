@@ -4,7 +4,7 @@ use banji_api::{
         AppConfig, AppRole, BackfillConfig, BackfillDatabaseKind, BackfillKind, BackfillMode,
         DatabaseRuntimeEndpointKind, EdgeProvider,
     },
-    events::{key::derive_publish_key, schema_types::InvalidEventPolicy},
+    events::{consumer::get_checkpoint, key::derive_publish_key, schema_types::InvalidEventPolicy},
 };
 use sqlx::Row;
 use std::{env, time::Duration};
@@ -178,6 +178,72 @@ async fn seed_inventory_created_event(pool: &sqlx::PgPool, suffix: &str) -> i64 
     .unwrap()
 }
 
+async fn seed_inventory_projection_row(pool: &sqlx::PgPool, suffix: &str, source_event_id: i64) {
+    sqlx::query(
+        r#"
+        INSERT INTO app.inventory_item_projection (
+          owner_sub,
+          item_id,
+          sku,
+          name,
+          quantity,
+          source_event_id
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (owner_sub, item_id)
+        DO UPDATE SET
+          sku = EXCLUDED.sku,
+          name = EXCLUDED.name,
+          quantity = EXCLUDED.quantity,
+          source_event_id = EXCLUDED.source_event_id,
+          updated_at = NOW()
+        "#,
+    )
+    .bind(format!("stale-owner-{suffix}"))
+    .bind(format!("stale-item-{suffix}"))
+    .bind(format!("STALE-SKU-{suffix}"))
+    .bind(format!("Stale Item {suffix}"))
+    .bind(99_i32)
+    .bind(source_event_id)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn set_inventory_projection_checkpoint(
+    pool: &sqlx::PgPool,
+    service_name: &str,
+    consumer_name: &str,
+    stream_name: &str,
+    last_event_id: i64,
+) {
+    sqlx::query(
+        r#"
+        INSERT INTO app.event_consumer_checkpoint (
+          service_name,
+          consumer_name,
+          stream_name,
+          last_event_id,
+          last_heartbeat_at,
+          updated_at,
+          last_error
+        ) VALUES ($1, $2, $3, $4, NOW(), NOW(), NULL)
+        ON CONFLICT (service_name, consumer_name, stream_name)
+        DO UPDATE SET
+          last_event_id = EXCLUDED.last_event_id,
+          last_heartbeat_at = NOW(),
+          updated_at = NOW(),
+          last_error = NULL
+        "#,
+    )
+    .bind(service_name)
+    .bind(consumer_name)
+    .bind(stream_name)
+    .bind(last_event_id)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
 #[tokio::test]
 async fn projection_preview_persists_planned_backfill_run() {
     let Some(db_url) = env::var("DATABASE_RUNTIME_URL").ok() else {
@@ -294,10 +360,10 @@ async fn jobs_apply_schedules_replay_scoped_job_rows() {
     let run_id: uuid::Uuid = run.get("id");
     let run_status: String = run.get("status");
     let enqueued_job_count: i64 = run.get("enqueued_job_count");
-    let finished_at: time::OffsetDateTime = run.get("finished_at");
-    assert_eq!(run_status, "succeeded");
+    let finished_at: Option<time::OffsetDateTime> = run.get("finished_at");
+    assert_eq!(run_status, "waiting");
     assert_eq!(enqueued_job_count, 1);
-    assert!(finished_at.unix_timestamp() > 0);
+    assert!(finished_at.is_none());
 
     let job_run = sqlx::query(
         r#"
@@ -330,4 +396,233 @@ async fn jobs_apply_schedules_replay_scoped_job_rows() {
     let routing_key: String = outbox.get("routing_key");
     assert_eq!(delivery_mode, "replay");
     assert_eq!(routing_key, "job.fast.replay");
+}
+
+#[tokio::test]
+async fn projection_apply_fresh_run_executes_checkpoint_reset_and_truncate_setup() {
+    let Some(db_url) = env::var("DATABASE_RUNTIME_URL").ok() else {
+        eprintln!("Skipping test: DATABASE_RUNTIME_URL not set");
+        return;
+    };
+
+    let pool = sqlx::PgPool::connect(&db_url).await.unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+
+    let suffix = &uuid::Uuid::new_v4().to_string()[..8];
+    let event_id = seed_inventory_created_event(&pool, suffix).await;
+    let service_name = format!("projection-consumer-{suffix}");
+    let consumer_name = format!("inventory-projector-{suffix}");
+    seed_inventory_projection_row(&pool, suffix, event_id - 1).await;
+    set_inventory_projection_checkpoint(
+        &pool,
+        &service_name,
+        &consumer_name,
+        "banji-core.test.inventory-updated",
+        event_id + 50,
+    )
+    .await;
+
+    let cfg = BackfillConfig {
+        kind: BackfillKind::Projection,
+        mode: BackfillMode::Apply,
+        stream_name: "banji-core.test.inventory-updated".to_string(),
+        batch_size: 100,
+        invalid_event_policy: InvalidEventPolicy::Halt,
+        database_kind: BackfillDatabaseKind::Primary,
+        run_id: None,
+        operator_id: Some("ops-projection-apply".to_string()),
+        reason: Some("projection-setup".to_string()),
+        from_event_id: Some(event_id),
+        to_event_id: Some(event_id),
+        service_name: service_name.clone(),
+        consumer_name: consumer_name.clone(),
+        reset_checkpoint: true,
+        truncate_projection: true,
+        job_types: vec![],
+        wait_for_workers: true,
+        worker_poll_interval: Duration::from_millis(10),
+        max_wait: Duration::from_secs(1),
+        allow_broker_publish: false,
+    };
+
+    controller::run(&pool, &test_app_config(db_url.clone()), &cfg)
+        .await
+        .unwrap();
+
+    let checkpoint = get_checkpoint(
+        &pool,
+        &service_name,
+        &consumer_name,
+        "banji-core.test.inventory-updated",
+    )
+    .await
+    .unwrap();
+    assert_eq!(checkpoint, event_id);
+
+    let refreshed = sqlx::query(
+        r#"
+        SELECT source_event_id
+        FROM app.inventory_item_projection
+        WHERE owner_sub = $1 AND item_id = $2
+        "#,
+    )
+    .bind(format!("owner-{suffix}"))
+    .bind(format!("item-{suffix}"))
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let source_event_id: i64 = refreshed.get("source_event_id");
+    assert_eq!(source_event_id, event_id);
+
+    let stale_exists: bool = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS (
+          SELECT 1
+          FROM app.inventory_item_projection
+          WHERE owner_sub = $1 AND item_id = $2
+        )
+        "#,
+    )
+    .bind(format!("stale-owner-{suffix}"))
+    .bind(format!("stale-item-{suffix}"))
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(!stale_exists);
+}
+
+#[tokio::test]
+async fn jobs_apply_without_worker_wait_finishes_when_no_jobs_were_enqueued() {
+    let Some(db_url) = env::var("DATABASE_RUNTIME_URL").ok() else {
+        eprintln!("Skipping test: DATABASE_RUNTIME_URL not set");
+        return;
+    };
+
+    let pool = sqlx::PgPool::connect(&db_url).await.unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+
+    let suffix = &uuid::Uuid::new_v4().to_string()[..8];
+    let event_id = seed_inventory_created_event(&pool, suffix).await;
+    let empty_range_event_id = event_id + 1;
+    let cfg = BackfillConfig {
+        kind: BackfillKind::Jobs,
+        mode: BackfillMode::Apply,
+        stream_name: "banji-core.test.inventory-updated".to_string(),
+        batch_size: 100,
+        invalid_event_policy: InvalidEventPolicy::Halt,
+        database_kind: BackfillDatabaseKind::Primary,
+        run_id: None,
+        operator_id: Some("ops-jobs-empty".to_string()),
+        reason: Some("replay-jobs-empty".to_string()),
+        from_event_id: Some(empty_range_event_id),
+        to_event_id: Some(empty_range_event_id),
+        service_name: "projection-consumer".to_string(),
+        consumer_name: "inventory-projector".to_string(),
+        reset_checkpoint: false,
+        truncate_projection: false,
+        job_types: vec![],
+        wait_for_workers: false,
+        worker_poll_interval: Duration::from_millis(10),
+        max_wait: Duration::from_secs(1),
+        allow_broker_publish: true,
+    };
+
+    controller::run(&pool, &test_app_config(db_url.clone()), &cfg)
+        .await
+        .unwrap();
+
+    let run = sqlx::query(
+        r#"
+        SELECT status, enqueued_job_count, finished_at
+        FROM app.backfill_run
+        WHERE operator_id = 'ops-jobs-empty' AND reason = 'replay-jobs-empty'
+        ORDER BY created_at DESC
+        LIMIT 1
+        "#,
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let run_status: String = run.get("status");
+    let enqueued_job_count: i64 = run.get("enqueued_job_count");
+    let finished_at: Option<time::OffsetDateTime> = run.get("finished_at");
+    assert_eq!(run_status, "succeeded");
+    assert_eq!(enqueued_job_count, 0);
+    assert!(finished_at.is_some());
+}
+
+#[tokio::test]
+async fn resume_rejects_invalid_event_policy_override() {
+    let Some(db_url) = env::var("DATABASE_RUNTIME_URL").ok() else {
+        eprintln!("Skipping test: DATABASE_RUNTIME_URL not set");
+        return;
+    };
+
+    let pool = sqlx::PgPool::connect(&db_url).await.unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+
+    let suffix = &uuid::Uuid::new_v4().to_string()[..8];
+    let event_id = seed_inventory_created_event(&pool, suffix).await;
+    let preview_cfg = BackfillConfig {
+        kind: BackfillKind::Projection,
+        mode: BackfillMode::Preview,
+        stream_name: "banji-core.test.inventory-updated".to_string(),
+        batch_size: 100,
+        invalid_event_policy: InvalidEventPolicy::Quarantine,
+        database_kind: BackfillDatabaseKind::Primary,
+        run_id: None,
+        operator_id: Some("ops-policy".to_string()),
+        reason: Some("persist-policy".to_string()),
+        from_event_id: Some(event_id),
+        to_event_id: Some(event_id),
+        service_name: "projection-consumer".to_string(),
+        consumer_name: "inventory-projector".to_string(),
+        reset_checkpoint: false,
+        truncate_projection: false,
+        job_types: vec![],
+        wait_for_workers: true,
+        worker_poll_interval: Duration::from_millis(10),
+        max_wait: Duration::from_secs(1),
+        allow_broker_publish: false,
+    };
+
+    controller::run(&pool, &test_app_config(db_url.clone()), &preview_cfg)
+        .await
+        .unwrap();
+
+    let run_id: uuid::Uuid = sqlx::query_scalar(
+        r#"
+        SELECT id
+        FROM app.backfill_run
+        WHERE operator_id = 'ops-policy' AND reason = 'persist-policy'
+        ORDER BY created_at DESC
+        LIMIT 1
+        "#,
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let apply_cfg = BackfillConfig {
+        mode: BackfillMode::Apply,
+        run_id: Some(run_id),
+        invalid_event_policy: InvalidEventPolicy::Halt,
+        operator_id: None,
+        reason: None,
+        from_event_id: None,
+        ..preview_cfg
+    };
+
+    unsafe {
+        std::env::set_var("BACKFILL_INVALID_EVENT_POLICY", "halt");
+    }
+    let result = controller::run(&pool, &test_app_config(db_url.clone()), &apply_cfg).await;
+    unsafe {
+        std::env::remove_var("BACKFILL_INVALID_EVENT_POLICY");
+    }
+
+    let err = result.unwrap_err();
+    assert!(err
+        .to_string()
+        .contains("BACKFILL_INVALID_EVENT_POLICY did not match persisted invalid_event_policy"));
 }

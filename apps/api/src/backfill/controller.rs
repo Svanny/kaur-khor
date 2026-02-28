@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use serde_json::json;
-use time::OffsetDateTime;
+use std::env;
 use uuid::Uuid;
 
 pub async fn run(pool: &sqlx::PgPool, app_cfg: &AppConfig, cfg: &BackfillConfig) -> Result<()> {
@@ -75,11 +75,7 @@ async fn create_new_run(
         &NewBackfillRun {
             id: cfg.run_id.unwrap_or_else(Uuid::new_v4),
             run_kind: cfg.kind,
-            status: if cfg.mode == BackfillMode::Preview {
-                BackfillRunStatus::Planned
-            } else {
-                BackfillRunStatus::Running
-            },
+            status: BackfillRunStatus::Planned,
             operator_id: cfg
                 .operator_id
                 .clone()
@@ -107,11 +103,7 @@ async fn create_new_run(
             truncate_projection: cfg.truncate_projection,
             checkpoint_start,
             candidate_event_count: summary.candidate_count,
-            started_at: if cfg.mode == BackfillMode::Apply {
-                Some(OffsetDateTime::now_utc())
-            } else {
-                None
-            },
+            started_at: None,
         },
     )
     .await
@@ -178,6 +170,14 @@ async fn load_existing_run(
             ));
         }
     }
+    if env::var_os("BACKFILL_INVALID_EVENT_POLICY").is_some() {
+        let persisted_policy = persisted_invalid_event_policy(&run.invalid_event_policy)?;
+        if persisted_policy != cfg.invalid_event_policy {
+            return Err(anyhow!(
+                "BACKFILL_INVALID_EVENT_POLICY did not match persisted invalid_event_policy"
+            ));
+        }
+    }
 
     Ok(run)
 }
@@ -185,7 +185,7 @@ async fn load_existing_run(
 async fn run_projection_backfill(
     pool: &sqlx::PgPool,
     app_cfg: &AppConfig,
-    cfg: &BackfillConfig,
+    _cfg: &BackfillConfig,
     run: &BackfillRunRow,
 ) -> Result<()> {
     let database_url = app_cfg
@@ -207,7 +207,6 @@ async fn run_projection_backfill(
 
     let result = async {
         if run.status == BackfillRunStatus::Planned.as_str() {
-            repository::mark_run_running(pool, run.id).await?;
             if run.truncate_projection || run.reset_checkpoint {
                 let mut tx = pool.begin().await?;
                 if run.truncate_projection {
@@ -225,6 +224,7 @@ async fn run_projection_backfill(
                 }
                 tx.commit().await?;
             }
+            repository::mark_run_running(pool, run.id).await?;
         }
 
         let mut after_id = if run.last_scanned_event_id > 0 {
@@ -232,6 +232,7 @@ async fn run_projection_backfill(
         } else {
             inclusive_after_id(run.from_event_id)
         };
+        let invalid_event_policy = persisted_invalid_event_policy(&run.invalid_event_policy)?;
 
         loop {
             let rows = consumer::poll_stream_in_range(
@@ -252,7 +253,7 @@ async fn run_projection_backfill(
 
             for row in rows {
                 max_seen_id = max_seen_id.max(row.id);
-                match schema::decode_event_row(&row, cfg.invalid_event_policy) {
+                match schema::decode_event_row(&row, invalid_event_policy) {
                     Ok(event) => decoded_events.push((row.id, event)),
                     Err(err) => match err.action {
                         crate::events::schema_types::InvalidEventAction::Halt => {
@@ -323,134 +324,152 @@ async fn run_jobs_backfill(
     cfg: &BackfillConfig,
     run: &BackfillRunRow,
 ) -> Result<()> {
-    if run.status == BackfillRunStatus::Planned.as_str() {
-        repository::mark_run_running(pool, run.id).await?;
-    }
+    let scheduling_result = async {
+        if run.status == BackfillRunStatus::Planned.as_str() {
+            repository::mark_run_running(pool, run.id).await?;
+        }
 
-    let selected_job_types = job_types_from_json(&run.job_types)?;
-    if run.status != BackfillRunStatus::Waiting.as_str() {
-        let mut after_id = if run.last_scanned_event_id > 0 {
-            run.last_scanned_event_id
-        } else {
-            inclusive_after_id(run.from_event_id)
-        };
+        let selected_job_types = job_types_from_json(&run.job_types)?;
+        let invalid_event_policy = persisted_invalid_event_policy(&run.invalid_event_policy)?;
 
-        loop {
-            let rows = consumer::poll_stream_in_range(
-                pool,
-                &run.stream_name,
-                after_id,
-                Some(run.resolved_to_event_id),
-                i64::from(run.batch_size),
-            )
-            .await?;
-            if rows.is_empty() {
-                break;
-            }
+        if run.status != BackfillRunStatus::Waiting.as_str() {
+            let mut after_id = if run.last_scanned_event_id > 0 {
+                run.last_scanned_event_id
+            } else {
+                inclusive_after_id(run.from_event_id)
+            };
 
-            let mut tx = pool.begin().await?;
-            let mut invalid_count = 0i64;
-            let mut enqueued_count = 0i64;
-            let mut processed_count = 0i64;
-            let mut max_seen_id = after_id;
+            loop {
+                let rows = consumer::poll_stream_in_range(
+                    pool,
+                    &run.stream_name,
+                    after_id,
+                    Some(run.resolved_to_event_id),
+                    i64::from(run.batch_size),
+                )
+                .await?;
+                if rows.is_empty() {
+                    break;
+                }
 
-            for row in rows {
-                max_seen_id = max_seen_id.max(row.id);
-                processed_count += 1;
-                match schema::decode_event_row(&row, cfg.invalid_event_policy) {
-                    Ok(event) => {
-                        if let Some(job) = jobs::backfill::build_replay_job(
-                            run.id,
-                            &run.operator_id,
-                            &run.reason,
-                            &row,
-                            &event,
-                            app_cfg.rabbit_max_attempts,
-                        )? {
-                            if selected_job_types
-                                .iter()
-                                .any(|job_type| job_type == &job.job_type)
-                            {
-                                jobs::service::schedule_job_tx(&mut tx, &job).await?;
-                                enqueued_count += 1;
+                let mut tx = pool.begin().await?;
+                let mut invalid_count = 0i64;
+                let mut enqueued_count = 0i64;
+                let mut processed_count = 0i64;
+                let mut max_seen_id = after_id;
+
+                for row in rows {
+                    max_seen_id = max_seen_id.max(row.id);
+                    processed_count += 1;
+                    match schema::decode_event_row(&row, invalid_event_policy) {
+                        Ok(event) => {
+                            if let Some(job) = jobs::backfill::build_replay_job(
+                                run.id,
+                                &run.operator_id,
+                                &run.reason,
+                                &row,
+                                &event,
+                                app_cfg.rabbit_max_attempts,
+                            )? {
+                                if selected_job_types
+                                    .iter()
+                                    .any(|job_type| job_type == &job.job_type)
+                                {
+                                    jobs::service::schedule_job_tx(&mut tx, &job).await?;
+                                    enqueued_count += 1;
+                                }
                             }
                         }
+                        Err(err) => match err.action {
+                            crate::events::schema_types::InvalidEventAction::Halt => {
+                                tx.rollback().await?;
+                                return Err(anyhow!("{} (event_id={})", err, row.id));
+                            }
+                            crate::events::schema_types::InvalidEventAction::Quarantine => {
+                                consumer::quarantine_invalid_event(
+                                    pool,
+                                    "backfill-controller",
+                                    &format!("jobs:{}", run.id),
+                                    &run.stream_name,
+                                    &row,
+                                    err.code.as_str(),
+                                    &err.message,
+                                )
+                                .await?;
+                                invalid_count += 1;
+                            }
+                            crate::events::schema_types::InvalidEventAction::Skip => {}
+                        },
                     }
-                    Err(err) => match err.action {
-                        crate::events::schema_types::InvalidEventAction::Halt => {
-                            tx.rollback().await?;
-                            let err_msg = format!("{} (event_id={})", err, row.id);
-                            repository::mark_run_failed(pool, run.id, &err_msg).await?;
-                            return Err(anyhow!(err_msg));
-                        }
-                        crate::events::schema_types::InvalidEventAction::Quarantine => {
-                            consumer::quarantine_invalid_event(
-                                pool,
-                                "backfill-controller",
-                                &format!("jobs:{}", run.id),
-                                &run.stream_name,
-                                &row,
-                                err.code.as_str(),
-                                &err.message,
-                            )
-                            .await?;
-                            invalid_count += 1;
-                        }
-                        crate::events::schema_types::InvalidEventAction::Skip => {}
-                    },
                 }
+
+                repository::update_progress_tx(
+                    &mut tx,
+                    run.id,
+                    max_seen_id,
+                    processed_count,
+                    0,
+                    enqueued_count,
+                    invalid_count,
+                )
+                .await?;
+                tx.commit().await?;
+                after_id = max_seen_id;
             }
 
-            repository::update_progress_tx(
-                &mut tx,
-                run.id,
-                max_seen_id,
-                processed_count,
-                0,
-                enqueued_count,
-                invalid_count,
-            )
-            .await?;
-            tx.commit().await?;
-            after_id = max_seen_id;
+            repository::mark_run_waiting(pool, run.id, None).await?;
         }
+
+        Ok(())
+    }
+    .await;
+
+    if let Err(err) = scheduling_result {
+        repository::mark_run_failed(pool, run.id, &err.to_string()).await?;
+        return Err(err);
     }
 
     if !cfg.wait_for_workers {
-        if run.status != BackfillRunStatus::Waiting.as_str() {
-            repository::finish_run(pool, run.id, BackfillRunStatus::Succeeded, None).await?;
-        }
+        finalize_jobs_run_if_idle(pool, run.id).await?;
         return Ok(());
     }
 
-    repository::mark_run_waiting(pool, run.id, None).await?;
     wait_for_workers(pool, cfg, run.id).await
+}
+
+async fn finalize_jobs_run_if_idle(pool: &sqlx::PgPool, run_id: Uuid) -> Result<bool> {
+    let counts = jobs::repository::backfill_job_counts(pool, run_id).await?;
+    repository::update_wait_counts(
+        pool,
+        run_id,
+        counts.succeeded_count,
+        counts.failed_count,
+        None,
+    )
+    .await?;
+
+    if counts.nonterminal_count > 0 {
+        return Ok(false);
+    }
+
+    let status = if counts.failed_count > 0 {
+        BackfillRunStatus::CompletedWithFailures
+    } else {
+        BackfillRunStatus::Succeeded
+    };
+    repository::finish_run(pool, run_id, status, None).await?;
+    Ok(true)
 }
 
 async fn wait_for_workers(pool: &sqlx::PgPool, cfg: &BackfillConfig, run_id: Uuid) -> Result<()> {
     let started = std::time::Instant::now();
     loop {
-        let counts = jobs::repository::backfill_job_counts(pool, run_id).await?;
-        repository::update_wait_counts(
-            pool,
-            run_id,
-            counts.succeeded_count,
-            counts.failed_count,
-            None,
-        )
-        .await?;
-
-        if counts.nonterminal_count == 0 {
-            let status = if counts.failed_count > 0 {
-                BackfillRunStatus::CompletedWithFailures
-            } else {
-                BackfillRunStatus::Succeeded
-            };
-            repository::finish_run(pool, run_id, status, None).await?;
+        if finalize_jobs_run_if_idle(pool, run_id).await? {
             return Ok(());
         }
 
         if started.elapsed() >= cfg.max_wait {
+            let counts = jobs::repository::backfill_job_counts(pool, run_id).await?;
             let err = format!(
                 "timed out waiting for workers after {} seconds with {} nonterminal jobs",
                 cfg.max_wait.as_secs(),
@@ -510,6 +529,16 @@ fn invalid_policy_name(policy: InvalidEventPolicy) -> &'static str {
         InvalidEventPolicy::Halt => "halt",
         InvalidEventPolicy::Quarantine => "quarantine",
         InvalidEventPolicy::Skip => "halt",
+    }
+}
+
+fn persisted_invalid_event_policy(raw: &str) -> Result<InvalidEventPolicy> {
+    match raw {
+        "halt" => Ok(InvalidEventPolicy::Halt),
+        "quarantine" => Ok(InvalidEventPolicy::Quarantine),
+        other => Err(anyhow!(
+            "persisted invalid_event_policy '{other}' is not supported"
+        )),
     }
 }
 
