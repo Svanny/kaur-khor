@@ -184,9 +184,7 @@ async fn relay_publish_failures_are_requeued_as_pending() {
     )
     .unwrap();
     assert_eq!(job.job_key, enqueue_key);
-    let row_id = outbox::enqueue_tx(&mut tx, &job)
-        .await
-        .unwrap();
+    let row_id = outbox::enqueue_tx(&mut tx, &job).await.unwrap();
     tx.commit().await.unwrap();
 
     let cfg = test_cfg(db_url);

@@ -119,8 +119,15 @@ fn spawn_rabbit_queue_sampler(cfg: AppConfig, base_url: String) {
 
         loop {
             ticker.tick().await;
-            match sample_rabbit_queues(&client, &base_url, &username, &password, &monitored_queues)
-                .await
+            match sample_rabbit_queues(
+                &client,
+                &base_url,
+                &cfg.rabbit_vhost,
+                &username,
+                &password,
+                &monitored_queues,
+            )
+            .await
             {
                 Ok(samples) => {
                     for sample in samples {
@@ -165,11 +172,12 @@ fn monitored_rabbit_queues(cfg: &AppConfig) -> Vec<QueueDescriptor> {
 async fn sample_rabbit_queues(
     client: &Client,
     base_url: &str,
+    vhost: &str,
     username: &str,
     password: &str,
     descriptors: &[QueueDescriptor],
 ) -> Result<Vec<QueueSample>> {
-    let queues_url = format!("{}/api/queues", base_url.trim_end_matches('/'));
+    let queues_url = rabbit_queues_url(base_url, vhost);
     let response = client
         .get(&queues_url)
         .basic_auth(username, Some(password))
@@ -187,6 +195,27 @@ async fn sample_rabbit_queues(
         .await
         .map_err(|_| anyhow!("rabbit management response decoding failed"))?;
     Ok(merge_rabbit_queue_samples(descriptors, &queues))
+}
+
+fn rabbit_queues_url(base_url: &str, vhost: &str) -> String {
+    let encoded_vhost = percent_encode_path_segment(vhost);
+    format!(
+        "{}/api/queues/{encoded_vhost}",
+        base_url.trim_end_matches('/')
+    )
+}
+
+fn percent_encode_path_segment(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char)
+            }
+            _ => encoded.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    encoded
 }
 
 fn merge_rabbit_queue_samples(
@@ -218,7 +247,7 @@ async fn sample_postgres_locks(pool: &PgPool) -> Result<PostgresLockSnapshot> {
     let row = sqlx::query(
         r#"
         SELECT
-          COUNT(*) FILTER (WHERE wait_event_type = 'Lock')::bigint AS waiting_sessions,
+          COUNT(DISTINCT pid) FILTER (WHERE wait_event_type = 'Lock')::bigint AS waiting_sessions,
           COUNT(DISTINCT blocker_pid)::bigint AS blocking_sessions,
           COALESCE(
             MAX(
@@ -318,7 +347,8 @@ fn log_sampler_error(name: &str, err: &anyhow::Error) {
 mod tests {
     use super::{
         job_pressure_snapshot_from_values, merge_rabbit_queue_samples, monitored_rabbit_queues,
-        postgres_lock_snapshot_from_values, QueueDescriptor, RabbitQueueResponse,
+        postgres_lock_snapshot_from_values, rabbit_queues_url, QueueDescriptor,
+        RabbitQueueResponse,
     };
     use crate::config::{AppConfig, AppRole, DatabaseRuntimeEndpointKind, EdgeProvider};
     use std::time::Duration;
@@ -463,6 +493,18 @@ mod tests {
         assert_eq!(samples[0].ready, 0);
         assert_eq!(samples[0].unacked, 0);
         assert_eq!(samples[0].depth, 0);
+    }
+
+    #[test]
+    fn rabbit_queue_requests_are_scoped_to_the_configured_vhost() {
+        assert_eq!(
+            rabbit_queues_url("https://rabbit.example.com/", "/"),
+            "https://rabbit.example.com/api/queues/%2F"
+        );
+        assert_eq!(
+            rabbit_queues_url("https://rabbit.example.com", "tenant-a"),
+            "https://rabbit.example.com/api/queues/tenant-a"
+        );
     }
 
     #[test]
