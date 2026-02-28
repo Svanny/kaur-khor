@@ -1,8 +1,13 @@
 use super::{outbox, publisher, schema::SchemaError};
-use crate::{config::AppConfig, observability::metrics};
+use crate::{
+    config::AppConfig,
+    observability::{metrics, propagation},
+};
 use anyhow::Result;
+use opentelemetry::Context;
 use sqlx::PgPool;
 use std::{future::Future, time::Duration};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RelayStats {
@@ -24,32 +29,54 @@ pub async fn relay_once(pool: &PgPool, cfg: &AppConfig) -> Result<RelayStats> {
 
         stats.processed += 1;
 
-        let event = row.to_event_record();
-        match publisher::publish_in_tx(&mut tx, &event).await {
-            Ok(event_log_id) => {
-                outbox::mark_published_tx(&mut tx, row.id, event_log_id).await?;
-                stats.published += 1;
-            }
-            Err(err) => {
-                let is_schema_error = err.downcast_ref::<SchemaError>().is_some();
-                let retry_delay = compute_retry_delay(
-                    row.attempt_count,
-                    cfg.event_relay_retry_backoff,
-                    cfg.event_relay_max_backoff,
+        let parent = propagation::extract_context_from_metadata(&row.metadata);
+        let correlation_id = row.correlation_id.as_deref().unwrap_or("unknown");
+        let span = tracing::info_span!(
+            "event.relay.publish",
+            correlation_id = %correlation_id,
+            stream_name = %row.stream_name,
+            event_type = %row.event_type,
+            producer_service = %row.producer_service,
+            topic_name = %row.topic_name,
+            publish_key = %row.publish_key
+        );
+        span.set_parent(parent);
+
+        {
+            let _entered = span.enter();
+            let mut event = row.to_event_record();
+            if propagation::metadata_has_trace_context(&row.metadata) {
+                event.metadata = propagation::merge_observability_metadata(
+                    &event.metadata,
+                    propagation::observability_payload(correlation_id, &Context::current()),
                 );
-                let blocked = outbox::mark_failed_or_blocked_tx(
-                    &mut tx,
-                    &row,
-                    &err.to_string(),
-                    cfg.event_relay_block_after_attempts as i32,
-                    retry_delay,
-                    is_schema_error,
-                )
-                .await?;
-                if blocked {
-                    stats.blocked += 1;
-                } else {
-                    stats.failed += 1;
+            }
+            match publisher::publish_in_tx(&mut tx, &event).await {
+                Ok(event_log_id) => {
+                    outbox::mark_published_tx(&mut tx, row.id, event_log_id).await?;
+                    stats.published += 1;
+                }
+                Err(err) => {
+                    let is_schema_error = err.downcast_ref::<SchemaError>().is_some();
+                    let retry_delay = compute_retry_delay(
+                        row.attempt_count,
+                        cfg.event_relay_retry_backoff,
+                        cfg.event_relay_max_backoff,
+                    );
+                    let blocked = outbox::mark_failed_or_blocked_tx(
+                        &mut tx,
+                        &row,
+                        &err.to_string(),
+                        cfg.event_relay_block_after_attempts as i32,
+                        retry_delay,
+                        is_schema_error,
+                    )
+                    .await?;
+                    if blocked {
+                        stats.blocked += 1;
+                    } else {
+                        stats.failed += 1;
+                    }
                 }
             }
         }

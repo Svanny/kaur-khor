@@ -24,7 +24,10 @@ async fn middleware_prefers_x_correlation_id() {
     let response = reqwest::Client::new()
         .get(format!("http://{addr}/health"))
         .header("x-correlation-id", "corr-from-header")
-        .header("x-request-id", "request-fallback")
+        .header(
+            "traceparent",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        )
         .send()
         .await
         .unwrap();
@@ -40,7 +43,7 @@ async fn middleware_prefers_x_correlation_id() {
 }
 
 #[tokio::test]
-async fn middleware_uses_x_request_id_when_correlation_missing() {
+async fn middleware_falls_back_to_generated_id_when_headers_missing() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
@@ -49,19 +52,18 @@ async fn middleware_uses_x_request_id_when_correlation_missing() {
 
     let response = reqwest::Client::new()
         .get(format!("http://{addr}/health"))
-        .header("x-request-id", "request-id-value")
         .send()
         .await
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(
-        response
-            .headers()
-            .get("x-correlation-id")
-            .and_then(|h| h.to_str().ok()),
-        Some("request-id-value")
-    );
+    let correlation_id = response
+        .headers()
+        .get("x-correlation-id")
+        .and_then(|h| h.to_str().ok())
+        .unwrap();
+    assert_eq!(correlation_id.len(), 32);
+    assert!(correlation_id.chars().all(|c| c.is_ascii_hexdigit()));
 }
 
 #[tokio::test]

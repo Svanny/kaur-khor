@@ -4,6 +4,7 @@ use crate::config::AppConfig;
 use crate::observability::{metrics, propagation};
 use anyhow::Result;
 use sqlx::PgPool;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub async fn relay_once<P: ConfirmingPublisher>(
     pool: &PgPool,
@@ -18,21 +19,40 @@ pub async fn relay_once<P: ConfirmingPublisher>(
 
     let mut published = 0usize;
     for row in &rows {
-        let mut headers = super::publisher::MessageHeaders::new();
-        headers.insert(
-            "x-correlation-id".to_string(),
-            row.envelope.correlation_id.clone(),
+        let parent = propagation::extract_context_from_metadata(&row.metadata);
+        let span = tracing::info_span!(
+            "job.relay.publish",
+            correlation_id = %row.envelope.correlation_id,
+            workload_class = %row.envelope.workload_class.as_str(),
+            job_type = %row.envelope.job_type,
+            producer_service = %row.envelope.producer_service,
+            routing_key = %row.routing_key
         );
-        propagation::inject_current_context_to_map(&mut headers);
+        span.set_parent(parent);
 
-        let publish_res = publisher
-            .publish_with_confirm(
-                &cfg.rabbit_exchange_jobs,
-                &row.routing_key,
-                &row.envelope,
-                &headers,
-            )
-            .await;
+        let publish_res = {
+            let _entered = span.enter();
+            let mut headers = super::publisher::MessageHeaders::new();
+            headers.insert(
+                "x-correlation-id".to_string(),
+                row.envelope.correlation_id.clone(),
+            );
+            if propagation::metadata_has_trace_context(&row.metadata) {
+                propagation::inject_current_context_to_map(&mut headers);
+                headers.insert(
+                    "x-correlation-id".to_string(),
+                    row.envelope.correlation_id.clone(),
+                );
+            }
+            publisher
+                .publish_with_confirm(
+                    &cfg.rabbit_exchange_jobs,
+                    &row.routing_key,
+                    &row.envelope,
+                    &headers,
+                )
+                .await
+        };
 
         match publish_res {
             Ok(_) => {

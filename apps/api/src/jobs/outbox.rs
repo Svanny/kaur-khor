@@ -3,9 +3,14 @@ use super::{
     types::{JobEnvelope, WorkloadClass},
 };
 use anyhow::{anyhow, Result};
+use serde_json::Value;
 use sqlx::{Postgres, Row, Transaction};
 
-pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, job: &JobRecord) -> Result<i64> {
+pub async fn enqueue_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    job: &JobRecord,
+    metadata: &Value,
+) -> Result<i64> {
     validate_record(job)?;
 
     let inserted_or_matched = sqlx::query(
@@ -21,11 +26,12 @@ pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, job: &JobRecord) -> 
           aggregate_type,
           aggregate_id,
           causation_id,
+          metadata,
           payload,
           attempt,
           status,
           updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, 'pending', NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1, 'pending', NOW())
         ON CONFLICT (enqueue_key)
         DO UPDATE
         SET updated_at = NOW()
@@ -38,6 +44,7 @@ pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, job: &JobRecord) -> 
           AND app.job_outbox.aggregate_type = EXCLUDED.aggregate_type
           AND app.job_outbox.aggregate_id = EXCLUDED.aggregate_id
           AND app.job_outbox.causation_id = EXCLUDED.causation_id
+          AND app.job_outbox.metadata = EXCLUDED.metadata
           AND app.job_outbox.payload = EXCLUDED.payload
         RETURNING id
         "#,
@@ -52,6 +59,7 @@ pub async fn enqueue_tx(tx: &mut Transaction<'_, Postgres>, job: &JobRecord) -> 
     .bind(&job.aggregate_type)
     .bind(&job.aggregate_id)
     .bind(&job.causation_id)
+    .bind(metadata)
     .bind(&job.payload)
     .fetch_optional(&mut **tx)
     .await?;
@@ -114,6 +122,7 @@ pub async fn claim_pending_batch(
           o.aggregate_type,
           o.aggregate_id,
           o.causation_id,
+          o.metadata,
           o.payload,
           o.attempt
         "#,
@@ -131,6 +140,7 @@ pub struct JobOutboxRow {
     pub id: i64,
     pub envelope: JobEnvelope,
     pub routing_key: String,
+    pub metadata: Value,
 }
 
 impl JobOutboxRow {
@@ -146,6 +156,7 @@ impl JobOutboxRow {
         Ok(Self {
             id: row.get("id"),
             routing_key: row.get("routing_key"),
+            metadata: row.get("metadata"),
             envelope: JobEnvelope {
                 message_id: row.get("enqueue_key"),
                 correlation_id: row.get("correlation_id"),

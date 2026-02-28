@@ -85,7 +85,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 
 #### Walls, the service layer upgrades that prevent slow decay
 
-7. Rate limiting and abuse controls in the API layer
+7. [DONE] Rate limiting and abuse controls in the API layer
    Implement per user and per device limits, plus backpressure behavior when RabbitMQ is unhealthy and Kafka is unhealthy only if the optional Kafka track is enabled. Done means overload degrades gracefully and does not cascade.
 
 8. End to end tracing across API, relay, consumers, and workers

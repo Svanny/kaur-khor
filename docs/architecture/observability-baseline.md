@@ -20,13 +20,27 @@ No OTEL log pipeline is enabled in this phase.
 - Trace continuity: `traceparent`, `tracestate`, `baggage`
 - Incoming correlation precedence:
   1. `x-correlation-id`
-  2. `x-request-id`
-  3. trace id from current context
-  4. generated UUID
+  2. trace id extracted from valid `traceparent`
+  3. generated UUID
 - HTTP responses always include `x-correlation-id`.
+- Persisted observability metadata lives only under `metadata.observability`.
+- Allowed persisted keys:
+  - `x-correlation-id`
+  - `traceparent`
+  - `tracestate`
+  - optional `baggage`
+- Missing optional keys are omitted, never stored as empty strings.
+- Length caps:
+  - `x-correlation-id`: 64
+  - `traceparent`: 128
+  - `tracestate`: 512
+  - `baggage`: 512
 - Rabbit publish/consume must carry:
   - `x-correlation-id`
   - W3C trace headers
+- AMQP `correlation_id` must match the envelope `correlation_id`.
+- Relay runtimes reconstruct async parent context from persisted metadata, not from ambient loop context.
+- Future Kafka publication reuses the same header names but remains disabled in this milestone.
 - Structured logs include:
   - `correlation_id`, `trace_id`, `span_id`, `deployment_id`, `service`, `env`
 
@@ -48,6 +62,7 @@ Application metrics:
 Hard constraints:
 - `http.route` must use templated route labels, never raw paths.
 - `job_type`, `workload_class`, `consumer_name`, `stream_name` come from bounded sets.
+- Trace span attributes must not include raw payloads, aggregate ids, user ids, or object keys.
 - Never use user ids, payload fields, or free-text errors as metric labels.
 
 ## Configuration Contract
@@ -65,4 +80,3 @@ Compatibility alias:
 - `OTEL_HEADERS` fallback when `OTEL_EXPORTER_OTLP_HEADERS` is unset.
 
 If `OTEL_ENABLED=true`, endpoint + headers are mandatory.
-
