@@ -2,8 +2,8 @@
   "theme": "base",
   "flowchart": {
     "curve": "basis",
-    "nodeSpacing": 46,
-    "rankSpacing": 62,
+    "nodeSpacing": 42,
+    "rankSpacing": 60,
     "htmlLabels": true
   },
   "themeVariables": {
@@ -20,148 +20,165 @@ flowchart TB
 
 subgraph L0["0) How To Read"]
   direction LR
-  legend_active["Solid arrow = active path"]
-  legend_planned["Dashed arrow = planned or disabled"]
-  legend_store[("Durable data store")]
-  legend_async{"Async boundary / broker"}
-  legend_control["Contract, policy, or tooling"]
-  legend_active --> legend_store
-  legend_control --> legend_async
-  legend_planned -.-> legend_async
+  legend_active["Solid arrow = active runtime/data path"]
+  legend_planned["Dashed arrow = staged or not yet wired"]
+  legend_store[("Durable store / external system")]
+  legend_role["Runtime role / process"]
+  legend_contract["Contract, policy, or bounded control"]
+  legend_active --> legend_role
+  legend_role --> legend_store
+  legend_planned -.-> legend_contract
 end
 
-subgraph L1["1) Product Surface (Flutter)"]
+subgraph L1["1) Product Surface (Flutter Prototype)"]
   direction TB
-  banji_app["<b>BanjiApp</b><br/>bootstrap in lib/main.dart"]
-  app_scopes["App scopes<br/>LocaleController<br/>CurrencyController<br/>InventoryController"]
-  home_view["HomeView"]
-  inventory_views["Inventory routes<br/>ViewAll, SKU/Service detail<br/>UpdateStock, ProductRanking"]
+  app_shell["<b>BanjiApp</b><br/>lib/main.dart"]
+  app_scopes["App-local scopes<br/>LocaleController<br/>CurrencyController<br/>InventoryController"]
+  home_view["HomeView<br/>dashboard shell + navigation"]
+  inventory_flows["Inventory flows<br/>ViewAll, SKU/Service detail<br/>UpdateStock, ProductRanking"]
   settings_view["SettingsView<br/>language + currency"]
-  seed_state["Current local runtime model<br/>InventoryState.initial() seeded lists"]
-  sec_utils["Security helpers<br/>security_validators.dart + id_generator.dart"]
-  flutter_to_api["Planned Flutter -> API integration"]
-  banji_app --> app_scopes --> home_view
-  home_view --> inventory_views
+  local_state["In-memory seed state<br/>InventoryState.initial()<br/>4 SKUs + 2 services"]
+  l10n_display["Localization + display helpers<br/>en/km + USD/KHR labels"]
+  shared_helpers["Shared safety helpers<br/>security_validators.dart<br/>security_limits.dart<br/>id_generator.dart"]
+  frontend_gap["Frontend API/data sync<br/>not wired yet"]
+  app_shell --> app_scopes --> home_view
+  home_view --> inventory_flows
   home_view --> settings_view
-  app_scopes --> seed_state
-  inventory_views --> sec_utils
-  inventory_views -. planned integration .-> flutter_to_api
+  app_scopes --> local_state
+  inventory_flows --> l10n_display
+  inventory_flows --> shared_helpers
+  inventory_flows -. planned integration .-> frontend_gap
 end
 
-subgraph L2["2) API Ingress + Runtime (apps/api)"]
+subgraph L2["2) Client Access + Edge Ingress"]
   direction TB
-  callers["Client callers"]
-  ingress["Ingress policy<br/>dev: direct<br/>staging/prod: Cloudflare edge-enforced"]
-  env_contract["Runtime env templates<br/>config/env/dev|staging|prod.env"]
-  app_cfg["AppConfig::from_env<br/>startup validation + redacted debug"]
-  api["<b>Axum API</b><br/>/health<br/>/v1/write-demo"]
-  middleware["Locked middleware chain<br/>origin guard -> size limit -> rate limit -> CORS -> observability"]
-  db_pool["SQLx pool lifecycle<br/>build -> warmup SELECT 1 -> graceful close"]
-  idempotency["Idempotency flow<br/>x-caller-id + idempotency-key<br/>check_or_claim_tx + complete_tx"]
-  singleflight["In-process singleflight locks"]
-  redis["Redis optional cache/coordination<br/>fail-open + timeout/circuit controls"]
-  write_tx["write-demo transaction boundary"]
-  callers --> ingress --> api
-  env_contract --> app_cfg --> api
-  api --> middleware --> idempotency
-  api --> db_pool --> write_tx
+  operators["Operators / browser / future mobile client"]
+  cloudflare["Cloudflare front door<br/>required in staging/prod"]
+  dev_direct["Dev direct access<br/>no Cloudflare requirement"]
+  edge_chain["Locked ingress order<br/>origin guard -> request-size limit -> CORS -> observability"]
+  route_chain["Application route chain<br/>auth -> identity(device id)<br/>backpressure -> rate limit -> handlers"]
+  operators --> cloudflare --> edge_chain --> route_chain
+  operators -. dev .-> dev_direct --> edge_chain
+end
+
+subgraph L3["3) API Runtime (APP_ROLE=api)"]
+  direction TB
+  env_cfg["AppConfig::from_env<br/>startup validation + redacted config debug"]
+  api_runtime["<b>Axum API</b><br/>/health<br/>POST /v1/items<br/>GET /v1/items/:item_id<br/>POST /v1/write-demo"]
+  auth_scope["JWT auth + owner scope<br/>device-id required on /v1/*"]
+  idempotency["Idempotency contract<br/>Postgres correctness gate<br/>request hash by method + route + body"]
+  singleflight["In-process singleflight<br/>hot-key suppression"]
+  redis["Redis fail-open helper<br/>rate-limit + cache + coordination"]
+  db_pool["SQLx runtime pool<br/>warmup SELECT 1<br/>PgBouncer transaction mode in staging/prod"]
+  read_path["Current read path<br/>GET /v1/items reads canonical table<br/>not projection yet"]
+  route_chain --> auth_scope --> api_runtime
+  env_cfg --> api_runtime
+  api_runtime --> idempotency
   idempotency --> singleflight
   idempotency --> redis
-  idempotency --> write_tx
+  auth_scope --> redis
+  api_runtime --> db_pool
+  api_runtime --> read_path
 end
 
-subgraph L3["3) Data + Messaging Backbone"]
+subgraph L4["4) Canonical Postgres Write Path"]
   direction TB
-  pg_core[("Postgres app schema<br/>idempotency_request<br/>event_log<br/>job_outbox<br/>event_consumer_checkpoint")]
-  outbox_relay["Outbox relay<br/>claim -> publish_with_confirm -> mark_sent"]
-  rabbit["RabbitMQ quorum topology<br/>fast-jobs + heavy-jobs"]
-  workers["Workers / consumers<br/>ack only after confirmed handoff"]
-  retry["Retry ladder<br/>retry.1 30s -> retry.2 5m -> retry.3 30m"]
-  dlq["DLQ (*.dlq)"]
-  replay["Replay tooling<br/>copy-first replay + scoped cleanup"]
-  event_consumer["Event consumers<br/>ORDER BY id ASC + checkpoints + lag"]
-  event_archive["Event archive/prune<br/>JSONL export + eligible_max_id gates"]
+  write_tx["Single request transaction<br/>validate -> canonical write<br/>enqueue async intent -> complete idempotency"]
+  pg_core[("Postgres app schema<br/>inventory_item<br/>idempotency_request")]
+  event_outbox[("app.event_outbox<br/>event intent in same tx")]
+  job_outbox[("app.job_outbox<br/>job enqueue intent in same tx")]
+  job_tables[("Job accountability tables<br/>job_run<br/>job_run_attempt<br/>job_result<br/>job_delivery_violation")]
+  projection_table[("app.inventory_item_projection<br/>derived read model")]
+  backfill_table[("app.backfill_run<br/>audited replay/backfill state")]
+  artifact_meta[("Artifact metadata only<br/>object_artifact<br/>job_result_artifact")]
+  api_runtime --> write_tx
   write_tx --> pg_core
-  pg_core --> outbox_relay --> rabbit
-  rabbit --> workers --> pg_core
-  workers --> retry --> rabbit
-  workers --> dlq
-  retry --> dlq
-  dlq --> replay --> rabbit
-  pg_core --> event_consumer --> pg_core
-  pg_core --> event_archive
+  write_tx --> event_outbox
+  write_tx --> job_outbox
+  write_tx --> job_tables
+  read_path --> pg_core
 end
 
-subgraph L4["4) Observability + Logging"]
+subgraph L5["5) Async Runtime Roles"]
   direction TB
-  otel_http["HTTP observability middleware<br/>x-correlation-id + W3C trace propagation"]
-  db_metrics["DB metric sampler<br/>pool size, idle, acquire failures"]
-  msg_headers["Message headers<br/>x-correlation-id + traceparent/tracestate/baggage"]
-  collector["OTel Collector<br/>tool/otel/collector.yaml<br/>batch + memory_limiter"]
+  event_relay["<b>APP_ROLE=event-relay</b><br/>claim event_outbox batch<br/>publish to event_log by publish_key"]
+  projection_consumer["<b>APP_ROLE=projection-consumer</b><br/>single active consumer<br/>continuous | replay-preview | replay-apply"]
+  worker["<b>APP_ROLE=worker</b><br/>relay job_outbox -> RabbitMQ<br/>consume primary + replay queues<br/>attempt lease + heartbeat + retries"]
+  backfill["<b>APP_ROLE=backfill-controller</b><br/>projection replay + job backfill<br/>primary or restore DB"]
+  event_outbox --> event_relay
+  job_outbox --> worker
+  event_log --> projection_consumer
+  projection_consumer --> projection_table
+  event_log --> backfill
+  backfill --> backfill_table
+  backfill --> projection_table
+  backfill --> job_outbox
+end
+
+subgraph L6["6) Messaging + Durable Stores"]
+  direction TB
+  event_log[("app.event_log<br/>append-only audit + replay stream")]
+  checkpoints[("app.event_consumer_checkpoint<br/>cursor + lag state")]
+  rabbit["RabbitMQ quorum topology<br/>fast-jobs | heavy-jobs<br/>retry.1/2/3 | *.dlq | replay exchange"]
+  object_store[("S3-compatible object storage<br/>heavy worker artifacts")]
+  event_archive[("Object-storage JSONL archive<br/>export before prune")]
+  restore_db[("Restore database<br/>*_restore validation target")]
+  event_relay --> event_log
+  projection_consumer --> checkpoints
+  worker --> rabbit
+  rabbit --> worker
+  worker --> job_tables
+  worker --> object_store
+  object_store --> artifact_meta
+  event_log --> event_archive
+  backfill --> restore_db
+end
+
+subgraph L7["7) Observability + Delivery + Operations"]
+  direction TB
+  corr_trace["Trace + correlation contract<br/>x-correlation-id<br/>traceparent/tracestate/baggage"]
+  otel["OTel collector<br/>batch + memory_limiter"]
   grafana["Grafana Cloud OTLP sink<br/>traces + metrics"]
-  platform_logs["Platform logs (primary)<br/>Railway / log drain"]
-  audit_stream[("Postgres event_log<br/>audit/replay stream<br/>not primary ops log sink")]
-  api --> otel_http --> collector
-  db_pool --> db_metrics --> collector
-  outbox_relay --> msg_headers --> collector
-  workers --> msg_headers
-  collector --> grafana
-  api --> platform_logs
-  workers --> platform_logs
-  event_consumer --> platform_logs
-  pg_core --> audit_stream
+  platform_logs["Platform-first operational logs<br/>Railway / log drain"]
+  runtime_topology["Role topology contract<br/>api | event-relay<br/>projection-consumer | worker<br/>backfill-controller on demand"]
+  release_flow["Release flow<br/>migrate_with_lock -> deploy event-relay<br/>-> projection-consumer -> worker -> api<br/>-> verify same-revision parity"]
+  edge_ops["Cloudflare apply/verify<br/>fingerprint-based drift checks"]
+  maintenance["Maintenance runbooks<br/>event archive/prune<br/>restore drills<br/>DLQ triage + replay"]
+  api_runtime --> corr_trace
+  event_relay --> corr_trace
+  projection_consumer --> corr_trace
+  worker --> corr_trace
+  backfill --> corr_trace
+  corr_trace --> otel --> grafana
+  api_runtime --> platform_logs
+  event_relay --> platform_logs
+  projection_consumer --> platform_logs
+  worker --> platform_logs
+  backfill --> platform_logs
+  release_flow --> runtime_topology
+  release_flow --> edge_ops
+  release_flow --> cloudflare
+  maintenance --> event_archive
+  maintenance --> restore_db
+  maintenance --> rabbit
 end
 
-subgraph L5["5) Delivery + Operations"]
-  direction TB
-  workflows["Disabled workflow templates<br/>rust-ci, deploy, release-build<br/>event-log-maintenance, postgres-restore-drill"]
-  release_contract["Release contract<br/>migration lock -> migrate -> deploy digest -> traffic shift"]
-  restore_flow["Restore drill template<br/>scheduled prod -> staging_restore<br/>manual dev|staging|prod (prod confirmation)"]
-  restore_script["tool/db/restore_validate.sh"]
-  validate_sql["tool/db/validate_restore.sql"]
-  restore_db[("Restore target DB<br/>must end with _restore")]
-  drill_artifacts["Artifacts<br/>report_<env>.json + validate_<env>.txt"]
-  edge_tools["Edge apply/verify scripts<br/>tool/edge/cloudflare_apply.sh<br/>tool/edge/cloudflare_verify.sh"]
-  security_gate["Security gate<br/>tool/security/run_security_checks.sh"]
-  workflows -. disabled .-> release_contract
-  workflows -. disabled .-> restore_flow
-  restore_flow --> restore_script --> validate_sql
-  restore_script --> restore_db
-  validate_sql --> restore_db
-  validate_sql --> drill_artifacts
-  release_contract --> edge_tools
-  release_contract --> security_gate
-end
-
-subgraph L6["6) Planned / Future Track (Non-Active)"]
-  direction TB
-  kafka["Kafka transport option<br/>currently replaced by Postgres event_log"]
-  shard_model["Consumer claim/sharding model<br/>for horizontal scale"]
-  partition_trigger["Partitioning ADR trigger<br/>event_log > 50 GB OR prune > 1M/day for 7 days"]
-  service_split["Potential service split<br/>outbox-relay / projection-consumer / scheduler"]
-  otel_logs["OTEL logs pipeline (future)<br/>currently disabled"]
-  flutter_to_api -. planned rollout .-> api
-  pg_core -. future mirror .-> kafka
-  event_consumer -. future scaling .-> shard_model
-  event_archive -. scale trigger .-> partition_trigger
-  api -. future deploy shape .-> service_split
-  collector -. future option .-> otel_logs
-end
+frontend_gap -. planned rollout .-> api_runtime
 
 linkStyle default stroke:#475569,stroke-width:1.25px,opacity:0.95;
 
 classDef app fill:#fff7ed,stroke:#ea580c,stroke-width:1.5px,color:#0f172a;
-classDef db fill:#ecfdf5,stroke:#16a34a,stroke-width:1.5px,color:#0f172a;
-classDef mq fill:#eff6ff,stroke:#2563eb,stroke-width:1.5px,color:#0f172a;
+classDef runtime fill:#eff6ff,stroke:#2563eb,stroke-width:1.5px,color:#0f172a;
+classDef store fill:#ecfdf5,stroke:#16a34a,stroke-width:1.5px,color:#0f172a;
+classDef broker fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px,color:#0f172a;
 classDef ops fill:#fefce8,stroke:#a16207,stroke-width:1.5px,color:#0f172a;
-classDef obs fill:#e0f2fe,stroke:#0284c7,stroke-width:1.5px,color:#0f172a;
 classDef control fill:#f8fafc,stroke:#64748b,stroke-width:1.5px,color:#0f172a;
 classDef planned fill:#f1f5f9,stroke:#475569,stroke-width:1.5px,stroke-dasharray:5 4,color:#0f172a;
 
-class banji_app,app_scopes,home_view,inventory_views,settings_view,seed_state,sec_utils,callers,api,idempotency,singleflight,write_tx,outbox_relay,workers,event_consumer app;
-class pg_core,restore_db,audit_stream db;
-class rabbit,retry,dlq,replay mq;
-class release_contract,restore_script,validate_sql,drill_artifacts,edge_tools,security_gate ops;
-class otel_http,db_metrics,msg_headers,collector,grafana,platform_logs obs;
-class legend_active,legend_planned,legend_store,legend_async,legend_control,ingress,env_contract,app_cfg,middleware,db_pool,redis,event_archive control;
-class workflows,restore_flow,flutter_to_api,kafka,shard_model,partition_trigger,service_split,otel_logs planned;
+class app_shell,app_scopes,home_view,inventory_flows,settings_view,local_state,l10n_display,shared_helpers app;
+class operators,cloudflare,dev_direct,api_runtime,event_relay,projection_consumer,worker,backfill runtime;
+class pg_core,event_outbox,job_outbox,job_tables,projection_table,backfill_table,artifact_meta,event_log,checkpoints,object_store,event_archive,restore_db store;
+class rabbit broker;
+class release_flow,edge_ops,maintenance,grafana,platform_logs ops;
+class legend_active,legend_planned,legend_store,legend_role,legend_contract,edge_chain,route_chain,env_cfg,auth_scope,idempotency,singleflight,redis,db_pool,read_path,write_tx,corr_trace,otel,runtime_topology control;
+class frontend_gap planned;
