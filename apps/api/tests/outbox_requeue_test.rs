@@ -10,9 +10,17 @@ use banji_api::{
         types::{JobEnvelope, WorkloadClass},
     },
 };
-use std::{env, time::Duration};
+use std::{
+    env,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 struct FailingPublisher;
+#[derive(Clone, Default)]
+struct RecordingPublisher {
+    published: Arc<Mutex<Vec<(JobEnvelope, banji_api::jobs::publisher::MessageHeaders)>>>,
+}
 
 #[async_trait]
 impl ConfirmingPublisher for FailingPublisher {
@@ -24,6 +32,23 @@ impl ConfirmingPublisher for FailingPublisher {
         _headers: &banji_api::jobs::publisher::MessageHeaders,
     ) -> Result<()> {
         Err(anyhow!("broker unavailable"))
+    }
+}
+
+#[async_trait]
+impl ConfirmingPublisher for RecordingPublisher {
+    async fn publish_with_confirm(
+        &self,
+        _exchange: &str,
+        _routing_key: &str,
+        envelope: &JobEnvelope,
+        headers: &banji_api::jobs::publisher::MessageHeaders,
+    ) -> Result<()> {
+        self.published
+            .lock()
+            .unwrap()
+            .push((envelope.clone(), headers.clone()));
+        Ok(())
     }
 }
 
@@ -151,7 +176,9 @@ async fn relay_publish_failures_are_requeued_as_pending() {
     )
     .unwrap();
     assert_eq!(job.job_key, enqueue_key);
-    let row_id = outbox::enqueue_tx(&mut tx, &job).await.unwrap();
+    let row_id = outbox::enqueue_tx(&mut tx, &job, &serde_json::json!({}))
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     let cfg = test_cfg(db_url);
@@ -171,4 +198,126 @@ async fn relay_publish_failures_are_requeued_as_pending() {
     assert!(last_error
         .unwrap_or_default()
         .contains("broker unavailable"));
+}
+
+#[tokio::test]
+async fn relay_uses_persisted_observability_headers_when_present() {
+    let Some(db_url) = env::var("DATABASE_RUNTIME_URL").ok() else {
+        eprintln!("Skipping test: DATABASE_RUNTIME_URL not set");
+        return;
+    };
+
+    let pool = sqlx::PgPool::connect(&db_url).await.unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+
+    let enqueue_key = banji_api::jobs::key::derive_job_key(
+        "api",
+        "write-demo",
+        "write-demo",
+        "caller-relay:relay-observability",
+        "idem-relay-observability",
+    );
+    sqlx::query("DELETE FROM app.job_outbox WHERE enqueue_key = $1")
+        .bind(&enqueue_key)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let mut tx = pool.begin().await.unwrap();
+    let job = build_write_demo_job_v1(
+        "api".to_string(),
+        "relay-observability".to_string(),
+        "caller-relay".to_string(),
+        "idem-relay-observability".to_string(),
+        "corr-relay-observability".to_string(),
+        4,
+    )
+    .unwrap();
+    outbox::enqueue_tx(
+        &mut tx,
+        &job,
+        &serde_json::json!({
+            "observability": {
+                "x-correlation-id": "corr-relay-observability",
+                "traceparent": "00-22222222222222222222222222222222-00f067aa0ba902b7-01"
+            }
+        }),
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let publisher = RecordingPublisher::default();
+    let cfg = test_cfg(db_url);
+    let published = relay_once(&pool, &cfg, WorkloadClass::Fast, &publisher, 10)
+        .await
+        .unwrap();
+    assert_eq!(published, 1);
+
+    let published = publisher.published.lock().unwrap();
+    assert_eq!(published.len(), 1);
+    assert_eq!(published[0].0.correlation_id, "corr-relay-observability");
+    assert_eq!(
+        published[0].1.get("x-correlation-id").map(String::as_str),
+        Some("corr-relay-observability")
+    );
+    assert_eq!(
+        published[0].1.get("traceparent").map(String::as_str),
+        Some("00-22222222222222222222222222222222-00f067aa0ba902b7-01")
+    );
+}
+
+#[tokio::test]
+async fn relay_keeps_human_correlation_for_legacy_rows_without_w3c_headers() {
+    let Some(db_url) = env::var("DATABASE_RUNTIME_URL").ok() else {
+        eprintln!("Skipping test: DATABASE_RUNTIME_URL not set");
+        return;
+    };
+
+    let pool = sqlx::PgPool::connect(&db_url).await.unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+
+    let enqueue_key = banji_api::jobs::key::derive_job_key(
+        "api",
+        "write-demo",
+        "write-demo",
+        "caller-relay:relay-legacy",
+        "idem-relay-legacy",
+    );
+    sqlx::query("DELETE FROM app.job_outbox WHERE enqueue_key = $1")
+        .bind(&enqueue_key)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let mut tx = pool.begin().await.unwrap();
+    let job = build_write_demo_job_v1(
+        "api".to_string(),
+        "relay-legacy".to_string(),
+        "caller-relay".to_string(),
+        "idem-relay-legacy".to_string(),
+        "corr-relay-legacy".to_string(),
+        4,
+    )
+    .unwrap();
+    outbox::enqueue_tx(&mut tx, &job, &serde_json::json!({}))
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let publisher = RecordingPublisher::default();
+    let cfg = test_cfg(db_url);
+    let published = relay_once(&pool, &cfg, WorkloadClass::Fast, &publisher, 10)
+        .await
+        .unwrap();
+    assert_eq!(published, 1);
+
+    let published = publisher.published.lock().unwrap();
+    assert_eq!(published.len(), 1);
+    assert_eq!(published[0].0.correlation_id, "corr-relay-legacy");
+    assert_eq!(
+        published[0].1.get("x-correlation-id").map(String::as_str),
+        Some("corr-relay-legacy")
+    );
+    assert!(!published[0].1.contains_key("traceparent"));
 }
