@@ -417,7 +417,9 @@ async fn run_jobs_backfill(
                 after_id = max_seen_id;
             }
 
-            repository::mark_run_waiting(pool, run.id, None).await?;
+            if cfg.wait_for_workers {
+                repository::mark_run_waiting(pool, run.id, None).await?;
+            }
         }
 
         Ok(())
@@ -430,7 +432,11 @@ async fn run_jobs_backfill(
     }
 
     if !cfg.wait_for_workers {
-        finalize_jobs_run_if_idle(pool, run.id).await?;
+        if run.status != BackfillRunStatus::Waiting.as_str() {
+            repository::finish_run(pool, run.id, BackfillRunStatus::Succeeded, None).await?;
+        } else {
+            finalize_jobs_run_if_idle(pool, run.id).await?;
+        }
         return Ok(());
     }
 

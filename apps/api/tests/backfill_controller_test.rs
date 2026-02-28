@@ -361,9 +361,9 @@ async fn jobs_apply_schedules_replay_scoped_job_rows() {
     let run_status: String = run.get("status");
     let enqueued_job_count: i64 = run.get("enqueued_job_count");
     let finished_at: Option<time::OffsetDateTime> = run.get("finished_at");
-    assert_eq!(run_status, "waiting");
+    assert_eq!(run_status, "succeeded");
     assert_eq!(enqueued_job_count, 1);
-    assert!(finished_at.is_none());
+    assert!(finished_at.is_some());
 
     let job_run = sqlx::query(
         r#"
