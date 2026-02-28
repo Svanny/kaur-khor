@@ -26,10 +26,20 @@ Each merge to `main` must:
 - Promotion flow: staging then approved production.
 - One deployment at a time per environment via workflow concurrency.
 - Migration is a required pre-rollout step in each environment (`sqlx migrate run`).
+- `staging` and `prod` must each deploy the same runtime role set:
+  - `api`
+  - `event-relay`
+  - `projection-consumer`
+  - `worker`
+- Every role in an environment must run the same pinned `IMAGE_REF` digest.
 - Deploy sequencing is explicit and mandatory:
   1. run migrations (single runner with advisory lock)
-  2. deploy API image
-  3. finalize traffic shift
+  2. deploy `event-relay`
+  3. deploy `projection-consumer`
+  4. deploy `worker`
+  5. deploy `api`
+  6. verify same-image parity across roles
+  7. finalize traffic shift
 - If migrations fail or do not run, deployment must abort before rollout.
 
 ## Database and Migration Safety
@@ -88,13 +98,18 @@ For each deployable Railway service:
   - `EDGE_CORS_ALLOWED_ORIGINS` is present
   - `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ZONE_ID` are present for verification
 - Deploy preflight must run `tool/edge/cloudflare_verify.sh` against the target environment fingerprint.
+- Deploy preflight must run `tool/ci/check_topology_parity.sh` and fail on role-set drift or duplicated Railway service ids.
 - Deploy must verify target Railway service runtime contract variables after inject and before redeploy:
+  - `IMAGE_REF`
+  - `APP_ROLE`
+  - `BANJI_SERVICE`
   - `DATABASE_RUNTIME_ENDPOINT_KIND`
   - `PGBOUNCER_POOL_MODE`
   - `EDGE_ENFORCEMENT_ENABLED`
   - `EDGE_PROVIDER`
   - `EDGE_ORIGIN_AUTH_HEADER_NAME`
   - `EDGE_CORS_ALLOWED_ORIGINS`
+- Deploy must also enforce role-specific forbidden variables so least-privilege secrets are not sprayed across services.
 - If Railway runtime values cannot be read or differ from expected deploy inputs, deployment must fail closed.
 
 ## Runtime Readiness and Drain Contract
@@ -151,6 +166,7 @@ For each deployable Railway service:
 - DLQ replay is copy-first and operator-audited; destructive cleanup is a separate explicit step.
 - Worker startup contract:
   - `APP_ROLE=worker` requires `DATABASE_RUNTIME_URL`, `RABBIT_URL`, and object-storage config/secrets
+  - `ALGORITHM_ROLLOUT_HASH_SALT` and `ALGORITHM_ROLLOUT_HASH_SALT_VERSION` are required in `staging` and `prod`
   - `JOB_RESULT_KAFKA_ENABLED=true` must fail startup until a future Kafka publisher milestone exists
 - Replay queue consumers must use `RABBIT_REPLAY_PREFETCH_FAST` / `RABBIT_REPLAY_PREFETCH_HEAVY`, not the primary queue prefetch values.
 - API backpressure must reject new async-producing writes with `503` + `Retry-After` before opening DB transactions when sampled outbox/run pressure breaches thresholds.

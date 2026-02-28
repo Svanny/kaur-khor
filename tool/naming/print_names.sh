@@ -74,7 +74,7 @@ SYSTEM_SNAKE="$(to_snake "$SYSTEM_KEBAB")"
 ENV_SNAKE="$(to_snake "$ENV_KEBAB")"
 REGION_SNAKE="$(to_snake "$REGION_KEBAB")"
 
-SERVICES_RAW="${BANJI_SERVICES:-api,worker,scheduler}"
+SERVICES_RAW="${BANJI_SERVICES:-api,event-relay,projection-consumer,worker}"
 TOPICS_RAW="${BANJI_TOPICS:-inventory-updated,stock-adjusted,ranking-recomputed}"
 QUEUES_RAW="${BANJI_QUEUES:-stock-update-jobs,ranking-jobs,notification-jobs}"
 EXCHANGES_RAW="${BANJI_EXCHANGES:-events}"

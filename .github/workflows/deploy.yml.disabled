@@ -49,7 +49,6 @@ jobs:
       IMAGE_DIGEST: ${{ inputs.image_digest || github.event.inputs.image_digest }}
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
-      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_SERVICE_ID }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
@@ -58,44 +57,22 @@ jobs:
       EDGE_PROVIDER: cloudflare
       EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
       EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
+      AUTH_ENABLED: "true"
+      AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
+      AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
+      AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
+      RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
+      RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
+      RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
+      RAILWAY_STAGING_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
+      RAILWAY_PROD_API_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
+      RAILWAY_PROD_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_EVENT_RELAY_SERVICE_ID }}
+      RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID }}
+      RAILWAY_PROD_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
-      - name: Preflight required deploy secrets
-        env:
-          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
-          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-          DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
-          PGBOUNCER_POOL_MODE: transaction
-          EDGE_ENFORCEMENT_ENABLED: true
-          EDGE_PROVIDER: cloudflare
-          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
-          EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
-          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
-          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
-          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-        run: |
-          test -n "$DATABASE_MIGRATION_URL" || (echo "missing DATABASE_MIGRATION_URL" >&2; exit 1)
-          test -n "$DATABASE_RUNTIME_URL" || (echo "missing DATABASE_RUNTIME_URL" >&2; exit 1)
-          test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
-          test "$DATABASE_RUNTIME_ENDPOINT_KIND" = "pgbouncer" || (echo "staging deploy requires DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer" >&2; exit 1)
-          test "$PGBOUNCER_POOL_MODE" = "transaction" || (echo "staging deploy requires PGBOUNCER_POOL_MODE=transaction" >&2; exit 1)
-          test "${EDGE_ENFORCEMENT_ENABLED,,}" = "true" || (echo "staging deploy requires EDGE_ENFORCEMENT_ENABLED=true" >&2; exit 1)
-          test "$EDGE_PROVIDER" = "cloudflare" || (echo "staging deploy requires EDGE_PROVIDER=cloudflare" >&2; exit 1)
-          test -n "$EDGE_ORIGIN_AUTH_HEADER_NAME" || (echo "missing EDGE_ORIGIN_AUTH_HEADER_NAME" >&2; exit 1)
-          test -n "$EDGE_ORIGIN_AUTH_SECRET" || (echo "missing EDGE_ORIGIN_AUTH_SECRET" >&2; exit 1)
-          test -n "$EDGE_CORS_ALLOWED_ORIGINS" || (echo "missing EDGE_CORS_ALLOWED_ORIGINS" >&2; exit 1)
-          test -n "$CLOUDFLARE_API_TOKEN" || (echo "missing CLOUDFLARE_API_TOKEN" >&2; exit 1)
-          test -n "$CLOUDFLARE_ZONE_ID" || (echo "missing CLOUDFLARE_ZONE_ID" >&2; exit 1)
-          if [[ "${OTEL_ENABLED,,}" == "true" ]]; then
-            test -n "$OTEL_EXPORTER_OTLP_ENDPOINT" || (echo "missing OTEL_EXPORTER_OTLP_ENDPOINT while OTEL_ENABLED=true" >&2; exit 1)
-            test -n "$OTEL_EXPORTER_OTLP_HEADERS" || (echo "missing OTEL_EXPORTER_OTLP_HEADERS while OTEL_ENABLED=true" >&2; exit 1)
-          fi
-      - name: Assert image reference is digest-pinned
-        run: |
-          [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
+      - name: Check topology parity contract
+        run: bash tool/ci/check_topology_parity.sh
       - name: Verify Cloudflare edge controls (staging)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -118,22 +95,49 @@ jobs:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/migrate_with_lock.sh
-      - name: Verify migration step completed
-        run: |
-          test -f /tmp/staging_migration_applied
-      - name: Deploy exact image digest to Railway staging
+      - name: Deploy staging event-relay
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
+          EXPECTED_APP_ROLE: event-relay
+          EXPECTED_BANJI_SERVICE: event-relay
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/railway_deploy.sh
-      - name: Finalize staging traffic shift
-        run: echo "staging rollout finalized after migration and deploy"
-      - name: Write staging deployment summary
-        run: |
-          {
-            echo "## Staging Deployment";
-            echo "- Commit: \\`$COMMIT_SHA\\`";
-            echo "- Image: \\`$IMAGE_REF\\`";
-            echo "- Digest: \\`$IMAGE_DIGEST\\`";
-            echo "- Migration checksum: \\`$MIGRATION_CHECKSUM\\`";
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Deploy staging projection-consumer
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
+          EXPECTED_APP_ROLE: projection-consumer
+          EXPECTED_BANJI_SERVICE: projection-consumer
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+          EVENT_CONSUMER_SERVICE_NAME: projection-consumer
+          EVENT_CONSUMER_NAME: inventory-projector
+          EVENT_CONSUMER_STREAM_NAME: banji-core.staging.inventory-updated
+        run: bash tool/ci/railway_deploy.sh
+      - name: Deploy staging worker
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
+          EXPECTED_APP_ROLE: worker
+          EXPECTED_BANJI_SERVICE: worker
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+          RABBIT_URL: ${{ secrets.RABBIT_URL }}
+          OBJECT_STORAGE_ENDPOINT: ${{ vars.OBJECT_STORAGE_ENDPOINT }}
+          OBJECT_STORAGE_REGION: ${{ vars.OBJECT_STORAGE_REGION }}
+          OBJECT_STORAGE_BUCKET_ARTIFACTS: ${{ vars.OBJECT_STORAGE_BUCKET_ARTIFACTS }}
+          OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
+          OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
+        run: bash tool/ci/railway_deploy.sh
+      - name: Deploy staging api
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
+          EXPECTED_APP_ROLE: api
+          EXPECTED_BANJI_SERVICE: api
+        run: bash tool/ci/railway_deploy.sh
+      - name: Verify staging image parity
+        env:
+          RAILWAY_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
+          RAILWAY_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
+          RAILWAY_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
+          RAILWAY_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
+        run: bash tool/ci/check_railway_image_parity.sh
 
   deploy-prod:
     runs-on: ubuntu-latest
@@ -147,7 +151,6 @@ jobs:
       IMAGE_DIGEST: ${{ inputs.image_digest || github.event.inputs.image_digest }}
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
-      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_SERVICE_ID }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
@@ -156,44 +159,22 @@ jobs:
       EDGE_PROVIDER: cloudflare
       EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
       EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
+      AUTH_ENABLED: "true"
+      AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
+      AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
+      AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
+      RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
+      RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
+      RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
+      RAILWAY_STAGING_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
+      RAILWAY_PROD_API_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
+      RAILWAY_PROD_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_EVENT_RELAY_SERVICE_ID }}
+      RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID }}
+      RAILWAY_PROD_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
-      - name: Preflight required deploy secrets
-        env:
-          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
-          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-          DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
-          PGBOUNCER_POOL_MODE: transaction
-          EDGE_ENFORCEMENT_ENABLED: true
-          EDGE_PROVIDER: cloudflare
-          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
-          EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
-          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
-          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
-          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-        run: |
-          test -n "$DATABASE_MIGRATION_URL" || (echo "missing DATABASE_MIGRATION_URL" >&2; exit 1)
-          test -n "$DATABASE_RUNTIME_URL" || (echo "missing DATABASE_RUNTIME_URL" >&2; exit 1)
-          test "$DATABASE_MIGRATION_URL" != "$DATABASE_RUNTIME_URL" || (echo "migration and runtime credentials must be distinct" >&2; exit 1)
-          test "$DATABASE_RUNTIME_ENDPOINT_KIND" = "pgbouncer" || (echo "prod deploy requires DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer" >&2; exit 1)
-          test "$PGBOUNCER_POOL_MODE" = "transaction" || (echo "prod deploy requires PGBOUNCER_POOL_MODE=transaction" >&2; exit 1)
-          test "${EDGE_ENFORCEMENT_ENABLED,,}" = "true" || (echo "prod deploy requires EDGE_ENFORCEMENT_ENABLED=true" >&2; exit 1)
-          test "$EDGE_PROVIDER" = "cloudflare" || (echo "prod deploy requires EDGE_PROVIDER=cloudflare" >&2; exit 1)
-          test -n "$EDGE_ORIGIN_AUTH_HEADER_NAME" || (echo "missing EDGE_ORIGIN_AUTH_HEADER_NAME" >&2; exit 1)
-          test -n "$EDGE_ORIGIN_AUTH_SECRET" || (echo "missing EDGE_ORIGIN_AUTH_SECRET" >&2; exit 1)
-          test -n "$EDGE_CORS_ALLOWED_ORIGINS" || (echo "missing EDGE_CORS_ALLOWED_ORIGINS" >&2; exit 1)
-          test -n "$CLOUDFLARE_API_TOKEN" || (echo "missing CLOUDFLARE_API_TOKEN" >&2; exit 1)
-          test -n "$CLOUDFLARE_ZONE_ID" || (echo "missing CLOUDFLARE_ZONE_ID" >&2; exit 1)
-          if [[ "${OTEL_ENABLED,,}" == "true" ]]; then
-            test -n "$OTEL_EXPORTER_OTLP_ENDPOINT" || (echo "missing OTEL_EXPORTER_OTLP_ENDPOINT while OTEL_ENABLED=true" >&2; exit 1)
-            test -n "$OTEL_EXPORTER_OTLP_HEADERS" || (echo "missing OTEL_EXPORTER_OTLP_HEADERS while OTEL_ENABLED=true" >&2; exit 1)
-          fi
-      - name: Assert image reference is digest-pinned
-        run: |
-          [[ "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]] || (echo "image_ref must be digest pinned" >&2; exit 1)
+      - name: Check topology parity contract
+        run: bash tool/ci/check_topology_parity.sh
       - name: Verify Cloudflare edge controls (prod)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -216,19 +197,46 @@ jobs:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/migrate_with_lock.sh
-      - name: Verify migration step completed
-        run: |
-          test -f /tmp/prod_migration_applied
-      - name: Deploy exact image digest to Railway prod
+      - name: Deploy prod event-relay
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_EVENT_RELAY_SERVICE_ID }}
+          EXPECTED_APP_ROLE: event-relay
+          EXPECTED_BANJI_SERVICE: event-relay
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/railway_deploy.sh
-      - name: Finalize prod traffic shift
-        run: echo "prod rollout finalized after migration and deploy"
-      - name: Write prod deployment summary
-        run: |
-          {
-            echo "## Production Deployment";
-            echo "- Commit: \\`$COMMIT_SHA\\`";
-            echo "- Image: \\`$IMAGE_REF\\`";
-            echo "- Digest: \\`$IMAGE_DIGEST\\`";
-            echo "- Migration checksum: \\`$MIGRATION_CHECKSUM\\`";
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Deploy prod projection-consumer
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID }}
+          EXPECTED_APP_ROLE: projection-consumer
+          EXPECTED_BANJI_SERVICE: projection-consumer
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+          EVENT_CONSUMER_SERVICE_NAME: projection-consumer
+          EVENT_CONSUMER_NAME: inventory-projector
+          EVENT_CONSUMER_STREAM_NAME: banji-core.prod.inventory-updated
+        run: bash tool/ci/railway_deploy.sh
+      - name: Deploy prod worker
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
+          EXPECTED_APP_ROLE: worker
+          EXPECTED_BANJI_SERVICE: worker
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
+          RABBIT_URL: ${{ secrets.RABBIT_URL }}
+          OBJECT_STORAGE_ENDPOINT: ${{ vars.OBJECT_STORAGE_ENDPOINT }}
+          OBJECT_STORAGE_REGION: ${{ vars.OBJECT_STORAGE_REGION }}
+          OBJECT_STORAGE_BUCKET_ARTIFACTS: ${{ vars.OBJECT_STORAGE_BUCKET_ARTIFACTS }}
+          OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
+          OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
+        run: bash tool/ci/railway_deploy.sh
+      - name: Deploy prod api
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
+          EXPECTED_APP_ROLE: api
+          EXPECTED_BANJI_SERVICE: api
+        run: bash tool/ci/railway_deploy.sh
+      - name: Verify prod image parity
+        env:
+          RAILWAY_API_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
+          RAILWAY_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_EVENT_RELAY_SERVICE_ID }}
+          RAILWAY_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID }}
+          RAILWAY_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
+        run: bash tool/ci/check_railway_image_parity.sh
