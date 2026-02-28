@@ -96,6 +96,25 @@ if bash "$DEPLOY_SCRIPT" >/dev/null 2>&1; then
   exit 1
 fi
 
+unset EDGE_ENFORCEMENT_ENABLED EDGE_PROVIDER EDGE_ORIGIN_AUTH_HEADER_NAME EDGE_CORS_ALLOWED_ORIGINS
+unset AUTH_ENABLED AUTH_JWKS_URL AUTH_ISSUER AUTH_AUDIENCE
+export RAILWAY_SERVICE_ID="svc-worker"
+export EXPECTED_APP_ROLE="worker"
+export EXPECTED_BANJI_SERVICE="worker"
+export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
+export RABBIT_URL="amqps://rabbit.example.com/%2f"
+export OBJECT_STORAGE_ENABLED="true"
+export OBJECT_STORAGE_ENDPOINT="https://storage.example.com"
+export OBJECT_STORAGE_REGION="us-east-1"
+export OBJECT_STORAGE_BUCKET_ARTIFACTS="banji-artifacts"
+export OBJECT_STORAGE_ACCESS_KEY="access"
+export OBJECT_STORAGE_SECRET_KEY="secret"
+export ALGORITHM_ROLLOUT_HASH_SALT="salt"
+export ALGORITHM_ROLLOUT_HASH_SALT_VERSION="salt-v1"
+export FAKE_RAILWAY_JSON_SVC_WORKER='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"worker","BANJI_SERVICE":"worker","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","DATABASE_RUNTIME_URL":"postgres://runtime@db.example/banji","RABBIT_URL":"amqps://rabbit.example.com/%2f","OBJECT_STORAGE_ENABLED":"true","OBJECT_STORAGE_ENDPOINT":"https://storage.example.com","OBJECT_STORAGE_REGION":"us-east-1","OBJECT_STORAGE_BUCKET_ARTIFACTS":"banji-artifacts","OBJECT_STORAGE_ACCESS_KEY":"access","OBJECT_STORAGE_SECRET_KEY":"secret","ALGORITHM_ROLLOUT_HASH_SALT":"salt","ALGORITHM_ROLLOUT_HASH_SALT_VERSION":"salt-v1"}'
+
+bash "$DEPLOY_SCRIPT" >/dev/null
+
 export RAILWAY_API_SERVICE_ID="svc-api"
 export RAILWAY_EVENT_RELAY_SERVICE_ID="svc-relay"
 export RAILWAY_PROJECTION_CONSUMER_SERVICE_ID="svc-projection"

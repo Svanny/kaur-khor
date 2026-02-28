@@ -94,11 +94,14 @@ case "$EXPECTED_APP_ROLE" in
   worker)
     require_local_var DATABASE_RUNTIME_URL
     require_local_var RABBIT_URL
+    require_local_var OBJECT_STORAGE_ENABLED
     require_local_var OBJECT_STORAGE_ENDPOINT
     require_local_var OBJECT_STORAGE_REGION
     require_local_var OBJECT_STORAGE_BUCKET_ARTIFACTS
     require_local_var OBJECT_STORAGE_ACCESS_KEY
     require_local_var OBJECT_STORAGE_SECRET_KEY
+    require_local_var ALGORITHM_ROLLOUT_HASH_SALT
+    require_local_var ALGORITHM_ROLLOUT_HASH_SALT_VERSION
     forbid_local_var AUTH_JWKS_URL
     forbid_local_var AUTH_ISSUER
     forbid_local_var AUTH_AUDIENCE
@@ -114,25 +117,59 @@ if [[ "$SKIP_RAILWAY_INSTALL" != "true" ]]; then
   npm install -g @railway/cli >/dev/null
 fi
 
+set_runtime_var() {
+  local key="$1"
+  "$RAILWAY_BIN" variables --set "$key=${!key}" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
+}
+
+set_runtime_var_if_present() {
+  local key="$1"
+  if [[ -n "${!key:-}" ]]; then
+    set_runtime_var "$key"
+  fi
+}
+
 "$RAILWAY_BIN" login --token "$RAILWAY_TOKEN"
-"$RAILWAY_BIN" variables --set "IMAGE_REF=$IMAGE_REF" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
+set_runtime_var IMAGE_REF
+set_runtime_var DATABASE_RUNTIME_ENDPOINT_KIND
+set_runtime_var PGBOUNCER_POOL_MODE
 "$RAILWAY_BIN" variables --set "APP_ROLE=$EXPECTED_APP_ROLE" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
 "$RAILWAY_BIN" variables --set "BANJI_SERVICE=$EXPECTED_BANJI_SERVICE" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-"$RAILWAY_BIN" variables --set "DATABASE_RUNTIME_ENDPOINT_KIND=$DATABASE_RUNTIME_ENDPOINT_KIND" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-"$RAILWAY_BIN" variables --set "PGBOUNCER_POOL_MODE=$PGBOUNCER_POOL_MODE" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
 
-if [[ -n "${EDGE_ENFORCEMENT_ENABLED:-}" ]]; then
-  "$RAILWAY_BIN" variables --set "EDGE_ENFORCEMENT_ENABLED=$EDGE_ENFORCEMENT_ENABLED" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-fi
-if [[ -n "${EDGE_PROVIDER:-}" ]]; then
-  "$RAILWAY_BIN" variables --set "EDGE_PROVIDER=$EDGE_PROVIDER" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-fi
-if [[ -n "${EDGE_ORIGIN_AUTH_HEADER_NAME:-}" ]]; then
-  "$RAILWAY_BIN" variables --set "EDGE_ORIGIN_AUTH_HEADER_NAME=$EDGE_ORIGIN_AUTH_HEADER_NAME" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-fi
-if [[ -n "${EDGE_CORS_ALLOWED_ORIGINS:-}" ]]; then
-  "$RAILWAY_BIN" variables --set "EDGE_CORS_ALLOWED_ORIGINS=$EDGE_CORS_ALLOWED_ORIGINS" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-fi
+# Persist the canonical runtime variable names expected by the service.
+case "$EXPECTED_APP_ROLE" in
+  api)
+    set_runtime_var_if_present EDGE_ENFORCEMENT_ENABLED
+    set_runtime_var_if_present EDGE_PROVIDER
+    set_runtime_var_if_present EDGE_ORIGIN_AUTH_HEADER_NAME
+    set_runtime_var_if_present EDGE_CORS_ALLOWED_ORIGINS
+    set_runtime_var_if_present AUTH_ENABLED
+    set_runtime_var_if_present AUTH_JWKS_URL
+    set_runtime_var_if_present AUTH_ISSUER
+    set_runtime_var_if_present AUTH_AUDIENCE
+    ;;
+  event-relay)
+    set_runtime_var_if_present DATABASE_RUNTIME_URL
+    ;;
+  projection-consumer)
+    set_runtime_var_if_present DATABASE_RUNTIME_URL
+    set_runtime_var_if_present EVENT_CONSUMER_SERVICE_NAME
+    set_runtime_var_if_present EVENT_CONSUMER_NAME
+    set_runtime_var_if_present EVENT_CONSUMER_STREAM_NAME
+    ;;
+  worker)
+    set_runtime_var_if_present DATABASE_RUNTIME_URL
+    set_runtime_var_if_present RABBIT_URL
+    set_runtime_var_if_present OBJECT_STORAGE_ENABLED
+    set_runtime_var_if_present OBJECT_STORAGE_ENDPOINT
+    set_runtime_var_if_present OBJECT_STORAGE_REGION
+    set_runtime_var_if_present OBJECT_STORAGE_BUCKET_ARTIFACTS
+    set_runtime_var_if_present OBJECT_STORAGE_ACCESS_KEY
+    set_runtime_var_if_present OBJECT_STORAGE_SECRET_KEY
+    set_runtime_var_if_present ALGORITHM_ROLLOUT_HASH_SALT
+    set_runtime_var_if_present ALGORITHM_ROLLOUT_HASH_SALT_VERSION
+    ;;
+esac
 
 runtime_vars_json="$("$RAILWAY_BIN" variables --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID" --json 2>/dev/null || true)"
 runtime_vars_text=""
@@ -222,10 +259,10 @@ case "$EXPECTED_APP_ROLE" in
     assert_runtime_var_equals "EDGE_PROVIDER" "$EDGE_PROVIDER"
     assert_runtime_var_equals "EDGE_ORIGIN_AUTH_HEADER_NAME" "$EDGE_ORIGIN_AUTH_HEADER_NAME"
     assert_runtime_var_equals "EDGE_CORS_ALLOWED_ORIGINS" "$EDGE_CORS_ALLOWED_ORIGINS"
-    assert_runtime_var_present "AUTH_ENABLED"
-    assert_runtime_var_present "AUTH_JWKS_URL"
-    assert_runtime_var_present "AUTH_ISSUER"
-    assert_runtime_var_present "AUTH_AUDIENCE"
+    assert_runtime_var_equals "AUTH_ENABLED" "$AUTH_ENABLED"
+    assert_runtime_var_equals "AUTH_JWKS_URL" "$AUTH_JWKS_URL"
+    assert_runtime_var_equals "AUTH_ISSUER" "$AUTH_ISSUER"
+    assert_runtime_var_equals "AUTH_AUDIENCE" "$AUTH_AUDIENCE"
     assert_runtime_var_absent "OBJECT_STORAGE_ENDPOINT"
     assert_runtime_var_absent "OBJECT_STORAGE_ACCESS_KEY"
     assert_runtime_var_absent "OBJECT_STORAGE_SECRET_KEY"
@@ -243,9 +280,9 @@ case "$EXPECTED_APP_ROLE" in
     ;;
   projection-consumer)
     assert_runtime_var_present "DATABASE_RUNTIME_URL"
-    assert_runtime_var_present "EVENT_CONSUMER_SERVICE_NAME"
-    assert_runtime_var_present "EVENT_CONSUMER_NAME"
-    assert_runtime_var_present "EVENT_CONSUMER_STREAM_NAME"
+    assert_runtime_var_equals "EVENT_CONSUMER_SERVICE_NAME" "$EVENT_CONSUMER_SERVICE_NAME"
+    assert_runtime_var_equals "EVENT_CONSUMER_NAME" "$EVENT_CONSUMER_NAME"
+    assert_runtime_var_equals "EVENT_CONSUMER_STREAM_NAME" "$EVENT_CONSUMER_STREAM_NAME"
     assert_runtime_var_absent "RABBIT_URL"
     assert_runtime_var_absent "OBJECT_STORAGE_ENDPOINT"
     assert_runtime_var_absent "OBJECT_STORAGE_ACCESS_KEY"
@@ -258,11 +295,14 @@ case "$EXPECTED_APP_ROLE" in
   worker)
     assert_runtime_var_present "DATABASE_RUNTIME_URL"
     assert_runtime_var_present "RABBIT_URL"
-    assert_runtime_var_present "OBJECT_STORAGE_ENDPOINT"
-    assert_runtime_var_present "OBJECT_STORAGE_REGION"
-    assert_runtime_var_present "OBJECT_STORAGE_BUCKET_ARTIFACTS"
+    assert_runtime_var_equals "OBJECT_STORAGE_ENABLED" "$OBJECT_STORAGE_ENABLED"
+    assert_runtime_var_equals "OBJECT_STORAGE_ENDPOINT" "$OBJECT_STORAGE_ENDPOINT"
+    assert_runtime_var_equals "OBJECT_STORAGE_REGION" "$OBJECT_STORAGE_REGION"
+    assert_runtime_var_equals "OBJECT_STORAGE_BUCKET_ARTIFACTS" "$OBJECT_STORAGE_BUCKET_ARTIFACTS"
     assert_runtime_var_present "OBJECT_STORAGE_ACCESS_KEY"
     assert_runtime_var_present "OBJECT_STORAGE_SECRET_KEY"
+    assert_runtime_var_present "ALGORITHM_ROLLOUT_HASH_SALT"
+    assert_runtime_var_equals "ALGORITHM_ROLLOUT_HASH_SALT_VERSION" "$ALGORITHM_ROLLOUT_HASH_SALT_VERSION"
     assert_runtime_var_absent "AUTH_JWKS_URL"
     assert_runtime_var_absent "AUTH_ISSUER"
     assert_runtime_var_absent "AUTH_AUDIENCE"

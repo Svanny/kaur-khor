@@ -53,14 +53,6 @@ jobs:
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
       PGBOUNCER_POOL_MODE: transaction
-      EDGE_ENFORCEMENT_ENABLED: true
-      EDGE_PROVIDER: cloudflare
-      EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
-      EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
-      AUTH_ENABLED: "true"
-      AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
-      AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
-      AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
       RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
       RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
       RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
@@ -119,17 +111,28 @@ jobs:
           EXPECTED_BANJI_SERVICE: worker
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           RABBIT_URL: ${{ secrets.RABBIT_URL }}
+          OBJECT_STORAGE_ENABLED: "true"
           OBJECT_STORAGE_ENDPOINT: ${{ vars.OBJECT_STORAGE_ENDPOINT }}
           OBJECT_STORAGE_REGION: ${{ vars.OBJECT_STORAGE_REGION }}
           OBJECT_STORAGE_BUCKET_ARTIFACTS: ${{ vars.OBJECT_STORAGE_BUCKET_ARTIFACTS }}
           OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
           OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
+          ALGORITHM_ROLLOUT_HASH_SALT: ${{ secrets.ALGORITHM_ROLLOUT_HASH_SALT }}
+          ALGORITHM_ROLLOUT_HASH_SALT_VERSION: ${{ vars.ALGORITHM_ROLLOUT_HASH_SALT_VERSION }}
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy staging api
         env:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
+          EDGE_ENFORCEMENT_ENABLED: true
+          EDGE_PROVIDER: cloudflare
+          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+          EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
+          AUTH_ENABLED: "true"
+          AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
+          AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
+          AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
         run: bash tool/ci/railway_deploy.sh
       - name: Verify staging image parity
         env:
@@ -155,14 +158,6 @@ jobs:
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
       PGBOUNCER_POOL_MODE: transaction
-      EDGE_ENFORCEMENT_ENABLED: true
-      EDGE_PROVIDER: cloudflare
-      EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
-      EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
-      AUTH_ENABLED: "true"
-      AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
-      AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
-      AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
       RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
       RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
       RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
@@ -221,17 +216,28 @@ jobs:
           EXPECTED_BANJI_SERVICE: worker
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           RABBIT_URL: ${{ secrets.RABBIT_URL }}
+          OBJECT_STORAGE_ENABLED: "true"
           OBJECT_STORAGE_ENDPOINT: ${{ vars.OBJECT_STORAGE_ENDPOINT }}
           OBJECT_STORAGE_REGION: ${{ vars.OBJECT_STORAGE_REGION }}
           OBJECT_STORAGE_BUCKET_ARTIFACTS: ${{ vars.OBJECT_STORAGE_BUCKET_ARTIFACTS }}
           OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
           OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
+          ALGORITHM_ROLLOUT_HASH_SALT: ${{ secrets.ALGORITHM_ROLLOUT_HASH_SALT }}
+          ALGORITHM_ROLLOUT_HASH_SALT_VERSION: ${{ vars.ALGORITHM_ROLLOUT_HASH_SALT_VERSION }}
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy prod api
         env:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
+          EDGE_ENFORCEMENT_ENABLED: true
+          EDGE_PROVIDER: cloudflare
+          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+          EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
+          AUTH_ENABLED: "true"
+          AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
+          AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
+          AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
         run: bash tool/ci/railway_deploy.sh
       - name: Verify prod image parity
         env:
