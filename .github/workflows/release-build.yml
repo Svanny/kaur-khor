@@ -28,31 +28,40 @@ jobs:
       metadata_file: ${{ steps.meta.outputs.metadata_file }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Prepare image metadata
+        id: vars
+        run: |
+          echo "owner_lc=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Log into GHCR using GITHUB_TOKEN
+        uses: docker/login-action@v3
         env:
           CR_PAT: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "$CR_PAT" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push container image
-        id: push
+        id: build
         env:
           COMMIT_SHA: ${{ github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
-        run: |
-          set -euo pipefail
-          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          IMAGE_NAME="ghcr.io/${OWNER_LC}/banji-api"
-          BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          docker build \
-            -f apps/api/Dockerfile \
-            --label "org.opencontainers.image.revision=$COMMIT_SHA" \
-            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-            --label "org.opencontainers.image.created=$BUILD_TIME" \
-            -t "$IMAGE_NAME:$COMMIT_SHA" \
-            -t "$IMAGE_NAME:main-$RUN_NUMBER" \
-            .
-          docker push "$IMAGE_NAME:$COMMIT_SHA"
-          docker push "$IMAGE_NAME:main-$RUN_NUMBER"
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/banji-api:${{ github.sha }}
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/banji-api:main-${{ github.run_number }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.created=${{ steps.vars.outputs.build_time }}
+          cache-from: type=gha,scope=banji-api-release
+          cache-to: type=gha,mode=max,scope=banji-api-release
       - name: Resolve image digest and prepare metadata
         id: meta
         env:
@@ -60,9 +69,8 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          IMAGE_NAME="ghcr.io/${OWNER_LC}/banji-api"
-          DIGEST="$(docker buildx imagetools inspect "$IMAGE_NAME:$COMMIT_SHA" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          IMAGE_NAME="ghcr.io/${{ steps.vars.outputs.owner_lc }}/banji-api"
+          DIGEST="${{ steps.build.outputs.digest }}"
           IMAGE_REF="$IMAGE_NAME@$DIGEST"
           MIGRATION_CHECKSUM="$(find apps/api/migrations -type f -name '*.sql' -print0 | sort -z | xargs -0 cat | sha256sum | awk '{print $1}')"
           METADATA_FILE="build-metadata.json"
@@ -89,14 +97,17 @@ jobs:
         continue-on-error: true
         env:
           COMMIT_SHA: ${{ github.sha }}
+          CR_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          IMAGE_NAME="ghcr.io/${OWNER_LC}/banji-api"
+          IMAGE_NAME="ghcr.io/${{ steps.vars.outputs.owner_lc }}/banji-api"
           docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.59.1 \
-            image --severity HIGH,CRITICAL "$IMAGE_NAME:$COMMIT_SHA"
+            image \
+            --username "${{ github.actor }}" \
+            --password "$CR_PAT" \
+            --severity HIGH,CRITICAL \
+            "$IMAGE_NAME:$COMMIT_SHA"
 
   deploy:
     needs: container-build-push

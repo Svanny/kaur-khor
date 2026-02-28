@@ -179,8 +179,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Build container image (no push)
-        run: docker build -f apps/api/Dockerfile -t banji-api:pr-${{ github.sha }} .
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          file: apps/api/Dockerfile
+          push: false
+          load: false
+          tags: banji-api:pr-${{ github.sha }}
+          cache-from: type=gha,scope=banji-api-pr
+          cache-to: type=gha,mode=max,scope=banji-api-pr
 
   migration-validate:
     runs-on: ubuntu-latest

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 service_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-binary_path="${BANJI_API_BINARY:-$service_root/target/release/banji-api}"
 app_role="${APP_ROLE:-api}"
 
 case "$app_role" in
@@ -13,6 +12,14 @@ case "$app_role" in
     exit 1
     ;;
 esac
+
+if [[ -n "${BANJI_API_BINARY:-}" ]]; then
+  binary_path="$BANJI_API_BINARY"
+elif [[ -x "$service_root/banji-api" ]]; then
+  binary_path="$service_root/banji-api"
+else
+  binary_path="$service_root/target/release/banji-api"
+fi
 
 if [[ ! -x "$binary_path" ]]; then
   echo "error: release binary not found or not executable at $binary_path" >&2

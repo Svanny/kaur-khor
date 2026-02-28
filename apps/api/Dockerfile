@@ -1,19 +1,22 @@
-FROM rust:1.91-bookworm AS build
+FROM lukemathwalker/cargo-chef:latest-rust-1.91.0-slim-bookworm AS chef
 WORKDIR /app
 
-COPY apps/api/Cargo.toml apps/api/Cargo.toml
-COPY apps/api/Cargo.lock apps/api/Cargo.lock
-COPY apps/api/rust-toolchain.toml apps/api/rust-toolchain.toml
-COPY apps/api/src apps/api/src
-COPY apps/api/migrations apps/api/migrations
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-WORKDIR /app/apps/api
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
 RUN cargo build --release
 
 FROM debian:bookworm-slim
 RUN useradd -u 10001 -m app
 WORKDIR /srv
-COPY --from=build /app/apps/api/target/release/banji-api /usr/local/bin/banji-api
+COPY --from=builder /app/target/release/banji-api /srv/banji-api
+COPY --from=builder /app/start.sh /srv/start.sh
+RUN chmod +x /srv/banji-api /srv/start.sh && chown -R app:app /srv
 USER app
 EXPOSE 8080
-CMD ["banji-api"]
+CMD ["./start.sh"]
