@@ -1,3 +1,4 @@
+use super::rollout::{JobAlgorithmDecision, JobAlgorithmRolloutPolicy};
 use super::schema_types::{JobRecord, JobResultRecord};
 use super::types::{ErrorClass, ErrorReasonCode};
 use crate::jobs::types::JobEnvelope;
@@ -6,6 +7,7 @@ use anyhow::{anyhow, Result};
 use sqlx::{postgres::PgRow, PgPool, Postgres, Row, Transaction};
 use std::time::Duration;
 use time::OffsetDateTime;
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct JobRunRow {
@@ -19,6 +21,14 @@ pub struct JobRunRow {
     pub aggregate_id: String,
     pub causation_id: String,
     pub correlation_id: String,
+    pub backfill_run_id: Option<Uuid>,
+    pub source_event_id: Option<i64>,
+    pub algorithm_version: Option<String>,
+    pub algorithm_decision_source: Option<String>,
+    pub algorithm_rollout_bucket: Option<i32>,
+    pub algorithm_policy_updated_at: Option<OffsetDateTime>,
+    pub algorithm_hash_salt_version: Option<String>,
+    pub algorithm_decided_at: Option<OffsetDateTime>,
     pub status: String,
     pub payload: serde_json::Value,
     pub current_attempt: i32,
@@ -34,6 +44,14 @@ pub enum AttemptClaimOutcome {
     LeaseStolen,
     DuplicateInProgress(Duration),
     TerminalExisting,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BackfillJobCounts {
+    pub total_count: i64,
+    pub succeeded_count: i64,
+    pub failed_count: i64,
+    pub nonterminal_count: i64,
 }
 
 pub async fn upsert_job_run_tx(
@@ -52,13 +70,15 @@ pub async fn upsert_job_run_tx(
           aggregate_id,
           causation_id,
           correlation_id,
+          backfill_run_id,
+          source_event_id,
           status,
           payload,
           current_attempt,
           max_attempts,
           updated_at
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,'queued',$10,0,$11,NOW()
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'queued',$12,0,$13,NOW()
         )
         ON CONFLICT (job_key)
         DO UPDATE
@@ -71,11 +91,16 @@ pub async fn upsert_job_run_tx(
           AND app.job_run.aggregate_id = EXCLUDED.aggregate_id
           AND app.job_run.causation_id = EXCLUDED.causation_id
           AND app.job_run.correlation_id = EXCLUDED.correlation_id
+          AND app.job_run.backfill_run_id IS NOT DISTINCT FROM EXCLUDED.backfill_run_id
+          AND app.job_run.source_event_id IS NOT DISTINCT FROM EXCLUDED.source_event_id
           AND app.job_run.payload = EXCLUDED.payload
           AND app.job_run.max_attempts = EXCLUDED.max_attempts
         RETURNING
           id, job_key, job_type, payload_version, workload_class, producer_service,
-          aggregate_type, aggregate_id, causation_id, correlation_id, status,
+          aggregate_type, aggregate_id, causation_id, correlation_id, backfill_run_id,
+          source_event_id, algorithm_version, algorithm_decision_source,
+          algorithm_rollout_bucket, algorithm_policy_updated_at,
+          algorithm_hash_salt_version, algorithm_decided_at, status,
           payload, current_attempt, max_attempts, result_id, created_at
         "#,
     )
@@ -88,6 +113,8 @@ pub async fn upsert_job_run_tx(
     .bind(&job.aggregate_id)
     .bind(&job.causation_id)
     .bind(&job.correlation_id)
+    .bind(job.backfill_run_id)
+    .bind(job.source_event_id)
     .bind(&job.payload)
     .bind(job.max_attempts)
     .fetch_optional(&mut **tx)
@@ -101,7 +128,10 @@ pub async fn upsert_job_run_tx(
         r#"
         SELECT
           id, job_key, job_type, payload_version, workload_class, producer_service,
-          aggregate_type, aggregate_id, causation_id, correlation_id, status,
+          aggregate_type, aggregate_id, causation_id, correlation_id, backfill_run_id,
+          source_event_id, algorithm_version, algorithm_decision_source,
+          algorithm_rollout_bucket, algorithm_policy_updated_at,
+          algorithm_hash_salt_version, algorithm_decided_at, status,
           payload, current_attempt, max_attempts, result_id, created_at
         FROM app.job_run
         WHERE job_key = $1
@@ -132,7 +162,10 @@ pub async fn get_job_run_for_update_tx(
         r#"
         SELECT
           id, job_key, job_type, payload_version, workload_class, producer_service,
-          aggregate_type, aggregate_id, causation_id, correlation_id, status,
+          aggregate_type, aggregate_id, causation_id, correlation_id, backfill_run_id,
+          source_event_id, algorithm_version, algorithm_decision_source,
+          algorithm_rollout_bucket, algorithm_policy_updated_at,
+          algorithm_hash_salt_version, algorithm_decided_at, status,
           payload, current_attempt, max_attempts, result_id, created_at
         FROM app.job_run
         WHERE job_key = $1
@@ -166,6 +199,90 @@ pub async fn mark_run_started_tx(
     .execute(&mut **tx)
     .await?;
     Ok(())
+}
+
+pub async fn persist_algorithm_decision_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    job_run_id: i64,
+    decision: &JobAlgorithmDecision,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE app.job_run
+        SET
+          algorithm_version = $2,
+          algorithm_decision_source = $3,
+          algorithm_rollout_bucket = $4,
+          algorithm_policy_updated_at = $5,
+          algorithm_hash_salt_version = $6,
+          algorithm_decided_at = $7,
+          updated_at = NOW()
+        WHERE id = $1
+        "#,
+    )
+    .bind(job_run_id)
+    .bind(&decision.algorithm_version)
+    .bind(decision.decision_source.as_str())
+    .bind(decision.rollout_bucket)
+    .bind(decision.policy_updated_at)
+    .bind(&decision.hash_salt_version)
+    .bind(decision.decided_at)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_job_algorithm_rollout_policy_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    job_type: &str,
+) -> Result<Option<JobAlgorithmRolloutPolicy>> {
+    let row = sqlx::query(
+        r#"
+        SELECT
+          job_type,
+          stable_version,
+          candidate_version,
+          candidate_percent,
+          updated_by,
+          notes,
+          updated_at
+        FROM app.job_algorithm_rollout_policy
+        WHERE job_type = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(job_type)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    Ok(row.as_ref().map(job_algorithm_rollout_policy_from_row))
+}
+
+pub async fn load_job_algorithm_rollout_policies(
+    pool: &PgPool,
+) -> Result<Vec<JobAlgorithmRolloutPolicy>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT
+          job_type,
+          stable_version,
+          candidate_version,
+          candidate_percent,
+          updated_by,
+          notes,
+          updated_at
+        FROM app.job_algorithm_rollout_policy
+        ORDER BY job_type ASC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .iter()
+        .map(job_algorithm_rollout_policy_from_row)
+        .collect())
 }
 
 pub async fn claim_attempt_tx(
@@ -426,6 +543,33 @@ pub async fn kafka_result_pressure(pool: &PgPool) -> Result<(i64, i64)> {
     .await?;
 
     Ok((row.get("pending_count"), row.get("oldest_age_seconds")))
+}
+
+pub async fn backfill_job_counts(
+    pool: &PgPool,
+    backfill_run_id: Uuid,
+) -> Result<BackfillJobCounts> {
+    let row = sqlx::query(
+        r#"
+        SELECT
+          COUNT(*)::bigint AS total_count,
+          COUNT(*) FILTER (WHERE status = 'succeeded')::bigint AS succeeded_count,
+          COUNT(*) FILTER (WHERE status = 'failed')::bigint AS failed_count,
+          COUNT(*) FILTER (WHERE status IN ('queued', 'running', 'retrying'))::bigint AS nonterminal_count
+        FROM app.job_run
+        WHERE backfill_run_id = $1
+        "#,
+    )
+    .bind(backfill_run_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(BackfillJobCounts {
+        total_count: row.get("total_count"),
+        succeeded_count: row.get("succeeded_count"),
+        failed_count: row.get("failed_count"),
+        nonterminal_count: row.get("nonterminal_count"),
+    })
 }
 
 pub async fn mark_attempt_succeeded_tx(
@@ -767,11 +911,31 @@ fn job_run_from_row(row: &PgRow) -> JobRunRow {
         aggregate_id: row.get("aggregate_id"),
         causation_id: row.get("causation_id"),
         correlation_id: row.get("correlation_id"),
+        backfill_run_id: row.get("backfill_run_id"),
+        source_event_id: row.get("source_event_id"),
+        algorithm_version: row.get("algorithm_version"),
+        algorithm_decision_source: row.get("algorithm_decision_source"),
+        algorithm_rollout_bucket: row.get("algorithm_rollout_bucket"),
+        algorithm_policy_updated_at: row.get("algorithm_policy_updated_at"),
+        algorithm_hash_salt_version: row.get("algorithm_hash_salt_version"),
+        algorithm_decided_at: row.get("algorithm_decided_at"),
         status: row.get("status"),
         payload: row.get("payload"),
         current_attempt: row.get("current_attempt"),
         max_attempts: row.get("max_attempts"),
         result_id: row.get("result_id"),
         created_at: row.get("created_at"),
+    }
+}
+
+fn job_algorithm_rollout_policy_from_row(row: &PgRow) -> JobAlgorithmRolloutPolicy {
+    JobAlgorithmRolloutPolicy {
+        job_type: row.get("job_type"),
+        stable_version: row.get("stable_version"),
+        candidate_version: row.get("candidate_version"),
+        candidate_percent: row.get("candidate_percent"),
+        updated_by: row.get("updated_by"),
+        notes: row.get("notes"),
+        updated_at: row.get("updated_at"),
     }
 }

@@ -71,6 +71,8 @@ Examples:
 ## Service Registry (Controlled and Extensible)
 Initial service ids:
 - `api`
+- `event-relay`
+- `projection-consumer`
 - `worker`
 - `scheduler`
 

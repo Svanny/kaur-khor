@@ -1,6 +1,6 @@
 use crate::{
     jobs::{outbox, repository},
-    observability::metrics,
+    observability::{metrics, ResponseClassification},
     AppState,
 };
 use anyhow::{Context, Result};
@@ -190,7 +190,11 @@ impl BackpressureGate {
         None
     }
 
-    pub fn rabbit_publish_state(&self, pending_count: i64, oldest_age_seconds: i64) -> DependencyHealthState {
+    pub fn rabbit_publish_state(
+        &self,
+        pending_count: i64,
+        oldest_age_seconds: i64,
+    ) -> DependencyHealthState {
         DependencyHealthState {
             pending_count,
             oldest_age_seconds,
@@ -212,7 +216,11 @@ impl BackpressureGate {
         }
     }
 
-    pub fn kafka_state(&self, pending_count: i64, oldest_age_seconds: i64) -> DependencyHealthState {
+    pub fn kafka_state(
+        &self,
+        pending_count: i64,
+        oldest_age_seconds: i64,
+    ) -> DependencyHealthState {
         DependencyHealthState {
             pending_count,
             oldest_age_seconds,
@@ -320,6 +328,9 @@ pub async fn backpressure_middleware(
             axum::http::HeaderValue::from_str(&retry_after.to_string())
                 .unwrap_or_else(|_| axum::http::HeaderValue::from_static("1")),
         );
+        response
+            .extensions_mut()
+            .insert(ResponseClassification::DependencyBackpressure);
         return response;
     }
 
@@ -359,7 +370,9 @@ fn unhealthy_signal(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{AppConfig, AppRole, DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode};
+    use crate::config::{
+        AppConfig, AppRole, DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode,
+    };
 
     fn test_config() -> AppConfig {
         AppConfig {
@@ -367,6 +380,7 @@ mod tests {
             system: "banji-core".to_string(),
             env: "test".to_string(),
             service: "api".to_string(),
+            instance_id: "api-test-1".to_string(),
             auth_enabled: true,
             auth_jwks_url: Some("https://example.com/.well-known/jwks.json".to_string()),
             auth_issuer: Some("https://issuer.example.com".to_string()),
@@ -395,7 +409,11 @@ mod tests {
             rabbit_url: None,
             rabbit_vhost: "/".to_string(),
             rabbit_exchange_jobs: "jobs".to_string(),
+            rabbit_exchange_jobs_replay: "jobs.replay".to_string(),
             rabbit_dlx_exchange: "jobs.dlx".to_string(),
+            rabbit_management_api_base_url: None,
+            rabbit_management_username: None,
+            rabbit_management_password: None,
             rabbit_retry_1_ttl_ms: 1_000,
             rabbit_retry_2_ttl_ms: 2_000,
             rabbit_retry_3_ttl_ms: 3_000,
@@ -444,6 +462,9 @@ mod tests {
             edge_backpressure_job_run_oldest_age_seconds_max: 60,
             edge_backpressure_kafka_pending_max: 10,
             edge_backpressure_kafka_oldest_age_seconds_max: 30,
+            observability_rabbit_queue_poll_interval: Duration::from_secs(15),
+            observability_postgres_lock_poll_interval: Duration::from_secs(15),
+            observability_job_pressure_poll_interval: Duration::from_secs(15),
             edge_request_max_bytes: 262_144,
             edge_write_request_max_bytes: 65_536,
             edge_cors_allowed_origins: vec![],

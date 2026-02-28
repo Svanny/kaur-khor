@@ -28,6 +28,20 @@ static HTTP_ACTIVE_REQUESTS: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
         .init()
 });
 
+static API_AVAILABILITY_SLI_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.sli.api.availability.total")
+        .with_unit(Unit::new("requests"))
+        .init()
+});
+
+static API_LATENCY_SLI_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.sli.api.latency.total")
+        .with_unit(Unit::new("requests"))
+        .init()
+});
+
 static JOBS_PUBLISH_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
     METER
         .u64_counter("banji.jobs.publish.total")
@@ -217,6 +231,76 @@ static DB_POOL_IDLE: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
         .init()
 });
 
+static RABBIT_QUEUE_READY: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.rabbit.queue.ready")
+        .with_unit(Unit::new("messages"))
+        .init()
+});
+
+static RABBIT_QUEUE_UNACKED: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.rabbit.queue.unacked")
+        .with_unit(Unit::new("messages"))
+        .init()
+});
+
+static RABBIT_QUEUE_DEPTH: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.rabbit.queue.depth")
+        .with_unit(Unit::new("messages"))
+        .init()
+});
+
+static POSTGRES_LOCK_WAITING: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.postgres.lock.waiting_sessions")
+        .with_unit(Unit::new("sessions"))
+        .init()
+});
+
+static POSTGRES_LOCK_BLOCKING: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.postgres.lock.blocking_sessions")
+        .with_unit(Unit::new("sessions"))
+        .init()
+});
+
+static POSTGRES_LOCK_OLDEST_WAIT: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.postgres.lock.oldest_wait_seconds")
+        .with_unit(Unit::new("s"))
+        .init()
+});
+
+static JOB_ATTEMPT_RUNNING: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.jobs.attempt.running")
+        .with_unit(Unit::new("attempts"))
+        .init()
+});
+
+static JOB_ATTEMPT_OLDEST_RUNNING_AGE: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.jobs.attempt.oldest_running_age_seconds")
+        .with_unit(Unit::new("s"))
+        .init()
+});
+
+static JOB_ATTEMPT_STALE_HEARTBEAT: Lazy<UpDownCounter<i64>> = Lazy::new(|| {
+    METER
+        .i64_up_down_counter("banji.jobs.attempt.stale_heartbeat")
+        .with_unit(Unit::new("attempts"))
+        .init()
+});
+
+static CACHE_LOOKUP_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
+    METER
+        .u64_counter("banji.cache.lookup.total")
+        .with_unit(Unit::new("lookups"))
+        .init()
+});
+
 static RATE_LIMIT_REJECT_TOTAL: Lazy<Counter<u64>> = Lazy::new(|| {
     METER
         .u64_counter("banji.edge.rate_limit.reject.total")
@@ -265,9 +349,21 @@ static EVENT_OUTBOX_OLDEST_AGE_LAST: AtomicI64 = AtomicI64::new(0);
 static LAG_BY_STREAM: Lazy<Mutex<HashMap<String, i64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 static DB_POOL_SIZE_LAST: AtomicI64 = AtomicI64::new(0);
 static DB_POOL_IDLE_LAST: AtomicI64 = AtomicI64::new(0);
+static POSTGRES_LOCK_WAITING_LAST: AtomicI64 = AtomicI64::new(0);
+static POSTGRES_LOCK_BLOCKING_LAST: AtomicI64 = AtomicI64::new(0);
+static POSTGRES_LOCK_OLDEST_WAIT_LAST: AtomicI64 = AtomicI64::new(0);
+static JOB_ATTEMPT_RUNNING_LAST: AtomicI64 = AtomicI64::new(0);
+static JOB_ATTEMPT_OLDEST_RUNNING_AGE_LAST: AtomicI64 = AtomicI64::new(0);
+static JOB_ATTEMPT_STALE_HEARTBEAT_LAST: AtomicI64 = AtomicI64::new(0);
 static BACKPRESSURE_PENDING_BY_SIGNAL: Lazy<Mutex<HashMap<String, i64>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 static BACKPRESSURE_AGE_BY_SIGNAL: Lazy<Mutex<HashMap<String, i64>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static RABBIT_QUEUE_READY_BY_QUEUE: Lazy<Mutex<HashMap<String, i64>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static RABBIT_QUEUE_UNACKED_BY_QUEUE: Lazy<Mutex<HashMap<String, i64>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static RABBIT_QUEUE_DEPTH_BY_QUEUE: Lazy<Mutex<HashMap<String, i64>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 pub fn record_http_active(delta: i64, method: &str, route: &str) {
@@ -287,6 +383,28 @@ pub fn record_http_duration(duration_secs: f64, method: &str, route: &str, statu
             KeyValue::new("http.method", method.to_string()),
             KeyValue::new("http.route", route.to_string()),
             KeyValue::new("http.response.status_code", status_code),
+        ],
+    );
+}
+
+pub fn record_api_availability_sli(method: &str, route: &str, classification: &str) {
+    API_AVAILABILITY_SLI_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("http.method", method.to_string()),
+            KeyValue::new("http.route", route.to_string()),
+            KeyValue::new("classification", classification.to_string()),
+        ],
+    );
+}
+
+pub fn record_api_latency_sli(method: &str, route: &str, classification: &str) {
+    API_LATENCY_SLI_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("http.method", method.to_string()),
+            KeyValue::new("http.route", route.to_string()),
+            KeyValue::new("classification", classification.to_string()),
         ],
     );
 }
@@ -545,6 +663,127 @@ pub fn set_db_pool_idle(current_idle: i64) {
     }
 }
 
+fn update_labeled_gauge(
+    values: &Lazy<Mutex<HashMap<String, i64>>>,
+    metric: &UpDownCounter<i64>,
+    key: String,
+    current_value: i64,
+    attributes: &[KeyValue],
+) {
+    let mut map = match values.lock() {
+        Ok(map) => map,
+        Err(_) => return,
+    };
+    let previous = map.insert(key, current_value).unwrap_or(0);
+    let delta = current_value - previous;
+    if delta != 0 {
+        metric.add(delta, attributes);
+    }
+}
+
+pub fn set_rabbit_queue_ready(workload_class: &str, queue_kind: &str, current_ready: i64) {
+    let key = format!("{workload_class}:{queue_kind}");
+    let attributes = [
+        KeyValue::new("workload_class", workload_class.to_string()),
+        KeyValue::new("queue_kind", queue_kind.to_string()),
+    ];
+    update_labeled_gauge(
+        &RABBIT_QUEUE_READY_BY_QUEUE,
+        &RABBIT_QUEUE_READY,
+        key,
+        current_ready,
+        &attributes,
+    );
+}
+
+pub fn set_rabbit_queue_unacked(workload_class: &str, queue_kind: &str, current_unacked: i64) {
+    let key = format!("{workload_class}:{queue_kind}");
+    let attributes = [
+        KeyValue::new("workload_class", workload_class.to_string()),
+        KeyValue::new("queue_kind", queue_kind.to_string()),
+    ];
+    update_labeled_gauge(
+        &RABBIT_QUEUE_UNACKED_BY_QUEUE,
+        &RABBIT_QUEUE_UNACKED,
+        key,
+        current_unacked,
+        &attributes,
+    );
+}
+
+pub fn set_rabbit_queue_depth(workload_class: &str, queue_kind: &str, current_depth: i64) {
+    let key = format!("{workload_class}:{queue_kind}");
+    let attributes = [
+        KeyValue::new("workload_class", workload_class.to_string()),
+        KeyValue::new("queue_kind", queue_kind.to_string()),
+    ];
+    update_labeled_gauge(
+        &RABBIT_QUEUE_DEPTH_BY_QUEUE,
+        &RABBIT_QUEUE_DEPTH,
+        key,
+        current_depth,
+        &attributes,
+    );
+}
+
+pub fn set_postgres_lock_waiting_sessions(current_waiting: i64) {
+    let previous = POSTGRES_LOCK_WAITING_LAST.swap(current_waiting, Ordering::SeqCst);
+    let delta = current_waiting - previous;
+    if delta != 0 {
+        POSTGRES_LOCK_WAITING.add(delta, &[]);
+    }
+}
+
+pub fn set_postgres_lock_blocking_sessions(current_blocking: i64) {
+    let previous = POSTGRES_LOCK_BLOCKING_LAST.swap(current_blocking, Ordering::SeqCst);
+    let delta = current_blocking - previous;
+    if delta != 0 {
+        POSTGRES_LOCK_BLOCKING.add(delta, &[]);
+    }
+}
+
+pub fn set_postgres_lock_oldest_wait_seconds(current_oldest_wait: i64) {
+    let previous = POSTGRES_LOCK_OLDEST_WAIT_LAST.swap(current_oldest_wait, Ordering::SeqCst);
+    let delta = current_oldest_wait - previous;
+    if delta != 0 {
+        POSTGRES_LOCK_OLDEST_WAIT.add(delta, &[]);
+    }
+}
+
+pub fn set_job_attempt_running(current_running: i64) {
+    let previous = JOB_ATTEMPT_RUNNING_LAST.swap(current_running, Ordering::SeqCst);
+    let delta = current_running - previous;
+    if delta != 0 {
+        JOB_ATTEMPT_RUNNING.add(delta, &[]);
+    }
+}
+
+pub fn set_job_attempt_oldest_running_age_seconds(current_oldest_age: i64) {
+    let previous = JOB_ATTEMPT_OLDEST_RUNNING_AGE_LAST.swap(current_oldest_age, Ordering::SeqCst);
+    let delta = current_oldest_age - previous;
+    if delta != 0 {
+        JOB_ATTEMPT_OLDEST_RUNNING_AGE.add(delta, &[]);
+    }
+}
+
+pub fn set_job_attempt_stale_heartbeat(current_stale_count: i64) {
+    let previous = JOB_ATTEMPT_STALE_HEARTBEAT_LAST.swap(current_stale_count, Ordering::SeqCst);
+    let delta = current_stale_count - previous;
+    if delta != 0 {
+        JOB_ATTEMPT_STALE_HEARTBEAT.add(delta, &[]);
+    }
+}
+
+pub fn record_cache_lookup(surface: &str, result: &str) {
+    CACHE_LOOKUP_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("surface", surface.to_string()),
+            KeyValue::new("result", result.to_string()),
+        ],
+    );
+}
+
 pub fn record_rate_limit_reject(scope: &str, mode: &str) {
     RATE_LIMIT_REJECT_TOTAL.add(
         1,
@@ -569,7 +808,9 @@ pub fn record_backpressure_stale_snapshot() {
 
 pub fn set_backpressure_signal(signal: &str, current_pending: i64, current_oldest_age: i64) {
     if let Ok(mut pending_map) = BACKPRESSURE_PENDING_BY_SIGNAL.lock() {
-        let previous = pending_map.insert(signal.to_string(), current_pending).unwrap_or(0);
+        let previous = pending_map
+            .insert(signal.to_string(), current_pending)
+            .unwrap_or(0);
         let delta = current_pending - previous;
         if delta != 0 {
             BACKPRESSURE_PENDING.add(delta, &[KeyValue::new("signal", signal.to_string())]);

@@ -42,6 +42,8 @@ assert_matches "$dev_out" '^POSTGRES_DB_ANALYTICS=[a-z0-9_]+$'
 assert_contains "$dev_out" "SERVICE_NAME_API=banji-core-dev-kh-pp-api"
 assert_contains "$staging_out" "SERVICE_NAME_API=banji-core-staging-kh-pp-api"
 assert_contains "$prod_out" "SERVICE_NAME_API=banji-core-prod-kh-pp-api"
+assert_contains "$staging_out" "SERVICE_NAME_EVENT_RELAY=banji-core-staging-kh-pp-event-relay"
+assert_contains "$prod_out" "SERVICE_NAME_PROJECTION_CONSUMER=banji-core-prod-kh-pp-projection-consumer"
 
 # 3) MQ policy (no region in topic/queue names)
 assert_contains "$dev_out" "KAFKA_TOPIC_INVENTORY_UPDATED=banji-core.dev.inventory-updated"

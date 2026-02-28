@@ -27,6 +27,8 @@ This runbook covers the current RabbitMQ-backed worker runtime (`APP_ROLE=worker
 - `RABBIT_REPLAY_PREFETCH_HEAVY`
 - `JOB_ATTEMPT_LEASE_SECONDS`
 - `JOB_ATTEMPT_HEARTBEAT_SECONDS`
+- `ALGORITHM_ROLLOUT_HASH_SALT`
+- `ALGORITHM_ROLLOUT_HASH_SALT_VERSION`
 
 Kafka result publication remains disabled in this milestone:
 - `JOB_RESULT_KAFKA_ENABLED=false`
@@ -53,6 +55,9 @@ Kafka result publication remains disabled in this milestone:
   - one successful result row per `job_key`
 - `app.job_delivery_violation`
   - orphan or invalid deliveries that violated the scheduling contract
+- `app.job_algorithm_rollout_policy`
+  - rollout control rows keyed by `job_type`
+  - new jobs can move between stable and candidate without a redeploy
 
 ## Attempt Semantics
 - `attempt` means total tries including the first execution.
@@ -65,6 +70,8 @@ Kafka result publication remains disabled in this milestone:
 - Duplicate completed delivery:
   - worker acknowledges without recomputing
   - no second result row is written
+- Retries and duplicate deliveries must reuse the persisted `job_run.algorithm_version`
+  - rollout changes only affect jobs that have not yet been decided
 - Duplicate in-progress delivery:
   - worker checks `app.job_run_attempt`
   - if a different worker holds a fresh lease, the duplicate is requeued without changing attempt
@@ -84,6 +91,7 @@ This is a contract violation. The worker must not invent a missing logical run.
 - `job_result` is idempotent by `job_key`.
 - Conflicting result payloads for the same `job_key` are treated as a contract error.
 - `kafka_publish_status` stays `disabled` in this milestone.
+- `app.job_run` persists `algorithm_version`, `algorithm_decision_source`, `algorithm_rollout_bucket`, `algorithm_policy_updated_at`, `algorithm_hash_salt_version`, and `algorithm_decided_at` before handler execution.
 
 ## Queue Topology
 Primary queues:
@@ -93,6 +101,12 @@ Primary queues:
 Replay queues:
 - `{system}.{env}.fast-jobs.replay`
 - `{system}.{env}.heavy-jobs.replay`
+
+Replay-scoped backfill jobs:
+- are created by `APP_ROLE=backfill-controller`
+- persist `backfill_run_id` and `source_event_id` on `app.job_run` / `app.job_outbox`
+- publish only through `{system}.{env}.jobs.replay`
+- remain append-only history; they do not overwrite prior `job_result` rows
 
 ## Common Queries
 Find stuck running attempts:

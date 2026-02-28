@@ -58,6 +58,7 @@ fn test_cfg(db_url: String) -> AppConfig {
         system: "banji-core".to_string(),
         env: "test".to_string(),
         service: "outbox-relay".to_string(),
+        instance_id: "outbox-relay-test-1".to_string(),
         auth_enabled: false,
         auth_jwks_url: None,
         auth_issuer: None,
@@ -86,7 +87,11 @@ fn test_cfg(db_url: String) -> AppConfig {
         rabbit_url: None,
         rabbit_vhost: "/".to_string(),
         rabbit_exchange_jobs: "banji-core.test.jobs".to_string(),
+        rabbit_exchange_jobs_replay: "banji-core.test.jobs.replay".to_string(),
         rabbit_dlx_exchange: "banji-core.test.jobs.dlx".to_string(),
+        rabbit_management_api_base_url: None,
+        rabbit_management_username: None,
+        rabbit_management_password: None,
         rabbit_retry_1_ttl_ms: 30_000,
         rabbit_retry_2_ttl_ms: 300_000,
         rabbit_retry_3_ttl_ms: 1_800_000,
@@ -135,6 +140,9 @@ fn test_cfg(db_url: String) -> AppConfig {
         edge_backpressure_job_run_oldest_age_seconds_max: 60,
         edge_backpressure_kafka_pending_max: 500,
         edge_backpressure_kafka_oldest_age_seconds_max: 30,
+        observability_rabbit_queue_poll_interval: Duration::from_secs(15),
+        observability_postgres_lock_poll_interval: Duration::from_secs(15),
+        observability_job_pressure_poll_interval: Duration::from_secs(15),
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec![],
@@ -176,9 +184,7 @@ async fn relay_publish_failures_are_requeued_as_pending() {
     )
     .unwrap();
     assert_eq!(job.job_key, enqueue_key);
-    let row_id = outbox::enqueue_tx(&mut tx, &job, &serde_json::json!({}))
-        .await
-        .unwrap();
+    let row_id = outbox::enqueue_tx(&mut tx, &job).await.unwrap();
     tx.commit().await.unwrap();
 
     let cfg = test_cfg(db_url);
@@ -224,7 +230,7 @@ async fn relay_uses_persisted_observability_headers_when_present() {
         .unwrap();
 
     let mut tx = pool.begin().await.unwrap();
-    let job = build_write_demo_job_v1(
+    let mut job = build_write_demo_job_v1(
         "api".to_string(),
         "relay-observability".to_string(),
         "caller-relay".to_string(),
@@ -233,18 +239,13 @@ async fn relay_uses_persisted_observability_headers_when_present() {
         4,
     )
     .unwrap();
-    outbox::enqueue_tx(
-        &mut tx,
-        &job,
-        &serde_json::json!({
-            "observability": {
-                "x-correlation-id": "corr-relay-observability",
-                "traceparent": "00-22222222222222222222222222222222-00f067aa0ba902b7-01"
-            }
-        }),
-    )
-    .await
-    .unwrap();
+    job.metadata = serde_json::json!({
+        "observability": {
+            "x-correlation-id": "corr-relay-observability",
+            "traceparent": "00-22222222222222222222222222222222-00f067aa0ba902b7-01"
+        }
+    });
+    outbox::enqueue_tx(&mut tx, &job).await.unwrap();
     tx.commit().await.unwrap();
 
     let publisher = RecordingPublisher::default();
@@ -300,9 +301,7 @@ async fn relay_keeps_human_correlation_for_legacy_rows_without_w3c_headers() {
         4,
     )
     .unwrap();
-    outbox::enqueue_tx(&mut tx, &job, &serde_json::json!({}))
-        .await
-        .unwrap();
+    outbox::enqueue_tx(&mut tx, &job).await.unwrap();
     tx.commit().await.unwrap();
 
     let publisher = RecordingPublisher::default();

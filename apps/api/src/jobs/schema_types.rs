@@ -1,7 +1,8 @@
-use super::types::WorkloadClass;
+use super::types::{JobDeliveryMode, WorkloadClass};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -116,6 +117,10 @@ pub struct JobRecord {
     pub correlation_id: String,
     pub routing_key: String,
     pub payload: Value,
+    pub metadata: Value,
+    pub delivery_mode: JobDeliveryMode,
+    pub backfill_run_id: Option<Uuid>,
+    pub source_event_id: Option<i64>,
     pub max_attempts: i32,
 }
 

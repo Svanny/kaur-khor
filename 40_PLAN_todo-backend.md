@@ -102,3 +102,4 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 
 11. Staging environment parity and safe rollout controls
     Ensure staging mirrors production topology and add feature flags for algorithm rollouts. Done means you can ship changes gradually and roll back fast.
+    Status: implemented via four-role topology contract (`api`, `event-relay`, `projection-consumer`, `worker`), deploy parity checks, and Postgres-backed worker algorithm rollout policy keyed by `job_type`.

@@ -169,9 +169,11 @@ fn build_resource(cfg: &ObservabilityConfig) -> Resource {
     let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
     let region = env::var("BANJI_REGION").unwrap_or_else(|_| "kh-pp".to_string());
     let deployment_id = env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string());
+    let instance_id = resolve_instance_id();
 
     let mut attributes = vec![
         KeyValue::new("service.name", cfg.service_name.clone()),
+        KeyValue::new("service.instance.id", instance_id),
         KeyValue::new("service.namespace", system.clone()),
         KeyValue::new("deployment.environment", env_name.clone()),
         KeyValue::new("deployment.id", deployment_id),
@@ -197,6 +199,28 @@ fn build_resource(cfg: &ObservabilityConfig) -> Resource {
     }
 
     Resource::new(attributes)
+}
+
+fn resolve_instance_id() -> String {
+    env::var("BANJI_INSTANCE_ID")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            env::var("HOSTNAME")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
+        .or_else(|| {
+            env::var("COMPUTERNAME")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
+        .or_else(|| {
+            env::var("RAILWAY_REPLICA_ID")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
+        .unwrap_or_else(|| "unknown-instance".to_string())
 }
 
 fn parse_otlp_headers(input: &str) -> Result<tonic::metadata::MetadataMap> {
@@ -234,5 +258,41 @@ fn parse_bool(name: &str, default: bool) -> Result<bool> {
             _ => Err(anyhow!("{name} must be boolean")),
         },
         Err(_) => Ok(default),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_instance_id;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    #[test]
+    fn instance_id_prefers_explicit_env_var() {
+        let _guard = env_lock().lock().unwrap();
+        unsafe {
+            std::env::set_var("BANJI_INSTANCE_ID", "api-1");
+            std::env::remove_var("HOSTNAME");
+        }
+        assert_eq!(resolve_instance_id(), "api-1");
+        unsafe {
+            std::env::remove_var("BANJI_INSTANCE_ID");
+        }
+    }
+
+    #[test]
+    fn instance_id_falls_back_to_unknown() {
+        let _guard = env_lock().lock().unwrap();
+        unsafe {
+            std::env::remove_var("BANJI_INSTANCE_ID");
+            std::env::remove_var("HOSTNAME");
+            std::env::remove_var("COMPUTERNAME");
+            std::env::remove_var("RAILWAY_REPLICA_ID");
+        }
+        assert_eq!(resolve_instance_id(), "unknown-instance");
     }
 }

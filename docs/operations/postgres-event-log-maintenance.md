@@ -135,10 +135,43 @@ cargo run --bin banji-api
 
 For replay apply, checkpoint advancement occurs only after the projection batch transaction commits successfully.
 
+## Replay (Backfill Controller)
+Preview now persists an operator-audited `app.backfill_run` row:
+
+```bash
+APP_ROLE=backfill-controller \
+DATABASE_RUNTIME_URL="$DATABASE_RUNTIME_URL" \
+BACKFILL_KIND=projection \
+BACKFILL_MODE=preview \
+BACKFILL_STREAM_NAME=banji-core.prod.inventory-updated \
+BACKFILL_OPERATOR_ID=ops-1 \
+BACKFILL_REASON="preview projection rebuild" \
+BACKFILL_FROM_EVENT_ID=0 \
+cargo run --bin banji-api
+```
+
+Apply replay with checkpoint reset and projection truncation:
+
+```bash
+APP_ROLE=backfill-controller \
+DATABASE_RUNTIME_URL="$DATABASE_RUNTIME_URL" \
+BACKFILL_KIND=projection \
+BACKFILL_MODE=apply \
+BACKFILL_STREAM_NAME=banji-core.prod.inventory-updated \
+BACKFILL_OPERATOR_ID=ops-1 \
+BACKFILL_REASON="rebuild projection after algorithm update" \
+BACKFILL_FROM_EVENT_ID=0 \
+BACKFILL_RESET_CHECKPOINT=true \
+BACKFILL_TRUNCATE_PROJECTION=true \
+cargo run --bin banji-api
+```
+
 ## Replay (Legacy Shell Tooling)
 Shell replay scripts remain available for preview/maintenance workflows, but the authoritative projection rebuild path is the Rust `projection-consumer` runtime above.
 
 ## Replay (Cold)
+Cold replay in this milestone is projection-only. Do not use `BACKFILL_KIND=jobs` against restore DBs.
+
 1) Rehydrate archive segments into restore DB:
 
 ```bash

@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+RAILWAY_BIN="${RAILWAY_BIN:-railway}"
+SKIP_RAILWAY_INSTALL="${SKIP_RAILWAY_INSTALL:-false}"
+
 required=(
   RAILWAY_TOKEN
   RAILWAY_PROJECT_ID
   RAILWAY_SERVICE_ID
   IMAGE_REF
+  EXPECTED_APP_ROLE
+  EXPECTED_BANJI_SERVICE
   DATABASE_RUNTIME_ENDPOINT_KIND
   PGBOUNCER_POOL_MODE
-  EDGE_ENFORCEMENT_ENABLED
-  EDGE_PROVIDER
-  EDGE_ORIGIN_AUTH_HEADER_NAME
-  EDGE_CORS_ALLOWED_ORIGINS
 )
 for name in "${required[@]}"; do
   if [[ -z "${!name:-}" ]]; then
@@ -35,43 +36,145 @@ if [[ "$PGBOUNCER_POOL_MODE" != "transaction" ]]; then
   exit 1
 fi
 
-if [[ "${EDGE_ENFORCEMENT_ENABLED,,}" != "true" ]]; then
-  echo "error: EDGE_ENFORCEMENT_ENABLED must be true for deploy targets" >&2
-  exit 1
+require_local_var() {
+  local key="$1"
+  if [[ -z "${!key:-}" ]]; then
+    echo "error: $key is required for EXPECTED_APP_ROLE=$EXPECTED_APP_ROLE" >&2
+    exit 1
+  fi
+}
+
+forbid_local_var() {
+  local key="$1"
+  if [[ -n "${!key:-}" ]]; then
+    echo "error: $key must not be provided for EXPECTED_APP_ROLE=$EXPECTED_APP_ROLE" >&2
+    exit 1
+  fi
+}
+
+case "$EXPECTED_APP_ROLE" in
+  api)
+    require_local_var EDGE_ENFORCEMENT_ENABLED
+    require_local_var EDGE_PROVIDER
+    require_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
+    require_local_var EDGE_CORS_ALLOWED_ORIGINS
+    require_local_var AUTH_ENABLED
+    require_local_var AUTH_JWKS_URL
+    require_local_var AUTH_ISSUER
+    require_local_var AUTH_AUDIENCE
+    forbid_local_var OBJECT_STORAGE_ENDPOINT
+    forbid_local_var OBJECT_STORAGE_ACCESS_KEY
+    forbid_local_var OBJECT_STORAGE_SECRET_KEY
+    ;;
+  event-relay)
+    require_local_var DATABASE_RUNTIME_URL
+    forbid_local_var RABBIT_URL
+    forbid_local_var OBJECT_STORAGE_ENDPOINT
+    forbid_local_var OBJECT_STORAGE_ACCESS_KEY
+    forbid_local_var OBJECT_STORAGE_SECRET_KEY
+    forbid_local_var AUTH_JWKS_URL
+    forbid_local_var AUTH_ISSUER
+    forbid_local_var AUTH_AUDIENCE
+    forbid_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
+    ;;
+  projection-consumer)
+    require_local_var DATABASE_RUNTIME_URL
+    require_local_var EVENT_CONSUMER_SERVICE_NAME
+    require_local_var EVENT_CONSUMER_NAME
+    require_local_var EVENT_CONSUMER_STREAM_NAME
+    forbid_local_var RABBIT_URL
+    forbid_local_var OBJECT_STORAGE_ENDPOINT
+    forbid_local_var OBJECT_STORAGE_ACCESS_KEY
+    forbid_local_var OBJECT_STORAGE_SECRET_KEY
+    forbid_local_var AUTH_JWKS_URL
+    forbid_local_var AUTH_ISSUER
+    forbid_local_var AUTH_AUDIENCE
+    forbid_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
+    ;;
+  worker)
+    require_local_var DATABASE_RUNTIME_URL
+    require_local_var RABBIT_URL
+    require_local_var OBJECT_STORAGE_ENABLED
+    require_local_var OBJECT_STORAGE_ENDPOINT
+    require_local_var OBJECT_STORAGE_REGION
+    require_local_var OBJECT_STORAGE_BUCKET_ARTIFACTS
+    require_local_var OBJECT_STORAGE_ACCESS_KEY
+    require_local_var OBJECT_STORAGE_SECRET_KEY
+    require_local_var ALGORITHM_ROLLOUT_HASH_SALT
+    require_local_var ALGORITHM_ROLLOUT_HASH_SALT_VERSION
+    forbid_local_var AUTH_JWKS_URL
+    forbid_local_var AUTH_ISSUER
+    forbid_local_var AUTH_AUDIENCE
+    forbid_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
+    ;;
+  *)
+    echo "error: EXPECTED_APP_ROLE must be one of api, event-relay, projection-consumer, worker" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$SKIP_RAILWAY_INSTALL" != "true" ]]; then
+  npm install -g @railway/cli >/dev/null
 fi
 
-if [[ "$EDGE_PROVIDER" != "cloudflare" ]]; then
-  echo "error: EDGE_PROVIDER must be cloudflare for deploy targets" >&2
-  exit 1
-fi
+set_runtime_var() {
+  local key="$1"
+  "$RAILWAY_BIN" variables --set "$key=${!key}" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
+}
 
-if [[ -z "$EDGE_ORIGIN_AUTH_HEADER_NAME" ]]; then
-  echo "error: EDGE_ORIGIN_AUTH_HEADER_NAME is required" >&2
-  exit 1
-fi
+set_runtime_var_if_present() {
+  local key="$1"
+  if [[ -n "${!key:-}" ]]; then
+    set_runtime_var "$key"
+  fi
+}
 
-if [[ -z "$EDGE_CORS_ALLOWED_ORIGINS" ]]; then
-  echo "error: EDGE_CORS_ALLOWED_ORIGINS is required" >&2
-  exit 1
-fi
+"$RAILWAY_BIN" login --token "$RAILWAY_TOKEN"
+set_runtime_var IMAGE_REF
+set_runtime_var DATABASE_RUNTIME_ENDPOINT_KIND
+set_runtime_var PGBOUNCER_POOL_MODE
+"$RAILWAY_BIN" variables --set "APP_ROLE=$EXPECTED_APP_ROLE" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
+"$RAILWAY_BIN" variables --set "BANJI_SERVICE=$EXPECTED_BANJI_SERVICE" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
 
-npm install -g @railway/cli >/dev/null
+# Persist the canonical runtime variable names expected by the service.
+case "$EXPECTED_APP_ROLE" in
+  api)
+    set_runtime_var_if_present EDGE_ENFORCEMENT_ENABLED
+    set_runtime_var_if_present EDGE_PROVIDER
+    set_runtime_var_if_present EDGE_ORIGIN_AUTH_HEADER_NAME
+    set_runtime_var_if_present EDGE_CORS_ALLOWED_ORIGINS
+    set_runtime_var_if_present AUTH_ENABLED
+    set_runtime_var_if_present AUTH_JWKS_URL
+    set_runtime_var_if_present AUTH_ISSUER
+    set_runtime_var_if_present AUTH_AUDIENCE
+    ;;
+  event-relay)
+    set_runtime_var_if_present DATABASE_RUNTIME_URL
+    ;;
+  projection-consumer)
+    set_runtime_var_if_present DATABASE_RUNTIME_URL
+    set_runtime_var_if_present EVENT_CONSUMER_SERVICE_NAME
+    set_runtime_var_if_present EVENT_CONSUMER_NAME
+    set_runtime_var_if_present EVENT_CONSUMER_STREAM_NAME
+    ;;
+  worker)
+    set_runtime_var_if_present DATABASE_RUNTIME_URL
+    set_runtime_var_if_present RABBIT_URL
+    set_runtime_var_if_present OBJECT_STORAGE_ENABLED
+    set_runtime_var_if_present OBJECT_STORAGE_ENDPOINT
+    set_runtime_var_if_present OBJECT_STORAGE_REGION
+    set_runtime_var_if_present OBJECT_STORAGE_BUCKET_ARTIFACTS
+    set_runtime_var_if_present OBJECT_STORAGE_ACCESS_KEY
+    set_runtime_var_if_present OBJECT_STORAGE_SECRET_KEY
+    set_runtime_var_if_present ALGORITHM_ROLLOUT_HASH_SALT
+    set_runtime_var_if_present ALGORITHM_ROLLOUT_HASH_SALT_VERSION
+    ;;
+esac
 
-# Railway must be configured to deploy from external GHCR image.
-# This command updates runtime variables and triggers a redeploy.
-railway login --token "$RAILWAY_TOKEN"
-railway variables --set "IMAGE_REF=$IMAGE_REF" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-railway variables --set "DATABASE_RUNTIME_ENDPOINT_KIND=$DATABASE_RUNTIME_ENDPOINT_KIND" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-railway variables --set "PGBOUNCER_POOL_MODE=$PGBOUNCER_POOL_MODE" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-railway variables --set "EDGE_ENFORCEMENT_ENABLED=$EDGE_ENFORCEMENT_ENABLED" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-railway variables --set "EDGE_PROVIDER=$EDGE_PROVIDER" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-railway variables --set "EDGE_ORIGIN_AUTH_HEADER_NAME=$EDGE_ORIGIN_AUTH_HEADER_NAME" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-railway variables --set "EDGE_CORS_ALLOWED_ORIGINS=$EDGE_CORS_ALLOWED_ORIGINS" --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID"
-
-runtime_vars_json="$(railway variables --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID" --json 2>/dev/null || true)"
+runtime_vars_json="$("$RAILWAY_BIN" variables --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID" --json 2>/dev/null || true)"
 runtime_vars_text=""
 if [[ -z "$runtime_vars_json" || "$(printf '%s' "$runtime_vars_json" | jq -r 'type' 2>/dev/null || true)" == "" ]]; then
-  runtime_vars_text="$(railway variables --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID" 2>/dev/null || true)"
+  runtime_vars_text="$("$RAILWAY_BIN" variables --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID" 2>/dev/null || true)"
 fi
 
 runtime_var_value() {
@@ -126,11 +229,85 @@ assert_runtime_var_equals() {
   fi
 }
 
+assert_runtime_var_present() {
+  local key="$1"
+  local actual
+  if ! actual="$(runtime_var_value "$key")" || [[ -z "$actual" ]]; then
+    echo "error: Railway runtime variable '$key' must be present for EXPECTED_APP_ROLE=$EXPECTED_APP_ROLE" >&2
+    exit 1
+  fi
+}
+
+assert_runtime_var_absent() {
+  local key="$1"
+  local actual
+  if actual="$(runtime_var_value "$key")" && [[ -n "$actual" ]]; then
+    echo "error: Railway runtime variable '$key' must be absent for EXPECTED_APP_ROLE=$EXPECTED_APP_ROLE" >&2
+    exit 1
+  fi
+}
+
+assert_runtime_var_equals "IMAGE_REF" "$IMAGE_REF"
+assert_runtime_var_equals "APP_ROLE" "$EXPECTED_APP_ROLE"
+assert_runtime_var_equals "BANJI_SERVICE" "$EXPECTED_BANJI_SERVICE"
 assert_runtime_var_equals "DATABASE_RUNTIME_ENDPOINT_KIND" "$DATABASE_RUNTIME_ENDPOINT_KIND"
 assert_runtime_var_equals "PGBOUNCER_POOL_MODE" "$PGBOUNCER_POOL_MODE"
-assert_runtime_var_equals "EDGE_ENFORCEMENT_ENABLED" "$EDGE_ENFORCEMENT_ENABLED"
-assert_runtime_var_equals "EDGE_PROVIDER" "$EDGE_PROVIDER"
-assert_runtime_var_equals "EDGE_ORIGIN_AUTH_HEADER_NAME" "$EDGE_ORIGIN_AUTH_HEADER_NAME"
-assert_runtime_var_equals "EDGE_CORS_ALLOWED_ORIGINS" "$EDGE_CORS_ALLOWED_ORIGINS"
 
-railway redeploy --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID" --yes
+case "$EXPECTED_APP_ROLE" in
+  api)
+    assert_runtime_var_equals "EDGE_ENFORCEMENT_ENABLED" "$EDGE_ENFORCEMENT_ENABLED"
+    assert_runtime_var_equals "EDGE_PROVIDER" "$EDGE_PROVIDER"
+    assert_runtime_var_equals "EDGE_ORIGIN_AUTH_HEADER_NAME" "$EDGE_ORIGIN_AUTH_HEADER_NAME"
+    assert_runtime_var_equals "EDGE_CORS_ALLOWED_ORIGINS" "$EDGE_CORS_ALLOWED_ORIGINS"
+    assert_runtime_var_equals "AUTH_ENABLED" "$AUTH_ENABLED"
+    assert_runtime_var_equals "AUTH_JWKS_URL" "$AUTH_JWKS_URL"
+    assert_runtime_var_equals "AUTH_ISSUER" "$AUTH_ISSUER"
+    assert_runtime_var_equals "AUTH_AUDIENCE" "$AUTH_AUDIENCE"
+    assert_runtime_var_absent "OBJECT_STORAGE_ENDPOINT"
+    assert_runtime_var_absent "OBJECT_STORAGE_ACCESS_KEY"
+    assert_runtime_var_absent "OBJECT_STORAGE_SECRET_KEY"
+    ;;
+  event-relay)
+    assert_runtime_var_present "DATABASE_RUNTIME_URL"
+    assert_runtime_var_absent "RABBIT_URL"
+    assert_runtime_var_absent "OBJECT_STORAGE_ENDPOINT"
+    assert_runtime_var_absent "OBJECT_STORAGE_ACCESS_KEY"
+    assert_runtime_var_absent "OBJECT_STORAGE_SECRET_KEY"
+    assert_runtime_var_absent "AUTH_JWKS_URL"
+    assert_runtime_var_absent "AUTH_ISSUER"
+    assert_runtime_var_absent "AUTH_AUDIENCE"
+    assert_runtime_var_absent "EDGE_ORIGIN_AUTH_HEADER_NAME"
+    ;;
+  projection-consumer)
+    assert_runtime_var_present "DATABASE_RUNTIME_URL"
+    assert_runtime_var_equals "EVENT_CONSUMER_SERVICE_NAME" "$EVENT_CONSUMER_SERVICE_NAME"
+    assert_runtime_var_equals "EVENT_CONSUMER_NAME" "$EVENT_CONSUMER_NAME"
+    assert_runtime_var_equals "EVENT_CONSUMER_STREAM_NAME" "$EVENT_CONSUMER_STREAM_NAME"
+    assert_runtime_var_absent "RABBIT_URL"
+    assert_runtime_var_absent "OBJECT_STORAGE_ENDPOINT"
+    assert_runtime_var_absent "OBJECT_STORAGE_ACCESS_KEY"
+    assert_runtime_var_absent "OBJECT_STORAGE_SECRET_KEY"
+    assert_runtime_var_absent "AUTH_JWKS_URL"
+    assert_runtime_var_absent "AUTH_ISSUER"
+    assert_runtime_var_absent "AUTH_AUDIENCE"
+    assert_runtime_var_absent "EDGE_ORIGIN_AUTH_HEADER_NAME"
+    ;;
+  worker)
+    assert_runtime_var_present "DATABASE_RUNTIME_URL"
+    assert_runtime_var_present "RABBIT_URL"
+    assert_runtime_var_equals "OBJECT_STORAGE_ENABLED" "$OBJECT_STORAGE_ENABLED"
+    assert_runtime_var_equals "OBJECT_STORAGE_ENDPOINT" "$OBJECT_STORAGE_ENDPOINT"
+    assert_runtime_var_equals "OBJECT_STORAGE_REGION" "$OBJECT_STORAGE_REGION"
+    assert_runtime_var_equals "OBJECT_STORAGE_BUCKET_ARTIFACTS" "$OBJECT_STORAGE_BUCKET_ARTIFACTS"
+    assert_runtime_var_present "OBJECT_STORAGE_ACCESS_KEY"
+    assert_runtime_var_present "OBJECT_STORAGE_SECRET_KEY"
+    assert_runtime_var_present "ALGORITHM_ROLLOUT_HASH_SALT"
+    assert_runtime_var_equals "ALGORITHM_ROLLOUT_HASH_SALT_VERSION" "$ALGORITHM_ROLLOUT_HASH_SALT_VERSION"
+    assert_runtime_var_absent "AUTH_JWKS_URL"
+    assert_runtime_var_absent "AUTH_ISSUER"
+    assert_runtime_var_absent "AUTH_AUDIENCE"
+    assert_runtime_var_absent "EDGE_ORIGIN_AUTH_HEADER_NAME"
+    ;;
+esac
+
+"$RAILWAY_BIN" redeploy --service "$RAILWAY_SERVICE_ID" --project "$RAILWAY_PROJECT_ID" --yes

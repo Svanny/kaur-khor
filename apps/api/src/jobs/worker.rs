@@ -5,6 +5,7 @@ use super::{
     relay, repository,
     repository::AttemptClaimOutcome,
     result_publisher::{DisabledJobResultPublisher, JobResultPublisher},
+    rollout,
     schema::{validate_job_envelope, JobSchemaError},
     types::{ErrorReasonCode, JobEnvelope, WorkloadClass},
 };
@@ -386,7 +387,7 @@ pub async fn process_job_envelope(
     };
 
     let mut tx = pool.begin().await?;
-    let Some(job_run) =
+    let Some(mut job_run) =
         repository::get_job_run_for_update_tx(&mut tx, &envelope.message_id).await?
     else {
         repository::record_delivery_violation_tx(
@@ -497,6 +498,55 @@ pub async fn process_job_envelope(
     }
 
     repository::mark_run_started_tx(&mut tx, job_run.id, envelope.attempt).await?;
+    let algorithm_decision =
+        match rollout::resolve_algorithm_decision_tx(&mut tx, worker_cfg, &job_run).await {
+            Ok(decision) => decision,
+            Err(err) => {
+                let error_message = sanitize_error_message(&err.to_string());
+                let classification = super::retry::classify_error(&error_message);
+                repository::mark_attempt_failed_tx(
+                    &mut tx,
+                    job_run.id,
+                    envelope.attempt,
+                    &worker_cfg.worker_id,
+                    classification.class,
+                    classification.reason,
+                    &error_message,
+                    None,
+                    false,
+                )
+                .await?;
+                tx.commit().await?;
+                let _ = republish_with_confirm_before_ack(
+                    publisher,
+                    cfg,
+                    &cfg.rabbit_dlx_exchange,
+                    envelope.clone(),
+                    &error_message,
+                )
+                .await?;
+                metrics::record_job_run_total(
+                    envelope.workload_class.as_str(),
+                    &envelope.job_type,
+                    "failed",
+                );
+                metrics::record_job_run_duration(
+                    envelope.workload_class.as_str(),
+                    &envelope.job_type,
+                    "failed",
+                    started.elapsed().as_secs_f64(),
+                );
+                return Ok(WorkerDisposition::Ack);
+            }
+        };
+    repository::persist_algorithm_decision_tx(&mut tx, job_run.id, &algorithm_decision).await?;
+    job_run.algorithm_version = Some(algorithm_decision.algorithm_version.clone());
+    job_run.algorithm_decision_source =
+        Some(algorithm_decision.decision_source.as_str().to_string());
+    job_run.algorithm_rollout_bucket = Some(algorithm_decision.rollout_bucket);
+    job_run.algorithm_policy_updated_at = Some(algorithm_decision.policy_updated_at);
+    job_run.algorithm_hash_salt_version = Some(algorithm_decision.hash_salt_version.clone());
+    job_run.algorithm_decided_at = Some(algorithm_decision.decided_at);
     tx.commit().await?;
 
     let heartbeat_stop = Arc::new(tokio::sync::Notify::new());
@@ -531,6 +581,8 @@ pub async fn process_job_envelope(
         artifact_tmp_dir: worker_cfg.object_storage.tmp_dir.clone(),
         producer_service: cfg.service.clone(),
         producer_role: cfg.app_role.as_str().to_string(),
+        algorithm_version: algorithm_decision.algorithm_version.clone(),
+        algorithm_decision_source: algorithm_decision.decision_source,
     };
     let handler_future = handlers::handle_job(pool, &execution_ctx, &known_job);
     let handler_result = match worker_cfg.handler_max_runtime {

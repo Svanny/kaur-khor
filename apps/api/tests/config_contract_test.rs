@@ -17,6 +17,8 @@ const WORKER_OBJECT_STORAGE_ENV_KEYS: &[&str] = &[
     "ARTIFACT_TMP_DIR",
     "OBJECT_STORAGE_ACCESS_KEY",
     "OBJECT_STORAGE_SECRET_KEY",
+    "ALGORITHM_ROLLOUT_HASH_SALT",
+    "ALGORITHM_ROLLOUT_HASH_SALT_VERSION",
 ];
 
 fn env_lock() -> &'static Mutex<()> {
@@ -60,6 +62,8 @@ fn set_minimal_worker_object_storage_env() {
     std::env::set_var("ARTIFACT_TMP_DIR", "/tmp/banji-artifacts");
     std::env::set_var("OBJECT_STORAGE_ACCESS_KEY", "access");
     std::env::set_var("OBJECT_STORAGE_SECRET_KEY", "secret");
+    std::env::set_var("ALGORITHM_ROLLOUT_HASH_SALT", "dev-local-salt");
+    std::env::set_var("ALGORITHM_ROLLOUT_HASH_SALT_VERSION", "dev-local");
 }
 
 #[test]
@@ -104,6 +108,7 @@ fn app_config_debug_redacts_secret_fields() {
         system: "banji-core".to_string(),
         env: "dev".to_string(),
         service: "api".to_string(),
+        instance_id: "api-test-1".to_string(),
         auth_enabled: false,
         auth_jwks_url: None,
         auth_issuer: None,
@@ -132,7 +137,11 @@ fn app_config_debug_redacts_secret_fields() {
         rabbit_url: Some(rabbit_url),
         rabbit_vhost: "/".to_string(),
         rabbit_exchange_jobs: "banji-core.dev.jobs".to_string(),
+        rabbit_exchange_jobs_replay: "banji-core.dev.jobs.replay".to_string(),
         rabbit_dlx_exchange: "banji-core.dev.jobs.dlx".to_string(),
+        rabbit_management_api_base_url: None,
+        rabbit_management_username: None,
+        rabbit_management_password: None,
         rabbit_retry_1_ttl_ms: 30_000,
         rabbit_retry_2_ttl_ms: 300_000,
         rabbit_retry_3_ttl_ms: 1_800_000,
@@ -181,6 +190,9 @@ fn app_config_debug_redacts_secret_fields() {
         edge_backpressure_job_run_oldest_age_seconds_max: 60,
         edge_backpressure_kafka_pending_max: 500,
         edge_backpressure_kafka_oldest_age_seconds_max: 30,
+        observability_rabbit_queue_poll_interval: std::time::Duration::from_secs(15),
+        observability_postgres_lock_poll_interval: std::time::Duration::from_secs(15),
+        observability_job_pressure_poll_interval: std::time::Duration::from_secs(15),
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec![],
@@ -221,6 +233,178 @@ fn api_rejects_auth_disabled_outside_dev() {
         .unwrap_err()
         .to_string()
         .contains("AUTH_ENABLED=false in dev"));
+}
+
+#[test]
+fn backfill_controller_parses_replay_runtime_config() {
+    let _guard = lock_env();
+    let keys = [
+        "BANJI_ENV",
+        "BANJI_SYSTEM",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "DATABASE_RUNTIME_URL",
+        "RESTORE_DATABASE_URL",
+        "APP_ROLE",
+        "AUTH_ENABLED",
+        "BACKFILL_KIND",
+        "BACKFILL_MODE",
+        "BACKFILL_STREAM_NAME",
+        "BACKFILL_OPERATOR_ID",
+        "BACKFILL_REASON",
+        "BACKFILL_FROM_EVENT_ID",
+        "BACKFILL_INVALID_EVENT_POLICY",
+        "BACKFILL_DATABASE_KIND",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "test");
+    std::env::set_var("BANJI_SYSTEM", "banji-core");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::remove_var("DATABASE_RUNTIME_URL");
+    std::env::set_var(
+        "RESTORE_DATABASE_URL",
+        "postgres://restore@db.example/banji_restore",
+    );
+    std::env::set_var("APP_ROLE", "backfill-controller");
+    std::env::set_var("AUTH_ENABLED", "false");
+    std::env::set_var("BACKFILL_KIND", "projection");
+    std::env::set_var("BACKFILL_MODE", "preview");
+    std::env::set_var("BACKFILL_STREAM_NAME", "banji-core.test.inventory-updated");
+    std::env::set_var("BACKFILL_OPERATOR_ID", "ops-1");
+    std::env::set_var("BACKFILL_REASON", "preview");
+    std::env::set_var("BACKFILL_FROM_EVENT_ID", "0");
+    std::env::set_var("BACKFILL_INVALID_EVENT_POLICY", "quarantine");
+    std::env::set_var("BACKFILL_DATABASE_KIND", "restore");
+
+    let cfg = AppConfig::from_env().expect("backfill config should parse");
+    let backfill = cfg.backfill_config().expect("backfill config should build");
+    restore_env(old);
+
+    assert_eq!(cfg.app_role, AppRole::BackfillController);
+    assert!(cfg.database_runtime_url.is_none());
+    assert_eq!(backfill.kind.as_str(), "projection");
+    assert_eq!(backfill.mode.as_str(), "preview");
+    assert_eq!(
+        backfill.invalid_event_policy,
+        banji_api::events::schema_types::InvalidEventPolicy::Quarantine
+    );
+    assert_eq!(backfill.database_kind.as_str(), "restore");
+    assert_eq!(
+        backfill.database_url,
+        "postgres://restore@db.example/banji_restore"
+    );
+}
+
+#[test]
+fn backfill_jobs_reject_restore_database_kind() {
+    let _guard = lock_env();
+    let keys = [
+        "BANJI_ENV",
+        "BANJI_SYSTEM",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "DATABASE_RUNTIME_URL",
+        "RESTORE_DATABASE_URL",
+        "APP_ROLE",
+        "AUTH_ENABLED",
+        "BACKFILL_KIND",
+        "BACKFILL_MODE",
+        "BACKFILL_STREAM_NAME",
+        "BACKFILL_OPERATOR_ID",
+        "BACKFILL_REASON",
+        "BACKFILL_FROM_EVENT_ID",
+        "BACKFILL_DATABASE_KIND",
+        "BACKFILL_ALLOW_BROKER_PUBLISH",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "test");
+    std::env::set_var("BANJI_SYSTEM", "banji-core");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var(
+        "RESTORE_DATABASE_URL",
+        "postgres://restore@db.example/banji_restore",
+    );
+    std::env::set_var("APP_ROLE", "backfill-controller");
+    std::env::set_var("AUTH_ENABLED", "false");
+    std::env::set_var("BACKFILL_KIND", "jobs");
+    std::env::set_var("BACKFILL_MODE", "apply");
+    std::env::set_var(
+        "BACKFILL_STREAM_NAME",
+        "banji-core.test.write-demo-completed",
+    );
+    std::env::set_var("BACKFILL_OPERATOR_ID", "ops-1");
+    std::env::set_var("BACKFILL_REASON", "replay");
+    std::env::set_var("BACKFILL_FROM_EVENT_ID", "0");
+    std::env::set_var("BACKFILL_DATABASE_KIND", "restore");
+    std::env::set_var("BACKFILL_ALLOW_BROKER_PUBLISH", "true");
+
+    let result = AppConfig::from_env();
+    restore_env(old);
+
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("does not support BACKFILL_DATABASE_KIND=restore"));
+}
+
+#[test]
+fn backfill_restore_requires_restore_database_url() {
+    let _guard = lock_env();
+    let keys = [
+        "BANJI_ENV",
+        "BANJI_SYSTEM",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "DATABASE_RUNTIME_URL",
+        "RESTORE_DATABASE_URL",
+        "APP_ROLE",
+        "AUTH_ENABLED",
+        "BACKFILL_KIND",
+        "BACKFILL_MODE",
+        "BACKFILL_STREAM_NAME",
+        "BACKFILL_OPERATOR_ID",
+        "BACKFILL_REASON",
+        "BACKFILL_FROM_EVENT_ID",
+        "BACKFILL_DATABASE_KIND",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "test");
+    std::env::set_var("BANJI_SYSTEM", "banji-core");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::remove_var("RESTORE_DATABASE_URL");
+    std::env::set_var("APP_ROLE", "backfill-controller");
+    std::env::set_var("AUTH_ENABLED", "false");
+    std::env::set_var("BACKFILL_KIND", "projection");
+    std::env::set_var("BACKFILL_MODE", "preview");
+    std::env::set_var("BACKFILL_STREAM_NAME", "banji-core.test.inventory-updated");
+    std::env::set_var("BACKFILL_OPERATOR_ID", "ops-1");
+    std::env::set_var("BACKFILL_REASON", "preview");
+    std::env::set_var("BACKFILL_FROM_EVENT_ID", "0");
+    std::env::set_var("BACKFILL_DATABASE_KIND", "restore");
+
+    let result = AppConfig::from_env();
+    restore_env(old);
+
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("RESTORE_DATABASE_URL is required"));
 }
 
 #[test]
@@ -782,6 +966,68 @@ fn worker_default_id_includes_host_identity_when_available() {
         std::env::remove_var("RAILWAY_REPLICA_ID");
     }
     restore_env(old_object_storage);
+}
+
+#[test]
+fn worker_config_debug_redacts_rollout_hash_salt() {
+    let _guard = lock_env();
+    let old_object_storage = capture_env(WORKER_OBJECT_STORAGE_ENV_KEYS);
+
+    set_minimal_worker_object_storage_env();
+    std::env::set_var("ALGORITHM_ROLLOUT_HASH_SALT", "very-secret-salt");
+    std::env::set_var("ALGORITHM_ROLLOUT_HASH_SALT_VERSION", "salt-v1");
+
+    let worker_cfg = WorkerConfig::from_env().unwrap();
+    let rendered = format!("{worker_cfg:?}");
+
+    assert!(!rendered.contains("very-secret-salt"));
+    assert!(rendered.contains("<redacted>"));
+    assert!(rendered.contains("salt-v1"));
+
+    restore_env(old_object_storage);
+}
+
+#[test]
+fn staging_worker_requires_rollout_hash_salt() {
+    let _guard = lock_env();
+
+    let keys = [
+        "BANJI_ENV",
+        "APP_ROLE",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_URL",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "PGBOUNCER_POOL_MODE",
+        "RABBIT_URL",
+        "DATABASE_MIGRATION_URL",
+    ];
+    let old = capture_env(&keys);
+    let old_object_storage = capture_env(WORKER_OBJECT_STORAGE_ENV_KEYS);
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "worker");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::set_var("RABBIT_URL", "amqp://guest:guest@localhost:5672/%2f");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+    set_minimal_worker_object_storage_env();
+    std::env::remove_var("ALGORITHM_ROLLOUT_HASH_SALT");
+
+    let result = AppConfig::from_env();
+
+    restore_env(old);
+    restore_env(old_object_storage);
+
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("ALGORITHM_ROLLOUT_HASH_SALT"));
 }
 
 #[test]
