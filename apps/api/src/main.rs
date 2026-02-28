@@ -1,5 +1,6 @@
 use banji_api::config::{ProjectionConsumerConfig, ProjectionConsumerRunMode};
 use std::net::SocketAddr;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -349,26 +350,68 @@ async fn apply_inventory_projection_iteration(
         return Ok(ProjectionIteration::default());
     }
 
+    let batch_span = tracing::info_span!(
+        "projection.batch",
+        consumer_name = %cfg.consumer_name,
+        service_name = %cfg.service_name,
+        stream_name = %cfg.stream_name,
+        candidate_count = batch.events.len() + batch.invalid_event_ids.len(),
+        after_id,
+        to_id = ?to_id,
+    );
+
     let mut tx = pool.begin().await?;
-    let apply_stats = match banji_api::projections::inventory::apply_inventory_projection_batch_tx(
-        &mut tx,
-        &batch.events,
-    )
-    .await
-    {
-        Ok(stats) => stats,
-        Err(err) => {
-            tx.rollback().await?;
-            banji_api::events::consumer::set_error(
-                pool,
-                &cfg.service_name,
-                &cfg.consumer_name,
-                &cfg.stream_name,
-                &err.to_string(),
-            )
-            .await?;
-            return Err(err);
+    let apply_stats = {
+        let _batch_entered = batch_span.enter();
+        let mut stats = banji_api::projections::inventory::ProjectionBatchStats::default();
+
+        for decoded in &batch.events {
+            let parent = banji_api::observability::propagation::extract_context_from_metadata(
+                &decoded.row.metadata,
+            );
+            let correlation_id = decoded.row.correlation_id.as_deref().unwrap_or("unknown");
+            let event_span = tracing::info_span!(
+                "projection.apply",
+                correlation_id = %correlation_id,
+                event_id = decoded.row.id,
+                event_type = %decoded.row.event_type,
+                stream_name = %decoded.row.stream_name,
+                producer_service = %decoded.row.producer_service,
+            );
+            event_span.set_parent(parent);
+
+            let _event_entered = event_span.enter();
+            match &decoded.event {
+                banji_api::events::schema_types::KnownEvent::InventoryItemCreatedV1(payload) => {
+                    banji_api::projections::inventory::apply_inventory_item_created_tx(
+                        &mut tx,
+                        decoded.row.id,
+                        payload,
+                    )
+                    .await?;
+                    stats.applied_count += 1;
+                    stats.last_applied_event_id = Some(decoded.row.id);
+                }
+                other => {
+                    let err = anyhow::anyhow!(
+                        "inventory projector received unsupported event on configured stream: {:?}",
+                        other
+                    );
+                    tx.rollback().await?;
+                    banji_api::events::consumer::set_error(
+                        pool,
+                        &cfg.service_name,
+                        &cfg.consumer_name,
+                        &cfg.stream_name,
+                        &err.to_string(),
+                    )
+                    .await?;
+                    return Err(err);
+                }
+            }
         }
+
+        stats
     };
 
     let checkpoint_target = apply_stats

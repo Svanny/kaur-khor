@@ -254,7 +254,7 @@ async fn run_projection_backfill(
             for row in rows {
                 max_seen_id = max_seen_id.max(row.id);
                 match schema::decode_event_row(&row, invalid_event_policy) {
-                    Ok(event) => decoded_events.push((row.id, event)),
+                    Ok(event) => decoded_events.push(consumer::DecodedEvent { row, event }),
                     Err(err) => match err.action {
                         crate::events::schema_types::InvalidEventAction::Halt => {
                             return Err(anyhow!("{} (event_id={})", err, row.id));

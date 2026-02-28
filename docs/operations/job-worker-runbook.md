@@ -9,6 +9,7 @@ This runbook covers the current RabbitMQ-backed worker runtime (`APP_ROLE=worker
 - Execute typed handlers for registered job types.
 - Persist attempt, result, and failure state in Postgres.
 - Use confirm-before-ack for retry and DLQ routing.
+- Reconstruct trace context from Rabbit metadata when present.
 
 ## Current Job Types
 - `item-created`
@@ -31,6 +32,17 @@ This runbook covers the current RabbitMQ-backed worker runtime (`APP_ROLE=worker
 
 Kafka result publication remains disabled in this milestone:
 - `JOB_RESULT_KAFKA_ENABLED=false`
+
+## Rabbit Trace Metadata Contract
+- Every published job message carries:
+  - AMQP `correlation_id`
+  - header `x-correlation-id`
+  - `traceparent` when available
+  - `tracestate` when available
+  - optional `baggage`
+- `x-correlation-id` and AMQP `correlation_id` must match the JSON envelope `correlation_id`.
+- Legacy messages without W3C headers are still accepted; the worker starts a local trace root and preserves the human correlation id.
+- If Rabbit transport correlation metadata conflicts with the envelope correlation id, the worker records `app.job_delivery_violation` and dead-letters the message.
 
 ## Postgres Accountability Tables
 - `app.job_run`
@@ -129,7 +141,8 @@ LIMIT 50;
 1. Check `app.job_run` status and `last_error_reason`.
 2. Check `app.job_run_attempt` for lease freshness and duplicate-delivery behavior.
 3. Check queue depth for primary, retry, and DLQ queues.
-4. If failures are poison or contract violations, use the DLQ triage runbook:
+4. Check whether Rabbit `x-correlation-id` / AMQP `correlation_id` matched the envelope on recent `app.job_delivery_violation` rows.
+5. If failures are poison or contract violations, use the DLQ triage runbook:
    - `/Users/svanny/banji/docs/operations/rabbitmq-dlq-triage.md`
 
 ## Safe Restart

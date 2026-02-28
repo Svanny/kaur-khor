@@ -335,11 +335,19 @@ async fn create_read_replay_is_owner_scoped_and_idempotent() {
         .post(format!("http://{addr}/v1/items"))
         .header("authorization", format!("Bearer {token_a}"))
         .header("idempotency-key", "idem-item-a-1")
+        .header("x-correlation-id", "corr-item-a-1")
         .json(&body)
         .send()
         .await
         .unwrap();
     assert_eq!(create.status(), StatusCode::CREATED);
+    assert_eq!(
+        create
+            .headers()
+            .get("x-correlation-id")
+            .and_then(|h| h.to_str().ok()),
+        Some("corr-item-a-1")
+    );
 
     let replay = client
         .post(format!("http://{addr}/v1/items"))
@@ -368,11 +376,22 @@ async fn create_read_replay_is_owner_scoped_and_idempotent() {
         .post(format!("http://{addr}/v1/items"))
         .header("authorization", format!("Bearer {token_b}"))
         .header("idempotency-key", "idem-item-b-1")
+        .header(
+            "traceparent",
+            "00-11111111111111111111111111111111-00f067aa0ba902b7-01",
+        )
         .json(&body_b)
         .send()
         .await
         .unwrap();
     assert_eq!(create_b.status(), StatusCode::CREATED);
+    assert_eq!(
+        create_b
+            .headers()
+            .get("x-correlation-id")
+            .and_then(|h| h.to_str().ok()),
+        Some("11111111111111111111111111111111")
+    );
 
     let a_get = client
         .get(format!("http://{addr}/v1/items/item-shared"))
@@ -414,6 +433,43 @@ async fn create_read_replay_is_owner_scoped_and_idempotent() {
     .unwrap();
     assert_eq!(outbox_count, 1);
 
+    let event_observability_a: serde_json::Value = sqlx::query_scalar(
+        "SELECT metadata->'observability' FROM app.event_outbox WHERE producer_service = $1 AND idempotency_key = $2",
+    )
+    .bind("api")
+    .bind("idem-item-a-1")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(event_observability_a["x-correlation-id"], "corr-item-a-1");
+
+    let job_observability_a: serde_json::Value = sqlx::query_scalar(
+        "SELECT metadata->'observability' FROM app.job_outbox WHERE producer_service = $1 AND causation_id = $2",
+    )
+    .bind("api")
+    .bind("idem-item-a-1")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(job_observability_a["x-correlation-id"], "corr-item-a-1");
+
+    let event_observability_b: serde_json::Value = sqlx::query_scalar(
+        "SELECT metadata->'observability' FROM app.event_outbox WHERE producer_service = $1 AND idempotency_key = $2",
+    )
+    .bind("api")
+    .bind("idem-item-b-1")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        event_observability_b["x-correlation-id"],
+        "11111111111111111111111111111111"
+    );
+    assert_eq!(
+        event_observability_b["traceparent"],
+        "00-11111111111111111111111111111111-00f067aa0ba902b7-01"
+    );
+
     let relay_stats = banji_api::events::relay::relay_once(&pool, &cfg)
         .await
         .unwrap();
@@ -428,6 +484,19 @@ async fn create_read_replay_is_owner_scoped_and_idempotent() {
     .await
     .unwrap();
     assert_eq!(event_count, 1);
+
+    let event_log_observability_a: serde_json::Value = sqlx::query_scalar(
+        "SELECT metadata->'observability' FROM app.event_log WHERE producer_service = $1 AND idempotency_key = $2",
+    )
+    .bind("api")
+    .bind("idem-item-a-1")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        event_log_observability_a["x-correlation-id"],
+        "corr-item-a-1"
+    );
 
     let missing_auth = client
         .post(format!("http://{addr}/v1/items"))
