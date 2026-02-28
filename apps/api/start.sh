@@ -5,10 +5,10 @@ service_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 app_role="${APP_ROLE:-api}"
 
 case "$app_role" in
-  api|event-relay|projection-consumer|worker)
+  api|event-relay|projection-consumer|worker|backfill-controller)
     ;;
   *)
-    echo "error: APP_ROLE must be one of: api, event-relay, projection-consumer, worker" >&2
+    echo "error: APP_ROLE must be one of: api, event-relay, projection-consumer, worker, backfill-controller" >&2
     exit 1
     ;;
 esac

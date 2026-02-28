@@ -36,10 +36,7 @@ async fn run_api(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
         banji_api::db::pool::warmup_runtime_pool(pool).await?;
     }
 
-    let addr = std::env::var("API_BIND_ADDR")
-        .ok()
-        .and_then(|s| s.parse::<SocketAddr>().ok())
-        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 8080)));
+    let addr = banji_api::config::resolve_api_bind_addr();
 
     tracing::info!(%addr, "starting banji-api");
     let listener = tokio::net::TcpListener::bind(addr).await?;

@@ -136,7 +136,7 @@ impl ObservabilityConfig {
             let system = env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string());
             let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
             let region = env::var("BANJI_REGION").unwrap_or_else(|_| "kh-pp".to_string());
-            let service = env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string());
+            let service = crate::config::resolve_service_name_with_fallback();
             format!("{system}-{env_name}-{region}-{service}")
         });
 

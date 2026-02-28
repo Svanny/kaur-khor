@@ -1,5 +1,6 @@
 use banji_api::config::{
-    AppConfig, AppRole, DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode, WorkerConfig,
+    resolve_api_bind_addr, resolve_service_name_from_env, AppConfig, AppRole,
+    DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode, WorkerConfig,
 };
 use std::sync::{Mutex, OnceLock};
 
@@ -64,6 +65,49 @@ fn set_minimal_worker_object_storage_env() {
     std::env::set_var("OBJECT_STORAGE_SECRET_KEY", "secret");
     std::env::set_var("ALGORITHM_ROLLOUT_HASH_SALT", "dev-local-salt");
     std::env::set_var("ALGORITHM_ROLLOUT_HASH_SALT_VERSION", "dev-local");
+}
+
+#[test]
+fn service_name_defaults_to_app_role() {
+    assert_eq!(resolve_service_name_from_env(AppRole::Api), "api");
+    assert_eq!(resolve_service_name_from_env(AppRole::EventRelay), "event-relay");
+    assert_eq!(
+        resolve_service_name_from_env(AppRole::ProjectionConsumer),
+        "projection-consumer"
+    );
+    assert_eq!(resolve_service_name_from_env(AppRole::Worker), "worker");
+    assert_eq!(
+        resolve_service_name_from_env(AppRole::BackfillController),
+        "backfill-controller"
+    );
+}
+
+#[test]
+fn api_bind_addr_prefers_explicit_bind_then_port_then_default() {
+    let _guard = lock_env();
+    let keys = ["API_BIND_ADDR", "PORT"];
+    let old = capture_env(&keys);
+
+    std::env::set_var("API_BIND_ADDR", "127.0.0.1:9000");
+    std::env::set_var("PORT", "8081");
+    assert_eq!(
+        resolve_api_bind_addr(),
+        "127.0.0.1:9000".parse().expect("socket addr")
+    );
+
+    std::env::remove_var("API_BIND_ADDR");
+    assert_eq!(
+        resolve_api_bind_addr(),
+        "0.0.0.0:8081".parse().expect("socket addr")
+    );
+
+    std::env::set_var("PORT", "invalid");
+    assert_eq!(
+        resolve_api_bind_addr(),
+        "0.0.0.0:8080".parse().expect("socket addr")
+    );
+
+    restore_env(old);
 }
 
 #[test]

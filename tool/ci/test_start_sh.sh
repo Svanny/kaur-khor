@@ -71,6 +71,15 @@ if [[ "$worker_output" == *"API_BIND_ADDR="* ]]; then
   exit 1
 fi
 
+backfill_output="$(run_start APP_ROLE=backfill-controller)"
+assert_contains "$backfill_output" "APP_ROLE=backfill-controller"
+assert_contains "$backfill_output" "BANJI_SERVICE=backfill-controller"
+if [[ "$backfill_output" == *"API_BIND_ADDR="* ]]; then
+  echo "backfill-controller output should not contain API_BIND_ADDR" >&2
+  echo "$backfill_output" >&2
+  exit 1
+fi
+
 custom_service="$(run_start APP_ROLE=event-relay BANJI_SERVICE=relay-runtime)"
 assert_contains "$custom_service" "BANJI_SERVICE=relay-runtime"
 

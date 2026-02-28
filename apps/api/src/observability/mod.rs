@@ -113,7 +113,7 @@ pub async fn http_observability_middleware(mut request: Request<Body>, next: Nex
 
     let deployment_id =
         std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string());
-    let service = std::env::var("BANJI_SERVICE").unwrap_or_else(|_| "api".to_string());
+    let service = crate::config::resolve_service_name_with_fallback();
     let env_name = std::env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
 
     let span = tracing::info_span!(
