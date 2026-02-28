@@ -1,7 +1,9 @@
-FROM rust:1.88-bookworm AS build
+FROM rust:1.91-bookworm AS build
 WORKDIR /app
 
 COPY apps/api/Cargo.toml apps/api/Cargo.toml
+COPY apps/api/Cargo.lock apps/api/Cargo.lock
+COPY apps/api/rust-toolchain.toml apps/api/rust-toolchain.toml
 COPY apps/api/src apps/api/src
 COPY apps/api/migrations apps/api/migrations
 
