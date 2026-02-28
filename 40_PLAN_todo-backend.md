@@ -88,18 +88,18 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 7. [DONE] Rate limiting and abuse controls in the API layer
    Implement per user and per device limits, plus backpressure behavior when RabbitMQ is unhealthy and Kafka is unhealthy only if the optional Kafka track is enabled. Done means overload degrades gracefully and does not cascade.
 
-8. End to end tracing across API, relay, consumers, and workers
+8. [DONE] End to end tracing across API, relay, consumers, and workers
    Propagate correlation ids through RabbitMQ metadata, and through Kafka headers only if the optional Kafka track is enabled. Done means you can trace one user action through every hop.
 
 9. [OPTIONAL / FUTURE] Replay and backfill tooling (Kafka replay path)
    Optional future track: build a controlled tool or service that can replay Kafka ranges into projections and re run batch jobs safely. Done means you can rebuild derived state after algorithm changes without manual database surgery.
 
-9a. [CURRENT FIX] Replay and backfill tooling (Postgres event-log path)
+9a. [DONE / CURRENT FIX] Replay and backfill tooling (Postgres event-log path)
    Build a controlled tool/service that replays `app.event_log` ranges into projections and re-runs batch jobs safely. Done means you can rebuild derived state after algorithm changes without Kafka.
 
-10. SLOs and alerting tied to user pain
+10. [DONE] SLOs and alerting tied to user pain
     Alerts for API latency, error rate, RabbitMQ queue depth, worker failure rate, Postgres locks, and cache hit rate; include Kafka consumer lag only if the optional Kafka track is enabled. Done means alerts predict incidents, not announce them after users complain.
 
-11. Staging environment parity and safe rollout controls
+11. [DONE] Staging environment parity and safe rollout controls
     Ensure staging mirrors production topology and add feature flags for algorithm rollouts. Done means you can ship changes gradually and roll back fast.
     Status: implemented via four-role topology contract (`api`, `event-relay`, `projection-consumer`, `worker`), deploy parity checks, and Postgres-backed worker algorithm rollout policy keyed by `job_type`.
