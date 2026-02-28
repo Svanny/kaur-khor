@@ -1,5 +1,6 @@
 use super::{
     key::derive_job_key,
+    schema::{record_to_envelope, validate_job_envelope},
     schema_types::JobRecord,
     types::{JobDeliveryMode, WorkloadClass},
 };
@@ -16,7 +17,6 @@ use uuid::Uuid;
 
 const ITEM_CREATED_JOB_TYPE: &str = "item-created";
 const WRITE_DEMO_JOB_TYPE: &str = "write-demo";
-const BACKFILL_PRODUCER_SERVICE: &str = "backfill-controller";
 
 pub fn job_types_for_stream(stream_name: &str) -> &'static [&'static str] {
     if stream_name.ends_with(&format!(".{}", streams::inventory_updated_topic())) {
@@ -65,12 +65,12 @@ pub fn build_replay_job(
     event: &KnownEvent,
     max_attempts: u8,
 ) -> Result<Option<JobRecord>> {
-    let causation_id = format!("backfill:{run_id}:event:{}", row.id);
+    let replay_idempotency_key = format!("backfill.{run_id}.event.{}", row.id);
     let correlation_id = row
         .correlation_id
         .clone()
         .unwrap_or_else(|| format!("backfill:{run_id}"));
-    let source_idempotency_key = row
+    let original_idempotency_key = row
         .idempotency_key
         .clone()
         .unwrap_or_else(|| row.causation_id.clone());
@@ -79,17 +79,15 @@ pub fn build_replay_job(
         KnownEvent::InventoryItemCreatedV1(payload) => build_item_created_replay_job(
             row,
             payload,
-            &source_idempotency_key,
+            &replay_idempotency_key,
             &correlation_id,
-            &causation_id,
             max_attempts,
         )?,
         KnownEvent::InventoryWriteDemoCompletedV1(payload) => build_write_demo_replay_job(
             row,
             payload,
-            &source_idempotency_key,
+            &replay_idempotency_key,
             &correlation_id,
-            &causation_id,
             max_attempts,
         )?,
     };
@@ -101,12 +99,15 @@ pub fn build_replay_job(
         "source_event_type": row.event_type,
         "operator_id": operator_id,
         "reason": reason,
+        "original_idempotency_key": original_idempotency_key,
         "original_correlation_id": row.correlation_id,
         "original_causation_id": row.causation_id,
     });
     record.delivery_mode = JobDeliveryMode::Replay;
     record.backfill_run_id = Some(run_id);
     record.source_event_id = Some(row.id);
+    let envelope = record_to_envelope(&record, 1);
+    validate_job_envelope(&envelope).map_err(anyhow::Error::new)?;
 
     Ok(Some(record))
 }
@@ -114,32 +115,31 @@ pub fn build_replay_job(
 fn build_item_created_replay_job(
     row: &EventRow,
     payload: &InventoryItemCreatedV1Payload,
-    source_idempotency_key: &str,
+    replay_idempotency_key: &str,
     correlation_id: &str,
-    causation_id: &str,
     max_attempts: u8,
 ) -> Result<JobRecord> {
     Ok(JobRecord {
         job_key: derive_job_key(
-            BACKFILL_PRODUCER_SERVICE,
+            &row.producer_service,
             ITEM_CREATED_JOB_TYPE,
             "item",
             &format!("{}:{}", payload.owner_sub, payload.item_id),
-            causation_id,
+            replay_idempotency_key,
         ),
         job_type: ITEM_CREATED_JOB_TYPE.to_string(),
         payload_version: 1,
         workload_class: WorkloadClass::Fast,
-        producer_service: BACKFILL_PRODUCER_SERVICE.to_string(),
+        producer_service: row.producer_service.clone(),
         aggregate_type: "item".to_string(),
         aggregate_id: format!("{}:{}", payload.owner_sub, payload.item_id),
-        causation_id: causation_id.to_string(),
+        causation_id: replay_idempotency_key.to_string(),
         correlation_id: correlation_id.to_string(),
         routing_key: WorkloadClass::Fast.replay_routing_key().to_string(),
         payload: json!({
             "owner_sub": payload.owner_sub,
             "item_id": payload.item_id,
-            "idempotency_key": source_idempotency_key,
+            "idempotency_key": replay_idempotency_key,
         }),
         metadata: json!({}),
         delivery_mode: JobDeliveryMode::Replay,
@@ -152,32 +152,31 @@ fn build_item_created_replay_job(
 fn build_write_demo_replay_job(
     row: &EventRow,
     payload: &InventoryWriteDemoCompletedV1Payload,
-    source_idempotency_key: &str,
+    replay_idempotency_key: &str,
     correlation_id: &str,
-    causation_id: &str,
     max_attempts: u8,
 ) -> Result<JobRecord> {
     Ok(JobRecord {
         job_key: derive_job_key(
-            BACKFILL_PRODUCER_SERVICE,
+            &row.producer_service,
             WRITE_DEMO_JOB_TYPE,
             "write-demo",
             &format!("{}:{}", payload.caller_id, payload.operation),
-            causation_id,
+            replay_idempotency_key,
         ),
         job_type: WRITE_DEMO_JOB_TYPE.to_string(),
         payload_version: 1,
         workload_class: WorkloadClass::Fast,
-        producer_service: BACKFILL_PRODUCER_SERVICE.to_string(),
+        producer_service: row.producer_service.clone(),
         aggregate_type: "write-demo".to_string(),
         aggregate_id: format!("{}:{}", payload.caller_id, payload.operation),
-        causation_id: causation_id.to_string(),
+        causation_id: replay_idempotency_key.to_string(),
         correlation_id: correlation_id.to_string(),
         routing_key: WorkloadClass::Fast.replay_routing_key().to_string(),
         payload: json!({
             "operation": payload.operation,
             "caller_id": payload.caller_id,
-            "idempotency_key": source_idempotency_key,
+            "idempotency_key": replay_idempotency_key,
         }),
         metadata: json!({}),
         delivery_mode: JobDeliveryMode::Replay,
@@ -190,7 +189,10 @@ fn build_write_demo_replay_job(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::schema_types::{InventoryItemCreatedV1Payload, KnownEvent};
+    use crate::{
+        events::schema_types::{InventoryItemCreatedV1Payload, KnownEvent},
+        jobs::schema::{record_to_envelope, validate_job_envelope},
+    };
 
     fn sample_row() -> EventRow {
         EventRow {
@@ -233,6 +235,7 @@ mod tests {
     #[test]
     fn builds_replay_job_with_deterministic_run_scoped_identity() {
         let run_id = Uuid::parse_str("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa").unwrap();
+        let expected_replay_key = format!("backfill.{run_id}.event.42");
         let row = sample_row();
         let event = KnownEvent::InventoryItemCreatedV1(InventoryItemCreatedV1Payload {
             owner_sub: "user-1".to_string(),
@@ -251,12 +254,28 @@ mod tests {
         assert_eq!(job.backfill_run_id, Some(run_id));
         assert_eq!(job.source_event_id, Some(42));
         assert_eq!(job.routing_key, "job.fast.replay");
-        assert_eq!(job.causation_id, format!("backfill:{run_id}:event:42"));
+        assert_eq!(job.producer_service, "api");
+        assert_eq!(job.causation_id, expected_replay_key);
+        assert_eq!(
+            job.payload
+                .get("idempotency_key")
+                .and_then(|value| value.as_str()),
+            Some(job.causation_id.as_str())
+        );
         assert_eq!(
             job.metadata
                 .get("operator_id")
                 .and_then(|value| value.as_str()),
             Some("ops-1")
         );
+        assert_eq!(
+            job.metadata
+                .get("original_idempotency_key")
+                .and_then(|value| value.as_str()),
+            Some("idem-1")
+        );
+
+        let envelope = record_to_envelope(&job, 1);
+        validate_job_envelope(&envelope).unwrap();
     }
 }

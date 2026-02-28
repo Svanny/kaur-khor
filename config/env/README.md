@@ -12,6 +12,7 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 
 ## Secret Keys (platform-only)
 - `DATABASE_RUNTIME_URL`
+- `RESTORE_DATABASE_URL` (backfill restore workflows only)
 - `DATABASE_MIGRATION_URL` (CI/deploy migration step only)
 - `REDIS_URL`
 - `RABBIT_URL`
@@ -55,6 +56,7 @@ Role environments must remain least-privilege:
 - `api` must not receive object-storage secrets.
 - `event-relay` and `projection-consumer` must not receive Rabbit, object-storage, auth, or edge secrets.
 - `worker` must not receive auth or edge secrets.
+- `backfill-controller` uses `DATABASE_RUNTIME_URL` for primary runs and `RESTORE_DATABASE_URL` for restore projection runs.
 
 ## Pooling and DB Boundary Keys (Non-Secret)
 - `APP_ROLE=api|event-relay|projection-consumer|worker`

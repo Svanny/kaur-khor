@@ -158,23 +158,29 @@ async fn run_worker(config: banji_api::config::AppConfig) -> anyhow::Result<()> 
 }
 
 async fn run_backfill_controller(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
-    let pool = banji_api::db::pool::build_runtime_pool(&config)
+    let backfill_cfg = config.backfill_config()?;
+    let mut pool_cfg = config.clone();
+    pool_cfg.database_runtime_url = Some(backfill_cfg.database_url.clone());
+
+    let pool = banji_api::db::pool::build_runtime_pool(&pool_cfg)
         .await?
         .ok_or_else(|| {
-            anyhow::anyhow!("DATABASE_RUNTIME_URL is required for APP_ROLE=backfill-controller")
+            anyhow::anyhow!(
+                "selected backfill database URL is required for APP_ROLE=backfill-controller"
+            )
         })?;
 
     banji_api::db::pool::warmup_runtime_pool(&pool).await?;
-    let backfill_cfg = config.backfill_config()?;
     tracing::info!(
         role = %config.app_role.as_str(),
         kind = %backfill_cfg.kind.as_str(),
         mode = %backfill_cfg.mode.as_str(),
+        database_kind = %backfill_cfg.database_kind.as_str(),
         stream_name = %backfill_cfg.stream_name,
         "starting backfill controller"
     );
 
-    let result = banji_api::backfill::controller::run(&pool, &config, &backfill_cfg).await;
+    let result = banji_api::backfill::controller::run(&pool, &pool_cfg, &backfill_cfg).await;
     pool.close().await;
     result
 }

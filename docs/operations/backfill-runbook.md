@@ -8,7 +8,7 @@ This runbook covers `APP_ROLE=backfill-controller` for audited projection replay
 - `BACKFILL_KIND=jobs` supports primary databases only in this milestone.
 - `BACKFILL_KIND=jobs` with `BACKFILL_MODE=apply` requires `BACKFILL_ALLOW_BROKER_PUBLISH=true`.
 - Replay order is always `ORDER BY id ASC`.
-- Restore/cold workflows are projection-only. Do not point a restore DB controller at live RabbitMQ infrastructure.
+- Restore/cold workflows are projection-only. Set `RESTORE_DATABASE_URL` and do not point a restore DB controller at live RabbitMQ infrastructure.
 
 ## Preview
 Preview persists a `planned` row in `app.backfill_run` with frozen bounds and candidate counts.
@@ -39,6 +39,23 @@ BACKFILL_FROM_EVENT_ID=0 \
 BACKFILL_INVALID_EVENT_POLICY=halt \
 BACKFILL_RESET_CHECKPOINT=true \
 BACKFILL_TRUNCATE_PROJECTION=true \
+cargo run --bin banji-api
+```
+
+## Projection Apply Against Restore
+
+```bash
+APP_ROLE=backfill-controller \
+RESTORE_DATABASE_URL="$PROD_DATABASE_RESTORE_URL" \
+BACKFILL_KIND=projection \
+BACKFILL_DATABASE_KIND=restore \
+BACKFILL_MODE=apply \
+BACKFILL_STREAM_NAME=banji-core.prod.inventory-updated \
+BACKFILL_OPERATOR_ID=ops-1 \
+BACKFILL_REASON="validate restore replay" \
+BACKFILL_FROM_EVENT_ID=0 \
+BACKFILL_INVALID_EVENT_POLICY=halt \
+BACKFILL_RESET_CHECKPOINT=true \
 cargo run --bin banji-api
 ```
 

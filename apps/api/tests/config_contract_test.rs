@@ -244,6 +244,7 @@ fn backfill_controller_parses_replay_runtime_config() {
         "CACHE_SCHEMA_VERSION",
         "DATABASE_RUNTIME_ENDPOINT_KIND",
         "DATABASE_RUNTIME_URL",
+        "RESTORE_DATABASE_URL",
         "APP_ROLE",
         "AUTH_ENABLED",
         "BACKFILL_KIND",
@@ -261,9 +262,10 @@ fn backfill_controller_parses_replay_runtime_config() {
     std::env::set_var("BANJI_SYSTEM", "banji-core");
     std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
     std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::remove_var("DATABASE_RUNTIME_URL");
     std::env::set_var(
-        "DATABASE_RUNTIME_URL",
-        "postgres://runtime@db.example/banji",
+        "RESTORE_DATABASE_URL",
+        "postgres://restore@db.example/banji_restore",
     );
     std::env::set_var("APP_ROLE", "backfill-controller");
     std::env::set_var("AUTH_ENABLED", "false");
@@ -281,6 +283,7 @@ fn backfill_controller_parses_replay_runtime_config() {
     restore_env(old);
 
     assert_eq!(cfg.app_role, AppRole::BackfillController);
+    assert!(cfg.database_runtime_url.is_none());
     assert_eq!(backfill.kind.as_str(), "projection");
     assert_eq!(backfill.mode.as_str(), "preview");
     assert_eq!(
@@ -288,6 +291,10 @@ fn backfill_controller_parses_replay_runtime_config() {
         banji_api::events::schema_types::InvalidEventPolicy::Quarantine
     );
     assert_eq!(backfill.database_kind.as_str(), "restore");
+    assert_eq!(
+        backfill.database_url,
+        "postgres://restore@db.example/banji_restore"
+    );
 }
 
 #[test]
@@ -299,6 +306,7 @@ fn backfill_jobs_reject_restore_database_kind() {
         "CACHE_SCHEMA_VERSION",
         "DATABASE_RUNTIME_ENDPOINT_KIND",
         "DATABASE_RUNTIME_URL",
+        "RESTORE_DATABASE_URL",
         "APP_ROLE",
         "AUTH_ENABLED",
         "BACKFILL_KIND",
@@ -319,6 +327,10 @@ fn backfill_jobs_reject_restore_database_kind() {
     std::env::set_var(
         "DATABASE_RUNTIME_URL",
         "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var(
+        "RESTORE_DATABASE_URL",
+        "postgres://restore@db.example/banji_restore",
     );
     std::env::set_var("APP_ROLE", "backfill-controller");
     std::env::set_var("AUTH_ENABLED", "false");
@@ -342,6 +354,57 @@ fn backfill_jobs_reject_restore_database_kind() {
         .unwrap_err()
         .to_string()
         .contains("does not support BACKFILL_DATABASE_KIND=restore"));
+}
+
+#[test]
+fn backfill_restore_requires_restore_database_url() {
+    let _guard = lock_env();
+    let keys = [
+        "BANJI_ENV",
+        "BANJI_SYSTEM",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "DATABASE_RUNTIME_URL",
+        "RESTORE_DATABASE_URL",
+        "APP_ROLE",
+        "AUTH_ENABLED",
+        "BACKFILL_KIND",
+        "BACKFILL_MODE",
+        "BACKFILL_STREAM_NAME",
+        "BACKFILL_OPERATOR_ID",
+        "BACKFILL_REASON",
+        "BACKFILL_FROM_EVENT_ID",
+        "BACKFILL_DATABASE_KIND",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "test");
+    std::env::set_var("BANJI_SYSTEM", "banji-core");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::remove_var("RESTORE_DATABASE_URL");
+    std::env::set_var("APP_ROLE", "backfill-controller");
+    std::env::set_var("AUTH_ENABLED", "false");
+    std::env::set_var("BACKFILL_KIND", "projection");
+    std::env::set_var("BACKFILL_MODE", "preview");
+    std::env::set_var("BACKFILL_STREAM_NAME", "banji-core.test.inventory-updated");
+    std::env::set_var("BACKFILL_OPERATOR_ID", "ops-1");
+    std::env::set_var("BACKFILL_REASON", "preview");
+    std::env::set_var("BACKFILL_FROM_EVENT_ID", "0");
+    std::env::set_var("BACKFILL_DATABASE_KIND", "restore");
+
+    let result = AppConfig::from_env();
+    restore_env(old);
+
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("RESTORE_DATABASE_URL is required"));
 }
 
 #[test]

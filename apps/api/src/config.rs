@@ -263,6 +263,7 @@ pub struct BackfillConfig {
     pub batch_size: i64,
     pub invalid_event_policy: InvalidEventPolicy,
     pub database_kind: BackfillDatabaseKind,
+    pub database_url: String,
     pub run_id: Option<Uuid>,
     pub operator_id: Option<String>,
     pub reason: Option<String>,
@@ -1091,14 +1092,11 @@ impl AppConfig {
         }
         if matches!(
             app_role,
-            AppRole::EventRelay
-                | AppRole::ProjectionConsumer
-                | AppRole::Worker
-                | AppRole::BackfillController
+            AppRole::EventRelay | AppRole::ProjectionConsumer | AppRole::Worker
         ) && database_runtime_url.is_none()
         {
             return Err(anyhow!(
-                "APP_ROLE=event-relay|projection-consumer|worker|backfill-controller requires DATABASE_RUNTIME_URL"
+                "APP_ROLE=event-relay|projection-consumer|worker requires DATABASE_RUNTIME_URL"
             ));
         }
 
@@ -1472,6 +1470,11 @@ impl BackfillConfig {
             }
         }
 
+        let database_url = match database_kind {
+            BackfillDatabaseKind::Primary => required_env("DATABASE_RUNTIME_URL")?,
+            BackfillDatabaseKind::Restore => required_env("RESTORE_DATABASE_URL")?,
+        };
+
         Ok(Self {
             kind,
             mode,
@@ -1479,6 +1482,7 @@ impl BackfillConfig {
             batch_size,
             invalid_event_policy,
             database_kind,
+            database_url,
             run_id,
             operator_id,
             reason,
