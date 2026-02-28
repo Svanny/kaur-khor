@@ -270,8 +270,14 @@ pub async fn poll_stream_in_range(
 
 #[derive(Debug, Default)]
 pub struct DecodedEventBatch {
-    pub events: Vec<(i64, KnownEvent)>,
+    pub events: Vec<DecodedEvent>,
     pub invalid_event_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DecodedEvent {
+    pub row: EventRow,
+    pub event: KnownEvent,
 }
 
 pub async fn poll_and_decode_stream(
@@ -311,7 +317,7 @@ pub async fn poll_and_decode_stream_in_range(
 
     for row in rows {
         match decode_event_row(&row, policy) {
-            Ok(event) => decoded.events.push((row.id, event)),
+            Ok(event) => decoded.events.push(DecodedEvent { row, event }),
             Err(err) => {
                 let err_msg = format!("{} (event_id={})", err, row.id);
                 set_error(pool, service_name, consumer_name, stream_name, &err_msg).await?;

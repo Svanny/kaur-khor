@@ -12,6 +12,7 @@ pub async fn schedule_item_created_tx(
     item_id: String,
     idempotency_key: String,
     correlation_id: String,
+    metadata: serde_json::Value,
     max_attempts: u8,
 ) -> Result<i64> {
     let job = build_item_created_job_v1(
@@ -23,7 +24,7 @@ pub async fn schedule_item_created_tx(
         max_attempts,
     )
     .map_err(anyhow::Error::new)?;
-    schedule_job_tx(tx, &job).await
+    schedule_job_tx(tx, &job, &metadata).await
 }
 
 pub async fn schedule_write_demo_tx(
@@ -33,6 +34,7 @@ pub async fn schedule_write_demo_tx(
     caller_id: String,
     idempotency_key: String,
     correlation_id: String,
+    metadata: serde_json::Value,
     max_attempts: u8,
 ) -> Result<i64> {
     let job = build_write_demo_job_v1(
@@ -44,15 +46,16 @@ pub async fn schedule_write_demo_tx(
         max_attempts,
     )
     .map_err(anyhow::Error::new)?;
-    schedule_job_tx(tx, &job).await
+    schedule_job_tx(tx, &job, &metadata).await
 }
 
 pub async fn schedule_job_tx(
     tx: &mut Transaction<'_, Postgres>,
     job: &super::schema_types::JobRecord,
+    metadata: &serde_json::Value,
 ) -> Result<i64> {
     let job_run = repository::upsert_job_run_tx(tx, job).await?;
-    let _outbox_id = outbox::enqueue_tx(tx, job).await?;
+    let _outbox_id = outbox::enqueue_tx(tx, job, metadata).await?;
     Ok(job_run.id)
 }
 

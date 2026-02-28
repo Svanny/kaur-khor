@@ -11,7 +11,7 @@ use super::{
 use crate::{
     config::{AppConfig, WorkerConfig},
     logging::redaction::redact_message,
-    observability::metrics,
+    observability::{metrics, propagation},
     storage::{
         key::{derive_artifact_key, object_key_for_job_artifact},
         types::{ArtifactUploadSpec, StoredArtifact},
@@ -24,11 +24,13 @@ use futures_util::StreamExt;
 use lapin::{
     message::Delivery,
     options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicQosOptions},
-    types::FieldTable,
+    types::{AMQPValue, FieldTable},
     Channel, Connection, ConnectionProperties,
 };
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, future::Future, sync::Arc, time::Duration};
 use time::Duration as TimeDuration;
+use tracing::field;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkerDisposition {
@@ -192,96 +194,159 @@ async fn process_delivery(
     queue_name: &str,
     delivery: Delivery,
 ) -> Result<()> {
-    let raw_json: serde_json::Value = match serde_json::from_slice(&delivery.data) {
-        Ok(value) => value,
-        Err(err) => {
-            let invalid_envelope =
-                invalid_delivery_envelope(queue_name, &delivery.data, None, None, None, None, None);
-            record_raw_invalid_delivery(
-                pool,
+    let transport = delivery_transport(&delivery);
+    let parent = propagation::extract_context_from_map(&transport.headers);
+    let span = tracing::info_span!(
+        "job.consume",
+        correlation_id = %transport
+            .correlation_header
+            .as_deref()
+            .or(transport.correlation_property.as_deref())
+            .unwrap_or("unknown"),
+        job_type = field::Empty,
+        workload_class = field::Empty,
+        producer_service = field::Empty,
+        attempt = field::Empty,
+        queue_name = %queue_name,
+    );
+    span.set_parent(parent);
+
+    let disposition = {
+        let _entered = span.enter();
+        let raw_json: serde_json::Value = match serde_json::from_slice(&delivery.data) {
+            Ok(value) => value,
+            Err(err) => {
+                let invalid_envelope = invalid_delivery_envelope(
+                    queue_name,
+                    &delivery.data,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                );
+                record_raw_invalid_delivery(
+                    pool,
+                    &worker_cfg.worker_id,
+                    &delivery.data,
+                    None,
+                    None,
+                    1,
+                    "invalid_envelope",
+                    &sanitize_error_message(&format!("invalid envelope json: {err}")),
+                )
+                .await?;
+                let dlq_message =
+                    format!("validation schema invalid: invalid envelope json: {err}");
+                republish_with_confirm_before_ack(
+                    publisher,
+                    cfg,
+                    &cfg.rabbit_dlx_exchange,
+                    invalid_envelope,
+                    &dlq_message,
+                )
+                .await?;
+                delivery.ack(BasicAckOptions::default()).await?;
+                return Ok(());
+            }
+        };
+
+        let envelope: JobEnvelope = match serde_json::from_value(raw_json.clone()) {
+            Ok(value) => value,
+            Err(err) => {
+                let job_key = raw_json
+                    .get("message_id")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("invalid-message")
+                    .to_string();
+                let attempt = raw_json
+                    .get("attempt")
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or(1) as u8;
+                let correlation_id = raw_json
+                    .get("correlation_id")
+                    .and_then(|value| value.as_str());
+                let job_type = raw_json.get("job_type").and_then(|value| value.as_str());
+                let invalid_envelope = invalid_delivery_envelope(
+                    queue_name,
+                    &delivery.data,
+                    Some(&raw_json),
+                    Some(&job_key),
+                    correlation_id,
+                    job_type,
+                    raw_json.get("attempt").and_then(|value| value.as_u64()),
+                );
+                record_raw_invalid_delivery(
+                    pool,
+                    &worker_cfg.worker_id,
+                    &delivery.data,
+                    correlation_id,
+                    job_type,
+                    attempt,
+                    "invalid_envelope",
+                    &sanitize_error_message(&format!("invalid envelope shape: {err}")),
+                )
+                .await?;
+                let dlq_message =
+                    format!("validation schema invalid: invalid envelope shape: {err}");
+                republish_with_confirm_before_ack(
+                    publisher,
+                    cfg,
+                    &cfg.rabbit_dlx_exchange,
+                    invalid_envelope,
+                    &dlq_message,
+                )
+                .await?;
+                delivery.ack(BasicAckOptions::default()).await?;
+                return Ok(());
+            }
+        };
+
+        span.record("job_type", field::display(&envelope.job_type));
+        span.record(
+            "workload_class",
+            field::display(envelope.workload_class.as_str()),
+        );
+        span.record(
+            "producer_service",
+            field::display(&envelope.producer_service),
+        );
+        span.record("attempt", field::display(envelope.attempt));
+        span.record("correlation_id", field::display(&envelope.correlation_id));
+
+        if transport_mismatches_envelope(&transport, &envelope.correlation_id) {
+            let mut tx = pool.begin().await?;
+            repository::record_delivery_violation_tx(
+                &mut tx,
                 &worker_cfg.worker_id,
-                &delivery.data,
-                None,
-                None,
-                1,
-                "invalid_envelope",
-                &sanitize_error_message(&format!("invalid envelope json: {err}")),
+                &envelope,
+                "transport_correlation_mismatch",
+                "rabbit transport correlation metadata did not match envelope correlation_id",
             )
             .await?;
-            let dlq_message = format!("validation schema invalid: invalid envelope json: {err}");
-            republish_with_confirm_before_ack(
+            tx.commit().await?;
+            let _ = republish_with_confirm_before_ack(
                 publisher,
                 cfg,
                 &cfg.rabbit_dlx_exchange,
-                invalid_envelope,
-                &dlq_message,
+                envelope.clone(),
+                "validation schema invalid: rabbit transport correlation metadata did not match envelope correlation_id",
             )
             .await?;
-            delivery.ack(BasicAckOptions::default()).await?;
-            return Ok(());
-        }
-    };
-
-    let envelope: JobEnvelope = match serde_json::from_value(raw_json.clone()) {
-        Ok(value) => value,
-        Err(err) => {
-            let job_key = raw_json
-                .get("message_id")
-                .and_then(|value| value.as_str())
-                .unwrap_or("invalid-message")
-                .to_string();
-            let attempt = raw_json
-                .get("attempt")
-                .and_then(|value| value.as_u64())
-                .unwrap_or(1) as u8;
-            let correlation_id = raw_json
-                .get("correlation_id")
-                .and_then(|value| value.as_str());
-            let job_type = raw_json.get("job_type").and_then(|value| value.as_str());
-            let invalid_envelope = invalid_delivery_envelope(
-                queue_name,
-                &delivery.data,
-                Some(&raw_json),
-                Some(&job_key),
-                correlation_id,
-                job_type,
-                raw_json.get("attempt").and_then(|value| value.as_u64()),
-            );
-            record_raw_invalid_delivery(
+            WorkerDisposition::Ack
+        } else {
+            process_job_envelope(
                 pool,
-                &worker_cfg.worker_id,
-                &delivery.data,
-                correlation_id,
-                job_type,
-                attempt,
-                "invalid_envelope",
-                &sanitize_error_message(&format!("invalid envelope shape: {err}")),
-            )
-            .await?;
-            let dlq_message = format!("validation schema invalid: invalid envelope shape: {err}");
-            republish_with_confirm_before_ack(
-                publisher,
                 cfg,
-                &cfg.rabbit_dlx_exchange,
-                invalid_envelope,
-                &dlq_message,
+                worker_cfg,
+                publisher,
+                result_publisher,
+                storage_client,
+                &envelope,
             )
-            .await?;
-            delivery.ack(BasicAckOptions::default()).await?;
-            return Ok(());
+            .await?
         }
     };
-
-    let disposition = process_job_envelope(
-        pool,
-        cfg,
-        worker_cfg,
-        publisher,
-        result_publisher,
-        storage_client,
-        &envelope,
-    )
-    .await?;
 
     match disposition {
         WorkerDisposition::Ack => {
@@ -896,12 +961,89 @@ fn duplicate_requeue_delay(lease_wait: Duration, poll_interval: Duration) -> Dur
     capped_wait.max(floor)
 }
 
+#[derive(Debug, Default, Clone)]
+struct DeliveryTransport {
+    headers: BTreeMap<String, String>,
+    correlation_property: Option<String>,
+    correlation_header: Option<String>,
+}
+
+fn delivery_transport(delivery: &Delivery) -> DeliveryTransport {
+    let correlation_property = delivery
+        .properties
+        .correlation_id()
+        .as_ref()
+        .and_then(|value| {
+            propagation::sanitize_transport_value("x-correlation-id", value.as_str())
+        });
+
+    let mut headers = BTreeMap::new();
+    let mut correlation_header = None;
+
+    if let Some(table) = delivery.properties.headers() {
+        for (key, value) in table.inner() {
+            let key = key.as_str();
+            let Some(value) = amqp_value_to_string(value) else {
+                continue;
+            };
+            let Some(sanitized) = propagation::sanitize_transport_value(key, &value) else {
+                continue;
+            };
+            if key == "x-correlation-id" {
+                correlation_header = Some(sanitized.clone());
+            }
+            headers.insert(key.to_string(), sanitized);
+        }
+    }
+
+    if let Some(value) = &correlation_property {
+        headers
+            .entry("x-correlation-id".to_string())
+            .or_insert_with(|| value.clone());
+    }
+
+    DeliveryTransport {
+        headers,
+        correlation_property,
+        correlation_header,
+    }
+}
+
+fn transport_mismatches_envelope(
+    transport: &DeliveryTransport,
+    envelope_correlation_id: &str,
+) -> bool {
+    transport
+        .correlation_property
+        .as_deref()
+        .is_some_and(|value| value != envelope_correlation_id)
+        || transport
+            .correlation_header
+            .as_deref()
+            .is_some_and(|value| value != envelope_correlation_id)
+}
+
+fn amqp_value_to_string(value: &AMQPValue) -> Option<String> {
+    match value {
+        AMQPValue::LongString(value) => Some(value.to_string()),
+        AMQPValue::ShortString(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        duplicate_requeue_delay, invalid_delivery_envelope, workload_class_from_queue_name,
+        amqp_value_to_string, delivery_transport, duplicate_requeue_delay,
+        invalid_delivery_envelope, transport_mismatches_envelope, workload_class_from_queue_name,
+        DeliveryTransport,
     };
     use crate::jobs::types::WorkloadClass;
+    use lapin::{
+        message::Delivery,
+        types::{AMQPValue, FieldTable, LongString, ShortString},
+        BasicProperties,
+    };
     use std::time::Duration;
 
     #[test]
@@ -932,5 +1074,67 @@ mod tests {
             workload_class_from_queue_name("banji-core.dev.fast-jobs"),
             WorkloadClass::Fast
         );
+    }
+
+    #[test]
+    fn amqp_string_values_are_extracted() {
+        assert_eq!(
+            amqp_value_to_string(&AMQPValue::LongString(LongString::from("traceparent"))),
+            Some("traceparent".to_string())
+        );
+        assert_eq!(
+            amqp_value_to_string(&AMQPValue::ShortString(ShortString::from("corr-1"))),
+            Some("corr-1".to_string())
+        );
+    }
+
+    #[test]
+    fn delivery_transport_merges_property_and_headers() {
+        let mut headers = FieldTable::default();
+        headers.insert(
+            ShortString::from("traceparent"),
+            AMQPValue::LongString(LongString::from(
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            )),
+        );
+        let delivery = Delivery {
+            delivery_tag: 1,
+            exchange: ShortString::from("jobs"),
+            routing_key: ShortString::from("job.fast"),
+            redelivered: false,
+            properties: BasicProperties::default()
+                .with_correlation_id(ShortString::from("corr-prop"))
+                .with_headers(headers),
+            data: Vec::new(),
+            acker: Default::default(),
+        };
+
+        let transport = delivery_transport(&delivery);
+        assert_eq!(transport.correlation_property.as_deref(), Some("corr-prop"));
+        assert_eq!(
+            transport
+                .headers
+                .get("x-correlation-id")
+                .map(String::as_str),
+            Some("corr-prop")
+        );
+        assert!(transport.headers.contains_key("traceparent"));
+    }
+
+    #[test]
+    fn transport_correlation_mismatch_is_detected() {
+        let mismatched = DeliveryTransport {
+            headers: Default::default(),
+            correlation_property: Some("corr-prop".to_string()),
+            correlation_header: Some("corr-header".to_string()),
+        };
+        let matching = DeliveryTransport {
+            headers: Default::default(),
+            correlation_property: Some("corr-match".to_string()),
+            correlation_header: Some("corr-match".to_string()),
+        };
+
+        assert!(transport_mismatches_envelope(&mismatched, "corr-envelope"));
+        assert!(!transport_mismatches_envelope(&matching, "corr-match"));
     }
 }

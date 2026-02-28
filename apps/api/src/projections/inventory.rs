@@ -1,4 +1,7 @@
-use crate::events::schema_types::{InventoryItemCreatedV1Payload, KnownEvent};
+use crate::events::{
+    consumer::DecodedEvent,
+    schema_types::{InventoryItemCreatedV1Payload, KnownEvent},
+};
 use anyhow::{anyhow, Result};
 use sqlx::{Postgres, Transaction};
 
@@ -49,16 +52,16 @@ pub async fn apply_inventory_item_created_tx(
 
 pub async fn apply_inventory_projection_batch_tx(
     tx: &mut Transaction<'_, Postgres>,
-    events: &[(i64, KnownEvent)],
+    events: &[DecodedEvent],
 ) -> Result<ProjectionBatchStats> {
     let mut stats = ProjectionBatchStats::default();
 
-    for (event_id, event) in events {
-        match event {
+    for decoded in events {
+        match &decoded.event {
             KnownEvent::InventoryItemCreatedV1(payload) => {
-                apply_inventory_item_created_tx(tx, *event_id, payload).await?;
+                apply_inventory_item_created_tx(tx, decoded.row.id, payload).await?;
                 stats.applied_count += 1;
-                stats.last_applied_event_id = Some(*event_id);
+                stats.last_applied_event_id = Some(decoded.row.id);
             }
             other => {
                 return Err(anyhow!(

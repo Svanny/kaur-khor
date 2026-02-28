@@ -432,6 +432,19 @@ async fn create_item(
                 &headers,
                 &opentelemetry::Context::current(),
             );
+            let observability_metadata = observability::propagation::observability_metadata(
+                &correlation_id,
+                &opentelemetry::Context::current(),
+            );
+            let event_metadata = observability::propagation::merge_observability_metadata(
+                &serde_json::json!({
+                    "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
+                }),
+                observability_metadata
+                    .get("observability")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({})),
+            );
             let event = match events::schema::build_inventory_item_created_v1(
                 &state.config.system,
                 &state.config.env,
@@ -443,9 +456,7 @@ async fn create_item(
                 body.quantity,
                 idempotency_key.clone(),
                 Some(correlation_id.clone()),
-                serde_json::json!({
-                    "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
-                }),
+                event_metadata,
             ) {
                 Ok(event) => event,
                 Err(err) => {
@@ -473,6 +484,7 @@ async fn create_item(
                 body.item_id.clone(),
                 idempotency_key.clone(),
                 correlation_id.clone(),
+                observability_metadata,
                 state.config.rabbit_max_attempts,
             )
             .await
@@ -741,6 +753,19 @@ async fn write_demo(
                 &headers,
                 &opentelemetry::Context::current(),
             );
+            let observability_metadata = observability::propagation::observability_metadata(
+                &correlation_id,
+                &opentelemetry::Context::current(),
+            );
+            let event_metadata = observability::propagation::merge_observability_metadata(
+                &serde_json::json!({
+                    "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
+                }),
+                observability_metadata
+                    .get("observability")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({})),
+            );
 
             let event = match events::schema::build_inventory_write_demo_completed_v1(
                 &state.config.system,
@@ -752,9 +777,7 @@ async fn write_demo(
                 response_body.clone(),
                 idempotency_key.clone(),
                 Some(correlation_id.clone()),
-                serde_json::json!({
-                    "deployment_id": std::env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string())
-                }),
+                event_metadata,
             ) {
                 Ok(event) => event,
                 Err(err) => {
@@ -785,6 +808,7 @@ async fn write_demo(
                 caller_id.clone(),
                 idempotency_key.clone(),
                 correlation_id.clone(),
+                observability_metadata,
                 state.config.rabbit_max_attempts,
             )
             .await
