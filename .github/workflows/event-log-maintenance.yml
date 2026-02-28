@@ -140,5 +140,3 @@ jobs:
         with:
           name: event-log-maintenance-${{ inputs.target_env }}
           path: build/event-log
-
-# NOTE: this workflow remains disabled by filename (.yml.disabled) until explicitly enabled.

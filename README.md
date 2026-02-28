@@ -185,7 +185,7 @@ This repository is an actively evolving prototype.
 - Worker job algorithms now use Postgres-backed rollout policy keyed by `job_type`, with sticky `job_run.algorithm_version` decisions so retries stay consistent while new jobs can ramp or roll back immediately.
 - Worker artifacts now use S3-compatible object storage with deterministic `artifact_key` / object-key derivation, `HEAD`-first idempotent uploads, and Postgres metadata-only tracking in `app.object_artifact` / `app.job_result_artifact`.
 - Observability baseline uses OpenTelemetry semantic-convention HTTP metrics, correlation IDs, and a collector-forwarded traces/metrics path.
-- Postgres restore drill routine is defined via `.github/workflows/postgres-restore-drill.yml.disabled` and `docs/operations/postgres-restore-drill.md`.
+- Postgres restore drill routine is defined via `.github/workflows/postgres-restore-drill.yml` and `docs/operations/postgres-restore-drill.md`.
 - Postgres event-log lifecycle (retention/archive/replay) is defined via `docs/architecture/postgres-event-log.md` and `docs/operations/postgres-event-log-maintenance.md`.
 - Event vocabulary and schema discipline is defined via `docs/architecture/event-vocabulary-schema-discipline.md`.
 - Job worker operations are defined via `docs/operations/job-worker-runbook.md`.

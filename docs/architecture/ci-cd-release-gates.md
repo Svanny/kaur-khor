@@ -158,7 +158,7 @@ For each deployable Railway service:
 - Consumer lag is stream-scoped and must not use global max event id across streams.
 - Replay order contract is `ORDER BY id ASC`.
 - Retention/export/prune maintenance uses id watermarks, stream advisory locks, and manifest verification gates (rowcount + size/hash).
-- Event-log maintenance workflow exists as a disabled template (`event-log-maintenance.yml.disabled`) until explicitly enabled.
+- Event-log maintenance workflow is defined in `.github/workflows/event-log-maintenance.yml`.
 - Operational runtime logs are platform-sink first (Railway/log drain); Postgres event stream is for audit/replay, not primary operational log sink.
 
 ## RabbitMQ Reliability Contract
