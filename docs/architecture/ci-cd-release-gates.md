@@ -73,12 +73,8 @@ For each deployable Railway service:
 - `start.sh` must translate Railway `PORT` into `API_BIND_ADDR` for `APP_ROLE=api`.
 - Non-HTTP roles (`event-relay`, `projection-consumer`, `worker`) must share the same `start.sh` without synthesizing `API_BIND_ADDR`.
 - [`apps/api/Dockerfile`](/Users/svanny/banji/apps/api/Dockerfile) is retained for legacy/local-only use and is no longer the Railway deployment contract.
-<<<<<<< ours
-- API container builds use Docker buildx with `apps/api` as the build context.
-- Docker dependency caching uses `cargo-chef` inside [`apps/api/Dockerfile`](/Users/svanny/banji/apps/api/Dockerfile) and GitHub Actions `type=gha` cache backends in CI.
-=======
 - API image builds in GitHub Actions should use Docker buildx with `apps/api` as the context and persistent GHA cache scopes for release and PR validation paths.
->>>>>>> theirs
+- Docker dependency caching uses `cargo-chef` inside [`apps/api/Dockerfile`](/Users/svanny/banji/apps/api/Dockerfile) and GitHub Actions `type=gha` cache backends in CI.
 
 ## Additional Hardening
 - Workflows use explicit permissions with least privilege.
