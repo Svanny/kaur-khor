@@ -39,6 +39,26 @@ jobs:
       - name: Scan tracked files for secret leakage
         run: bash tool/security/check_secret_patterns.sh
 
+  migration-version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Validate sqlx migration versions are unique
+        run: bash tool/ci/check_migration_versions.sh
+
+  ci-script-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Check topology parity contract tests
+        run: bash tool/ci/test_check_topology_parity.sh
+      - name: Check Railway deploy contract tests
+        run: bash tool/ci/test_railway_deploy_contract.sh
+      - name: Check migration version contract tests
+        run: bash tool/ci/test_check_migration_versions.sh
+      - name: Check migration lock contract tests
+        run: bash tool/ci/test_migrate_with_lock.sh
+
   pooling-contract-check:
     runs-on: ubuntu-latest
     steps:

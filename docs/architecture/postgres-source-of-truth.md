@@ -21,6 +21,7 @@ This standard defines how Banji provisions, migrates, backs up, restores, and mo
 - Source of truth: `apps/api/migrations/`
 - Tool: `sqlx migrate`
 - CI must always bootstrap a fresh empty database from migrations.
+- CI must also reject duplicate migration version prefixes before merge.
 - Deploy sequencing for `staging` and `prod` is fixed:
   1. Acquire migration lock (single runner)
   2. Apply migrations
@@ -74,6 +75,10 @@ No runtime role may hold schema-altering privileges.
 
 ## Migration Safety Rules
 - Expand/contract is required.
+- Migration version numbers are immutable once merged or deployed in any environment.
+- Branch merges must renumber unpublished migrations before merge if another branch already claimed the same version.
+- Fresh-database migration validation is necessary but insufficient on its own; version uniqueness validation is also required.
+- If a version was reused and one side already deployed, repair the environment migration history before the next `sqlx migrate run`.
 - Large index operations must use low-blocking strategies where supported.
 - Large backfills must run as controlled background jobs, not a single deploy-time migration.
 - Risky migrations are split across releases:
@@ -84,6 +89,7 @@ No runtime role may hold schema-altering privileges.
   - header format: `-- @risk:low|high`
   - `@risk:high` includes large-table index/constraint/partitioning or expected lock-heavy changes
   - any deployed `@risk:high` migration triggers a mandatory manual `prod -> prod_restore` drill
+- Repair guidance for sqlx migration renumbering lives in [`docs/operations/sqlx-migration-repair.md`](/Users/svanny/banji/docs/operations/sqlx-migration-repair.md).
 
 ## Restore Validation
 - Restore drill cadence:
