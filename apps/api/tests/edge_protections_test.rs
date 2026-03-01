@@ -1,6 +1,6 @@
 use banji_api::{
     app_with_state, build_state,
-    config::{AppConfig, DatabaseRuntimeEndpointKind, EdgeProvider},
+    config::{AppConfig, DatabaseRuntimeEndpointKind},
 };
 use reqwest::{Client, StatusCode};
 use std::{time::Duration, vec};
@@ -67,7 +67,6 @@ fn base_config() -> AppConfig {
         sqlx_pool_max_lifetime: Duration::from_secs(1_800),
         postgres_connection_budget_total: 80,
         edge_enforcement_enabled: false,
-        edge_provider: EdgeProvider::None,
         edge_origin_auth_header_name: "x-banji-edge-auth".to_string(),
         edge_origin_auth_secret: None,
         edge_origin_auth_secret_next: None,
@@ -99,7 +98,7 @@ fn base_config() -> AppConfig {
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec!["https://app.example.com".to_string()],
-        edge_trust_cf_connecting_ip: false,
+        edge_trust_forwarded_client_ip: false,
     }
 }
 
@@ -135,7 +134,6 @@ async fn guarded_health_requires_origin_auth_header() {
     let mut cfg = base_config();
     cfg.env = "staging".to_string();
     cfg.edge_enforcement_enabled = true;
-    cfg.edge_provider = EdgeProvider::Cloudflare;
     cfg.edge_origin_auth_secret = Some("current-secret".to_string());
     cfg.edge_origin_auth_secret_next = Some("next-secret".to_string());
 
@@ -167,17 +165,17 @@ async fn guarded_health_requires_origin_auth_header() {
 }
 
 #[tokio::test]
-async fn cf_connecting_ip_is_ignored_when_origin_guard_not_enforced() {
+async fn forwarded_ip_is_ignored_when_origin_guard_not_enforced() {
     let mut cfg = base_config();
     cfg.edge_rate_limit_public_read_max = 1;
-    cfg.edge_trust_cf_connecting_ip = true;
+    cfg.edge_trust_forwarded_client_ip = true;
 
     let addr = spawn(cfg).await;
     let client = Client::new();
 
     let first = client
         .get(format!("http://{addr}/health"))
-        .header("cf-connecting-ip", "1.1.1.1")
+        .header("x-forwarded-for", "1.1.1.1")
         .send()
         .await
         .expect("request should complete");
@@ -185,7 +183,7 @@ async fn cf_connecting_ip_is_ignored_when_origin_guard_not_enforced() {
 
     let second = client
         .get(format!("http://{addr}/health"))
-        .header("cf-connecting-ip", "2.2.2.2")
+        .header("x-forwarded-for", "2.2.2.2")
         .send()
         .await
         .expect("request should complete");
@@ -193,14 +191,13 @@ async fn cf_connecting_ip_is_ignored_when_origin_guard_not_enforced() {
 }
 
 #[tokio::test]
-async fn cf_connecting_ip_is_used_only_after_guard_passes() {
+async fn forwarded_ip_is_used_only_after_guard_passes() {
     let mut cfg = base_config();
     cfg.env = "staging".to_string();
     cfg.edge_enforcement_enabled = true;
-    cfg.edge_provider = EdgeProvider::Cloudflare;
     cfg.edge_origin_auth_secret = Some("edge-secret".to_string());
     cfg.edge_rate_limit_public_read_max = 1;
-    cfg.edge_trust_cf_connecting_ip = true;
+    cfg.edge_trust_forwarded_client_ip = true;
 
     let addr = spawn(cfg).await;
     let client = Client::new();
@@ -208,7 +205,7 @@ async fn cf_connecting_ip_is_used_only_after_guard_passes() {
     let first = client
         .get(format!("http://{addr}/health"))
         .header("x-banji-edge-auth", "edge-secret")
-        .header("cf-connecting-ip", "10.0.0.1")
+        .header("x-forwarded-for", "10.0.0.1")
         .send()
         .await
         .expect("request should complete");
@@ -217,11 +214,37 @@ async fn cf_connecting_ip_is_used_only_after_guard_passes() {
     let second = client
         .get(format!("http://{addr}/health"))
         .header("x-banji-edge-auth", "edge-secret")
-        .header("cf-connecting-ip", "10.0.0.2")
+        .header("x-forwarded-for", "10.0.0.2")
         .send()
         .await
         .expect("request should complete");
     assert_eq!(second.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn malformed_forwarded_ip_falls_back_to_peer_identity() {
+    let mut cfg = base_config();
+    cfg.edge_rate_limit_public_read_max = 1;
+    cfg.edge_trust_forwarded_client_ip = true;
+
+    let addr = spawn(cfg).await;
+    let client = Client::new();
+
+    let first = client
+        .get(format!("http://{addr}/health"))
+        .header("x-forwarded-for", "   ")
+        .send()
+        .await
+        .expect("request should complete");
+    assert_eq!(first.status(), StatusCode::OK);
+
+    let second = client
+        .get(format!("http://{addr}/health"))
+        .header("x-forwarded-for", ", ,")
+        .send()
+        .await
+        .expect("request should complete");
+    assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
 }
 
 #[tokio::test]
@@ -308,7 +331,6 @@ async fn guarded_http_proto_misconfiguration_is_rejected() {
     let mut cfg = base_config();
     cfg.env = "staging".to_string();
     cfg.edge_enforcement_enabled = true;
-    cfg.edge_provider = EdgeProvider::Cloudflare;
     cfg.edge_origin_auth_secret = Some("edge-secret".to_string());
 
     let addr = spawn(cfg).await;

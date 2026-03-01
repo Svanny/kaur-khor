@@ -167,7 +167,6 @@ mod tests {
             sqlx_pool_max_lifetime: Duration::from_secs(1_800),
             postgres_connection_budget_total: 80,
             edge_enforcement_enabled: false,
-            edge_provider: crate::config::EdgeProvider::None,
             edge_origin_auth_header_name: "x-banji-edge-auth".to_string(),
             edge_origin_auth_secret: None,
             edge_origin_auth_secret_next: None,
@@ -199,7 +198,7 @@ mod tests {
             edge_request_max_bytes: 262_144,
             edge_write_request_max_bytes: 65_536,
             edge_cors_allowed_origins: vec![],
-            edge_trust_cf_connecting_ip: false,
+            edge_trust_forwarded_client_ip: false,
         }
     }
 

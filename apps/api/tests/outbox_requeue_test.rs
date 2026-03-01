@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use banji_api::{
-    config::{AppConfig, EdgeProvider},
+    config::AppConfig,
     jobs::{
         outbox,
         publisher::ConfirmingPublisher,
@@ -114,7 +114,6 @@ fn test_cfg(db_url: String) -> AppConfig {
         sqlx_pool_max_lifetime: Duration::from_secs(1_800),
         postgres_connection_budget_total: 80,
         edge_enforcement_enabled: false,
-        edge_provider: EdgeProvider::None,
         edge_origin_auth_header_name: "x-banji-edge-auth".to_string(),
         edge_origin_auth_secret: None,
         edge_origin_auth_secret_next: None,
@@ -146,7 +145,7 @@ fn test_cfg(db_url: String) -> AppConfig {
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec![],
-        edge_trust_cf_connecting_ip: false,
+        edge_trust_forwarded_client_ip: false,
     }
 }
 

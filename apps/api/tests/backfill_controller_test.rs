@@ -2,7 +2,7 @@ use banji_api::{
     backfill::controller,
     config::{
         AppConfig, AppRole, BackfillConfig, BackfillDatabaseKind, BackfillKind, BackfillMode,
-        DatabaseRuntimeEndpointKind, EdgeProvider,
+        DatabaseRuntimeEndpointKind,
     },
     events::{consumer::get_checkpoint, key::derive_publish_key, schema_types::InvalidEventPolicy},
 };
@@ -71,7 +71,6 @@ fn test_app_config(db_url: String) -> AppConfig {
         sqlx_pool_max_lifetime: Duration::from_secs(1_800),
         postgres_connection_budget_total: 80,
         edge_enforcement_enabled: false,
-        edge_provider: EdgeProvider::None,
         edge_origin_auth_header_name: "x-banji-edge-auth".to_string(),
         edge_origin_auth_secret: None,
         edge_origin_auth_secret_next: None,
@@ -103,7 +102,7 @@ fn test_app_config(db_url: String) -> AppConfig {
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec![],
-        edge_trust_cf_connecting_ip: false,
+        edge_trust_forwarded_client_ip: false,
     }
 }
 

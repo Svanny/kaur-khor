@@ -1,6 +1,6 @@
 use banji_api::config::{
     resolve_api_bind_addr, resolve_service_name_from_env, AppConfig, AppRole,
-    DatabaseRuntimeEndpointKind, EdgeProvider, PgbouncerPoolMode, WorkerConfig,
+    DatabaseRuntimeEndpointKind, PgbouncerPoolMode, WorkerConfig,
 };
 use std::sync::{Mutex, OnceLock};
 
@@ -70,7 +70,10 @@ fn set_minimal_worker_object_storage_env() {
 #[test]
 fn service_name_defaults_to_app_role() {
     assert_eq!(resolve_service_name_from_env(AppRole::Api), "api");
-    assert_eq!(resolve_service_name_from_env(AppRole::EventRelay), "event-relay");
+    assert_eq!(
+        resolve_service_name_from_env(AppRole::EventRelay),
+        "event-relay"
+    );
     assert_eq!(
         resolve_service_name_from_env(AppRole::ProjectionConsumer),
         "projection-consumer"
@@ -208,7 +211,6 @@ fn app_config_debug_redacts_secret_fields() {
         sqlx_pool_max_lifetime: std::time::Duration::from_secs(1_800),
         postgres_connection_budget_total: 80,
         edge_enforcement_enabled: false,
-        edge_provider: EdgeProvider::None,
         edge_origin_auth_header_name: "x-banji-edge-auth".to_string(),
         edge_origin_auth_secret: None,
         edge_origin_auth_secret_next: None,
@@ -240,7 +242,7 @@ fn app_config_debug_redacts_secret_fields() {
         edge_request_max_bytes: 262_144,
         edge_write_request_max_bytes: 65_536,
         edge_cors_allowed_origins: vec![],
-        edge_trust_cf_connecting_ip: false,
+        edge_trust_forwarded_client_ip: false,
     };
 
     let rendered = format!("{cfg:?}");
@@ -537,6 +539,58 @@ fn new_edge_rate_limit_and_backpressure_values_are_parsed() {
 }
 
 #[test]
+fn deprecated_cloudflare_env_keys_are_ignored() {
+    let _guard = lock_env();
+    let keys = [
+        "BANJI_ENV",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "DATABASE_MIGRATION_URL",
+        "EDGE_PROVIDER",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "dev");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::set_var("EDGE_PROVIDER", "cloudflare");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let result = AppConfig::from_env();
+    restore_env(old);
+
+    assert!(result.is_ok());
+}
+
+#[test]
+fn forwarded_client_ip_flag_defaults_false_and_parses_when_enabled() {
+    let _guard = lock_env();
+    let keys = [
+        "BANJI_ENV",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "EDGE_TRUST_FORWARDED_CLIENT_IP",
+        "DATABASE_MIGRATION_URL",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "dev");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::remove_var("EDGE_TRUST_FORWARDED_CLIENT_IP");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+
+    let default_cfg = AppConfig::from_env().expect("default config should parse");
+    assert!(!default_cfg.edge_trust_forwarded_client_ip);
+
+    std::env::set_var("EDGE_TRUST_FORWARDED_CLIENT_IP", "true");
+    let enabled_cfg = AppConfig::from_env().expect("enabled config should parse");
+    restore_env(old);
+
+    assert!(enabled_cfg.edge_trust_forwarded_client_ip);
+}
+
+#[test]
 fn staging_requires_pgbouncer_transaction_mode() {
     let _guard = lock_env();
 
@@ -546,7 +600,6 @@ fn staging_requires_pgbouncer_transaction_mode() {
     let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
     let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
     let old_edge_enabled = std::env::var("EDGE_ENFORCEMENT_ENABLED").ok();
-    let old_edge_provider = std::env::var("EDGE_PROVIDER").ok();
     let old_edge_secret = std::env::var("EDGE_ORIGIN_AUTH_SECRET").ok();
     let old_edge_cors = std::env::var("EDGE_CORS_ALLOWED_ORIGINS").ok();
     let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
@@ -564,7 +617,6 @@ fn staging_requires_pgbouncer_transaction_mode() {
     std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
     std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
     std::env::set_var("EDGE_ENFORCEMENT_ENABLED", "true");
-    std::env::set_var("EDGE_PROVIDER", "cloudflare");
     std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", "edge-secret");
     std::env::set_var("EDGE_CORS_ALLOWED_ORIGINS", "https://staging.example.com");
     std::env::set_var("AUTH_ENABLED", "true");
@@ -618,11 +670,6 @@ fn staging_requires_pgbouncer_transaction_mode() {
     } else {
         std::env::remove_var("EDGE_ENFORCEMENT_ENABLED");
     }
-    if let Some(v) = old_edge_provider {
-        std::env::set_var("EDGE_PROVIDER", v);
-    } else {
-        std::env::remove_var("EDGE_PROVIDER");
-    }
     if let Some(v) = old_edge_secret {
         std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", v);
     } else {
@@ -671,7 +718,6 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
     let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
     let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
     let old_edge_enabled = std::env::var("EDGE_ENFORCEMENT_ENABLED").ok();
-    let old_edge_provider = std::env::var("EDGE_PROVIDER").ok();
     let old_edge_secret = std::env::var("EDGE_ORIGIN_AUTH_SECRET").ok();
     let old_edge_cors = std::env::var("EDGE_CORS_ALLOWED_ORIGINS").ok();
     let old_auth_enabled = std::env::var("AUTH_ENABLED").ok();
@@ -695,7 +741,6 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
     std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
     std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
     std::env::remove_var("EDGE_ENFORCEMENT_ENABLED");
-    std::env::remove_var("EDGE_PROVIDER");
     std::env::remove_var("EDGE_ORIGIN_AUTH_SECRET");
     std::env::remove_var("EDGE_CORS_ALLOWED_ORIGINS");
     std::env::remove_var("AUTH_ENABLED");
@@ -757,11 +802,6 @@ fn non_api_roles_do_not_require_http_edge_or_auth_settings() {
         std::env::set_var("EDGE_ENFORCEMENT_ENABLED", v);
     } else {
         std::env::remove_var("EDGE_ENFORCEMENT_ENABLED");
-    }
-    if let Some(v) = old_edge_provider {
-        std::env::set_var("EDGE_PROVIDER", v);
-    } else {
-        std::env::remove_var("EDGE_PROVIDER");
     }
     if let Some(v) = old_edge_secret {
         std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", v);
@@ -1543,7 +1583,6 @@ fn edge_enforcement_requires_origin_secret_when_enabled() {
     let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
     let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
     let old_edge_enabled = std::env::var("EDGE_ENFORCEMENT_ENABLED").ok();
-    let old_edge_provider = std::env::var("EDGE_PROVIDER").ok();
     let old_edge_secret = std::env::var("EDGE_ORIGIN_AUTH_SECRET").ok();
     let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
 
@@ -1551,7 +1590,6 @@ fn edge_enforcement_requires_origin_secret_when_enabled() {
     std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
     std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
     std::env::set_var("EDGE_ENFORCEMENT_ENABLED", "true");
-    std::env::set_var("EDGE_PROVIDER", "cloudflare");
     std::env::remove_var("EDGE_ORIGIN_AUTH_SECRET");
     std::env::remove_var("DATABASE_MIGRATION_URL");
 
@@ -1578,11 +1616,6 @@ fn edge_enforcement_requires_origin_secret_when_enabled() {
     } else {
         std::env::remove_var("EDGE_ENFORCEMENT_ENABLED");
     }
-    if let Some(v) = old_edge_provider {
-        std::env::set_var("EDGE_PROVIDER", v);
-    } else {
-        std::env::remove_var("EDGE_PROVIDER");
-    }
     if let Some(v) = old_edge_secret {
         std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", v);
     } else {
@@ -1605,7 +1638,6 @@ fn staging_rejects_non_https_and_localhost_cors_origins() {
     let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
     let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
     let old_edge_enabled = std::env::var("EDGE_ENFORCEMENT_ENABLED").ok();
-    let old_edge_provider = std::env::var("EDGE_PROVIDER").ok();
     let old_edge_secret = std::env::var("EDGE_ORIGIN_AUTH_SECRET").ok();
     let old_cors = std::env::var("EDGE_CORS_ALLOWED_ORIGINS").ok();
     let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
@@ -1623,7 +1655,6 @@ fn staging_rejects_non_https_and_localhost_cors_origins() {
     std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
     std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
     std::env::set_var("EDGE_ENFORCEMENT_ENABLED", "true");
-    std::env::set_var("EDGE_PROVIDER", "cloudflare");
     std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", "edge-secret");
     std::env::set_var("AUTH_ENABLED", "true");
     std::env::set_var(
@@ -1681,11 +1712,6 @@ fn staging_rejects_non_https_and_localhost_cors_origins() {
         std::env::set_var("EDGE_ENFORCEMENT_ENABLED", v);
     } else {
         std::env::remove_var("EDGE_ENFORCEMENT_ENABLED");
-    }
-    if let Some(v) = old_edge_provider {
-        std::env::set_var("EDGE_PROVIDER", v);
-    } else {
-        std::env::remove_var("EDGE_PROVIDER");
     }
     if let Some(v) = old_edge_secret {
         std::env::set_var("EDGE_ORIGIN_AUTH_SECRET", v);

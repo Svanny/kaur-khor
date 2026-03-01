@@ -57,7 +57,6 @@ forbid_local_var() {
 case "$EXPECTED_APP_ROLE" in
   api)
     require_local_var EDGE_ENFORCEMENT_ENABLED
-    require_local_var EDGE_PROVIDER
     require_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
     require_local_var EDGE_CORS_ALLOWED_ORIGINS
     require_local_var AUTH_ENABLED
@@ -142,7 +141,6 @@ set_runtime_var PGBOUNCER_POOL_MODE
 case "$EXPECTED_APP_ROLE" in
   api)
     set_runtime_var_if_present EDGE_ENFORCEMENT_ENABLED
-    set_runtime_var_if_present EDGE_PROVIDER
     set_runtime_var_if_present EDGE_ORIGIN_AUTH_HEADER_NAME
     set_runtime_var_if_present EDGE_CORS_ALLOWED_ORIGINS
     set_runtime_var_if_present AUTH_ENABLED
@@ -258,7 +256,6 @@ assert_runtime_var_equals "PGBOUNCER_POOL_MODE" "$PGBOUNCER_POOL_MODE"
 case "$EXPECTED_APP_ROLE" in
   api)
     assert_runtime_var_equals "EDGE_ENFORCEMENT_ENABLED" "$EDGE_ENFORCEMENT_ENABLED"
-    assert_runtime_var_equals "EDGE_PROVIDER" "$EDGE_PROVIDER"
     assert_runtime_var_equals "EDGE_ORIGIN_AUTH_HEADER_NAME" "$EDGE_ORIGIN_AUTH_HEADER_NAME"
     assert_runtime_var_equals "EDGE_CORS_ALLOWED_ORIGINS" "$EDGE_CORS_ALLOWED_ORIGINS"
     assert_runtime_var_equals "AUTH_ENABLED" "$AUTH_ENABLED"

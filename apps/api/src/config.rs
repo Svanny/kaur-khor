@@ -61,29 +61,6 @@ impl PgbouncerPoolMode {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EdgeProvider {
-    Cloudflare,
-    None,
-}
-
-impl EdgeProvider {
-    fn parse(raw: &str) -> Result<Self> {
-        match raw.to_ascii_lowercase().as_str() {
-            "cloudflare" => Ok(Self::Cloudflare),
-            "none" => Ok(Self::None),
-            _ => Err(anyhow!("EDGE_PROVIDER must be one of: cloudflare, none")),
-        }
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Cloudflare => "cloudflare",
-            Self::None => "none",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppRole {
     Api,
     EventRelay,
@@ -422,7 +399,6 @@ pub struct AppConfig {
     pub sqlx_pool_max_lifetime: Duration,
     pub postgres_connection_budget_total: u32,
     pub edge_enforcement_enabled: bool,
-    pub edge_provider: EdgeProvider,
     pub edge_origin_auth_header_name: String,
     pub edge_origin_auth_secret: Option<String>,
     pub edge_origin_auth_secret_next: Option<String>,
@@ -454,7 +430,7 @@ pub struct AppConfig {
     pub edge_request_max_bytes: usize,
     pub edge_write_request_max_bytes: usize,
     pub edge_cors_allowed_origins: Vec<String>,
-    pub edge_trust_cf_connecting_ip: bool,
+    pub edge_trust_forwarded_client_ip: bool,
 }
 
 impl fmt::Debug for AppConfig {
@@ -572,7 +548,6 @@ impl fmt::Debug for AppConfig {
                 &self.postgres_connection_budget_total,
             )
             .field("edge_enforcement_enabled", &self.edge_enforcement_enabled)
-            .field("edge_provider", &self.edge_provider.as_str())
             .field(
                 "edge_origin_auth_header_name",
                 &self.edge_origin_auth_header_name,
@@ -680,8 +655,8 @@ impl fmt::Debug for AppConfig {
             )
             .field("edge_cors_allowed_origins", &self.edge_cors_allowed_origins)
             .field(
-                "edge_trust_cf_connecting_ip",
-                &self.edge_trust_cf_connecting_ip,
+                "edge_trust_forwarded_client_ip",
+                &self.edge_trust_forwarded_client_ip,
             )
             .finish()
     }
@@ -726,8 +701,7 @@ impl AppConfig {
         let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
         let system_name = env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string());
         let instance_id = resolve_instance_id();
-        let app_role =
-            AppRole::parse(&env::var("APP_ROLE").unwrap_or_else(|_| "api".to_string()))?;
+        let app_role = AppRole::parse(&env::var("APP_ROLE").unwrap_or_else(|_| "api".to_string()))?;
         let service_name = resolve_service_name_from_env(app_role);
         let strict_edge_env = matches!(env_name.as_str(), "staging" | "prod");
         let strict_api_env = strict_edge_env && app_role == AppRole::Api;
@@ -811,14 +785,6 @@ impl AppConfig {
         }
 
         let edge_enforcement_enabled = parse_bool("EDGE_ENFORCEMENT_ENABLED", strict_api_env)?;
-        let edge_provider_raw = env::var("EDGE_PROVIDER").unwrap_or_else(|_| {
-            if edge_enforcement_enabled {
-                "cloudflare".to_string()
-            } else {
-                "none".to_string()
-            }
-        });
-        let edge_provider = EdgeProvider::parse(&edge_provider_raw)?;
         let edge_origin_auth_header_name = env::var("EDGE_ORIGIN_AUTH_HEADER_NAME")
             .unwrap_or_else(|_| "x-banji-edge-auth".to_string())
             .trim()
@@ -990,9 +956,6 @@ impl AppConfig {
                     "staging/prod require EDGE_ENFORCEMENT_ENABLED=true"
                 ));
             }
-            if edge_provider != EdgeProvider::Cloudflare {
-                return Err(anyhow!("staging/prod require EDGE_PROVIDER=cloudflare"));
-            }
             if edge_cors_allowed_origins.is_empty() {
                 return Err(anyhow!(
                     "staging/prod require EDGE_CORS_ALLOWED_ORIGINS to be explicitly set"
@@ -1012,8 +975,7 @@ impl AppConfig {
             }
         }
 
-        let edge_trust_cf_connecting_ip =
-            parse_bool("EDGE_TRUST_CF_CONNECTING_IP", strict_edge_env)?;
+        let edge_trust_forwarded_client_ip = parse_bool("EDGE_TRUST_FORWARDED_CLIENT_IP", false)?;
         let event_relay_batch_size = parse_u32("EVENT_RELAY_BATCH_SIZE", 100)?;
         let event_relay_poll_interval =
             Duration::from_millis(parse_u64("EVENT_RELAY_POLL_INTERVAL_MS", 500)?);
@@ -1218,7 +1180,6 @@ impl AppConfig {
             sqlx_pool_max_lifetime,
             postgres_connection_budget_total,
             edge_enforcement_enabled,
-            edge_provider,
             edge_origin_auth_header_name,
             edge_origin_auth_secret,
             edge_origin_auth_secret_next,
@@ -1250,7 +1211,7 @@ impl AppConfig {
             edge_request_max_bytes,
             edge_write_request_max_bytes,
             edge_cors_allowed_origins,
-            edge_trust_cf_connecting_ip,
+            edge_trust_forwarded_client_ip,
         })
     }
 

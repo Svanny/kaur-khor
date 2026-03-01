@@ -513,13 +513,13 @@ fn client_ip_for_rate_limit(request: &Request<Body>, state: &AppState) -> String
         .map(|outcome| outcome.passed)
         .unwrap_or(false);
 
-    if state.config.edge_trust_cf_connecting_ip && guard_passed {
+    if state.config.edge_trust_forwarded_client_ip && guard_passed {
         if let Some(value) = request
             .headers()
-            .get("cf-connecting-ip")
+            .get("x-forwarded-for")
             .and_then(|value| value.to_str().ok())
         {
-            let candidate = value.trim();
+            let candidate = value.split(',').next().map(str::trim).unwrap_or_default();
             if !candidate.is_empty() {
                 return candidate.to_string();
             }

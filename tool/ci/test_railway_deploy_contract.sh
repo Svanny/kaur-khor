@@ -64,7 +64,6 @@ export EXPECTED_BANJI_SERVICE="api"
 export DATABASE_RUNTIME_ENDPOINT_KIND="pgbouncer"
 export PGBOUNCER_POOL_MODE="transaction"
 export EDGE_ENFORCEMENT_ENABLED="true"
-export EDGE_PROVIDER="cloudflare"
 export EDGE_ORIGIN_AUTH_HEADER_NAME="x-banji-edge-auth"
 export EDGE_CORS_ALLOWED_ORIGINS="https://app.example.com"
 export AUTH_ENABLED="true"
@@ -74,7 +73,7 @@ export AUTH_AUDIENCE="banji-api"
 export SKIP_RAILWAY_INSTALL="true"
 export RAILWAY_BIN="$TMP_DIR/railway"
 
-export FAKE_RAILWAY_JSON_SVC_API='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"worker","BANJI_SERVICE":"api","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_PROVIDER":"cloudflare","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://app.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api"}'
+export FAKE_RAILWAY_JSON_SVC_API='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"worker","BANJI_SERVICE":"api","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://app.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api"}'
 export FAKE_RAILWAY_JSON_SVC_RELAY='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
 export FAKE_RAILWAY_JSON_SVC_PROJECTION='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
 export FAKE_RAILWAY_JSON_SVC_WORKER='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
@@ -84,19 +83,19 @@ if bash "$DEPLOY_SCRIPT" >/dev/null 2>&1; then
   exit 1
 fi
 
-export FAKE_RAILWAY_JSON_SVC_API='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"api","BANJI_SERVICE":"worker","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_PROVIDER":"cloudflare","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://app.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api"}'
+export FAKE_RAILWAY_JSON_SVC_API='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"api","BANJI_SERVICE":"worker","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://app.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api"}'
 if bash "$DEPLOY_SCRIPT" >/dev/null 2>&1; then
   echo "assertion failed: wrong BANJI_SERVICE should fail deploy contract" >&2
   exit 1
 fi
 
-export FAKE_RAILWAY_JSON_SVC_API='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"api","BANJI_SERVICE":"api","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_PROVIDER":"cloudflare","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://app.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","OBJECT_STORAGE_ENDPOINT":"https://storage.example.com"}'
+export FAKE_RAILWAY_JSON_SVC_API='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"api","BANJI_SERVICE":"api","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://app.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","OBJECT_STORAGE_ENDPOINT":"https://storage.example.com"}'
 if bash "$DEPLOY_SCRIPT" >/dev/null 2>&1; then
   echo "assertion failed: forbidden runtime secret should fail deploy contract" >&2
   exit 1
 fi
 
-unset EDGE_ENFORCEMENT_ENABLED EDGE_PROVIDER EDGE_ORIGIN_AUTH_HEADER_NAME EDGE_CORS_ALLOWED_ORIGINS
+unset EDGE_ENFORCEMENT_ENABLED EDGE_ORIGIN_AUTH_HEADER_NAME EDGE_CORS_ALLOWED_ORIGINS
 unset AUTH_ENABLED AUTH_JWKS_URL AUTH_ISSUER AUTH_AUDIENCE
 export RAILWAY_SERVICE_ID="svc-worker"
 export EXPECTED_APP_ROLE="worker"
@@ -114,6 +113,24 @@ export ALGORITHM_ROLLOUT_HASH_SALT_VERSION="salt-v1"
 export FAKE_RAILWAY_JSON_SVC_WORKER='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"worker","BANJI_SERVICE":"worker","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","DATABASE_RUNTIME_URL":"postgres://runtime@db.example/banji","RABBIT_URL":"amqps://rabbit.example.com/%2f","OBJECT_STORAGE_ENABLED":"true","OBJECT_STORAGE_ENDPOINT":"https://storage.example.com","OBJECT_STORAGE_REGION":"us-east-1","OBJECT_STORAGE_BUCKET_ARTIFACTS":"banji-artifacts","OBJECT_STORAGE_ACCESS_KEY":"access","OBJECT_STORAGE_SECRET_KEY":"secret","ALGORITHM_ROLLOUT_HASH_SALT":"salt","ALGORITHM_ROLLOUT_HASH_SALT_VERSION":"salt-v1"}'
 
 bash "$DEPLOY_SCRIPT" >/dev/null
+
+export RAILWAY_SERVICE_ID="svc-api"
+export EXPECTED_APP_ROLE="api"
+export EXPECTED_BANJI_SERVICE="api"
+unset DATABASE_RUNTIME_URL RABBIT_URL OBJECT_STORAGE_ENABLED OBJECT_STORAGE_ENDPOINT OBJECT_STORAGE_REGION
+unset OBJECT_STORAGE_BUCKET_ARTIFACTS OBJECT_STORAGE_ACCESS_KEY OBJECT_STORAGE_SECRET_KEY
+unset ALGORITHM_ROLLOUT_HASH_SALT ALGORITHM_ROLLOUT_HASH_SALT_VERSION
+export EDGE_ENFORCEMENT_ENABLED="true"
+export EDGE_ORIGIN_AUTH_HEADER_NAME="x-banji-edge-auth"
+export EDGE_CORS_ALLOWED_ORIGINS="https://app.example.com"
+export AUTH_ENABLED="true"
+export AUTH_JWKS_URL="https://jwks.example.com"
+export AUTH_ISSUER="https://issuer.example.com"
+export AUTH_AUDIENCE="banji-api"
+export FAKE_RAILWAY_JSON_SVC_API='{"IMAGE_REF":"ghcr.io/svanny/banji-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","APP_ROLE":"api","BANJI_SERVICE":"api","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://app.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api"}'
+export EDGE_PROVIDER="cloudflare"
+bash "$DEPLOY_SCRIPT" >/dev/null
+unset EDGE_PROVIDER
 
 export RAILWAY_API_SERVICE_ID="svc-api"
 export RAILWAY_EVENT_RELAY_SERVICE_ID="svc-relay"
