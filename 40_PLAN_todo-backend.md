@@ -51,7 +51,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
    Set limits on retries and define a process for dead letter triage. Done means poison messages do not stall your system and you have a repeatable recovery playbook.
 
 13. [DONE] Add edge protections
-    Put a proper edge in front, often Cloudflare plus Railway routing. Done means TLS is handled, rate limits exist, request size limits exist, and your API is not exposed directly to the internet without guardrails.
+    Put a proper edge contract in front of the API via Railway ingress plus app-layer guardrails. Done means TLS is handled, rate limits exist, request size limits exist, and your API is not exposed directly to the internet without guardrails.
 
 ---
 

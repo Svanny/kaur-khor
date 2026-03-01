@@ -45,7 +45,6 @@ Banji is an inventory platform prototype with:
 - `config/env/`: environment variable templates for `dev`, `staging`, `prod`.
 - `docs/architecture/`: canonical backend contracts and architecture decisions.
 - `tool/`: operational scripts for naming, DB operations, and RabbitMQ operations.
-- `tool/edge/`: Cloudflare edge apply/verify tooling and fingerprint references.
 - `tool/otel/`: OpenTelemetry collector config for traces/metrics export pipeline.
 
 ## Root Docs Index
@@ -192,5 +191,5 @@ This repository is an actively evolving prototype.
 - Job worker operations are defined via `docs/operations/job-worker-runbook.md`.
 - Backfill controller operations are defined via `docs/operations/backfill-runbook.md`.
 - Object storage artifact contracts are defined via `docs/architecture/object-storage-artifacts.md` and `docs/operations/object-storage-runbook.md`.
-- Edge protection baseline (Cloudflare front door + app-layer guardrails) is defined via `docs/architecture/edge-protections.md` and `docs/operations/edge-operations-runbook.md`.
+- Edge protection baseline is defined via `docs/architecture/edge-protections.md`.
 - Some integration paths remain intentionally staged while contracts and operational tooling are finalized.
