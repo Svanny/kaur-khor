@@ -49,6 +49,8 @@ jobs:
       IMAGE_DIGEST: ${{ inputs.image_digest || github.event.inputs.image_digest }}
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
+      SQLX_CLI_VERSION: "0.8.2"
+      RAILWAY_CLI_VERSION: "4.6.1"
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
@@ -65,12 +67,8 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Check topology parity contract
         run: bash tool/ci/check_topology_parity.sh
-      - name: Install migration dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-          rustup toolchain install stable --profile minimal
-          cargo +stable install sqlx-cli --no-default-features --features rustls,postgres
+      - name: Set up deploy tooling (cached)
+        uses: ./.github/actions/deploy-tooling
       - name: Run migrations with advisory lock
         env:
           ADVISORY_LOCK_KEY: 184361
@@ -80,6 +78,8 @@ jobs:
         run: bash tool/ci/migrate_with_lock.sh
       - name: Deploy staging event-relay
         env:
+          SKIP_RAILWAY_INSTALL: "true"
+          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
           EXPECTED_APP_ROLE: event-relay
           EXPECTED_BANJI_SERVICE: event-relay
@@ -87,6 +87,8 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy staging projection-consumer
         env:
+          SKIP_RAILWAY_INSTALL: "true"
+          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
@@ -97,6 +99,8 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy staging worker
         env:
+          SKIP_RAILWAY_INSTALL: "true"
+          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
           EXPECTED_APP_ROLE: worker
           EXPECTED_BANJI_SERVICE: worker
@@ -113,6 +117,8 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy staging api
         env:
+          SKIP_RAILWAY_INSTALL: "true"
+          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
@@ -144,6 +150,8 @@ jobs:
       IMAGE_DIGEST: ${{ inputs.image_digest || github.event.inputs.image_digest }}
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
+      SQLX_CLI_VERSION: "0.8.2"
+      RAILWAY_CLI_VERSION: "4.6.1"
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
@@ -160,12 +168,8 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Check topology parity contract
         run: bash tool/ci/check_topology_parity.sh
-      - name: Install migration dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-          rustup toolchain install stable --profile minimal
-          cargo +stable install sqlx-cli --no-default-features --features rustls,postgres
+      - name: Set up deploy tooling (cached)
+        uses: ./.github/actions/deploy-tooling
       - name: Run migrations with advisory lock
         env:
           ADVISORY_LOCK_KEY: 184361
@@ -175,6 +179,8 @@ jobs:
         run: bash tool/ci/migrate_with_lock.sh
       - name: Deploy prod event-relay
         env:
+          SKIP_RAILWAY_INSTALL: "true"
+          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_EVENT_RELAY_SERVICE_ID }}
           EXPECTED_APP_ROLE: event-relay
           EXPECTED_BANJI_SERVICE: event-relay
@@ -182,6 +188,8 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy prod projection-consumer
         env:
+          SKIP_RAILWAY_INSTALL: "true"
+          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID }}
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
@@ -192,6 +200,8 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy prod worker
         env:
+          SKIP_RAILWAY_INSTALL: "true"
+          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
           EXPECTED_APP_ROLE: worker
           EXPECTED_BANJI_SERVICE: worker
@@ -208,6 +218,8 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy prod api
         env:
+          SKIP_RAILWAY_INSTALL: "true"
+          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
