@@ -13,9 +13,36 @@ CREATE TABLE IF NOT EXISTS app.event_log (
   causation_id TEXT,
   payload JSONB NOT NULL,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  payload_size_bytes INTEGER GENERATED ALWAYS AS (pg_column_size(payload)) STORED,
+  payload_size_bytes INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE OR REPLACE FUNCTION app.set_event_log_payload_size_bytes()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.payload_size_bytes := pg_column_size(NEW.payload);
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgname = 'trg_event_log_payload_size_bytes'
+      AND tgrelid = 'app.event_log'::regclass
+  ) THEN
+    CREATE TRIGGER trg_event_log_payload_size_bytes
+    BEFORE INSERT OR UPDATE OF payload
+    ON app.event_log
+    FOR EACH ROW
+    EXECUTE FUNCTION app.set_event_log_payload_size_bytes();
+  END IF;
+END;
+$$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_event_log_producer_idempotency
   ON app.event_log (producer_service, idempotency_key)
