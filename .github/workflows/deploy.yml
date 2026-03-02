@@ -87,8 +87,8 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy staging projection-consumer
         env:
-          SKIP_RAILWAY_INSTALL: "true"
-          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
+          SKIP_RAILWAY_INSTALL: "false"
+          bin/RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
@@ -100,7 +100,8 @@ jobs:
       - name: Deploy staging worker
         env:
           SKIP_RAILWAY_INSTALL: "true"
-          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
+          #RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
+          RAILWAY_BIN: railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
           EXPECTED_APP_ROLE: worker
           EXPECTED_BANJI_SERVICE: worker
