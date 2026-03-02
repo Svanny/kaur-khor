@@ -76,10 +76,19 @@ jobs:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/migrate_with_lock.sh
+      - name: Debug Railway CLI path
+        run: |
+          echo "RAILWAY_BIN=$RAILWAY_BIN"
+          echo "SKIP_RAILWAY_INSTALL=$SKIP_RAILWAY_INSTALL"
+          which railway || true
+          railway --version || true
+          ls -la ./local || true
+          ls -la ./local/bin || true
       - name: Deploy staging event-relay
         env:
-          SKIP_RAILWAY_INSTALL: "true"
-          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
+          SKIP_RAILWAY_INSTALL: "false"
+          #RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
+          RAILWAY_BIN: railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
           EXPECTED_APP_ROLE: event-relay
           EXPECTED_BANJI_SERVICE: event-relay
@@ -88,7 +97,8 @@ jobs:
       - name: Deploy staging projection-consumer
         env:
           SKIP_RAILWAY_INSTALL: "false"
-          bin/RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
+          #RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
+          RAILWAY_BIN: railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
@@ -99,7 +109,7 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy staging worker
         env:
-          SKIP_RAILWAY_INSTALL: "true"
+          SKIP_RAILWAY_INSTALL: "false"
           #RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_BIN: railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
@@ -118,7 +128,7 @@ jobs:
         run: bash tool/ci/railway_deploy.sh
       - name: Deploy staging api
         env:
-          SKIP_RAILWAY_INSTALL: "true"
+          SKIP_RAILWAY_INSTALL: "false"
           RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
