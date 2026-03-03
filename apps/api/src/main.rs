@@ -29,6 +29,8 @@ async fn run() -> anyhow::Result<()> {
 }
 
 async fn run_api(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
+    let build_commit_sha = banji_api::build_metadata::build_commit_sha();
+    let deploy_commit_sha = banji_api::build_metadata::deploy_commit_sha();
     let state = banji_api::build_state(config).await?;
     let pool_for_shutdown = state.db.clone();
 
@@ -38,7 +40,14 @@ async fn run_api(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
 
     let addr = banji_api::config::resolve_api_bind_addr();
 
-    tracing::info!(%addr, "starting banji-api");
+    tracing::info!(
+        %addr,
+        build_commit_sha,
+        deploy_commit_sha = %deploy_commit_sha,
+        app_role = %state.config.app_role.as_str(),
+        banji_service = %state.config.service,
+        "starting banji-api"
+    );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let app = banji_api::app_with_state(state);
     axum::serve(
@@ -56,6 +65,8 @@ async fn run_api(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
 }
 
 async fn run_event_relay(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
+    let build_commit_sha = banji_api::build_metadata::build_commit_sha();
+    let deploy_commit_sha = banji_api::build_metadata::deploy_commit_sha();
     let pool = banji_api::db::pool::build_runtime_pool(&config)
         .await?
         .ok_or_else(|| {
@@ -66,6 +77,9 @@ async fn run_event_relay(config: banji_api::config::AppConfig) -> anyhow::Result
 
     tracing::info!(
         role = %config.app_role.as_str(),
+        build_commit_sha,
+        deploy_commit_sha = %deploy_commit_sha,
+        banji_service = %config.service,
         batch_size = config.event_relay_batch_size,
         poll_interval_ms = config.event_relay_poll_interval.as_millis(),
         "starting event relay loop"
@@ -77,6 +91,8 @@ async fn run_event_relay(config: banji_api::config::AppConfig) -> anyhow::Result
 }
 
 async fn run_projection_consumer(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
+    let build_commit_sha = banji_api::build_metadata::build_commit_sha();
+    let deploy_commit_sha = banji_api::build_metadata::deploy_commit_sha();
     let pool = banji_api::db::pool::build_runtime_pool(&config)
         .await?
         .ok_or_else(|| {
@@ -104,6 +120,9 @@ async fn run_projection_consumer(config: banji_api::config::AppConfig) -> anyhow
 
     tracing::info!(
         role = %config.app_role.as_str(),
+        build_commit_sha,
+        deploy_commit_sha = %deploy_commit_sha,
+        banji_service = %config.service,
         service_name = %projection_cfg.service_name,
         consumer_name = %projection_cfg.consumer_name,
         stream_name = %projection_cfg.stream_name,
@@ -132,6 +151,8 @@ async fn run_projection_consumer(config: banji_api::config::AppConfig) -> anyhow
 }
 
 async fn run_worker(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
+    let build_commit_sha = banji_api::build_metadata::build_commit_sha();
+    let deploy_commit_sha = banji_api::build_metadata::deploy_commit_sha();
     let pool = banji_api::db::pool::build_runtime_pool(&config)
         .await?
         .ok_or_else(|| anyhow::anyhow!("DATABASE_RUNTIME_URL is required for APP_ROLE=worker"))?;
@@ -141,6 +162,9 @@ async fn run_worker(config: banji_api::config::AppConfig) -> anyhow::Result<()> 
     banji_api::jobs::rollout::worker_startup_preflight(&pool).await?;
     tracing::info!(
         role = %config.app_role.as_str(),
+        build_commit_sha,
+        deploy_commit_sha = %deploy_commit_sha,
+        banji_service = %config.service,
         worker_id = %worker_cfg.worker_id,
         enabled_classes = ?worker_cfg.enabled_classes.iter().map(|class| class.as_str()).collect::<Vec<_>>(),
         poll_interval_ms = worker_cfg.poll_interval.as_millis(),
@@ -155,6 +179,8 @@ async fn run_worker(config: banji_api::config::AppConfig) -> anyhow::Result<()> 
 }
 
 async fn run_backfill_controller(config: banji_api::config::AppConfig) -> anyhow::Result<()> {
+    let build_commit_sha = banji_api::build_metadata::build_commit_sha();
+    let deploy_commit_sha = banji_api::build_metadata::deploy_commit_sha();
     let backfill_cfg = config.backfill_config()?;
     let mut pool_cfg = config.clone();
     pool_cfg.database_runtime_url = Some(backfill_cfg.database_url.clone());
@@ -170,6 +196,9 @@ async fn run_backfill_controller(config: banji_api::config::AppConfig) -> anyhow
     banji_api::db::pool::warmup_runtime_pool(&pool).await?;
     tracing::info!(
         role = %config.app_role.as_str(),
+        build_commit_sha,
+        deploy_commit_sha = %deploy_commit_sha,
+        banji_service = %config.service,
         kind = %backfill_cfg.kind.as_str(),
         mode = %backfill_cfg.mode.as_str(),
         database_kind = %backfill_cfg.database_kind.as_str(),

@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod backfill;
+pub mod build_metadata;
 pub mod cache;
 pub mod config;
 pub mod db;
@@ -161,9 +162,14 @@ async fn health() -> Json<Health> {
     Json(Health { status: "ok" })
 }
 
+async fn version() -> Json<build_metadata::VersionInfo> {
+    Json(build_metadata::version_info())
+}
+
 pub fn app() -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/version", get(version))
         .layer(middleware::from_fn(
             observability::http_observability_middleware,
         ))
@@ -172,6 +178,7 @@ pub fn app() -> Router {
 pub fn app_with_state(state: AppState) -> Router {
     let public = Router::new()
         .route("/health", get(health))
+        .route("/version", get(version))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             edge::rate_limit::rate_limit_middleware,
