@@ -41,7 +41,7 @@
 │ Start command uses ./start.sh                                  │
 │ start.sh maps PORT to API_BIND_ADDR for APP_ROLE=api           │
 │ Compute migration checksum from apps/api/migrations            │
-│ Build metadata is optional until CI release flow is re-enabled │
+│ GitHub syncs Railway vars, then uploads apps/api with railway up│
 └───────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────────────────────────────────────────────────────────────┐
@@ -55,7 +55,8 @@
 │ Uses Postgres advisory lock plus sqlx migrate run               │
 │                                                               │
 │ Rollout                                                       │
-│ Railway builds connected repo and starts via start.sh          │
+│ GitHub uploads apps/api source to Railway in role order        │
+│ Railway builds and starts each role via start.sh               │
 │ Write GitHub step summary                                      │
 └───────────────────────────────────────────────────────────────┘
                               ↓
@@ -71,7 +72,8 @@
 │                                                               │
 │ Assert same repo revision as staging                           │
 │ Run tool/ci/migrate_with_lock.sh against prod DB               │
-│ Railway builds connected repo and starts via start.sh          │
+│ GitHub uploads apps/api source to Railway in role order        │
+│ Railway builds and starts each role via start.sh               │
 │ Write GitHub step summary                                      │
 └───────────────────────────────────────────────────────────────┘
                               ↓

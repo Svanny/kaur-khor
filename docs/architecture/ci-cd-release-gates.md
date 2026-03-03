@@ -13,6 +13,7 @@ This document defines merge gates, runtime parity rules, and deployment promotio
 
 ## Deployment Policy
 - Deploy from the connected repository via Railway Railpack config-as-code.
+- GitHub Actions syncs Railway service variables, then uploads `apps/api` source with `railway up`.
 - Railway service root is `apps/api`.
 - Build command remains `cargo build --release`.
 - Start command remains `./start.sh`.
@@ -63,3 +64,4 @@ For API services:
 ## Artifact and Role Parity
 - [`apps/api/railway.toml`](/Users/svanny/banji/apps/api/railway.toml) and [`apps/api/start.sh`](/Users/svanny/banji/apps/api/start.sh) are the tracked runtime contract.
 - Deploy tooling must fail closed if Railway runtime values cannot be read or do not match the expected role contract.
+- Runtime parity is tracked by `DEPLOY_COMMIT_SHA` and `DEPLOY_RUN_ID`, not container image digests.

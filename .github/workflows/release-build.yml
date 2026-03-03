@@ -108,8 +108,6 @@ jobs:
     needs: container-build-push
     uses: ./.github/workflows/deploy.yml
     with:
-      image_ref: ${{ needs.container-build-push.outputs.image_ref }}
-      image_digest: ${{ needs.container-build-push.outputs.image_digest }}
       commit_sha: ${{ needs.container-build-push.outputs.commit_sha }}
       migration_checksum: ${{ needs.container-build-push.outputs.migration_checksum }}
     secrets: inherit

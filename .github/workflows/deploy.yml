@@ -3,12 +3,6 @@ name: deploy
 on:
   workflow_call:
     inputs:
-      image_ref:
-        required: true
-        type: string
-      image_digest:
-        required: true
-        type: string
       commit_sha:
         required: true
         type: string
@@ -17,16 +11,8 @@ on:
         type: string
   workflow_dispatch:
     inputs:
-      image_ref:
-        description: "Pinned image reference (ghcr.io/...@sha256:...)"
-        required: true
-        type: string
-      image_digest:
-        description: "Image digest (sha256:...)"
-        required: true
-        type: string
       commit_sha:
-        description: "Commit SHA used to build the artifact"
+        description: "Commit SHA to deploy"
         required: true
         type: string
       migration_checksum:
@@ -45,16 +31,18 @@ jobs:
       group: deploy-staging
       cancel-in-progress: false
     env:
-      IMAGE_REF: ${{ inputs.image_ref || github.event.inputs.image_ref }}
-      IMAGE_DIGEST: ${{ inputs.image_digest || github.event.inputs.image_digest }}
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
+      DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       SQLX_CLI_VERSION: "0.8.2"
       RAILWAY_CLI_VERSION: "4.6.1"
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT: staging
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
       PGBOUNCER_POOL_MODE: transaction
+      EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
       RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
       RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
       RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
@@ -76,29 +64,17 @@ jobs:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/migrate_with_lock.sh
-      - name: Debug Railway CLI path
-        run: |
-          echo "RAILWAY_BIN=$RAILWAY_BIN"
-          echo "SKIP_RAILWAY_INSTALL=$SKIP_RAILWAY_INSTALL"
-          which railway || true
-          railway --version || true
-          ls -la ./local || true
-          ls -la ./local/bin || true
       - name: Deploy staging event-relay
+        id: deploy_event_relay
         env:
-          SKIP_RAILWAY_INSTALL: "false"
-          #RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
-          RAILWAY_BIN: railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
           EXPECTED_APP_ROLE: event-relay
           EXPECTED_BANJI_SERVICE: event-relay
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-        run: bash tool/ci/railway_deploy.sh
+        run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy staging projection-consumer
+        id: deploy_projection_consumer
         env:
-          SKIP_RAILWAY_INSTALL: "false"
-          #RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
-          RAILWAY_BIN: railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
@@ -106,12 +82,10 @@ jobs:
           EVENT_CONSUMER_SERVICE_NAME: projection-consumer
           EVENT_CONSUMER_NAME: inventory-projector
           EVENT_CONSUMER_STREAM_NAME: banji-core.staging.inventory-updated
-        run: bash tool/ci/railway_deploy.sh
+        run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy staging worker
+        id: deploy_worker
         env:
-          SKIP_RAILWAY_INSTALL: "false"
-          #RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
-          RAILWAY_BIN: railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
           EXPECTED_APP_ROLE: worker
           EXPECTED_BANJI_SERVICE: worker
@@ -125,29 +99,75 @@ jobs:
           OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
           ALGORITHM_ROLLOUT_HASH_SALT: ${{ secrets.ALGORITHM_ROLLOUT_HASH_SALT }}
           ALGORITHM_ROLLOUT_HASH_SALT_VERSION: ${{ vars.ALGORITHM_ROLLOUT_HASH_SALT_VERSION }}
-        run: bash tool/ci/railway_deploy.sh
+        run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy staging api
+        id: deploy_api
         env:
-          SKIP_RAILWAY_INSTALL: "false"
-          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
-          EDGE_ENFORCEMENT_ENABLED: true
-          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+          EDGE_ENFORCEMENT_ENABLED: "true"
+          EDGE_ORIGIN_AUTH_HEADER_NAME: ${{ env.EDGE_ORIGIN_AUTH_HEADER_NAME }}
+          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
           EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
           AUTH_ENABLED: "true"
           AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
           AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
           AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
-        run: bash tool/ci/railway_deploy.sh
-      - name: Verify staging image parity
+        run: bash tool/ci/railway_sync_and_up.sh
+      - name: Verify staging commit parity
+        id: verify_commit_parity
         env:
           RAILWAY_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
           RAILWAY_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
           RAILWAY_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
           RAILWAY_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
-        run: bash tool/ci/check_railway_image_parity.sh
+        run: bash tool/ci/check_railway_commit_parity.sh
+      - name: Verify staging api version endpoint
+        id: verify_api_version
+        env:
+          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${API_BASE_URL:-}" || -z "${EDGE_ORIGIN_AUTH_SECRET:-}" ]]; then
+            echo "Skipping API /version smoke check because API_BASE_URL or EDGE_ORIGIN_AUTH_SECRET is unset."
+            exit 0
+          fi
+
+          response="$(
+            curl -fsS \
+              -H "${EDGE_ORIGIN_AUTH_HEADER_NAME}: ${EDGE_ORIGIN_AUTH_SECRET}" \
+              "${API_BASE_URL%/}/version"
+          )"
+          build_sha="$(printf '%s' "$response" | jq -r '.build_commit_sha // ""')"
+          deploy_sha="$(printf '%s' "$response" | jq -r '.deploy_commit_sha // ""')"
+
+          if [[ -n "$build_sha" && "$build_sha" != "unknown" && "$build_sha" != "$COMMIT_SHA" ]]; then
+            echo "error: API /version build_commit_sha mismatch (expected $COMMIT_SHA, got $build_sha)" >&2
+            exit 1
+          fi
+
+          if [[ "$deploy_sha" != "$COMMIT_SHA" ]]; then
+            echo "error: API /version deploy_commit_sha mismatch (expected $COMMIT_SHA, got $deploy_sha)" >&2
+            exit 1
+          fi
+      - name: Write staging deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Railway Deploy"
+            echo "- Environment: staging"
+            echo "- Commit SHA: $COMMIT_SHA"
+            echo "- Migration checksum: $MIGRATION_CHECKSUM"
+            echo "- Deploy run id: $DEPLOY_RUN_ID"
+            echo "- Event relay: ${{ steps.deploy_event_relay.outcome }}"
+            echo "- Projection consumer: ${{ steps.deploy_projection_consumer.outcome }}"
+            echo "- Worker: ${{ steps.deploy_worker.outcome }}"
+            echo "- API: ${{ steps.deploy_api.outcome }}"
+            echo "- Commit parity: ${{ steps.verify_commit_parity.outcome }}"
+            echo "- API version smoke: ${{ steps.verify_api_version.outcome }}"
+            echo "- Job status: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-prod:
     runs-on: ubuntu-latest
@@ -157,16 +177,18 @@ jobs:
       group: deploy-prod
       cancel-in-progress: false
     env:
-      IMAGE_REF: ${{ inputs.image_ref || github.event.inputs.image_ref }}
-      IMAGE_DIGEST: ${{ inputs.image_digest || github.event.inputs.image_digest }}
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
+      DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       SQLX_CLI_VERSION: "0.8.2"
       RAILWAY_CLI_VERSION: "4.6.1"
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT: prod
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
       PGBOUNCER_POOL_MODE: transaction
+      EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
       RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
       RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
       RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
@@ -189,18 +211,16 @@ jobs:
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
         run: bash tool/ci/migrate_with_lock.sh
       - name: Deploy prod event-relay
+        id: deploy_event_relay
         env:
-          SKIP_RAILWAY_INSTALL: "true"
-          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_EVENT_RELAY_SERVICE_ID }}
           EXPECTED_APP_ROLE: event-relay
           EXPECTED_BANJI_SERVICE: event-relay
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-        run: bash tool/ci/railway_deploy.sh
+        run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy prod projection-consumer
+        id: deploy_projection_consumer
         env:
-          SKIP_RAILWAY_INSTALL: "true"
-          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID }}
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
@@ -208,11 +228,10 @@ jobs:
           EVENT_CONSUMER_SERVICE_NAME: projection-consumer
           EVENT_CONSUMER_NAME: inventory-projector
           EVENT_CONSUMER_STREAM_NAME: banji-core.prod.inventory-updated
-        run: bash tool/ci/railway_deploy.sh
+        run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy prod worker
+        id: deploy_worker
         env:
-          SKIP_RAILWAY_INSTALL: "true"
-          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
           EXPECTED_APP_ROLE: worker
           EXPECTED_BANJI_SERVICE: worker
@@ -226,26 +245,72 @@ jobs:
           OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
           ALGORITHM_ROLLOUT_HASH_SALT: ${{ secrets.ALGORITHM_ROLLOUT_HASH_SALT }}
           ALGORITHM_ROLLOUT_HASH_SALT_VERSION: ${{ vars.ALGORITHM_ROLLOUT_HASH_SALT_VERSION }}
-        run: bash tool/ci/railway_deploy.sh
+        run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy prod api
+        id: deploy_api
         env:
-          SKIP_RAILWAY_INSTALL: "true"
-          RAILWAY_BIN: ${{ runner.home }}/.local/bin/railway
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
-          EDGE_ENFORCEMENT_ENABLED: true
-          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+          EDGE_ENFORCEMENT_ENABLED: "true"
+          EDGE_ORIGIN_AUTH_HEADER_NAME: ${{ env.EDGE_ORIGIN_AUTH_HEADER_NAME }}
+          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
           EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
           AUTH_ENABLED: "true"
           AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
           AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
           AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
-        run: bash tool/ci/railway_deploy.sh
-      - name: Verify prod image parity
+        run: bash tool/ci/railway_sync_and_up.sh
+      - name: Verify prod commit parity
+        id: verify_commit_parity
         env:
           RAILWAY_API_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
           RAILWAY_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_EVENT_RELAY_SERVICE_ID }}
           RAILWAY_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID }}
           RAILWAY_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
-        run: bash tool/ci/check_railway_image_parity.sh
+        run: bash tool/ci/check_railway_commit_parity.sh
+      - name: Verify prod api version endpoint
+        id: verify_api_version
+        env:
+          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${API_BASE_URL:-}" || -z "${EDGE_ORIGIN_AUTH_SECRET:-}" ]]; then
+            echo "Skipping API /version smoke check because API_BASE_URL or EDGE_ORIGIN_AUTH_SECRET is unset."
+            exit 0
+          fi
+
+          response="$(
+            curl -fsS \
+              -H "${EDGE_ORIGIN_AUTH_HEADER_NAME}: ${EDGE_ORIGIN_AUTH_SECRET}" \
+              "${API_BASE_URL%/}/version"
+          )"
+          build_sha="$(printf '%s' "$response" | jq -r '.build_commit_sha // ""')"
+          deploy_sha="$(printf '%s' "$response" | jq -r '.deploy_commit_sha // ""')"
+
+          if [[ -n "$build_sha" && "$build_sha" != "unknown" && "$build_sha" != "$COMMIT_SHA" ]]; then
+            echo "error: API /version build_commit_sha mismatch (expected $COMMIT_SHA, got $build_sha)" >&2
+            exit 1
+          fi
+
+          if [[ "$deploy_sha" != "$COMMIT_SHA" ]]; then
+            echo "error: API /version deploy_commit_sha mismatch (expected $COMMIT_SHA, got $deploy_sha)" >&2
+            exit 1
+          fi
+      - name: Write prod deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Railway Deploy"
+            echo "- Environment: prod"
+            echo "- Commit SHA: $COMMIT_SHA"
+            echo "- Migration checksum: $MIGRATION_CHECKSUM"
+            echo "- Deploy run id: $DEPLOY_RUN_ID"
+            echo "- Event relay: ${{ steps.deploy_event_relay.outcome }}"
+            echo "- Projection consumer: ${{ steps.deploy_projection_consumer.outcome }}"
+            echo "- Worker: ${{ steps.deploy_worker.outcome }}"
+            echo "- API: ${{ steps.deploy_api.outcome }}"
+            echo "- Commit parity: ${{ steps.verify_commit_parity.outcome }}"
+            echo "- API version smoke: ${{ steps.verify_api_version.outcome }}"
+            echo "- Job status: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

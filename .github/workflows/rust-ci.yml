@@ -52,8 +52,10 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Check topology parity contract tests
         run: bash tool/ci/test_check_topology_parity.sh
-      - name: Check Railway deploy contract tests
-        run: bash tool/ci/test_railway_deploy_contract.sh
+      - name: Check Railway sync + up contract tests
+        run: bash tool/ci/test_railway_sync_and_up.sh
+      - name: Check Railway commit parity contract tests
+        run: bash tool/ci/test_check_railway_commit_parity.sh
       - name: Check migration version contract tests
         run: bash tool/ci/test_check_migration_versions.sh
       - name: Check migration lock contract tests

@@ -28,6 +28,7 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 
 ## Railway Runtime Startup
 - Railway deploys the Rust service from `apps/api`.
+- GitHub Actions syncs managed Railway service variables before each deploy and uploads `apps/api` with `railway up`.
 - [`apps/api/railway.toml`](/Users/svanny/banji/apps/api/railway.toml) is the tracked build/start contract.
 - [`apps/api/start.sh`](/Users/svanny/banji/apps/api/start.sh) is the shared runtime entrypoint for all Railway roles.
 - `start.sh` maps Railway `PORT` to `API_BIND_ADDR` only for `APP_ROLE=api`.
