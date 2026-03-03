@@ -36,7 +36,7 @@ jobs:
       DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       SQLX_CLI_VERSION: "0.8.2"
       RAILWAY_CLI_VERSION: "4.6.1"
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: staging
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
@@ -182,7 +182,7 @@ jobs:
       DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       SQLX_CLI_VERSION: "0.8.2"
       RAILWAY_CLI_VERSION: "4.6.1"
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: prod
       DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer

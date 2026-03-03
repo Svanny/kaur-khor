@@ -5,8 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SERVICE_ROOT="$ROOT_DIR/apps/api"
 
 require_auth_token() {
-  if [[ -z "${RAILWAY_TOKEN:-}" && -z "${RAILWAY_API_TOKEN:-}" ]]; then
-    echo "error: RAILWAY_TOKEN or RAILWAY_API_TOKEN is required" >&2
+  if [[ -z "${RAILWAY_API_TOKEN:-}" ]]; then
+    echo "error: RAILWAY_API_TOKEN is required" >&2
     exit 1
   fi
 }
