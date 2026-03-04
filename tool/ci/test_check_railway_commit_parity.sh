@@ -37,12 +37,24 @@ record() {
   printf '%s\n' "$*" >>"$log_file"
 }
 
+record_auth() {
+  if [[ -n "${RAILWAY_API_TOKEN:-}" ]]; then
+    record "auth api"
+  elif [[ -n "${RAILWAY_TOKEN:-}" ]]; then
+    record "auth project"
+  else
+    record "auth missing"
+    exit 1
+  fi
+}
+
 cmd="${1:-}"
 if [[ -z "$cmd" ]]; then
   exit 1
 fi
 shift
 record "$cmd $*"
+record_auth
 
 case "$cmd" in
   link)
@@ -104,6 +116,24 @@ export FAKE_VARIABLE_JSON_svc_worker='{"APP_ROLE":"worker","BANJI_SERVICE":"work
 
 bash "$SCRIPT" >/dev/null
 
+grep -q "auth api" "$LOG_FILE"
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+
+unset RAILWAY_API_TOKEN
+export RAILWAY_TOKEN="project-token"
+
+bash "$SCRIPT" >/dev/null
+
+grep -q "auth project" "$LOG_FILE"
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+
+unset RAILWAY_TOKEN
+export RAILWAY_API_TOKEN="token"
+
 export FAKE_VARIABLE_JSON_svc_worker='{"APP_ROLE":"worker","BANJI_SERVICE":"worker","DEPLOY_COMMIT_SHA":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef","DEPLOY_RUN_ID":"9001-2"}'
 if bash "$SCRIPT" >/dev/null 2>&1; then
   echo "assertion failed: mismatched DEPLOY_COMMIT_SHA should fail parity check" >&2
@@ -123,5 +153,19 @@ if bash "$SCRIPT" >/dev/null 2>&1; then
   exit 1
 fi
 unset FAKE_DEPLOYMENT_STATUS_svc_worker
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+
+unset RAILWAY_API_TOKEN
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: missing Railway auth token should fail parity check" >&2
+  exit 1
+fi
+
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: auth validation failure should happen before Railway CLI calls" >&2
+  exit 1
+fi
 
 echo "railway commit parity tests passed"

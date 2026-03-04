@@ -40,12 +40,24 @@ record() {
   printf '%s\n' "$*" >>"$log_file"
 }
 
+record_auth() {
+  if [[ -n "${RAILWAY_API_TOKEN:-}" ]]; then
+    record "auth api"
+  elif [[ -n "${RAILWAY_TOKEN:-}" ]]; then
+    record "auth project"
+  else
+    record "auth missing"
+    exit 1
+  fi
+}
+
 cmd="${1:-}"
 if [[ -z "$cmd" ]]; then
   exit 1
 fi
 shift
 record "$cmd $*"
+record_auth
 
 case "$cmd" in
   link)
@@ -157,6 +169,7 @@ grep -q "variable set EDGE_ORIGIN_AUTH_SECRET --stdin --skip-deploys --service s
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-api" "$LOG_FILE"
 grep -q "deployment list --json --limit 1 --service svc-api" "$LOG_FILE"
 grep -q "variable list --json --service svc-api" "$LOG_FILE"
+grep -q "auth api" "$LOG_FILE"
 
 if grep -q "login" "$LOG_FILE"; then
   echo "assertion failed: sync script must not run railway login" >&2
@@ -176,12 +189,25 @@ fi
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"
 
+unset RAILWAY_API_TOKEN
+export RAILWAY_TOKEN="project-token"
+
+bash "$SCRIPT" >/dev/null
+
+grep -q "auth project" "$LOG_FILE"
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+
+unset RAILWAY_TOKEN
+
 unset EDGE_ORIGIN_AUTH_SECRET
 if bash "$SCRIPT" >/dev/null 2>&1; then
   echo "assertion failed: missing api EDGE_ORIGIN_AUTH_SECRET should fail" >&2
   exit 1
 fi
 export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+export RAILWAY_API_TOKEN="token"
 
 if [[ -s "$LOG_FILE" ]]; then
   echo "assertion failed: api secret validation failure should happen before Railway CLI calls" >&2
@@ -262,5 +288,19 @@ if bash "$SCRIPT" >/dev/null 2>&1; then
   exit 1
 fi
 unset FAKE_DEPLOYMENT_STATUS_svc_api
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+
+unset RAILWAY_API_TOKEN
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: missing Railway auth token should fail" >&2
+  exit 1
+fi
+
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: auth validation failure should happen before Railway CLI calls" >&2
+  exit 1
+fi
 
 echo "railway sync + up contract tests passed"
