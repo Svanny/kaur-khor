@@ -59,6 +59,11 @@ record_auth
 
 case "$cmd" in
   link)
+    if ! service_id="$(service_arg "$@")"; then
+      echo "mock error: link requires --service" >&2
+      exit 1
+    fi
+    record "link-service $service_id"
     if [[ -n "${FAKE_LINK_STDERR:-}" ]]; then
       printf '%s\n' "$FAKE_LINK_STDERR" >&2
       exit 1
@@ -122,6 +127,7 @@ export RAILWAY_CI_DEBUG="0"
 
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
+grep -q "^link --project project-id --environment staging --service svc-api$" "$LOG_FILE"
 grep -q "auth api" "$LOG_FILE"
 if grep -q "\\[railway-debug\\]" "$DEBUG_LOG"; then
   echo "assertion failed: debug logs should not be printed when RAILWAY_CI_DEBUG=0" >&2
@@ -135,7 +141,7 @@ rm -f "$LOG_FILE"
 export RAILWAY_CI_DEBUG="1"
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 grep -q "\\[railway-debug\\] auth source=api" "$DEBUG_LOG"
-grep -q "\\[railway-debug\\] begin: link project/environment" "$DEBUG_LOG"
+grep -Fxq "[railway-debug] begin: link project/environment/service" "$DEBUG_LOG"
 grep -q "\\[railway-debug\\] begin: list runtime variables (svc-worker)" "$DEBUG_LOG"
 if grep -q "raw-parity-secret" "$DEBUG_LOG"; then
   echo "assertion failed: debug output leaked unmanaged runtime variable value" >&2

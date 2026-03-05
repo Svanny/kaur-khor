@@ -180,6 +180,7 @@ grep -q "variable set EDGE_ORIGIN_AUTH_SECRET --stdin --skip-deploys --service s
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-api" "$LOG_FILE"
 grep -q "deployment list --json --limit 1 --service svc-api" "$LOG_FILE"
 grep -q "variable list --json --service svc-api" "$LOG_FILE"
+grep -q "^link --project project-id --environment staging --service svc-api$" "$LOG_FILE"
 grep -q "auth api" "$LOG_FILE"
 if grep -q "\\[railway-debug\\]" "$DEBUG_LOG"; then
   echo "assertion failed: debug logs should not be printed when RAILWAY_CI_DEBUG=0" >&2
@@ -210,7 +211,7 @@ export FAKE_VARIABLE_JSON_svc_api='{"DEPLOY_COMMIT_SHA":"0123456789abcdef0123456
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "\\[railway-debug\\] auth source=api" "$DEBUG_LOG"
-grep -q "\\[railway-debug\\] begin: link project/environment" "$DEBUG_LOG"
+grep -Fxq "[railway-debug] begin: link project/environment/service" "$DEBUG_LOG"
 grep -q "\\[railway-debug\\] begin: fetch latest deployment status" "$DEBUG_LOG"
 if grep -q "raw-unmanaged-secret" "$DEBUG_LOG"; then
   echo "assertion failed: debug output leaked unmanaged runtime variable value" >&2

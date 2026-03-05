@@ -416,7 +416,7 @@ fi
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 pushd "$TEMP_DIR" >/dev/null
-run_railway "link project/environment" link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT"
+run_railway "link project/environment/service" link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$RAILWAY_SERVICE_ID"
 
 set_runtime_var() {
   local key="$1"

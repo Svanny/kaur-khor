@@ -44,6 +44,7 @@ jobs:
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
       DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: staging
       API_BASE_URL: ${{ vars.API_BASE_URL }}
@@ -66,6 +67,77 @@ jobs:
         run: bash tool/ci/check_topology_parity.sh
       - name: Set up deploy tooling (cached)
         uses: ./.github/actions/deploy-tooling
+      - name: Verify Railway auth and project access
+        run: |
+          set -euo pipefail
+          debug_log() {
+            if [[ "${RAILWAY_CI_DEBUG:-0}" == "1" ]]; then
+              printf '[railway-debug] %s\n' "$1" >&2
+            fi
+          }
+
+          debug_log "begin: railway whoami"
+          if ! railway whoami >/dev/null 2>&1; then
+            echo "error: Railway CLI auth check failed (railway whoami)." >&2
+            echo "hint: this is usually an invalid or missing Railway token in the staging environment secrets." >&2
+            railway whoami || true
+            exit 1
+          fi
+          debug_log "pass: railway whoami"
+
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          pushd "$temp_dir" >/dev/null
+          service_id="${RAILWAY_STAGING_API_SERVICE_ID:-}"
+          railway_list_stderr="$temp_dir/railway-list-stderr.log"
+
+          if [[ -z "$service_id" ]]; then
+            echo "error: RAILWAY_STAGING_API_SERVICE_ID is required for non-interactive preflight linking." >&2
+            exit 1
+          fi
+
+          debug_log "begin: railway list --json project visibility"
+          if ! project_list_json="$(railway list --json 2>"$railway_list_stderr")"; then
+            echo "error: Railway project visibility check failed (railway list --json)." >&2
+            echo "hint: token auth may be valid but scope/project access may be missing in staging secrets." >&2
+            if [[ "${RAILWAY_CI_DEBUG:-0}" == "1" && -s "$railway_list_stderr" ]]; then
+              cat "$railway_list_stderr" >&2
+            fi
+            exit 1
+          fi
+
+          if ! printf '%s' "$project_list_json" | jq -e --arg pid "$RAILWAY_PROJECT_ID" '
+            def projects:
+              if type == "array" then .
+              elif type == "object" and has("projects") then .projects
+              elif type == "object" and has("data") then .data
+              elif type == "object" then [.]
+              else []
+              end;
+            (projects | map(select((.id // .projectId // .project_id // "") == $pid)) | length) > 0
+          ' >/dev/null; then
+            echo "error: Railway project '$RAILWAY_PROJECT_ID' is not visible to the current token for '$RAILWAY_ENVIRONMENT'." >&2
+            echo "hint: verify environment-scoped Railway secrets and token scope; stale overrides commonly cause this." >&2
+            if [[ "${RAILWAY_CI_DEBUG:-0}" == "1" ]]; then
+              printf '%s\n' "$project_list_json" >&2
+              if [[ -s "$railway_list_stderr" ]]; then
+                cat "$railway_list_stderr" >&2
+              fi
+            fi
+            exit 1
+          fi
+          debug_log "pass: railway list --json project visibility"
+
+          debug_log "begin: railway link project/environment/service"
+          if ! railway link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$service_id" </dev/null >/dev/null 2>&1; then
+            echo "error: Railway service-scoped link failed for project '$RAILWAY_PROJECT_ID', environment '$RAILWAY_ENVIRONMENT', service '$service_id'." >&2
+            echo "hint: likely stale environment-level secret override or mismatched service ID for this environment." >&2
+            railway link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$service_id" </dev/null || true
+            exit 1
+          fi
+          debug_log "pass: railway link project/environment/service"
+
+          echo "Railway auth preflight passed for $RAILWAY_ENVIRONMENT."
       - name: Run migrations with advisory lock
         env:
           ADVISORY_LOCK_KEY: 184361
@@ -191,6 +263,7 @@ jobs:
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
       DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: prod
       API_BASE_URL: ${{ vars.API_BASE_URL }}
@@ -213,6 +286,77 @@ jobs:
         run: bash tool/ci/check_topology_parity.sh
       - name: Set up deploy tooling (cached)
         uses: ./.github/actions/deploy-tooling
+      - name: Verify Railway auth and project access
+        run: |
+          set -euo pipefail
+          debug_log() {
+            if [[ "${RAILWAY_CI_DEBUG:-0}" == "1" ]]; then
+              printf '[railway-debug] %s\n' "$1" >&2
+            fi
+          }
+
+          debug_log "begin: railway whoami"
+          if ! railway whoami >/dev/null 2>&1; then
+            echo "error: Railway CLI auth check failed (railway whoami)." >&2
+            echo "hint: this is usually an invalid or missing Railway token in the prod environment secrets." >&2
+            railway whoami || true
+            exit 1
+          fi
+          debug_log "pass: railway whoami"
+
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          pushd "$temp_dir" >/dev/null
+          service_id="${RAILWAY_PROD_API_SERVICE_ID:-}"
+          railway_list_stderr="$temp_dir/railway-list-stderr.log"
+
+          if [[ -z "$service_id" ]]; then
+            echo "error: RAILWAY_PROD_API_SERVICE_ID is required for non-interactive preflight linking." >&2
+            exit 1
+          fi
+
+          debug_log "begin: railway list --json project visibility"
+          if ! project_list_json="$(railway list --json 2>"$railway_list_stderr")"; then
+            echo "error: Railway project visibility check failed (railway list --json)." >&2
+            echo "hint: token auth may be valid but scope/project access may be missing in prod secrets." >&2
+            if [[ "${RAILWAY_CI_DEBUG:-0}" == "1" && -s "$railway_list_stderr" ]]; then
+              cat "$railway_list_stderr" >&2
+            fi
+            exit 1
+          fi
+
+          if ! printf '%s' "$project_list_json" | jq -e --arg pid "$RAILWAY_PROJECT_ID" '
+            def projects:
+              if type == "array" then .
+              elif type == "object" and has("projects") then .projects
+              elif type == "object" and has("data") then .data
+              elif type == "object" then [.]
+              else []
+              end;
+            (projects | map(select((.id // .projectId // .project_id // "") == $pid)) | length) > 0
+          ' >/dev/null; then
+            echo "error: Railway project '$RAILWAY_PROJECT_ID' is not visible to the current token for '$RAILWAY_ENVIRONMENT'." >&2
+            echo "hint: verify environment-scoped Railway secrets and token scope; stale overrides commonly cause this." >&2
+            if [[ "${RAILWAY_CI_DEBUG:-0}" == "1" ]]; then
+              printf '%s\n' "$project_list_json" >&2
+              if [[ -s "$railway_list_stderr" ]]; then
+                cat "$railway_list_stderr" >&2
+              fi
+            fi
+            exit 1
+          fi
+          debug_log "pass: railway list --json project visibility"
+
+          debug_log "begin: railway link project/environment/service"
+          if ! railway link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$service_id" </dev/null >/dev/null 2>&1; then
+            echo "error: Railway service-scoped link failed for project '$RAILWAY_PROJECT_ID', environment '$RAILWAY_ENVIRONMENT', service '$service_id'." >&2
+            echo "hint: likely stale environment-level secret override or mismatched service ID for this environment." >&2
+            railway link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$service_id" </dev/null || true
+            exit 1
+          fi
+          debug_log "pass: railway link project/environment/service"
+
+          echo "Railway auth preflight passed for $RAILWAY_ENVIRONMENT."
       - name: Run migrations with advisory lock
         env:
           ADVISORY_LOCK_KEY: 184361
