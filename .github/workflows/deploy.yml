@@ -9,6 +9,10 @@ on:
       migration_checksum:
         required: true
         type: string
+      railway_debug:
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -19,6 +23,11 @@ on:
         description: "Migration checksum from build"
         required: true
         type: string
+      railway_debug:
+        description: "Enable safe verbose Railway deploy debug logs"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -34,13 +43,9 @@ jobs:
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
       DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-      SQLX_CLI_VERSION: "0.8.2"
-      RAILWAY_CLI_VERSION: "4.6.1"
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: staging
-      DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
-      PGBOUNCER_POOL_MODE: transaction
       API_BASE_URL: ${{ vars.API_BASE_URL }}
       RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
       RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
@@ -52,6 +57,11 @@ jobs:
       RAILWAY_PROD_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Load deploy flags from config
+        env:
+          RAILWAY_DEBUG_INPUT: ${{ inputs.railway_debug }}
+        run: |
+          bash tool/ci/load_deploy_flags.sh "$RAILWAY_ENVIRONMENT" "$RAILWAY_DEBUG_INPUT" >> "$GITHUB_ENV"
       - name: Check topology parity contract
         run: bash tool/ci/check_topology_parity.sh
       - name: Set up deploy tooling (cached)
@@ -180,13 +190,9 @@ jobs:
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
       DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-      SQLX_CLI_VERSION: "0.8.2"
-      RAILWAY_CLI_VERSION: "4.6.1"
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: prod
-      DATABASE_RUNTIME_ENDPOINT_KIND: pgbouncer
-      PGBOUNCER_POOL_MODE: transaction
       API_BASE_URL: ${{ vars.API_BASE_URL }}
       RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
       RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
@@ -198,6 +204,11 @@ jobs:
       RAILWAY_PROD_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Load deploy flags from config
+        env:
+          RAILWAY_DEBUG_INPUT: ${{ inputs.railway_debug }}
+        run: |
+          bash tool/ci/load_deploy_flags.sh "$RAILWAY_ENVIRONMENT" "$RAILWAY_DEBUG_INPUT" >> "$GITHUB_ENV"
       - name: Check topology parity contract
         run: bash tool/ci/check_topology_parity.sh
       - name: Set up deploy tooling (cached)

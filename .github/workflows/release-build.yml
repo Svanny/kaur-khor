@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/api/**'
+      - 'config/ci/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - 'tool/ci/**'

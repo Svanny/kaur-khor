@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/api/**'
+      - 'config/ci/**'
       - 'config/env/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/workflows/release-build.yml'
@@ -16,6 +17,7 @@ on:
     branches-ignore: [main]
     paths:
       - 'apps/api/**'
+      - 'config/ci/**'
       - 'config/env/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/workflows/release-build.yml'
@@ -56,6 +58,8 @@ jobs:
         run: bash tool/ci/test_railway_sync_and_up.sh
       - name: Check Railway commit parity contract tests
         run: bash tool/ci/test_check_railway_commit_parity.sh
+      - name: Check deploy flag loader tests
+        run: bash tool/ci/test_load_deploy_flags.sh
       - name: Check migration version contract tests
         run: bash tool/ci/test_check_migration_versions.sh
       - name: Check migration lock contract tests
