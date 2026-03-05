@@ -8,7 +8,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 bash "$SCRIPT" staging >"$TMP_DIR/staging.env"
 grep -q '^SQLX_CLI_VERSION=0.8.2$' "$TMP_DIR/staging.env"
-grep -q '^RAILWAY_CLI_VERSION=4.6.1$' "$TMP_DIR/staging.env"
+grep -q '^RAILWAY_CLI_VERSION=4.6.3$' "$TMP_DIR/staging.env"
 grep -q '^RAILWAY_CI_DEBUG=0$' "$TMP_DIR/staging.env"
 grep -q '^DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer$' "$TMP_DIR/staging.env"
 grep -q '^PGBOUNCER_POOL_MODE=transaction$' "$TMP_DIR/staging.env"
