@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$ROOT_DIR/tool/ci/check_railway_commit_parity.sh"
 TMP_DIR="$(mktemp -d)"
 LOG_FILE="$TMP_DIR/commands.log"
+DEBUG_LOG="$TMP_DIR/debug.log"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 cat >"$TMP_DIR/railway" <<'EOF'
@@ -58,6 +59,10 @@ record_auth
 
 case "$cmd" in
   link)
+    if [[ -n "${FAKE_LINK_STDERR:-}" ]]; then
+      printf '%s\n' "$FAKE_LINK_STDERR" >&2
+      exit 1
+    fi
     exit 0
     ;;
   variable)
@@ -112,11 +117,31 @@ export RAILWAY_WORKER_SERVICE_ID="svc-worker"
 export FAKE_VARIABLE_JSON_svc_api='{"APP_ROLE":"api","BANJI_SERVICE":"api","DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_RUN_ID":"9001-2"}'
 export FAKE_VARIABLE_JSON_svc_relay='{"APP_ROLE":"event-relay","BANJI_SERVICE":"event-relay","DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_RUN_ID":"9001-2"}'
 export FAKE_VARIABLE_JSON_svc_projection='{"APP_ROLE":"projection-consumer","BANJI_SERVICE":"projection-consumer","DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_RUN_ID":"9001-2"}'
-export FAKE_VARIABLE_JSON_svc_worker='{"APP_ROLE":"worker","BANJI_SERVICE":"worker","DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_RUN_ID":"9001-2"}'
+export FAKE_VARIABLE_JSON_svc_worker='{"APP_ROLE":"worker","BANJI_SERVICE":"worker","DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_RUN_ID":"9001-2","UNMANAGED_SECRET":"raw-parity-secret"}'
+export RAILWAY_CI_DEBUG="0"
 
-bash "$SCRIPT" >/dev/null
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "auth api" "$LOG_FILE"
+if grep -q "\\[railway-debug\\]" "$DEBUG_LOG"; then
+  echo "assertion failed: debug logs should not be printed when RAILWAY_CI_DEBUG=0" >&2
+  exit 1
+fi
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+: >"$DEBUG_LOG"
+
+export RAILWAY_CI_DEBUG="1"
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
+grep -q "\\[railway-debug\\] auth source=api" "$DEBUG_LOG"
+grep -q "\\[railway-debug\\] begin: link project/environment" "$DEBUG_LOG"
+grep -q "\\[railway-debug\\] begin: list runtime variables (svc-worker)" "$DEBUG_LOG"
+if grep -q "raw-parity-secret" "$DEBUG_LOG"; then
+  echo "assertion failed: debug output leaked unmanaged runtime variable value" >&2
+  exit 1
+fi
+export RAILWAY_CI_DEBUG="0"
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"
@@ -153,6 +178,29 @@ if bash "$SCRIPT" >/dev/null 2>&1; then
   exit 1
 fi
 unset FAKE_DEPLOYMENT_STATUS_svc_worker
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+: >"$DEBUG_LOG"
+
+export RAILWAY_CI_DEBUG="1"
+export RAILWAY_API_TOKEN="token-leak-value"
+export FAKE_LINK_STDERR="Unauthorized token=token-leak-value"
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: mocked link failure should fail parity check" >&2
+  exit 1
+fi
+if ! grep -q "\\*\\*\\*" "$DEBUG_LOG"; then
+  echo "assertion failed: expected redacted secrets in debug output" >&2
+  exit 1
+fi
+if grep -q "token-leak-value" "$DEBUG_LOG"; then
+  echo "assertion failed: debug output leaked RAILWAY_API_TOKEN" >&2
+  exit 1
+fi
+unset FAKE_LINK_STDERR
+export RAILWAY_API_TOKEN="token"
+export RAILWAY_CI_DEBUG="0"
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"

@@ -3,6 +3,198 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SERVICE_ROOT="$ROOT_DIR/apps/api"
+DEBUG_PREFIX="[railway-debug]"
+RAILWAY_LAST_OUTPUT=""
+SECRET_REDACTIONS=()
+
+is_truthy() {
+  local value
+  value="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  case "$value" in
+    1|true|yes|on)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+debug_enabled() {
+  is_truthy "${RAILWAY_CI_DEBUG:-0}"
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '%s %s\n' "$DEBUG_PREFIX" "$*" >&2
+  fi
+}
+
+add_secret_redaction() {
+  local value="${1:-}"
+  if [[ -n "$value" ]]; then
+    SECRET_REDACTIONS+=("$value")
+  fi
+}
+
+sanitize_output() {
+  local text="$1"
+  local secret
+  for secret in "${SECRET_REDACTIONS[@]}"; do
+    text="${text//"$secret"/***}"
+  done
+  printf '%s' "$text"
+}
+
+short_fingerprint() {
+  local value="$1"
+  local digest=""
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    digest="$(printf '%s' "$value" | sha256sum | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    digest="$(printf '%s' "$value" | shasum -a 256 | awk '{print $1}')"
+  else
+    printf 'unavailable'
+    return 0
+  fi
+
+  printf '%s' "${digest:0:12}"
+}
+
+debug_auth_context() {
+  local api_present=0
+  local project_present=0
+  local source="none"
+
+  [[ -n "${RAILWAY_API_TOKEN:-}" ]] && api_present=1
+  [[ -n "${RAILWAY_TOKEN:-}" ]] && project_present=1
+
+  if (( api_present == 1 && project_present == 1 )); then
+    source="both"
+  elif (( api_present == 1 )); then
+    source="api"
+  elif (( project_present == 1 )); then
+    source="project"
+  fi
+
+  debug_log "auth source=$source service_id=$RAILWAY_SERVICE_ID env=$RAILWAY_ENVIRONMENT app_role=$EXPECTED_APP_ROLE run_id=$DEPLOY_RUN_ID"
+
+  if (( api_present == 1 )); then
+    debug_log "RAILWAY_API_TOKEN len=${#RAILWAY_API_TOKEN} fingerprint=$(short_fingerprint "$RAILWAY_API_TOKEN")"
+  fi
+  if (( project_present == 1 )); then
+    debug_log "RAILWAY_TOKEN len=${#RAILWAY_TOKEN} fingerprint=$(short_fingerprint "$RAILWAY_TOKEN")"
+  fi
+}
+
+debug_json_summary() {
+  local label="$1"
+  local payload="$2"
+  local summary
+
+  if ! debug_enabled; then
+    return 0
+  fi
+
+  summary="$(
+    printf '%s' "$payload" | jq -r '
+      if type == "array" then
+        "type=array size=\(length)"
+      elif type == "object" then
+        "type=object keys=\((keys | join(",")))"
+      else
+        "type=\(type)"
+      end
+    ' 2>/dev/null || true
+  )"
+
+  if [[ -z "$summary" ]]; then
+    debug_log "$label: invalid json payload"
+    return 0
+  fi
+
+  debug_log "$label: $summary"
+}
+
+run_railway() {
+  local label="$1"
+  shift
+
+  local output=""
+  local rc=0
+  local cmd_display="railway"
+  local part
+  local sanitized_output
+
+  for part in "$@"; do
+    cmd_display+=" $(printf '%q' "$part")"
+  done
+
+  if debug_enabled; then
+    debug_log "begin: $label"
+    debug_log "cmd: $cmd_display"
+  fi
+
+  if output="$(railway "$@" 2>&1)"; then
+    RAILWAY_LAST_OUTPUT="$output"
+    if debug_enabled; then
+      debug_log "success: $label"
+    fi
+    return 0
+  else
+    rc=$?
+    RAILWAY_LAST_OUTPUT="$output"
+    sanitized_output="$(sanitize_output "$output")"
+
+    echo "error: Railway CLI failed during '$label' (exit $rc)" >&2
+    echo "error: command: $cmd_display" >&2
+    if [[ -n "$sanitized_output" ]]; then
+      echo "$sanitized_output" >&2
+    fi
+    return "$rc"
+  fi
+}
+
+run_railway_with_stdin() {
+  local label="$1"
+  local stdin_payload="$2"
+  shift 2
+
+  local output=""
+  local rc=0
+  local cmd_display="railway"
+  local part
+  local sanitized_output
+
+  for part in "$@"; do
+    cmd_display+=" $(printf '%q' "$part")"
+  done
+
+  if debug_enabled; then
+    debug_log "begin: $label"
+    debug_log "cmd: $cmd_display"
+  fi
+
+  if output="$(printf '%s' "$stdin_payload" | railway "$@" 2>&1)"; then
+    RAILWAY_LAST_OUTPUT="$output"
+    if debug_enabled; then
+      debug_log "success: $label"
+    fi
+    return 0
+  else
+    rc=$?
+    RAILWAY_LAST_OUTPUT="$output"
+    sanitized_output="$(sanitize_output "$output")"
+
+    echo "error: Railway CLI failed during '$label' (exit $rc)" >&2
+    echo "error: command: $cmd_display" >&2
+    if [[ -n "$sanitized_output" ]]; then
+      echo "$sanitized_output" >&2
+    fi
+    return "$rc"
+  fi
+}
 
 require_auth_token() {
   if [[ -z "${RAILWAY_TOKEN:-}" && -z "${RAILWAY_API_TOKEN:-}" ]]; then
@@ -30,6 +222,8 @@ for name in "${required[@]}"; do
 done
 
 require_auth_token
+add_secret_redaction "${RAILWAY_API_TOKEN:-}"
+add_secret_redaction "${RAILWAY_TOKEN:-}"
 
 if [[ ! "$COMMIT_SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
   echo "error: COMMIT_SHA must be a git sha" >&2
@@ -208,14 +402,25 @@ APP_ROLE="$EXPECTED_APP_ROLE"
 BANJI_SERVICE="$EXPECTED_BANJI_SERVICE"
 managed_exact+=(APP_ROLE BANJI_SERVICE)
 
+for key in "${managed_secret[@]}"; do
+  add_secret_redaction "${!key:-}"
+done
+
+if debug_enabled; then
+  debug_auth_context
+  debug_log "managed_exact_keys=$(IFS=,; printf '%s' "${managed_exact[*]}")"
+  debug_log "managed_secret_keys=$(IFS=,; printf '%s' "${managed_secret[*]}")"
+  debug_log "forbidden_runtime_keys=$(IFS=,; printf '%s' "${forbidden_runtime[*]}")"
+fi
+
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 pushd "$TEMP_DIR" >/dev/null
-railway link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" >/dev/null
+run_railway "link project/environment" link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT"
 
 set_runtime_var() {
   local key="$1"
-  printf '%s' "${!key}" | railway variable set "$key" --stdin --skip-deploys --service "$RAILWAY_SERVICE_ID" >/dev/null
+  run_railway_with_stdin "set runtime var $key" "${!key}" variable set "$key" --stdin --skip-deploys --service "$RAILWAY_SERVICE_ID"
 }
 
 for key in "${managed_exact[@]}"; do
@@ -228,7 +433,9 @@ if [[ ${#managed_secret[@]} -gt 0 ]]; then
   done
 fi
 
-runtime_vars_json="$(railway variable list --json --service "$RAILWAY_SERVICE_ID")"
+run_railway "list runtime variables" variable list --json --service "$RAILWAY_SERVICE_ID"
+runtime_vars_json="$RAILWAY_LAST_OUTPUT"
+debug_json_summary "runtime variables payload" "$runtime_vars_json"
 runtime_vars_json="$(
   printf '%s' "$runtime_vars_json" | jq -c '
     if type == "array" then
@@ -252,6 +459,7 @@ runtime_vars_json="$(
     end
   '
 )"
+debug_json_summary "normalized runtime variables payload" "$runtime_vars_json"
 
 runtime_var_visible() {
   local key="$1"
@@ -277,12 +485,15 @@ assert_runtime_var_equals() {
     echo "error: Railway runtime variable '$key' mismatch (expected '$expected')" >&2
     exit 1
   fi
+
+  debug_log "verified runtime variable '$key'"
 }
 
 assert_runtime_var_absent_if_visible() {
   local key="$1"
   local actual
   if ! runtime_var_visible "$key"; then
+    debug_log "runtime variable '$key' not visible (accepted)"
     return 0
   fi
 
@@ -291,6 +502,8 @@ assert_runtime_var_absent_if_visible() {
     echo "error: Railway runtime variable '$key' must be absent for EXPECTED_APP_ROLE=$EXPECTED_APP_ROLE" >&2
     exit 1
   fi
+
+  debug_log "runtime variable '$key' visible but empty (accepted)"
 }
 
 for key in "${managed_exact[@]}"; do
@@ -301,9 +514,11 @@ for key in "${forbidden_runtime[@]}"; do
   assert_runtime_var_absent_if_visible "$key"
 done
 
-railway up "$SERVICE_ROOT" --path-as-root --service "$RAILWAY_SERVICE_ID" >/dev/null
+run_railway "deploy service via source upload" up "$SERVICE_ROOT" --path-as-root --service "$RAILWAY_SERVICE_ID"
 
-deployment_json="$(railway deployment list --json --limit 1 --service "$RAILWAY_SERVICE_ID")"
+run_railway "fetch latest deployment status" deployment list --json --limit 1 --service "$RAILWAY_SERVICE_ID"
+deployment_json="$RAILWAY_LAST_OUTPUT"
+debug_json_summary "deployment payload" "$deployment_json"
 deployment_status="$(
   printf '%s' "$deployment_json" | jq -r '
     if type == "array" then
