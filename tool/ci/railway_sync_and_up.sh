@@ -63,28 +63,9 @@ short_fingerprint() {
 }
 
 debug_auth_context() {
-  local api_present=0
-  local project_present=0
-  local source="none"
-
-  [[ -n "${RAILWAY_API_TOKEN:-}" ]] && api_present=1
-  [[ -n "${RAILWAY_TOKEN:-}" ]] && project_present=1
-
-  if (( api_present == 1 && project_present == 1 )); then
-    source="both"
-  elif (( api_present == 1 )); then
-    source="api"
-  elif (( project_present == 1 )); then
-    source="project"
-  fi
-
-  debug_log "auth source=$source service_id=$RAILWAY_SERVICE_ID env=$RAILWAY_ENVIRONMENT app_role=$EXPECTED_APP_ROLE run_id=$DEPLOY_RUN_ID"
-
-  if (( api_present == 1 )); then
+  if [[ -n "${RAILWAY_API_TOKEN:-}" ]]; then
+    debug_log "auth source=api service_id=$RAILWAY_SERVICE_ID env=$RAILWAY_ENVIRONMENT app_role=$EXPECTED_APP_ROLE run_id=$DEPLOY_RUN_ID"
     debug_log "RAILWAY_API_TOKEN len=${#RAILWAY_API_TOKEN} fingerprint=$(short_fingerprint "$RAILWAY_API_TOKEN")"
-  fi
-  if (( project_present == 1 )); then
-    debug_log "RAILWAY_TOKEN len=${#RAILWAY_TOKEN} fingerprint=$(short_fingerprint "$RAILWAY_TOKEN")"
   fi
 }
 
@@ -197,8 +178,13 @@ run_railway_with_stdin() {
 }
 
 require_auth_token() {
-  if [[ -z "${RAILWAY_TOKEN:-}" && -z "${RAILWAY_API_TOKEN:-}" ]]; then
-    echo "error: RAILWAY_TOKEN or RAILWAY_API_TOKEN is required" >&2
+  if [[ -n "${RAILWAY_TOKEN:-}" ]]; then
+    echo "error: RAILWAY_TOKEN is no longer supported; use RAILWAY_API_TOKEN only" >&2
+    exit 1
+  fi
+
+  if [[ -z "${RAILWAY_API_TOKEN:-}" ]]; then
+    echo "error: RAILWAY_API_TOKEN is required" >&2
     exit 1
   fi
 }
@@ -223,7 +209,6 @@ done
 
 require_auth_token
 add_secret_redaction "${RAILWAY_API_TOKEN:-}"
-add_secret_redaction "${RAILWAY_TOKEN:-}"
 
 if [[ ! "$COMMIT_SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
   echo "error: COMMIT_SHA must be a git sha" >&2

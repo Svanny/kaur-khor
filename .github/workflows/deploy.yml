@@ -44,7 +44,6 @@ jobs:
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
       DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: staging
       API_BASE_URL: ${{ vars.API_BASE_URL }}
@@ -76,10 +75,15 @@ jobs:
             fi
           }
 
+          if [[ -n "${RAILWAY_TOKEN:-}" ]]; then
+            echo "error: RAILWAY_TOKEN is no longer supported for deploy; use RAILWAY_API_TOKEN only." >&2
+            exit 1
+          fi
+
           debug_log "begin: railway whoami"
           if ! railway whoami >/dev/null 2>&1; then
             echo "error: Railway CLI auth check failed (railway whoami)." >&2
-            echo "hint: this is usually an invalid or missing Railway token in the staging environment secrets." >&2
+            echo "hint: this is usually an invalid or missing RAILWAY_API_TOKEN in the staging environment secrets." >&2
             railway whoami || true
             exit 1
           fi
@@ -263,7 +267,6 @@ jobs:
       MIGRATION_CHECKSUM: ${{ inputs.migration_checksum || github.event.inputs.migration_checksum }}
       DEPLOY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: prod
       API_BASE_URL: ${{ vars.API_BASE_URL }}
@@ -295,10 +298,15 @@ jobs:
             fi
           }
 
+          if [[ -n "${RAILWAY_TOKEN:-}" ]]; then
+            echo "error: RAILWAY_TOKEN is no longer supported for deploy; use RAILWAY_API_TOKEN only." >&2
+            exit 1
+          fi
+
           debug_log "begin: railway whoami"
           if ! railway whoami >/dev/null 2>&1; then
             echo "error: Railway CLI auth check failed (railway whoami)." >&2
-            echo "hint: this is usually an invalid or missing Railway token in the prod environment secrets." >&2
+            echo "hint: this is usually an invalid or missing RAILWAY_API_TOKEN in the prod environment secrets." >&2
             railway whoami || true
             exit 1
           fi
