@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SERVICE_ROOT="$ROOT_DIR/apps/api"
 DEBUG_PREFIX="[railway-debug]"
 DEBUG_RAILWAY_LOG_TAIL_LINES=120
+DEPLOY_STATUS_POLL_INTERVAL_SECONDS=5
+DEPLOY_STATUS_POLL_MAX_ATTEMPTS=60
 RAILWAY_LAST_OUTPUT=""
 SECRET_REDACTIONS=()
 
@@ -265,6 +267,83 @@ emit_debug_recent_railway_logs() {
 
   emit_debug_railway_log_tail build
   emit_debug_railway_log_tail deployment
+}
+
+fetch_latest_deployment_payload() {
+  run_railway "fetch latest deployment status" deployment list --json --limit 1 --service "$RAILWAY_SERVICE_ID"
+  debug_json_summary "deployment payload" "$RAILWAY_LAST_OUTPUT"
+}
+
+latest_deployment_id_from_payload() {
+  local payload="$1"
+  printf '%s' "$payload" | jq -r '
+    def latest:
+      if type == "array" then
+        .[0]
+      elif type == "object" and has("deployments") then
+        .deployments[0]
+      elif type == "object" and has("data") then
+        .data[0]
+      else
+        .
+      end;
+    (latest | .id // .deploymentId // .deployment_id // "")
+  '
+}
+
+latest_deployment_status_from_payload() {
+  local payload="$1"
+  printf '%s' "$payload" | jq -r '
+    def latest:
+      if type == "array" then
+        .[0]
+      elif type == "object" and has("deployments") then
+        .deployments[0]
+      elif type == "object" and has("data") then
+        .data[0]
+      else
+        .
+      end;
+    (latest | .status // .state // "")
+  '
+}
+
+poll_latest_deployment_status() {
+  local baseline_id="$1"
+  local attempt=1
+  local payload=""
+  local latest_id=""
+  local latest_status=""
+  local latest_status_upper=""
+
+  while (( attempt <= DEPLOY_STATUS_POLL_MAX_ATTEMPTS )); do
+    fetch_latest_deployment_payload
+    payload="$RAILWAY_LAST_OUTPUT"
+    latest_id="$(latest_deployment_id_from_payload "$payload")"
+    latest_status="$(latest_deployment_status_from_payload "$payload")"
+    latest_status_upper="$(printf '%s' "$latest_status" | tr '[:lower:]' '[:upper:]')"
+
+    debug_log "poll deployment status attempt=${attempt}/${DEPLOY_STATUS_POLL_MAX_ATTEMPTS} latest_id=${latest_id:-none} latest_status=${latest_status:-none} baseline_id=${baseline_id:-none}"
+
+    if [[ -z "$latest_id" && -z "$baseline_id" ]]; then
+      debug_log "latest deployment payload did not expose deployment IDs; cannot prove freshness yet"
+    elif [[ -n "$latest_id" && "$latest_id" != "$baseline_id" ]]; then
+      case "$latest_status_upper" in
+        SUCCESS|FAILED|CRASHED|REMOVED)
+          printf '%s\t%s' "$latest_id" "$latest_status"
+          return 0
+          ;;
+      esac
+    fi
+
+    if (( attempt < DEPLOY_STATUS_POLL_MAX_ATTEMPTS )); then
+      sleep "$DEPLOY_STATUS_POLL_INTERVAL_SECONDS"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  printf '%s\t%s' "$latest_id" "$latest_status"
+  return 1
 }
 
 require_auth_token() {
@@ -589,7 +668,13 @@ for key in "${forbidden_runtime[@]}"; do
   assert_runtime_var_absent_if_visible "$key"
 done
 
-up_args=(up "$SERVICE_ROOT" --path-as-root --service "$RAILWAY_SERVICE_ID")
+fetch_latest_deployment_payload
+baseline_deployment_json="$RAILWAY_LAST_OUTPUT"
+baseline_deployment_id="$(latest_deployment_id_from_payload "$baseline_deployment_json")"
+baseline_deployment_status="$(latest_deployment_status_from_payload "$baseline_deployment_json")"
+debug_log "baseline latest deployment id=${baseline_deployment_id:-none} status=${baseline_deployment_status:-none}"
+
+up_args=(up "$SERVICE_ROOT" --path-as-root --service "$RAILWAY_SERVICE_ID" --detach)
 if debug_enabled; then
   up_args+=(--verbose)
 fi
@@ -599,28 +684,33 @@ if ! run_railway_with_debug_success_output "deploy service via source upload" "$
   exit 1
 fi
 
-run_railway "fetch latest deployment status" deployment list --json --limit 1 --service "$RAILWAY_SERVICE_ID"
-deployment_json="$RAILWAY_LAST_OUTPUT"
-debug_json_summary "deployment payload" "$deployment_json"
-deployment_status="$(
-  printf '%s' "$deployment_json" | jq -r '
-    if type == "array" then
-      (.[0].status // .[0].state // "")
-    elif type == "object" and has("deployments") then
-      (.deployments[0].status // .deployments[0].state // "")
-    elif type == "object" and has("data") then
-      (.data[0].status // .data[0].state // "")
-    else
-      (.status // .state // "")
-    end
-  '
-)"
-
-deployment_status_upper="$(printf '%s' "$deployment_status" | tr '[:lower:]' '[:upper:]')"
-if [[ "$deployment_status_upper" != "SUCCESS" ]]; then
-  echo "error: latest Railway deployment for service $RAILWAY_SERVICE_ID is '$deployment_status'" >&2
+debug_log "begin: poll latest deployment to terminal state"
+poll_result=""
+if ! poll_result="$(poll_latest_deployment_status "$baseline_deployment_id")"; then
+  deployment_id="${poll_result%%$'\t'*}"
+  deployment_status="${poll_result#*$'\t'}"
+  echo "error: latest Railway deployment for service $RAILWAY_SERVICE_ID did not reach terminal state within $((DEPLOY_STATUS_POLL_INTERVAL_SECONDS * DEPLOY_STATUS_POLL_MAX_ATTEMPTS)) seconds" >&2
+  if [[ -n "$deployment_id" ]]; then
+    echo "error: latest observed deployment id was '$deployment_id' with status '${deployment_status:-unknown}'" >&2
+  elif [[ -n "$deployment_status" ]]; then
+    echo "error: latest observed deployment status was '${deployment_status:-unknown}', but Railway did not expose deployment IDs to prove freshness" >&2
+  fi
   emit_debug_recent_railway_logs
   exit 1
 fi
 
+deployment_id="${poll_result%%$'\t'*}"
+deployment_status="${poll_result#*$'\t'}"
+deployment_status_upper="$(printf '%s' "$deployment_status" | tr '[:lower:]' '[:upper:]')"
+if [[ "$deployment_status_upper" != "SUCCESS" ]]; then
+  if [[ -n "$deployment_id" ]]; then
+    echo "error: latest Railway deployment for service $RAILWAY_SERVICE_ID ($deployment_id) is '$deployment_status'" >&2
+  else
+    echo "error: latest Railway deployment for service $RAILWAY_SERVICE_ID is '$deployment_status'" >&2
+  fi
+  emit_debug_recent_railway_logs
+  exit 1
+fi
+
+debug_log "pass: terminal deployment id=${deployment_id:-none} status=$deployment_status"
 echo "railway sync + up passed for $EXPECTED_APP_ROLE"

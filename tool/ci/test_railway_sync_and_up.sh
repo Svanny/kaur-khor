@@ -58,6 +58,53 @@ shift
 record "$cmd $*"
 record_auth
 
+emit_deployment_status() {
+  local service_id="$1"
+  local sequence_key status_key payload_path sequence_path raw_sequence stored_sequence entry_count current_index entry deployment_id deployment_status
+
+  sequence_key="FAKE_DEPLOYMENT_SEQUENCE_$(sanitize "$service_id")"
+  if [[ -n "${!sequence_key:-}" ]]; then
+    payload_path="$state_dir/deployment-count-$(sanitize "$service_id")"
+    sequence_path="$state_dir/deployment-sequence-$(sanitize "$service_id")"
+    raw_sequence="${!sequence_key}"
+    stored_sequence=""
+    if [[ -f "$sequence_path" ]]; then
+      stored_sequence="$(cat "$sequence_path")"
+    fi
+    if [[ "$stored_sequence" != "$raw_sequence" ]]; then
+      rm -f "$payload_path"
+      printf '%s' "$raw_sequence" >"$sequence_path"
+    fi
+    IFS=';' read -r -a entries <<<"$raw_sequence"
+    entry_count="${#entries[@]}"
+    current_index=0
+    if [[ -f "$payload_path" ]]; then
+      current_index="$(cat "$payload_path")"
+    fi
+    if (( current_index >= entry_count )); then
+      current_index=$((entry_count - 1))
+    fi
+    entry="${entries[$current_index]}"
+    printf '%s' "$((current_index + 1))" >"$payload_path"
+
+    deployment_id=""
+    deployment_status="$entry"
+    if [[ "$entry" == *:* ]]; then
+      deployment_id="${entry%%:*}"
+      deployment_status="${entry#*:}"
+    fi
+    printf '[{"id":"%s","status":"%s"}]\n' "$deployment_id" "$deployment_status"
+    return 0
+  fi
+
+  status_key="FAKE_DEPLOYMENT_STATUS_$(sanitize "$service_id")"
+  if [[ -n "${!status_key+x}" ]]; then
+    printf '[{"status":"%s"}]\n' "${!status_key}"
+  else
+    printf '[{"status":"SUCCESS"}]\n'
+  fi
+}
+
 case "$cmd" in
   link)
     if [[ -n "${FAKE_LINK_STDERR:-}" ]]; then
@@ -161,13 +208,7 @@ PY
       exit 1
     fi
     service_id="$(service_arg "$@")"
-    status_key="FAKE_DEPLOYMENT_STATUS_$(sanitize "$service_id")"
-    if [[ -n "${!status_key+x}" ]]; then
-      status="${!status_key}"
-    else
-      status="SUCCESS"
-    fi
-    printf '[{"status":"%s"}]\n' "$status"
+    emit_deployment_status "$service_id"
     exit 0
     ;;
   *)
@@ -176,6 +217,14 @@ PY
 esac
 EOF
 chmod +x "$TMP_DIR/railway"
+
+cat >"$TMP_DIR/sleep" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'sleep %s\n' "$*" >>"${MOCK_RAILWAY_LOG:?}"
+exit 0
+EOF
+chmod +x "$TMP_DIR/sleep"
 
 export PATH="$TMP_DIR:$PATH"
 export MOCK_RAILWAY_LOG="$LOG_FILE"
@@ -201,12 +250,13 @@ export AUTH_JWKS_URL="https://jwks.example.com"
 export AUTH_ISSUER="https://issuer.example.com"
 export AUTH_AUDIENCE="banji-api"
 export RAILWAY_CI_DEBUG="0"
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-api:SUCCESS"
 
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "variable set DEPLOY_COMMIT_SHA --stdin --skip-deploys --service svc-api" "$LOG_FILE"
 grep -q "variable set EDGE_ORIGIN_AUTH_SECRET --stdin --skip-deploys --service svc-api" "$LOG_FILE"
-grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-api" "$LOG_FILE"
+grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-api --detach" "$LOG_FILE"
 grep -q "deployment list --json --limit 1 --service svc-api" "$LOG_FILE"
 grep -q "variable list --json --service svc-api" "$LOG_FILE"
 grep -q "^link --project project-id --environment staging --service svc-api$" "$LOG_FILE"
@@ -242,13 +292,16 @@ rm -f "$LOG_FILE"
 export RAILWAY_CI_DEBUG="1"
 export FAKE_VARIABLE_JSON_svc_api='{"DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_MIGRATION_CHECKSUM":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","DEPLOY_RUN_ID":"9001-2","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://staging.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","APP_ROLE":"api","BANJI_SERVICE":"api","UNMANAGED_SECRET":"raw-unmanaged-secret"}'
 export FAKE_UP_OUTPUT="verbose deploy secret=edge-secret"
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-debug:BUILDING;deploy-debug:SUCCESS"
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "\\[railway-debug\\] auth source=api" "$DEBUG_LOG"
 grep -Fxq "[railway-debug] begin: link project/environment/service" "$DEBUG_LOG"
-grep -q "\\[railway-debug\\] begin: fetch latest deployment status" "$DEBUG_LOG"
-grep -q "^up $ROOT_DIR/apps/api --path-as-root --service svc-api --verbose$" "$LOG_FILE"
+grep -q "\\[railway-debug\\] begin: poll latest deployment to terminal state" "$DEBUG_LOG"
+grep -q "^up $ROOT_DIR/apps/api --path-as-root --service svc-api --detach --verbose$" "$LOG_FILE"
 grep -q "verbose deploy secret=\\*\\*\\*" "$DEBUG_LOG"
+grep -q "^sleep 5$" "$LOG_FILE"
+grep -q "pass: terminal deployment id=deploy-debug status=SUCCESS" "$DEBUG_LOG"
 if grep -q "^logs " "$LOG_FILE"; then
   echo "assertion failed: successful debug deploy should not fetch Railway logs" >&2
   exit 1
@@ -259,7 +312,7 @@ if grep -q "raw-unmanaged-secret" "$DEBUG_LOG"; then
 fi
 
 export RAILWAY_CI_DEBUG="0"
-unset FAKE_VARIABLE_JSON_svc_api FAKE_UP_OUTPUT
+unset FAKE_VARIABLE_JSON_svc_api FAKE_UP_OUTPUT FAKE_DEPLOYMENT_SEQUENCE_svc_api
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"
@@ -271,6 +324,7 @@ export FAKE_LOGS_BUILD_OUTPUT="build log secret=edge-secret-leak"
 export FAKE_LOGS_DEPLOYMENT_OUTPUT="deployment log token=token-leak-value"
 export RAILWAY_API_TOKEN="token-leak-value"
 export EDGE_ORIGIN_AUTH_SECRET="edge-secret-leak"
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS"
 if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
   echo "assertion failed: mocked railway up failure should fail sync + up" >&2
   exit 1
@@ -289,7 +343,7 @@ if grep -q "edge-secret-leak" "$DEBUG_LOG"; then
   echo "assertion failed: up failure path leaked managed secret" >&2
   exit 1
 fi
-unset FAKE_UP_STDERR FAKE_LOGS_BUILD_OUTPUT FAKE_LOGS_DEPLOYMENT_OUTPUT
+unset FAKE_UP_STDERR FAKE_LOGS_BUILD_OUTPUT FAKE_LOGS_DEPLOYMENT_OUTPUT FAKE_DEPLOYMENT_SEQUENCE_svc_api
 export RAILWAY_API_TOKEN="token"
 export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
 export RAILWAY_CI_DEBUG="0"
@@ -357,11 +411,12 @@ export OBJECT_STORAGE_ACCESS_KEY="access"
 export OBJECT_STORAGE_SECRET_KEY="secret"
 export ALGORITHM_ROLLOUT_HASH_SALT="salt"
 export ALGORITHM_ROLLOUT_HASH_SALT_VERSION="salt-v1"
+export FAKE_DEPLOYMENT_SEQUENCE_svc_worker="baseline-worker:SUCCESS;deploy-worker:SUCCESS"
 
 bash "$SCRIPT" >/dev/null
 
 grep -q "variable set DATABASE_RUNTIME_URL --stdin --skip-deploys --service svc-worker" "$LOG_FILE"
-grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-worker" "$LOG_FILE"
+grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-worker --detach" "$LOG_FILE"
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"
@@ -378,6 +433,7 @@ if [[ -s "$LOG_FILE" ]]; then
 fi
 
 export RABBIT_URL="amqps://rabbit.example.com/%2f"
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_worker
 export EXPECTED_APP_ROLE="api"
 export EXPECTED_BANJI_SERVICE="api"
 export RAILWAY_SERVICE_ID="svc-api"
@@ -407,19 +463,20 @@ rm -f "$LOG_FILE"
 export EXPECTED_APP_ROLE="api"
 export EXPECTED_BANJI_SERVICE="api"
 export RAILWAY_SERVICE_ID="svc-api"
-export FAKE_DEPLOYMENT_STATUS_svc_api="FAILED"
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-failed:DEPLOYING;deploy-failed:FAILED"
 if bash "$SCRIPT" >/dev/null 2>&1; then
   echo "assertion failed: failed deployment status should fail sync + up" >&2
   exit 1
 fi
-unset FAKE_DEPLOYMENT_STATUS_svc_api
+grep -q "^sleep 5$" "$LOG_FILE"
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_api
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"
 : >"$DEBUG_LOG"
 
 export RAILWAY_CI_DEBUG="1"
-export FAKE_DEPLOYMENT_STATUS_svc_api="FAILED"
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-failed-debug:DEPLOYING;deploy-failed-debug:FAILED"
 export FAKE_LOGS_BUILD_STDERR="build tail unavailable token=token-leak-value"
 export FAKE_LOGS_DEPLOYMENT_STDERR="deployment tail unavailable secret=edge-secret-leak"
 export RAILWAY_API_TOKEN="token-leak-value"
@@ -440,9 +497,42 @@ if grep -q "edge-secret-leak" "$DEBUG_LOG"; then
   echo "assertion failed: log-fetch failure path leaked managed secret" >&2
   exit 1
 fi
-unset FAKE_DEPLOYMENT_STATUS_svc_api FAKE_LOGS_BUILD_STDERR FAKE_LOGS_DEPLOYMENT_STDERR
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_api FAKE_LOGS_BUILD_STDERR FAKE_LOGS_DEPLOYMENT_STDERR
 export RAILWAY_API_TOKEN="token"
 export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+export RAILWAY_CI_DEBUG="0"
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+: >"$DEBUG_LOG"
+
+export RAILWAY_CI_DEBUG="1"
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-timeout:BUILDING"
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: timeout deployment status should fail sync + up" >&2
+  exit 1
+fi
+grep -q "did not reach terminal state within 300 seconds" "$DEBUG_LOG"
+grep -q "latest observed deployment id was 'deploy-timeout' with status 'BUILDING'" "$DEBUG_LOG"
+grep -q "^logs --build --latest --lines 120 --service svc-api$" "$LOG_FILE"
+grep -q "^logs --deployment --latest --lines 120 --service svc-api$" "$LOG_FILE"
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_api
+export RAILWAY_CI_DEBUG="0"
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+: >"$DEBUG_LOG"
+
+export RAILWAY_CI_DEBUG="1"
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api="SUCCESS;SUCCESS"
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: no-id deployment status should fail closed instead of accepting stale success" >&2
+  exit 1
+fi
+grep -q "did not expose deployment IDs to prove freshness" "$DEBUG_LOG"
+grep -q "^logs --build --latest --lines 120 --service svc-api$" "$LOG_FILE"
+grep -q "^logs --deployment --latest --lines 120 --service svc-api$" "$LOG_FILE"
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_api
 export RAILWAY_CI_DEBUG="0"
 
 rm -f "$LOG_FILE"
