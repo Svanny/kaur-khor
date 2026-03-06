@@ -1,33 +1,106 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Avenir Next, Segoe UI, Helvetica Neue, Arial, sans-serif",
+    "background": "#fffaf0",
+    "fontSize": "22px",
+    "lineColor": "#475569",
+    "textColor": "#0f172a"
+  }
+}}%%
 flowchart TB
-  classDef app fill:#fff7ed,stroke:#ea580c,color:#0f172a,stroke-width:1.5px;
-  classDef runtime fill:#eff6ff,stroke:#2563eb,color:#0f172a,stroke-width:1.5px;
-  classDef store fill:#ecfdf5,stroke:#16a34a,color:#0f172a,stroke-width:1.5px;
-  classDef ops fill:#fefce8,stroke:#a16207,color:#0f172a,stroke-width:1.5px;
-  classDef control fill:#f8fafc,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
+  classDef persona fill:#fff1c2,stroke:#d97706,color:#451a03,stroke-width:1.5px;
+  classDef app fill:#ffe4d6,stroke:#ea580c,color:#431407,stroke-width:1.5px;
+  classDef platform fill:#e0f2fe,stroke:#0284c7,color:#082f49,stroke-width:1.5px;
+  classDef runtime fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:1.5px;
+  classDef store fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:1.5px;
+  classDef ops fill:#fef3c7,stroke:#ca8a04,color:#422006,stroke-width:1.5px;
+  classDef control fill:#f1f5f9,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
+  classDef external fill:#ede9fe,stroke:#7c3aed,color:#2e1065,stroke-width:1.5px;
 
-  app["Flutter product surface"]:::app
-  railway["Railway ingress and role rollout"]:::ops
-  edge["API edge protections<br/>origin guard -> request limits -> rate limit -> CORS"]:::control
-  api["APP_ROLE=api"]:::runtime
-  relay["APP_ROLE=event-relay"]:::runtime
-  projection["APP_ROLE=projection-consumer"]:::runtime
-  worker["APP_ROLE=worker"]:::runtime
-  backfill["APP_ROLE=backfill-controller"]:::runtime
+  subgraph surface["Product Surface"]
+    direction TB
+    operators["Owners and operators"]:::persona
+    flutter["Flutter inventory app<br/>dashboard, inventory flows,<br/>product ranking, settings"]:::app
+    operators --> flutter
+  end
 
-  postgres["Postgres app schema"]:::store
-  rabbit["RabbitMQ"]:::store
-  object_storage["S3-compatible object storage"]:::store
-  otel["OTel collector / log drain"]:::ops
+  subgraph delivery["Release and Platform Control"]
+    direction LR
+    github["GitHub Actions<br/>fmt, clippy, test, build,<br/>migration validate, deploy scripts"]:::ops
+    railway["Railway<br/>service routing, role rollout,<br/>revision parity checks"]:::platform
+    collector["OTel collector<br/>OTLP batch and retry hop"]:::ops
+    logsink["Railway log drain<br/>platform-first operational logs"]:::ops
+    grafana["Grafana Cloud<br/>metrics and traces"]:::external
+    github -->|sync vars, upload source, migrate_with_lock| railway
+    collector -->|export| grafana
+  end
 
-  app --> railway --> edge --> api
-  api --> postgres
-  relay --> postgres
-  projection --> postgres
-  worker --> postgres
-  worker --> rabbit
-  worker --> object_storage
-  backfill --> postgres
-  api --> otel
-  relay --> otel
-  projection --> otel
-  worker --> otel
+  subgraph runtime_plane["Banji Backend on Railway"]
+    direction TB
+    ingress["API ingress"]:::platform
+    edge["Edge middleware<br/>origin guard -> request size limits -> rate limit -> CORS"]:::control
+    api["APP_ROLE=api<br/>Axum handlers, JWT auth, device identity,<br/>backpressure, correlation IDs"]:::runtime
+
+    subgraph async_roles["Async and Operational Roles"]
+      direction LR
+      relay["event-relay<br/>publishes event_outbox -> event_log"]:::runtime
+      projection["projection-consumer<br/>replay-safe projector and checkpoints"]:::runtime
+      worker["worker<br/>job relay, queue consumers,<br/>artifact uploads"]:::runtime
+      backfill["backfill-controller<br/>preview/apply replays,<br/>restore validation drills"]:::runtime
+    end
+
+    telemetry["Shared runtime signals<br/>OTLP traces and metrics<br/>structured logs"]:::control
+  end
+
+  subgraph data_plane["Shared State and Dependencies"]
+    direction TB
+    postgres["Railway Postgres (schema: app)<br/>canonical items and idempotency<br/>event_outbox and job_outbox<br/>event_log and consumer checkpoints<br/>inventory_item_projection<br/>job_run, attempts, results, artifact metadata"]:::store
+
+    subgraph integrations["Supporting services"]
+      direction LR
+      redis["Redis optional<br/>shared cache and rate limiting"]:::store
+      rabbit["RabbitMQ quorum queues<br/>fast and heavy lanes,<br/>retry ladders, DLQs, replay"]:::store
+      objectstore["S3-compatible object storage<br/>worker artifacts and<br/>event-log JSONL archives"]:::store
+      restoredb["Restore database<br/>archive rehydrate target<br/>and drill environment"]:::store
+      idp["JWKS issuer and auth provider"]:::external
+    end
+  end
+
+  flutter -->|HTTPS| ingress
+  railway --> ingress
+  railway --> relay
+  railway --> projection
+  railway --> worker
+  railway -. on-demand role .-> backfill
+
+  ingress --> edge --> api
+  api -->|JWT verification and JWKS refresh| idp
+  api -->|reads, writes, same-transaction intents| postgres
+  api -->|optional cache and shared limiter state| redis
+  api -. backpressure samples .-> postgres
+
+  relay -->|claim pending events and publish idempotently| postgres
+  projection -->|poll event_log and advance checkpoints| postgres
+  worker -->|claim job outbox, record attempts and results| postgres
+  worker -->|publisher confirms| rabbit
+  rabbit -->|primary and replay deliveries| worker
+  worker -->|HEAD-first upload, metadata-only DB refs| objectstore
+  backfill -->|primary or restore replay targets| postgres
+  postgres -->|verified event-log archive export| objectstore
+  objectstore -->|cold replay rehydrate| restoredb
+
+  api --> telemetry
+  relay --> telemetry
+  projection --> telemetry
+  worker --> telemetry
+  backfill --> telemetry
+  telemetry --> collector
+  telemetry --> logsink
+
+  style surface fill:#fff8e6,stroke:#f59e0b,stroke-width:1.2px,color:#422006
+  style delivery fill:#fff7ed,stroke:#fb923c,stroke-width:1.2px,color:#431407
+  style runtime_plane fill:#eff6ff,stroke:#60a5fa,stroke-width:1.2px,color:#172554
+  style async_roles fill:#f8fbff,stroke:#93c5fd,stroke-width:1.2px,color:#172554
+  style data_plane fill:#f0fdf4,stroke:#4ade80,stroke-width:1.2px,color:#14532d
+  style integrations fill:#f7fee7,stroke:#86efac,stroke-width:1.2px,color:#14532d
