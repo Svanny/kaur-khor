@@ -89,7 +89,7 @@ bash tool/db/export_event_log.sh \
   --stream-name banji-core.prod.inventory-updated \
   --output build/event-log/banji-core.prod.inventory-updated.jsonl \
   --manifest-output build/event-log/banji-core.prod.inventory-updated.manifest.json \
-  --archive-uri s3://banji-core-prod-sg-sin-events/event-log/banji-core.prod.inventory-updated-$(date -u +%Y%m%dT%H%M%SZ).jsonl \
+  --archive-uri s3://banji-core-prod-kh-pp-events/event-log/banji-core.prod.inventory-updated-$(date -u +%Y%m%dT%H%M%SZ).jsonl \
   --prune
 ```
 

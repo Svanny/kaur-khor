@@ -34,31 +34,31 @@ staging_out="$(run_from_env_file "$ROOT_DIR/config/env/staging.env")"
 prod_out="$(run_from_env_file "$ROOT_DIR/config/env/prod.env")"
 
 # 1) Normalization and DB legality
-assert_contains "$staging_out" "POSTGRES_DB_APP=banji_core_staging_sg_sin_app"
+assert_contains "$staging_out" "POSTGRES_DB_APP=banji_core_staging_kh_pp_app"
 assert_matches "$dev_out" '^POSTGRES_DB_APP=[a-z0-9_]+$'
 assert_matches "$dev_out" '^POSTGRES_DB_ANALYTICS=[a-z0-9_]+$'
 
 # 2) Env map correctness
-assert_contains "$dev_out" "SERVICE_NAME_API=banji-core-dev-sg-sin-api"
-assert_contains "$staging_out" "SERVICE_NAME_API=banji-core-staging-sg-sin-api"
-assert_contains "$prod_out" "SERVICE_NAME_API=banji-core-prod-sg-sin-api"
-assert_contains "$staging_out" "SERVICE_NAME_EVENT_RELAY=banji-core-staging-sg-sin-event-relay"
-assert_contains "$prod_out" "SERVICE_NAME_PROJECTION_CONSUMER=banji-core-prod-sg-sin-projection-consumer"
+assert_contains "$dev_out" "SERVICE_NAME_API=banji-core-dev-kh-pp-api"
+assert_contains "$staging_out" "SERVICE_NAME_API=banji-core-staging-kh-pp-api"
+assert_contains "$prod_out" "SERVICE_NAME_API=banji-core-prod-kh-pp-api"
+assert_contains "$staging_out" "SERVICE_NAME_EVENT_RELAY=banji-core-staging-kh-pp-event-relay"
+assert_contains "$prod_out" "SERVICE_NAME_PROJECTION_CONSUMER=banji-core-prod-kh-pp-projection-consumer"
 
 # 3) MQ policy (no region in topic/queue names)
 assert_contains "$dev_out" "KAFKA_TOPIC_INVENTORY_UPDATED=banji-core.dev.inventory-updated"
 assert_contains "$staging_out" "RABBIT_QUEUE_STOCK_UPDATE_JOBS=banji-core.staging.stock-update-jobs"
-if grep -Eq '^KAFKA_TOPIC_.*sg-sin' <<< "$dev_out"; then
+if grep -Eq '^KAFKA_TOPIC_.*kh-pp' <<< "$dev_out"; then
   echo "assertion failed: kafka topic unexpectedly includes region" >&2
   exit 1
 fi
-if grep -Eq '^RABBIT_QUEUE_.*sg-sin' <<< "$staging_out"; then
+if grep -Eq '^RABBIT_QUEUE_.*kh-pp' <<< "$staging_out"; then
   echo "assertion failed: rabbit queue unexpectedly includes region" >&2
   exit 1
 fi
 
 # 4) Failure on invalid env
-if BANJI_ENV=qa BANJI_SYSTEM=banji-core BANJI_REGION=sg-sin bash "$SCRIPT" >/dev/null 2>&1; then
+if BANJI_ENV=qa BANJI_SYSTEM=banji-core BANJI_REGION=kh-pp bash "$SCRIPT" >/dev/null 2>&1; then
   echo "assertion failed: BANJI_ENV=qa should fail" >&2
   exit 1
 fi
