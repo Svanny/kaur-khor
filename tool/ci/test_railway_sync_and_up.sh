@@ -44,8 +44,6 @@ record() {
 record_auth() {
   if [[ -n "${RAILWAY_API_TOKEN:-}" ]]; then
     record "auth api"
-  elif [[ -n "${RAILWAY_TOKEN:-}" ]]; then
-    record "auth project"
   else
     record "auth missing"
     exit 1
@@ -226,13 +224,29 @@ rm -f "$LOG_FILE"
 
 unset RAILWAY_API_TOKEN
 export RAILWAY_TOKEN="project-token"
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: RAILWAY_TOKEN-only auth should fail" >&2
+  exit 1
+fi
 
-bash "$SCRIPT" >/dev/null
-
-grep -q "auth project" "$LOG_FILE"
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: RAILWAY_TOKEN-only auth should fail before Railway CLI calls" >&2
+  exit 1
+fi
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"
+
+export RAILWAY_API_TOKEN="token"
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: mixed Railway auth env should fail" >&2
+  exit 1
+fi
+
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: mixed Railway auth env should fail before Railway CLI calls" >&2
+  exit 1
+fi
 
 unset RAILWAY_TOKEN
 
@@ -358,7 +372,7 @@ rm -f "$LOG_FILE"
 
 unset RAILWAY_API_TOKEN
 if bash "$SCRIPT" >/dev/null 2>&1; then
-  echo "assertion failed: missing Railway auth token should fail" >&2
+  echo "assertion failed: missing RAILWAY_API_TOKEN should fail" >&2
   exit 1
 fi
 
