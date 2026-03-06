@@ -135,7 +135,7 @@ impl ObservabilityConfig {
         let service_name = env::var("OTEL_SERVICE_NAME").unwrap_or_else(|_| {
             let system = env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string());
             let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
-            let region = env::var("BANJI_REGION").unwrap_or_else(|_| "kh-pp".to_string());
+            let region = env::var("BANJI_REGION").unwrap_or_else(|_| "sg-sin".to_string());
             let service = crate::config::resolve_service_name_with_fallback();
             format!("{system}-{env_name}-{region}-{service}")
         });
@@ -167,7 +167,7 @@ impl ObservabilityConfig {
 fn build_resource(cfg: &ObservabilityConfig) -> Resource {
     let system = env::var("BANJI_SYSTEM").unwrap_or_else(|_| "banji-core".to_string());
     let env_name = env::var("BANJI_ENV").unwrap_or_else(|_| "dev".to_string());
-    let region = env::var("BANJI_REGION").unwrap_or_else(|_| "kh-pp".to_string());
+    let region = env::var("BANJI_REGION").unwrap_or_else(|_| "sg-sin".to_string());
     let deployment_id = env::var("BANJI_DEPLOYMENT_ID").unwrap_or_else(|_| "unknown".to_string());
     let instance_id = resolve_instance_id();
 

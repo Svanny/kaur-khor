@@ -6,7 +6,7 @@ This contract defines canonical naming across `dev`, `staging`, and `prod`. It i
 ## Base Variables (Authoritative)
 - `BANJI_SYSTEM=banji-core`
 - `BANJI_ENV=dev|staging|prod`
-- `BANJI_REGION=kh-pp` (default)
+- `BANJI_REGION=sg-sin` (default)
 - `BANJI_TENANT=default` (reserved; not used as infra namespace by default)
 - `BANJI_DEPLOYMENT_ID=<build/release id>`
 
@@ -39,15 +39,15 @@ Redis key examples:
 
 ## Environment Map
 Defaults:
-- `dev`: `BANJI_ENV=dev`, `BANJI_REGION=kh-pp`
-- `staging`: `BANJI_ENV=staging`, `BANJI_REGION=kh-pp`
-- `prod`: `BANJI_ENV=prod`, `BANJI_REGION=kh-pp`
+- `dev`: `BANJI_ENV=dev`, `BANJI_REGION=sg-sin`
+- `staging`: `BANJI_ENV=staging`, `BANJI_REGION=sg-sin`
+- `prod`: `BANJI_ENV=prod`, `BANJI_REGION=sg-sin`
 
 Examples:
 - Service `api` in `prod`:
-  - `banji-core-prod-kh-pp-api`
+  - `banji-core-prod-sg-sin-api`
 - Postgres app DB in `staging`:
-  - `banji_core_staging_kh_pp_app`
+  - `banji_core_staging_sg_sin_app`
 - Kafka topic `inventory-updated` in `dev`:
   - `banji-core.dev.inventory-updated`
 - Kafka consumer group for ranking projector in `prod`:
