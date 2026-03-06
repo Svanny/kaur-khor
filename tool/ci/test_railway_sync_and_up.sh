@@ -121,6 +121,37 @@ PY
     esac
     ;;
   up)
+    if [[ -n "${FAKE_UP_STDERR:-}" ]]; then
+      printf '%s\n' "$FAKE_UP_STDERR" >&2
+      exit 1
+    fi
+    if [[ -n "${FAKE_UP_OUTPUT:-}" ]]; then
+      printf '%s\n' "$FAKE_UP_OUTPUT"
+    fi
+    exit 0
+    ;;
+  logs)
+    kind="unknown"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --build)
+          kind="build"
+          ;;
+        --deployment)
+          kind="deployment"
+          ;;
+      esac
+      shift
+    done
+    stderr_key="FAKE_LOGS_$(printf '%s' "$kind" | tr '[:lower:]' '[:upper:]')_STDERR"
+    stdout_key="FAKE_LOGS_$(printf '%s' "$kind" | tr '[:lower:]' '[:upper:]')_OUTPUT"
+    if [[ -n "${!stderr_key:-}" ]]; then
+      printf '%s\n' "${!stderr_key}" >&2
+      exit 1
+    fi
+    if [[ -n "${!stdout_key:-}" ]]; then
+      printf '%s\n' "${!stdout_key}"
+    fi
     exit 0
     ;;
   deployment)
@@ -199,6 +230,10 @@ if [[ "$(grep -c "^up " "$LOG_FILE")" -ne 1 ]]; then
   echo "assertion failed: expected exactly one railway up invocation for api" >&2
   exit 1
 fi
+if grep -q "^logs " "$LOG_FILE"; then
+  echo "assertion failed: debug-off deploy should not fetch Railway logs" >&2
+  exit 1
+fi
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"
@@ -206,21 +241,62 @@ rm -f "$LOG_FILE"
 
 export RAILWAY_CI_DEBUG="1"
 export FAKE_VARIABLE_JSON_svc_api='{"DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_MIGRATION_CHECKSUM":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","DEPLOY_RUN_ID":"9001-2","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_CORS_ALLOWED_ORIGINS":"https://staging.example.com","AUTH_ENABLED":"true","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","APP_ROLE":"api","BANJI_SERVICE":"api","UNMANAGED_SECRET":"raw-unmanaged-secret"}'
+export FAKE_UP_OUTPUT="verbose deploy secret=edge-secret"
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "\\[railway-debug\\] auth source=api" "$DEBUG_LOG"
 grep -Fxq "[railway-debug] begin: link project/environment/service" "$DEBUG_LOG"
 grep -q "\\[railway-debug\\] begin: fetch latest deployment status" "$DEBUG_LOG"
+grep -q "^up $ROOT_DIR/apps/api --path-as-root --service svc-api --verbose$" "$LOG_FILE"
+grep -q "verbose deploy secret=\\*\\*\\*" "$DEBUG_LOG"
+if grep -q "^logs " "$LOG_FILE"; then
+  echo "assertion failed: successful debug deploy should not fetch Railway logs" >&2
+  exit 1
+fi
 if grep -q "raw-unmanaged-secret" "$DEBUG_LOG"; then
   echo "assertion failed: debug output leaked unmanaged runtime variable value" >&2
   exit 1
 fi
 
 export RAILWAY_CI_DEBUG="0"
-unset FAKE_VARIABLE_JSON_svc_api
+unset FAKE_VARIABLE_JSON_svc_api FAKE_UP_OUTPUT
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"
+: >"$DEBUG_LOG"
+
+export RAILWAY_CI_DEBUG="1"
+export FAKE_UP_STDERR="deploy failed token=token-leak-value"
+export FAKE_LOGS_BUILD_OUTPUT="build log secret=edge-secret-leak"
+export FAKE_LOGS_DEPLOYMENT_OUTPUT="deployment log token=token-leak-value"
+export RAILWAY_API_TOKEN="token-leak-value"
+export EDGE_ORIGIN_AUTH_SECRET="edge-secret-leak"
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: mocked railway up failure should fail sync + up" >&2
+  exit 1
+fi
+grep -q "^logs --build --latest --lines 120 --service svc-api$" "$LOG_FILE"
+grep -q "^logs --deployment --latest --lines 120 --service svc-api$" "$LOG_FILE"
+if ! grep -q "\\*\\*\\*" "$DEBUG_LOG"; then
+  echo "assertion failed: expected redacted secrets in debug log tails" >&2
+  exit 1
+fi
+if grep -q "token-leak-value" "$DEBUG_LOG"; then
+  echo "assertion failed: up failure path leaked RAILWAY_API_TOKEN" >&2
+  exit 1
+fi
+if grep -q "edge-secret-leak" "$DEBUG_LOG"; then
+  echo "assertion failed: up failure path leaked managed secret" >&2
+  exit 1
+fi
+unset FAKE_UP_STDERR FAKE_LOGS_BUILD_OUTPUT FAKE_LOGS_DEPLOYMENT_OUTPUT
+export RAILWAY_API_TOKEN="token"
+export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+export RAILWAY_CI_DEBUG="0"
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+: >"$DEBUG_LOG"
 
 unset RAILWAY_API_TOKEN
 export RAILWAY_TOKEN="project-token"
@@ -337,6 +413,37 @@ if bash "$SCRIPT" >/dev/null 2>&1; then
   exit 1
 fi
 unset FAKE_DEPLOYMENT_STATUS_svc_api
+
+rm -f "$LOG_FILE"
+: >"$LOG_FILE"
+: >"$DEBUG_LOG"
+
+export RAILWAY_CI_DEBUG="1"
+export FAKE_DEPLOYMENT_STATUS_svc_api="FAILED"
+export FAKE_LOGS_BUILD_STDERR="build tail unavailable token=token-leak-value"
+export FAKE_LOGS_DEPLOYMENT_STDERR="deployment tail unavailable secret=edge-secret-leak"
+export RAILWAY_API_TOKEN="token-leak-value"
+export EDGE_ORIGIN_AUTH_SECRET="edge-secret-leak"
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: failed deployment status should still fail in debug mode" >&2
+  exit 1
+fi
+grep -q "^logs --build --latest --lines 120 --service svc-api$" "$LOG_FILE"
+grep -q "^logs --deployment --latest --lines 120 --service svc-api$" "$LOG_FILE"
+grep -q "\\[railway-debug\\] failed: fetch latest Railway build logs (exit 1)" "$DEBUG_LOG"
+grep -q "\\[railway-debug\\] failed: fetch latest Railway deployment logs (exit 1)" "$DEBUG_LOG"
+if grep -q "token-leak-value" "$DEBUG_LOG"; then
+  echo "assertion failed: log-fetch failure path leaked RAILWAY_API_TOKEN" >&2
+  exit 1
+fi
+if grep -q "edge-secret-leak" "$DEBUG_LOG"; then
+  echo "assertion failed: log-fetch failure path leaked managed secret" >&2
+  exit 1
+fi
+unset FAKE_DEPLOYMENT_STATUS_svc_api FAKE_LOGS_BUILD_STDERR FAKE_LOGS_DEPLOYMENT_STDERR
+export RAILWAY_API_TOKEN="token"
+export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+export RAILWAY_CI_DEBUG="0"
 
 rm -f "$LOG_FILE"
 : >"$LOG_FILE"

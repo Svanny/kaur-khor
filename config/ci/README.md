@@ -28,3 +28,5 @@ From environment files:
 Workflow input `railway_debug=true` overrides file defaults and forces:
 
 - `RAILWAY_CI_DEBUG=1`
+- verbose Railway deploy output (`railway up --verbose`)
+- bounded post-failure Railway build and deployment log tails with secret redaction

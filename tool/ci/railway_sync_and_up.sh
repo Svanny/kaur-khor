@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SERVICE_ROOT="$ROOT_DIR/apps/api"
 DEBUG_PREFIX="[railway-debug]"
+DEBUG_RAILWAY_LOG_TAIL_LINES=120
 RAILWAY_LAST_OUTPUT=""
 SECRET_REDACTIONS=()
 
@@ -137,6 +138,49 @@ run_railway() {
   fi
 }
 
+run_railway_with_debug_success_output() {
+  local label="$1"
+  shift
+
+  local output=""
+  local rc=0
+  local cmd_display="railway"
+  local part
+  local sanitized_output
+
+  for part in "$@"; do
+    cmd_display+=" $(printf '%q' "$part")"
+  done
+
+  if debug_enabled; then
+    debug_log "begin: $label"
+    debug_log "cmd: $cmd_display"
+  fi
+
+  if output="$(railway "$@" 2>&1)"; then
+    RAILWAY_LAST_OUTPUT="$output"
+    sanitized_output="$(sanitize_output "$output")"
+    if debug_enabled; then
+      debug_log "success: $label"
+      if [[ -n "$sanitized_output" ]]; then
+        printf '%s\n' "$sanitized_output" >&2
+      fi
+    fi
+    return 0
+  else
+    rc=$?
+    RAILWAY_LAST_OUTPUT="$output"
+    sanitized_output="$(sanitize_output "$output")"
+
+    echo "error: Railway CLI failed during '$label' (exit $rc)" >&2
+    echo "error: command: $cmd_display" >&2
+    if [[ -n "$sanitized_output" ]]; then
+      echo "$sanitized_output" >&2
+    fi
+    return "$rc"
+  fi
+}
+
 run_railway_with_stdin() {
   local label="$1"
   local stdin_payload="$2"
@@ -175,6 +219,52 @@ run_railway_with_stdin() {
     fi
     return "$rc"
   fi
+}
+
+emit_debug_railway_log_tail() {
+  local kind="$1"
+  local output=""
+  local rc=0
+  local sanitized_output
+  local label="fetch latest Railway ${kind} logs"
+
+  if ! debug_enabled; then
+    return 0
+  fi
+
+  debug_log "begin: $label"
+  debug_log "cmd: railway logs --${kind} --latest --lines ${DEBUG_RAILWAY_LOG_TAIL_LINES} --service ${RAILWAY_SERVICE_ID}"
+
+  if output="$(railway logs "--${kind}" --latest --lines "$DEBUG_RAILWAY_LOG_TAIL_LINES" --service "$RAILWAY_SERVICE_ID" 2>&1)"; then
+    sanitized_output="$(sanitize_output "$output")"
+    debug_log "success: $label"
+    if [[ -n "$sanitized_output" ]]; then
+      debug_log "latest Railway ${kind} log tail (${DEBUG_RAILWAY_LOG_TAIL_LINES} lines max) follows"
+      printf '%s\n' "$sanitized_output" >&2
+      debug_log "end latest Railway ${kind} log tail"
+    else
+      debug_log "latest Railway ${kind} log tail was empty"
+    fi
+    return 0
+  else
+    rc=$?
+  fi
+
+  sanitized_output="$(sanitize_output "$output")"
+  debug_log "failed: $label (exit $rc)"
+  if [[ -n "$sanitized_output" ]]; then
+    printf '%s\n' "$sanitized_output" >&2
+  fi
+  return 0
+}
+
+emit_debug_recent_railway_logs() {
+  if ! debug_enabled; then
+    return 0
+  fi
+
+  emit_debug_railway_log_tail build
+  emit_debug_railway_log_tail deployment
 }
 
 require_auth_token() {
@@ -499,7 +589,15 @@ for key in "${forbidden_runtime[@]}"; do
   assert_runtime_var_absent_if_visible "$key"
 done
 
-run_railway "deploy service via source upload" up "$SERVICE_ROOT" --path-as-root --service "$RAILWAY_SERVICE_ID"
+up_args=(up "$SERVICE_ROOT" --path-as-root --service "$RAILWAY_SERVICE_ID")
+if debug_enabled; then
+  up_args+=(--verbose)
+fi
+
+if ! run_railway_with_debug_success_output "deploy service via source upload" "${up_args[@]}"; then
+  emit_debug_recent_railway_logs
+  exit 1
+fi
 
 run_railway "fetch latest deployment status" deployment list --json --limit 1 --service "$RAILWAY_SERVICE_ID"
 deployment_json="$RAILWAY_LAST_OUTPUT"
@@ -521,6 +619,7 @@ deployment_status="$(
 deployment_status_upper="$(printf '%s' "$deployment_status" | tr '[:lower:]' '[:upper:]')"
 if [[ "$deployment_status_upper" != "SUCCESS" ]]; then
   echo "error: latest Railway deployment for service $RAILWAY_SERVICE_ID is '$deployment_status'" >&2
+  emit_debug_recent_railway_logs
   exit 1
 fi
 
