@@ -291,6 +291,7 @@ export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
 export AUTH_JWKS_URL="https://jwks.example.com"
 export AUTH_ISSUER="https://issuer.example.com"
 export AUTH_AUDIENCE="banji-api"
+export FAKE_VARIABLE_JSON_svc_api='{"OTEL_SERVICE_NAME":"stale-api-name","OTEL_RESOURCE_ATTRIBUTES":"service.version=old"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-api:SUCCESS"
 
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
@@ -303,6 +304,16 @@ grep -q "stdin svc-api CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
 grep -q "stdin svc-api EDGE_ENFORCEMENT_ENABLED=true" "$LOG_FILE"
 grep -q "stdin svc-api OTEL_ENABLED=true" "$LOG_FILE"
 grep -q "stdin svc-api OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_SERVICE_NAME$" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_RESOURCE_ATTRIBUTES$" "$LOG_FILE"
+if grep -q "stdin svc-api OTEL_SERVICE_NAME=" "$LOG_FILE"; then
+  echo "assertion failed: api should delete empty OTEL_SERVICE_NAME instead of setting an empty value" >&2
+  exit 1
+fi
+if grep -q "stdin svc-api OTEL_RESOURCE_ATTRIBUTES=" "$LOG_FILE"; then
+  echo "assertion failed: api should delete empty OTEL_RESOURCE_ATTRIBUTES instead of setting an empty value" >&2
+  exit 1
+fi
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-api --detach" "$LOG_FILE"
 grep -q "deployment list --json --limit 1 --service svc-api" "$LOG_FILE"
 grep -q "variable list --json --service svc-api" "$LOG_FILE"
@@ -469,6 +480,7 @@ export RAILWAY_SERVICE_ID="svc-projection"
 export EXPECTED_APP_ROLE="projection-consumer"
 export EXPECTED_BANJI_SERVICE="projection-consumer"
 export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
+export FAKE_VARIABLE_JSON_svc_projection='{"EVENT_CONSUMER_REPLAY_TO_ID":"42"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_projection="baseline-projection:SUCCESS;deploy-projection:SUCCESS"
 
 bash "$SCRIPT" >/dev/null
@@ -478,6 +490,12 @@ grep -q "stdin svc-projection CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
 grep -q "stdin svc-projection EVENT_CONSUMER_SERVICE_NAME=projection-consumer" "$LOG_FILE"
 grep -q "stdin svc-projection EVENT_CONSUMER_STREAM_NAME=banji-core.staging.inventory-updated" "$LOG_FILE"
 grep -q "stdin svc-projection OTEL_ENABLED=true" "$LOG_FILE"
+grep -q "^delete svc-projection EVENT_CONSUMER_REPLAY_TO_ID$" "$LOG_FILE"
+if grep -q "stdin svc-projection EVENT_CONSUMER_REPLAY_TO_ID=" "$LOG_FILE"; then
+  echo "assertion failed: projection-consumer should delete empty EVENT_CONSUMER_REPLAY_TO_ID instead of setting an empty value" >&2
+  exit 1
+fi
+unset FAKE_VARIABLE_JSON_svc_projection
 
 reset_logs
 
@@ -489,6 +507,7 @@ export RABBIT_URL="amqps://rabbit.example.com/%2f"
 export OBJECT_STORAGE_ACCESS_KEY="access"
 export OBJECT_STORAGE_SECRET_KEY="secret"
 export ALGORITHM_ROLLOUT_HASH_SALT="salt"
+export FAKE_VARIABLE_JSON_svc_worker='{"JOB_HANDLER_MAX_RUNTIME_SECONDS":"600","JOB_RESULT_KAFKA_TOPIC_PREFIX":"old-prefix"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_worker="baseline-worker:SUCCESS;deploy-worker:SUCCESS"
 
 bash "$SCRIPT" >/dev/null
@@ -498,6 +517,16 @@ grep -q "stdin svc-worker BANJI_DEPLOYMENT_ID=9001-2" "$LOG_FILE"
 grep -q "stdin svc-worker CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
 grep -q "stdin svc-worker OBJECT_STORAGE_ENDPOINT=https://storage.staging.example.com" "$LOG_FILE"
 grep -q "stdin svc-worker OTEL_ENABLED=true" "$LOG_FILE"
+grep -q "^delete svc-worker JOB_HANDLER_MAX_RUNTIME_SECONDS$" "$LOG_FILE"
+grep -q "^delete svc-worker JOB_RESULT_KAFKA_TOPIC_PREFIX$" "$LOG_FILE"
+if grep -q "stdin svc-worker JOB_HANDLER_MAX_RUNTIME_SECONDS=" "$LOG_FILE"; then
+  echo "assertion failed: worker should delete empty JOB_HANDLER_MAX_RUNTIME_SECONDS instead of setting an empty value" >&2
+  exit 1
+fi
+if grep -q "stdin svc-worker JOB_RESULT_KAFKA_TOPIC_PREFIX=" "$LOG_FILE"; then
+  echo "assertion failed: worker should delete empty JOB_RESULT_KAFKA_TOPIC_PREFIX instead of setting an empty value" >&2
+  exit 1
+fi
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-worker --detach" "$LOG_FILE"
 
 reset_logs
@@ -514,7 +543,7 @@ if [[ -s "$LOG_FILE" ]]; then
 fi
 
 export RABBIT_URL="amqps://rabbit.example.com/%2f"
-unset FAKE_DEPLOYMENT_SEQUENCE_svc_worker
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_worker FAKE_VARIABLE_JSON_svc_worker
 BROKEN_CONFIG_DIR="$TMP_DIR/broken-config/env"
 mkdir -p "$BROKEN_CONFIG_DIR"
 cp "$CONFIG_DIR/prod.env" "$BROKEN_CONFIG_DIR/prod.env"

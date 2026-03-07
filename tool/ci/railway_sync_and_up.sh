@@ -818,7 +818,11 @@ delete_runtime_var() {
 }
 
 for key in "${managed_exact[@]}"; do
-  set_runtime_var "$key"
+  if [[ -n "${!key}" ]]; then
+    set_runtime_var "$key"
+  else
+    debug_log "skip set for exact runtime var '$key' because config value is empty; enforcing absence instead"
+  fi
 done
 
 if [[ ${#managed_secret[@]} -gt 0 ]]; then
@@ -900,20 +904,25 @@ assert_runtime_var_absent_if_visible() {
   debug_log "runtime variable '$key' visible but empty (accepted)"
 }
 
+refresh_runtime_vars_needed=0
 for key in "${managed_exact[@]}"; do
-  assert_runtime_var_equals "$key" "${!key}"
+  if [[ -z "${!key}" ]] && runtime_var_visible "$key"; then
+    delete_runtime_var "$key"
+    refresh_runtime_vars_needed=1
+  fi
 done
 
 for key in "${forbidden_runtime[@]}"; do
   if runtime_var_visible "$key"; then
     delete_runtime_var "$key"
+    refresh_runtime_vars_needed=1
   fi
 done
 
-if [[ ${#forbidden_runtime[@]} -gt 0 ]]; then
-  run_railway "refresh runtime variables after forbidden cleanup" variable list --json --service "$RAILWAY_SERVICE_ID"
+if (( refresh_runtime_vars_needed )); then
+  run_railway "refresh runtime variables after cleanup" variable list --json --service "$RAILWAY_SERVICE_ID"
   runtime_vars_json="$RAILWAY_LAST_OUTPUT"
-  debug_json_summary "runtime variables payload after forbidden cleanup" "$runtime_vars_json"
+  debug_json_summary "runtime variables payload after cleanup" "$runtime_vars_json"
   runtime_vars_json="$(
     printf '%s' "$runtime_vars_json" | jq -c '
       if type == "array" then
@@ -937,8 +946,16 @@ if [[ ${#forbidden_runtime[@]} -gt 0 ]]; then
       end
     '
   )"
-  debug_json_summary "normalized runtime variables payload after forbidden cleanup" "$runtime_vars_json"
+  debug_json_summary "normalized runtime variables payload after cleanup" "$runtime_vars_json"
 fi
+
+for key in "${managed_exact[@]}"; do
+  if [[ -n "${!key}" ]]; then
+    assert_runtime_var_equals "$key" "${!key}"
+  else
+    assert_runtime_var_absent_if_visible "$key"
+  fi
+done
 
 for key in "${forbidden_runtime[@]}"; do
   assert_runtime_var_absent_if_visible "$key"
