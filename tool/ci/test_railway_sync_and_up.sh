@@ -145,6 +145,12 @@ PY
       delete)
         key="${1:-}"
         shift
+        for arg in "$@"; do
+          if [[ "$arg" == "--skip-deploys" ]]; then
+            printf "error: unexpected argument '--skip-deploys' found\n" >&2
+            exit 1
+          fi
+        done
         service_id="$(service_arg "$@")"
         record "delete $service_id $key"
         python3 - "$state_dir" "$service_id" "$key" <<'PY'

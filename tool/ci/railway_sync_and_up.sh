@@ -841,7 +841,7 @@ set_runtime_var() {
 
 delete_runtime_var() {
   local key="$1"
-  run_railway "delete runtime var $key" variable delete "$key" --skip-deploys --service "$RAILWAY_SERVICE_ID"
+  run_railway "delete runtime var $key" variable delete "$key" --service "$RAILWAY_SERVICE_ID"
 }
 
 for key in "${managed_exact[@]}"; do
