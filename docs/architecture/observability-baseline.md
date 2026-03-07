@@ -69,14 +69,17 @@ Hard constraints:
 Supported OTEL variables:
 - `OTEL_ENABLED`
 - `OTEL_EXPORTER_OTLP_ENDPOINT`
-- `OTEL_EXPORTER_OTLP_HEADERS` (preferred)
+- `OTEL_EXPORTER_OTLP_HEADERS`
 - `OTEL_SERVICE_NAME`
 - `OTEL_RESOURCE_ATTRIBUTES`
 - `OTEL_TRACES_SAMPLER`
 - `OTEL_TRACES_SAMPLER_ARG`
-- `OTEL_METRICS_EXPORT_INTERVAL`
+- `OTEL_METRIC_EXPORT_INTERVAL`
 
 Compatibility alias:
 - `OTEL_HEADERS` fallback when `OTEL_EXPORTER_OTLP_HEADERS` is unset.
+- `OTEL_METRICS_EXPORT_INTERVAL` fallback when `OTEL_METRIC_EXPORT_INTERVAL` is unset during the compatibility window.
 
-If `OTEL_ENABLED=true`, endpoint + headers are mandatory.
+Blank OTEL env values are treated as unset.
+OTLP headers are optional.
+If `OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, the SDK exporter default endpoint is used.

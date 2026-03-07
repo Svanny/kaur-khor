@@ -47,6 +47,13 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - `worker`: `DATABASE_RUNTIME_URL`, `RABBIT_URL`, object-storage config and secrets, rollout salt, optional telemetry auth
 - `backfill-controller`: `DATABASE_RUNTIME_URL` for primary runs and `RESTORE_DATABASE_URL` for restore validation runs
 
+## Optional Telemetry Auth
+- `OTEL_EXPORTER_OTLP_HEADERS` is the canonical runtime secret when OTLP auth headers are needed.
+- `OTEL_HEADERS` is a compatibility alias only; automation syncs the canonical key.
+- Tracked env templates should leave both OTEL header keys blank unless a platform secret is explicitly wired at deploy time.
+- Blank OTEL values are treated as unset by the runtime and by Railway sync.
+- `OTEL_METRIC_EXPORT_INTERVAL` is the canonical metrics export interval key. `OTEL_METRICS_EXPORT_INTERVAL` is a temporary compatibility alias in application code only.
+
 Runtime services must not receive `DATABASE_MIGRATION_URL`.
 
 ## Core Non-Secret Runtime Keys

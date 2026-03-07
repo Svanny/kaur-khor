@@ -16,9 +16,12 @@ Example `GRAFANA_OTLP_AUTH_HEADER`:
 Set in service environments:
 - `OTEL_ENABLED=true`
 - `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`
-- `OTEL_EXPORTER_OTLP_HEADERS=__SET_IN_PLATFORM_SECRET__`
+- `OTEL_EXPORTER_OTLP_HEADERS=<optional platform secret>`
 
-`OTEL_HEADERS` remains backward-compatible fallback if official OTEL header var is unset.
+Notes:
+- `OTEL_EXPORTER_OTLP_HEADERS` is optional. Leave it unset when the collector does not require auth headers.
+- `OTEL_HEADERS` remains a backward-compatible fallback if the canonical key is unset.
+- Tracked env templates may leave both OTEL header keys blank; Railway/GitHub secrets should provide the canonical key only when needed.
 
 ## Notes
 - Logs are not exported via this collector in current phase.
