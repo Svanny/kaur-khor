@@ -164,9 +164,6 @@ jobs:
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-          EVENT_CONSUMER_SERVICE_NAME: projection-consumer
-          EVENT_CONSUMER_NAME: inventory-projector
-          EVENT_CONSUMER_STREAM_NAME: banji-core.staging.inventory-updated
         run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy staging worker
         id: deploy_worker
@@ -176,14 +173,9 @@ jobs:
           EXPECTED_BANJI_SERVICE: worker
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           RABBIT_URL: ${{ secrets.RABBIT_URL }}
-          OBJECT_STORAGE_ENABLED: "true"
-          OBJECT_STORAGE_ENDPOINT: ${{ vars.OBJECT_STORAGE_ENDPOINT }}
-          OBJECT_STORAGE_REGION: ${{ vars.OBJECT_STORAGE_REGION }}
-          OBJECT_STORAGE_BUCKET_ARTIFACTS: ${{ vars.OBJECT_STORAGE_BUCKET_ARTIFACTS }}
           OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
           OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
           ALGORITHM_ROLLOUT_HASH_SALT: ${{ secrets.ALGORITHM_ROLLOUT_HASH_SALT }}
-          ALGORITHM_ROLLOUT_HASH_SALT_VERSION: ${{ vars.ALGORITHM_ROLLOUT_HASH_SALT_VERSION }}
         run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy staging api
         id: deploy_api
@@ -191,11 +183,8 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
-          EDGE_ENFORCEMENT_ENABLED: "true"
-          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
-          EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
-          AUTH_ENABLED: "true"
           AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
           AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
           AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
@@ -387,9 +376,6 @@ jobs:
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-          EVENT_CONSUMER_SERVICE_NAME: projection-consumer
-          EVENT_CONSUMER_NAME: inventory-projector
-          EVENT_CONSUMER_STREAM_NAME: banji-core.prod.inventory-updated
         run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy prod worker
         id: deploy_worker
@@ -399,14 +385,9 @@ jobs:
           EXPECTED_BANJI_SERVICE: worker
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           RABBIT_URL: ${{ secrets.RABBIT_URL }}
-          OBJECT_STORAGE_ENABLED: "true"
-          OBJECT_STORAGE_ENDPOINT: ${{ vars.OBJECT_STORAGE_ENDPOINT }}
-          OBJECT_STORAGE_REGION: ${{ vars.OBJECT_STORAGE_REGION }}
-          OBJECT_STORAGE_BUCKET_ARTIFACTS: ${{ vars.OBJECT_STORAGE_BUCKET_ARTIFACTS }}
           OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
           OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
           ALGORITHM_ROLLOUT_HASH_SALT: ${{ secrets.ALGORITHM_ROLLOUT_HASH_SALT }}
-          ALGORITHM_ROLLOUT_HASH_SALT_VERSION: ${{ vars.ALGORITHM_ROLLOUT_HASH_SALT_VERSION }}
         run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy prod api
         id: deploy_api
@@ -414,11 +395,8 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
-          EDGE_ENFORCEMENT_ENABLED: "true"
-          EDGE_ORIGIN_AUTH_HEADER_NAME: x-banji-edge-auth
+          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
-          EDGE_CORS_ALLOWED_ORIGINS: ${{ vars.EDGE_CORS_ALLOWED_ORIGINS }}
-          AUTH_ENABLED: "true"
           AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
           AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
           AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
