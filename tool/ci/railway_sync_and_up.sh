@@ -3,12 +3,15 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SERVICE_ROOT="$ROOT_DIR/apps/api"
+CONFIG_DIR="${RAILWAY_SYNC_CONFIG_DIR:-$ROOT_DIR/config/env}"
 DEBUG_PREFIX="[railway-debug]"
 DEBUG_RAILWAY_LOG_TAIL_LINES=120
 DEPLOY_STATUS_POLL_INTERVAL_SECONDS=5
 DEPLOY_STATUS_POLL_MAX_ATTEMPTS=60
 RAILWAY_LAST_OUTPUT=""
 SECRET_REDACTIONS=()
+CONFIG_KEYS=()
+CONFIG_VALUES=()
 
 is_truthy() {
   local value
@@ -138,6 +141,89 @@ run_railway() {
     fi
     return "$rc"
   fi
+}
+
+load_config_env_file() {
+  local file="$1"
+  local line key value
+
+  if [[ ! -f "$file" ]]; then
+    echo "error: runtime config file not found: $file" >&2
+    exit 1
+  fi
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^# ]] && continue
+
+    if [[ "$line" != *=* ]]; then
+      echo "error: invalid runtime config line '$line' in $file" >&2
+      exit 1
+    fi
+
+    key="${line%%=*}"
+    value="${line#*=}"
+
+    if [[ ! "$key" =~ ^[A-Z0-9_]+$ ]]; then
+      echo "error: invalid runtime config key '$key' in $file" >&2
+      exit 1
+    fi
+
+    CONFIG_KEYS+=("$key")
+    CONFIG_VALUES+=("$value")
+  done <"$file"
+}
+
+config_var_visible() {
+  local key="$1"
+  local idx
+  for idx in "${!CONFIG_KEYS[@]}"; do
+    if [[ "${CONFIG_KEYS[$idx]}" == "$key" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+config_var_value() {
+  local key="$1"
+  local idx
+  for idx in "${!CONFIG_KEYS[@]}"; do
+    if [[ "${CONFIG_KEYS[$idx]}" == "$key" ]]; then
+      printf '%s' "${CONFIG_VALUES[$idx]}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+require_config_var() {
+  local key="$1"
+
+  if ! config_var_visible "$key"; then
+    echo "error: runtime config '$key' is missing from $CONFIG_FILE" >&2
+    exit 1
+  fi
+}
+
+set_exact_var_from_config() {
+  local key="$1"
+  local value
+
+  require_config_var "$key"
+  value="$(config_var_value "$key")"
+  printf -v "$key" '%s' "$value"
+  export "$key"
+}
+
+append_exact_vars_from_config() {
+  local key
+  for key in "$@"; do
+    set_exact_var_from_config "$key"
+    managed_exact+=("$key")
+  done
 }
 
 run_railway_with_debug_success_output() {
@@ -366,8 +452,6 @@ required=(
   MIGRATION_CHECKSUM
   EXPECTED_APP_ROLE
   EXPECTED_BANJI_SERVICE
-  DATABASE_RUNTIME_ENDPOINT_KIND
-  PGBOUNCER_POOL_MODE
 )
 for name in "${required[@]}"; do
   if [[ -z "${!name:-}" ]]; then
@@ -379,6 +463,9 @@ done
 require_auth_token
 add_secret_redaction "${RAILWAY_API_TOKEN:-}"
 
+CONFIG_FILE="$CONFIG_DIR/${RAILWAY_ENVIRONMENT}.env"
+load_config_env_file "$CONFIG_FILE"
+
 if [[ ! "$COMMIT_SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
   echo "error: COMMIT_SHA must be a git sha" >&2
   exit 1
@@ -389,21 +476,11 @@ if [[ ! "$MIGRATION_CHECKSUM" =~ ^[a-f0-9]{64}$ ]]; then
   exit 1
 fi
 
-if [[ "$DATABASE_RUNTIME_ENDPOINT_KIND" != "pgbouncer" ]]; then
-  echo "error: DATABASE_RUNTIME_ENDPOINT_KIND must be pgbouncer for deploy targets" >&2
-  exit 1
-fi
-
-if [[ "$PGBOUNCER_POOL_MODE" != "transaction" ]]; then
-  echo "error: PGBOUNCER_POOL_MODE must be transaction for deploy targets" >&2
-  exit 1
-fi
-
 DEPLOY_COMMIT_SHA="$COMMIT_SHA"
 DEPLOY_MIGRATION_CHECKSUM="$MIGRATION_CHECKSUM"
 DEPLOY_RUN_ID="${DEPLOY_RUN_ID:-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}}"
 
-require_local_var() {
+require_secret_var() {
   local key="$1"
   if [[ -z "${!key:-}" ]]; then
     echo "error: $key is required for EXPECTED_APP_ROLE=$EXPECTED_APP_ROLE" >&2
@@ -423,35 +500,173 @@ managed_exact=(
   DEPLOY_COMMIT_SHA
   DEPLOY_MIGRATION_CHECKSUM
   DEPLOY_RUN_ID
-  DATABASE_RUNTIME_ENDPOINT_KIND
-  PGBOUNCER_POOL_MODE
 )
 managed_secret=()
 forbidden_runtime=()
+managed_exact_common=(
+  BANJI_SYSTEM
+  BANJI_ENV
+  BANJI_REGION
+  BANJI_TENANT
+  DATABASE_RUNTIME_ENDPOINT_KIND
+  PGBOUNCER_POOL_MODE
+  IDEMPOTENCY_RETENTION_DAYS
+  SQLX_POOL_MAX_CONNECTIONS
+  SQLX_POOL_MIN_CONNECTIONS
+  SQLX_POOL_ACQUIRE_TIMEOUT_MS
+  SQLX_POOL_CONNECT_TIMEOUT_MS
+  SQLX_POOL_IDLE_TIMEOUT_SECONDS
+  SQLX_POOL_MAX_LIFETIME_SECONDS
+  POSTGRES_CONNECTION_BUDGET_TOTAL
+  CACHE_ENABLED
+  CACHE_SCHEMA_VERSION
+  CACHE_DEFAULT_TTL_SECONDS
+  CACHE_TTL_JITTER_SECONDS
+  REDIS_CONNECT_TIMEOUT_MS
+  REDIS_COMMAND_TIMEOUT_MS
+  REDIS_CIRCUIT_ERROR_THRESHOLD
+  REDIS_CIRCUIT_WINDOW_SECONDS
+  REDIS_CIRCUIT_COOLDOWN_SECONDS
+  REDIS_LOG_RATE_LIMIT_SECONDS
+  EVENT_PAYLOAD_MAX_BYTES
+  OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS
+  OBSERVABILITY_POSTGRES_LOCK_POLL_INTERVAL_MS
+  OBSERVABILITY_JOB_PRESSURE_POLL_INTERVAL_MS
+  OTEL_ENABLED
+  OTEL_EXPORTER_OTLP_ENDPOINT
+  OTEL_SERVICE_NAME
+  OTEL_RESOURCE_ATTRIBUTES
+  OTEL_TRACES_SAMPLER
+  OTEL_TRACES_SAMPLER_ARG
+  OTEL_METRICS_EXPORT_INTERVAL
+)
+managed_exact_api=(
+  AUTH_ENABLED
+  AUTH_JWKS_CACHE_TTL_SECONDS
+  AUTH_JWKS_TIMEOUT_MS
+  AUTH_CLOCK_SKEW_SECONDS
+  EDGE_ENFORCEMENT_ENABLED
+  EDGE_ORIGIN_AUTH_HEADER_NAME
+  EDGE_RATE_LIMIT_ENABLED
+  EDGE_RATE_LIMIT_WINDOW_SECONDS
+  EDGE_RATE_LIMIT_READ_MAX
+  EDGE_RATE_LIMIT_USER_READ_MAX
+  EDGE_RATE_LIMIT_USER_WRITE_MAX
+  EDGE_RATE_LIMIT_DEVICE_READ_MAX
+  EDGE_RATE_LIMIT_DEVICE_WRITE_MAX
+  EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS
+  EDGE_RATE_LIMIT_KEY_TTL_SECONDS
+  EDGE_RATE_LIMIT_REDIS_PREFIX
+  EDGE_RATE_LIMIT_FAILOVER_ENABLED
+  EDGE_BACKPRESSURE_ENABLED
+  EDGE_BACKPRESSURE_POLL_INTERVAL_MS
+  EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS
+  EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY
+  EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY
+  EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX
+  EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX
+  EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX
+  EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX
+  EDGE_BACKPRESSURE_KAFKA_PENDING_MAX
+  EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX
+  EDGE_REQUEST_MAX_BYTES
+  EDGE_WRITE_REQUEST_MAX_BYTES
+  EDGE_CORS_ALLOWED_ORIGINS
+  EDGE_TRUST_FORWARDED_CLIENT_IP
+)
+managed_exact_event_relay=(
+  EVENT_RELAY_BATCH_SIZE
+  EVENT_RELAY_POLL_INTERVAL_MS
+  EVENT_RELAY_RETRY_BACKOFF_MS
+  EVENT_RELAY_MAX_BACKOFF_MS
+  EVENT_RELAY_BLOCK_AFTER_ATTEMPTS
+  EVENT_OUTBOX_PUBLISHED_RETENTION_DAYS
+  EVENT_LOG_RETENTION_DAYS
+  EVENT_LOG_PRUNE_BATCH_SIZE
+  EVENT_LOG_REPLAY_BATCH_SIZE
+  EVENT_LOG_ARCHIVE_PREFIX
+  EVENT_LOG_ARCHIVE_RETENTION_DAYS
+  EVENT_LOG_ARCHIVE_ENCRYPTION_REQUIRED
+)
+managed_exact_projection_consumer=(
+  EVENT_CONSUMER_SERVICE_NAME
+  EVENT_CONSUMER_NAME
+  EVENT_CONSUMER_STREAM_NAME
+  EVENT_CONSUMER_BATCH_SIZE
+  EVENT_CONSUMER_POLL_INTERVAL_MS
+  EVENT_CONSUMER_INVALID_POLICY
+  EVENT_CONSUMER_RUN_MODE
+  EVENT_CONSUMER_REPLAY_FROM_ID
+  EVENT_CONSUMER_REPLAY_TO_ID
+  EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT
+  EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION
+  EVENT_LOG_RETENTION_DAYS
+  EVENT_LOG_PRUNE_BATCH_SIZE
+  EVENT_LOG_REPLAY_BATCH_SIZE
+  EVENT_LOG_ARCHIVE_PREFIX
+  EVENT_LOG_ARCHIVE_RETENTION_DAYS
+  EVENT_LOG_ARCHIVE_ENCRYPTION_REQUIRED
+)
+managed_exact_worker=(
+  RABBIT_VHOST
+  RABBIT_EXCHANGE_JOBS
+  RABBIT_EXCHANGE_JOBS_REPLAY
+  RABBIT_DLX_EXCHANGE
+  RABBIT_RETRY_1_TTL_MS
+  RABBIT_RETRY_2_TTL_MS
+  RABBIT_RETRY_3_TTL_MS
+  RABBIT_PREFETCH_FAST
+  RABBIT_PREFETCH_HEAVY
+  RABBIT_REPLAY_PREFETCH_FAST
+  RABBIT_REPLAY_PREFETCH_HEAVY
+  RABBIT_MAX_ATTEMPTS
+  RABBIT_REPLAY_MAX_MESSAGES
+  RABBIT_REPLAY_RATE_PER_MIN
+  RABBIT_REPLAY_RETAIN_ATTEMPT
+  RABBIT_REPLAY_TARGET_EXCHANGE
+  RABBIT_REPLAY_TARGET_ROUTING_KEY
+  WORKER_ID
+  WORKER_ENABLED_CLASSES
+  WORKER_POLL_INTERVAL_MS
+  WORKER_SHUTDOWN_GRACE_SECONDS
+  JOB_ATTEMPT_LEASE_SECONDS
+  JOB_ATTEMPT_HEARTBEAT_SECONDS
+  JOB_HANDLER_MAX_RUNTIME_SECONDS
+  JOB_RESULT_KAFKA_ENABLED
+  JOB_RESULT_KAFKA_TOPIC_PREFIX
+  WORKER_CONSUME_REPLAY_QUEUES
+  WORKER_JOB_RELAY_BATCH_SIZE
+  OBJECT_STORAGE_ENABLED
+  OBJECT_STORAGE_ENDPOINT
+  OBJECT_STORAGE_REGION
+  OBJECT_STORAGE_BUCKET_ARTIFACTS
+  OBJECT_STORAGE_FORCE_PATH_STYLE
+  OBJECT_STORAGE_ARTIFACT_PREFIX
+  OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS
+  OBJECT_STORAGE_CONNECT_TIMEOUT_MS
+  OBJECT_STORAGE_REQUEST_TIMEOUT_MS
+  OBJECT_STORAGE_MAX_ARTIFACT_BYTES
+  ARTIFACT_TMP_DIR
+  ALGORITHM_ROLLOUT_HASH_SALT_VERSION
+)
 
 case "$EXPECTED_APP_ROLE" in
   api)
-    require_local_var EDGE_ENFORCEMENT_ENABLED
-    require_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
-    require_local_var EDGE_ORIGIN_AUTH_SECRET
-    require_local_var EDGE_CORS_ALLOWED_ORIGINS
-    require_local_var AUTH_ENABLED
-    require_local_var AUTH_JWKS_URL
-    require_local_var AUTH_ISSUER
-    require_local_var AUTH_AUDIENCE
+    require_secret_var DATABASE_RUNTIME_URL
+    require_secret_var EDGE_ORIGIN_AUTH_SECRET
+    require_secret_var AUTH_JWKS_URL
+    require_secret_var AUTH_ISSUER
+    require_secret_var AUTH_AUDIENCE
     forbid_local_var OBJECT_STORAGE_ENDPOINT
     forbid_local_var OBJECT_STORAGE_ACCESS_KEY
     forbid_local_var OBJECT_STORAGE_SECRET_KEY
-    managed_exact+=(
-      EDGE_ENFORCEMENT_ENABLED
-      EDGE_ORIGIN_AUTH_HEADER_NAME
-      EDGE_CORS_ALLOWED_ORIGINS
-      AUTH_ENABLED
+    managed_secret+=(
+      DATABASE_RUNTIME_URL
+      EDGE_ORIGIN_AUTH_SECRET
       AUTH_JWKS_URL
       AUTH_ISSUER
       AUTH_AUDIENCE
     )
-    managed_secret+=(EDGE_ORIGIN_AUTH_SECRET)
     forbidden_runtime+=(
       OBJECT_STORAGE_ENDPOINT
       OBJECT_STORAGE_ACCESS_KEY
@@ -459,7 +674,10 @@ case "$EXPECTED_APP_ROLE" in
     )
     ;;
   event-relay)
-    require_local_var DATABASE_RUNTIME_URL
+    require_secret_var DATABASE_RUNTIME_URL
+    for key in "${managed_exact_api[@]}"; do
+      forbid_local_var "$key"
+    done
     forbid_local_var RABBIT_URL
     forbid_local_var OBJECT_STORAGE_ENDPOINT
     forbid_local_var OBJECT_STORAGE_ACCESS_KEY
@@ -470,6 +688,7 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
     managed_secret+=(DATABASE_RUNTIME_URL)
     forbidden_runtime+=(
+      "${managed_exact_api[@]}"
       RABBIT_URL
       OBJECT_STORAGE_ENDPOINT
       OBJECT_STORAGE_ACCESS_KEY
@@ -481,10 +700,10 @@ case "$EXPECTED_APP_ROLE" in
     )
     ;;
   projection-consumer)
-    require_local_var DATABASE_RUNTIME_URL
-    require_local_var EVENT_CONSUMER_SERVICE_NAME
-    require_local_var EVENT_CONSUMER_NAME
-    require_local_var EVENT_CONSUMER_STREAM_NAME
+    require_secret_var DATABASE_RUNTIME_URL
+    for key in "${managed_exact_api[@]}"; do
+      forbid_local_var "$key"
+    done
     forbid_local_var RABBIT_URL
     forbid_local_var OBJECT_STORAGE_ENDPOINT
     forbid_local_var OBJECT_STORAGE_ACCESS_KEY
@@ -494,12 +713,8 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var AUTH_AUDIENCE
     forbid_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
     managed_secret+=(DATABASE_RUNTIME_URL)
-    managed_exact+=(
-      EVENT_CONSUMER_SERVICE_NAME
-      EVENT_CONSUMER_NAME
-      EVENT_CONSUMER_STREAM_NAME
-    )
     forbidden_runtime+=(
+      "${managed_exact_api[@]}"
       RABBIT_URL
       OBJECT_STORAGE_ENDPOINT
       OBJECT_STORAGE_ACCESS_KEY
@@ -511,16 +726,14 @@ case "$EXPECTED_APP_ROLE" in
     )
     ;;
   worker)
-    require_local_var DATABASE_RUNTIME_URL
-    require_local_var RABBIT_URL
-    require_local_var OBJECT_STORAGE_ENABLED
-    require_local_var OBJECT_STORAGE_ENDPOINT
-    require_local_var OBJECT_STORAGE_REGION
-    require_local_var OBJECT_STORAGE_BUCKET_ARTIFACTS
-    require_local_var OBJECT_STORAGE_ACCESS_KEY
-    require_local_var OBJECT_STORAGE_SECRET_KEY
-    require_local_var ALGORITHM_ROLLOUT_HASH_SALT
-    require_local_var ALGORITHM_ROLLOUT_HASH_SALT_VERSION
+    require_secret_var DATABASE_RUNTIME_URL
+    require_secret_var RABBIT_URL
+    require_secret_var OBJECT_STORAGE_ACCESS_KEY
+    require_secret_var OBJECT_STORAGE_SECRET_KEY
+    require_secret_var ALGORITHM_ROLLOUT_HASH_SALT
+    for key in "${managed_exact_api[@]}"; do
+      forbid_local_var "$key"
+    done
     forbid_local_var AUTH_JWKS_URL
     forbid_local_var AUTH_ISSUER
     forbid_local_var AUTH_AUDIENCE
@@ -532,14 +745,8 @@ case "$EXPECTED_APP_ROLE" in
       OBJECT_STORAGE_SECRET_KEY
       ALGORITHM_ROLLOUT_HASH_SALT
     )
-    managed_exact+=(
-      OBJECT_STORAGE_ENABLED
-      OBJECT_STORAGE_ENDPOINT
-      OBJECT_STORAGE_REGION
-      OBJECT_STORAGE_BUCKET_ARTIFACTS
-      ALGORITHM_ROLLOUT_HASH_SALT_VERSION
-    )
     forbidden_runtime+=(
+      "${managed_exact_api[@]}"
       AUTH_JWKS_URL
       AUTH_ISSUER
       AUTH_AUDIENCE
@@ -554,7 +761,35 @@ esac
 
 APP_ROLE="$EXPECTED_APP_ROLE"
 BANJI_SERVICE="$EXPECTED_BANJI_SERVICE"
+BANJI_DEPLOYMENT_ID="$DEPLOY_RUN_ID"
 managed_exact+=(APP_ROLE BANJI_SERVICE)
+managed_exact+=(BANJI_DEPLOYMENT_ID)
+append_exact_vars_from_config "${managed_exact_common[@]}"
+
+if [[ "$DATABASE_RUNTIME_ENDPOINT_KIND" != "pgbouncer" ]]; then
+  echo "error: DATABASE_RUNTIME_ENDPOINT_KIND must be pgbouncer for deploy targets" >&2
+  exit 1
+fi
+
+if [[ "$PGBOUNCER_POOL_MODE" != "transaction" ]]; then
+  echo "error: PGBOUNCER_POOL_MODE must be transaction for deploy targets" >&2
+  exit 1
+fi
+
+case "$EXPECTED_APP_ROLE" in
+  api)
+    append_exact_vars_from_config "${managed_exact_api[@]}"
+    ;;
+  event-relay)
+    append_exact_vars_from_config "${managed_exact_event_relay[@]}"
+    ;;
+  projection-consumer)
+    append_exact_vars_from_config "${managed_exact_projection_consumer[@]}"
+    ;;
+  worker)
+    append_exact_vars_from_config "${managed_exact_worker[@]}"
+    ;;
+esac
 
 for key in "${managed_secret[@]}"; do
   add_secret_redaction "${!key:-}"
@@ -575,6 +810,11 @@ run_railway "link project/environment/service" link --project "$RAILWAY_PROJECT_
 set_runtime_var() {
   local key="$1"
   run_railway_with_stdin "set runtime var $key" "${!key}" variable set "$key" --stdin --skip-deploys --service "$RAILWAY_SERVICE_ID"
+}
+
+delete_runtime_var() {
+  local key="$1"
+  run_railway "delete runtime var $key" variable delete "$key" --skip-deploys --service "$RAILWAY_SERVICE_ID"
 }
 
 for key in "${managed_exact[@]}"; do
@@ -663,6 +903,42 @@ assert_runtime_var_absent_if_visible() {
 for key in "${managed_exact[@]}"; do
   assert_runtime_var_equals "$key" "${!key}"
 done
+
+for key in "${forbidden_runtime[@]}"; do
+  if runtime_var_visible "$key"; then
+    delete_runtime_var "$key"
+  fi
+done
+
+if [[ ${#forbidden_runtime[@]} -gt 0 ]]; then
+  run_railway "refresh runtime variables after forbidden cleanup" variable list --json --service "$RAILWAY_SERVICE_ID"
+  runtime_vars_json="$RAILWAY_LAST_OUTPUT"
+  debug_json_summary "runtime variables payload after forbidden cleanup" "$runtime_vars_json"
+  runtime_vars_json="$(
+    printf '%s' "$runtime_vars_json" | jq -c '
+      if type == "array" then
+        reduce .[] as $item (
+          {};
+          if ($item | type) == "object" then
+            .[($item.name // $item.key // "")] = ($item.value // "")
+          else
+            .
+          end
+        )
+      elif type == "object" and has("variables") then
+        reduce .variables[] as $item (
+          {};
+          .[($item.name // $item.key // "")] = ($item.value // "")
+        )
+      elif type == "object" then
+        with_entries(.value |= if . == null then "" else tostring end)
+      else
+        {}
+      end
+    '
+  )"
+  debug_json_summary "normalized runtime variables payload after forbidden cleanup" "$runtime_vars_json"
+fi
 
 for key in "${forbidden_runtime[@]}"; do
   assert_runtime_var_absent_if_visible "$key"
