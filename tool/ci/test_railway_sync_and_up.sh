@@ -50,6 +50,203 @@ record_auth() {
   fi
 }
 
+validate_link_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -p|--project|-e|--environment|-s|--service|-w|--workspace|-t|--team)
+        [[ $# -ge 2 ]] || {
+          printf "error: option '%s' requires a value\n" "$1" >&2
+          exit 1
+        }
+        shift 2
+        ;;
+      --json|-h|--help|-V|--version)
+        shift
+        ;;
+      *)
+        printf "error: unexpected argument '%s' found\n" "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
+}
+
+validate_variable_set_args() {
+  local saw_key=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--service|-e|--environment)
+        [[ $# -ge 2 ]] || {
+          printf "error: option '%s' requires a value\n" "$1" >&2
+          exit 1
+        }
+        shift 2
+        ;;
+      --stdin|--skip-deploys|--json|-h|--help|-V|--version)
+        shift
+        ;;
+      -*)
+        printf "error: unexpected argument '%s' found\n" "$1" >&2
+        exit 1
+        ;;
+      *)
+        if (( saw_key )); then
+          printf "error: unexpected extra variable '%s' found\n" "$1" >&2
+          exit 1
+        fi
+        saw_key=1
+        shift
+        ;;
+    esac
+  done
+
+  if (( ! saw_key )); then
+    printf "error: variable set requires a key\n" >&2
+    exit 1
+  fi
+}
+
+validate_variable_delete_args() {
+  local saw_key=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--service|-e|--environment)
+        [[ $# -ge 2 ]] || {
+          printf "error: option '%s' requires a value\n" "$1" >&2
+          exit 1
+        }
+        shift 2
+        ;;
+      --json|-h|--help|-V|--version)
+        shift
+        ;;
+      -*)
+        printf "error: unexpected argument '%s' found\n" "$1" >&2
+        exit 1
+        ;;
+      *)
+        if (( saw_key )); then
+          printf "error: unexpected extra key '%s' found\n" "$1" >&2
+          exit 1
+        fi
+        saw_key=1
+        shift
+        ;;
+    esac
+  done
+
+  if (( ! saw_key )); then
+    printf "error: variable delete requires a key\n" >&2
+    exit 1
+  fi
+}
+
+validate_variable_list_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--service|-e|--environment)
+        [[ $# -ge 2 ]] || {
+          printf "error: option '%s' requires a value\n" "$1" >&2
+          exit 1
+        }
+        shift 2
+        ;;
+      -k|--kv|--json|-h|--help|-V|--version)
+        shift
+        ;;
+      *)
+        printf "error: unexpected argument '%s' found\n" "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
+}
+
+validate_logs_args() {
+  local saw_positional=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--service|-e|--environment|-n|--lines|-f|--filter|-S|--since|-U|--until)
+        [[ $# -ge 2 ]] || {
+          printf "error: option '%s' requires a value\n" "$1" >&2
+          exit 1
+        }
+        shift 2
+        ;;
+      -d|--deployment|-b|--build|--json|--latest|-h|--help|-V|--version)
+        shift
+        ;;
+      -*)
+        printf "error: unexpected argument '%s' found\n" "$1" >&2
+        exit 1
+        ;;
+      *)
+        if (( saw_positional )); then
+          printf "error: unexpected extra argument '%s' found\n" "$1" >&2
+          exit 1
+        fi
+        saw_positional=1
+        shift
+        ;;
+    esac
+  done
+}
+
+validate_deployment_list_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--service|-e|--environment|--limit)
+        [[ $# -ge 2 ]] || {
+          printf "error: option '%s' requires a value\n" "$1" >&2
+          exit 1
+        }
+        shift 2
+        ;;
+      --json|-h|--help|-V|--version)
+        shift
+        ;;
+      *)
+        printf "error: unexpected argument '%s' found\n" "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
+}
+
+validate_up_args() {
+  local saw_path=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--service|-e|--environment|-p|--project|-m|--message)
+        [[ $# -ge 2 ]] || {
+          printf "error: option '%s' requires a value\n" "$1" >&2
+          exit 1
+        }
+        shift 2
+        ;;
+      -d|--detach|-c|--ci|--no-gitignore|--path-as-root|--verbose|--json|-h|--help|-V|--version)
+        shift
+        ;;
+      -*)
+        printf "error: unexpected argument '%s' found\n" "$1" >&2
+        exit 1
+        ;;
+      *)
+        if (( saw_path )); then
+          printf "error: unexpected extra path '%s' found\n" "$1" >&2
+          exit 1
+        fi
+        saw_path=1
+        shift
+        ;;
+    esac
+  done
+}
+
 cmd="${1:-}"
 if [[ -z "$cmd" ]]; then
   exit 1
@@ -107,6 +304,7 @@ emit_deployment_status() {
 
 case "$cmd" in
   link)
+    validate_link_args "$@"
     if [[ -n "${FAKE_LINK_STDERR:-}" ]]; then
       printf '%s\n' "$FAKE_LINK_STDERR" >&2
       exit 1
@@ -118,6 +316,7 @@ case "$cmd" in
     shift
     case "$subcmd" in
       set)
+        validate_variable_set_args "$@"
         key="${1:-}"
         shift
         value="$(cat)"
@@ -143,14 +342,9 @@ PY
         exit 0
         ;;
       delete)
+        validate_variable_delete_args "$@"
         key="${1:-}"
         shift
-        for arg in "$@"; do
-          if [[ "$arg" == "--skip-deploys" ]]; then
-            printf "error: unexpected argument '--skip-deploys' found\n" >&2
-            exit 1
-          fi
-        done
         service_id="$(service_arg "$@")"
         record "delete $service_id $key"
         python3 - "$state_dir" "$service_id" "$key" <<'PY'
@@ -178,6 +372,7 @@ PY
         exit 0
         ;;
       list)
+        validate_variable_list_args "$@"
         service_id="$(service_arg "$@")"
         payload_key="FAKE_VARIABLE_JSON_$(sanitize "$service_id")"
         python3 - "$state_dir" "$service_id" "${!payload_key:-}" <<'PY'
@@ -208,6 +403,7 @@ PY
     esac
     ;;
   up)
+    validate_up_args "$@"
     if [[ -n "${FAKE_UP_STDERR:-}" ]]; then
       printf '%s\n' "$FAKE_UP_STDERR" >&2
       exit 1
@@ -218,6 +414,7 @@ PY
     exit 0
     ;;
   logs)
+    validate_logs_args "$@"
     kind="unknown"
     while [[ $# -gt 0 ]]; do
       case "$1" in
@@ -247,6 +444,7 @@ PY
     if [[ "$subcmd" != "list" ]]; then
       exit 1
     fi
+    validate_deployment_list_args "$@"
     service_id="$(service_arg "$@")"
     emit_deployment_status "$service_id"
     exit 0
