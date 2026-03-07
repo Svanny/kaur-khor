@@ -488,6 +488,18 @@ require_secret_var() {
   fi
 }
 
+canonicalize_optional_otel_headers_secret() {
+  if [[ -n "${OTEL_EXPORTER_OTLP_HEADERS:-}" && -n "${OTEL_HEADERS:-}" && "$OTEL_EXPORTER_OTLP_HEADERS" != "$OTEL_HEADERS" ]]; then
+    echo "error: OTEL_EXPORTER_OTLP_HEADERS and OTEL_HEADERS disagree; provide only the canonical key" >&2
+    exit 1
+  fi
+
+  if [[ -z "${OTEL_EXPORTER_OTLP_HEADERS:-}" && -n "${OTEL_HEADERS:-}" ]]; then
+    OTEL_EXPORTER_OTLP_HEADERS="$OTEL_HEADERS"
+    export OTEL_EXPORTER_OTLP_HEADERS
+  fi
+}
+
 forbid_local_var() {
   local key="$1"
   if [[ -n "${!key:-}" ]]; then
@@ -496,12 +508,17 @@ forbid_local_var() {
   fi
 }
 
+canonicalize_optional_otel_headers_secret
+
 managed_exact=(
   DEPLOY_COMMIT_SHA
   DEPLOY_MIGRATION_CHECKSUM
   DEPLOY_RUN_ID
 )
 managed_secret=()
+managed_optional_secret=(
+  OTEL_EXPORTER_OTLP_HEADERS
+)
 forbidden_runtime=()
 managed_exact_common=(
   BANJI_SYSTEM
@@ -538,7 +555,7 @@ managed_exact_common=(
   OTEL_RESOURCE_ATTRIBUTES
   OTEL_TRACES_SAMPLER
   OTEL_TRACES_SAMPLER_ARG
-  OTEL_METRICS_EXPORT_INTERVAL
+  OTEL_METRIC_EXPORT_INTERVAL
 )
 managed_exact_api=(
   AUTH_ENABLED
@@ -759,6 +776,11 @@ case "$EXPECTED_APP_ROLE" in
     ;;
 esac
 
+forbidden_runtime+=(
+  OTEL_HEADERS
+  OTEL_METRICS_EXPORT_INTERVAL
+)
+
 APP_ROLE="$EXPECTED_APP_ROLE"
 BANJI_SERVICE="$EXPECTED_BANJI_SERVICE"
 BANJI_DEPLOYMENT_ID="$DEPLOY_RUN_ID"
@@ -794,11 +816,16 @@ esac
 for key in "${managed_secret[@]}"; do
   add_secret_redaction "${!key:-}"
 done
+for key in "${managed_optional_secret[@]}"; do
+  add_secret_redaction "${!key:-}"
+done
+add_secret_redaction "${OTEL_HEADERS:-}"
 
 if debug_enabled; then
   debug_auth_context
   debug_log "managed_exact_keys=$(IFS=,; printf '%s' "${managed_exact[*]}")"
   debug_log "managed_secret_keys=$(IFS=,; printf '%s' "${managed_secret[*]}")"
+  debug_log "managed_optional_secret_keys=$(IFS=,; printf '%s' "${managed_optional_secret[*]}")"
   debug_log "forbidden_runtime_keys=$(IFS=,; printf '%s' "${forbidden_runtime[*]}")"
 fi
 
@@ -828,6 +855,16 @@ done
 if [[ ${#managed_secret[@]} -gt 0 ]]; then
   for key in "${managed_secret[@]}"; do
     set_runtime_var "$key"
+  done
+fi
+
+if [[ ${#managed_optional_secret[@]} -gt 0 ]]; then
+  for key in "${managed_optional_secret[@]}"; do
+    if [[ -n "${!key:-}" ]]; then
+      set_runtime_var "$key"
+    else
+      debug_log "skip set for optional runtime secret '$key' because no value was provided; enforcing absence instead"
+    fi
   done
 fi
 
@@ -912,6 +949,13 @@ for key in "${managed_exact[@]}"; do
   fi
 done
 
+for key in "${managed_optional_secret[@]}"; do
+  if [[ -z "${!key:-}" ]] && runtime_var_visible "$key"; then
+    delete_runtime_var "$key"
+    refresh_runtime_vars_needed=1
+  fi
+done
+
 for key in "${forbidden_runtime[@]}"; do
   if runtime_var_visible "$key"; then
     delete_runtime_var "$key"
@@ -951,6 +995,14 @@ fi
 
 for key in "${managed_exact[@]}"; do
   if [[ -n "${!key}" ]]; then
+    assert_runtime_var_equals "$key" "${!key}"
+  else
+    assert_runtime_var_absent_if_visible "$key"
+  fi
+done
+
+for key in "${managed_optional_secret[@]}"; do
+  if [[ -n "${!key:-}" ]]; then
     assert_runtime_var_equals "$key" "${!key}"
   else
     assert_runtime_var_absent_if_visible "$key"

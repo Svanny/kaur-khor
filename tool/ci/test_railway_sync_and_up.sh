@@ -291,7 +291,7 @@ export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
 export AUTH_JWKS_URL="https://jwks.example.com"
 export AUTH_ISSUER="https://issuer.example.com"
 export AUTH_AUDIENCE="banji-api"
-export FAKE_VARIABLE_JSON_svc_api='{"OTEL_SERVICE_NAME":"stale-api-name","OTEL_RESOURCE_ATTRIBUTES":"service.version=old"}'
+export FAKE_VARIABLE_JSON_svc_api='{"OTEL_SERVICE_NAME":"stale-api-name","OTEL_RESOURCE_ATTRIBUTES":"service.version=old","OTEL_EXPORTER_OTLP_HEADERS":"authorization=old","OTEL_HEADERS":"authorization=legacy","OTEL_METRICS_EXPORT_INTERVAL":"9999"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-api:SUCCESS"
 
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
@@ -304,14 +304,22 @@ grep -q "stdin svc-api CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
 grep -q "stdin svc-api EDGE_ENFORCEMENT_ENABLED=true" "$LOG_FILE"
 grep -q "stdin svc-api OTEL_ENABLED=true" "$LOG_FILE"
 grep -q "stdin svc-api OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317" "$LOG_FILE"
+grep -q "stdin svc-api OTEL_METRIC_EXPORT_INTERVAL=30000" "$LOG_FILE"
 grep -q "^delete svc-api OTEL_SERVICE_NAME$" "$LOG_FILE"
 grep -q "^delete svc-api OTEL_RESOURCE_ATTRIBUTES$" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_EXPORTER_OTLP_HEADERS$" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_HEADERS$" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_METRICS_EXPORT_INTERVAL$" "$LOG_FILE"
 if grep -q "stdin svc-api OTEL_SERVICE_NAME=" "$LOG_FILE"; then
   echo "assertion failed: api should delete empty OTEL_SERVICE_NAME instead of setting an empty value" >&2
   exit 1
 fi
 if grep -q "stdin svc-api OTEL_RESOURCE_ATTRIBUTES=" "$LOG_FILE"; then
   echo "assertion failed: api should delete empty OTEL_RESOURCE_ATTRIBUTES instead of setting an empty value" >&2
+  exit 1
+fi
+if grep -q "stdin svc-api OTEL_EXPORTER_OTLP_HEADERS=" "$LOG_FILE"; then
+  echo "assertion failed: api should delete missing optional OTEL_EXPORTER_OTLP_HEADERS instead of setting an empty value" >&2
   exit 1
 fi
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-api --detach" "$LOG_FILE"
@@ -451,7 +459,8 @@ export RAILWAY_SERVICE_ID="svc-relay"
 export EXPECTED_APP_ROLE="event-relay"
 export EXPECTED_BANJI_SERVICE="event-relay"
 export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
-export FAKE_VARIABLE_JSON_svc_relay='{"EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth"}'
+export OTEL_EXPORTER_OTLP_HEADERS="authorization=Bearer relay-token"
+export FAKE_VARIABLE_JSON_svc_relay='{"EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","OTEL_HEADERS":"authorization=legacy"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_relay="baseline-relay:SUCCESS;deploy-relay:SUCCESS"
 
 bash "$SCRIPT" >/dev/null
@@ -462,8 +471,10 @@ grep -q "stdin svc-relay CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
 grep -q "stdin svc-relay EVENT_RELAY_BATCH_SIZE=100" "$LOG_FILE"
 grep -q "stdin svc-relay EVENT_LOG_RETENTION_DAYS=30" "$LOG_FILE"
 grep -q "stdin svc-relay OTEL_ENABLED=true" "$LOG_FILE"
+grep -q "stdin svc-relay OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer relay-token" "$LOG_FILE"
 grep -q "^delete svc-relay EDGE_ENFORCEMENT_ENABLED$" "$LOG_FILE"
 grep -q "^delete svc-relay EDGE_ORIGIN_AUTH_HEADER_NAME$" "$LOG_FILE"
+grep -q "^delete svc-relay OTEL_HEADERS$" "$LOG_FILE"
 if grep -q "stdin svc-relay EDGE_ENFORCEMENT_ENABLED=" "$LOG_FILE"; then
   echo "assertion failed: event-relay should not sync api-only edge config" >&2
   exit 1
@@ -472,7 +483,7 @@ if grep -q "stdin svc-relay EDGE_ORIGIN_AUTH_HEADER_NAME=" "$LOG_FILE"; then
   echo "assertion failed: event-relay should not sync api-only edge header config" >&2
   exit 1
 fi
-unset FAKE_VARIABLE_JSON_svc_relay
+unset FAKE_VARIABLE_JSON_svc_relay OTEL_EXPORTER_OTLP_HEADERS
 
 reset_logs
 
