@@ -105,6 +105,9 @@ assert_contains "$(cat "$missing_err")" "release binary not found or not executa
 
 assert_contains "$(cat "$railway_toml")" 'startCommand = "./start.sh"'
 assert_contains "$(cat "$dockerfile")" 'WORKDIR /'
+assert_contains "$(cat "$dockerfile")" 'RUN cargo chef cook --release --recipe-path recipe.json'
+assert_contains "$(cat "$dockerfile")" 'RUN cargo build --release'
+assert_contains "$(cat "$dockerfile")" 'COPY --from=builder --chown=10001:10001 /app/target/release/banji-api /banji-api'
 assert_contains "$(cat "$dockerfile")" 'COPY --from=builder --chmod=0755 /app/start.sh /start.sh'
 assert_contains "$(cat "$dockerfile")" 'CMD ["/start.sh"]'
 
