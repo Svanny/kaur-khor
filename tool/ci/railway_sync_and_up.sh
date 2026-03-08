@@ -665,6 +665,27 @@ require_secret_var() {
   fi
 }
 
+require_all_or_none_vars() {
+  local label="$1"
+  shift
+
+  local present=0
+  local missing=0
+  local key
+  for key in "$@"; do
+    if [[ -n "${!key:-}" ]]; then
+      present=1
+    else
+      missing=1
+    fi
+  done
+
+  if (( present == 1 && missing == 1 )); then
+    echo "error: $label must either all be set or all be unset for EXPECTED_APP_ROLE=$EXPECTED_APP_ROLE" >&2
+    exit 1
+  fi
+}
+
 canonicalize_optional_otel_headers_secret() {
   if [[ -n "${OTEL_EXPORTER_OTLP_HEADERS:-}" && -n "${OTEL_HEADERS:-}" && "$OTEL_EXPORTER_OTLP_HEADERS" != "$OTEL_HEADERS" ]]; then
     echo "error: OTEL_EXPORTER_OTLP_HEADERS and OTEL_HEADERS disagree; provide only the canonical key" >&2
@@ -692,6 +713,7 @@ managed_exact=(
   DEPLOY_MIGRATION_CHECKSUM
   DEPLOY_RUN_ID
 )
+managed_optional_exact=()
 managed_secret=()
 managed_optional_secret=(
   OTEL_EXPORTER_OTLP_HEADERS
@@ -851,6 +873,11 @@ case "$EXPECTED_APP_ROLE" in
     require_secret_var AUTH_JWKS_URL
     require_secret_var AUTH_ISSUER
     require_secret_var AUTH_AUDIENCE
+    require_all_or_none_vars \
+      "Rabbit management variables (RABBIT_MANAGEMENT_API_BASE_URL, RABBIT_MANAGEMENT_USERNAME, RABBIT_MANAGEMENT_PASSWORD)" \
+      RABBIT_MANAGEMENT_API_BASE_URL \
+      RABBIT_MANAGEMENT_USERNAME \
+      RABBIT_MANAGEMENT_PASSWORD
     forbid_local_var OBJECT_STORAGE_ENDPOINT
     forbid_local_var OBJECT_STORAGE_ACCESS_KEY
     forbid_local_var OBJECT_STORAGE_SECRET_KEY
@@ -860,6 +887,11 @@ case "$EXPECTED_APP_ROLE" in
       AUTH_JWKS_URL
       AUTH_ISSUER
       AUTH_AUDIENCE
+    )
+    managed_optional_exact+=(RABBIT_MANAGEMENT_API_BASE_URL)
+    managed_optional_secret+=(
+      RABBIT_MANAGEMENT_USERNAME
+      RABBIT_MANAGEMENT_PASSWORD
     )
     forbidden_runtime+=(
       OBJECT_STORAGE_ENDPOINT
@@ -880,9 +912,15 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var AUTH_ISSUER
     forbid_local_var AUTH_AUDIENCE
     forbid_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
+    forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
+    forbid_local_var RABBIT_MANAGEMENT_USERNAME
+    forbid_local_var RABBIT_MANAGEMENT_PASSWORD
     managed_secret+=(DATABASE_RUNTIME_URL)
     forbidden_runtime+=(
       "${managed_exact_api[@]}"
+      RABBIT_MANAGEMENT_API_BASE_URL
+      RABBIT_MANAGEMENT_USERNAME
+      RABBIT_MANAGEMENT_PASSWORD
       RABBIT_URL
       OBJECT_STORAGE_ENDPOINT
       OBJECT_STORAGE_ACCESS_KEY
@@ -906,9 +944,15 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var AUTH_ISSUER
     forbid_local_var AUTH_AUDIENCE
     forbid_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
+    forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
+    forbid_local_var RABBIT_MANAGEMENT_USERNAME
+    forbid_local_var RABBIT_MANAGEMENT_PASSWORD
     managed_secret+=(DATABASE_RUNTIME_URL)
     forbidden_runtime+=(
       "${managed_exact_api[@]}"
+      RABBIT_MANAGEMENT_API_BASE_URL
+      RABBIT_MANAGEMENT_USERNAME
+      RABBIT_MANAGEMENT_PASSWORD
       RABBIT_URL
       OBJECT_STORAGE_ENDPOINT
       OBJECT_STORAGE_ACCESS_KEY
@@ -932,6 +976,9 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var AUTH_ISSUER
     forbid_local_var AUTH_AUDIENCE
     forbid_local_var EDGE_ORIGIN_AUTH_HEADER_NAME
+    forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
+    forbid_local_var RABBIT_MANAGEMENT_USERNAME
+    forbid_local_var RABBIT_MANAGEMENT_PASSWORD
     managed_secret+=(
       DATABASE_RUNTIME_URL
       RABBIT_URL
@@ -941,6 +988,9 @@ case "$EXPECTED_APP_ROLE" in
     )
     forbidden_runtime+=(
       "${managed_exact_api[@]}"
+      RABBIT_MANAGEMENT_API_BASE_URL
+      RABBIT_MANAGEMENT_USERNAME
+      RABBIT_MANAGEMENT_PASSWORD
       AUTH_JWKS_URL
       AUTH_ISSUER
       AUTH_AUDIENCE
@@ -1001,6 +1051,7 @@ add_secret_redaction "${OTEL_HEADERS:-}"
 if debug_enabled; then
   debug_auth_context
   debug_log "managed_exact_keys=$(IFS=,; printf '%s' "${managed_exact[*]}")"
+  debug_log "managed_optional_exact_keys=$(IFS=,; printf '%s' "${managed_optional_exact[*]-}")"
   debug_log "managed_secret_keys=$(IFS=,; printf '%s' "${managed_secret[*]}")"
   debug_log "managed_optional_secret_keys=$(IFS=,; printf '%s' "${managed_optional_secret[*]}")"
   debug_log "forbidden_runtime_keys=$(IFS=,; printf '%s' "${forbidden_runtime[*]}")"
@@ -1081,6 +1132,21 @@ for key in "${managed_exact[@]}"; do
   fi
 done
 
+for key in "${managed_optional_exact[@]-}"; do
+  if [[ -n "${!key:-}" ]]; then
+    if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
+      upsert_runtime_vars_json="$(
+        printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
+      )"
+    fi
+  else
+    debug_log "remove absent optional runtime var '$key' if visible"
+    if runtime_var_visible "$key"; then
+      delete_runtime_var_keys+=("$key")
+    fi
+  fi
+done
+
 for key in "${managed_secret[@]}"; do
   if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
     upsert_runtime_vars_json="$(
@@ -1138,6 +1204,14 @@ done
 
 for key in "${managed_secret[@]}"; do
   assert_runtime_var_equals "$key" "${!key}"
+done
+
+for key in "${managed_optional_exact[@]-}"; do
+  if [[ -n "${!key:-}" ]]; then
+    assert_runtime_var_equals "$key" "${!key}"
+  else
+    assert_runtime_var_absent_if_visible "$key"
+  fi
 done
 
 for key in "${managed_optional_secret[@]}"; do

@@ -665,6 +665,9 @@ export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
 export AUTH_JWKS_URL="https://jwks.example.com"
 export AUTH_ISSUER="https://issuer.example.com"
 export AUTH_AUDIENCE="banji-api"
+export RABBIT_MANAGEMENT_API_BASE_URL="https://rabbit.example.com"
+export RABBIT_MANAGEMENT_USERNAME="banji"
+export RABBIT_MANAGEMENT_PASSWORD="secret"
 export FAKE_VARIABLE_JSON_svc_api='{"OTEL_SERVICE_NAME":"stale-api-name","OTEL_RESOURCE_ATTRIBUTES":"service.version=old","OTEL_EXPORTER_OTLP_HEADERS":"authorization=old","OTEL_HEADERS":"authorization=legacy","OTEL_METRICS_EXPORT_INTERVAL":"9999"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-api:SUCCESS"
 
@@ -687,6 +690,9 @@ jq -e '
   and .DATABASE_RUNTIME_ENDPOINT_KIND == "pgbouncer"
   and .CACHE_SCHEMA_VERSION == "v1"
   and .EDGE_ENFORCEMENT_ENABLED == "true"
+  and .RABBIT_MANAGEMENT_API_BASE_URL == "https://rabbit.example.com"
+  and .RABBIT_MANAGEMENT_USERNAME == "banji"
+  and .RABBIT_MANAGEMENT_PASSWORD == "secret"
   and .OTEL_ENABLED == "true"
   and .OTEL_EXPORTER_OTLP_ENDPOINT == "http://otel-collector:4317"
   and .OTEL_METRIC_EXPORT_INTERVAL == "30000"
@@ -730,7 +736,7 @@ export RAILWAY_CI_DEBUG="1"
 api_state_tmp="$TMP_DIR/svc-api.state.tmp.json"
 jq '. + {"UNMANAGED_SECRET":"raw-unmanaged-secret"}' "$STATE_DIR/svc-api.json" >"$api_state_tmp"
 mv "$api_state_tmp" "$STATE_DIR/svc-api.json"
-export FAKE_UP_OUTPUT="verbose deploy secret=edge-secret"
+export FAKE_UP_OUTPUT="verbose deploy edge=edge-secret"
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-debug:BUILDING;deploy-debug:SUCCESS"
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
@@ -738,7 +744,7 @@ grep -q "\\[railway-debug\\] auth source=api" "$DEBUG_LOG"
 grep -Fxq "[railway-debug] begin: link project/environment/service" "$DEBUG_LOG"
 grep -q "\\[railway-debug\\] begin: poll latest deployment to terminal state" "$DEBUG_LOG"
 grep -q "^up $ROOT_DIR/apps/api --path-as-root --service svc-api --detach --verbose$" "$LOG_FILE"
-grep -q "verbose deploy secret=\\*\\*\\*" "$DEBUG_LOG"
+grep -q "verbose deploy edge=\\*\\*\\*" "$DEBUG_LOG"
 grep -q "^sleep 5$" "$LOG_FILE"
 grep -q "pass: terminal deployment id=deploy-debug status=SUCCESS" "$DEBUG_LOG"
 if grep -q "^logs " "$LOG_FILE"; then
@@ -840,7 +846,36 @@ fi
 
 reset_logs
 
+unset RABBIT_MANAGEMENT_PASSWORD
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: partial Rabbit management auth should fail for api" >&2
+  exit 1
+fi
+export RABBIT_MANAGEMENT_PASSWORD="secret"
+
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: partial api Rabbit management config should fail before Railway CLI calls" >&2
+  exit 1
+fi
+
+reset_logs
+
+unset RABBIT_MANAGEMENT_API_BASE_URL
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: Rabbit management credentials without base URL should fail for api" >&2
+  exit 1
+fi
+export RABBIT_MANAGEMENT_API_BASE_URL="https://rabbit.example.com"
+
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: api Rabbit management credential-only config should fail before Railway CLI calls" >&2
+  exit 1
+fi
+
+reset_logs
+
 unset EDGE_ORIGIN_AUTH_SECRET AUTH_JWKS_URL AUTH_ISSUER AUTH_AUDIENCE
+unset RABBIT_MANAGEMENT_API_BASE_URL RABBIT_MANAGEMENT_USERNAME RABBIT_MANAGEMENT_PASSWORD
 export RAILWAY_SERVICE_ID="svc-relay"
 export EXPECTED_APP_ROLE="event-relay"
 export EXPECTED_BANJI_SERVICE="event-relay"
@@ -901,7 +936,7 @@ export RABBIT_URL="amqps://rabbit.example.com/%2f"
 export OBJECT_STORAGE_ACCESS_KEY="access"
 export OBJECT_STORAGE_SECRET_KEY="secret"
 export ALGORITHM_ROLLOUT_HASH_SALT="salt"
-export FAKE_VARIABLE_JSON_svc_worker='{"JOB_HANDLER_MAX_RUNTIME_SECONDS":"600","JOB_RESULT_KAFKA_TOPIC_PREFIX":"old-prefix"}'
+export FAKE_VARIABLE_JSON_svc_worker='{"JOB_HANDLER_MAX_RUNTIME_SECONDS":"600","JOB_RESULT_KAFKA_TOPIC_PREFIX":"old-prefix","RABBIT_MANAGEMENT_API_BASE_URL":"https://rabbit.example.com","RABBIT_MANAGEMENT_USERNAME":"banji","RABBIT_MANAGEMENT_PASSWORD":"secret"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_worker="baseline-worker:SUCCESS;deploy-worker:SUCCESS"
 
 bash "$SCRIPT" >/dev/null
@@ -909,6 +944,9 @@ bash "$SCRIPT" >/dev/null
 grep -q "^graphql upsert svc-worker replace=false skipDeploys=true" "$LOG_FILE"
 grep -q "^delete svc-worker JOB_HANDLER_MAX_RUNTIME_SECONDS$" "$LOG_FILE"
 grep -q "^delete svc-worker JOB_RESULT_KAFKA_TOPIC_PREFIX$" "$LOG_FILE"
+grep -q "^delete svc-worker RABBIT_MANAGEMENT_API_BASE_URL$" "$LOG_FILE"
+grep -q "^delete svc-worker RABBIT_MANAGEMENT_USERNAME$" "$LOG_FILE"
+grep -q "^delete svc-worker RABBIT_MANAGEMENT_PASSWORD$" "$LOG_FILE"
 jq -e '
   .BANJI_DEPLOYMENT_ID == "9001-2"
   and .CACHE_SCHEMA_VERSION == "v1"
@@ -920,6 +958,9 @@ jq -e '
   and .ALGORITHM_ROLLOUT_HASH_SALT == "salt"
   and (.JOB_HANDLER_MAX_RUNTIME_SECONDS | not)
   and (.JOB_RESULT_KAFKA_TOPIC_PREFIX | not)
+  and (.RABBIT_MANAGEMENT_API_BASE_URL | not)
+  and (.RABBIT_MANAGEMENT_USERNAME | not)
+  and (.RABBIT_MANAGEMENT_PASSWORD | not)
 ' "$STATE_DIR/svc-worker.json" >/dev/null
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-worker --detach" "$LOG_FILE"
 
@@ -969,6 +1010,9 @@ export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
 export AUTH_JWKS_URL="https://jwks.example.com"
 export AUTH_ISSUER="https://issuer.example.com"
 export AUTH_AUDIENCE="banji-api"
+export RABBIT_MANAGEMENT_API_BASE_URL="https://rabbit.example.com"
+export RABBIT_MANAGEMENT_USERNAME="banji"
+export RABBIT_MANAGEMENT_PASSWORD="secret"
 rm -f "$STATE_DIR/svc-api.json"
 export FAKE_VARIABLE_JSON_svc_api='{"CACHE_SCHEMA_VERSION":"stale"}'
 export FAKE_GRAPHQL_UPSERT_STDERR="You are being ratelimited. Please try again later token=token"
