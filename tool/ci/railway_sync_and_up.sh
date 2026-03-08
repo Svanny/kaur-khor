@@ -1132,20 +1132,22 @@ for key in "${managed_exact[@]}"; do
   fi
 done
 
-for key in "${managed_optional_exact[@]-}"; do
-  if [[ -n "${!key:-}" ]]; then
-    if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
-      upsert_runtime_vars_json="$(
-        printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
-      )"
+if [[ ${#managed_optional_exact[@]} -gt 0 ]]; then
+  for key in "${managed_optional_exact[@]}"; do
+    if [[ -n "${!key:-}" ]]; then
+      if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
+        upsert_runtime_vars_json="$(
+          printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
+        )"
+      fi
+    else
+      debug_log "remove absent optional runtime var '$key' if visible"
+      if runtime_var_visible "$key"; then
+        delete_runtime_var_keys+=("$key")
+      fi
     fi
-  else
-    debug_log "remove absent optional runtime var '$key' if visible"
-    if runtime_var_visible "$key"; then
-      delete_runtime_var_keys+=("$key")
-    fi
-  fi
-done
+  done
+fi
 
 for key in "${managed_secret[@]}"; do
   if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
@@ -1206,13 +1208,15 @@ for key in "${managed_secret[@]}"; do
   assert_runtime_var_equals "$key" "${!key}"
 done
 
-for key in "${managed_optional_exact[@]-}"; do
-  if [[ -n "${!key:-}" ]]; then
-    assert_runtime_var_equals "$key" "${!key}"
-  else
-    assert_runtime_var_absent_if_visible "$key"
-  fi
-done
+if [[ ${#managed_optional_exact[@]} -gt 0 ]]; then
+  for key in "${managed_optional_exact[@]}"; do
+    if [[ -n "${!key:-}" ]]; then
+      assert_runtime_var_equals "$key" "${!key}"
+    else
+      assert_runtime_var_absent_if_visible "$key"
+    fi
+  done
+fi
 
 for key in "${managed_optional_secret[@]}"; do
   if [[ -n "${!key:-}" ]]; then

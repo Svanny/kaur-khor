@@ -645,6 +645,11 @@ reset_logs() {
   : >"$DEBUG_LOG"
 }
 
+if grep -Eq 'for key in "\$\{managed_optional_exact\[@\]-\}"' "$SCRIPT"; then
+  echo "assertion failed: managed_optional_exact loops must guard empty arrays before indirect expansion" >&2
+  exit 1
+fi
+
 export PATH="$TMP_DIR:$PATH"
 export MOCK_RAILWAY_LOG="$LOG_FILE"
 export MOCK_RAILWAY_STATE_DIR="$STATE_DIR"
@@ -884,7 +889,7 @@ export OTEL_EXPORTER_OTLP_HEADERS="authorization=Bearer relay-token"
 export FAKE_VARIABLE_JSON_svc_relay='{"EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","OTEL_HEADERS":"authorization=legacy"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_relay="baseline-relay:SUCCESS;deploy-relay:SUCCESS"
 
-bash "$SCRIPT" >/dev/null
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "^graphql upsert svc-relay replace=false skipDeploys=true" "$LOG_FILE"
 grep -q "^delete svc-relay EDGE_ENFORCEMENT_ENABLED$" "$LOG_FILE"
@@ -901,6 +906,10 @@ jq -e '
   and (.EDGE_ORIGIN_AUTH_HEADER_NAME | not)
   and (.OTEL_HEADERS | not)
 ' "$STATE_DIR/svc-relay.json" >/dev/null
+if [[ -s "$DEBUG_LOG" ]]; then
+  echo "assertion failed: event-relay sync should not emit stderr on success" >&2
+  exit 1
+fi
 unset FAKE_VARIABLE_JSON_svc_relay OTEL_EXPORTER_OTLP_HEADERS
 
 reset_logs
@@ -912,7 +921,7 @@ export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
 export FAKE_VARIABLE_JSON_svc_projection='{"EVENT_CONSUMER_REPLAY_TO_ID":"42"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_projection="baseline-projection:SUCCESS;deploy-projection:SUCCESS"
 
-bash "$SCRIPT" >/dev/null
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "^graphql upsert svc-projection replace=false skipDeploys=true" "$LOG_FILE"
 grep -q "^delete svc-projection EVENT_CONSUMER_REPLAY_TO_ID$" "$LOG_FILE"
@@ -924,6 +933,10 @@ jq -e '
   and .OTEL_ENABLED == "true"
   and (.EVENT_CONSUMER_REPLAY_TO_ID | not)
 ' "$STATE_DIR/svc-projection.json" >/dev/null
+if [[ -s "$DEBUG_LOG" ]]; then
+  echo "assertion failed: projection-consumer sync should not emit stderr on success" >&2
+  exit 1
+fi
 unset FAKE_VARIABLE_JSON_svc_projection
 
 reset_logs
@@ -939,7 +952,7 @@ export ALGORITHM_ROLLOUT_HASH_SALT="salt"
 export FAKE_VARIABLE_JSON_svc_worker='{"JOB_HANDLER_MAX_RUNTIME_SECONDS":"600","JOB_RESULT_KAFKA_TOPIC_PREFIX":"old-prefix","RABBIT_MANAGEMENT_API_BASE_URL":"https://rabbit.example.com","RABBIT_MANAGEMENT_USERNAME":"banji","RABBIT_MANAGEMENT_PASSWORD":"secret"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_worker="baseline-worker:SUCCESS;deploy-worker:SUCCESS"
 
-bash "$SCRIPT" >/dev/null
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "^graphql upsert svc-worker replace=false skipDeploys=true" "$LOG_FILE"
 grep -q "^delete svc-worker JOB_HANDLER_MAX_RUNTIME_SECONDS$" "$LOG_FILE"
@@ -963,6 +976,10 @@ jq -e '
   and (.RABBIT_MANAGEMENT_PASSWORD | not)
 ' "$STATE_DIR/svc-worker.json" >/dev/null
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-worker --detach" "$LOG_FILE"
+if [[ -s "$DEBUG_LOG" ]]; then
+  echo "assertion failed: worker sync should not emit stderr on success" >&2
+  exit 1
+fi
 
 reset_logs
 
