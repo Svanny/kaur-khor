@@ -456,6 +456,167 @@ esac
 EOF
 chmod +x "$TMP_DIR/railway"
 
+cat >"$TMP_DIR/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${MOCK_RAILWAY_LOG:?}"
+state_dir="${MOCK_RAILWAY_STATE_DIR:?}"
+url=""
+payload=""
+authorization=""
+
+record() {
+  printf '%s\n' "$*" >>"$log_file"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -s|-S|-f|-fsS|-fSs|-sfS|-sSf)
+      shift
+      ;;
+    -X)
+      shift 2
+      ;;
+    -H)
+      if [[ $# -lt 2 ]]; then
+        echo "curl mock: -H requires a value" >&2
+        exit 1
+      fi
+      if [[ "$2" == Authorization:* ]]; then
+        authorization="${2#Authorization: }"
+      fi
+      shift 2
+      ;;
+    --data|--data-binary)
+      if [[ $# -lt 2 ]]; then
+        echo "curl mock: $1 requires a value" >&2
+        exit 1
+      fi
+      payload="$2"
+      shift 2
+      ;;
+    http*)
+      url="$1"
+      shift
+      ;;
+    *)
+      echo "curl mock: unexpected argument '$1'" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$authorization" != "Bearer ${RAILWAY_API_TOKEN:-}" ]]; then
+  echo "curl mock: missing or invalid Authorization header" >&2
+  exit 1
+fi
+
+if [[ -z "$payload" ]]; then
+  echo "curl mock: missing payload" >&2
+  exit 1
+fi
+
+query="$(printf '%s' "$payload" | jq -r '.query // ""')"
+variables_json="$(printf '%s' "$payload" | jq -c '.variables // {}')"
+
+if [[ -n "${FAKE_GRAPHQL_INVALID_JSON:-}" ]]; then
+  printf 'not-json\n'
+  exit 0
+fi
+
+if [[ "$query" == *"query Environments"* ]]; then
+  record "graphql environments"
+  if [[ -n "${FAKE_GRAPHQL_ENVIRONMENTS_STDERR:-}" ]]; then
+    printf '%s\n' "$FAKE_GRAPHQL_ENVIRONMENTS_STDERR" >&2
+    exit 22
+  fi
+  if [[ -n "${FAKE_GRAPHQL_ENVIRONMENTS_ERRORS:-}" ]]; then
+    printf '{"errors":[{"message":"%s"}]}\n' "$FAKE_GRAPHQL_ENVIRONMENTS_ERRORS"
+    exit 0
+  fi
+  if [[ -n "${FAKE_ENVIRONMENTS_JSON:-}" ]]; then
+    environments_json="$FAKE_ENVIRONMENTS_JSON"
+  else
+    environments_json='[{"id":"env-staging","name":"staging"},{"id":"env-prod","name":"prod"}]'
+  fi
+  jq -cn --arg environments "$environments_json" '{data:{environments:{edges:(($environments | fromjson) | map({node:.}))}}}'
+  exit 0
+fi
+
+if [[ "$query" == *"query Variables"* ]]; then
+  service_id="$(printf '%s' "$variables_json" | jq -r '.serviceId // ""')"
+  if [[ -z "$service_id" ]]; then
+    echo "curl mock: variables query missing serviceId" >&2
+    exit 1
+  fi
+  record "graphql variables $service_id"
+  if [[ -n "${FAKE_GRAPHQL_VARIABLES_STDERR:-}" ]]; then
+    printf '%s\n' "$FAKE_GRAPHQL_VARIABLES_STDERR" >&2
+    exit 22
+  fi
+  if [[ -n "${FAKE_GRAPHQL_VARIABLES_ERRORS:-}" ]]; then
+    printf '{"errors":[{"message":"%s"}]}\n' "$FAKE_GRAPHQL_VARIABLES_ERRORS"
+    exit 0
+  fi
+  payload_key="FAKE_VARIABLE_JSON_$(printf '%s' "$service_id" | tr -c '[:alnum:]' '_')"
+  python3 - "$state_dir" "$service_id" "${!payload_key:-}" <<'PY'
+import json
+import pathlib
+import sys
+
+state_dir = pathlib.Path(sys.argv[1])
+service_id = sys.argv[2]
+extra_raw = sys.argv[3]
+path = state_dir / f"{service_id}.json"
+payload = {}
+if path.exists():
+    payload.update(json.loads(path.read_text()))
+elif extra_raw:
+    payload.update(json.loads(extra_raw))
+print(json.dumps({"data": {"unrenderedVariables": payload}}))
+PY
+  exit 0
+fi
+
+if [[ "$query" == *"mutation VariableCollectionUpsert"* ]]; then
+  service_id="$(printf '%s' "$variables_json" | jq -r '.serviceId // ""')"
+  if [[ -z "$service_id" ]]; then
+    echo "curl mock: upsert mutation missing serviceId" >&2
+    exit 1
+  fi
+  replace="$(printf '%s' "$variables_json" | jq -r '.replace // false')"
+  skip_deploys="$(printf '%s' "$variables_json" | jq -r '.skipDeploys // false')"
+  keys="$(printf '%s' "$variables_json" | jq -r '(.variables | keys | join(","))')"
+  record "graphql upsert $service_id replace=$replace skipDeploys=$skip_deploys keys=$keys"
+  if [[ -n "${FAKE_GRAPHQL_UPSERT_STDERR:-}" ]]; then
+    printf '%s\n' "$FAKE_GRAPHQL_UPSERT_STDERR" >&2
+    exit 22
+  fi
+  if [[ -n "${FAKE_GRAPHQL_UPSERT_ERRORS:-}" ]]; then
+    printf '{"errors":[{"message":"%s"}]}\n' "$FAKE_GRAPHQL_UPSERT_ERRORS"
+    exit 0
+  fi
+  python3 - "$state_dir" "$service_id" "$variables_json" <<'PY'
+import json
+import pathlib
+import sys
+
+state_dir = pathlib.Path(sys.argv[1])
+service_id = sys.argv[2]
+variables = json.loads(sys.argv[3])["variables"]
+path = state_dir / f"{service_id}.json"
+path.write_text(json.dumps(variables))
+PY
+  printf '{"data":{"variableCollectionUpsert":true}}\n'
+  exit 0
+fi
+
+echo "curl mock: unsupported GraphQL operation" >&2
+exit 1
+EOF
+chmod +x "$TMP_DIR/curl"
+
 cat >"$TMP_DIR/sleep" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -500,37 +661,27 @@ export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-api:SUC
 
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
-grep -q "variable set DEPLOY_COMMIT_SHA --stdin --skip-deploys --service svc-api" "$LOG_FILE"
-grep -q "variable set EDGE_ORIGIN_AUTH_SECRET --stdin --skip-deploys --service svc-api" "$LOG_FILE"
-grep -q "stdin svc-api BANJI_DEPLOYMENT_ID=9001-2" "$LOG_FILE"
-grep -q "stdin svc-api DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer" "$LOG_FILE"
-grep -q "stdin svc-api CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
-grep -q "stdin svc-api EDGE_ENFORCEMENT_ENABLED=true" "$LOG_FILE"
-grep -q "stdin svc-api OTEL_ENABLED=true" "$LOG_FILE"
-grep -q "stdin svc-api OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317" "$LOG_FILE"
-grep -q "stdin svc-api OTEL_METRIC_EXPORT_INTERVAL=30000" "$LOG_FILE"
-grep -q "^delete svc-api OTEL_SERVICE_NAME$" "$LOG_FILE"
-grep -q "^delete svc-api OTEL_RESOURCE_ATTRIBUTES$" "$LOG_FILE"
-grep -q "^delete svc-api OTEL_EXPORTER_OTLP_HEADERS$" "$LOG_FILE"
-grep -q "^delete svc-api OTEL_HEADERS$" "$LOG_FILE"
-grep -q "^delete svc-api OTEL_METRICS_EXPORT_INTERVAL$" "$LOG_FILE"
-if grep -q "stdin svc-api OTEL_SERVICE_NAME=" "$LOG_FILE"; then
-  echo "assertion failed: api should delete empty OTEL_SERVICE_NAME instead of setting an empty value" >&2
-  exit 1
-fi
-if grep -q "stdin svc-api OTEL_RESOURCE_ATTRIBUTES=" "$LOG_FILE"; then
-  echo "assertion failed: api should delete empty OTEL_RESOURCE_ATTRIBUTES instead of setting an empty value" >&2
-  exit 1
-fi
-if grep -q "stdin svc-api OTEL_EXPORTER_OTLP_HEADERS=" "$LOG_FILE"; then
-  echo "assertion failed: api should delete missing optional OTEL_EXPORTER_OTLP_HEADERS instead of setting an empty value" >&2
-  exit 1
-fi
+grep -q "^graphql environments$" "$LOG_FILE"
+grep -q "^graphql variables svc-api$" "$LOG_FILE"
+grep -q "^graphql upsert svc-api replace=true skipDeploys=true" "$LOG_FILE"
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-api --detach" "$LOG_FILE"
 grep -q "deployment list --json --limit 1 --service svc-api" "$LOG_FILE"
-grep -q "variable list --json --service svc-api" "$LOG_FILE"
 grep -q "^link --project project-id --environment staging --service svc-api$" "$LOG_FILE"
 grep -q "auth api" "$LOG_FILE"
+jq -e '
+  .BANJI_DEPLOYMENT_ID == "9001-2"
+  and .DATABASE_RUNTIME_ENDPOINT_KIND == "pgbouncer"
+  and .CACHE_SCHEMA_VERSION == "v1"
+  and .EDGE_ENFORCEMENT_ENABLED == "true"
+  and .OTEL_ENABLED == "true"
+  and .OTEL_EXPORTER_OTLP_ENDPOINT == "http://otel-collector:4317"
+  and .OTEL_METRIC_EXPORT_INTERVAL == "30000"
+  and (.OTEL_SERVICE_NAME | not)
+  and (.OTEL_RESOURCE_ATTRIBUTES | not)
+  and (.OTEL_EXPORTER_OTLP_HEADERS | not)
+  and (.OTEL_HEADERS | not)
+  and (.OTEL_METRICS_EXPORT_INTERVAL | not)
+' "$STATE_DIR/svc-api.json" >/dev/null
 if grep -q "\\[railway-debug\\]" "$DEBUG_LOG"; then
   echo "assertion failed: debug logs should not be printed when RAILWAY_CI_DEBUG=0" >&2
   exit 1
@@ -543,6 +694,10 @@ fi
 
 if grep -q "variables --set" "$LOG_FILE"; then
   echo "assertion failed: sync script must use railway variable set" >&2
+  exit 1
+fi
+if grep -q "^variable " "$LOG_FILE"; then
+  echo "assertion failed: variable sync should use GraphQL batching instead of Railway variable CLI calls" >&2
   exit 1
 fi
 
@@ -558,7 +713,9 @@ fi
 reset_logs
 
 export RAILWAY_CI_DEBUG="1"
-export FAKE_VARIABLE_JSON_svc_api='{"UNMANAGED_SECRET":"raw-unmanaged-secret"}'
+api_state_tmp="$TMP_DIR/svc-api.state.tmp.json"
+jq '. + {"UNMANAGED_SECRET":"raw-unmanaged-secret"}' "$STATE_DIR/svc-api.json" >"$api_state_tmp"
+mv "$api_state_tmp" "$STATE_DIR/svc-api.json"
 export FAKE_UP_OUTPUT="verbose deploy secret=edge-secret"
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-debug:BUILDING;deploy-debug:SUCCESS"
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
@@ -578,9 +735,20 @@ if grep -q "raw-unmanaged-secret" "$DEBUG_LOG"; then
   echo "assertion failed: debug output leaked unmanaged runtime variable value" >&2
   exit 1
 fi
+jq -e '.UNMANAGED_SECRET == "raw-unmanaged-secret"' "$STATE_DIR/svc-api.json" >/dev/null
 
 export RAILWAY_CI_DEBUG="0"
-unset FAKE_VARIABLE_JSON_svc_api FAKE_UP_OUTPUT FAKE_DEPLOYMENT_SEQUENCE_svc_api
+unset FAKE_UP_OUTPUT FAKE_DEPLOYMENT_SEQUENCE_svc_api
+
+reset_logs
+
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-noop:SUCCESS"
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
+if grep -q "^graphql upsert svc-api " "$LOG_FILE"; then
+  echo "assertion failed: no-op sync should not issue a batch upsert mutation" >&2
+  exit 1
+fi
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_api
 
 reset_logs
 
@@ -669,24 +837,18 @@ export FAKE_DEPLOYMENT_SEQUENCE_svc_relay="baseline-relay:SUCCESS;deploy-relay:S
 
 bash "$SCRIPT" >/dev/null
 
-grep -q "variable set DATABASE_RUNTIME_URL --stdin --skip-deploys --service svc-relay" "$LOG_FILE"
-grep -q "stdin svc-relay BANJI_DEPLOYMENT_ID=9001-2" "$LOG_FILE"
-grep -q "stdin svc-relay CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
-grep -q "stdin svc-relay EVENT_RELAY_BATCH_SIZE=100" "$LOG_FILE"
-grep -q "stdin svc-relay EVENT_LOG_RETENTION_DAYS=30" "$LOG_FILE"
-grep -q "stdin svc-relay OTEL_ENABLED=true" "$LOG_FILE"
-grep -q "stdin svc-relay OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer relay-token" "$LOG_FILE"
-grep -q "^delete svc-relay EDGE_ENFORCEMENT_ENABLED$" "$LOG_FILE"
-grep -q "^delete svc-relay EDGE_ORIGIN_AUTH_HEADER_NAME$" "$LOG_FILE"
-grep -q "^delete svc-relay OTEL_HEADERS$" "$LOG_FILE"
-if grep -q "stdin svc-relay EDGE_ENFORCEMENT_ENABLED=" "$LOG_FILE"; then
-  echo "assertion failed: event-relay should not sync api-only edge config" >&2
-  exit 1
-fi
-if grep -q "stdin svc-relay EDGE_ORIGIN_AUTH_HEADER_NAME=" "$LOG_FILE"; then
-  echo "assertion failed: event-relay should not sync api-only edge header config" >&2
-  exit 1
-fi
+grep -q "^graphql upsert svc-relay replace=true skipDeploys=true" "$LOG_FILE"
+jq -e '
+  .BANJI_DEPLOYMENT_ID == "9001-2"
+  and .CACHE_SCHEMA_VERSION == "v1"
+  and .EVENT_RELAY_BATCH_SIZE == "100"
+  and .EVENT_LOG_RETENTION_DAYS == "30"
+  and .OTEL_ENABLED == "true"
+  and .OTEL_EXPORTER_OTLP_HEADERS == "authorization=Bearer relay-token"
+  and (.EDGE_ENFORCEMENT_ENABLED | not)
+  and (.EDGE_ORIGIN_AUTH_HEADER_NAME | not)
+  and (.OTEL_HEADERS | not)
+' "$STATE_DIR/svc-relay.json" >/dev/null
 unset FAKE_VARIABLE_JSON_svc_relay OTEL_EXPORTER_OTLP_HEADERS
 
 reset_logs
@@ -700,16 +862,15 @@ export FAKE_DEPLOYMENT_SEQUENCE_svc_projection="baseline-projection:SUCCESS;depl
 
 bash "$SCRIPT" >/dev/null
 
-grep -q "stdin svc-projection BANJI_DEPLOYMENT_ID=9001-2" "$LOG_FILE"
-grep -q "stdin svc-projection CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
-grep -q "stdin svc-projection EVENT_CONSUMER_SERVICE_NAME=projection-consumer" "$LOG_FILE"
-grep -q "stdin svc-projection EVENT_CONSUMER_STREAM_NAME=banji-core.staging.inventory-updated" "$LOG_FILE"
-grep -q "stdin svc-projection OTEL_ENABLED=true" "$LOG_FILE"
-grep -q "^delete svc-projection EVENT_CONSUMER_REPLAY_TO_ID$" "$LOG_FILE"
-if grep -q "stdin svc-projection EVENT_CONSUMER_REPLAY_TO_ID=" "$LOG_FILE"; then
-  echo "assertion failed: projection-consumer should delete empty EVENT_CONSUMER_REPLAY_TO_ID instead of setting an empty value" >&2
-  exit 1
-fi
+grep -q "^graphql upsert svc-projection replace=true skipDeploys=true" "$LOG_FILE"
+jq -e '
+  .BANJI_DEPLOYMENT_ID == "9001-2"
+  and .CACHE_SCHEMA_VERSION == "v1"
+  and .EVENT_CONSUMER_SERVICE_NAME == "projection-consumer"
+  and .EVENT_CONSUMER_STREAM_NAME == "banji-core.staging.inventory-updated"
+  and .OTEL_ENABLED == "true"
+  and (.EVENT_CONSUMER_REPLAY_TO_ID | not)
+' "$STATE_DIR/svc-projection.json" >/dev/null
 unset FAKE_VARIABLE_JSON_svc_projection
 
 reset_logs
@@ -727,21 +888,19 @@ export FAKE_DEPLOYMENT_SEQUENCE_svc_worker="baseline-worker:SUCCESS;deploy-worke
 
 bash "$SCRIPT" >/dev/null
 
-grep -q "variable set DATABASE_RUNTIME_URL --stdin --skip-deploys --service svc-worker" "$LOG_FILE"
-grep -q "stdin svc-worker BANJI_DEPLOYMENT_ID=9001-2" "$LOG_FILE"
-grep -q "stdin svc-worker CACHE_SCHEMA_VERSION=v1" "$LOG_FILE"
-grep -q "stdin svc-worker OBJECT_STORAGE_ENDPOINT=https://storage.staging.example.com" "$LOG_FILE"
-grep -q "stdin svc-worker OTEL_ENABLED=true" "$LOG_FILE"
-grep -q "^delete svc-worker JOB_HANDLER_MAX_RUNTIME_SECONDS$" "$LOG_FILE"
-grep -q "^delete svc-worker JOB_RESULT_KAFKA_TOPIC_PREFIX$" "$LOG_FILE"
-if grep -q "stdin svc-worker JOB_HANDLER_MAX_RUNTIME_SECONDS=" "$LOG_FILE"; then
-  echo "assertion failed: worker should delete empty JOB_HANDLER_MAX_RUNTIME_SECONDS instead of setting an empty value" >&2
-  exit 1
-fi
-if grep -q "stdin svc-worker JOB_RESULT_KAFKA_TOPIC_PREFIX=" "$LOG_FILE"; then
-  echo "assertion failed: worker should delete empty JOB_RESULT_KAFKA_TOPIC_PREFIX instead of setting an empty value" >&2
-  exit 1
-fi
+grep -q "^graphql upsert svc-worker replace=true skipDeploys=true" "$LOG_FILE"
+jq -e '
+  .BANJI_DEPLOYMENT_ID == "9001-2"
+  and .CACHE_SCHEMA_VERSION == "v1"
+  and .OBJECT_STORAGE_ENDPOINT == "https://storage.staging.example.com"
+  and .OTEL_ENABLED == "true"
+  and .RABBIT_URL == "amqps://rabbit.example.com/%2f"
+  and .OBJECT_STORAGE_ACCESS_KEY == "access"
+  and .OBJECT_STORAGE_SECRET_KEY == "secret"
+  and .ALGORITHM_ROLLOUT_HASH_SALT == "salt"
+  and (.JOB_HANDLER_MAX_RUNTIME_SECONDS | not)
+  and (.JOB_RESULT_KAFKA_TOPIC_PREFIX | not)
+' "$STATE_DIR/svc-worker.json" >/dev/null
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-worker --detach" "$LOG_FILE"
 
 reset_logs
@@ -779,6 +938,61 @@ if [[ -s "$LOG_FILE" ]]; then
   echo "assertion failed: missing runtime config should fail before Railway CLI calls" >&2
   exit 1
 fi
+
+reset_logs
+
+export EXPECTED_APP_ROLE="api"
+export EXPECTED_BANJI_SERVICE="api"
+export RAILWAY_SERVICE_ID="svc-api"
+export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
+export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+export AUTH_JWKS_URL="https://jwks.example.com"
+export AUTH_ISSUER="https://issuer.example.com"
+export AUTH_AUDIENCE="banji-api"
+rm -f "$STATE_DIR/svc-api.json"
+export FAKE_VARIABLE_JSON_svc_api='{"CACHE_SCHEMA_VERSION":"stale"}'
+export FAKE_GRAPHQL_UPSERT_STDERR="You are being ratelimited. Please try again later token=token"
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: rate-limited GraphQL upsert should fail sync + up" >&2
+  exit 1
+fi
+if [[ ! -s "$DEBUG_LOG" ]]; then
+  echo "assertion failed: rate-limited GraphQL upsert should emit failure output" >&2
+  exit 1
+fi
+if grep -q "token=token" "$DEBUG_LOG"; then
+  echo "assertion failed: GraphQL upsert failure leaked auth token" >&2
+  exit 1
+fi
+unset FAKE_GRAPHQL_UPSERT_STDERR FAKE_VARIABLE_JSON_svc_api
+
+reset_logs
+
+rm -f "$STATE_DIR/svc-api.json"
+export FAKE_VARIABLE_JSON_svc_api='{"CACHE_SCHEMA_VERSION":"stale"}'
+export FAKE_GRAPHQL_UPSERT_ERRORS="mutation rejected"
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: GraphQL errors should fail sync + up" >&2
+  exit 1
+fi
+if [[ ! -s "$DEBUG_LOG" ]]; then
+  echo "assertion failed: GraphQL error response should emit failure output" >&2
+  exit 1
+fi
+unset FAKE_GRAPHQL_UPSERT_ERRORS FAKE_VARIABLE_JSON_svc_api
+
+reset_logs
+
+export FAKE_GRAPHQL_INVALID_JSON="1"
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: invalid GraphQL json should fail sync + up" >&2
+  exit 1
+fi
+if [[ ! -s "$DEBUG_LOG" ]]; then
+  echo "assertion failed: invalid GraphQL json should emit failure output" >&2
+  exit 1
+fi
+unset FAKE_GRAPHQL_INVALID_JSON
 
 reset_logs
 

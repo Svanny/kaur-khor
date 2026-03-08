@@ -8,6 +8,7 @@ DEBUG_PREFIX="[railway-debug]"
 DEBUG_RAILWAY_LOG_TAIL_LINES=120
 DEPLOY_STATUS_POLL_INTERVAL_SECONDS=5
 DEPLOY_STATUS_POLL_MAX_ATTEMPTS=60
+RAILWAY_GRAPHQL_ENDPOINT="${RAILWAY_GRAPHQL_ENDPOINT:-https://backboard.railway.com/graphql/v2}"
 RAILWAY_LAST_OUTPUT=""
 SECRET_REDACTIONS=()
 CONFIG_KEYS=()
@@ -102,6 +103,172 @@ debug_json_summary() {
   fi
 
   debug_log "$label: $summary"
+}
+
+normalize_runtime_vars_json() {
+  local payload="$1"
+  printf '%s' "$payload" | jq -cS '
+    if type == "array" then
+      reduce .[] as $item (
+        {};
+        if ($item | type) == "object" then
+          .[($item.name // $item.key // "")] = ($item.value // "")
+        else
+          .
+        end
+      )
+    elif type == "object" and has("variables") then
+      reduce .variables[] as $item (
+        {};
+        .[($item.name // $item.key // "")] = ($item.value // "")
+      )
+    elif type == "object" then
+      with_entries(.value |= if . == null then "" else tostring end)
+    else
+      {}
+    end
+  '
+}
+
+run_railway_api() {
+  local label="$1"
+  local payload="$2"
+
+  local output=""
+  local rc=0
+  local sanitized_output
+  local graphql_errors=""
+
+  if debug_enabled; then
+    debug_log "begin: $label"
+    debug_log "cmd: curl -fsS -X POST $RAILWAY_GRAPHQL_ENDPOINT"
+    debug_json_summary "graphql request payload" "$payload"
+  fi
+
+  if output="$(
+    curl -fsS \
+      -X POST \
+      -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary "$payload" \
+      "$RAILWAY_GRAPHQL_ENDPOINT" 2>&1
+  )"; then
+    RAILWAY_LAST_OUTPUT="$output"
+  else
+    rc=$?
+    RAILWAY_LAST_OUTPUT="$output"
+    sanitized_output="$(sanitize_output "$output")"
+    echo "error: Railway API failed during '$label' (exit $rc)" >&2
+    echo "error: endpoint: $RAILWAY_GRAPHQL_ENDPOINT" >&2
+    if [[ -n "$sanitized_output" ]]; then
+      echo "$sanitized_output" >&2
+    fi
+    return "$rc"
+  fi
+
+  if ! printf '%s' "$output" | jq -e . >/dev/null 2>&1; then
+    sanitized_output="$(sanitize_output "$output")"
+    echo "error: Railway API returned invalid json during '$label'" >&2
+    if [[ -n "$sanitized_output" ]]; then
+      echo "$sanitized_output" >&2
+    fi
+    return 1
+  fi
+
+  debug_json_summary "graphql response payload" "$output"
+
+  graphql_errors="$(
+    printf '%s' "$output" | jq -r '
+      if (.errors // []) | length > 0 then
+        .errors
+        | map(.message + (if .traceId? then " (traceId=" + .traceId + ")" else "" end))
+        | join("; ")
+      else
+        ""
+      end
+    '
+  )"
+  if [[ -n "$graphql_errors" ]]; then
+    sanitized_output="$(sanitize_output "$graphql_errors")"
+    echo "error: Railway API returned GraphQL errors during '$label'" >&2
+    echo "$sanitized_output" >&2
+    return 1
+  fi
+
+  if debug_enabled; then
+    debug_log "success: $label"
+  fi
+  return 0
+}
+
+railway_graphql_payload() {
+  local query="$1"
+  local variables_json="$2"
+
+  jq -cn \
+    --arg query "$query" \
+    --argjson variables "$variables_json" \
+    '{query: $query, variables: $variables}'
+}
+
+fetch_environment_id() {
+  local query
+  local variables_json
+
+  query='query Environments($projectId: String!) { environments(projectId: $projectId) { edges { node { id name } } } }'
+  variables_json="$(jq -cn --arg projectId "$RAILWAY_PROJECT_ID" '{projectId: $projectId}')"
+  run_railway_api "fetch project environments" "$(railway_graphql_payload "$query" "$variables_json")"
+
+  RAILWAY_ENVIRONMENT_ID="$(
+    printf '%s' "$RAILWAY_LAST_OUTPUT" | jq -r --arg env "$RAILWAY_ENVIRONMENT" '
+      .data.environments.edges[]?.node
+      | select(.name == $env)
+      | .id
+    ' | head -n1
+  )"
+
+  if [[ -z "${RAILWAY_ENVIRONMENT_ID:-}" ]]; then
+    echo "error: environment '$RAILWAY_ENVIRONMENT' not found for project $RAILWAY_PROJECT_ID" >&2
+    exit 1
+  fi
+
+  debug_log "resolved environment id=${RAILWAY_ENVIRONMENT_ID}"
+}
+
+fetch_unrendered_runtime_vars() {
+  local query
+  local variables_json
+
+  query='query Variables($projectId: String!, $environmentId: String!, $serviceId: String) { unrenderedVariables: variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId, unrendered: true) }'
+  variables_json="$(
+    jq -cn \
+      --arg projectId "$RAILWAY_PROJECT_ID" \
+      --arg environmentId "$RAILWAY_ENVIRONMENT_ID" \
+      --arg serviceId "$RAILWAY_SERVICE_ID" \
+      '{projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId}'
+  )"
+  run_railway_api "fetch unrendered runtime variables" "$(railway_graphql_payload "$query" "$variables_json")"
+  runtime_vars_json="$(printf '%s' "$RAILWAY_LAST_OUTPUT" | jq -c '.data.unrenderedVariables // {}')"
+  debug_json_summary "runtime variables payload" "$runtime_vars_json"
+  runtime_vars_json="$(normalize_runtime_vars_json "$runtime_vars_json")"
+  debug_json_summary "normalized runtime variables payload" "$runtime_vars_json"
+}
+
+upsert_runtime_vars_batch() {
+  local desired_vars_json="$1"
+  local query
+  local variables_json
+
+  query='mutation VariableCollectionUpsert($projectId: String!, $environmentId: String!, $serviceId: String!, $variables: EnvironmentVariables!, $replace: Boolean, $skipDeploys: Boolean) { variableCollectionUpsert(input: { projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId, variables: $variables, replace: $replace, skipDeploys: $skipDeploys }) }'
+  variables_json="$(
+    jq -cn \
+      --arg projectId "$RAILWAY_PROJECT_ID" \
+      --arg environmentId "$RAILWAY_ENVIRONMENT_ID" \
+      --arg serviceId "$RAILWAY_SERVICE_ID" \
+      --argjson variables "$desired_vars_json" \
+      '{projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId, variables: $variables, replace: true, skipDeploys: true}'
+  )"
+  run_railway_api "batch upsert runtime variables" "$(railway_graphql_payload "$query" "$variables_json")"
 }
 
 run_railway() {
@@ -833,68 +1000,8 @@ TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 pushd "$TEMP_DIR" >/dev/null
 run_railway "link project/environment/service" link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$RAILWAY_SERVICE_ID"
-
-set_runtime_var() {
-  local key="$1"
-  run_railway_with_stdin "set runtime var $key" "${!key}" variable set "$key" --stdin --skip-deploys --service "$RAILWAY_SERVICE_ID"
-}
-
-delete_runtime_var() {
-  local key="$1"
-  run_railway "delete runtime var $key" variable delete "$key" --service "$RAILWAY_SERVICE_ID"
-}
-
-for key in "${managed_exact[@]}"; do
-  if [[ -n "${!key}" ]]; then
-    set_runtime_var "$key"
-  else
-    debug_log "skip set for exact runtime var '$key' because config value is empty; enforcing absence instead"
-  fi
-done
-
-if [[ ${#managed_secret[@]} -gt 0 ]]; then
-  for key in "${managed_secret[@]}"; do
-    set_runtime_var "$key"
-  done
-fi
-
-if [[ ${#managed_optional_secret[@]} -gt 0 ]]; then
-  for key in "${managed_optional_secret[@]}"; do
-    if [[ -n "${!key:-}" ]]; then
-      set_runtime_var "$key"
-    else
-      debug_log "skip set for optional runtime secret '$key' because no value was provided; enforcing absence instead"
-    fi
-  done
-fi
-
-run_railway "list runtime variables" variable list --json --service "$RAILWAY_SERVICE_ID"
-runtime_vars_json="$RAILWAY_LAST_OUTPUT"
-debug_json_summary "runtime variables payload" "$runtime_vars_json"
-runtime_vars_json="$(
-  printf '%s' "$runtime_vars_json" | jq -c '
-    if type == "array" then
-      reduce .[] as $item (
-        {};
-        if ($item | type) == "object" then
-          .[($item.name // $item.key // "")] = ($item.value // "")
-        else
-          .
-        end
-      )
-    elif type == "object" and has("variables") then
-      reduce .variables[] as $item (
-        {};
-        .[($item.name // $item.key // "")] = ($item.value // "")
-      )
-    elif type == "object" then
-      with_entries(.value |= if . == null then "" else tostring end)
-    else
-      {}
-    end
-  '
-)"
-debug_json_summary "normalized runtime variables payload" "$runtime_vars_json"
+fetch_environment_id
+fetch_unrendered_runtime_vars
 
 runtime_var_visible() {
   local key="$1"
@@ -941,56 +1048,51 @@ assert_runtime_var_absent_if_visible() {
   debug_log "runtime variable '$key' visible but empty (accepted)"
 }
 
-refresh_runtime_vars_needed=0
+desired_runtime_vars_json="$runtime_vars_json"
+
 for key in "${managed_exact[@]}"; do
-  if [[ -z "${!key}" ]] && runtime_var_visible "$key"; then
-    delete_runtime_var "$key"
-    refresh_runtime_vars_needed=1
+  if [[ -n "${!key}" ]]; then
+    desired_runtime_vars_json="$(
+      printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
+    )"
+  else
+    debug_log "remove blank managed exact runtime var '$key' from batch payload"
+    desired_runtime_vars_json="$(
+      printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" 'del(.[$key])'
+    )"
   fi
 done
 
+for key in "${managed_secret[@]}"; do
+  desired_runtime_vars_json="$(
+    printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
+  )"
+done
+
 for key in "${managed_optional_secret[@]}"; do
-  if [[ -z "${!key:-}" ]] && runtime_var_visible "$key"; then
-    delete_runtime_var "$key"
-    refresh_runtime_vars_needed=1
+  if [[ -n "${!key:-}" ]]; then
+    desired_runtime_vars_json="$(
+      printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
+    )"
+  else
+    debug_log "remove absent optional runtime secret '$key' from batch payload"
+    desired_runtime_vars_json="$(
+      printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" 'del(.[$key])'
+    )"
   fi
 done
 
 for key in "${forbidden_runtime[@]}"; do
-  if runtime_var_visible "$key"; then
-    delete_runtime_var "$key"
-    refresh_runtime_vars_needed=1
-  fi
+  desired_runtime_vars_json="$(
+    printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" 'del(.[$key])'
+  )"
 done
 
-if (( refresh_runtime_vars_needed )); then
-  run_railway "refresh runtime variables after cleanup" variable list --json --service "$RAILWAY_SERVICE_ID"
-  runtime_vars_json="$RAILWAY_LAST_OUTPUT"
-  debug_json_summary "runtime variables payload after cleanup" "$runtime_vars_json"
-  runtime_vars_json="$(
-    printf '%s' "$runtime_vars_json" | jq -c '
-      if type == "array" then
-        reduce .[] as $item (
-          {};
-          if ($item | type) == "object" then
-            .[($item.name // $item.key // "")] = ($item.value // "")
-          else
-            .
-          end
-        )
-      elif type == "object" and has("variables") then
-        reduce .variables[] as $item (
-          {};
-          .[($item.name // $item.key // "")] = ($item.value // "")
-        )
-      elif type == "object" then
-        with_entries(.value |= if . == null then "" else tostring end)
-      else
-        {}
-      end
-    '
-  )"
-  debug_json_summary "normalized runtime variables payload after cleanup" "$runtime_vars_json"
+if [[ "$desired_runtime_vars_json" != "$runtime_vars_json" ]]; then
+  upsert_runtime_vars_batch "$desired_runtime_vars_json"
+  fetch_unrendered_runtime_vars
+else
+  debug_log "skip batch upsert because runtime variables already match desired state"
 fi
 
 for key in "${managed_exact[@]}"; do
