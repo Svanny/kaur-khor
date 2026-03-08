@@ -7,11 +7,28 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
     PgPool, Postgres, Transaction,
 };
-use std::{str::FromStr, time::Instant};
+use std::{
+    future::Future,
+    str::FromStr,
+    time::{Duration, Instant},
+};
 
 pub fn should_disable_statement_cache(config: &AppConfig) -> bool {
     config.database_runtime_endpoint_kind == DatabaseRuntimeEndpointKind::Pgbouncer
         && config.pgbouncer_pool_mode == Some(PgbouncerPoolMode::Transaction)
+}
+
+async fn connect_runtime_pool_with_timeout<F>(
+    timeout_duration: Duration,
+    connect: F,
+) -> Result<PgPool>
+where
+    F: Future<Output = Result<PgPool, sqlx::Error>>,
+{
+    tokio::time::timeout(timeout_duration, connect)
+        .await
+        .context("timed out connecting SQLx runtime pool")?
+        .context("failed to connect SQLx runtime pool")
 }
 
 pub async fn build_runtime_pool(config: &AppConfig) -> Result<Option<PgPool>> {
@@ -19,12 +36,7 @@ pub async fn build_runtime_pool(config: &AppConfig) -> Result<Option<PgPool>> {
         return Ok(None);
     };
 
-    let runtime_url_with_connect_timeout = with_connect_timeout(
-        runtime_url,
-        duration_ms_to_seconds_ceil(config.sqlx_pool_connect_timeout),
-    );
-
-    let mut connect_options = PgConnectOptions::from_str(&runtime_url_with_connect_timeout)
+    let mut connect_options = PgConnectOptions::from_str(runtime_url)
         .context("failed to parse DATABASE_RUNTIME_URL")?
         .application_name(&format!(
             "{}-{}-{}",
@@ -35,15 +47,17 @@ pub async fn build_runtime_pool(config: &AppConfig) -> Result<Option<PgPool>> {
         connect_options = connect_options.statement_cache_capacity(0);
     }
 
-    let pool = PgPoolOptions::new()
-        .max_connections(config.sqlx_pool_max_connections)
-        .min_connections(config.sqlx_pool_min_connections)
-        .acquire_timeout(config.sqlx_pool_acquire_timeout)
-        .idle_timeout(Some(config.sqlx_pool_idle_timeout))
-        .max_lifetime(Some(config.sqlx_pool_max_lifetime))
-        .connect_with(connect_options)
-        .await
-        .context("failed to connect SQLx runtime pool")?;
+    let pool = connect_runtime_pool_with_timeout(
+        config.sqlx_pool_connect_timeout,
+        PgPoolOptions::new()
+            .max_connections(config.sqlx_pool_max_connections)
+            .min_connections(config.sqlx_pool_min_connections)
+            .acquire_timeout(config.sqlx_pool_acquire_timeout)
+            .idle_timeout(Some(config.sqlx_pool_idle_timeout))
+            .max_lifetime(Some(config.sqlx_pool_max_lifetime))
+            .connect_with(connect_options),
+    )
+    .await?;
 
     Ok(Some(pool))
 }
@@ -84,20 +98,6 @@ fn classify_acquire_failure(error: &sqlx::Error) -> &'static str {
     } else {
         "other"
     }
-}
-
-fn with_connect_timeout(runtime_url: &str, timeout_seconds: u64) -> String {
-    if runtime_url.contains("connect_timeout=") {
-        return runtime_url.to_string();
-    }
-    let separator = if runtime_url.contains('?') { "&" } else { "?" };
-    format!("{runtime_url}{separator}connect_timeout={timeout_seconds}")
-}
-
-fn duration_ms_to_seconds_ceil(duration: std::time::Duration) -> u64 {
-    let millis = duration.as_millis().max(1);
-    let seconds = millis.div_ceil(1000);
-    seconds.min(u64::MAX as u128) as u64
 }
 
 #[cfg(test)]
@@ -216,22 +216,15 @@ mod tests {
         assert!(!should_disable_statement_cache(&cfg));
     }
 
-    #[test]
-    fn connect_timeout_is_added_when_missing() {
-        let url = with_connect_timeout("postgres://db.example/banji", 2);
-        assert!(url.contains("connect_timeout=2"));
-    }
+    #[tokio::test]
+    async fn runtime_pool_timeout_surfaces_clear_context() {
+        let error =
+            connect_runtime_pool_with_timeout(Duration::from_millis(1), std::future::pending())
+                .await
+                .expect_err("pending connect future should time out");
 
-    #[test]
-    fn existing_connect_timeout_is_not_overridden() {
-        let url = with_connect_timeout("postgres://db.example/banji?connect_timeout=5", 2);
-        assert!(url.ends_with("connect_timeout=5"));
-    }
-
-    #[test]
-    fn duration_ms_to_seconds_uses_ceil() {
-        assert_eq!(duration_ms_to_seconds_ceil(Duration::from_millis(1_500)), 2);
-        assert_eq!(duration_ms_to_seconds_ceil(Duration::from_millis(2_000)), 2);
-        assert_eq!(duration_ms_to_seconds_ceil(Duration::from_millis(0)), 1);
+        assert!(error
+            .to_string()
+            .contains("timed out connecting SQLx runtime pool"));
     }
 }
