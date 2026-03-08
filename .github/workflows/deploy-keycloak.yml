@@ -23,6 +23,11 @@ jobs:
       RAILWAY_STAGING_KEYCLOAK_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_KEYCLOAK_SERVICE_ID }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Load deploy flags from config
+        env:
+          RAILWAY_DEBUG_INPUT: ${{ inputs.railway_debug }}
+        run: |
+          bash tool/ci/load_deploy_flags.sh "$RAILWAY_ENVIRONMENT" "$RAILWAY_DEBUG_INPUT" >> "$GITHUB_ENV"
       - name: Set up deploy tooling (cached)
         uses: ./.github/actions/deploy-tooling
       - name: Resolve target Keycloak service id
