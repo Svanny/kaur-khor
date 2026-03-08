@@ -5,6 +5,7 @@ use crate::observability::metrics;
 use anyhow::Result;
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection, PgPool, Postgres, Row, Transaction};
+use std::fmt;
 
 const POLL_STREAM_RANGE_SQL: &str = r#"
         SELECT
@@ -34,6 +35,29 @@ const POLL_STREAM_RANGE_SQL: &str = r#"
 pub struct ConsumerAdvisoryLock {
     connection: PgConnection,
     lock_key: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConsumerLockAlreadyHeld {
+    pub service_name: String,
+    pub consumer_name: String,
+    pub stream_name: String,
+}
+
+impl fmt::Display for ConsumerLockAlreadyHeld {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "consumer lock already held for service={} consumer={} stream={}",
+            self.service_name, self.consumer_name, self.stream_name
+        )
+    }
+}
+
+impl std::error::Error for ConsumerLockAlreadyHeld {}
+
+pub fn consumer_lock_already_held(error: &anyhow::Error) -> Option<&ConsumerLockAlreadyHeld> {
+    error.downcast_ref::<ConsumerLockAlreadyHeld>()
 }
 
 impl ConsumerAdvisoryLock {
@@ -74,9 +98,12 @@ pub async fn acquire_consumer_lock(
     if !acquired {
         let _ = sqlx::query("ROLLBACK").execute(&mut connection).await;
         connection.close().await?;
-        return Err(anyhow::anyhow!(
-            "consumer lock already held for service={service_name} consumer={consumer_name} stream={stream_name}"
-        ));
+        return Err(ConsumerLockAlreadyHeld {
+            service_name: service_name.to_string(),
+            consumer_name: consumer_name.to_string(),
+            stream_name: stream_name.to_string(),
+        }
+        .into());
     }
 
     Ok(ConsumerAdvisoryLock {

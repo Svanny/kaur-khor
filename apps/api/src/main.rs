@@ -1,5 +1,5 @@
 use banji_api::config::{ProjectionConsumerConfig, ProjectionConsumerRunMode};
-use std::net::SocketAddr;
+use std::{future::Future, net::SocketAddr, time::Duration};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[tokio::main]
@@ -104,48 +104,52 @@ async fn run_projection_consumer(config: banji_api::config::AppConfig) -> anyhow
     let database_url = config.database_runtime_url.clone().ok_or_else(|| {
         anyhow::anyhow!("DATABASE_RUNTIME_URL is required for APP_ROLE=projection-consumer")
     })?;
-    let lock = banji_api::events::consumer::acquire_consumer_lock(
-        &database_url,
-        &projection_cfg.service_name,
-        &projection_cfg.consumer_name,
-        &projection_cfg.stream_name,
+
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
+
+    let startup = acquire_projection_consumer_lock(
+        &projection_cfg,
+        &mut shutdown,
+        || {
+            banji_api::events::consumer::acquire_consumer_lock(
+                &database_url,
+                &projection_cfg.service_name,
+                &projection_cfg.consumer_name,
+                &projection_cfg.stream_name,
+            )
+        },
+        tokio::time::sleep,
     )
     .await?;
-    tracing::info!(
-        service_name = %projection_cfg.service_name,
-        consumer_name = %projection_cfg.consumer_name,
-        stream_name = %projection_cfg.stream_name,
-        "projection consumer advisory lock acquired"
-    );
 
-    tracing::info!(
-        role = %config.app_role.as_str(),
-        build_commit_sha,
-        deploy_commit_sha = %deploy_commit_sha,
-        banji_service = %config.service,
-        service_name = %projection_cfg.service_name,
-        consumer_name = %projection_cfg.consumer_name,
-        stream_name = %projection_cfg.stream_name,
-        batch_size = projection_cfg.batch_size,
-        poll_interval_ms = projection_cfg.poll_interval.as_millis(),
-        invalid_policy = ?projection_cfg.invalid_policy,
-        run_mode = %projection_cfg.run_mode.as_str(),
-        "starting projection consumer"
-    );
+    let result = match startup {
+        ProjectionConsumerStartup::Shutdown => Ok(()),
+        ProjectionConsumerStartup::Acquired(lock) => {
+            log_projection_consumer_startup(
+                &config,
+                &projection_cfg,
+                build_commit_sha,
+                &deploy_commit_sha,
+            );
 
-    let result = match projection_cfg.run_mode {
-        ProjectionConsumerRunMode::Continuous => {
-            run_inventory_projection_loop(&pool, &projection_cfg, shutdown_signal()).await
-        }
-        ProjectionConsumerRunMode::ReplayPreview => {
-            run_inventory_projection_preview(&pool, &projection_cfg).await
-        }
-        ProjectionConsumerRunMode::ReplayApply => {
-            run_inventory_projection_replay(&pool, &projection_cfg).await
+            let result = match projection_cfg.run_mode {
+                ProjectionConsumerRunMode::Continuous => {
+                    run_inventory_projection_loop(&pool, &projection_cfg, &mut shutdown).await
+                }
+                ProjectionConsumerRunMode::ReplayPreview => {
+                    run_inventory_projection_preview(&pool, &projection_cfg).await
+                }
+                ProjectionConsumerRunMode::ReplayApply => {
+                    run_inventory_projection_replay(&pool, &projection_cfg).await
+                }
+            };
+
+            lock.release().await?;
+            result
         }
     };
 
-    lock.release().await?;
     pool.close().await;
     result
 }
@@ -218,20 +222,117 @@ struct ProjectionIteration {
     invalid_count: usize,
 }
 
+#[derive(Debug)]
+enum ProjectionConsumerStartup<T> {
+    Acquired(T),
+    Shutdown,
+}
+
+fn log_projection_consumer_startup(
+    config: &banji_api::config::AppConfig,
+    projection_cfg: &ProjectionConsumerConfig,
+    build_commit_sha: &str,
+    deploy_commit_sha: &str,
+) {
+    tracing::info!(
+        role = %config.app_role.as_str(),
+        build_commit_sha,
+        deploy_commit_sha = %deploy_commit_sha,
+        banji_service = %config.service,
+        service_name = %projection_cfg.service_name,
+        consumer_name = %projection_cfg.consumer_name,
+        stream_name = %projection_cfg.stream_name,
+        batch_size = projection_cfg.batch_size,
+        poll_interval_ms = projection_cfg.poll_interval.as_millis(),
+        invalid_policy = ?projection_cfg.invalid_policy,
+        run_mode = %projection_cfg.run_mode.as_str(),
+        "starting projection consumer"
+    );
+}
+
+async fn acquire_projection_consumer_lock<T, A, AFut, Sl, SlFut, S>(
+    cfg: &ProjectionConsumerConfig,
+    shutdown: &mut S,
+    mut acquire_lock: A,
+    mut sleep: Sl,
+) -> anyhow::Result<ProjectionConsumerStartup<T>>
+where
+    A: FnMut() -> AFut,
+    AFut: Future<Output = anyhow::Result<T>>,
+    Sl: FnMut(Duration) -> SlFut,
+    SlFut: Future<Output = ()>,
+    S: Future<Output = ()> + Unpin,
+{
+    match cfg.run_mode {
+        ProjectionConsumerRunMode::Continuous => loop {
+            match acquire_lock().await {
+                Ok(lock) => {
+                    tracing::info!(
+                        service_name = %cfg.service_name,
+                        consumer_name = %cfg.consumer_name,
+                        stream_name = %cfg.stream_name,
+                        "projection consumer advisory lock acquired"
+                    );
+                    return Ok(ProjectionConsumerStartup::Acquired(lock));
+                }
+                Err(error) => {
+                    let Some(lock_held) =
+                        banji_api::events::consumer::consumer_lock_already_held(&error)
+                    else {
+                        return Err(error);
+                    };
+
+                    tracing::warn!(
+                        service_name = %lock_held.service_name,
+                        consumer_name = %lock_held.consumer_name,
+                        stream_name = %lock_held.stream_name,
+                        retry_delay_ms = cfg.poll_interval.as_millis(),
+                        "projection consumer advisory lock already held; retrying"
+                    );
+
+                    let delay = sleep(cfg.poll_interval);
+                    tokio::pin!(delay);
+                    tokio::select! {
+                        _ = &mut *shutdown => {
+                            tracing::info!(
+                                service_name = %cfg.service_name,
+                                consumer_name = %cfg.consumer_name,
+                                stream_name = %cfg.stream_name,
+                                "projection consumer shutdown requested while waiting for advisory lock"
+                            );
+                            return Ok(ProjectionConsumerStartup::Shutdown);
+                        }
+                        _ = &mut delay => {}
+                    }
+                }
+            }
+        },
+        ProjectionConsumerRunMode::ReplayPreview | ProjectionConsumerRunMode::ReplayApply => {
+            let lock = acquire_lock().await?;
+            tracing::info!(
+                service_name = %cfg.service_name,
+                consumer_name = %cfg.consumer_name,
+                stream_name = %cfg.stream_name,
+                "projection consumer advisory lock acquired"
+            );
+            Ok(ProjectionConsumerStartup::Acquired(lock))
+        }
+    }
+}
+
 async fn run_inventory_projection_loop<F>(
     pool: &sqlx::PgPool,
     cfg: &ProjectionConsumerConfig,
-    shutdown: F,
+    shutdown: &mut F,
 ) -> anyhow::Result<()>
 where
-    F: std::future::Future<Output = ()>,
+    F: Future<Output = ()> + Unpin,
 {
     let mut ticker = tokio::time::interval(cfg.poll_interval);
-    tokio::pin!(shutdown);
 
     loop {
         tokio::select! {
-            _ = &mut shutdown => break,
+            _ = &mut *shutdown => break,
             _ = ticker.tick() => {
                 banji_api::events::consumer::heartbeat(
                     pool,
@@ -512,5 +613,193 @@ async fn shutdown_signal() {
         tokio::signal::ctrl_c()
             .await
             .expect("failed to install Ctrl+C handler");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use banji_api::events::consumer::{consumer_lock_already_held, ConsumerLockAlreadyHeld};
+    use banji_api::events::schema_types::InvalidEventPolicy;
+    use std::{
+        future::{pending, ready},
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
+    };
+
+    fn projection_consumer_config(run_mode: ProjectionConsumerRunMode) -> ProjectionConsumerConfig {
+        ProjectionConsumerConfig {
+            service_name: "projection-consumer".to_string(),
+            consumer_name: "inventory-projector".to_string(),
+            stream_name: "banji-core.test.inventory-updated".to_string(),
+            batch_size: 100,
+            poll_interval: Duration::from_millis(500),
+            invalid_policy: InvalidEventPolicy::Halt,
+            run_mode,
+            replay_from_id: 0,
+            replay_to_id: None,
+            replay_reset_checkpoint: false,
+            replay_truncate_projection: false,
+        }
+    }
+
+    fn lock_held_error(cfg: &ProjectionConsumerConfig) -> anyhow::Error {
+        ConsumerLockAlreadyHeld {
+            service_name: cfg.service_name.clone(),
+            consumer_name: cfg.consumer_name.clone(),
+            stream_name: cfg.stream_name.clone(),
+        }
+        .into()
+    }
+
+    #[tokio::test]
+    async fn continuous_mode_retries_lock_contention_until_acquired() {
+        let cfg = projection_consumer_config(ProjectionConsumerRunMode::Continuous);
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let sleeps = Arc::new(AtomicUsize::new(0));
+        let mut shutdown = pending::<()>();
+
+        let startup: ProjectionConsumerStartup<&'static str> = acquire_projection_consumer_lock(
+            &cfg,
+            &mut shutdown,
+            {
+                let attempts = Arc::clone(&attempts);
+                let cfg = cfg.clone();
+                move || {
+                    let attempts = Arc::clone(&attempts);
+                    let cfg = cfg.clone();
+                    async move {
+                        let attempt = attempts.fetch_add(1, Ordering::SeqCst);
+                        if attempt == 0 {
+                            Err(lock_held_error(&cfg))
+                        } else {
+                            Ok("lock")
+                        }
+                    }
+                }
+            },
+            {
+                let sleeps = Arc::clone(&sleeps);
+                move |_| {
+                    sleeps.fetch_add(1, Ordering::SeqCst);
+                    ready(())
+                }
+            },
+        )
+        .await
+        .unwrap();
+
+        match startup {
+            ProjectionConsumerStartup::Acquired(lock) => assert_eq!(lock, "lock"),
+            ProjectionConsumerStartup::Shutdown => panic!("expected lock acquisition"),
+        }
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert_eq!(sleeps.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn replay_mode_fails_fast_on_lock_contention() {
+        let cfg = projection_consumer_config(ProjectionConsumerRunMode::ReplayPreview);
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let sleeps = Arc::new(AtomicUsize::new(0));
+        let mut shutdown = pending::<()>();
+
+        let error = acquire_projection_consumer_lock::<(), _, _, _, _, _>(
+            &cfg,
+            &mut shutdown,
+            {
+                let attempts = Arc::clone(&attempts);
+                let cfg = cfg.clone();
+                move || {
+                    let attempts = Arc::clone(&attempts);
+                    let cfg = cfg.clone();
+                    async move {
+                        attempts.fetch_add(1, Ordering::SeqCst);
+                        Err(lock_held_error(&cfg))
+                    }
+                }
+            },
+            {
+                let sleeps = Arc::clone(&sleeps);
+                move |_| {
+                    sleeps.fetch_add(1, Ordering::SeqCst);
+                    ready(())
+                }
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(consumer_lock_already_held(&error).is_some());
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+        assert_eq!(sleeps.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn continuous_mode_fails_fast_on_non_lock_error() {
+        let cfg = projection_consumer_config(ProjectionConsumerRunMode::Continuous);
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let sleeps = Arc::new(AtomicUsize::new(0));
+        let mut shutdown = pending::<()>();
+
+        let error = acquire_projection_consumer_lock::<(), _, _, _, _, _>(
+            &cfg,
+            &mut shutdown,
+            {
+                let attempts = Arc::clone(&attempts);
+                move || {
+                    let attempts = Arc::clone(&attempts);
+                    async move {
+                        attempts.fetch_add(1, Ordering::SeqCst);
+                        Err(anyhow::anyhow!("database unavailable"))
+                    }
+                }
+            },
+            {
+                let sleeps = Arc::clone(&sleeps);
+                move |_| {
+                    sleeps.fetch_add(1, Ordering::SeqCst);
+                    ready(())
+                }
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(error.to_string(), "database unavailable");
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+        assert_eq!(sleeps.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn continuous_mode_shutdown_stops_lock_retry_loop() {
+        let cfg = projection_consumer_config(ProjectionConsumerRunMode::Continuous);
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let mut shutdown = ready(());
+
+        let startup: ProjectionConsumerStartup<()> = acquire_projection_consumer_lock(
+            &cfg,
+            &mut shutdown,
+            {
+                let attempts = Arc::clone(&attempts);
+                let cfg = cfg.clone();
+                move || {
+                    let attempts = Arc::clone(&attempts);
+                    let cfg = cfg.clone();
+                    async move {
+                        attempts.fetch_add(1, Ordering::SeqCst);
+                        Err(lock_held_error(&cfg))
+                    }
+                }
+            },
+            |_| pending::<()>(),
+        )
+        .await
+        .unwrap();
+
+        assert!(matches!(startup, ProjectionConsumerStartup::Shutdown));
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
     }
 }

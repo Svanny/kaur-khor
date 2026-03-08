@@ -1,4 +1,4 @@
-use banji_api::events::consumer::acquire_consumer_lock;
+use banji_api::events::consumer::{acquire_consumer_lock, consumer_lock_already_held};
 use std::env;
 
 #[tokio::test]
@@ -20,11 +20,12 @@ async fn projection_consumer_lock_allows_only_one_active_holder() {
         .unwrap();
     let second = acquire_consumer_lock(&db_url, service_name, &consumer_name, stream_name).await;
 
-    assert!(second.is_err());
-    assert!(second
-        .unwrap_err()
-        .to_string()
-        .contains("consumer lock already held"));
+    let error = second.expect_err("second lock acquisition should fail");
+    let lock_held = consumer_lock_already_held(&error)
+        .expect("lock contention should be classified as ConsumerLockAlreadyHeld");
+    assert_eq!(lock_held.service_name, service_name);
+    assert_eq!(lock_held.consumer_name, consumer_name);
+    assert_eq!(lock_held.stream_name, stream_name);
 
     first.release().await.unwrap();
 }
