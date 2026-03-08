@@ -108,6 +108,25 @@ Replay-scoped backfill jobs:
 - publish only through `{system}.{env}.jobs.replay`
 - remain append-only history; they do not overwrite prior `job_result` rows
 
+## One-Off Topology Bootstrap
+- Manual GitHub workflow: [bootstrap-rabbit-topology.yml](/Users/svanny/banji/.github/workflows/bootstrap-rabbit-topology.yml)
+- Dispatch with:
+  - `target_env=staging` or `prod`
+  - `rabbit_vhost=/` unless the worker is configured for another vhost
+  - `confirm_prod_bootstrap=CONFIRM_PROD_BOOTSTRAP` for prod only
+- Required GitHub environment secrets on the selected environment:
+  - `RABBIT_MANAGEMENT_API_BASE_URL`
+  - `RABBIT_MANAGEMENT_USERNAME`
+  - `RABBIT_MANAGEMENT_PASSWORD`
+- The workflow runs [bootstrap_rabbit_topology.sh](/Users/svanny/banji/tool/ci/bootstrap_rabbit_topology.sh), which maps the canonical `RABBIT_MANAGEMENT_*` secrets into the existing Rabbit tooling contract, derives the Banji exchange names, runs [setup_topology.sh](/Users/svanny/banji/tool/rabbit/setup_topology.sh), and verifies the result with [check_topology.sh](/Users/svanny/banji/tool/rabbit/check_topology.sh).
+- Expected staging topology in vhost `/` includes:
+  - `banji-core.staging.fast-jobs`
+  - `banji-core.staging.heavy-jobs`
+  - `banji-core.staging.fast-jobs.replay`
+  - `banji-core.staging.heavy-jobs.replay`
+  - retry queues `*.retry.1`, `*.retry.2`, `*.retry.3`
+  - dead-letter queues `*.dlq`
+
 ## Common Queries
 Find stuck running attempts:
 
