@@ -39,8 +39,18 @@ debug_log() {
 
 add_secret_redaction() {
   local value="${1:-}"
+  local json_encoded=""
+  local json_inner=""
   if [[ -n "$value" ]]; then
     SECRET_REDACTIONS+=("$value")
+    if json_encoded="$(jq -Rn --arg value "$value" '$value | @json' 2>/dev/null)"; then
+      SECRET_REDACTIONS+=("$json_encoded")
+      json_inner="${json_encoded#\"}"
+      json_inner="${json_inner%\"}"
+      if [[ "$json_inner" != "$json_encoded" ]]; then
+        SECRET_REDACTIONS+=("$json_inner")
+      fi
+    fi
   fi
 }
 
@@ -266,7 +276,7 @@ upsert_runtime_vars_batch() {
       --arg environmentId "$RAILWAY_ENVIRONMENT_ID" \
       --arg serviceId "$RAILWAY_SERVICE_ID" \
       --argjson variables "$desired_vars_json" \
-      '{projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId, variables: $variables, replace: true, skipDeploys: true}'
+      '{projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId, variables: $variables, replace: false, skipDeploys: true}'
   )"
   run_railway_api "batch upsert runtime variables" "$(railway_graphql_payload "$query" "$variables_json")"
 }
@@ -1003,6 +1013,11 @@ run_railway "link project/environment/service" link --project "$RAILWAY_PROJECT_
 fetch_environment_id
 fetch_unrendered_runtime_vars
 
+delete_runtime_var() {
+  local key="$1"
+  run_railway "delete runtime var $key" variable delete "$key" --service "$RAILWAY_SERVICE_ID"
+}
+
 runtime_var_visible() {
   local key="$1"
   printf '%s' "$runtime_vars_json" | jq -e --arg key "$key" 'has($key)' >/dev/null
@@ -1048,51 +1063,69 @@ assert_runtime_var_absent_if_visible() {
   debug_log "runtime variable '$key' visible but empty (accepted)"
 }
 
-desired_runtime_vars_json="$runtime_vars_json"
+upsert_runtime_vars_json='{}'
+delete_runtime_var_keys=()
 
 for key in "${managed_exact[@]}"; do
   if [[ -n "${!key}" ]]; then
-    desired_runtime_vars_json="$(
-      printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
-    )"
+    if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
+      upsert_runtime_vars_json="$(
+        printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
+      )"
+    fi
   else
-    debug_log "remove blank managed exact runtime var '$key' from batch payload"
-    desired_runtime_vars_json="$(
-      printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" 'del(.[$key])'
-    )"
+    debug_log "remove blank managed exact runtime var '$key' if visible"
+    if runtime_var_visible "$key"; then
+      delete_runtime_var_keys+=("$key")
+    fi
   fi
 done
 
 for key in "${managed_secret[@]}"; do
-  desired_runtime_vars_json="$(
-    printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
-  )"
-done
-
-for key in "${managed_optional_secret[@]}"; do
-  if [[ -n "${!key:-}" ]]; then
-    desired_runtime_vars_json="$(
-      printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
-    )"
-  else
-    debug_log "remove absent optional runtime secret '$key' from batch payload"
-    desired_runtime_vars_json="$(
-      printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" 'del(.[$key])'
+  if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
+    upsert_runtime_vars_json="$(
+      printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
     )"
   fi
 done
 
-for key in "${forbidden_runtime[@]}"; do
-  desired_runtime_vars_json="$(
-    printf '%s' "$desired_runtime_vars_json" | jq -cS --arg key "$key" 'del(.[$key])'
-  )"
+for key in "${managed_optional_secret[@]}"; do
+  if [[ -n "${!key:-}" ]]; then
+    if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
+      upsert_runtime_vars_json="$(
+        printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
+      )"
+    fi
+  else
+    debug_log "remove absent optional runtime secret '$key' if visible"
+    if runtime_var_visible "$key"; then
+      delete_runtime_var_keys+=("$key")
+    fi
+  fi
 done
 
-if [[ "$desired_runtime_vars_json" != "$runtime_vars_json" ]]; then
-  upsert_runtime_vars_batch "$desired_runtime_vars_json"
+for key in "${forbidden_runtime[@]}"; do
+  if runtime_var_visible "$key"; then
+    delete_runtime_var_keys+=("$key")
+  fi
+done
+
+if [[ "$(printf '%s' "$upsert_runtime_vars_json" | jq -c 'keys')" != "[]" ]]; then
+  upsert_runtime_vars_batch "$upsert_runtime_vars_json"
+else
+  debug_log "skip batch upsert because no managed runtime variables changed"
+fi
+
+if [[ ${#delete_runtime_var_keys[@]} -gt 0 ]]; then
+  for key in "${delete_runtime_var_keys[@]}"; do
+    delete_runtime_var "$key"
+  done
+fi
+
+if [[ "$(printf '%s' "$upsert_runtime_vars_json" | jq -c 'keys')" != "[]" || ${#delete_runtime_var_keys[@]} -gt 0 ]]; then
   fetch_unrendered_runtime_vars
 else
-  debug_log "skip batch upsert because runtime variables already match desired state"
+  debug_log "skip runtime variable refresh because service already matched desired state"
 fi
 
 for key in "${managed_exact[@]}"; do
@@ -1101,6 +1134,10 @@ for key in "${managed_exact[@]}"; do
   else
     assert_runtime_var_absent_if_visible "$key"
   fi
+done
+
+for key in "${managed_secret[@]}"; do
+  assert_runtime_var_equals "$key" "${!key}"
 done
 
 for key in "${managed_optional_secret[@]}"; do

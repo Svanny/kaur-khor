@@ -597,7 +597,7 @@ if [[ "$query" == *"mutation VariableCollectionUpsert"* ]]; then
     printf '{"errors":[{"message":"%s"}]}\n' "$FAKE_GRAPHQL_UPSERT_ERRORS"
     exit 0
   fi
-  python3 - "$state_dir" "$service_id" "$variables_json" <<'PY'
+  python3 - "$state_dir" "$service_id" "$variables_json" "$replace" <<'PY'
 import json
 import pathlib
 import sys
@@ -605,8 +605,17 @@ import sys
 state_dir = pathlib.Path(sys.argv[1])
 service_id = sys.argv[2]
 variables = json.loads(sys.argv[3])["variables"]
+replace = sys.argv[4].lower() == "true"
 path = state_dir / f"{service_id}.json"
-path.write_text(json.dumps(variables))
+if path.exists():
+    payload = json.loads(path.read_text())
+else:
+    payload = {}
+if replace:
+    payload = dict(variables)
+else:
+    payload.update(variables)
+path.write_text(json.dumps(payload))
 PY
   printf '{"data":{"variableCollectionUpsert":true}}\n'
   exit 0
@@ -663,7 +672,12 @@ bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "^graphql environments$" "$LOG_FILE"
 grep -q "^graphql variables svc-api$" "$LOG_FILE"
-grep -q "^graphql upsert svc-api replace=true skipDeploys=true" "$LOG_FILE"
+grep -q "^graphql upsert svc-api replace=false skipDeploys=true" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_SERVICE_NAME$" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_RESOURCE_ATTRIBUTES$" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_EXPORTER_OTLP_HEADERS$" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_HEADERS$" "$LOG_FILE"
+grep -q "^delete svc-api OTEL_METRICS_EXPORT_INTERVAL$" "$LOG_FILE"
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-api --detach" "$LOG_FILE"
 grep -q "deployment list --json --limit 1 --service svc-api" "$LOG_FILE"
 grep -q "^link --project project-id --environment staging --service svc-api$" "$LOG_FILE"
@@ -693,11 +707,11 @@ if grep -q "login" "$LOG_FILE"; then
 fi
 
 if grep -q "variables --set" "$LOG_FILE"; then
-  echo "assertion failed: sync script must use railway variable set" >&2
+  echo "assertion failed: sync script must not use railway variables --set" >&2
   exit 1
 fi
-if grep -q "^variable " "$LOG_FILE"; then
-  echo "assertion failed: variable sync should use GraphQL batching instead of Railway variable CLI calls" >&2
+if grep -q "^variable set " "$LOG_FILE" || grep -q "^variable list " "$LOG_FILE"; then
+  echo "assertion failed: variable sync should not use Railway variable set/list CLI calls" >&2
   exit 1
 fi
 
@@ -837,7 +851,10 @@ export FAKE_DEPLOYMENT_SEQUENCE_svc_relay="baseline-relay:SUCCESS;deploy-relay:S
 
 bash "$SCRIPT" >/dev/null
 
-grep -q "^graphql upsert svc-relay replace=true skipDeploys=true" "$LOG_FILE"
+grep -q "^graphql upsert svc-relay replace=false skipDeploys=true" "$LOG_FILE"
+grep -q "^delete svc-relay EDGE_ENFORCEMENT_ENABLED$" "$LOG_FILE"
+grep -q "^delete svc-relay EDGE_ORIGIN_AUTH_HEADER_NAME$" "$LOG_FILE"
+grep -q "^delete svc-relay OTEL_HEADERS$" "$LOG_FILE"
 jq -e '
   .BANJI_DEPLOYMENT_ID == "9001-2"
   and .CACHE_SCHEMA_VERSION == "v1"
@@ -862,7 +879,8 @@ export FAKE_DEPLOYMENT_SEQUENCE_svc_projection="baseline-projection:SUCCESS;depl
 
 bash "$SCRIPT" >/dev/null
 
-grep -q "^graphql upsert svc-projection replace=true skipDeploys=true" "$LOG_FILE"
+grep -q "^graphql upsert svc-projection replace=false skipDeploys=true" "$LOG_FILE"
+grep -q "^delete svc-projection EVENT_CONSUMER_REPLAY_TO_ID$" "$LOG_FILE"
 jq -e '
   .BANJI_DEPLOYMENT_ID == "9001-2"
   and .CACHE_SCHEMA_VERSION == "v1"
@@ -888,7 +906,9 @@ export FAKE_DEPLOYMENT_SEQUENCE_svc_worker="baseline-worker:SUCCESS;deploy-worke
 
 bash "$SCRIPT" >/dev/null
 
-grep -q "^graphql upsert svc-worker replace=true skipDeploys=true" "$LOG_FILE"
+grep -q "^graphql upsert svc-worker replace=false skipDeploys=true" "$LOG_FILE"
+grep -q "^delete svc-worker JOB_HANDLER_MAX_RUNTIME_SECONDS$" "$LOG_FILE"
+grep -q "^delete svc-worker JOB_RESULT_KAFKA_TOPIC_PREFIX$" "$LOG_FILE"
 jq -e '
   .BANJI_DEPLOYMENT_ID == "9001-2"
   and .CACHE_SCHEMA_VERSION == "v1"
@@ -965,6 +985,23 @@ if grep -q "token=token" "$DEBUG_LOG"; then
   exit 1
 fi
 unset FAKE_GRAPHQL_UPSERT_STDERR FAKE_VARIABLE_JSON_svc_api
+
+reset_logs
+
+rm -f "$STATE_DIR/svc-api.json"
+export EDGE_ORIGIN_AUTH_SECRET='edge-"quoted"-secret'
+export FAKE_VARIABLE_JSON_svc_api='{"CACHE_SCHEMA_VERSION":"stale"}'
+export FAKE_GRAPHQL_UPSERT_STDERR='mutation failed {"secret":"edge-\"quoted\"-secret","token":"token"}'
+if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
+  echo "assertion failed: JSON-escaped secret failure should fail sync + up" >&2
+  exit 1
+fi
+if grep -q 'edge-\\"quoted\\"-secret' "$DEBUG_LOG" || grep -q 'edge-"quoted"-secret' "$DEBUG_LOG"; then
+  echo "assertion failed: GraphQL upsert failure leaked JSON-escaped managed secret" >&2
+  exit 1
+fi
+unset FAKE_GRAPHQL_UPSERT_STDERR FAKE_VARIABLE_JSON_svc_api
+export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
 
 reset_logs
 
