@@ -6,6 +6,7 @@ This backend keeps edge protections inside the application runtime. Railway owns
 - `EDGE_ENFORCEMENT_ENABLED=true` enables origin-guard enforcement.
 - The guard checks `EDGE_ORIGIN_AUTH_HEADER_NAME` against `EDGE_ORIGIN_AUTH_SECRET` and optional `EDGE_ORIGIN_AUTH_SECRET_NEXT`.
 - In `staging` and `prod`, origin auth and explicit `EDGE_CORS_ALLOWED_ORIGINS` are required.
+- Keycloak/OIDC validation is a separate layer; Keycloak does not replace the origin-guard secret.
 
 ## Middleware Order
 - origin guard

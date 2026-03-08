@@ -6,7 +6,7 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - Tracked templates must not contain real credentials or tokens.
 - Secret-valued keys may only be `__SET_IN_PLATFORM_SECRET__` or empty when explicitly documented as optional.
 - Runtime secret values come from Railway service variables or another platform secret store.
-- CI/deploy secret values come from GitHub Environment secrets.
+- CI/deploy secret values come from GitHub Environment secrets unless a section below explicitly marks Railway as the runtime source of truth.
 - Railway is the only tracked deployment/runtime platform contract in this repo.
 
 ## Secret Keys
@@ -33,6 +33,13 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - [`apps/api/start.sh`](/Users/svanny/banji/apps/api/start.sh) is the shared runtime entrypoint for all Railway roles.
 - `start.sh` maps Railway `PORT` to `API_BIND_ADDR` only for `APP_ROLE=api`.
 - `BANJI_SERVICE` defaults to `APP_ROLE` when not explicitly set.
+
+## External Auth Dependency
+- Keycloak is a repo-managed Railway service under [services/keycloak](/Users/svanny/banji/services/keycloak), not a Banji runtime role.
+- Banji runtime topology stays limited to `api`, `event-relay`, `projection-consumer`, and `worker`.
+- `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET` are maintained directly on the Railway `api` service in `staging`.
+- `prod` still uses the existing GitHub-to-Railway sync path for API auth until the production Railway service is migrated.
+- GitHub keeps only a copy of `EDGE_ORIGIN_AUTH_SECRET` for the authenticated `/version` smoke check in deploy workflow.
 
 ## Role Topology
 - `APP_ROLE=api|event-relay|projection-consumer|worker|backfill-controller`
@@ -159,9 +166,9 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction`
 - `AUTH_ENABLED=true`
-- `AUTH_JWKS_URL`, `AUTH_ISSUER`, and `AUTH_AUDIENCE`
+- Railway-resident `AUTH_JWKS_URL`, `AUTH_ISSUER`, and `AUTH_AUDIENCE`
 - `EDGE_ENFORCEMENT_ENABLED=true`
-- `EDGE_ORIGIN_AUTH_SECRET`
+- Railway-resident API copy of `EDGE_ORIGIN_AUTH_SECRET`
 - explicit `EDGE_CORS_ALLOWED_ORIGINS` entries that start with `https://`
 
 `EDGE_TRUST_FORWARDED_CLIENT_IP` is optional and defaults to `false` in every environment.

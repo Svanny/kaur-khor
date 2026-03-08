@@ -7,9 +7,11 @@ on:
       - 'apps/api/**'
       - 'config/ci/**'
       - 'config/env/**'
+      - 'services/keycloak/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/deploy-keycloak.yml'
       - 'tool/ci/**'
       - 'tool/otel/**'
       - 'tool/security/**'
@@ -19,9 +21,11 @@ on:
       - 'apps/api/**'
       - 'config/ci/**'
       - 'config/env/**'
+      - 'services/keycloak/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/deploy-keycloak.yml'
       - 'tool/ci/**'
       - 'tool/otel/**'
       - 'tool/security/**'
@@ -56,6 +60,8 @@ jobs:
         run: bash tool/ci/test_check_topology_parity.sh
       - name: Check Railway sync + up contract tests
         run: bash tool/ci/test_railway_sync_and_up.sh
+      - name: Check OIDC runtime readiness contract tests
+        run: bash tool/ci/test_check_oidc_runtime_ready.sh
       - name: Check Railway commit parity contract tests
         run: bash tool/ci/test_check_railway_commit_parity.sh
       - name: Check deploy flag loader tests
@@ -213,6 +219,16 @@ jobs:
           tags: banji-api:pr-${{ github.sha }}
           cache-from: type=gha,scope=banji-api-pr
           cache-to: type=gha,mode=max,scope=banji-api-pr
+      - name: Build Keycloak container image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: services/keycloak
+          file: services/keycloak/Dockerfile
+          push: false
+          load: false
+          tags: banji-keycloak:pr-${{ github.sha }}
+          cache-from: type=gha,scope=banji-keycloak-pr
+          cache-to: type=gha,mode=max,scope=banji-keycloak-pr
 
   migration-validate:
     runs-on: ubuntu-latest
