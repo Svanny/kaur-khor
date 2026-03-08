@@ -718,6 +718,7 @@ managed_secret=()
 managed_optional_secret=(
   OTEL_EXPORTER_OTLP_HEADERS
 )
+required_existing_runtime=()
 forbidden_runtime=()
 managed_exact_common=(
   BANJI_SYSTEM
@@ -869,24 +870,39 @@ managed_exact_worker=(
 case "$EXPECTED_APP_ROLE" in
   api)
     require_secret_var DATABASE_RUNTIME_URL
-    require_secret_var EDGE_ORIGIN_AUTH_SECRET
-    require_secret_var AUTH_JWKS_URL
-    require_secret_var AUTH_ISSUER
-    require_secret_var AUTH_AUDIENCE
     require_all_or_none_vars \
       "Rabbit management variables (RABBIT_MANAGEMENT_API_BASE_URL, RABBIT_MANAGEMENT_USERNAME, RABBIT_MANAGEMENT_PASSWORD)" \
       RABBIT_MANAGEMENT_API_BASE_URL \
       RABBIT_MANAGEMENT_USERNAME \
       RABBIT_MANAGEMENT_PASSWORD
+    if [[ "$RAILWAY_ENVIRONMENT" == "staging" ]]; then
+      forbid_local_var EDGE_ORIGIN_AUTH_SECRET
+      forbid_local_var AUTH_JWKS_URL
+      forbid_local_var AUTH_ISSUER
+      forbid_local_var AUTH_AUDIENCE
+      required_existing_runtime+=(
+        EDGE_ORIGIN_AUTH_SECRET
+        AUTH_JWKS_URL
+        AUTH_ISSUER
+        AUTH_AUDIENCE
+      )
+    else
+      require_secret_var EDGE_ORIGIN_AUTH_SECRET
+      require_secret_var AUTH_JWKS_URL
+      require_secret_var AUTH_ISSUER
+      require_secret_var AUTH_AUDIENCE
+      managed_secret+=(
+        EDGE_ORIGIN_AUTH_SECRET
+        AUTH_JWKS_URL
+        AUTH_ISSUER
+        AUTH_AUDIENCE
+      )
+    fi
     forbid_local_var OBJECT_STORAGE_ENDPOINT
     forbid_local_var OBJECT_STORAGE_ACCESS_KEY
     forbid_local_var OBJECT_STORAGE_SECRET_KEY
     managed_secret+=(
       DATABASE_RUNTIME_URL
-      EDGE_ORIGIN_AUTH_SECRET
-      AUTH_JWKS_URL
-      AUTH_ISSUER
-      AUTH_AUDIENCE
     )
     managed_optional_exact+=(RABBIT_MANAGEMENT_API_BASE_URL)
     managed_optional_secret+=(
@@ -1054,6 +1070,7 @@ if debug_enabled; then
   debug_log "managed_optional_exact_keys=$(IFS=,; printf '%s' "${managed_optional_exact[*]-}")"
   debug_log "managed_secret_keys=$(IFS=,; printf '%s' "${managed_secret[*]}")"
   debug_log "managed_optional_secret_keys=$(IFS=,; printf '%s' "${managed_optional_secret[*]}")"
+  debug_log "required_existing_runtime_keys=$(IFS=,; printf '%s' "${required_existing_runtime[*]-}")"
   debug_log "forbidden_runtime_keys=$(IFS=,; printf '%s' "${forbidden_runtime[*]}")"
 fi
 
@@ -1113,6 +1130,30 @@ assert_runtime_var_absent_if_visible() {
 
   debug_log "runtime variable '$key' visible but empty (accepted)"
 }
+
+assert_runtime_var_present_nonempty() {
+  local key="$1"
+  local actual
+
+  if ! runtime_var_visible "$key"; then
+    echo "error: Railway runtime variable '$key' is missing; configure it directly on the Railway api service before deploy" >&2
+    exit 1
+  fi
+
+  actual="$(runtime_var_value "$key")"
+  if [[ -z "$actual" ]]; then
+    echo "error: Railway runtime variable '$key' is empty; configure it directly on the Railway api service before deploy" >&2
+    exit 1
+  fi
+
+  debug_log "verified required Railway runtime variable '$key'"
+}
+
+if [[ ${#required_existing_runtime[@]} -gt 0 ]]; then
+  for key in "${required_existing_runtime[@]}"; do
+    assert_runtime_var_present_nonempty "$key"
+  done
+fi
 
 upsert_runtime_vars_json='{}'
 delete_runtime_var_keys=()
@@ -1225,6 +1266,12 @@ for key in "${managed_optional_secret[@]}"; do
     assert_runtime_var_absent_if_visible "$key"
   fi
 done
+
+if [[ ${#required_existing_runtime[@]} -gt 0 ]]; then
+  for key in "${required_existing_runtime[@]}"; do
+    assert_runtime_var_present_nonempty "$key"
+  done
+fi
 
 for key in "${forbidden_runtime[@]}"; do
   assert_runtime_var_absent_if_visible "$key"

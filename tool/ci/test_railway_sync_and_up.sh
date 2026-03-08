@@ -645,6 +645,12 @@ reset_logs() {
   : >"$DEBUG_LOG"
 }
 
+seed_runtime_state() {
+  local service_id="$1"
+  local payload="$2"
+  printf '%s' "$payload" >"$STATE_DIR/$service_id.json"
+}
+
 if grep -Eq 'for key in "\$\{managed_optional_exact\[@\]-\}"' "$SCRIPT"; then
   echo "assertion failed: managed_optional_exact loops must guard empty arrays before indirect expansion" >&2
   exit 1
@@ -666,14 +672,10 @@ export RAILWAY_SERVICE_ID="svc-api"
 export EXPECTED_APP_ROLE="api"
 export EXPECTED_BANJI_SERVICE="api"
 export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
-export AUTH_JWKS_URL="https://jwks.example.com"
-export AUTH_ISSUER="https://issuer.example.com"
-export AUTH_AUDIENCE="banji-api"
 export RABBIT_MANAGEMENT_API_BASE_URL="https://rabbit.example.com"
 export RABBIT_MANAGEMENT_USERNAME="banji"
-export RABBIT_MANAGEMENT_PASSWORD="secret"
-export FAKE_VARIABLE_JSON_svc_api='{"OTEL_SERVICE_NAME":"stale-api-name","OTEL_RESOURCE_ATTRIBUTES":"service.version=old","OTEL_EXPORTER_OTLP_HEADERS":"authorization=old","OTEL_HEADERS":"authorization=legacy","OTEL_METRICS_EXPORT_INTERVAL":"9999"}'
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret"
+seed_runtime_state "svc-api" '{"EDGE_ORIGIN_AUTH_SECRET":"railway-edge-secret","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","OTEL_SERVICE_NAME":"stale-api-name","OTEL_RESOURCE_ATTRIBUTES":"service.version=old","OTEL_EXPORTER_OTLP_HEADERS":"authorization=old","OTEL_HEADERS":"authorization=legacy","OTEL_METRICS_EXPORT_INTERVAL":"9999"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-api:SUCCESS"
 
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
@@ -694,10 +696,14 @@ jq -e '
   .BANJI_DEPLOYMENT_ID == "9001-2"
   and .DATABASE_RUNTIME_ENDPOINT_KIND == "pgbouncer"
   and .CACHE_SCHEMA_VERSION == "v1"
+  and .EDGE_ORIGIN_AUTH_SECRET == "railway-edge-secret"
+  and .AUTH_JWKS_URL == "https://jwks.example.com"
+  and .AUTH_ISSUER == "https://issuer.example.com"
+  and .AUTH_AUDIENCE == "banji-api"
   and .EDGE_ENFORCEMENT_ENABLED == "true"
   and .RABBIT_MANAGEMENT_API_BASE_URL == "https://rabbit.example.com"
   and .RABBIT_MANAGEMENT_USERNAME == "banji"
-  and .RABBIT_MANAGEMENT_PASSWORD == "secret"
+  and .RABBIT_MANAGEMENT_PASSWORD == "rabbit-management-secret"
   and .OTEL_ENABLED == "true"
   and .OTEL_EXPORTER_OTLP_ENDPOINT == "http://otel-collector:4317"
   and .OTEL_METRIC_EXPORT_INTERVAL == "30000"
@@ -741,7 +747,7 @@ export RAILWAY_CI_DEBUG="1"
 api_state_tmp="$TMP_DIR/svc-api.state.tmp.json"
 jq '. + {"UNMANAGED_SECRET":"raw-unmanaged-secret"}' "$STATE_DIR/svc-api.json" >"$api_state_tmp"
 mv "$api_state_tmp" "$STATE_DIR/svc-api.json"
-export FAKE_UP_OUTPUT="verbose deploy edge=edge-secret"
+export FAKE_UP_OUTPUT="verbose deploy rabbit=rabbit-management-secret"
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-debug:BUILDING;deploy-debug:SUCCESS"
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
@@ -749,7 +755,7 @@ grep -q "\\[railway-debug\\] auth source=api" "$DEBUG_LOG"
 grep -Fxq "[railway-debug] begin: link project/environment/service" "$DEBUG_LOG"
 grep -q "\\[railway-debug\\] begin: poll latest deployment to terminal state" "$DEBUG_LOG"
 grep -q "^up $ROOT_DIR/apps/api --path-as-root --service svc-api --detach --verbose$" "$LOG_FILE"
-grep -q "verbose deploy edge=\\*\\*\\*" "$DEBUG_LOG"
+grep -q "verbose deploy rabbit=\\*\\*\\*" "$DEBUG_LOG"
 grep -q "^sleep 5$" "$LOG_FILE"
 grep -q "pass: terminal deployment id=deploy-debug status=SUCCESS" "$DEBUG_LOG"
 if grep -q "^logs " "$LOG_FILE"; then
@@ -779,10 +785,10 @@ reset_logs
 
 export RAILWAY_CI_DEBUG="1"
 export FAKE_UP_STDERR="deploy failed token=token-leak-value"
-export FAKE_LOGS_BUILD_OUTPUT="build log secret=edge-secret-leak"
+export FAKE_LOGS_BUILD_OUTPUT="build log secret=rabbit-management-secret-leak"
 export FAKE_LOGS_DEPLOYMENT_OUTPUT="deployment log token=token-leak-value"
 export RAILWAY_API_TOKEN="token-leak-value"
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret-leak"
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret-leak"
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS"
 if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
   echo "assertion failed: mocked railway up failure should fail sync + up" >&2
@@ -798,13 +804,13 @@ if grep -q "token-leak-value" "$DEBUG_LOG"; then
   echo "assertion failed: up failure path leaked RAILWAY_API_TOKEN" >&2
   exit 1
 fi
-if grep -q "edge-secret-leak" "$DEBUG_LOG"; then
+if grep -q "rabbit-management-secret-leak" "$DEBUG_LOG"; then
   echo "assertion failed: up failure path leaked managed secret" >&2
   exit 1
 fi
 unset FAKE_UP_STDERR FAKE_LOGS_BUILD_OUTPUT FAKE_LOGS_DEPLOYMENT_OUTPUT FAKE_DEPLOYMENT_SEQUENCE_svc_api
 export RAILWAY_API_TOKEN="token"
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret"
 export RAILWAY_CI_DEBUG="0"
 
 reset_logs
@@ -836,18 +842,63 @@ fi
 
 unset RAILWAY_TOKEN
 
-unset EDGE_ORIGIN_AUTH_SECRET
+export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
 if bash "$SCRIPT" >/dev/null 2>&1; then
-  echo "assertion failed: missing api EDGE_ORIGIN_AUTH_SECRET should fail" >&2
+  echo "assertion failed: api deploy should reject locally provided EDGE_ORIGIN_AUTH_SECRET" >&2
   exit 1
 fi
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+unset EDGE_ORIGIN_AUTH_SECRET
 export RAILWAY_API_TOKEN="token"
 
 if [[ -s "$LOG_FILE" ]]; then
-  echo "assertion failed: api secret validation failure should happen before Railway CLI calls" >&2
+  echo "assertion failed: forbidden local api auth vars should fail before Railway CLI calls" >&2
   exit 1
 fi
+
+reset_logs
+
+api_state_tmp="$TMP_DIR/svc-api.missing-auth.tmp.json"
+jq 'del(.AUTH_JWKS_URL)' "$STATE_DIR/svc-api.json" >"$api_state_tmp"
+mv "$api_state_tmp" "$STATE_DIR/svc-api.json"
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: missing Railway-resident AUTH_JWKS_URL should fail for api" >&2
+  exit 1
+fi
+grep -q "^graphql environments$" "$LOG_FILE"
+grep -q "^graphql variables svc-api$" "$LOG_FILE"
+if grep -q "^graphql upsert svc-api " "$LOG_FILE"; then
+  echo "assertion failed: missing Railway auth runtime vars should fail before runtime sync writes" >&2
+  exit 1
+fi
+seed_runtime_state "svc-api" '{"EDGE_ORIGIN_AUTH_SECRET":"railway-edge-secret","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","BANJI_DEPLOYMENT_ID":"9001-2","DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_MIGRATION_CHECKSUM":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","DEPLOY_RUN_ID":"9001-2","APP_ROLE":"api","BANJI_SERVICE":"api","BANJI_SYSTEM":"banji-core","BANJI_ENV":"staging","BANJI_REGION":"kh-pp","BANJI_TENANT":"default","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","IDEMPOTENCY_RETENTION_DAYS":"30","SQLX_POOL_MAX_CONNECTIONS":"10","SQLX_POOL_MIN_CONNECTIONS":"1","SQLX_POOL_ACQUIRE_TIMEOUT_MS":"2000","SQLX_POOL_CONNECT_TIMEOUT_MS":"2000","SQLX_POOL_IDLE_TIMEOUT_SECONDS":"300","SQLX_POOL_MAX_LIFETIME_SECONDS":"1800","POSTGRES_CONNECTION_BUDGET_TOTAL":"80","CACHE_ENABLED":"true","CACHE_SCHEMA_VERSION":"v1","CACHE_DEFAULT_TTL_SECONDS":"300","CACHE_TTL_JITTER_SECONDS":"30","REDIS_CONNECT_TIMEOUT_MS":"100","REDIS_COMMAND_TIMEOUT_MS":"50","REDIS_CIRCUIT_ERROR_THRESHOLD":"20","REDIS_CIRCUIT_WINDOW_SECONDS":"30","REDIS_CIRCUIT_COOLDOWN_SECONDS":"60","REDIS_LOG_RATE_LIMIT_SECONDS":"30","EVENT_PAYLOAD_MAX_BYTES":"65536","OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS":"5000","OBSERVABILITY_POSTGRES_LOCK_POLL_INTERVAL_MS":"5000","OBSERVABILITY_JOB_PRESSURE_POLL_INTERVAL_MS":"5000","OTEL_ENABLED":"true","OTEL_EXPORTER_OTLP_ENDPOINT":"http://otel-collector:4317","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.1","OTEL_METRIC_EXPORT_INTERVAL":"30000","AUTH_ENABLED":"true","AUTH_JWKS_CACHE_TTL_SECONDS":"300","AUTH_JWKS_TIMEOUT_MS":"1000","AUTH_CLOCK_SKEW_SECONDS":"30","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_RATE_LIMIT_ENABLED":"true","EDGE_RATE_LIMIT_WINDOW_SECONDS":"60","EDGE_RATE_LIMIT_READ_MAX":"120","EDGE_RATE_LIMIT_USER_READ_MAX":"240","EDGE_RATE_LIMIT_USER_WRITE_MAX":"60","EDGE_RATE_LIMIT_DEVICE_READ_MAX":"120","EDGE_RATE_LIMIT_DEVICE_WRITE_MAX":"30","EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS":"10000","EDGE_RATE_LIMIT_KEY_TTL_SECONDS":"300","EDGE_RATE_LIMIT_REDIS_PREFIX":"rate-limit","EDGE_RATE_LIMIT_FAILOVER_ENABLED":"true","EDGE_BACKPRESSURE_ENABLED":"true","EDGE_BACKPRESSURE_POLL_INTERVAL_MS":"1000","EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS":"5","EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY":"2","EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY":"2","EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX":"1000","EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX":"30","EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX":"2000","EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX":"60","EDGE_BACKPRESSURE_KAFKA_PENDING_MAX":"500","EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX":"30","EDGE_REQUEST_MAX_BYTES":"262144","EDGE_WRITE_REQUEST_MAX_BYTES":"65536","EDGE_CORS_ALLOWED_ORIGINS":"https://staging.example.com","EDGE_TRUST_FORWARDED_CLIENT_IP":"true","DATABASE_RUNTIME_URL":"postgres://runtime@db.example/banji","RABBIT_MANAGEMENT_API_BASE_URL":"https://rabbit.example.com","RABBIT_MANAGEMENT_USERNAME":"banji","RABBIT_MANAGEMENT_PASSWORD":"rabbit-management-secret"}'
+
+reset_logs
+
+export RAILWAY_ENVIRONMENT="prod"
+export RAILWAY_SERVICE_ID="svc-api-prod"
+export EXPECTED_APP_ROLE="api"
+export EXPECTED_BANJI_SERVICE="api"
+export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
+export EDGE_ORIGIN_AUTH_SECRET="prod-edge-secret"
+export AUTH_JWKS_URL="https://prod-jwks.example.com"
+export AUTH_ISSUER="https://prod-issuer.example.com"
+export AUTH_AUDIENCE="banji-api"
+export FAKE_VARIABLE_JSON_svc_api_prod='{"CACHE_SCHEMA_VERSION":"stale"}'
+export FAKE_DEPLOYMENT_SEQUENCE_svc_api_prod="baseline-prod-api:SUCCESS;deploy-prod-api:SUCCESS"
+
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
+
+grep -q "^graphql upsert svc-api-prod replace=false skipDeploys=true" "$LOG_FILE"
+jq -e '
+  .EDGE_ORIGIN_AUTH_SECRET == "prod-edge-secret"
+  and .AUTH_JWKS_URL == "https://prod-jwks.example.com"
+  and .AUTH_ISSUER == "https://prod-issuer.example.com"
+  and .AUTH_AUDIENCE == "banji-api"
+' "$STATE_DIR/svc-api-prod.json" >/dev/null
+
+unset FAKE_VARIABLE_JSON_svc_api_prod FAKE_DEPLOYMENT_SEQUENCE_svc_api_prod
+export RAILWAY_ENVIRONMENT="staging"
+unset EDGE_ORIGIN_AUTH_SECRET AUTH_JWKS_URL AUTH_ISSUER AUTH_AUDIENCE
 
 reset_logs
 
@@ -1023,15 +1074,10 @@ export EXPECTED_APP_ROLE="api"
 export EXPECTED_BANJI_SERVICE="api"
 export RAILWAY_SERVICE_ID="svc-api"
 export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
-export AUTH_JWKS_URL="https://jwks.example.com"
-export AUTH_ISSUER="https://issuer.example.com"
-export AUTH_AUDIENCE="banji-api"
 export RABBIT_MANAGEMENT_API_BASE_URL="https://rabbit.example.com"
 export RABBIT_MANAGEMENT_USERNAME="banji"
-export RABBIT_MANAGEMENT_PASSWORD="secret"
-rm -f "$STATE_DIR/svc-api.json"
-export FAKE_VARIABLE_JSON_svc_api='{"CACHE_SCHEMA_VERSION":"stale"}'
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret"
+seed_runtime_state "svc-api" '{"EDGE_ORIGIN_AUTH_SECRET":"railway-edge-secret","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","CACHE_SCHEMA_VERSION":"stale"}'
 export FAKE_GRAPHQL_UPSERT_STDERR="You are being ratelimited. Please try again later token=token"
 if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
   echo "assertion failed: rate-limited GraphQL upsert should fail sync + up" >&2
@@ -1045,29 +1091,27 @@ if grep -q "token=token" "$DEBUG_LOG"; then
   echo "assertion failed: GraphQL upsert failure leaked auth token" >&2
   exit 1
 fi
-unset FAKE_GRAPHQL_UPSERT_STDERR FAKE_VARIABLE_JSON_svc_api
+unset FAKE_GRAPHQL_UPSERT_STDERR
 
 reset_logs
 
-rm -f "$STATE_DIR/svc-api.json"
-export EDGE_ORIGIN_AUTH_SECRET='edge-"quoted"-secret'
-export FAKE_VARIABLE_JSON_svc_api='{"CACHE_SCHEMA_VERSION":"stale"}'
-export FAKE_GRAPHQL_UPSERT_STDERR='mutation failed {"secret":"edge-\"quoted\"-secret","token":"token"}'
+seed_runtime_state "svc-api" '{"EDGE_ORIGIN_AUTH_SECRET":"railway-edge-secret","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","CACHE_SCHEMA_VERSION":"stale"}'
+export RABBIT_MANAGEMENT_PASSWORD='rabbit-"quoted"-secret'
+export FAKE_GRAPHQL_UPSERT_STDERR='mutation failed {"secret":"rabbit-\"quoted\"-secret","token":"token"}'
 if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
   echo "assertion failed: JSON-escaped secret failure should fail sync + up" >&2
   exit 1
 fi
-if grep -q 'edge-\\"quoted\\"-secret' "$DEBUG_LOG" || grep -q 'edge-"quoted"-secret' "$DEBUG_LOG"; then
+if grep -q 'rabbit-\\"quoted\\"-secret' "$DEBUG_LOG" || grep -q 'rabbit-"quoted"-secret' "$DEBUG_LOG"; then
   echo "assertion failed: GraphQL upsert failure leaked JSON-escaped managed secret" >&2
   exit 1
 fi
-unset FAKE_GRAPHQL_UPSERT_STDERR FAKE_VARIABLE_JSON_svc_api
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+unset FAKE_GRAPHQL_UPSERT_STDERR
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret"
 
 reset_logs
 
-rm -f "$STATE_DIR/svc-api.json"
-export FAKE_VARIABLE_JSON_svc_api='{"CACHE_SCHEMA_VERSION":"stale"}'
+seed_runtime_state "svc-api" '{"EDGE_ORIGIN_AUTH_SECRET":"railway-edge-secret","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","CACHE_SCHEMA_VERSION":"stale"}'
 export FAKE_GRAPHQL_UPSERT_ERRORS="mutation rejected"
 if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
   echo "assertion failed: GraphQL errors should fail sync + up" >&2
@@ -1077,7 +1121,7 @@ if [[ ! -s "$DEBUG_LOG" ]]; then
   echo "assertion failed: GraphQL error response should emit failure output" >&2
   exit 1
 fi
-unset FAKE_GRAPHQL_UPSERT_ERRORS FAKE_VARIABLE_JSON_svc_api
+unset FAKE_GRAPHQL_UPSERT_ERRORS
 
 reset_logs
 
@@ -1099,10 +1143,6 @@ export EXPECTED_BANJI_SERVICE="api"
 export RAILWAY_SERVICE_ID="svc-api"
 export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
 unset OBJECT_STORAGE_ACCESS_KEY OBJECT_STORAGE_SECRET_KEY ALGORITHM_ROLLOUT_HASH_SALT
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
-export AUTH_JWKS_URL="https://jwks.example.com"
-export AUTH_ISSUER="https://issuer.example.com"
-export AUTH_AUDIENCE="banji-api"
 export OBJECT_STORAGE_ENDPOINT="https://storage.example.com"
 
 if bash "$SCRIPT" >/dev/null 2>&1; then
@@ -1130,9 +1170,9 @@ reset_logs
 export RAILWAY_CI_DEBUG="1"
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api="baseline-success:SUCCESS;deploy-failed-debug:DEPLOYING;deploy-failed-debug:FAILED"
 export FAKE_LOGS_BUILD_STDERR="build tail unavailable token=token-leak-value"
-export FAKE_LOGS_DEPLOYMENT_STDERR="deployment tail unavailable secret=edge-secret-leak"
+export FAKE_LOGS_DEPLOYMENT_STDERR="deployment tail unavailable secret=rabbit-management-secret-leak"
 export RAILWAY_API_TOKEN="token-leak-value"
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret-leak"
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret-leak"
 if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
   echo "assertion failed: failed deployment status should still fail in debug mode" >&2
   exit 1
@@ -1145,13 +1185,13 @@ if grep -q "token-leak-value" "$DEBUG_LOG"; then
   echo "assertion failed: log-fetch failure path leaked RAILWAY_API_TOKEN" >&2
   exit 1
 fi
-if grep -q "edge-secret-leak" "$DEBUG_LOG"; then
+if grep -q "rabbit-management-secret-leak" "$DEBUG_LOG"; then
   echo "assertion failed: log-fetch failure path leaked managed secret" >&2
   exit 1
 fi
 unset FAKE_DEPLOYMENT_SEQUENCE_svc_api FAKE_LOGS_BUILD_STDERR FAKE_LOGS_DEPLOYMENT_STDERR
 export RAILWAY_API_TOKEN="token"
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret"
 export RAILWAY_CI_DEBUG="0"
 
 reset_logs
@@ -1187,8 +1227,8 @@ reset_logs
 
 export RAILWAY_CI_DEBUG="1"
 export RAILWAY_API_TOKEN="token-leak-value"
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret-leak"
-export FAKE_LINK_STDERR="Unauthorized. token=token-leak-value secret=edge-secret-leak"
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret-leak"
+export FAKE_LINK_STDERR="Unauthorized. token=token-leak-value secret=rabbit-management-secret-leak"
 if bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"; then
   echo "assertion failed: mocked link failure should fail sync + up" >&2
   exit 1
@@ -1201,13 +1241,13 @@ if grep -q "token-leak-value" "$DEBUG_LOG"; then
   echo "assertion failed: debug output leaked RAILWAY_API_TOKEN" >&2
   exit 1
 fi
-if grep -q "edge-secret-leak" "$DEBUG_LOG"; then
+if grep -q "rabbit-management-secret-leak" "$DEBUG_LOG"; then
   echo "assertion failed: debug output leaked managed secret" >&2
   exit 1
 fi
 unset FAKE_LINK_STDERR
 export RAILWAY_API_TOKEN="token"
-export EDGE_ORIGIN_AUTH_SECRET="edge-secret"
+export RABBIT_MANAGEMENT_PASSWORD="rabbit-management-secret"
 export RAILWAY_CI_DEBUG="0"
 
 reset_logs

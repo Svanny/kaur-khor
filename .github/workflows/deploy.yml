@@ -180,6 +180,11 @@ jobs:
           OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
           ALGORITHM_ROLLOUT_HASH_SALT: ${{ secrets.ALGORITHM_ROLLOUT_HASH_SALT }}
         run: bash tool/ci/railway_sync_and_up.sh
+      - name: Verify staging OIDC runtime readiness
+        id: verify_oidc_runtime
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
+        run: bash tool/ci/check_oidc_runtime_ready.sh
       - name: Deploy staging api
         id: deploy_api
         env:
@@ -188,10 +193,6 @@ jobs:
           EXPECTED_BANJI_SERVICE: api
           DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-          EDGE_ORIGIN_AUTH_SECRET: ${{ secrets.EDGE_ORIGIN_AUTH_SECRET }}
-          AUTH_JWKS_URL: ${{ secrets.AUTH_JWKS_URL }}
-          AUTH_ISSUER: ${{ secrets.AUTH_ISSUER }}
-          AUTH_AUDIENCE: ${{ secrets.AUTH_AUDIENCE }}
         run: bash tool/ci/railway_sync_and_up.sh
       - name: Verify staging commit parity
         id: verify_commit_parity
@@ -242,6 +243,7 @@ jobs:
             echo "- Event relay: ${{ steps.deploy_event_relay.outcome }}"
             echo "- Projection consumer: ${{ steps.deploy_projection_consumer.outcome }}"
             echo "- Worker: ${{ steps.deploy_worker.outcome }}"
+            echo "- OIDC runtime: ${{ steps.verify_oidc_runtime.outcome }}"
             echo "- API: ${{ steps.deploy_api.outcome }}"
             echo "- Commit parity: ${{ steps.verify_commit_parity.outcome }}"
             echo "- API version smoke: ${{ steps.verify_api_version.outcome }}"
