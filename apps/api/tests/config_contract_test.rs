@@ -939,6 +939,83 @@ fn worker_requires_rabbit_url() {
 }
 
 #[test]
+fn worker_rejects_rabbit_url_without_host() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_role = std::env::var("APP_ROLE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_rabbit_url = std::env::var("RABBIT_URL").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    let old_object_storage = capture_env(WORKER_OBJECT_STORAGE_ENV_KEYS);
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "worker");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::set_var("RABBIT_URL", "amqps://guest:guest@/%2f");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+    set_minimal_worker_object_storage_env();
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("RABBIT_URL must be a valid URL: empty host"));
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_role {
+        std::env::set_var("APP_ROLE", v);
+    } else {
+        std::env::remove_var("APP_ROLE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_rabbit_url {
+        std::env::set_var("RABBIT_URL", v);
+    } else {
+        std::env::remove_var("RABBIT_URL");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+    restore_env(old_object_storage);
+}
+
+#[test]
 fn worker_requires_object_storage_config() {
     let _guard = lock_env();
 
@@ -971,6 +1048,84 @@ fn worker_requires_object_storage_config() {
         .unwrap_err()
         .to_string()
         .contains("OBJECT_STORAGE_ENABLED"));
+
+    if let Some(v) = old_env {
+        std::env::set_var("BANJI_ENV", v);
+    } else {
+        std::env::remove_var("BANJI_ENV");
+    }
+    if let Some(v) = old_role {
+        std::env::set_var("APP_ROLE", v);
+    } else {
+        std::env::remove_var("APP_ROLE");
+    }
+    if let Some(v) = old_cache_schema {
+        std::env::set_var("CACHE_SCHEMA_VERSION", v);
+    } else {
+        std::env::remove_var("CACHE_SCHEMA_VERSION");
+    }
+    if let Some(v) = old_runtime_url {
+        std::env::set_var("DATABASE_RUNTIME_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_URL");
+    }
+    if let Some(v) = old_endpoint_kind {
+        std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", v);
+    } else {
+        std::env::remove_var("DATABASE_RUNTIME_ENDPOINT_KIND");
+    }
+    if let Some(v) = old_pool_mode {
+        std::env::set_var("PGBOUNCER_POOL_MODE", v);
+    } else {
+        std::env::remove_var("PGBOUNCER_POOL_MODE");
+    }
+    if let Some(v) = old_rabbit_url {
+        std::env::set_var("RABBIT_URL", v);
+    } else {
+        std::env::remove_var("RABBIT_URL");
+    }
+    if let Some(v) = old_migration_url {
+        std::env::set_var("DATABASE_MIGRATION_URL", v);
+    } else {
+        std::env::remove_var("DATABASE_MIGRATION_URL");
+    }
+    restore_env(old_object_storage);
+}
+
+#[test]
+fn worker_rejects_object_storage_endpoint_without_host() {
+    let _guard = lock_env();
+
+    let old_env = std::env::var("BANJI_ENV").ok();
+    let old_role = std::env::var("APP_ROLE").ok();
+    let old_cache_schema = std::env::var("CACHE_SCHEMA_VERSION").ok();
+    let old_runtime_url = std::env::var("DATABASE_RUNTIME_URL").ok();
+    let old_endpoint_kind = std::env::var("DATABASE_RUNTIME_ENDPOINT_KIND").ok();
+    let old_pool_mode = std::env::var("PGBOUNCER_POOL_MODE").ok();
+    let old_rabbit_url = std::env::var("RABBIT_URL").ok();
+    let old_migration_url = std::env::var("DATABASE_MIGRATION_URL").ok();
+    let old_object_storage = capture_env(WORKER_OBJECT_STORAGE_ENV_KEYS);
+
+    std::env::set_var("BANJI_ENV", "staging");
+    std::env::set_var("APP_ROLE", "worker");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var(
+        "DATABASE_RUNTIME_URL",
+        "postgres://runtime@db.example/banji",
+    );
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "pgbouncer");
+    std::env::set_var("PGBOUNCER_POOL_MODE", "transaction");
+    std::env::set_var("RABBIT_URL", "amqp://guest:guest@localhost:5672/%2f");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+    set_minimal_worker_object_storage_env();
+    std::env::set_var("OBJECT_STORAGE_ENDPOINT", "https://");
+
+    let result = AppConfig::from_env();
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("OBJECT_STORAGE_ENDPOINT must be a valid URL: empty host"));
 
     if let Some(v) = old_env {
         std::env::set_var("BANJI_ENV", v);

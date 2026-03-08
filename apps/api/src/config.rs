@@ -1018,6 +1018,7 @@ impl AppConfig {
         let rabbit_prefetch_heavy = parse_u16("RABBIT_PREFETCH_HEAVY", 2)?;
         let rabbit_replay_prefetch_fast = parse_u16("RABBIT_REPLAY_PREFETCH_FAST", 5)?;
         let rabbit_replay_prefetch_heavy = parse_u16("RABBIT_REPLAY_PREFETCH_HEAVY", 1)?;
+        let rabbit_url = optional_env("RABBIT_URL");
         let rabbit_exchange_jobs = env::var("RABBIT_EXCHANGE_JOBS")
             .unwrap_or_else(|_| format!("{system_name}.{env_name}.jobs"));
         let rabbit_exchange_jobs_replay = env::var("RABBIT_EXCHANGE_JOBS_REPLAY")
@@ -1053,6 +1054,9 @@ impl AppConfig {
             || rabbit_replay_prefetch_heavy == 0
         {
             return Err(anyhow!("Rabbit prefetch values must all be greater than 0"));
+        }
+        if let Some(rabbit_url) = rabbit_url.as_deref() {
+            validate_url_with_host("RABBIT_URL", rabbit_url, &["amqp", "amqps"])?;
         }
         let observability_rabbit_queue_poll_interval = Duration::from_millis(parse_u64(
             "OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS",
@@ -1163,7 +1167,7 @@ impl AppConfig {
             event_relay_max_backoff,
             event_relay_block_after_attempts,
             event_outbox_published_retention_days,
-            rabbit_url: env::var("RABBIT_URL").ok(),
+            rabbit_url,
             rabbit_vhost: env::var("RABBIT_VHOST").unwrap_or_else(|_| "/".to_string()),
             rabbit_exchange_jobs,
             rabbit_exchange_jobs_replay,
@@ -1636,6 +1640,7 @@ impl ObjectStorageConfig {
         }
 
         let endpoint = required_env("OBJECT_STORAGE_ENDPOINT")?;
+        validate_url_with_host("OBJECT_STORAGE_ENDPOINT", &endpoint, &["http", "https"])?;
         let region = required_env("OBJECT_STORAGE_REGION")?;
         let bucket_artifacts = required_env("OBJECT_STORAGE_BUCKET_ARTIFACTS")?;
         let force_path_style = parse_bool("OBJECT_STORAGE_FORCE_PATH_STYLE", false)?;
@@ -1754,6 +1759,25 @@ fn validate_rabbit_management_config(
             "RABBIT_MANAGEMENT_API_BASE_URL is required when Rabbit management credentials are set"
         )),
     }
+}
+
+fn validate_url_with_host(name: &str, value: &str, allowed_schemes: &[&str]) -> Result<()> {
+    let parsed =
+        reqwest::Url::parse(value).map_err(|err| anyhow!("{name} must be a valid URL: {err}"))?;
+    if !allowed_schemes.is_empty()
+        && !allowed_schemes
+            .iter()
+            .any(|scheme| parsed.scheme().eq_ignore_ascii_case(scheme))
+    {
+        return Err(anyhow!(
+            "{name} must use one of: {}",
+            allowed_schemes.join(", ")
+        ));
+    }
+    if parsed.host_str().is_none() {
+        return Err(anyhow!("{name} must include a host"));
+    }
+    Ok(())
 }
 
 fn sanitize_worker_id_component(value: &str) -> String {
