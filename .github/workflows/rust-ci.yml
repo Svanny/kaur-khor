@@ -12,6 +12,7 @@ on:
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - '.github/workflows/deploy-keycloak.yml'
+      - '.github/workflows/bootstrap-rabbit-topology.yml'
       - 'tool/ci/**'
       - 'tool/otel/**'
       - 'tool/security/**'
@@ -26,6 +27,7 @@ on:
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - '.github/workflows/deploy-keycloak.yml'
+      - '.github/workflows/bootstrap-rabbit-topology.yml'
       - 'tool/ci/**'
       - 'tool/otel/**'
       - 'tool/security/**'
@@ -70,6 +72,8 @@ jobs:
         run: bash tool/ci/test_check_migration_versions.sh
       - name: Check migration lock contract tests
         run: bash tool/ci/test_migrate_with_lock.sh
+      - name: Check Rabbit topology bootstrap contract tests
+        run: bash tool/ci/test_bootstrap_rabbit_topology.sh
 
   pooling-contract-check:
     runs-on: ubuntu-latest
