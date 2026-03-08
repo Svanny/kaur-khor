@@ -41,11 +41,16 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - `backfill-controller` is an on-demand operational role.
 
 ## Least-Privilege Access Matrix
-- `api`: `DATABASE_RUNTIME_URL`, optional `REDIS_URL`, optional `RABBIT_URL`, auth config, edge runtime config, optional telemetry auth
+- `api`: `DATABASE_RUNTIME_URL`, optional `REDIS_URL`, optional `RABBIT_URL`, optional Rabbit management observability config, auth config, edge runtime config, optional telemetry auth
 - `event-relay`: `DATABASE_RUNTIME_URL`, optional telemetry auth
 - `projection-consumer`: `DATABASE_RUNTIME_URL`, projection-consumer config, optional telemetry auth
 - `worker`: `DATABASE_RUNTIME_URL`, `RABBIT_URL`, object-storage config and secrets, rollout salt, optional telemetry auth
 - `backfill-controller`: `DATABASE_RUNTIME_URL` for primary runs and `RESTORE_DATABASE_URL` for restore validation runs
+
+## Rabbit queue observability
+- `RABBIT_MANAGEMENT_API_BASE_URL`, `RABBIT_MANAGEMENT_USERNAME`, and `RABBIT_MANAGEMENT_PASSWORD` are API-only runtime inputs.
+- These keys enable the API role's Rabbit queue dependency sampler and must not be present on `event-relay`, `projection-consumer`, `worker`, or `backfill-controller`.
+- Leaving them unset disables Rabbit queue polling without affecting worker RabbitMQ runtime behavior.
 
 ## Optional Telemetry Auth
 - `OTEL_EXPORTER_OTLP_HEADERS` is the canonical runtime secret when OTLP auth headers are needed.
@@ -92,7 +97,6 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `EVENT_CONSUMER_REPLAY_TO_ID`
 - `EVENT_CONSUMER_REPLAY_RESET_CHECKPOINT`
 - `EVENT_CONSUMER_REPLAY_TRUNCATE_PROJECTION`
-- `RABBIT_MANAGEMENT_API_BASE_URL`
 - `WORKER_ID`
 - `WORKER_ENABLED_CLASSES`
 - `WORKER_POLL_INTERVAL_MS`

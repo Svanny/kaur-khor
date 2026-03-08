@@ -1026,14 +1026,27 @@ impl AppConfig {
             .unwrap_or_else(|_| format!("{system_name}.{env_name}.jobs.dlx"));
         let job_result_kafka_enabled = parse_bool("JOB_RESULT_KAFKA_ENABLED", false)?;
         let job_result_kafka_topic_prefix = optional_env("JOB_RESULT_KAFKA_TOPIC_PREFIX");
-        let rabbit_management_api_base_url = optional_env("RABBIT_MANAGEMENT_API_BASE_URL");
-        let rabbit_management_username = optional_env("RABBIT_MANAGEMENT_USERNAME");
-        let rabbit_management_password = optional_env("RABBIT_MANAGEMENT_PASSWORD");
-        validate_rabbit_management_config(
-            rabbit_management_api_base_url.as_deref(),
-            rabbit_management_username.as_deref(),
-            rabbit_management_password.as_deref(),
-        )?;
+        let (
+            rabbit_management_api_base_url,
+            rabbit_management_username,
+            rabbit_management_password,
+        ) = if app_role == AppRole::Api {
+            let rabbit_management_api_base_url = optional_env("RABBIT_MANAGEMENT_API_BASE_URL");
+            let rabbit_management_username = optional_env("RABBIT_MANAGEMENT_USERNAME");
+            let rabbit_management_password = optional_env("RABBIT_MANAGEMENT_PASSWORD");
+            validate_rabbit_management_config(
+                rabbit_management_api_base_url.as_deref(),
+                rabbit_management_username.as_deref(),
+                rabbit_management_password.as_deref(),
+            )?;
+            (
+                rabbit_management_api_base_url,
+                rabbit_management_username,
+                rabbit_management_password,
+            )
+        } else {
+            (None, None, None)
+        };
         if rabbit_prefetch_fast == 0
             || rabbit_prefetch_heavy == 0
             || rabbit_replay_prefetch_fast == 0
@@ -1864,7 +1877,7 @@ fn parse_invalid_event_policy(raw: &str) -> Result<InvalidEventPolicy> {
 
 #[cfg(test)]
 mod tests {
-    use super::AppConfig;
+    use super::{AppConfig, AppRole};
     use std::sync::{Mutex, OnceLock};
 
     fn env_lock() -> &'static Mutex<()> {
@@ -1965,9 +1978,82 @@ mod tests {
         for name in [
             "RABBIT_MANAGEMENT_API_BASE_URL",
             "RABBIT_MANAGEMENT_USERNAME",
+            "RABBIT_MANAGEMENT_PASSWORD",
             "CACHE_SCHEMA_VERSION",
             "DATABASE_RUNTIME_ENDPOINT_KIND",
             "APP_ROLE",
+            "BANJI_ENV",
+            "EDGE_ENFORCEMENT_ENABLED",
+            "AUTH_ENABLED",
+        ] {
+            remove_env(name);
+        }
+    }
+
+    #[test]
+    fn non_api_roles_ignore_rabbit_management_settings() {
+        let _guard = env_lock().lock().unwrap();
+        apply_minimal_runtime_env();
+        set_env("APP_ROLE", "worker");
+        set_env(
+            "DATABASE_RUNTIME_URL",
+            "postgres://runtime@db.example/banji",
+        );
+        set_env("RABBIT_URL", "amqps://rabbit.example.com/%2f");
+        set_env("WORKER_ID", "worker-test");
+        set_env("OBJECT_STORAGE_ENABLED", "true");
+        set_env("OBJECT_STORAGE_ENDPOINT", "https://storage.example.com");
+        set_env("OBJECT_STORAGE_REGION", "us-east-1");
+        set_env("OBJECT_STORAGE_BUCKET_ARTIFACTS", "banji-artifacts");
+        set_env("OBJECT_STORAGE_FORCE_PATH_STYLE", "true");
+        set_env("OBJECT_STORAGE_ARTIFACT_PREFIX", "worker");
+        set_env("OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS", "30");
+        set_env("OBJECT_STORAGE_CONNECT_TIMEOUT_MS", "3000");
+        set_env("OBJECT_STORAGE_REQUEST_TIMEOUT_MS", "30000");
+        set_env("OBJECT_STORAGE_MAX_ARTIFACT_BYTES", "104857600");
+        set_env("ARTIFACT_TMP_DIR", "/tmp/banji-artifacts");
+        set_env("OBJECT_STORAGE_ACCESS_KEY", "access");
+        set_env("OBJECT_STORAGE_SECRET_KEY", "secret");
+        set_env("ALGORITHM_ROLLOUT_HASH_SALT", "salt");
+        set_env("ALGORITHM_ROLLOUT_HASH_SALT_VERSION", "v1");
+        set_env(
+            "RABBIT_MANAGEMENT_API_BASE_URL",
+            "https://rabbit.example.com",
+        );
+        set_env("RABBIT_MANAGEMENT_USERNAME", "banji");
+        remove_env("RABBIT_MANAGEMENT_PASSWORD");
+
+        let config = AppConfig::from_env().unwrap();
+        assert_eq!(config.app_role, AppRole::Worker);
+        assert_eq!(config.rabbit_management_api_base_url, None);
+        assert_eq!(config.rabbit_management_username, None);
+        assert_eq!(config.rabbit_management_password, None);
+
+        for name in [
+            "APP_ROLE",
+            "DATABASE_RUNTIME_URL",
+            "RABBIT_URL",
+            "WORKER_ID",
+            "OBJECT_STORAGE_ENABLED",
+            "OBJECT_STORAGE_ENDPOINT",
+            "OBJECT_STORAGE_REGION",
+            "OBJECT_STORAGE_BUCKET_ARTIFACTS",
+            "OBJECT_STORAGE_FORCE_PATH_STYLE",
+            "OBJECT_STORAGE_ARTIFACT_PREFIX",
+            "OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS",
+            "OBJECT_STORAGE_CONNECT_TIMEOUT_MS",
+            "OBJECT_STORAGE_REQUEST_TIMEOUT_MS",
+            "OBJECT_STORAGE_MAX_ARTIFACT_BYTES",
+            "ARTIFACT_TMP_DIR",
+            "OBJECT_STORAGE_ACCESS_KEY",
+            "OBJECT_STORAGE_SECRET_KEY",
+            "ALGORITHM_ROLLOUT_HASH_SALT",
+            "ALGORITHM_ROLLOUT_HASH_SALT_VERSION",
+            "RABBIT_MANAGEMENT_API_BASE_URL",
+            "RABBIT_MANAGEMENT_USERNAME",
+            "RABBIT_MANAGEMENT_PASSWORD",
+            "CACHE_SCHEMA_VERSION",
+            "DATABASE_RUNTIME_ENDPOINT_KIND",
             "BANJI_ENV",
             "EDGE_ENFORCEMENT_ENABLED",
             "AUTH_ENABLED",
