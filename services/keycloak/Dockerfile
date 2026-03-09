@@ -16,8 +16,6 @@ ENV KC_DB=postgres \
     KC_PROXY_HEADERS=xforwarded
 
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
-COPY start.sh /opt/keycloak/start.sh
-
-RUN chmod +x /opt/keycloak/start.sh
+COPY --chmod=0755 start.sh /opt/keycloak/start.sh
 
 ENTRYPOINT ["/opt/keycloak/start.sh"]
