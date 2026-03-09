@@ -403,6 +403,58 @@ append_exact_vars_from_config() {
   done
 }
 
+worker_override_keys=(
+  OBJECT_STORAGE_ENDPOINT
+  OBJECT_STORAGE_REGION
+  OBJECT_STORAGE_BUCKET_ARTIFACTS
+  OBJECT_STORAGE_FORCE_PATH_STYLE
+  OBJECT_STORAGE_ARTIFACT_PREFIX
+  OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS
+  OBJECT_STORAGE_CONNECT_TIMEOUT_MS
+  OBJECT_STORAGE_REQUEST_TIMEOUT_MS
+  OBJECT_STORAGE_MAX_ARTIFACT_BYTES
+  ARTIFACT_TMP_DIR
+)
+worker_override_defaulted_keys=()
+
+set_worker_var_from_override_or_config() {
+  local key="$1"
+  local override_key="DEPLOY_OVERRIDE_${key}"
+  local config_value
+
+  require_config_var "$key"
+  if [[ -n "${!override_key:-}" ]]; then
+    printf -v "$key" '%s' "${!override_key}"
+    export "$key"
+    return 0
+  fi
+
+  config_value="$(config_var_value "$key")"
+  printf -v "$key" '%s' "$config_value"
+  export "$key"
+  worker_override_defaulted_keys+=("$key")
+}
+
+append_worker_exact_vars() {
+  local key
+  for key in "$@"; do
+    if [[ " ${worker_override_keys[*]} " == *" $key "* ]]; then
+      set_worker_var_from_override_or_config "$key"
+    else
+      set_exact_var_from_config "$key"
+    fi
+    managed_exact+=("$key")
+  done
+}
+
+emit_worker_override_default_warning() {
+  if [[ "$EXPECTED_APP_ROLE" != "worker" || ${#worker_override_defaulted_keys[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  echo "::warning::Worker deploy fell back to config defaults for $(IFS=', '; printf '%s' "${worker_override_defaulted_keys[*]}")" >&2
+}
+
 run_railway_with_debug_success_output() {
   local label="$1"
   shift
@@ -1052,9 +1104,11 @@ case "$EXPECTED_APP_ROLE" in
     append_exact_vars_from_config "${managed_exact_projection_consumer[@]}"
     ;;
   worker)
-    append_exact_vars_from_config "${managed_exact_worker[@]}"
+    append_worker_exact_vars "${managed_exact_worker[@]}"
     ;;
 esac
+
+emit_worker_override_default_warning
 
 for key in "${managed_secret[@]}"; do
   add_secret_redaction "${!key:-}"

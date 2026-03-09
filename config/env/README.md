@@ -183,3 +183,5 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `OBJECT_STORAGE_BUCKET_ARTIFACTS` must exist before worker startup.
 - The configured artifact prefix must have an external lifecycle rule that expires objects after `OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS`.
 - `bucket_name + object_key` is the authoritative object identity.
+- Deploy automation uses the tracked `OBJECT_STORAGE_*` / `ARTIFACT_TMP_DIR` values as defaults for worker runtime sync.
+- Worker deploys in `staging` and `prod` may override those non-secret defaults through same-named GitHub Environment secrets; when an override secret is blank, deploy warns and falls back to the tracked config value.

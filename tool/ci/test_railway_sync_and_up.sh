@@ -1011,10 +1011,12 @@ grep -q "^delete svc-worker JOB_RESULT_KAFKA_TOPIC_PREFIX$" "$LOG_FILE"
 grep -q "^delete svc-worker RABBIT_MANAGEMENT_API_BASE_URL$" "$LOG_FILE"
 grep -q "^delete svc-worker RABBIT_MANAGEMENT_USERNAME$" "$LOG_FILE"
 grep -q "^delete svc-worker RABBIT_MANAGEMENT_PASSWORD$" "$LOG_FILE"
+grep -q '^::warning::Worker deploy fell back to config defaults for ' "$DEBUG_LOG"
 jq -e '
   .BANJI_DEPLOYMENT_ID == "9001-2"
   and .CACHE_SCHEMA_VERSION == "v1"
   and .OBJECT_STORAGE_ENDPOINT == "https://storage.staging.example.com"
+  and .OBJECT_STORAGE_BUCKET_ARTIFACTS == "banji-core-staging-kh-pp-artifacts"
   and .OTEL_ENABLED == "true"
   and .RABBIT_URL == "amqps://rabbit.example.com/%2f"
   and .OBJECT_STORAGE_ACCESS_KEY == "access"
@@ -1027,12 +1029,54 @@ jq -e '
   and (.RABBIT_MANAGEMENT_PASSWORD | not)
 ' "$STATE_DIR/svc-worker.json" >/dev/null
 grep -q "up $ROOT_DIR/apps/api --path-as-root --service svc-worker --detach" "$LOG_FILE"
-if [[ -s "$DEBUG_LOG" ]]; then
-  echo "assertion failed: worker sync should not emit stderr on success" >&2
-  exit 1
-fi
 
 reset_logs
+
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_ENDPOINT="https://objects.override.example.com"
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_REGION="ap-southeast-1"
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_BUCKET_ARTIFACTS="override-artifacts"
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_FORCE_PATH_STYLE="true"
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_ARTIFACT_PREFIX="override-worker"
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS="90"
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_CONNECT_TIMEOUT_MS="9000"
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_REQUEST_TIMEOUT_MS="120000"
+export DEPLOY_OVERRIDE_OBJECT_STORAGE_MAX_ARTIFACT_BYTES="209715200"
+export DEPLOY_OVERRIDE_ARTIFACT_TMP_DIR="/var/tmp/override-artifacts"
+export FAKE_VARIABLE_JSON_svc_worker='{}'
+export FAKE_DEPLOYMENT_SEQUENCE_svc_worker="baseline-worker-override:SUCCESS;deploy-worker-override:SUCCESS"
+
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
+
+grep -q "^graphql upsert svc-worker replace=false skipDeploys=true" "$LOG_FILE"
+if grep -q '^::warning::Worker deploy fell back to config defaults for ' "$DEBUG_LOG"; then
+  echo "assertion failed: explicit object storage overrides should not warn" >&2
+  exit 1
+fi
+jq -e '
+  .OBJECT_STORAGE_ENDPOINT == "https://objects.override.example.com"
+  and .OBJECT_STORAGE_REGION == "ap-southeast-1"
+  and .OBJECT_STORAGE_BUCKET_ARTIFACTS == "override-artifacts"
+  and .OBJECT_STORAGE_FORCE_PATH_STYLE == "true"
+  and .OBJECT_STORAGE_ARTIFACT_PREFIX == "override-worker"
+  and .OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS == "90"
+  and .OBJECT_STORAGE_CONNECT_TIMEOUT_MS == "9000"
+  and .OBJECT_STORAGE_REQUEST_TIMEOUT_MS == "120000"
+  and .OBJECT_STORAGE_MAX_ARTIFACT_BYTES == "209715200"
+  and .ARTIFACT_TMP_DIR == "/var/tmp/override-artifacts"
+' "$STATE_DIR/svc-worker.json" >/dev/null
+
+reset_logs
+
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_ENDPOINT
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_REGION
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_BUCKET_ARTIFACTS
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_FORCE_PATH_STYLE
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_ARTIFACT_PREFIX
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_CONNECT_TIMEOUT_MS
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_REQUEST_TIMEOUT_MS
+unset DEPLOY_OVERRIDE_OBJECT_STORAGE_MAX_ARTIFACT_BYTES
+unset DEPLOY_OVERRIDE_ARTIFACT_TMP_DIR
 
 unset RABBIT_URL
 if bash "$SCRIPT" >/dev/null 2>&1; then
