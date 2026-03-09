@@ -1,6 +1,7 @@
 FROM quay.io/keycloak/keycloak:26.1.4 AS builder
 
-ENV KC_HEALTH_ENABLED=true \
+ENV KC_DB=postgres \
+    KC_HEALTH_ENABLED=true \
     KC_METRICS_ENABLED=true
 
 COPY realm-import /opt/keycloak/data/import
