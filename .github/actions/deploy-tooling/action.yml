@@ -11,6 +11,7 @@ runs:
           ~/.cargo/registry
           ~/.cargo/git
           ~/.local/bin
+          ~/.local/lib/node_modules
         key: deploy-tools-${{ runner.os }}-rust-stable-sqlx-${{ env.SQLX_CLI_VERSION }}-railway-${{ env.RAILWAY_CLI_VERSION }}
         restore-keys: |
           deploy-tools-${{ runner.os }}-rust-stable-sqlx-${{ env.SQLX_CLI_VERSION }}-
@@ -70,49 +71,4 @@ runs:
 
     - name: Install Railway CLI if missing
       shell: bash
-      run: |
-        set -euo pipefail
-        mkdir -p "$HOME/.local/bin"
-
-        railway_version_matches_expected() {
-          local binary="$1"
-          local actual
-          actual="$("$binary" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)"
-          [[ -n "$actual" && "$actual" == "$RAILWAY_CLI_VERSION" ]]
-        }
-
-        if [[ -x "$HOME/.local/bin/railway" ]]; then
-          if railway_version_matches_expected "$HOME/.local/bin/railway"; then
-            echo "railway ${RAILWAY_CLI_VERSION} already installed"
-            "$HOME/.local/bin/railway" --version || true
-            exit 0
-          fi
-
-          echo "railway version mismatch; reinstalling ${RAILWAY_CLI_VERSION}"
-          "$HOME/.local/bin/railway" --version || true
-          rm -f "$HOME/.local/bin/railway"
-        fi
-
-        if command -v railway >/dev/null 2>&1; then
-          if railway_version_matches_expected "$(command -v railway)"; then
-            cp "$(command -v railway)" "$HOME/.local/bin/railway"
-            chmod +x "$HOME/.local/bin/railway"
-            echo "railway ${RAILWAY_CLI_VERSION} already installed"
-            "$HOME/.local/bin/railway" --version || true
-            exit 0
-          fi
-        fi
-
-        npm install --global --prefix "$HOME/.local" "@railway/cli@${RAILWAY_CLI_VERSION}"
-        if [[ ! -x "$HOME/.local/bin/railway" ]]; then
-          echo "error: railway CLI installation did not produce a usable binary" >&2
-          exit 1
-        fi
-
-        if ! railway_version_matches_expected "$HOME/.local/bin/railway"; then
-          echo "error: installed railway CLI version does not match ${RAILWAY_CLI_VERSION}" >&2
-          "$HOME/.local/bin/railway" --version || true
-          exit 1
-        fi
-
-        "$HOME/.local/bin/railway" --version || true
+      run: bash tool/ci/install_railway_cli.sh
