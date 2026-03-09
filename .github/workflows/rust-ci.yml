@@ -9,6 +9,7 @@ on:
       - 'config/env/**'
       - 'services/keycloak/**'
       - '.github/workflows/rust-ci.yml'
+      - '.github/actions/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - '.github/workflows/deploy-keycloak.yml'
@@ -24,6 +25,7 @@ on:
       - 'config/env/**'
       - 'services/keycloak/**'
       - '.github/workflows/rust-ci.yml'
+      - '.github/actions/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
       - '.github/workflows/deploy-keycloak.yml'
@@ -68,6 +70,8 @@ jobs:
         run: bash tool/ci/test_check_railway_commit_parity.sh
       - name: Check deploy flag loader tests
         run: bash tool/ci/test_load_deploy_flags.sh
+      - name: Check Railway CLI installer contract tests
+        run: bash tool/ci/test_install_railway_cli.sh
       - name: Check migration version contract tests
         run: bash tool/ci/test_check_migration_versions.sh
       - name: Check migration lock contract tests
