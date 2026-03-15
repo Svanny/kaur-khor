@@ -114,6 +114,15 @@ mkdir -p "$MOCK_STDIN_DIR"
 export RAILWAY_API_TOKEN="token"
 export RAILWAY_PROJECT_ID="project"
 
+export RAILWAY_ENVIRONMENT="prod"
+unset RAILWAY_SERVICE_ID
+if bash "$SCRIPT" migrate-with-lock >"$TMP_DIR/missing.stdout.txt" 2>"$TMP_DIR/missing.stderr.txt"; then
+  echo "assertion failed: run_db_ops should require a db-ops service id" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/missing.stderr.txt" "error: RAILWAY_SERVICE_ID is required for db-ops in 'prod'"
+assert_contains "$TMP_DIR/missing.stderr.txt" "hint: set GitHub 'prod' environment secret 'RAILWAY_PROD_DB_OPS_SERVICE_ID' or export RAILWAY_SERVICE_ID before running locally"
+
 export RAILWAY_ENVIRONMENT="staging"
 export RAILWAY_SERVICE_ID="svc-staging-db-ops"
 rm -rf "$ROOT_DIR/build/restore-drill" "$ROOT_DIR/build/event-log"

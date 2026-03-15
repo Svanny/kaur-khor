@@ -117,6 +117,15 @@ export RAILWAY_API_TOKEN="token"
 export RAILWAY_PROJECT_ID="project"
 export PREPARE_DB_OPS_BUILD_CONTEXT_SCRIPT="$TMP_DIR/prepare.sh"
 
+export RAILWAY_ENVIRONMENT="staging"
+unset RAILWAY_SERVICE_ID
+if bash "$SCRIPT" >"$TMP_DIR/missing.stdout.txt" 2>"$TMP_DIR/missing.stderr.txt"; then
+  echo "assertion failed: deploy_db_ops should require a db-ops service id" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/missing.stderr.txt" "error: RAILWAY_SERVICE_ID is required for db-ops in 'staging'"
+assert_contains "$TMP_DIR/missing.stderr.txt" "hint: set GitHub 'staging' environment secret 'RAILWAY_STAGING_DB_OPS_SERVICE_ID' or export RAILWAY_SERVICE_ID before running locally"
+
 for env_name in staging prod; do
   : >"$MOCK_LOG"
   printf '0' >"$MOCK_DEPLOY_COUNTER"

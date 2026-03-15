@@ -25,6 +25,28 @@ require_env() {
   fi
 }
 
+require_db_ops_service_id() {
+  if [[ -n "${RAILWAY_SERVICE_ID:-}" ]]; then
+    return 0
+  fi
+
+  local environment_name="${RAILWAY_ENVIRONMENT:-unknown}"
+  local expected_secret_name="RAILWAY_SERVICE_ID"
+
+  case "$environment_name" in
+    staging)
+      expected_secret_name="RAILWAY_STAGING_DB_OPS_SERVICE_ID"
+      ;;
+    prod)
+      expected_secret_name="RAILWAY_PROD_DB_OPS_SERVICE_ID"
+      ;;
+  esac
+
+  echo "error: RAILWAY_SERVICE_ID is required for db-ops in '$environment_name'" >&2
+  echo "hint: set GitHub '$environment_name' environment secret '$expected_secret_name' or export RAILWAY_SERVICE_ID before running locally" >&2
+  exit 1
+}
+
 debug_log() {
   if [[ "${RAILWAY_CI_DEBUG:-0}" == "1" ]]; then
     printf '%s %s\n' "$DEBUG_PREFIX" "$1" >&2
@@ -240,7 +262,7 @@ require_cmd jq
 require_env RAILWAY_API_TOKEN
 require_env RAILWAY_PROJECT_ID
 require_env RAILWAY_ENVIRONMENT
-require_env RAILWAY_SERVICE_ID
+require_db_ops_service_id
 
 if [[ -n "${RAILWAY_TOKEN:-}" ]]; then
   echo "error: RAILWAY_TOKEN is no longer supported for deploy; use RAILWAY_API_TOKEN only." >&2
