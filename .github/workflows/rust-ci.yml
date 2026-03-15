@@ -12,7 +12,8 @@ on:
       - '.github/actions/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
-      - '.github/workflows/deploy-keycloak.yml'
+      - '.github/workflows/deploy-keycloak-staging.yml'
+      - '.github/workflows/deploy-keycloak-prod.yml'
       - '.github/workflows/bootstrap-rabbit-topology.yml'
       - 'tool/ci/**'
       - 'tool/otel/**'
@@ -28,7 +29,8 @@ on:
       - '.github/actions/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
-      - '.github/workflows/deploy-keycloak.yml'
+      - '.github/workflows/deploy-keycloak-staging.yml'
+      - '.github/workflows/deploy-keycloak-prod.yml'
       - '.github/workflows/bootstrap-rabbit-topology.yml'
       - 'tool/ci/**'
       - 'tool/otel/**'
@@ -72,6 +74,8 @@ jobs:
         run: bash tool/ci/test_load_deploy_flags.sh
       - name: Check Railway CLI installer contract tests
         run: bash tool/ci/test_install_railway_cli.sh
+      - name: Check Keycloak build context contract tests
+        run: bash tool/ci/test_prepare_keycloak_build_context.sh
       - name: Check migration version contract tests
         run: bash tool/ci/test_check_migration_versions.sh
       - name: Check migration lock contract tests

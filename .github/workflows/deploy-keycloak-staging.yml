@@ -1,4 +1,4 @@
-name: deploy-keycloak
+name: deploy-keycloak-staging
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  deploy-keycloak:
+  deploy-keycloak-staging:
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -63,8 +63,14 @@ jobs:
           fi
 
           railway link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$RAILWAY_SERVICE_ID" </dev/null >/dev/null
+      - name: Prepare Keycloak build context
+        run: |
+          set -euo pipefail
+          context_dir="$(mktemp -d)"
+          bash tool/ci/prepare_keycloak_build_context.sh "$RAILWAY_ENVIRONMENT" "$context_dir"
+          echo "KEYCLOAK_BUILD_CONTEXT=$context_dir" >> "$GITHUB_ENV"
       - name: Deploy Keycloak service
-        run: railway up services/keycloak --path-as-root --service "$RAILWAY_SERVICE_ID" --detach
+        run: railway up "$KEYCLOAK_BUILD_CONTEXT" --path-as-root --service "$RAILWAY_SERVICE_ID" --detach
       - name: Write deploy summary
         if: always()
         run: |
