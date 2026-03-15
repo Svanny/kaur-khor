@@ -26,22 +26,37 @@ jobs:
   restore-drill-staging-scheduled:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: staging-db-ops
+      cancel-in-progress: false
     env:
       ENV_NAME: staging
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT: staging
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_DB_OPS_SERVICE_ID }}
       SOURCE_DATABASE_URL: ${{ secrets.RESTORE_DRILL_SOURCE_PROD_DATABASE_URL }}
-      RESTORE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RESTORE_URL }}
       REQUIRED_PG_EXTENSIONS: ${{ vars.REQUIRED_PG_EXTENSIONS }}
       RESTORE_DRILL_ALERT_WEBHOOK_URL: ${{ secrets.RESTORE_DRILL_ALERT_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Set backup source timestamp
         run: echo "BACKUP_SOURCE_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
-      - name: Install postgres client
+      - name: Load Railway CLI version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-      - name: Run restore validation
-        run: bash tool/db/restore_validate.sh
+          source config/ci/deploy.common.env
+          echo "RAILWAY_CLI_VERSION=$RAILWAY_CLI_VERSION" >> "$GITHUB_ENV"
+      - name: Add local bin directory to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Railway CLI
+        run: bash tool/ci/install_railway_cli.sh
+      - name: Deploy staging db-ops service
+        run: bash tool/ci/deploy_staging_db_ops.sh
+      - name: Run restore validation over Railway private networking
+        env:
+          DB_OPS_SOURCE_DATABASE_URL: ${{ secrets.RESTORE_DRILL_SOURCE_PROD_DATABASE_URL }}
+        run: bash tool/ci/run_staging_db_ops.sh restore-validate
       - name: Upload staging restore drill artifacts
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
@@ -122,22 +137,33 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.target_env == 'staging'
     runs-on: ubuntu-latest
     environment: staging
+    concurrency:
+      group: staging-db-ops
+      cancel-in-progress: false
     env:
       ENV_NAME: staging
-      SOURCE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RUNTIME_URL }}
-      RESTORE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_RESTORE_URL }}
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT: staging
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_DB_OPS_SERVICE_ID }}
       REQUIRED_PG_EXTENSIONS: ${{ vars.REQUIRED_PG_EXTENSIONS }}
       RESTORE_DRILL_ALERT_WEBHOOK_URL: ${{ secrets.RESTORE_DRILL_ALERT_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       - name: Set backup source timestamp
         run: echo "BACKUP_SOURCE_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
-      - name: Install postgres client
+      - name: Load Railway CLI version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-      - name: Run restore validation
-        run: bash tool/db/restore_validate.sh
+          source config/ci/deploy.common.env
+          echo "RAILWAY_CLI_VERSION=$RAILWAY_CLI_VERSION" >> "$GITHUB_ENV"
+      - name: Add local bin directory to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Railway CLI
+        run: bash tool/ci/install_railway_cli.sh
+      - name: Deploy staging db-ops service
+        run: bash tool/ci/deploy_staging_db_ops.sh
+      - name: Run restore validation over Railway private networking
+        run: bash tool/ci/run_staging_db_ops.sh restore-validate
       - name: Upload restore drill artifacts
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808

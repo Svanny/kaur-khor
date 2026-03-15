@@ -5,7 +5,7 @@ Prove recoverability by restoring into an isolated restore database and validati
 
 ## Drill Routes and Cadence
 - Automated weekly route:
-  - `prod -> staging_restore` via GitHub Actions workflow `postgres-restore-drill`.
+  - `prod -> staging_restore` via GitHub Actions workflow `postgres-restore-drill`, executed from the staging Railway db-ops service.
 - Manual monthly routes:
   - `dev -> dev_restore`
   - `prod -> prod_restore`
@@ -33,6 +33,7 @@ Manual dispatch supports:
 - `REQUIRED_PG_EXTENSIONS`: optional comma-separated extension list to enforce
 - `RESTORE_DRILL_ALERT_WEBHOOK_URL`: optional failure notification webhook
 - `RESTORE_DRILL_SOURCE_PROD_DATABASE_URL`: repo/org-level source URL used by scheduled weekly drill (`prod -> staging_restore`)
+- For `staging`, the Railway db-ops service keeps the restore target URL on Railway and defaults the source URL to its Railway-resident `DATABASE_RUNTIME_URL` when no override is supplied.
 
 ## Procedure
 1. Resolve source/restore database names and enforce safety invariants.
@@ -82,6 +83,19 @@ RESTORE_DATABASE_URL="$DEV_DATABASE_RESTORE_URL" \
 BACKUP_SOURCE_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 REQUIRED_PG_EXTENSIONS="" \
 bash tool/db/restore_validate.sh
+```
+
+Run the staging route through Railway private networking:
+
+```bash
+RAILWAY_API_TOKEN=... \
+RAILWAY_PROJECT_ID=... \
+RAILWAY_ENVIRONMENT=staging \
+RAILWAY_SERVICE_ID=... \
+ENV_NAME=staging \
+BACKUP_SOURCE_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+REQUIRED_PG_EXTENSIONS="" \
+bash tool/ci/run_staging_db_ops.sh restore-validate
 ```
 
 List high-risk migrations:

@@ -53,9 +53,11 @@ It intentionally does not fabricate a version `19` row. After remapping the meta
 After the metadata remap:
 
 ```bash
-DATABASE_MIGRATION_URL=... \
-DATABASE_RUNTIME_URL=... \
-bash tool/ci/migrate_with_lock.sh
+RAILWAY_API_TOKEN=... \
+RAILWAY_PROJECT_ID=... \
+RAILWAY_ENVIRONMENT=staging \
+RAILWAY_SERVICE_ID=... \
+bash tool/ci/run_staging_db_ops.sh migrate-with-lock
 ```
 
 Expected result:

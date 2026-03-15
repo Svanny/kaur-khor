@@ -15,6 +15,8 @@ This document defines merge gates, runtime parity rules, and deployment promotio
 - Deploy from the connected repository via Railway Railpack config-as-code.
 - GitHub Actions syncs Railway service variables, then uploads `apps/api` source with `railway up`.
 - In `staging`, `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET` are no longer synced from GitHub for API deploys; they must already exist on the Railway `api` service.
+- In `staging`, `DATABASE_RUNTIME_URL` for all Banji runtime roles and `RABBIT_URL` for `worker` must also already exist on the Railway services as private-network values or Railway reference expressions.
+- In `staging`, PostgreSQL migrations and restore drills run from the dedicated [services/staging-db-ops](/Users/svanny/banji/services/staging-db-ops) service over Railway private networking.
 - `prod` remains on the existing GitHub-injected API auth path until the production Railway service is migrated.
 - Railway service root is `apps/api`.
 - Build command remains `cargo build --release`.
@@ -27,7 +29,7 @@ This document defines merge gates, runtime parity rules, and deployment promotio
 - Every role in an environment must run the same revision.
 
 ## Rollout Sequence
-1. run migrations with advisory lock
+1. in `staging`, deploy the DB ops helper service and run migrations with advisory lock from inside Railway
 2. deploy `event-relay`
 3. deploy `projection-consumer`
 4. deploy `worker`
@@ -47,6 +49,11 @@ Staging OIDC readiness preflight must also prove:
 - `AUTH_ISSUER` and `AUTH_JWKS_URL` resolve over public `https://`
 - discovery at `${AUTH_ISSUER}/.well-known/openid-configuration` matches the configured issuer/JWKS URL
 - the configured JWKS endpoint returns a non-empty key set
+
+Staging private-network preflight must also prove:
+- runtime `DATABASE_RUNTIME_URL` values are already present on the Railway runtime services
+- runtime `RABBIT_URL` is already present on the Railway `worker` service
+- the staging DB ops helper service is the only deploy-time path that still receives staging `DATABASE_MIGRATION_URL`
 
 For API services:
 - `EDGE_ENFORCEMENT_ENABLED=true`

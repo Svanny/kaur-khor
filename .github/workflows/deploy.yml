@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     concurrency:
-      group: deploy-staging
+      group: staging-db-ops
       cancel-in-progress: false
     env:
       COMMIT_SHA: ${{ inputs.commit_sha || github.event.inputs.commit_sha }}
@@ -47,6 +47,7 @@ jobs:
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: staging
       API_BASE_URL: ${{ vars.API_BASE_URL }}
+      RAILWAY_STAGING_DB_OPS_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_DB_OPS_SERVICE_ID }}
       RAILWAY_STAGING_API_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
       RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
       RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
@@ -142,20 +143,23 @@ jobs:
           debug_log "pass: railway link project/environment/service"
 
           echo "Railway auth preflight passed for $RAILWAY_ENVIRONMENT."
-      - name: Run migrations with advisory lock
+      - name: Deploy staging db-ops service
+        id: deploy_db_ops
         env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_DB_OPS_SERVICE_ID }}
+        run: bash tool/ci/deploy_staging_db_ops.sh
+      - name: Run staging migrations over Railway private networking
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_DB_OPS_SERVICE_ID }}
           ADVISORY_LOCK_KEY: 184361
           MIGRATION_SENTINEL: /tmp/staging_migration_applied
-          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
-          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
-        run: bash tool/ci/migrate_with_lock.sh
+        run: bash tool/ci/run_staging_db_ops.sh migrate-with-lock
       - name: Deploy staging event-relay
         id: deploy_event_relay
         env:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_EVENT_RELAY_SERVICE_ID }}
           EXPECTED_APP_ROLE: event-relay
           EXPECTED_BANJI_SERVICE: event-relay
-          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy staging projection-consumer
@@ -164,7 +168,6 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_PROJECTION_CONSUMER_SERVICE_ID }}
           EXPECTED_APP_ROLE: projection-consumer
           EXPECTED_BANJI_SERVICE: projection-consumer
-          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         run: bash tool/ci/railway_sync_and_up.sh
       - name: Deploy staging worker
@@ -173,9 +176,7 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_WORKER_SERVICE_ID }}
           EXPECTED_APP_ROLE: worker
           EXPECTED_BANJI_SERVICE: worker
-          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-          RABBIT_URL: ${{ secrets.RABBIT_URL }}
           OBJECT_STORAGE_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
           OBJECT_STORAGE_SECRET_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
           ALGORITHM_ROLLOUT_HASH_SALT: ${{ secrets.ALGORITHM_ROLLOUT_HASH_SALT }}
@@ -201,7 +202,6 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_API_SERVICE_ID }}
           EXPECTED_APP_ROLE: api
           EXPECTED_BANJI_SERVICE: api
-          DATABASE_RUNTIME_URL: ${{ secrets.DATABASE_RUNTIME_URL }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         run: bash tool/ci/railway_sync_and_up.sh
       - name: Verify staging commit parity
@@ -250,6 +250,7 @@ jobs:
             echo "- Commit SHA: $COMMIT_SHA"
             echo "- Migration checksum: $MIGRATION_CHECKSUM"
             echo "- Deploy run id: $DEPLOY_RUN_ID"
+            echo "- Staging db-ops: ${{ steps.deploy_db_ops.outcome }}"
             echo "- Event relay: ${{ steps.deploy_event_relay.outcome }}"
             echo "- Projection consumer: ${{ steps.deploy_projection_consumer.outcome }}"
             echo "- Worker: ${{ steps.deploy_worker.outcome }}"

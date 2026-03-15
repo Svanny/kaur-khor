@@ -921,29 +921,32 @@ managed_exact_worker=(
 
 case "$EXPECTED_APP_ROLE" in
   api)
-    require_secret_var DATABASE_RUNTIME_URL
     require_all_or_none_vars \
       "Rabbit management variables (RABBIT_MANAGEMENT_API_BASE_URL, RABBIT_MANAGEMENT_USERNAME, RABBIT_MANAGEMENT_PASSWORD)" \
       RABBIT_MANAGEMENT_API_BASE_URL \
       RABBIT_MANAGEMENT_USERNAME \
       RABBIT_MANAGEMENT_PASSWORD
     if [[ "$RAILWAY_ENVIRONMENT" == "staging" ]]; then
+      forbid_local_var DATABASE_RUNTIME_URL
       forbid_local_var EDGE_ORIGIN_AUTH_SECRET
       forbid_local_var AUTH_JWKS_URL
       forbid_local_var AUTH_ISSUER
       forbid_local_var AUTH_AUDIENCE
       required_existing_runtime+=(
+        DATABASE_RUNTIME_URL
         EDGE_ORIGIN_AUTH_SECRET
         AUTH_JWKS_URL
         AUTH_ISSUER
         AUTH_AUDIENCE
       )
     else
+      require_secret_var DATABASE_RUNTIME_URL
       require_secret_var EDGE_ORIGIN_AUTH_SECRET
       require_secret_var AUTH_JWKS_URL
       require_secret_var AUTH_ISSUER
       require_secret_var AUTH_AUDIENCE
       managed_secret+=(
+        DATABASE_RUNTIME_URL
         EDGE_ORIGIN_AUTH_SECRET
         AUTH_JWKS_URL
         AUTH_ISSUER
@@ -953,9 +956,6 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var OBJECT_STORAGE_ENDPOINT
     forbid_local_var OBJECT_STORAGE_ACCESS_KEY
     forbid_local_var OBJECT_STORAGE_SECRET_KEY
-    managed_secret+=(
-      DATABASE_RUNTIME_URL
-    )
     managed_optional_exact+=(RABBIT_MANAGEMENT_API_BASE_URL)
     managed_optional_secret+=(
       RABBIT_MANAGEMENT_USERNAME
@@ -968,7 +968,6 @@ case "$EXPECTED_APP_ROLE" in
     )
     ;;
   event-relay)
-    require_secret_var DATABASE_RUNTIME_URL
     for key in "${managed_exact_api[@]}"; do
       forbid_local_var "$key"
     done
@@ -983,7 +982,13 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
     forbid_local_var RABBIT_MANAGEMENT_USERNAME
     forbid_local_var RABBIT_MANAGEMENT_PASSWORD
-    managed_secret+=(DATABASE_RUNTIME_URL)
+    if [[ "$RAILWAY_ENVIRONMENT" == "staging" ]]; then
+      forbid_local_var DATABASE_RUNTIME_URL
+      required_existing_runtime+=(DATABASE_RUNTIME_URL)
+    else
+      require_secret_var DATABASE_RUNTIME_URL
+      managed_secret+=(DATABASE_RUNTIME_URL)
+    fi
     forbidden_runtime+=(
       "${managed_exact_api[@]}"
       RABBIT_MANAGEMENT_API_BASE_URL
@@ -1000,7 +1005,6 @@ case "$EXPECTED_APP_ROLE" in
     )
     ;;
   projection-consumer)
-    require_secret_var DATABASE_RUNTIME_URL
     for key in "${managed_exact_api[@]}"; do
       forbid_local_var "$key"
     done
@@ -1015,7 +1019,13 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
     forbid_local_var RABBIT_MANAGEMENT_USERNAME
     forbid_local_var RABBIT_MANAGEMENT_PASSWORD
-    managed_secret+=(DATABASE_RUNTIME_URL)
+    if [[ "$RAILWAY_ENVIRONMENT" == "staging" ]]; then
+      forbid_local_var DATABASE_RUNTIME_URL
+      required_existing_runtime+=(DATABASE_RUNTIME_URL)
+    else
+      require_secret_var DATABASE_RUNTIME_URL
+      managed_secret+=(DATABASE_RUNTIME_URL)
+    fi
     forbidden_runtime+=(
       "${managed_exact_api[@]}"
       RABBIT_MANAGEMENT_API_BASE_URL
@@ -1032,8 +1042,6 @@ case "$EXPECTED_APP_ROLE" in
     )
     ;;
   worker)
-    require_secret_var DATABASE_RUNTIME_URL
-    require_secret_var RABBIT_URL
     require_secret_var OBJECT_STORAGE_ACCESS_KEY
     require_secret_var OBJECT_STORAGE_SECRET_KEY
     require_secret_var ALGORITHM_ROLLOUT_HASH_SALT
@@ -1047,9 +1055,22 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
     forbid_local_var RABBIT_MANAGEMENT_USERNAME
     forbid_local_var RABBIT_MANAGEMENT_PASSWORD
+    if [[ "$RAILWAY_ENVIRONMENT" == "staging" ]]; then
+      forbid_local_var DATABASE_RUNTIME_URL
+      forbid_local_var RABBIT_URL
+      required_existing_runtime+=(
+        DATABASE_RUNTIME_URL
+        RABBIT_URL
+      )
+    else
+      require_secret_var DATABASE_RUNTIME_URL
+      require_secret_var RABBIT_URL
+      managed_secret+=(
+        DATABASE_RUNTIME_URL
+        RABBIT_URL
+      )
+    fi
     managed_secret+=(
-      DATABASE_RUNTIME_URL
-      RABBIT_URL
       OBJECT_STORAGE_ACCESS_KEY
       OBJECT_STORAGE_SECRET_KEY
       ALGORITHM_ROLLOUT_HASH_SALT
@@ -1110,12 +1131,16 @@ esac
 
 emit_worker_override_default_warning
 
-for key in "${managed_secret[@]}"; do
-  add_secret_redaction "${!key:-}"
-done
-for key in "${managed_optional_secret[@]}"; do
-  add_secret_redaction "${!key:-}"
-done
+if [[ ${#managed_secret[@]} -gt 0 ]]; then
+  for key in "${managed_secret[@]}"; do
+    add_secret_redaction "${!key:-}"
+  done
+fi
+if [[ ${#managed_optional_secret[@]} -gt 0 ]]; then
+  for key in "${managed_optional_secret[@]}"; do
+    add_secret_redaction "${!key:-}"
+  done
+fi
 add_secret_redaction "${OTEL_HEADERS:-}"
 
 if debug_enabled; then
@@ -1244,28 +1269,32 @@ if [[ ${#managed_optional_exact[@]} -gt 0 ]]; then
   done
 fi
 
-for key in "${managed_secret[@]}"; do
-  if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
-    upsert_runtime_vars_json="$(
-      printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
-    )"
-  fi
-done
-
-for key in "${managed_optional_secret[@]}"; do
-  if [[ -n "${!key:-}" ]]; then
+if [[ ${#managed_secret[@]} -gt 0 ]]; then
+  for key in "${managed_secret[@]}"; do
     if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
       upsert_runtime_vars_json="$(
         printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
       )"
     fi
-  else
-    debug_log "remove absent optional runtime secret '$key' if visible"
-    if runtime_var_visible "$key"; then
-      delete_runtime_var_keys+=("$key")
+  done
+fi
+
+if [[ ${#managed_optional_secret[@]} -gt 0 ]]; then
+  for key in "${managed_optional_secret[@]}"; do
+    if [[ -n "${!key:-}" ]]; then
+      if ! runtime_var_visible "$key" || [[ "$(runtime_var_value "$key")" != "${!key}" ]]; then
+        upsert_runtime_vars_json="$(
+          printf '%s' "$upsert_runtime_vars_json" | jq -cS --arg key "$key" --arg value "${!key}" '. + {($key): $value}'
+        )"
+      fi
+    else
+      debug_log "remove absent optional runtime secret '$key' if visible"
+      if runtime_var_visible "$key"; then
+        delete_runtime_var_keys+=("$key")
+      fi
     fi
-  fi
-done
+  done
+fi
 
 for key in "${forbidden_runtime[@]}"; do
   if runtime_var_visible "$key"; then
@@ -1299,9 +1328,11 @@ for key in "${managed_exact[@]}"; do
   fi
 done
 
-for key in "${managed_secret[@]}"; do
-  assert_runtime_var_equals "$key" "${!key}"
-done
+if [[ ${#managed_secret[@]} -gt 0 ]]; then
+  for key in "${managed_secret[@]}"; do
+    assert_runtime_var_equals "$key" "${!key}"
+  done
+fi
 
 if [[ ${#managed_optional_exact[@]} -gt 0 ]]; then
   for key in "${managed_optional_exact[@]}"; do

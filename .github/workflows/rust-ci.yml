@@ -9,10 +9,12 @@ on:
       - 'config/env/**'
       - 'services/keycloak/**'
       - 'services/frontend/**'
+      - 'services/staging-db-ops/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/actions/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/postgres-restore-drill.yml'
       - '.github/workflows/deploy-frontend-staging.yml'
       - '.github/workflows/deploy-frontend-prod.yml'
       - '.github/workflows/deploy-keycloak-staging.yml'
@@ -29,10 +31,12 @@ on:
       - 'config/env/**'
       - 'services/keycloak/**'
       - 'services/frontend/**'
+      - 'services/staging-db-ops/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/actions/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/postgres-restore-drill.yml'
       - '.github/workflows/deploy-frontend-staging.yml'
       - '.github/workflows/deploy-frontend-prod.yml'
       - '.github/workflows/deploy-keycloak-staging.yml'
@@ -84,6 +88,12 @@ jobs:
         run: bash tool/ci/test_prepare_frontend_build_context.sh
       - name: Check frontend deploy contract tests
         run: bash tool/ci/test_deploy_frontend.sh
+      - name: Check staging db-ops build context contract tests
+        run: bash tool/ci/test_prepare_staging_db_ops_build_context.sh
+      - name: Check staging db-ops deploy contract tests
+        run: bash tool/ci/test_deploy_staging_db_ops.sh
+      - name: Check staging db-ops runner contract tests
+        run: bash tool/ci/test_run_staging_db_ops.sh
       - name: Check Keycloak build context contract tests
         run: bash tool/ci/test_prepare_keycloak_build_context.sh
       - name: Check migration version contract tests
@@ -176,16 +186,16 @@ jobs:
       DATABASE_RUNTIME_URL: postgres://postgres:postgres@localhost:5432/banji_ci
       DATABASE_RUNTIME_ENDPOINT_KIND: direct
       PGBOUNCER_POOL_MODE: session
-      SQLX_POOL_MAX_CONNECTIONS: 10
+      SQLX_POOL_MAX_CONNECTIONS: 5
       SQLX_POOL_MIN_CONNECTIONS: 1
       SQLX_POOL_ACQUIRE_TIMEOUT_MS: 2000
       SQLX_POOL_CONNECT_TIMEOUT_MS: 2000
       SQLX_POOL_IDLE_TIMEOUT_SECONDS: 300
       SQLX_POOL_MAX_LIFETIME_SECONDS: 1800
-      POSTGRES_CONNECTION_BUDGET_TOTAL: 80
+      POSTGRES_CONNECTION_BUDGET_TOTAL: 40
       CACHE_SCHEMA_VERSION: v1
       REDIS_URL: redis://localhost:6379
-      CACHE_ENABLED: true
+      CACHE_ENABLED: false
       OTEL_ENABLED: false
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
@@ -251,6 +261,16 @@ jobs:
           tags: banji-keycloak:pr-${{ github.sha }}
           cache-from: type=gha,scope=banji-keycloak-pr
           cache-to: type=gha,mode=max,scope=banji-keycloak-pr
+      - name: Build staging db-ops container image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/staging-db-ops/Dockerfile
+          push: false
+          load: false
+          tags: banji-staging-db-ops:pr-${{ github.sha }}
+          cache-from: type=gha,scope=banji-staging-db-ops-pr
+          cache-to: type=gha,mode=max,scope=banji-staging-db-ops-pr
 
   migration-validate:
     runs-on: ubuntu-latest
