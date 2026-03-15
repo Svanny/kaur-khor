@@ -8,10 +8,13 @@ on:
       - 'config/ci/**'
       - 'config/env/**'
       - 'services/keycloak/**'
+      - 'services/frontend/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/actions/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/deploy-frontend-staging.yml'
+      - '.github/workflows/deploy-frontend-prod.yml'
       - '.github/workflows/deploy-keycloak-staging.yml'
       - '.github/workflows/deploy-keycloak-prod.yml'
       - '.github/workflows/bootstrap-rabbit-topology.yml'
@@ -25,10 +28,13 @@ on:
       - 'config/ci/**'
       - 'config/env/**'
       - 'services/keycloak/**'
+      - 'services/frontend/**'
       - '.github/workflows/rust-ci.yml'
       - '.github/actions/**'
       - '.github/workflows/release-build.yml'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/deploy-frontend-staging.yml'
+      - '.github/workflows/deploy-frontend-prod.yml'
       - '.github/workflows/deploy-keycloak-staging.yml'
       - '.github/workflows/deploy-keycloak-prod.yml'
       - '.github/workflows/bootstrap-rabbit-topology.yml'
@@ -74,6 +80,10 @@ jobs:
         run: bash tool/ci/test_load_deploy_flags.sh
       - name: Check Railway CLI installer contract tests
         run: bash tool/ci/test_install_railway_cli.sh
+      - name: Check frontend build context contract tests
+        run: bash tool/ci/test_prepare_frontend_build_context.sh
+      - name: Check frontend deploy contract tests
+        run: bash tool/ci/test_deploy_frontend.sh
       - name: Check Keycloak build context contract tests
         run: bash tool/ci/test_prepare_keycloak_build_context.sh
       - name: Check migration version contract tests
