@@ -1,14 +1,14 @@
 # SQLx Migration Repair
 
 ## Scope
-Use this runbook when a non-production environment has already applied a migration version that was later renumbered in git, and `sqlx migrate run` fails with:
+Use this runbook when `staging` or `prod` has already applied a migration version that was later renumbered in git, and `sqlx migrate run` fails with:
 
 `migration <n> was previously applied but has been modified`
 
 This runbook covers the traced staging repair for the `0016 -> 0018` metadata migration renumbering.
 
 ## Preconditions
-- Environment: `staging` only for this runbook revision.
+- Environment: `staging` or `prod`.
 - Take a database snapshot or backup before touching `public._sqlx_migrations`.
 - Use the current repository `main` as the migration authority.
 - Do not rename migrations again while repairing the environment.
@@ -38,10 +38,11 @@ Only proceed automatically when inspection reports `safe_to_remap_16_to_18: true
 Generate the repair SQL:
 
 ```bash
-DATABASE_URL=... bash tool/db/sqlx_migration_history_repair.sh generate-repair-sql > /tmp/staging_sqlx_repair.sql
+DATABASE_URL=... bash tool/db/sqlx_migration_history_repair.sh generate-repair-sql > /tmp/db_sqlx_repair.sql
 ```
 
 Review the generated SQL, then apply it with the staging migration role.
+Review the generated SQL, then apply it with the environment-specific migration role.
 
 The generated SQL:
 - deletes the legacy version-16 metadata row from `public._sqlx_migrations`
@@ -57,7 +58,7 @@ RAILWAY_API_TOKEN=... \
 RAILWAY_PROJECT_ID=... \
 RAILWAY_ENVIRONMENT=staging \
 RAILWAY_SERVICE_ID=... \
-bash tool/ci/run_staging_db_ops.sh migrate-with-lock
+bash tool/ci/run_db_ops.sh migrate-with-lock
 ```
 
 Expected result:

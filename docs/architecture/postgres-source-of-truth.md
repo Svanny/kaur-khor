@@ -27,8 +27,8 @@ This standard defines how Banji provisions, migrates, backs up, restores, and mo
   2. Apply migrations
   3. Deploy API image
   4. Shift/finalize traffic
-- In `staging`, steps 1-2 run from the dedicated Railway db-ops service over Railway private networking before Banji runtime services roll forward.
-- `prod` stays on the existing GitHub-hosted migration path until production private DB ops are introduced.
+- In `staging`, steps 1-2 run from the dedicated staging Railway db-ops service over Railway private networking before Banji runtime services roll forward.
+- In `prod`, steps 1-2 run from the dedicated prod Railway db-ops service over Railway private networking before Banji runtime services roll forward.
 
 If migration fails, deployment aborts before app rollout.
 
@@ -95,13 +95,11 @@ No runtime role may hold schema-altering privileges.
 
 ## Restore Validation
 - Restore drill cadence:
-  - automated weekly `prod -> staging_restore`
+  - automated weekly `prod -> prod_restore`
   - monthly manual `dev -> dev_restore`
   - monthly manual `prod -> prod_restore`
   - additional manual prod drill after any deployed `@risk:high` migration
-- The `prod -> staging_restore` route runs from the staging Railway db-ops service so the staging restore target stays private-networked after TCP proxy removal.
-- Scheduled drill source contract:
-  - use dedicated repo/org secret `RESTORE_DRILL_SOURCE_PROD_DATABASE_URL` for `prod` source access in weekly drill
+- The `prod -> prod_restore` routes run from the prod Railway db-ops service so the prod restore target stays private-networked after TCP proxy removal.
 - Hard safety invariants (script-enforced):
   - restore target database name must end with `_restore`
   - source and restore database names must differ
