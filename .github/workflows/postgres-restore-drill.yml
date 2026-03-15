@@ -23,20 +23,19 @@ permissions:
   contents: read
 
 jobs:
-  restore-drill-staging-scheduled:
+  restore-drill-prod-scheduled:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    environment: staging
+    environment: prod
     concurrency:
-      group: staging-db-ops
+      group: prod-db-ops
       cancel-in-progress: false
     env:
-      ENV_NAME: staging
+      ENV_NAME: prod
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-      RAILWAY_ENVIRONMENT: staging
-      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_DB_OPS_SERVICE_ID }}
-      SOURCE_DATABASE_URL: ${{ secrets.RESTORE_DRILL_SOURCE_PROD_DATABASE_URL }}
+      RAILWAY_ENVIRONMENT: prod
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_DB_OPS_SERVICE_ID }}
       REQUIRED_PG_EXTENSIONS: ${{ vars.REQUIRED_PG_EXTENSIONS }}
       RESTORE_DRILL_ALERT_WEBHOOK_URL: ${{ secrets.RESTORE_DRILL_ALERT_WEBHOOK_URL }}
     steps:
@@ -51,24 +50,22 @@ jobs:
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install Railway CLI
         run: bash tool/ci/install_railway_cli.sh
-      - name: Deploy staging db-ops service
-        run: bash tool/ci/deploy_staging_db_ops.sh
+      - name: Deploy prod db-ops service
+        run: bash tool/ci/deploy_db_ops.sh
       - name: Run restore validation over Railway private networking
-        env:
-          DB_OPS_SOURCE_DATABASE_URL: ${{ secrets.RESTORE_DRILL_SOURCE_PROD_DATABASE_URL }}
-        run: bash tool/ci/run_staging_db_ops.sh restore-validate
-      - name: Upload staging restore drill artifacts
+        run: bash tool/ci/run_db_ops.sh restore-validate
+      - name: Upload prod restore drill artifacts
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
         with:
-          name: restore-drill-staging
+          name: restore-drill-prod
           path: build/restore-drill/
           if-no-files-found: error
       - name: Append drill summary
         if: always()
         run: |
           echo "## Postgres Restore Drill" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Workflow path: scheduled prod -> staging_restore" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workflow path: scheduled prod -> prod_restore" >> "$GITHUB_STEP_SUMMARY"
           echo "- Job status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Environment: ${ENV_NAME}" >> "$GITHUB_STEP_SUMMARY"
           if [[ -f "build/restore-drill/report_${ENV_NAME}.json" ]]; then
@@ -161,9 +158,9 @@ jobs:
       - name: Install Railway CLI
         run: bash tool/ci/install_railway_cli.sh
       - name: Deploy staging db-ops service
-        run: bash tool/ci/deploy_staging_db_ops.sh
+        run: bash tool/ci/deploy_db_ops.sh
       - name: Run restore validation over Railway private networking
-        run: bash tool/ci/run_staging_db_ops.sh restore-validate
+        run: bash tool/ci/run_db_ops.sh restore-validate
       - name: Upload restore drill artifacts
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
@@ -196,10 +193,15 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.target_env == 'prod'
     runs-on: ubuntu-latest
     environment: prod
+    concurrency:
+      group: prod-db-ops
+      cancel-in-progress: false
     env:
       ENV_NAME: prod
-      SOURCE_DATABASE_URL: ${{ secrets.PROD_DATABASE_RUNTIME_URL }}
-      RESTORE_DATABASE_URL: ${{ secrets.PROD_DATABASE_RESTORE_URL }}
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT: prod
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_DB_OPS_SERVICE_ID }}
       REQUIRED_PG_EXTENSIONS: ${{ vars.REQUIRED_PG_EXTENSIONS }}
       RESTORE_DRILL_ALERT_WEBHOOK_URL: ${{ secrets.RESTORE_DRILL_ALERT_WEBHOOK_URL }}
     steps:
@@ -212,12 +214,18 @@ jobs:
             echo "error: prod restore drill requires confirm_prod_restore=CONFIRM_PROD_RESTORE" >&2
             exit 1
           fi
-      - name: Install postgres client
+      - name: Load Railway CLI version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-      - name: Run restore validation
-        run: bash tool/db/restore_validate.sh
+          source config/ci/deploy.common.env
+          echo "RAILWAY_CLI_VERSION=$RAILWAY_CLI_VERSION" >> "$GITHUB_ENV"
+      - name: Add local bin directory to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Railway CLI
+        run: bash tool/ci/install_railway_cli.sh
+      - name: Deploy prod db-ops service
+        run: bash tool/ci/deploy_db_ops.sh
+      - name: Run restore validation over Railway private networking
+        run: bash tool/ci/run_db_ops.sh restore-validate
       - name: Upload restore drill artifacts
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808

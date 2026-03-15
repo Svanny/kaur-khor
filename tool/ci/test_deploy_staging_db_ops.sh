@@ -30,13 +30,30 @@ case "${1:-}" in
     count="$(cat "$counter_file")"
     if [[ "$count" == "0" ]]; then
       printf '1' >"$counter_file"
-      printf '[{"id":"baseline","status":"SUCCESS"}]'
+      printf '[{"id":"other-deploy","status":"SUCCESS","message":"other-run"},{"id":"deploy-1","status":"SUCCESS","message":"pending-marker"}]'
     else
-      printf '[{"id":"deploy-1","status":"SUCCESS"}]'
+      up_message_file="${MOCK_UP_MESSAGE_FILE:?}"
+      up_message="$(cat "$up_message_file")"
+      printf '[{"id":"other-deploy-2","status":"SUCCESS","message":"other-run-2"},{"id":"deploy-1","status":"SUCCESS","message":"%s"}]' "$up_message"
     fi
     exit 0
     ;;
   up)
+    up_message_file="${MOCK_UP_MESSAGE_FILE:?}"
+    message=""
+    while (($# > 0)); do
+      if [[ "$1" == "--message" ]]; then
+        shift
+        message="${1:-}"
+        break
+      fi
+      shift
+    done
+    if [[ -z "$message" ]]; then
+      echo "missing --message value" >&2
+      exit 1
+    fi
+    printf '%s' "$message" >"$up_message_file"
     exit 0
     ;;
   *)
@@ -57,6 +74,7 @@ chmod +x "$TMP_DIR/sleep"
 export PATH="$TMP_DIR:$PATH"
 export MOCK_LOG="$TMP_DIR/mock.log"
 export MOCK_DEPLOY_COUNTER="$TMP_DIR/deploy-counter"
+export MOCK_UP_MESSAGE_FILE="$TMP_DIR/up-message"
 printf '0' >"$MOCK_DEPLOY_COUNTER"
 export RAILWAY_API_TOKEN="token"
 export RAILWAY_PROJECT_ID="project"
@@ -77,9 +95,10 @@ bash "$SCRIPT" >"$TMP_DIR/stdout.txt" 2>"$TMP_DIR/stderr.txt"
 
 assert_contains "$MOCK_LOG" "railway:whoami"
 assert_contains "$MOCK_LOG" "railway:link --project project --environment staging --service svc-db-ops"
-assert_contains "$MOCK_LOG" "railway:deployment list --json --limit 1 --service svc-db-ops"
+assert_contains "$MOCK_LOG" "railway:deployment list --json --limit 20 --service svc-db-ops"
 assert_contains "$MOCK_LOG" "prepare:"
 assert_contains "$MOCK_LOG" "railway:up "
+assert_contains "$MOCK_LOG" "--message banji-db-ops:staging:local:0:"
 assert_contains "$TMP_DIR/stdout.txt" "staging db-ops deploy passed"
 
 echo "deploy_staging_db_ops tests passed"

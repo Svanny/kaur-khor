@@ -893,7 +893,7 @@ if grep -q "^graphql upsert svc-api " "$LOG_FILE"; then
   echo "assertion failed: missing Railway database runtime var should fail before runtime sync writes" >&2
   exit 1
 fi
-seed_runtime_state "svc-api" '{"DATABASE_RUNTIME_URL":"postgres://runtime@db.internal/banji","EDGE_ORIGIN_AUTH_SECRET":"railway-edge-secret","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","BANJI_DEPLOYMENT_ID":"9001-2","DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_MIGRATION_CHECKSUM":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","DEPLOY_RUN_ID":"9001-2","APP_ROLE":"api","BANJI_SERVICE":"api","BANJI_SYSTEM":"banji-core","BANJI_ENV":"staging","BANJI_REGION":"kh-pp","BANJI_TENANT":"default","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","IDEMPOTENCY_RETENTION_DAYS":"30","SQLX_POOL_MAX_CONNECTIONS":"5","SQLX_POOL_MIN_CONNECTIONS":"1","SQLX_POOL_ACQUIRE_TIMEOUT_MS":"2000","SQLX_POOL_CONNECT_TIMEOUT_MS":"2000","SQLX_POOL_IDLE_TIMEOUT_SECONDS":"300","SQLX_POOL_MAX_LIFETIME_SECONDS":"1800","POSTGRES_CONNECTION_BUDGET_TOTAL":"40","CACHE_ENABLED":"false","CACHE_SCHEMA_VERSION":"v1","CACHE_DEFAULT_TTL_SECONDS":"300","CACHE_TTL_JITTER_SECONDS":"30","REDIS_CONNECT_TIMEOUT_MS":"100","REDIS_COMMAND_TIMEOUT_MS":"50","REDIS_CIRCUIT_ERROR_THRESHOLD":"20","REDIS_CIRCUIT_WINDOW_SECONDS":"30","REDIS_CIRCUIT_COOLDOWN_SECONDS":"60","REDIS_LOG_RATE_LIMIT_SECONDS":"30","EVENT_PAYLOAD_MAX_BYTES":"65536","OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS":"5000","OBSERVABILITY_POSTGRES_LOCK_POLL_INTERVAL_MS":"5000","OBSERVABILITY_JOB_PRESSURE_POLL_INTERVAL_MS":"5000","OTEL_ENABLED":"true","OTEL_EXPORTER_OTLP_ENDPOINT":"http://otel-collector:4317","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.1","OTEL_METRIC_EXPORT_INTERVAL":"30000","AUTH_ENABLED":"true","AUTH_JWKS_CACHE_TTL_SECONDS":"300","AUTH_JWKS_TIMEOUT_MS":"1000","AUTH_CLOCK_SKEW_SECONDS":"30","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_RATE_LIMIT_ENABLED":"true","EDGE_RATE_LIMIT_WINDOW_SECONDS":"60","EDGE_RATE_LIMIT_READ_MAX":"120","EDGE_RATE_LIMIT_USER_READ_MAX":"240","EDGE_RATE_LIMIT_USER_WRITE_MAX":"60","EDGE_RATE_LIMIT_DEVICE_READ_MAX":"120","EDGE_RATE_LIMIT_DEVICE_WRITE_MAX":"30","EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS":"10000","EDGE_RATE_LIMIT_KEY_TTL_SECONDS":"300","EDGE_RATE_LIMIT_REDIS_PREFIX":"rate-limit","EDGE_RATE_LIMIT_FAILOVER_ENABLED":"true","EDGE_BACKPRESSURE_ENABLED":"true","EDGE_BACKPRESSURE_POLL_INTERVAL_MS":"1000","EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS":"5","EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY":"2","EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY":"2","EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX":"1000","EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX":"30","EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX":"2000","EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX":"60","EDGE_BACKPRESSURE_KAFKA_PENDING_MAX":"500","EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX":"30","EDGE_REQUEST_MAX_BYTES":"262144","EDGE_WRITE_REQUEST_MAX_BYTES":"65536","EDGE_CORS_ALLOWED_ORIGINS":"https://staging.example.com","EDGE_TRUST_FORWARDED_CLIENT_IP":"true","RABBIT_MANAGEMENT_API_BASE_URL":"https://rabbit.example.com","RABBIT_MANAGEMENT_USERNAME":"banji","RABBIT_MANAGEMENT_PASSWORD":"rabbit-management-secret"}'
+seed_runtime_state "svc-api" '{"DATABASE_RUNTIME_URL":"postgres://runtime@db.internal/banji","EDGE_ORIGIN_AUTH_SECRET":"railway-edge-secret","AUTH_JWKS_URL":"https://jwks.example.com","AUTH_ISSUER":"https://issuer.example.com","AUTH_AUDIENCE":"banji-api","BANJI_DEPLOYMENT_ID":"9001-2","DEPLOY_COMMIT_SHA":"0123456789abcdef0123456789abcdef01234567","DEPLOY_MIGRATION_CHECKSUM":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","DEPLOY_RUN_ID":"9001-2","APP_ROLE":"api","BANJI_SERVICE":"api","BANJI_SYSTEM":"banji-core","BANJI_ENV":"staging","BANJI_REGION":"kh-pp","BANJI_TENANT":"default","DATABASE_RUNTIME_ENDPOINT_KIND":"pgbouncer","PGBOUNCER_POOL_MODE":"transaction","IDEMPOTENCY_RETENTION_DAYS":"30","SQLX_POOL_MAX_CONNECTIONS":"2","SQLX_POOL_MIN_CONNECTIONS":"1","SQLX_POOL_ACQUIRE_TIMEOUT_MS":"2000","SQLX_POOL_CONNECT_TIMEOUT_MS":"2000","SQLX_POOL_IDLE_TIMEOUT_SECONDS":"300","SQLX_POOL_MAX_LIFETIME_SECONDS":"1800","POSTGRES_CONNECTION_BUDGET_TOTAL":"16","CACHE_ENABLED":"false","CACHE_SCHEMA_VERSION":"v1","CACHE_DEFAULT_TTL_SECONDS":"300","CACHE_TTL_JITTER_SECONDS":"30","REDIS_CONNECT_TIMEOUT_MS":"100","REDIS_COMMAND_TIMEOUT_MS":"50","REDIS_CIRCUIT_ERROR_THRESHOLD":"20","REDIS_CIRCUIT_WINDOW_SECONDS":"30","REDIS_CIRCUIT_COOLDOWN_SECONDS":"60","REDIS_LOG_RATE_LIMIT_SECONDS":"30","EVENT_PAYLOAD_MAX_BYTES":"65536","OBSERVABILITY_RABBIT_QUEUE_POLL_INTERVAL_MS":"5000","OBSERVABILITY_POSTGRES_LOCK_POLL_INTERVAL_MS":"5000","OBSERVABILITY_JOB_PRESSURE_POLL_INTERVAL_MS":"5000","OTEL_ENABLED":"true","OTEL_EXPORTER_OTLP_ENDPOINT":"http://otel-collector:4317","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.1","OTEL_METRIC_EXPORT_INTERVAL":"30000","AUTH_ENABLED":"true","AUTH_JWKS_CACHE_TTL_SECONDS":"300","AUTH_JWKS_TIMEOUT_MS":"1000","AUTH_CLOCK_SKEW_SECONDS":"30","EDGE_ENFORCEMENT_ENABLED":"true","EDGE_ORIGIN_AUTH_HEADER_NAME":"x-banji-edge-auth","EDGE_RATE_LIMIT_ENABLED":"true","EDGE_RATE_LIMIT_WINDOW_SECONDS":"60","EDGE_RATE_LIMIT_READ_MAX":"120","EDGE_RATE_LIMIT_USER_READ_MAX":"240","EDGE_RATE_LIMIT_USER_WRITE_MAX":"60","EDGE_RATE_LIMIT_DEVICE_READ_MAX":"120","EDGE_RATE_LIMIT_DEVICE_WRITE_MAX":"30","EDGE_RATE_LIMIT_FALLBACK_MAX_KEYS":"10000","EDGE_RATE_LIMIT_KEY_TTL_SECONDS":"300","EDGE_RATE_LIMIT_REDIS_PREFIX":"rate-limit","EDGE_RATE_LIMIT_FAILOVER_ENABLED":"true","EDGE_BACKPRESSURE_ENABLED":"true","EDGE_BACKPRESSURE_POLL_INTERVAL_MS":"1000","EDGE_BACKPRESSURE_RETRY_AFTER_SECONDS":"5","EDGE_BACKPRESSURE_CONSECUTIVE_UNHEALTHY":"2","EDGE_BACKPRESSURE_CONSECUTIVE_HEALTHY":"2","EDGE_BACKPRESSURE_JOB_OUTBOX_PENDING_MAX":"1000","EDGE_BACKPRESSURE_JOB_OUTBOX_OLDEST_AGE_SECONDS_MAX":"30","EDGE_BACKPRESSURE_JOB_RUN_PENDING_MAX":"2000","EDGE_BACKPRESSURE_JOB_RUN_OLDEST_AGE_SECONDS_MAX":"60","EDGE_BACKPRESSURE_KAFKA_PENDING_MAX":"500","EDGE_BACKPRESSURE_KAFKA_OLDEST_AGE_SECONDS_MAX":"30","EDGE_REQUEST_MAX_BYTES":"262144","EDGE_WRITE_REQUEST_MAX_BYTES":"65536","EDGE_CORS_ALLOWED_ORIGINS":"https://staging.example.com","EDGE_TRUST_FORWARDED_CLIENT_IP":"true","RABBIT_MANAGEMENT_API_BASE_URL":"https://rabbit.example.com","RABBIT_MANAGEMENT_USERNAME":"banji","RABBIT_MANAGEMENT_PASSWORD":"rabbit-management-secret"}'
 
 reset_logs
 
@@ -901,28 +901,171 @@ export RAILWAY_ENVIRONMENT="prod"
 export RAILWAY_SERVICE_ID="svc-api-prod"
 export EXPECTED_APP_ROLE="api"
 export EXPECTED_BANJI_SERVICE="api"
-export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
 export EDGE_ORIGIN_AUTH_SECRET="prod-edge-secret"
 export AUTH_JWKS_URL="https://prod-jwks.example.com"
 export AUTH_ISSUER="https://prod-issuer.example.com"
 export AUTH_AUDIENCE="banji-api"
-export FAKE_VARIABLE_JSON_svc_api_prod='{"CACHE_SCHEMA_VERSION":"stale"}'
+export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: prod api deploy should reject locally provided DATABASE_RUNTIME_URL" >&2
+  exit 1
+fi
+unset DATABASE_RUNTIME_URL
+
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: forbidden local prod database url should fail before Railway CLI calls" >&2
+  exit 1
+fi
+
+seed_runtime_state "svc-api-prod" '{}'
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: missing Railway-resident DATABASE_RUNTIME_URL should fail for prod api" >&2
+  exit 1
+fi
+if grep -q "^graphql upsert svc-api-prod " "$LOG_FILE"; then
+  echo "assertion failed: missing Railway prod database runtime var should fail before runtime sync writes" >&2
+  exit 1
+fi
+
+seed_runtime_state "svc-api-prod" '{"DATABASE_RUNTIME_URL":"postgres://runtime@db.internal/banji","CACHE_SCHEMA_VERSION":"stale"}'
 export FAKE_DEPLOYMENT_SEQUENCE_svc_api_prod="baseline-prod-api:SUCCESS;deploy-prod-api:SUCCESS"
 
 bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
 
 grep -q "^graphql upsert svc-api-prod replace=false skipDeploys=true" "$LOG_FILE"
 jq -e '
-  .EDGE_ORIGIN_AUTH_SECRET == "prod-edge-secret"
+  .DATABASE_RUNTIME_URL == "postgres://runtime@db.internal/banji"
+  and .EDGE_ORIGIN_AUTH_SECRET == "prod-edge-secret"
   and .AUTH_JWKS_URL == "https://prod-jwks.example.com"
   and .AUTH_ISSUER == "https://prod-issuer.example.com"
   and .AUTH_AUDIENCE == "banji-api"
 ' "$STATE_DIR/svc-api-prod.json" >/dev/null
 
-unset FAKE_VARIABLE_JSON_svc_api_prod FAKE_DEPLOYMENT_SEQUENCE_svc_api_prod
+unset EDGE_ORIGIN_AUTH_SECRET AUTH_JWKS_URL AUTH_ISSUER AUTH_AUDIENCE
+unset RABBIT_MANAGEMENT_API_BASE_URL RABBIT_MANAGEMENT_USERNAME RABBIT_MANAGEMENT_PASSWORD
+
+reset_logs
+
+export RAILWAY_SERVICE_ID="svc-relay-prod"
+export EXPECTED_APP_ROLE="event-relay"
+export EXPECTED_BANJI_SERVICE="event-relay"
+export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: prod event-relay should reject locally provided DATABASE_RUNTIME_URL" >&2
+  exit 1
+fi
+unset DATABASE_RUNTIME_URL
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: forbidden local prod relay database url should fail before Railway CLI calls" >&2
+  exit 1
+fi
+
+export OTEL_EXPORTER_OTLP_HEADERS="authorization=Bearer prod-relay-token"
+seed_runtime_state "svc-relay-prod" '{"DATABASE_RUNTIME_URL":"postgres://runtime@db.internal/banji"}'
+export FAKE_DEPLOYMENT_SEQUENCE_svc_relay_prod="baseline-prod-relay:SUCCESS;deploy-prod-relay:SUCCESS"
+
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
+
+grep -q "^graphql upsert svc-relay-prod replace=false skipDeploys=true" "$LOG_FILE"
+jq -e '
+  .DATABASE_RUNTIME_URL == "postgres://runtime@db.internal/banji"
+  and .EVENT_LOG_RETENTION_DAYS == "30"
+  and .OTEL_EXPORTER_OTLP_HEADERS == "authorization=Bearer prod-relay-token"
+' "$STATE_DIR/svc-relay-prod.json" >/dev/null
+unset OTEL_EXPORTER_OTLP_HEADERS FAKE_DEPLOYMENT_SEQUENCE_svc_relay_prod
+
+reset_logs
+
+export RAILWAY_SERVICE_ID="svc-projection-prod"
+export EXPECTED_APP_ROLE="projection-consumer"
+export EXPECTED_BANJI_SERVICE="projection-consumer"
+export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: prod projection-consumer should reject locally provided DATABASE_RUNTIME_URL" >&2
+  exit 1
+fi
+unset DATABASE_RUNTIME_URL
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: forbidden local prod projection database url should fail before Railway CLI calls" >&2
+  exit 1
+fi
+
+seed_runtime_state "svc-projection-prod" '{"DATABASE_RUNTIME_URL":"postgres://runtime@db.internal/banji","EVENT_CONSUMER_REPLAY_TO_ID":"42"}'
+export FAKE_DEPLOYMENT_SEQUENCE_svc_projection_prod="baseline-prod-projection:SUCCESS;deploy-prod-projection:SUCCESS"
+
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
+
+grep -q "^graphql upsert svc-projection-prod replace=false skipDeploys=true" "$LOG_FILE"
+grep -q "^delete svc-projection-prod EVENT_CONSUMER_REPLAY_TO_ID$" "$LOG_FILE"
+jq -e '
+  .DATABASE_RUNTIME_URL == "postgres://runtime@db.internal/banji"
+  and .EVENT_CONSUMER_STREAM_NAME == "banji-core.prod.inventory-updated"
+  and (.EVENT_CONSUMER_REPLAY_TO_ID | not)
+' "$STATE_DIR/svc-projection-prod.json" >/dev/null
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_projection_prod
+
+reset_logs
+
+export RAILWAY_SERVICE_ID="svc-worker-prod"
+export EXPECTED_APP_ROLE="worker"
+export EXPECTED_BANJI_SERVICE="worker"
+export OBJECT_STORAGE_ACCESS_KEY="prod-access"
+export OBJECT_STORAGE_SECRET_KEY="prod-secret"
+export ALGORITHM_ROLLOUT_HASH_SALT="prod-salt"
+export DATABASE_RUNTIME_URL="postgres://runtime@db.example/banji"
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: prod worker should reject locally provided DATABASE_RUNTIME_URL" >&2
+  exit 1
+fi
+unset DATABASE_RUNTIME_URL
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: forbidden local prod worker database url should fail before Railway CLI calls" >&2
+  exit 1
+fi
+
+export RABBIT_URL="amqps://rabbit.example.com/%2f"
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: prod worker should reject locally provided RABBIT_URL" >&2
+  exit 1
+fi
+unset RABBIT_URL
+if [[ -s "$LOG_FILE" ]]; then
+  echo "assertion failed: forbidden local prod worker rabbit url should fail before Railway CLI calls" >&2
+  exit 1
+fi
+
+seed_runtime_state "svc-worker-prod" '{"DATABASE_RUNTIME_URL":"postgres://runtime@db.internal/banji"}'
+if bash "$SCRIPT" >/dev/null 2>&1; then
+  echo "assertion failed: missing Railway-resident prod worker RABBIT_URL should fail" >&2
+  exit 1
+fi
+if grep -q "^graphql upsert svc-worker-prod " "$LOG_FILE"; then
+  echo "assertion failed: missing Railway prod worker runtime vars should fail before runtime sync writes" >&2
+  exit 1
+fi
+
+seed_runtime_state "svc-worker-prod" '{"DATABASE_RUNTIME_URL":"postgres://runtime@db.internal/banji","RABBIT_URL":"amqps://rabbit.internal/%2f"}'
+export FAKE_DEPLOYMENT_SEQUENCE_svc_worker_prod="baseline-prod-worker:SUCCESS;deploy-prod-worker:SUCCESS"
+
+bash "$SCRIPT" >/dev/null 2>"$DEBUG_LOG"
+
+grep -q "^graphql upsert svc-worker-prod replace=false skipDeploys=true" "$LOG_FILE"
+jq -e '
+  .DATABASE_RUNTIME_URL == "postgres://runtime@db.internal/banji"
+  and .RABBIT_URL == "amqps://rabbit.internal/%2f"
+  and .OBJECT_STORAGE_ENDPOINT == "https://storage.prod.example.com"
+  and .OBJECT_STORAGE_BUCKET_ARTIFACTS == "banji-core-prod-kh-pp-artifacts"
+  and .OBJECT_STORAGE_ACCESS_KEY == "prod-access"
+  and .OBJECT_STORAGE_SECRET_KEY == "prod-secret"
+  and .ALGORITHM_ROLLOUT_HASH_SALT == "prod-salt"
+' "$STATE_DIR/svc-worker-prod.json" >/dev/null
+
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_api_prod
+unset FAKE_DEPLOYMENT_SEQUENCE_svc_worker_prod
 export RAILWAY_ENVIRONMENT="staging"
 unset DATABASE_RUNTIME_URL
 unset EDGE_ORIGIN_AUTH_SECRET AUTH_JWKS_URL AUTH_ISSUER AUTH_AUDIENCE
+unset OBJECT_STORAGE_ACCESS_KEY OBJECT_STORAGE_SECRET_KEY ALGORITHM_ROLLOUT_HASH_SALT
 
 reset_logs
 

@@ -939,6 +939,19 @@ case "$EXPECTED_APP_ROLE" in
         AUTH_ISSUER
         AUTH_AUDIENCE
       )
+    elif [[ "$RAILWAY_ENVIRONMENT" == "prod" ]]; then
+      forbid_local_var DATABASE_RUNTIME_URL
+      required_existing_runtime+=(DATABASE_RUNTIME_URL)
+      require_secret_var EDGE_ORIGIN_AUTH_SECRET
+      require_secret_var AUTH_JWKS_URL
+      require_secret_var AUTH_ISSUER
+      require_secret_var AUTH_AUDIENCE
+      managed_secret+=(
+        EDGE_ORIGIN_AUTH_SECRET
+        AUTH_JWKS_URL
+        AUTH_ISSUER
+        AUTH_AUDIENCE
+      )
     else
       require_secret_var DATABASE_RUNTIME_URL
       require_secret_var EDGE_ORIGIN_AUTH_SECRET
@@ -982,7 +995,7 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
     forbid_local_var RABBIT_MANAGEMENT_USERNAME
     forbid_local_var RABBIT_MANAGEMENT_PASSWORD
-    if [[ "$RAILWAY_ENVIRONMENT" == "staging" ]]; then
+    if [[ "$RAILWAY_ENVIRONMENT" == "staging" || "$RAILWAY_ENVIRONMENT" == "prod" ]]; then
       forbid_local_var DATABASE_RUNTIME_URL
       required_existing_runtime+=(DATABASE_RUNTIME_URL)
     else
@@ -1019,7 +1032,7 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
     forbid_local_var RABBIT_MANAGEMENT_USERNAME
     forbid_local_var RABBIT_MANAGEMENT_PASSWORD
-    if [[ "$RAILWAY_ENVIRONMENT" == "staging" ]]; then
+    if [[ "$RAILWAY_ENVIRONMENT" == "staging" || "$RAILWAY_ENVIRONMENT" == "prod" ]]; then
       forbid_local_var DATABASE_RUNTIME_URL
       required_existing_runtime+=(DATABASE_RUNTIME_URL)
     else
@@ -1055,7 +1068,7 @@ case "$EXPECTED_APP_ROLE" in
     forbid_local_var RABBIT_MANAGEMENT_API_BASE_URL
     forbid_local_var RABBIT_MANAGEMENT_USERNAME
     forbid_local_var RABBIT_MANAGEMENT_PASSWORD
-    if [[ "$RAILWAY_ENVIRONMENT" == "staging" ]]; then
+    if [[ "$RAILWAY_ENVIRONMENT" == "staging" || "$RAILWAY_ENVIRONMENT" == "prod" ]]; then
       forbid_local_var DATABASE_RUNTIME_URL
       forbid_local_var RABBIT_URL
       required_existing_runtime+=(
@@ -1215,13 +1228,13 @@ assert_runtime_var_present_nonempty() {
   local actual
 
   if ! runtime_var_visible "$key"; then
-    echo "error: Railway runtime variable '$key' is missing; configure it directly on the Railway api service before deploy" >&2
+    echo "error: Railway runtime variable '$key' is missing; configure it directly on the Railway service before deploy" >&2
     exit 1
   fi
 
   actual="$(runtime_var_value "$key")"
   if [[ -z "$actual" ]]; then
-    echo "error: Railway runtime variable '$key' is empty; configure it directly on the Railway api service before deploy" >&2
+    echo "error: Railway runtime variable '$key' is empty; configure it directly on the Railway service before deploy" >&2
     exit 1
   fi
 
