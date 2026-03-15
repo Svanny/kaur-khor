@@ -38,7 +38,7 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - Keycloak is a repo-managed Railway service under [services/keycloak](/Users/svanny/banji/services/keycloak), not a Banji runtime role.
 - Banji runtime topology stays limited to `api`, `event-relay`, `projection-consumer`, and `worker`.
 - `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET` are maintained directly on the Railway `api` service in `staging`.
-- `prod` still uses the existing GitHub-to-Railway sync path for API auth until the production Railway service is migrated.
+- `prod` uses repo-managed Keycloak realms, but the API auth values still flow through the existing GitHub-to-Railway sync path during Banji deploys.
 - GitHub keeps only a copy of `EDGE_ORIGIN_AUTH_SECRET` for the authenticated `/version` smoke check in deploy workflow.
 
 ## Role Topology

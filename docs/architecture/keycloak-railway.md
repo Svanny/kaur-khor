@@ -1,7 +1,7 @@
 # Keycloak on Railway
 
 ## Scope
-This document captures the staging-first Banji auth-provider contract after moving OIDC hosting onto a dedicated Railway Keycloak service.
+This document captures the Banji auth-provider contract after moving OIDC hosting onto a dedicated Railway Keycloak service for `staging` and `prod`.
 
 ## Ownership
 - Banji runtime roles remain `api`, `event-relay`, `projection-consumer`, and `worker`.
@@ -27,18 +27,25 @@ Required Railway vars on the Keycloak service:
 - `KC_HEALTH_ENABLED=true`
 
 ## Banji API Mapping
-- `AUTH_ISSUER=https://<public-keycloak-domain>/realms/banji-staging`
-- `AUTH_JWKS_URL=https://<public-keycloak-domain>/realms/banji-staging/protocol/openid-connect/certs`
+- `staging`: `AUTH_ISSUER=https://<public-keycloak-domain>/realms/banji-staging`
+- `staging`: `AUTH_JWKS_URL=https://<public-keycloak-domain>/realms/banji-staging/protocol/openid-connect/certs`
+- `prod`: `AUTH_ISSUER=https://<public-keycloak-domain>/realms/banji-prod`
+- `prod`: `AUTH_JWKS_URL=https://<public-keycloak-domain>/realms/banji-prod/protocol/openid-connect/certs`
 - `AUTH_AUDIENCE=banji-api`
 
-These values live directly on the Railway `api` service for staging. GitHub deploy steps no longer inject them into the staging API runtime.
+In `staging`, these values live directly on the Railway `api` service. In `prod`, the API deploy workflow still syncs `AUTH_*` from GitHub environment secrets into the Railway `api` service.
 
-Production remains on the pre-existing auth-provider path until a production Keycloak realm and runtime migration are tracked in the repo.
-
-## Staging Defaults
+## Tracked Realms
 - Realm: `banji-staging`
+- Realm: `banji-prod`
 - Audience: `banji-api`
 - Tracked realm import: [services/keycloak/realm-import/banji-staging-realm.json](/Users/svanny/banji/services/keycloak/realm-import/banji-staging-realm.json)
+- Tracked realm import: [services/keycloak/realm-import/banji-prod-realm.json](/Users/svanny/banji/services/keycloak/realm-import/banji-prod-realm.json)
+
+## Deployment Packaging
+- The staging workflow packages only `banji-staging-realm.json`.
+- The prod workflow packages only `banji-prod-realm.json`.
+- Manual deploys must first run [prepare_keycloak_build_context.sh](/Users/svanny/banji/tool/ci/prepare_keycloak_build_context.sh) to avoid importing the wrong realm into an environment.
 
 ## Operator Follow-Up
 - After Keycloak is live, create the interactive client(s) for frontend or CLI login flows.
