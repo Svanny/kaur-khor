@@ -426,7 +426,7 @@ mod tests {
             database_runtime_url: None,
             database_runtime_endpoint_kind: DatabaseRuntimeEndpointKind::Direct,
             pgbouncer_pool_mode: Some(PgbouncerPoolMode::Session),
-            sqlx_pool_max_connections: 10,
+            sqlx_pool_max_connections: 2,
             sqlx_pool_min_connections: 1,
             sqlx_pool_acquire_timeout: Duration::from_secs(1),
             sqlx_pool_connect_timeout: Duration::from_secs(1),

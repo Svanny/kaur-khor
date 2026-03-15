@@ -22,6 +22,11 @@ Required Railway runtime vars:
 Optional but recommended:
 - `KC_METRICS_ENABLED=true`
 
+## Temporary Memory Cap
+- The repo-managed startup script applies `JAVA_OPTS_APPEND="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"` when `JAVA_OPTS_APPEND` is unset.
+- If Railway defines `JAVA_OPTS_APPEND`, that Railway value wins unchanged.
+- Use the Railway override path as the first rollback lever if the temporary `512 MiB` heap cap is too aggressive for a given environment.
+
 ## Banji Mapping
 For the tracked realm imports, Banji expects:
 

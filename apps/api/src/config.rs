@@ -758,7 +758,7 @@ impl AppConfig {
             ));
         }
 
-        let sqlx_pool_max_connections = parse_u32("SQLX_POOL_MAX_CONNECTIONS", 10)?;
+        let sqlx_pool_max_connections = parse_u32("SQLX_POOL_MAX_CONNECTIONS", 2)?;
         let sqlx_pool_min_connections = parse_u32("SQLX_POOL_MIN_CONNECTIONS", 1)?;
         if sqlx_pool_max_connections == 0 {
             return Err(anyhow!("SQLX_POOL_MAX_CONNECTIONS must be greater than 0"));
@@ -777,7 +777,7 @@ impl AppConfig {
             Duration::from_secs(parse_u64("SQLX_POOL_IDLE_TIMEOUT_SECONDS", 300)?);
         let sqlx_pool_max_lifetime =
             Duration::from_secs(parse_u64("SQLX_POOL_MAX_LIFETIME_SECONDS", 1_800)?);
-        let postgres_connection_budget_total = parse_u32("POSTGRES_CONNECTION_BUDGET_TOTAL", 80)?;
+        let postgres_connection_budget_total = parse_u32("POSTGRES_CONNECTION_BUDGET_TOTAL", 16)?;
         if postgres_connection_budget_total == 0 {
             return Err(anyhow!(
                 "POSTGRES_CONNECTION_BUDGET_TOTAL must be greater than 0"
@@ -1135,7 +1135,7 @@ impl AppConfig {
             auth_jwks_timeout,
             auth_clock_skew,
             idempotency_retention_days,
-            cache_enabled: parse_bool("CACHE_ENABLED", true)?,
+            cache_enabled: parse_bool("CACHE_ENABLED", false)?,
             cache_schema_version,
             cache_default_ttl: Duration::from_secs(parse_u64("CACHE_DEFAULT_TTL_SECONDS", 300)?),
             cache_ttl_jitter: Duration::from_secs(parse_u64("CACHE_TTL_JITTER_SECONDS", 30)?),

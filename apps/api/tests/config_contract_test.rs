@@ -164,7 +164,7 @@ fn app_config_debug_redacts_secret_fields() {
         auth_jwks_timeout: std::time::Duration::from_millis(1_000),
         auth_clock_skew: std::time::Duration::from_secs(30),
         idempotency_retention_days: 30,
-        cache_enabled: true,
+        cache_enabled: false,
         cache_schema_version: "v1".to_string(),
         cache_default_ttl: std::time::Duration::from_secs(300),
         cache_ttl_jitter: std::time::Duration::from_secs(30),
@@ -203,13 +203,13 @@ fn app_config_debug_redacts_secret_fields() {
         database_runtime_url: Some(db_url),
         database_runtime_endpoint_kind: DatabaseRuntimeEndpointKind::Direct,
         pgbouncer_pool_mode: Some(PgbouncerPoolMode::Session),
-        sqlx_pool_max_connections: 10,
+        sqlx_pool_max_connections: 2,
         sqlx_pool_min_connections: 1,
         sqlx_pool_acquire_timeout: std::time::Duration::from_millis(2_000),
         sqlx_pool_connect_timeout: std::time::Duration::from_millis(2_000),
         sqlx_pool_idle_timeout: std::time::Duration::from_secs(300),
         sqlx_pool_max_lifetime: std::time::Duration::from_secs(1_800),
-        postgres_connection_budget_total: 80,
+        postgres_connection_budget_total: 16,
         edge_enforcement_enabled: false,
         edge_origin_auth_header_name: "x-banji-edge-auth".to_string(),
         edge_origin_auth_secret: None,
@@ -249,6 +249,39 @@ fn app_config_debug_redacts_secret_fields() {
     assert!(!rendered.contains("user:pass"));
     assert!(!rendered.contains("secret@redis"));
     assert!(rendered.contains("<redacted>"));
+}
+
+#[test]
+fn low_memory_defaults_apply_when_env_vars_are_unset() {
+    let _guard = lock_env();
+
+    let keys = [
+        "BANJI_ENV",
+        "APP_ROLE",
+        "CACHE_SCHEMA_VERSION",
+        "DATABASE_RUNTIME_ENDPOINT_KIND",
+        "DATABASE_MIGRATION_URL",
+        "CACHE_ENABLED",
+        "SQLX_POOL_MAX_CONNECTIONS",
+        "POSTGRES_CONNECTION_BUDGET_TOTAL",
+    ];
+    let old = capture_env(&keys);
+
+    std::env::set_var("BANJI_ENV", "dev");
+    std::env::set_var("APP_ROLE", "api");
+    std::env::set_var("CACHE_SCHEMA_VERSION", "v1");
+    std::env::set_var("DATABASE_RUNTIME_ENDPOINT_KIND", "direct");
+    std::env::remove_var("DATABASE_MIGRATION_URL");
+    std::env::remove_var("CACHE_ENABLED");
+    std::env::remove_var("SQLX_POOL_MAX_CONNECTIONS");
+    std::env::remove_var("POSTGRES_CONNECTION_BUDGET_TOTAL");
+
+    let cfg = AppConfig::from_env().expect("config should parse");
+    restore_env(old);
+
+    assert!(!cfg.cache_enabled);
+    assert_eq!(cfg.sqlx_pool_max_connections, 2);
+    assert_eq!(cfg.postgres_connection_budget_total, 16);
 }
 
 #[test]

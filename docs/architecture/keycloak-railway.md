@@ -26,6 +26,10 @@ Required Railway vars on the Keycloak service:
 - `KC_HTTP_ENABLED=true`
 - `KC_HEALTH_ENABLED=true`
 
+## Temporary Memory Posture
+- The repo-managed Keycloak startup contract applies `JAVA_OPTS_APPEND="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"` when Railway does not already provide `JAVA_OPTS_APPEND`.
+- Railway may override `JAVA_OPTS_APPEND` per service without changing the image when more heap is temporarily required.
+
 ## Banji API Mapping
 - `staging`: `AUTH_ISSUER=https://<public-keycloak-domain>/realms/banji-staging`
 - `staging`: `AUTH_JWKS_URL=https://<public-keycloak-domain>/realms/banji-staging/protocol/openid-connect/certs`

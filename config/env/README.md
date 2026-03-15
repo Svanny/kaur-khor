@@ -29,7 +29,7 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 ## Railway Runtime Startup
 - Railway deploys the Rust service from `apps/api`.
 - GitHub Actions syncs managed Railway service variables before each deploy and uploads `apps/api` with `railway up`.
-- `staging` also deploys [services/staging-db-ops](/Users/svanny/banji/services/staging-db-ops) before any private-network PostgreSQL operation.
+- `staging` and `prod` also deploy [services/staging-db-ops](/Users/svanny/banji/services/staging-db-ops) as dedicated db-ops services before any private-network PostgreSQL operation in those environments.
 - [`apps/api/railway.toml`](/Users/svanny/banji/apps/api/railway.toml) is the tracked build/start contract.
 - [`apps/api/start.sh`](/Users/svanny/banji/apps/api/start.sh) is the shared runtime entrypoint for all Railway roles.
 - `start.sh` maps Railway `PORT` to `API_BIND_ADDR` only for `APP_ROLE=api`.
@@ -61,6 +61,13 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - GitHub deploy jobs must not inject those staging runtime URLs into Banji runtime services.
 - `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET` remain Railway-resident on the staging `api` service.
 - The staging DB ops helper service keeps `DATABASE_MIGRATION_URL`, `DATABASE_RUNTIME_URL`, and `RESTORE_DATABASE_URL` on Railway so migrations and restore drills can run over private networking.
+
+## Prod Private-Network Cutover
+- In `prod`, `DATABASE_RUNTIME_URL` for `api`, `event-relay`, `projection-consumer`, and `worker` must already exist directly on the Railway service as a private-network value or Railway reference expression.
+- In `prod`, `RABBIT_URL` for `worker` must already exist directly on the Railway `worker` service as a private-network value or Railway reference expression.
+- GitHub deploy jobs must not inject those prod runtime URLs into Banji runtime services.
+- `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET` still follow the current GitHub-to-Railway sync path in `prod`.
+- The prod DB ops helper service keeps `DATABASE_MIGRATION_URL`, `DATABASE_RUNTIME_URL`, and `RESTORE_DATABASE_URL` on Railway so deploy migrations, restore drills, and prod DB maintenance can run over private networking.
 
 ## Rabbit queue observability
 - `RABBIT_MANAGEMENT_API_BASE_URL`, `RABBIT_MANAGEMENT_USERNAME`, and `RABBIT_MANAGEMENT_PASSWORD` are API-only runtime inputs.
@@ -186,9 +193,17 @@ Additional `staging` requirements:
 - RabbitMQ management may stay on a public HTTPS endpoint for operator tooling
 - staging TCP proxies are removed only after the staging DB ops service succeeds for deploy migrations and restore drills
 
+Additional `prod` requirements:
+- runtime `DATABASE_RUNTIME_URL` values stay Railway-resident and private-networked
+- runtime `RABBIT_URL` for `worker` stays Railway-resident and private-networked
+- Keycloak `AUTH_*` stays on the public HTTPS hostname, not `railway.internal`
+- RabbitMQ management may stay on a public HTTPS endpoint for operator tooling
+- prod TCP proxies are removed only after the prod DB ops service succeeds for deploy migrations, restore drills, and repo-tracked prod DB maintenance
+
 ## Temporary Low-Memory Posture
 - `CACHE_ENABLED=false` in `dev`, `staging`, and `prod` until the temporary rollback is lifted.
-- `SQLX_POOL_MAX_CONNECTIONS=5` and `POSTGRES_CONNECTION_BUDGET_TOTAL=40` in `dev`, `staging`, and `prod` to cap per-service process memory and pooled database pressure.
+- `SQLX_POOL_MAX_CONNECTIONS=2` and `POSTGRES_CONNECTION_BUDGET_TOTAL=16` in `dev`, `staging`, and `prod` to cap per-service process memory and pooled database pressure.
+- Keycloak uses a repo-managed default `JAVA_OPTS_APPEND="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"` when Railway does not provide an override.
 
 `EDGE_TRUST_FORWARDED_CLIENT_IP` is optional and defaults to `false` in every environment.
 
