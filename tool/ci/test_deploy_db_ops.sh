@@ -109,6 +109,15 @@ touch "$1/Dockerfile"
 EOF
 chmod +x "$TMP_DIR/prepare.sh"
 
+cat >"$TMP_DIR/prepare-missing-dockerfile.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "prepare-missing:$*" >>"${MOCK_LOG:?}"
+mkdir -p "$1"
+touch "$1/start.sh"
+EOF
+chmod +x "$TMP_DIR/prepare-missing-dockerfile.sh"
+
 export PATH="$TMP_DIR:$PATH"
 export MOCK_LOG="$TMP_DIR/mock.log"
 export MOCK_DEPLOY_COUNTER="$TMP_DIR/deploy-counter"
@@ -125,6 +134,17 @@ if bash "$SCRIPT" >"$TMP_DIR/missing.stdout.txt" 2>"$TMP_DIR/missing.stderr.txt"
 fi
 assert_contains "$TMP_DIR/missing.stderr.txt" "error: RAILWAY_SERVICE_ID is required for db-ops in 'staging'"
 assert_contains "$TMP_DIR/missing.stderr.txt" "hint: set GitHub 'staging' environment secret 'RAILWAY_STAGING_DB_OPS_SERVICE_ID' or export RAILWAY_SERVICE_ID before running locally"
+
+export PREPARE_DB_OPS_BUILD_CONTEXT_SCRIPT="$TMP_DIR/prepare-missing-dockerfile.sh"
+export RAILWAY_SERVICE_ID="svc-staging-db-ops"
+if bash "$SCRIPT" >"$TMP_DIR/missing-dockerfile.stdout.txt" 2>"$TMP_DIR/missing-dockerfile.stderr.txt"; then
+  echo "assertion failed: deploy_db_ops should reject a build context without a root Dockerfile" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/missing-dockerfile.stderr.txt" "error: prepared db-ops build context must contain a root Dockerfile for Railway CLI uploads"
+assert_contains "$MOCK_LOG" "prepare-missing:"
+
+export PREPARE_DB_OPS_BUILD_CONTEXT_SCRIPT="$TMP_DIR/prepare.sh"
 
 for env_name in staging prod; do
   : >"$MOCK_LOG"

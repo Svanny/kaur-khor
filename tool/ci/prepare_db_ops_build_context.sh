@@ -13,6 +13,8 @@ OUTPUT_DIR="$1"
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR/services/staging-db-ops" "$OUTPUT_DIR/apps/api" "$OUTPUT_DIR/tool/ci" "$OUTPUT_DIR/tool/db"
 
+cp "$SOURCE_DIR/Dockerfile" "$OUTPUT_DIR/Dockerfile"
+cp "$SOURCE_DIR/start.sh" "$OUTPUT_DIR/start.sh"
 cp "$SOURCE_DIR/Dockerfile" "$OUTPUT_DIR/services/staging-db-ops/Dockerfile"
 cp "$SOURCE_DIR/start.sh" "$OUTPUT_DIR/services/staging-db-ops/start.sh"
 cp -R "$ROOT_DIR/apps/api/migrations" "$OUTPUT_DIR/apps/api/migrations"
@@ -20,6 +22,7 @@ cp "$ROOT_DIR/tool/ci/migrate_with_lock.sh" "$OUTPUT_DIR/tool/ci/migrate_with_lo
 cp -R "$ROOT_DIR/tool/db/." "$OUTPUT_DIR/tool/db/"
 
 chmod +x \
+  "$OUTPUT_DIR/start.sh" \
   "$OUTPUT_DIR/services/staging-db-ops/start.sh" \
   "$OUTPUT_DIR/tool/ci/migrate_with_lock.sh" \
   "$OUTPUT_DIR/tool/db/restore_validate.sh" \

@@ -10,6 +10,8 @@ OUTPUT_DIR="$TMP_DIR/context"
 bash "$SCRIPT" "$OUTPUT_DIR"
 
 for path in \
+  "$OUTPUT_DIR/Dockerfile" \
+  "$OUTPUT_DIR/start.sh" \
   "$OUTPUT_DIR/services/staging-db-ops/Dockerfile" \
   "$OUTPUT_DIR/services/staging-db-ops/start.sh" \
   "$OUTPUT_DIR/apps/api/migrations" \

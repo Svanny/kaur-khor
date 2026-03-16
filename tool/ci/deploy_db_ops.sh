@@ -286,6 +286,11 @@ build_context="$(mktemp -d)"
 trap 'rm -rf "$build_context"' EXIT
 bash "$PREPARE_SCRIPT" "$build_context" >/dev/null
 
+if [[ ! -f "$build_context/Dockerfile" ]]; then
+  echo "error: prepared db-ops build context must contain a root Dockerfile for Railway CLI uploads" >&2
+  exit 1
+fi
+
 run_railway "railway whoami" whoami
 run_railway "railway link" link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$RAILWAY_SERVICE_ID"
 run_railway "fetch baseline db-ops deployment status" deployment list --json --limit "$DEPLOY_STATUS_POLL_LIST_LIMIT" --service "$RAILWAY_SERVICE_ID"

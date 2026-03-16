@@ -20,4 +20,6 @@ For `staging` and `prod`, these should be Railway-managed private references or 
 ## Deployment
 Deploy from [services/staging-db-ops](/Users/svanny/banji/services/staging-db-ops) with [tool/ci/deploy_db_ops.sh](/Users/svanny/banji/tool/ci/deploy_db_ops.sh).
 
+The generated Railway upload archive is intentionally rooted around a top-level `Dockerfile` so `railway up --path-as-root` is detected as a Docker build instead of falling back to Railpack.
+
 GitHub workflows that depend on this service also execute commands inside it with [tool/ci/run_db_ops.sh](/Users/svanny/banji/tool/ci/run_db_ops.sh).
