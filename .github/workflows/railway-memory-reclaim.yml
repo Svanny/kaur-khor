@@ -36,12 +36,25 @@ on:
         description: "Required for prod or all: type CONFIRM_PROD_MEMORY_RESTART"
         required: false
         type: string
+  workflow_run:
+    workflows:
+      - deploy
+      - deploy-frontend-staging
+      - deploy-keycloak-staging
+    types:
+      - completed
 permissions:
   contents: read
 
 jobs:
   reclaim-staging:
-    if: inputs.target_env == 'all' || inputs.target_env == 'staging'
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.target_env == 'all' || inputs.target_env == 'staging')) ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'failure' &&
+        github.event.workflow_run.head_branch == github.event.repository.default_branch
+      )
     runs-on: ubuntu-latest
     environment: staging
     concurrency:
@@ -58,14 +71,29 @@ jobs:
       RAILWAY_FRONTEND_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_FRONTEND_SERVICE_ID }}
       RAILWAY_KEYCLOAK_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_KEYCLOAK_SERVICE_ID }}
       RAILWAY_DB_OPS_SERVICE_ID: ${{ secrets.RAILWAY_STAGING_DB_OPS_SERVICE_ID }}
-      INCLUDE_FRONTEND: ${{ inputs.include_frontend }}
-      INCLUDE_KEYCLOAK: ${{ inputs.include_keycloak }}
-      INCLUDE_DB_OPS: ${{ inputs.include_db_ops }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
+      - name: Resolve reclaim inputs for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          {
+            echo "INCLUDE_FRONTEND=${{ inputs.include_frontend }}"
+            echo "INCLUDE_KEYCLOAK=${{ inputs.include_keycloak }}"
+            echo "INCLUDE_DB_OPS=${{ inputs.include_db_ops }}"
+            echo "RAILWAY_DEBUG_INPUT=${{ inputs.railway_debug }}"
+          } >> "$GITHUB_ENV"
+      - name: Resolve reclaim inputs for automatic runs
+        if: github.event_name == 'workflow_run'
+        run: |
+          {
+            echo "INCLUDE_FRONTEND=true"
+            echo "INCLUDE_KEYCLOAK=true"
+            echo "INCLUDE_DB_OPS=false"
+            echo "RAILWAY_DEBUG_INPUT=false"
+          } >> "$GITHUB_ENV"
       - name: Load deploy flags from config
-        env:
-          RAILWAY_DEBUG_INPUT: ${{ inputs.railway_debug }}
         run: |
           bash tool/ci/load_deploy_flags.sh "$RAILWAY_ENVIRONMENT" "$RAILWAY_DEBUG_INPUT" >> "$GITHUB_ENV"
       - name: Set up deploy tooling (cached)
@@ -83,6 +111,12 @@ jobs:
             echo "- Environment: staging"
             echo "- Job status: ${{ job.status }}"
             echo "- Reclaim method: Railway service restart"
+            echo "- Trigger: ${{ github.event_name }}"
+            if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+              echo "- Triggering workflow: ${{ github.event.workflow_run.name }}"
+              echo "- Triggering conclusion: ${{ github.event.workflow_run.conclusion }}"
+              echo "- Triggering branch: ${{ github.event.workflow_run.head_branch }}"
+            fi
             if [[ -s "$RUNNER_TEMP/restarted-services.txt" ]]; then
               echo "- Restarted services:"
               while IFS= read -r service; do
@@ -98,7 +132,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   reclaim-prod:
-    if: inputs.target_env == 'all' || inputs.target_env == 'prod'
+    if: github.event_name == 'workflow_dispatch' && (inputs.target_env == 'all' || inputs.target_env == 'prod')
     runs-on: ubuntu-latest
     environment: prod
     concurrency:
