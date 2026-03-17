@@ -20,6 +20,7 @@ on:
       - '.github/workflows/deploy-frontend-prod.yml'
       - '.github/workflows/deploy-keycloak-staging.yml'
       - '.github/workflows/deploy-keycloak-prod.yml'
+      - '.github/workflows/railway-memory-reclaim.yml'
       - '.github/workflows/bootstrap-rabbit-topology.yml'
       - 'tool/ci/**'
       - 'tool/otel/**'
@@ -43,6 +44,7 @@ on:
       - '.github/workflows/deploy-frontend-prod.yml'
       - '.github/workflows/deploy-keycloak-staging.yml'
       - '.github/workflows/deploy-keycloak-prod.yml'
+      - '.github/workflows/railway-memory-reclaim.yml'
       - '.github/workflows/bootstrap-rabbit-topology.yml'
       - 'tool/ci/**'
       - 'tool/otel/**'
@@ -90,6 +92,8 @@ jobs:
         run: bash tool/ci/test_prepare_frontend_build_context.sh
       - name: Check frontend deploy contract tests
         run: bash tool/ci/test_deploy_frontend.sh
+      - name: Check Railway restart contract tests
+        run: bash tool/ci/test_restart_railway_services.sh
       - name: Check db-ops build context contract tests
         run: bash tool/ci/test_prepare_db_ops_build_context.sh
       - name: Check db-ops deploy contract tests
