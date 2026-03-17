@@ -1,0 +1,71 @@
+name: shutdown-railway-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      railway_debug:
+        description: "Enable safe verbose Railway shutdown logs"
+        required: false
+        default: false
+        type: boolean
+      confirm_prod_shutdown:
+        description: "Required for prod: type CONFIRM_PROD_RAILWAY_SHUTDOWN"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  shutdown-railway-prod:
+    runs-on: ubuntu-latest
+    environment: prod
+    concurrency:
+      group: prod-db-ops
+      cancel-in-progress: false
+    env:
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT: prod
+      RAILWAY_PROD_API_SERVICE_ID: ${{ secrets.RAILWAY_PROD_API_SERVICE_ID }}
+      RAILWAY_PROD_EVENT_RELAY_SERVICE_ID: ${{ secrets.RAILWAY_PROD_EVENT_RELAY_SERVICE_ID }}
+      RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_PROJECTION_CONSUMER_SERVICE_ID }}
+      RAILWAY_PROD_WORKER_SERVICE_ID: ${{ secrets.RAILWAY_PROD_WORKER_SERVICE_ID }}
+      RAILWAY_PROD_FRONTEND_SERVICE_ID: ${{ secrets.RAILWAY_PROD_FRONTEND_SERVICE_ID }}
+      RAILWAY_PROD_KEYCLOAK_SERVICE_ID: ${{ secrets.RAILWAY_PROD_KEYCLOAK_SERVICE_ID }}
+      RAILWAY_PROD_DB_OPS_SERVICE_ID: ${{ secrets.RAILWAY_PROD_DB_OPS_SERVICE_ID }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - name: Require explicit prod confirmation
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.confirm_prod_shutdown }}" != "CONFIRM_PROD_RAILWAY_SHUTDOWN" ]]; then
+            echo "error: prod Railway shutdown requires confirm_prod_shutdown=CONFIRM_PROD_RAILWAY_SHUTDOWN" >&2
+            exit 1
+          fi
+      - name: Load deploy flags from config
+        env:
+          RAILWAY_DEBUG_INPUT: ${{ inputs.railway_debug }}
+        run: |
+          bash tool/ci/load_deploy_flags.sh "$RAILWAY_ENVIRONMENT" "$RAILWAY_DEBUG_INPUT" >> "$GITHUB_ENV"
+      - name: Set up deploy tooling (cached)
+        uses: ./.github/actions/deploy-tooling
+      - name: Shut down prod Railway services
+        run: |
+          SHUTDOWN_SUMMARY_PATH="$RUNNER_TEMP/shutdown-services.txt" \
+          bash tool/ci/shutdown_railway_prod_services.sh
+      - name: Write prod shutdown summary
+        if: always()
+        run: |
+          {
+            echo "## Railway Shutdown"
+            echo "- Environment: prod"
+            echo "- Job status: ${{ job.status }}"
+            echo "- Shutdown method: railway down"
+            if [[ -s "$RUNNER_TEMP/shutdown-services.txt" ]]; then
+              echo "- Shut down services:"
+              while IFS= read -r service; do
+                echo "  - $service"
+              done < "$RUNNER_TEMP/shutdown-services.txt"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
