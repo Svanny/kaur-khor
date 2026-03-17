@@ -3,104 +3,197 @@
   "themeVariables": {
     "fontFamily": "Avenir Next, Segoe UI, Helvetica Neue, Arial, sans-serif",
     "background": "#fffaf0",
-    "fontSize": "22px",
+    "fontSize": "18px",
     "lineColor": "#475569",
     "textColor": "#0f172a"
   }
 }}%%
 flowchart TB
   classDef persona fill:#fff1c2,stroke:#d97706,color:#451a03,stroke-width:1.5px;
+  classDef repo fill:#f8fafc,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
   classDef app fill:#ffe4d6,stroke:#ea580c,color:#431407,stroke-width:1.5px;
-  classDef platform fill:#e0f2fe,stroke:#0284c7,color:#082f49,stroke-width:1.5px;
+  classDef control fill:#f1f5f9,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
   classDef runtime fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:1.5px;
   classDef store fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:1.5px;
   classDef ops fill:#fef3c7,stroke:#ca8a04,color:#422006,stroke-width:1.5px;
-  classDef control fill:#f1f5f9,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
   classDef external fill:#ede9fe,stroke:#7c3aed,color:#2e1065,stroke-width:1.5px;
+  classDef note fill:#fff7ed,stroke:#fb923c,color:#7c2d12,stroke-width:1.5px,stroke-dasharray: 5 3;
 
-  subgraph surface["Product Surface"]
-    direction TB
-    operators["Owners and operators"]:::persona
-    flutter["Flutter inventory app<br/>dashboard, inventory flows,<br/>product ranking, settings"]:::app
-    operators --> flutter
-  end
-
-  subgraph delivery["Release and Platform Control"]
+  subgraph audience["How To Read This Repo"]
     direction LR
-    github["GitHub Actions<br/>fmt, clippy, test, build,<br/>migration validate, deploy scripts"]:::ops
-    railway["Railway<br/>service routing, role rollout,<br/>revision parity checks"]:::platform
-    collector["OTel collector<br/>OTLP batch and retry hop"]:::ops
-    logsink["Railway log drain<br/>platform-first operational logs"]:::ops
-    grafana["Grafana Cloud<br/>metrics and traces"]:::external
-    github -->|sync vars, upload source, migrate_with_lock| railway
-    collector -->|export| grafana
+    newcomer["New engineer<br/>needs a one-glance map"]:::persona
+    note_current["Current product shape<br/>Flutter UI prototype and Rust backend workstream evolve in parallel"]:::note
+    newcomer --> note_current
   end
 
-  subgraph runtime_plane["Banji Backend on Railway"]
-    direction TB
-    ingress["API ingress"]:::platform
-    edge["Edge middleware<br/>origin guard -> request size limits -> rate limit -> CORS"]:::control
-    api["APP_ROLE=api<br/>Axum handlers, JWT auth, device identity,<br/>backpressure, correlation IDs"]:::runtime
+  subgraph repo_map["Source Tree And Ownership Boundaries"]
+    direction LR
+    lib_repo["lib/<br/>Flutter app shell, inventory flows,<br/>settings, localization, security, theme"]:::repo
+    api_repo["apps/api/<br/>Axum service, runtime roles,<br/>events, jobs, projections, storage"]:::repo
+    test_repo["test/ and apps/api/tests/<br/>widget, security, integration,<br/>config and edge contract tests"]:::repo
+    docs_repo["docs/, config/, tool/<br/>architecture contracts, env templates,<br/>CI/deploy checks, operator scripts"]:::repo
+  end
 
-    subgraph async_roles["Async and Operational Roles"]
+  subgraph frontend["Flutter Product Surface"]
+    direction TB
+    app_boot["lib/main.dart<br/>BanjiApp bootstraps MaterialApp"]:::app
+    scopes["App-wide state scopes<br/>LocaleController<br/>CurrencyController<br/>InventoryController"]:::control
+
+    subgraph frontend_views["Main user-visible surfaces"]
       direction LR
-      relay["event-relay<br/>publishes event_outbox -> event_log"]:::runtime
-      projection["projection-consumer<br/>replay-safe projector and checkpoints"]:::runtime
-      worker["worker<br/>job relay, queue consumers,<br/>artifact uploads"]:::runtime
-      backfill["backfill-controller<br/>preview/apply replays,<br/>restore validation drills"]:::runtime
+      home["Home dashboard<br/>brand shell, metrics placeholders,<br/>entry buttons into flows"]:::app
+      view_all["View All inventory<br/>search, filter, list cards,<br/>add/edit entry point"]:::app
+      sku_service["SKU and Service detail editors<br/>validation, normalization,<br/>unsaved-change dialogs"]:::app
+      stock_flow["Update Stock flow<br/>card deck, presets,<br/>confirm then save all"]:::app
+      ranking["Product ranking flow<br/>local reorder, reset,<br/>save/discard confirmation"]:::app
+      settings["Settings view<br/>language, currency,<br/>backup/logout placeholders"]:::app
     end
 
-    telemetry["Shared runtime signals<br/>OTLP traces and metrics<br/>structured logs"]:::control
+    subgraph frontend_support["Cross-cutting frontend modules"]
+      direction LR
+      theme["Theme tokens and shared widgets<br/>app_theme.dart<br/>app_dropdown_pill.dart"]:::control
+      l10n["Localization and preferences<br/>ARB strings, generated delegates,<br/>language/currency switching"]:::control
+      security_ui["Security helpers<br/>text normalization, numeric limits,<br/>opaque ID generation"]:::control
+    end
+
+    ui_state["Current app data boundary<br/>seeded in-memory InventoryState<br/>inside InventoryController"]:::note
+    ranking_note["Important current behavior<br/>ranking save is local UX only<br/>and does not persist order"]:::note
   end
 
-  subgraph data_plane["Shared State and Dependencies"]
+  subgraph backend["Rust Backend Workstream"]
     direction TB
-    postgres["Railway Postgres (schema: app)<br/>canonical items and idempotency<br/>event_outbox and job_outbox<br/>event_log and consumer checkpoints<br/>inventory_item_projection<br/>job_run, attempts, results, artifact metadata"]:::store
+    binary["apps/api/src/main.rs<br/>single Rust binary selects behavior by APP_ROLE"]:::runtime
+    role_select["APP_ROLE runtime split<br/>api | event-relay | projection-consumer<br/>worker | backfill-controller"]:::control
 
-    subgraph integrations["Supporting services"]
+    subgraph request_plane["Request plane: api role"]
       direction LR
-      redis["Redis optional<br/>shared cache and rate limiting"]:::store
-      rabbit["RabbitMQ quorum queues<br/>fast and heavy lanes,<br/>retry ladders, DLQs, replay"]:::store
-      objectstore["S3-compatible object storage<br/>worker artifacts and<br/>event-log JSONL archives"]:::store
-      restoredb["Restore database<br/>archive rehydrate target<br/>and drill environment"]:::store
-      idp["JWKS issuer and auth provider"]:::external
+      api_router["Axum router and middleware<br/>/health /version /v1/items<br/>auth -> identity -> backpressure -> rate limit"]:::runtime
+      api_logic["Request contracts<br/>owner-scoped item handlers<br/>DB-backed idempotency<br/>best-effort cache population"]:::runtime
+      api_guard["Edge and auth modules<br/>JWKS bearer auth<br/>origin guard, CORS, request limits"]:::control
+    end
+
+    subgraph async_plane["Async and operational roles"]
+      direction LR
+      relay["event-relay<br/>drains event_outbox<br/>publishes idempotently to event_log"]:::runtime
+      projection["projection-consumer<br/>singleton projector<br/>continuous and replay modes"]:::runtime
+      worker["worker<br/>job outbox relay, Rabbit consumers,<br/>artifact upload, rollout policy"]:::runtime
+      backfill["backfill-controller<br/>preview/apply replays,<br/>projection rebuild and backfill orchestration"]:::runtime
+    end
+
+    observability["Shared runtime concerns<br/>correlation IDs, OTLP traces and metrics,<br/>secret-safe structured logging"]:::control
+  end
+
+  subgraph data_plane["Canonical Data And External Dependencies"]
+    direction TB
+    postgres["Postgres is source of truth (schema: app)<br/>inventory_item and idempotency_request<br/>event_outbox and job_outbox<br/>event_log and checkpoints<br/>inventory_item_projection<br/>job_run, attempts, results, artifact metadata"]:::store
+
+    subgraph infra["Supporting services"]
+      direction LR
+      redis["Redis optional<br/>fail-open cache, rate-limit state,<br/>singleflight-adjacent acceleration"]:::store
+      rabbit["RabbitMQ<br/>primary queues, replay queues,<br/>retry ladders and DLQs"]:::store
+      s3["S3-compatible object storage<br/>worker artifacts and event-log archives"]:::store
+      idp["Identity provider and JWKS issuer"]:::external
+      restore["Restore / drill target<br/>used for replay and restore validation"]:::store
     end
   end
 
-  flutter -->|HTTPS| ingress
-  railway --> ingress
+  subgraph delivery["Delivery, Docs, And Operations"]
+    direction LR
+    contracts["config/env and config/topology<br/>role-specific env templates<br/>runtime_roles.json contract"]:::ops
+    docs["docs/architecture and docs/operations<br/>canonical backend contracts,<br/>runbooks and replay procedures"]:::ops
+    tools["tool/db tool/rabbit tool/security tool/otel<br/>restore drills, replay helpers,<br/>Rabbit topology, merge gates, OTel collector"]:::ops
+    ci["GitHub Actions and CI checks<br/>fmt, clippy, tests, migration validation,<br/>deploy parity checks"]:::ops
+    railway["Railway deployment topology<br/>api, event-relay, projection-consumer, worker<br/>plus on-demand backfill-controller"]:::external
+    collector["OTel collector and log export path"]:::ops
+    grafana["Grafana Cloud and platform logs"]:::external
+  end
+
+  lib_repo --> app_boot
+  lib_repo --> theme
+  lib_repo --> l10n
+  lib_repo --> security_ui
+  test_repo --> frontend_views
+  test_repo --> request_plane
+  test_repo --> async_plane
+  api_repo --> binary
+  docs_repo --> contracts
+  docs_repo --> docs
+  docs_repo --> tools
+
+  app_boot --> scopes
+  scopes --> home
+  scopes --> view_all
+  scopes --> stock_flow
+  scopes --> settings
+  theme --> home
+  theme --> view_all
+  theme --> stock_flow
+  l10n --> home
+  l10n --> settings
+  security_ui --> sku_service
+  security_ui --> stock_flow
+
+  home -->|opens| view_all
+  home -->|opens| stock_flow
+  home -->|opens| settings
+  view_all -->|push edit/create routes| sku_service
+  view_all -->|push edit/create routes| sku_service
+  stock_flow -->|Save All| ranking
+  view_all --> ui_state
+  sku_service --> ui_state
+  stock_flow --> ui_state
+  ranking --> ranking_note
+
+  note_current -. not wired yet .-> ui_state
+  note_current -. backend workstream .-> binary
+
+  binary --> role_select
+  role_select --> api_router
+  role_select --> relay
+  role_select --> projection
+  role_select --> worker
+  role_select -. operator run .-> backfill
+  api_guard --> api_router
+  api_router --> api_logic
+  api_router --> observability
+  relay --> observability
+  projection --> observability
+  worker --> observability
+  backfill --> observability
+
+  api_logic -->|read/write items and idempotency<br/>enqueue event/job intents in same transaction| postgres
+  api_logic -->|optional cache reads and writes| redis
+  api_logic -->|JWT verification and JWKS refresh| idp
+  relay -->|claim event_outbox rows<br/>append validated records| postgres
+  projection -->|read event_log<br/>advance checkpoints<br/>rebuild projections| postgres
+  worker -->|claim job_outbox and record attempts/results| postgres
+  worker -->|publish and consume jobs| rabbit
+  worker -->|HEAD-first upload and artifact retrieval| s3
+  backfill -->|preview/apply replay targets| postgres
+  postgres -->|archive export| s3
+  s3 -->|rehydrate for drills| restore
+
+  contracts --> railway
+  ci --> railway
+  docs --> railway
+  tools --> railway
+  railway --> api_router
   railway --> relay
   railway --> projection
   railway --> worker
-  railway -. on-demand role .-> backfill
+  railway -. on-demand .-> backfill
 
-  ingress --> edge --> api
-  api -->|JWT verification and JWKS refresh| idp
-  api -->|reads, writes, same-transaction intents| postgres
-  api -->|optional cache and shared limiter state| redis
-  api -. backpressure samples .-> postgres
+  observability --> collector
+  collector --> grafana
 
-  relay -->|claim pending events and publish idempotently| postgres
-  projection -->|poll event_log and advance checkpoints| postgres
-  worker -->|claim job outbox, record attempts and results| postgres
-  worker -->|publisher confirms| rabbit
-  rabbit -->|primary and replay deliveries| worker
-  worker -->|HEAD-first upload, metadata-only DB refs| objectstore
-  backfill -->|primary or restore replay targets| postgres
-  postgres -->|verified event-log archive export| objectstore
-  objectstore -->|cold replay rehydrate| restoredb
-
-  api --> telemetry
-  relay --> telemetry
-  projection --> telemetry
-  worker --> telemetry
-  backfill --> telemetry
-  telemetry --> collector
-  telemetry --> logsink
-
-  style surface fill:#fff8e6,stroke:#f59e0b,stroke-width:1.2px,color:#422006
-  style delivery fill:#fff7ed,stroke:#fb923c,stroke-width:1.2px,color:#431407
-  style runtime_plane fill:#eff6ff,stroke:#60a5fa,stroke-width:1.2px,color:#172554
-  style async_roles fill:#f8fbff,stroke:#93c5fd,stroke-width:1.2px,color:#172554
+  style audience fill:#fff8e6,stroke:#f59e0b,stroke-width:1.2px,color:#422006
+  style repo_map fill:#f8fafc,stroke:#94a3b8,stroke-width:1.2px,color:#0f172a
+  style frontend fill:#fff7ed,stroke:#fb923c,stroke-width:1.2px,color:#7c2d12
+  style frontend_views fill:#fffaf5,stroke:#fdba74,stroke-width:1.2px,color:#7c2d12
+  style frontend_support fill:#fffaf5,stroke:#fdba74,stroke-width:1.2px,color:#7c2d12
+  style backend fill:#eff6ff,stroke:#60a5fa,stroke-width:1.2px,color:#172554
+  style request_plane fill:#f8fbff,stroke:#93c5fd,stroke-width:1.2px,color:#172554
+  style async_plane fill:#f8fbff,stroke:#93c5fd,stroke-width:1.2px,color:#172554
   style data_plane fill:#f0fdf4,stroke:#4ade80,stroke-width:1.2px,color:#14532d
-  style integrations fill:#f7fee7,stroke:#86efac,stroke-width:1.2px,color:#14532d
+  style infra fill:#f7fee7,stroke:#86efac,stroke-width:1.2px,color:#14532d
+  style delivery fill:#fff7ed,stroke:#f59e0b,stroke-width:1.2px,color:#422006
