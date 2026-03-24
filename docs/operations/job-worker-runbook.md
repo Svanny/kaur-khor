@@ -109,17 +109,15 @@ Replay-scoped backfill jobs:
 - remain append-only history; they do not overwrite prior `job_result` rows
 
 ## One-Off Topology Bootstrap
-- Manual GitHub workflow: [bootstrap-rabbit-topology.yml](/Users/svanny/banji/.github/workflows/bootstrap-rabbit-topology.yml)
-- Dispatch with:
-  - `target_env=staging` or `prod`
-  - `rabbit_vhost=/` unless the worker is configured for another vhost
-  - `confirm_prod_bootstrap=CONFIRM_PROD_BOOTSTRAP` for prod only
-- Required GitHub environment secrets on the selected environment:
+- Run [bootstrap_rabbit_topology.sh](/Users/svanny/banji/tool/local/bootstrap_rabbit_topology.sh) from an operator shell.
+- Required inputs:
+  - `BANJI_ENV`
+  - `RABBIT_VHOST=/` unless the worker is configured for another vhost
   - `RABBIT_MANAGEMENT_API_BASE_URL`
   - `RABBIT_MANAGEMENT_USERNAME`
   - `RABBIT_MANAGEMENT_PASSWORD`
-- The workflow runs [bootstrap_rabbit_topology.sh](/Users/svanny/banji/tool/ci/bootstrap_rabbit_topology.sh), which maps the canonical `RABBIT_MANAGEMENT_*` secrets into the existing Rabbit tooling contract, derives the Banji exchange names, runs [setup_topology.sh](/Users/svanny/banji/tool/rabbit/setup_topology.sh), and verifies the result with [check_topology.sh](/Users/svanny/banji/tool/rabbit/check_topology.sh).
-- Expected staging topology in vhost `/` includes:
+- The script maps the canonical `RABBIT_MANAGEMENT_*` secrets into the existing Rabbit tooling contract, derives the Banji exchange names, runs [setup_topology.sh](/Users/svanny/banji/tool/rabbit/setup_topology.sh), and verifies the result with [check_topology.sh](/Users/svanny/banji/tool/rabbit/check_topology.sh).
+- Example staging-style topology in vhost `/` includes:
   - `banji-core.staging.fast-jobs`
   - `banji-core.staging.heavy-jobs`
   - `banji-core.staging.fast-jobs.replay`

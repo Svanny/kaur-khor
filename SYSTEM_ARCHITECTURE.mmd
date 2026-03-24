@@ -31,7 +31,7 @@ flowchart TB
     lib_repo["lib/<br/>Flutter app shell, inventory flows,<br/>settings, localization, security, theme"]:::repo
     api_repo["apps/api/<br/>Axum service, runtime roles,<br/>events, jobs, projections, storage"]:::repo
     test_repo["test/ and apps/api/tests/<br/>widget, security, integration,<br/>config and edge contract tests"]:::repo
-    docs_repo["docs/, config/, tool/<br/>architecture contracts, env templates,<br/>CI/deploy checks, operator scripts"]:::repo
+    docs_repo["docs/, config/, tool/<br/>architecture contracts, local env template,<br/>operator scripts and checks"]:::repo
   end
 
   subgraph frontend["Flutter Product Surface"]
@@ -99,13 +99,12 @@ flowchart TB
 
   subgraph delivery["Delivery, Docs, And Operations"]
     direction LR
-    contracts["config/env and config/topology<br/>role-specific env templates<br/>runtime_roles.json contract"]:::ops
+    contracts["config/env and config/topology<br/>local env template and role map<br/>runtime_roles.json contract"]:::ops
     docs["docs/architecture and docs/operations<br/>canonical backend contracts,<br/>runbooks and replay procedures"]:::ops
-    tools["tool/db tool/rabbit tool/security tool/otel<br/>restore drills, replay helpers,<br/>Rabbit topology, merge gates, OTel collector"]:::ops
-    ci["GitHub Actions and CI checks<br/>fmt, clippy, tests, migration validation,<br/>deploy parity checks"]:::ops
-    railway["Railway deployment topology<br/>api, event-relay, projection-consumer, worker<br/>plus on-demand backfill-controller"]:::external
+    tools["tool/db tool/local tool/rabbit tool/security tool/otel<br/>restore drills, replay helpers,<br/>Rabbit topology, shell checks, OTel collector"]:::ops
+    local_ops["Local operator shell<br/>migrations, local role startup,<br/>manual restore and replay tasks"]:::ops
     collector["OTel collector and log export path"]:::ops
-    grafana["Grafana Cloud and platform logs"]:::external
+    grafana["Grafana Cloud and operator log sinks"]:::external
   end
 
   lib_repo --> app_boot
@@ -173,15 +172,14 @@ flowchart TB
   postgres -->|archive export| s3
   s3 -->|rehydrate for drills| restore
 
-  contracts --> railway
-  ci --> railway
-  docs --> railway
-  tools --> railway
-  railway --> api_router
-  railway --> relay
-  railway --> projection
-  railway --> worker
-  railway -. on-demand .-> backfill
+  contracts --> local_ops
+  docs --> local_ops
+  tools --> local_ops
+  local_ops --> api_router
+  local_ops --> relay
+  local_ops --> projection
+  local_ops --> worker
+  local_ops -. on-demand .-> backfill
 
   observability --> collector
   collector --> grafana

@@ -42,7 +42,7 @@ Banji is an inventory platform prototype with:
 - `tool/security/`: merge-gate security checks.
 - `apps/api/`: Rust API service and backend modules.
 - `apps/api/migrations/`: SQLx schema migrations.
-- `config/env/`: environment variable templates for `dev`, `staging`, `prod`.
+- `config/env/`: tracked local environment template and config policy notes.
 - `docs/architecture/`: canonical backend contracts and architecture decisions.
 - `tool/`: operational scripts for naming, DB operations, and RabbitMQ operations.
 - `tool/otel/`: OpenTelemetry collector config for traces/metrics export pipeline.
@@ -180,12 +180,12 @@ This repository is an actively evolving prototype.
 - Projection replay is now built into the Rust `projection-consumer` runtime (`continuous`, `replay-preview`, `replay-apply`), while public `GET /v1/items/:item_id` still reads the canonical `app.inventory_item` table.
 - Controlled replay/backfill is now available via `APP_ROLE=backfill-controller`, which records preview/apply runs in `app.backfill_run`, supports projection rebuilds from `app.event_log`, and schedules replay-scoped jobs into the Rabbit replay exchange.
 - Job execution now uses a dedicated `APP_ROLE=worker` runtime that consumes RabbitMQ deliveries, writes `app.job_run` / `app.job_run_attempt` / `app.job_result` accountability records in Postgres, and enforces deterministic `job_key` identity plus duplicate-delivery-safe attempt leases.
-- Staging and production now share the same intended backend role topology: `api`, `event-relay`, `projection-consumer`, and `worker`, with deploy checks enforcing role identity and same-commit parity via Railway source uploads from `apps/api`.
+- The Rust backend keeps a single binary with role-based entrypoints: `api`, `event-relay`, `projection-consumer`, `worker`, and `backfill-controller`.
 - Worker job algorithms now use Postgres-backed rollout policy keyed by `job_type`, with sticky `job_run.algorithm_version` decisions so retries stay consistent while new jobs can ramp or roll back immediately.
 - Worker artifacts now use S3-compatible object storage with deterministic `artifact_key` / object-key derivation, `HEAD`-first idempotent uploads, and Postgres metadata-only tracking in `app.object_artifact` / `app.job_result_artifact`.
 - Observability baseline uses OpenTelemetry semantic-convention HTTP metrics, correlation IDs, and a collector-forwarded traces/metrics path.
-- Rust API container builds now use Docker buildx with `apps/api` as the context and `cargo-chef` dependency caching, so repeat CI image builds reuse compiled dependency layers across workflow runs.
-- Postgres restore drill routine is defined via `.github/workflows/postgres-restore-drill.yml` and `docs/operations/postgres-restore-drill.md`.
+- Rust API container builds use a multi-stage Dockerfile with `cargo-chef` dependency caching for local containerized runs.
+- Postgres restore drill routine is documented in `docs/operations/postgres-restore-drill.md`.
 - Postgres event-log lifecycle (retention/archive/replay) is defined via `docs/architecture/postgres-event-log.md` and `docs/operations/postgres-event-log-maintenance.md`.
 - Event vocabulary and schema discipline is defined via `docs/architecture/event-vocabulary-schema-discipline.md`.
 - Job worker operations are defined via `docs/operations/job-worker-runbook.md`.

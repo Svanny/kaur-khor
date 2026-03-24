@@ -1,12 +1,11 @@
 # Postgres Source of Truth
 
 ## Scope
-This standard defines how Banji provisions, migrates, backs up, restores, and monitors PostgreSQL across `dev`, `staging`, and `prod`.
+This standard defines how Banji provisions, migrates, backs up, restores, and monitors PostgreSQL for local development and operator-managed environments.
 
 ## Environment Topology
-- Platform: Railway PostgreSQL
-- Isolation: separate Postgres instance per environment
-- Databases per environment:
+- Isolation: separate Postgres database or instance per environment
+- Recommended naming:
   - `banji_core_<env>_kh_pp_app`
   - `banji_core_<env>_kh_pp_restore`
 
@@ -20,17 +19,14 @@ This standard defines how Banji provisions, migrates, backs up, restores, and mo
 ## Schema Authority and Migration Process
 - Source of truth: `apps/api/migrations/`
 - Tool: `sqlx migrate`
-- CI must always bootstrap a fresh empty database from migrations.
-- CI must also reject duplicate migration version prefixes before merge.
-- Deploy sequencing for `staging` and `prod` is fixed:
+- Fresh-database validation should always bootstrap an empty database from migrations.
+- Duplicate migration version prefixes should be rejected before code lands.
+- Local/operator sequencing is fixed:
   1. Acquire migration lock (single runner)
   2. Apply migrations
-  3. Deploy API image
-  4. Shift/finalize traffic
-- In `staging`, steps 1-2 run from the dedicated staging Railway db-ops service over Railway private networking before Banji runtime services roll forward.
-- In `prod`, steps 1-2 run from the dedicated prod Railway db-ops service over Railway private networking before Banji runtime services roll forward.
+  3. Start or restart affected runtime roles
 
-If migration fails, deployment aborts before app rollout.
+If migration fails, do not continue the rollout.
 
 ## Roles and Schema Boundary
 - Application schema: `app`
@@ -53,7 +49,7 @@ No runtime role may hold schema-altering privileges.
   - `DATABASE_RUNTIME_ENDPOINT_KIND=direct|pgbouncer`
 - PgBouncer mode expectation is explicit:
   - `PGBOUNCER_POOL_MODE=transaction|session`
-  - `staging` and `prod` require `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer` and `PGBOUNCER_POOL_MODE=transaction`
+  - local development defaults to `DATABASE_RUNTIME_ENDPOINT_KIND=direct` and `PGBOUNCER_POOL_MODE=session`
 - SQLx client pool tuning is explicit:
   - `SQLX_POOL_MAX_CONNECTIONS`, `SQLX_POOL_MIN_CONNECTIONS`
   - `SQLX_POOL_ACQUIRE_TIMEOUT_MS`, `SQLX_POOL_CONNECT_TIMEOUT_MS`
@@ -73,7 +69,7 @@ No runtime role may hold schema-altering privileges.
   - use `SET LOCAL` inside each transaction or role/database defaults, or
   - introduce a narrowly scoped direct/session-mode connection path.
 - Reset-state assumption:
-  - platform PgBouncer reset behavior is assumed enabled between client assignments; if leakage is observed, treat it as a platform/config defect and escalate.
+  - when using PgBouncer, reset behavior must be enabled between client assignments; if leakage is observed, treat it as an environment/config defect and escalate.
 
 ## Migration Safety Rules
 - Expand/contract is required.
@@ -90,16 +86,14 @@ No runtime role may hold schema-altering privileges.
 - Risk markers are required for new migrations:
   - header format: `-- @risk:low|high`
   - `@risk:high` includes large-table index/constraint/partitioning or expected lock-heavy changes
-  - any deployed `@risk:high` migration triggers a mandatory manual `prod -> prod_restore` drill
+  - any deployed `@risk:high` migration triggers a mandatory manual restore drill against an isolated restore database
 - Repair guidance for sqlx migration renumbering lives in [`docs/operations/sqlx-migration-repair.md`](/Users/svanny/banji/docs/operations/sqlx-migration-repair.md).
 
 ## Restore Validation
 - Restore drill cadence:
-  - automated weekly `prod -> prod_restore`
-  - monthly manual `dev -> dev_restore`
-  - monthly manual `prod -> prod_restore`
-  - additional manual prod drill after any deployed `@risk:high` migration
-- The `prod -> prod_restore` routes run from the prod Railway db-ops service so the prod restore target stays private-networked after TCP proxy removal.
+  - regular manual `dev -> dev_restore`
+  - regular manual `prod -> prod_restore` when a prod-like environment exists
+  - additional manual drill after any deployed `@risk:high` migration
 - Hard safety invariants (script-enforced):
   - restore target database name must end with `_restore`
   - source and restore database names must differ

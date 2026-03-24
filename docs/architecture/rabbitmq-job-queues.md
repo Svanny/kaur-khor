@@ -100,7 +100,7 @@ Per-class prefetch settings:
 
 ## Replay Tooling
 Replay uses RabbitMQ Management HTTP API.
-- In `staging` and `prod`, the worker runtime `RABBIT_URL` must stay Railway-resident and private-networked even though the RabbitMQ management HTTPS endpoint may remain public for operator tooling and GitHub workflows.
+- The worker runtime `RABBIT_URL` may differ from the RabbitMQ management HTTPS endpoint used by operators; tooling should treat those as separate inputs.
 - default mode is copy-first: replay publishes copies and leaves DLQ originals intact
 - cleanup/removal is a separate explicit operator step and must be scoped by replay id
 - replay guardrails:

@@ -1,6 +1,6 @@
 # Edge Protections
 
-This backend keeps edge protections inside the application runtime. Railway owns deployment and role topology; the API process owns ingress validation and request shaping.
+This backend keeps edge protections inside the application runtime. The API process owns ingress validation and request shaping regardless of how the service is started locally.
 
 ## Enforcement Model
 - `EDGE_ENFORCEMENT_ENABLED=true` enables origin-guard enforcement.
@@ -37,4 +37,4 @@ This backend keeps edge protections inside the application runtime. Railway owns
 
 ## Operational Boundary
 - No Cloudflare-specific apply or verification tooling remains in the tracked contract.
-- Deployment/runtime ownership is Railway-only; edge protections are application-local behavior.
+- Deployment wiring is out of scope for this contract; edge protections are application-local behavior.

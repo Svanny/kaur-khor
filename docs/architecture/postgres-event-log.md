@@ -4,7 +4,7 @@
 This document defines the Kafka-substitute event stream implemented in PostgreSQL for `app.event_log` with outbox-first durability.
 
 ## Audit vs Operational Logs
-- Operational runtime logs go to platform sink (Railway/log drain).
+- Operational runtime logs go to the active local or operator-managed log sink.
 - `app.event_log` is the canonical audit/replay interface, not a high-volume operational log sink.
 
 ## Replay Horizon Contract

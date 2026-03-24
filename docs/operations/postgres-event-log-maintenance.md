@@ -4,7 +4,7 @@
 Operate retention, archive, replay, and cost visibility for `app.event_log` while Kafka is optional/future.
 Also operate `app.event_outbox` relay and retention.
 
-In `prod`, the repo-tracked GitHub workflow route runs through the dedicated prod Railway db-ops service so event-log maintenance stays on private networking after TCP proxy removal.
+Run this maintenance from an operator shell with the required database and object-storage credentials loaded locally.
 
 ## Contracts
 - Event intents are written to `app.event_outbox` in the same transaction as canonical writes.

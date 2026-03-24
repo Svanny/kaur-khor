@@ -24,4 +24,5 @@ bash tool/naming/print_names.sh
 - `BANJI_SYSTEM`, `BANJI_REGION`, and `BANJI_TENANT` must already be canonical kebab tokens.
 - Postgres names are emitted in snake case (`[a-z0-9_]+`) and are unquoted-safe.
 - Kafka topics and RabbitMQ queues do not include region tokens.
-- Output order is stable and intended for snapshot checks in CI.
+- Output order is stable and intended for repeatable local checks.
+- The repo only tracks `config/env/dev.env`; use inline exports if you want to render names for non-dev environments.

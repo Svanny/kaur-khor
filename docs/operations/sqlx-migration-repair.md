@@ -1,14 +1,14 @@
 # SQLx Migration Repair
 
 ## Scope
-Use this runbook when `staging` or `prod` has already applied a migration version that was later renumbered in git, and `sqlx migrate run` fails with:
+Use this runbook when an environment has already applied a migration version that was later renumbered in git, and `sqlx migrate run` fails with:
 
 `migration <n> was previously applied but has been modified`
 
-This runbook covers the traced staging repair for the `0016 -> 0018` metadata migration renumbering.
+This runbook covers the traced repair for the `0016 -> 0018` metadata migration renumbering.
 
 ## Preconditions
-- Environment: `staging` or `prod`.
+- Environment: any database that already applied the older migration numbering.
 - Take a database snapshot or backup before touching `public._sqlx_migrations`.
 - Use the current repository `main` as the migration authority.
 - Do not rename migrations again while repairing the environment.
@@ -41,7 +41,6 @@ Generate the repair SQL:
 DATABASE_URL=... bash tool/db/sqlx_migration_history_repair.sh generate-repair-sql > /tmp/db_sqlx_repair.sql
 ```
 
-Review the generated SQL, then apply it with the staging migration role.
 Review the generated SQL, then apply it with the environment-specific migration role.
 
 The generated SQL:
@@ -54,11 +53,9 @@ It intentionally does not fabricate a version `19` row. After remapping the meta
 After the metadata remap:
 
 ```bash
-RAILWAY_API_TOKEN=... \
-RAILWAY_PROJECT_ID=... \
-RAILWAY_ENVIRONMENT=staging \
-RAILWAY_SERVICE_ID=... \
-bash tool/ci/run_db_ops.sh migrate-with-lock
+DATABASE_MIGRATION_URL=... \
+DATABASE_RUNTIME_URL=... \
+bash tool/local/migrate_with_lock.sh
 ```
 
 Expected result:

@@ -1,83 +1,42 @@
-┌───────────────────────────────────────────────────────────────┐
-│ Developer edits backend                                       │
-│ apps/api/src/*  apps/api/migrations/*  apps/api/sqlx-data.json │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ Pull request opened toward main                               │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ GitHub Actions runs .github/workflows/rust-ci.yml              │
-│                                                               │
-│ Quality gates                                                  │
-│ cargo fmt check                                                │
-│ cargo clippy as errors                                         │
-│ cargo test                                                     │
-│ cargo build release                                            │
-│ shell smoke test for start.sh                                  │
-│ sqlx migrate run on fresh CI Postgres                          │
-│ sqlx offline verify via tool/ci/sqlx_offline_verify.sh         │
-│ actionlint for workflow validity                               │
-│ cargo audit non blocking                                       │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-                     pass checks and review
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ Merge pull request into main                                  │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ Push event lands on main                                      │
-│ Triggers .github/workflows/release-build.yml                   │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ Railway connected repo remains deployment source of truth      │
-│                                                               │
-│ Railpack reads apps/api/railway.toml from the service root     │
-│ Build command compiles the release binary from apps/api        │
-│ Start command uses ./start.sh                                  │
-│ start.sh maps PORT to API_BIND_ADDR for APP_ROLE=api           │
-│ Compute migration checksum from apps/api/migrations            │
-│ GitHub syncs Railway vars, then uploads apps/api with railway up│
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ deploy.yml job deploy-staging in environment staging           │
-│                                                               │
-│ Gate 1 config correctness                                      │
-│ Railway service root is apps/api with railpack + ./start.sh    │
-│                                                               │
-│ Gate 2 schema readiness                                        │
-│ Run tool/ci/migrate_with_lock.sh against staging DB            │
-│ Uses Postgres advisory lock plus sqlx migrate run               │
-│                                                               │
-│ Rollout                                                       │
-│ GitHub uploads apps/api source to Railway in role order        │
-│ Railway builds and starts each role via start.sh               │
-│ Write GitHub step summary                                      │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-                     staging success required
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ GitHub environment prod approval gate                          │
-│ deploy-prod waits until an approver clicks approve             │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ deploy.yml job deploy-prod in environment prod                 │
-│                                                               │
-│ Assert same repo revision as staging                           │
-│ Run tool/ci/migrate_with_lock.sh against prod DB               │
-│ GitHub uploads apps/api source to Railway in role order        │
-│ Railway builds and starts each role via start.sh               │
-│ Write GitHub step summary                                      │
-└───────────────────────────────────────────────────────────────┘
-                              ↓
-┌───────────────────────────────────────────────────────────────┐
-│ Production is running the same repo revision as staging        │
-│ Database migrations were applied before rollout                │
-└───────────────────────────────────────────────────────────────┘
+# Backend Local Workflow Diagram
+
+```text
+┌────────────────────────────────────────────────────────────────┐
+│ Edit backend code under apps/api, docs, config, and tool/     │
+└────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────┐
+│ Run local shell checks                                         │
+│ - bash tool/local/test_check_migration_versions.sh             │
+│ - bash tool/local/test_migrate_with_lock.sh                    │
+│ - bash tool/local/test_bootstrap_rabbit_topology.sh            │
+│ - bash tool/local/test_start_sh.sh                             │
+└────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────┐
+│ Validate database contracts                                    │
+│ - bash tool/local/check_migration_versions.sh                  │
+│ - DATABASE_URL=... bash tool/local/sqlx_offline_verify.sh      │
+│ - DATABASE_MIGRATION_URL=... DATABASE_RUNTIME_URL=...          │
+│   bash tool/local/migrate_with_lock.sh                         │
+└────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────┐
+│ Start backend roles locally                                    │
+│ - APP_ROLE=api cargo run --bin banji-api                       │
+│ - APP_ROLE=event-relay cargo run --bin banji-api               │
+│ - APP_ROLE=projection-consumer cargo run --bin banji-api       │
+│ - APP_ROLE=worker cargo run --bin banji-api                    │
+└────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────┐
+│ Run local operator tasks                                       │
+│ - Rabbit topology bootstrap via tool/local/bootstrap_...       │
+│ - restore drills via tool/db/restore_validate.sh               │
+│ - replay and maintenance via tool/db/*                         │
+└────────────────────────────────────────────────────────────────┘
+```

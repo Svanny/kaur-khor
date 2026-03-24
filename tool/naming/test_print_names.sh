@@ -29,9 +29,15 @@ run_from_env_file() {
   printf '%s' "$out"
 }
 
+run_from_vars() {
+  local out
+  out="$(env BANJI_SYSTEM=banji-core BANJI_ENV="$1" BANJI_REGION=kh-pp BANJI_TENANT=default bash "$SCRIPT")"
+  printf '%s' "$out"
+}
+
 dev_out="$(run_from_env_file "$ROOT_DIR/config/env/dev.env")"
-staging_out="$(run_from_env_file "$ROOT_DIR/config/env/staging.env")"
-prod_out="$(run_from_env_file "$ROOT_DIR/config/env/prod.env")"
+staging_out="$(run_from_vars staging)"
+prod_out="$(run_from_vars prod)"
 
 # 1) Normalization and DB legality
 assert_contains "$staging_out" "POSTGRES_DB_APP=banji_core_staging_kh_pp_app"

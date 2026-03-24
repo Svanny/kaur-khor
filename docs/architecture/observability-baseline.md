@@ -1,11 +1,11 @@
 # Observability Baseline (Milestone 8)
 
 ## Scope
-This baseline establishes traces + metrics with OpenTelemetry and keeps operational logs platform-first.
+This baseline establishes traces + metrics with OpenTelemetry and keeps operational logs out of the application data plane.
 
 Current target:
-- services -> OTLP -> in-platform collector -> Grafana Cloud
-- operational logs -> Railway/log drain
+- services -> OTLP -> collector -> Grafana Cloud
+- operational logs -> local terminal, container logs, or the active operator-managed sink
 - audit/replay events -> Postgres `app.event_log`
 
 ## Transport Topology

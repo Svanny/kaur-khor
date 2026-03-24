@@ -1,13 +1,14 @@
 # Environment Template Policy
 
-Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
+`config/env/dev.env` is the only tracked environment template in this repo. It is the canonical local development contract and the baseline example for any other operator-managed environment.
 
 ## Rules
 - Tracked templates must not contain real credentials or tokens.
 - Secret-valued keys may only be `__SET_IN_PLATFORM_SECRET__` or empty when explicitly documented as optional.
-- Runtime secret values come from Railway service variables or another platform secret store.
-- CI/deploy secret values come from GitHub Environment secrets unless a section below explicitly marks Railway as the runtime source of truth.
-- Railway is the only tracked deployment/runtime platform contract in this repo.
+- Local operators may source secrets from shell exports, `.env` loaders outside git, or another secret store.
+- [`apps/api/start.sh`](/Users/svanny/banji/apps/api/start.sh) remains the shared runtime entrypoint for all backend roles.
+- `start.sh` maps `PORT` to `API_BIND_ADDR` only for `APP_ROLE=api`.
+- `BANJI_SERVICE` defaults to `APP_ROLE` when not explicitly set.
 
 ## Secret Keys
 - `DATABASE_RUNTIME_URL`
@@ -26,27 +27,11 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - `EDGE_ORIGIN_AUTH_SECRET_NEXT`
 - service integration keys such as `STRIPE_API_KEY` or `SENDGRID_API_KEY`
 
-## Railway Runtime Startup
-- Railway deploys the Rust service from `apps/api`.
-- GitHub Actions syncs managed Railway service variables before each deploy and uploads `apps/api` with `railway up`.
-- `staging` and `prod` also deploy [services/staging-db-ops](/Users/svanny/banji/services/staging-db-ops) as dedicated db-ops services before any private-network PostgreSQL operation in those environments.
-- [`apps/api/railway.toml`](/Users/svanny/banji/apps/api/railway.toml) is the tracked build/start contract.
-- [`apps/api/start.sh`](/Users/svanny/banji/apps/api/start.sh) is the shared runtime entrypoint for all Railway roles.
-- `start.sh` maps Railway `PORT` to `API_BIND_ADDR` only for `APP_ROLE=api`.
-- `BANJI_SERVICE` defaults to `APP_ROLE` when not explicitly set.
-
-## External Auth Dependency
-- Keycloak is a repo-managed Railway service under [services/keycloak](/Users/svanny/banji/services/keycloak), not a Banji runtime role.
-- Banji runtime topology stays limited to `api`, `event-relay`, `projection-consumer`, and `worker`.
-- `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET` are maintained directly on the Railway `api` service in `staging`.
-- `prod` uses repo-managed Keycloak realms, but the API auth values still flow through the existing GitHub-to-Railway sync path during Banji deploys.
-- GitHub keeps only a copy of `EDGE_ORIGIN_AUTH_SECRET` for the authenticated `/version` smoke check in deploy workflow.
-
-## Role Topology
+## Local Runtime Posture
+- `AUTH_ENABLED=false` is the default local posture in the tracked template.
 - `APP_ROLE=api|event-relay|projection-consumer|worker|backfill-controller`
 - `api` is the only HTTP role.
-- `event-relay`, `projection-consumer`, and `worker` are Railway runtime roles, not separate platform-owned processes.
-- `backfill-controller` is an on-demand operational role.
+- `event-relay`, `projection-consumer`, `worker`, and `backfill-controller` are started explicitly by local operators when needed.
 
 ## Least-Privilege Access Matrix
 - `api`: `DATABASE_RUNTIME_URL`, optional `REDIS_URL`, optional `RABBIT_URL`, optional Rabbit management observability config, auth config, edge runtime config, optional telemetry auth
@@ -55,35 +40,18 @@ Files in this folder are tracked templates for `dev`, `staging`, and `prod`.
 - `worker`: `DATABASE_RUNTIME_URL`, `RABBIT_URL`, object-storage config and secrets, rollout salt, optional telemetry auth
 - `backfill-controller`: `DATABASE_RUNTIME_URL` for primary runs and `RESTORE_DATABASE_URL` for restore validation runs
 
-## Staging Private-Network Cutover
-- In `staging`, `DATABASE_RUNTIME_URL` for `api`, `event-relay`, `projection-consumer`, and `worker` must already exist directly on the Railway service as a private-network value or Railway reference expression.
-- In `staging`, `RABBIT_URL` for `worker` must already exist directly on the Railway `worker` service as a private-network value or Railway reference expression.
-- GitHub deploy jobs must not inject those staging runtime URLs into Banji runtime services.
-- `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET` remain Railway-resident on the staging `api` service.
-- The staging DB ops helper service keeps `DATABASE_MIGRATION_URL`, `DATABASE_RUNTIME_URL`, and `RESTORE_DATABASE_URL` on Railway so migrations and restore drills can run over private networking.
-
-## Prod Private-Network Cutover
-- In `prod`, `DATABASE_RUNTIME_URL` for `api`, `event-relay`, `projection-consumer`, and `worker` must already exist directly on the Railway service as a private-network value or Railway reference expression.
-- In `prod`, `RABBIT_URL` for `worker` must already exist directly on the Railway `worker` service as a private-network value or Railway reference expression.
-- GitHub deploy jobs must not inject those prod runtime URLs into Banji runtime services.
-- `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET` still follow the current GitHub-to-Railway sync path in `prod`.
-- The prod DB ops helper service keeps `DATABASE_MIGRATION_URL`, `DATABASE_RUNTIME_URL`, and `RESTORE_DATABASE_URL` on Railway so deploy migrations, restore drills, and prod DB maintenance can run over private networking.
-
-## Rabbit queue observability
+## Rabbit Queue Observability
 - `RABBIT_MANAGEMENT_API_BASE_URL`, `RABBIT_MANAGEMENT_USERNAME`, and `RABBIT_MANAGEMENT_PASSWORD` are API-only runtime inputs.
 - These keys enable the API role's Rabbit queue dependency sampler and must not be present on `event-relay`, `projection-consumer`, `worker`, or `backfill-controller`.
 - Leaving them unset disables Rabbit queue polling without affecting worker RabbitMQ runtime behavior.
 
 ## Optional Telemetry Auth
 - `OTEL_EXPORTER_OTLP_HEADERS` is the canonical runtime secret when OTLP auth headers are needed.
-- `OTEL_HEADERS` is a compatibility alias only; automation syncs the canonical key.
-- Tracked env templates should leave both OTEL header keys blank unless a platform secret is explicitly wired at deploy time.
-- Blank OTEL values are treated as unset by the runtime and by Railway sync.
-- `OTEL_METRIC_EXPORT_INTERVAL` is the canonical metrics export interval key. `OTEL_METRICS_EXPORT_INTERVAL` is a temporary compatibility alias in application code only.
+- `OTEL_HEADERS` is a compatibility alias only.
+- Tracked env templates should leave both OTEL header keys blank unless a local operator explicitly wires them.
+- Blank OTEL values are treated as unset by the runtime.
 
-Runtime services must not receive `DATABASE_MIGRATION_URL`.
-
-## Core Non-Secret Runtime Keys
+## Runtime Keys
 - `BANJI_INSTANCE_ID`
 - `DATABASE_RUNTIME_ENDPOINT_KIND=direct|pgbouncer`
 - `PGBOUNCER_POOL_MODE=transaction|session`
@@ -176,46 +144,27 @@ Runtime services must not receive `DATABASE_MIGRATION_URL`.
 - `EDGE_CORS_ALLOWED_ORIGINS`
 - `EDGE_TRUST_FORWARDED_CLIENT_IP`
 
-## Environment Contracts
-`staging` and `prod` must use:
-- `DATABASE_RUNTIME_ENDPOINT_KIND=pgbouncer`
-- `PGBOUNCER_POOL_MODE=transaction`
-- `AUTH_ENABLED=true`
-- Railway-resident `AUTH_JWKS_URL`, `AUTH_ISSUER`, and `AUTH_AUDIENCE`
-- `EDGE_ENFORCEMENT_ENABLED=true`
-- Railway-resident API copy of `EDGE_ORIGIN_AUTH_SECRET`
-- explicit `EDGE_CORS_ALLOWED_ORIGINS` entries that start with `https://`
-
-Additional `staging` requirements:
-- runtime `DATABASE_RUNTIME_URL` values stay Railway-resident and private-networked
-- runtime `RABBIT_URL` for `worker` stays Railway-resident and private-networked
-- Keycloak `AUTH_*` stays on the public HTTPS hostname, not `railway.internal`
-- RabbitMQ management may stay on a public HTTPS endpoint for operator tooling
-- staging TCP proxies are removed only after the staging DB ops service succeeds for deploy migrations and restore drills
-
-Additional `prod` requirements:
-- runtime `DATABASE_RUNTIME_URL` values stay Railway-resident and private-networked
-- runtime `RABBIT_URL` for `worker` stays Railway-resident and private-networked
-- Keycloak `AUTH_*` stays on the public HTTPS hostname, not `railway.internal`
-- RabbitMQ management may stay on a public HTTPS endpoint for operator tooling
-- prod TCP proxies are removed only after the prod DB ops service succeeds for deploy migrations, restore drills, and repo-tracked prod DB maintenance
+## Local Contract
+The tracked template assumes:
+- `DATABASE_RUNTIME_ENDPOINT_KIND=direct`
+- `PGBOUNCER_POOL_MODE=session`
+- `AUTH_ENABLED=false`
+- `EDGE_ENFORCEMENT_ENABLED=false`
+- local `http://localhost` and `127.0.0.1` endpoints where applicable
 
 ## Temporary Low-Memory Posture
-- `CACHE_ENABLED=false` in `dev`, `staging`, and `prod` until the temporary rollback is lifted.
-- `SQLX_POOL_MAX_CONNECTIONS=2` and `POSTGRES_CONNECTION_BUDGET_TOTAL=16` in `dev`, `staging`, and `prod` to cap per-service process memory and pooled database pressure.
-- Keycloak uses a repo-managed default `JAVA_OPTS_APPEND="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"` when Railway does not provide an override.
+- `CACHE_ENABLED=false` in the tracked local template until the temporary rollback is lifted.
+- `SQLX_POOL_MAX_CONNECTIONS=2` and `POSTGRES_CONNECTION_BUDGET_TOTAL=16` in the tracked local template cap per-process memory and database pressure.
 
-`EDGE_TRUST_FORWARDED_CLIENT_IP` is optional and defaults to `false` in every environment.
+`EDGE_TRUST_FORWARDED_CLIENT_IP` is optional and defaults to `false`.
 
 ## Route Contract
 - `/v1/*` requests require `x-banji-device-id` except `OPTIONS`.
 - `x-banji-device-id` is a client-generated app installation identifier, not a hardware identifier.
-- When `APP_ROLE=api`, `AUTH_ENABLED=false` is supported only in `dev`.
+- When `APP_ROLE=api`, `AUTH_ENABLED=false` is supported in the tracked local template.
 
 ## Worker Artifact Storage
 - Worker artifacts use S3-compatible object storage and PostgreSQL stores metadata only.
 - `OBJECT_STORAGE_BUCKET_ARTIFACTS` must exist before worker startup.
 - The configured artifact prefix must have an external lifecycle rule that expires objects after `OBJECT_STORAGE_ARTIFACT_RETENTION_DAYS`.
 - `bucket_name + object_key` is the authoritative object identity.
-- Deploy automation uses the tracked `OBJECT_STORAGE_*` / `ARTIFACT_TMP_DIR` values as defaults for worker runtime sync.
-- Worker deploys in `staging` and `prod` may override those non-secret defaults through same-named GitHub Environment secrets; when an override secret is blank, deploy warns and falls back to the tracked config value.

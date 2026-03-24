@@ -233,7 +233,7 @@ ON CONFLICT (version) DO NOTHING;
 COMMIT;
 
 -- Next step:
---   DATABASE_MIGRATION_URL=... DATABASE_RUNTIME_URL=... bash tool/ci/migrate_with_lock.sh
+--   DATABASE_MIGRATION_URL=... DATABASE_RUNTIME_URL=... bash tool/local/migrate_with_lock.sh
 --
 -- Expected outcome:
 --   sqlx applies version 16 (backfill + replay columns) and then version 19 (delivery-mode hardening).

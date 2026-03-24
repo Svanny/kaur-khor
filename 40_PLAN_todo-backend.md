@@ -9,8 +9,8 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
 1. [DONE] Create the environment map and naming contract
    Decide what exists and what it is called in every environment: dev, staging, prod. Decide service names, topic and queue prefixes, database naming, secret naming, and log naming. Done means a single short document that never changes casually and a set of environment variables that follow it.
 
-2. [DONE] Stand up source control, CI, and release gates
-   Set up GitHub Actions pipelines for Rust build, tests, formatting, linting, container build, and deploy. Done means every merge produces a build artifact, every deploy is traceable to a commit, and migrations are enforced as a required step.
+2. [DONE] Stand up source control and repeatable local checks
+   Set up a repeatable local workflow for Rust build, tests, formatting, linting, container build, and migration validation. Done means every change can be validated from the workspace and migrations are enforced as a required step.
 
 3. [DONE] Provision postgres as the source of truth
    Create postgresql in each environment with backups enabled. Define a migration tool and process. Done means you can create schema from scratch from migrations, apply forward migrations automatically in deploy, and restore to a clean environment.
@@ -51,7 +51,7 @@ This is ordered so you can stand up the load bearing infrastructure first, then 
    Set limits on retries and define a process for dead letter triage. Done means poison messages do not stall your system and you have a repeatable recovery playbook.
 
 13. [DONE] Add edge protections
-    Put a proper edge contract in front of the API via Railway ingress plus app-layer guardrails. Done means TLS is handled, rate limits exist, request size limits exist, and your API is not exposed directly to the internet without guardrails.
+    Keep the edge contract in the API runtime with app-layer guardrails. Done means rate limits exist, request size limits exist, and the service can be run behind whatever local or operator-managed ingress is in use without changing the application contract.
 
 ---
 

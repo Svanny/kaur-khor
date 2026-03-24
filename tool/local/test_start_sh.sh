@@ -4,7 +4,6 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 start_script="$repo_root/apps/api/start.sh"
 dockerfile="$repo_root/apps/api/Dockerfile"
-railway_toml="$repo_root/apps/api/railway.toml"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
@@ -103,7 +102,6 @@ if BANJI_START_DRY_RUN=1 BANJI_API_BINARY="$tmp_dir/missing" "$start_script" >"$
 fi
 assert_contains "$(cat "$missing_err")" "release binary not found or not executable"
 
-assert_contains "$(cat "$railway_toml")" 'startCommand = "./start.sh"'
 assert_contains "$(cat "$dockerfile")" 'WORKDIR /'
 assert_contains "$(cat "$dockerfile")" 'RUN cargo chef cook --release --recipe-path recipe.json'
 assert_contains "$(cat "$dockerfile")" 'RUN cargo build --release'

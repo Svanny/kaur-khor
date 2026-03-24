@@ -1,7 +1,7 @@
 # OTel Collector (Grafana Cloud Export)
 
 ## Purpose
-Provide a resilient telemetry hop inside Railway:
+Provide a resilient telemetry hop for local or operator-managed runs:
 - services send OTLP to collector
 - collector batches/retries and forwards to Grafana Cloud
 
@@ -21,8 +21,8 @@ Set in service environments:
 Notes:
 - `OTEL_EXPORTER_OTLP_HEADERS` is optional. Leave it unset when the collector does not require auth headers.
 - `OTEL_HEADERS` remains a backward-compatible fallback if the canonical key is unset.
-- Tracked env templates may leave both OTEL header keys blank; Railway/GitHub secrets should provide the canonical key only when needed.
+- Tracked env templates may leave both OTEL header keys blank; operators should provide the canonical key only when needed.
 
 ## Notes
 - Logs are not exported via this collector in current phase.
-- Operational logs remain platform-first (Railway/log drain).
+- Operational logs remain separate from this collector path.

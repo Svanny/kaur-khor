@@ -1,14 +1,12 @@
 # Secrets and Config Boundaries
 
 ## Scope
-This document defines which settings are runtime config, which are secrets, and where they are allowed to live.
+This document defines which settings are runtime config, which are secrets, and where they are allowed to live in the local-only repo contract.
 
-## Platform Boundary
-- Railway is the tracked runtime/deploy platform.
-- Runtime secret values belong in Railway service variables or another platform secret manager.
-- CI-only secrets belong in GitHub Environment secrets.
-- For staging API auth, Railway is the runtime source of truth for `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, and the API runtime copy of `EDGE_ORIGIN_AUTH_SECRET`.
-- GitHub retains only the `/version` smoke-check copy of `EDGE_ORIGIN_AUTH_SECRET`.
+## Local Boundary
+- Runtime secret values belong in shell exports, `.env` loaders outside git, or another secret manager.
+- This repo does not track CI-only or deploy-only secrets.
+- The tracked local posture leaves auth disabled by default; any non-local auth values are operator-supplied.
 
 ## Runtime Secrets
 - `DATABASE_RUNTIME_URL`
@@ -26,11 +24,9 @@ This document defines which settings are runtime config, which are secrets, and 
 - `EDGE_ORIGIN_AUTH_SECRET_NEXT`
 - integration secrets such as payment, email, or messaging provider keys
 
-## CI/Deploy Secrets
+## Operator-Only Secrets
 - `DATABASE_MIGRATION_URL`
-- Railway authentication material used by automation
-- GitHub-side publishing credentials
-- smoke-check-only copies such as `EDGE_ORIGIN_AUTH_SECRET`
+- any registry, hosting, or publishing credentials used outside the repo
 
 ## Runtime Config
 - `AUTH_*` controls
@@ -46,7 +42,7 @@ This document defines which settings are runtime config, which are secrets, and 
 - `event-relay` and `projection-consumer` must not receive Rabbit, object-storage, or auth secrets.
 - `worker` must not receive auth secrets.
 - No runtime role may receive `DATABASE_MIGRATION_URL`.
-- Keycloak is an external Railway dependency and must not reuse Banji's application PostgreSQL database.
+- External identity providers must not reuse Banji's application PostgreSQL database.
 
 ## Edge Contract
 - Edge enforcement is an application runtime concern, not an external provider contract.
