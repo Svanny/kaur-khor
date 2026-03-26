@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useInventory } from '../state/inventory';
 import { usePreferences } from '../state/preferences';
 import { formatCurrency, rankLabel } from '../lib/format';
+import { FloatingAction, SectionTitle, ShellCard } from '../ui';
 
 export function DashboardRoute() {
   const { snapshot } = useInventory();
@@ -26,50 +27,73 @@ export function DashboardRoute() {
   }, [snapshot]);
 
   return (
-    <section className="page-stack">
-      <div className="hero-panel">
-        <p className="eyebrow">{t('dashboardEyebrow')}</p>
-        <h1>{t('dashboardHeading')}</h1>
-        <p className="hero-copy">{t('dashboardBody')}</p>
-      </div>
-
+    <section className="page-stack dashboard-page">
+      <SectionTitle title={t('homeKeyMetrics')} />
       <div className="metric-grid">
-        <article className="metric-card">
-          <span>{t('dashboardTotalValue')}</span>
+        <ShellCard className="metric-card">
+          <span className="metric-label">{t('dashboardTotalValue')}</span>
           <strong>
             {metrics ? formatCurrency(metrics.totalValue, currency, language) : '—'}
           </strong>
-        </article>
-        <article className="metric-card">
-          <span>{t('dashboardSaleReady')}</span>
+        </ShellCard>
+        <ShellCard className="metric-card">
+          <span className="metric-label">{t('dashboardSaleReady')}</span>
           <strong>{metrics?.saleReady ?? '—'}</strong>
-        </article>
-        <article className="metric-card">
-          <span>{t('dashboardServices')}</span>
+        </ShellCard>
+        <ShellCard className="metric-card">
+          <span className="metric-label">{t('dashboardServices')}</span>
           <strong>{metrics?.services ?? '—'}</strong>
-        </article>
-        <article className="metric-card">
-          <span>{t('dashboardRanked')}</span>
+        </ShellCard>
+        <ShellCard className="metric-card">
+          <span className="metric-label">{t('dashboardRanked')}</span>
           <strong>{metrics?.ranked ?? '—'}</strong>
-        </article>
+        </ShellCard>
       </div>
 
-      <section className="panel">
-        <div className="panel-header">
-          <h2>{t('dashboardRecent')}</h2>
+      <SectionTitle title={t('homePerformance')} />
+      <ShellCard className="performance-card">
+        <div className="performance-bars">
+          <div className="performance-bar-row">
+            <span>{t('dashboardSaleReady')}</span>
+            <div className="performance-bar-track">
+              <div
+                className="performance-bar-fill"
+                style={{
+                  width: `${metrics ? Math.max(18, Math.min(100, metrics.saleReady * 18)) : 18}%`,
+                }}
+              />
+            </div>
+          </div>
+          <div className="performance-bar-row">
+            <span>{t('dashboardServices')}</span>
+            <div className="performance-bar-track">
+              <div
+                className="performance-bar-fill performance-bar-fill-soft"
+                style={{
+                  width: `${metrics ? Math.max(18, Math.min(100, metrics.services * 24)) : 18}%`,
+                }}
+              />
+            </div>
+          </div>
         </div>
-        <div className="rank-list">
+      </ShellCard>
+
+      <SectionTitle title={t('homeRecentActivity')} />
+      <ShellCard>
+        <div className="activity-list">
           {snapshot?.ranking.map((entry) => (
-            <div className="rank-row" key={`${entry.entryType}:${entry.entryId}`}>
-              <span className="rank-chip">{entry.position + 1}</span>
-              <div>
+            <div className="activity-row" key={`${entry.entryType}:${entry.entryId}`}>
+              <span className="activity-avatar">{entry.position + 1}</span>
+              <div className="activity-copy">
                 <strong>{rankLabel(entry, snapshot.skus, snapshot.services)}</strong>
                 <p>{entry.entryType === 'service' ? t('serviceLabel') : t('skuLabel')}</p>
               </div>
             </div>
           )) ?? <p className="empty-copy">—</p>}
         </div>
-      </section>
+      </ShellCard>
+
+      <FloatingAction label={t('stockFlow')} to="/inventory/stock" />
     </section>
   );
 }
