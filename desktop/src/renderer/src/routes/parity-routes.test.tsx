@@ -113,6 +113,9 @@ describe('renderer parity routes', () => {
       currencyLabel: (value: string) => value,
       t: (key: string) => {
         const translations: Record<string, string> = {
+          dashboardEyebrow: 'Local-first operations',
+          dashboardHeading: 'Inventory control without cloud dependencies',
+          dashboardBody: 'Desktop inventory overview',
           homeKeyMetrics: 'Key Metrics',
           homePerformance: 'Performance',
           homeRecentActivity: 'Recent Activity',
@@ -120,18 +123,34 @@ describe('renderer parity routes', () => {
           dashboardSaleReady: 'Sale-ready SKUs',
           dashboardServices: 'Services',
           dashboardRanked: 'Ranked products',
+          dashboardRecent: 'Current lineup',
           serviceLabel: 'Service',
           skuLabel: 'SKU',
+          navInventory: 'Inventory',
           stockFlow: 'Stock update',
           rankingFlow: 'Ranking',
           allItemsTitle: 'All Items',
           searchItems: 'Search items by name',
+          searchPlaceholder: 'Search name, description, or id',
+          inventoryBody: 'Inventory workspace',
           filterSku: 'SKUs',
           filterService: 'Services',
+          filterAll: 'All',
           servicesHeading: 'Services',
           skusHeading: 'SKUs',
           noResults: 'No results',
           addItem: 'Add item',
+          createSkuAction: 'New SKU',
+          createServiceAction: 'New Service',
+          inventoryColumnItem: 'Item',
+          inventoryColumnSellable: 'Sellable units',
+          inventoryColumnLinkedSkus: 'Linked SKUs',
+          inventoryColumnValue: 'Total value',
+          inventoryPotentialRevenue: 'Potential revenue',
+          inventorySoldAsProduct: 'Sellable',
+          inventoryNotSoldAsProduct: 'Internal only',
+          inventoryNoResultsTitle: 'No matching inventory items',
+          inventoryNoResultsDescription: 'Try another search term or create a new SKU.',
           settingsTitle: 'Settings',
           settingsLanguage: 'Language',
           settingsCurrency: 'Currency',
@@ -140,6 +159,8 @@ describe('renderer parity routes', () => {
           manualBackup: 'Manual Backup',
           logout: 'Logout',
           settingsDisclaimer: 'Your data stays on this device.',
+          settingsStorage: 'Inventory data is stored locally.',
+          settingsStorageTitle: 'Local data',
           stockChangesTitle: "SKUs' Stock Update",
           cancel: 'Cancel',
           stockDone: 'Save stock',
@@ -151,8 +172,20 @@ describe('renderer parity routes', () => {
           validationStockChanges: 'Change at least one SKU before saving.',
           stockNoChanges: 'No stock changes yet',
           stockUpdateHint: 'Only changed rows will be submitted.',
+          stockUpdateBody: 'Adjust counts or cost for one or many SKUs.',
+          stockTableTitle: 'Bulk stock editor',
+          stockSummaryTitle: 'Change summary',
+          stockReviewTitle: 'Review pending changes',
+          stockReviewDescription: 'Confirm the edited rows before saving them locally.',
+          stockUpdatesReady: 'Updates ready',
+          stockEditAction: 'Edit changes',
+          stockPresetSmall: 'Small',
+          stockPresetMedium: 'Medium',
+          stockPresetBig: 'Large',
           unsavedChanges: 'Unsaved changes',
+          savedState: 'Saved',
           productRankingTitle: 'Sales Ranking Update',
+          rankingBody: 'Rank services and sellable SKUs.',
           resetAction: 'Reset',
           saveRankingAction: 'Save ranking',
           rankHeaderName: 'Name',
@@ -166,6 +199,10 @@ describe('renderer parity routes', () => {
           fieldDescription: 'Description',
           fieldSoldAsProduct: 'Sell as product',
           fieldProductPrice: 'Product price',
+          editorSkuHelper: 'Maintain stock, cost, and sell-through settings for this SKU.',
+          editorDetailsTitle: 'Details',
+          editorInventoryTitle: 'Inventory',
+          editorPricingTitle: 'Commercial settings',
           createEntry: 'Create entry',
         };
         return translations[key] ?? key;
@@ -177,10 +214,11 @@ describe('renderer parity routes', () => {
   test('dashboard restores the old section structure and stock action', () => {
     renderRoute('/', <DashboardRoute />);
 
-    expect(screen.getByText('Key Metrics')).toBeInTheDocument();
+    expect(screen.getByText('Inventory control without cloud dependencies')).toBeInTheDocument();
+    expect(screen.getByText('Inventory value')).toBeInTheDocument();
     expect(screen.getByText('Performance')).toBeInTheDocument();
     expect(screen.getByText('Recent Activity')).toBeInTheDocument();
-    expect(screen.getByLabelText('Stock update')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Stock update' })).toBeInTheDocument();
   });
 
   test('inventory shows grouped services and skus with add action', () => {
@@ -191,7 +229,7 @@ describe('renderer parity routes', () => {
     expect(screen.getAllByText('SKUs')[0]).toBeInTheDocument();
     expect(screen.getByText('Service #001')).toBeInTheDocument();
     expect(screen.getByText('SKU #001')).toBeInTheDocument();
-    expect(screen.getByLabelText('Add item')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'New SKU' })).toBeInTheDocument();
   });
 
   test('inventory service availability is limited by the scarcest linked sku', () => {
@@ -241,7 +279,7 @@ describe('renderer parity routes', () => {
   test('sku editor cancel returns to inventory', () => {
     renderSkuEditor();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Cancel' })[0]);
     expect(screen.getByText('Inventory screen')).toBeInTheDocument();
   });
 
@@ -249,9 +287,11 @@ describe('renderer parity routes', () => {
     renderRoute('/inventory/stock', <StockUpdateRoute />);
 
     expect(screen.getByText("SKUs' Stock Update")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
-    expect(screen.getByText('No stock changes yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Inventory' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Review changes' })[0]);
+    expect(screen.getByText('Updates ready')).toBeInTheDocument();
   });
 
   test('ranking supports reorder controls in the restored table layout', () => {

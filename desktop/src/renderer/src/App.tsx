@@ -1,94 +1,32 @@
-import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
-import { PreferencesProvider, usePreferences } from './state/preferences';
-import { InventoryProvider, useInventory } from './state/inventory';
-import { DashboardRoute } from './routes/dashboard';
-import { InventoryRoute } from './routes/inventory';
-import { RankingRoute } from './routes/ranking';
-import { ServiceFormRoute } from './routes/service-form';
-import { SettingsRoute } from './routes/settings';
-import { SkuFormRoute } from './routes/sku-form';
-import { StockUpdateRoute } from './routes/stock-update';
-import brandLogo from './assets/banji-logo.svg';
+import { BanjiShell } from '@/components/banji-shell';
+import { DashboardRoute } from '@/routes/dashboard';
+import { InventoryRoute } from '@/routes/inventory';
+import { RankingRoute } from '@/routes/ranking';
+import { ServiceFormRoute } from '@/routes/service-form';
+import { SettingsRoute } from '@/routes/settings';
+import { SkuFormRoute } from '@/routes/sku-form';
+import { StockUpdateRoute } from '@/routes/stock-update';
+import { PreferencesProvider } from '@/state/preferences';
+import { InventoryProvider } from '@/state/inventory';
 
 function AppFrame({ desktopContext }: { desktopContext: DesktopAppContext }) {
-  const location = useLocation();
-  const { t } = usePreferences();
-  const { error, isLoading } = useInventory();
-
-  const statusLabel =
-    desktopContext.backendStatus === 'ready'
-      ? t('backendReady')
-      : desktopContext.backendStatus === 'error'
-        ? t('backendError')
-        : desktopContext.backendStatus === 'stopped'
-          ? t('apiUnavailable')
-          : t('backendStarting');
-
   return (
-    <div className="app-shell">
-      <header className="top-app-bar">
-        <Link className="brand-lockup" to="/">
-          <img alt="Banji logo" className="brand-logo" src={brandLogo} />
-          <span className="brand-name">{t('appBrand')}</span>
-        </Link>
-
-        <div className="top-app-actions">
-          <Link
-            aria-label={t('navInventory')}
-            className={location.pathname.startsWith('/inventory') ? 'icon-pill icon-pill-active' : 'icon-pill'}
-            to="/inventory"
-          >
-            <span aria-hidden="true">☰</span>
-          </Link>
-          <Link
-            aria-label={t('navSettings')}
-            className={location.pathname === '/settings' ? 'icon-pill icon-pill-active' : 'icon-pill'}
-            to="/settings"
-          >
-            <span aria-hidden="true">⚙</span>
-          </Link>
-          <div className="status-pill" title={desktopContext.apiBaseUrl || ''}>
-            <span className={`status-dot status-${desktopContext.backendStatus}`} />
-            <span>{statusLabel}</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="main-shell">
-        {desktopContext.backendError ? (
-          <div className="banner error-banner">
-            <span>{desktopContext.backendError}</span>
-            <button
-              className="secondary-pill-button compact-pill-button"
-              onClick={() => {
-                void window.banjiDesktop.restartBackend();
-              }}
-              type="button"
-            >
-              {t('retry')}
-            </button>
-          </div>
-        ) : null}
-        {error ? <div className="banner error-banner">{error}</div> : null}
-        {isLoading ? <div className="banner info-banner">{t('backendStarting')}</div> : null}
-
-        <div className="page-shell">
-          <Routes>
-          <Route path="/" element={<DashboardRoute />} />
-          <Route path="/inventory" element={<InventoryRoute />} />
-          <Route path="/inventory/skus/new" element={<SkuFormRoute />} />
-          <Route path="/inventory/skus/:skuId" element={<SkuFormRoute />} />
-          <Route path="/inventory/services/new" element={<ServiceFormRoute />} />
-          <Route path="/inventory/services/:serviceId" element={<ServiceFormRoute />} />
-          <Route path="/inventory/stock" element={<StockUpdateRoute />} />
-          <Route path="/inventory/ranking" element={<RankingRoute />} />
-          <Route path="/settings" element={<SettingsRoute />} />
-          </Routes>
-        </div>
-      </main>
-    </div>
+    <BanjiShell desktopContext={desktopContext}>
+      <Routes>
+        <Route element={<DashboardRoute />} path="/" />
+        <Route element={<InventoryRoute />} path="/inventory" />
+        <Route element={<SkuFormRoute />} path="/inventory/skus/new" />
+        <Route element={<SkuFormRoute />} path="/inventory/skus/:skuId" />
+        <Route element={<ServiceFormRoute />} path="/inventory/services/new" />
+        <Route element={<ServiceFormRoute />} path="/inventory/services/:serviceId" />
+        <Route element={<StockUpdateRoute />} path="/inventory/stock" />
+        <Route element={<RankingRoute />} path="/inventory/ranking" />
+        <Route element={<SettingsRoute />} path="/settings" />
+      </Routes>
+    </BanjiShell>
   );
 }
 
@@ -126,9 +64,13 @@ export default function App() {
 
   if (!desktopContext) {
     return (
-      <div className="boot-screen">
-        <p className="shell-kicker">Banji</p>
-        <h1>Loading desktop shell…</h1>
+      <div className="flex min-h-svh items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-[32px] border border-border/70 bg-card/85 p-8 text-center shadow-[0_20px_60px_rgba(76,58,40,0.08)] backdrop-blur">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
+            Banji
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight">Loading desktop shell…</h1>
+        </div>
       </div>
     );
   }
