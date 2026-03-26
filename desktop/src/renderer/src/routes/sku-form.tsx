@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useInventory } from '../state/inventory';
 import { usePreferences } from '../state/preferences';
 import { limits, normalizeText, validateNonNegativeDecimal, validateRequiredText } from '../lib/validation';
+import { IconLabel, SaveChangeHeader, ShellCard } from '../ui';
 
 function randomId(prefix: 'sku') {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
@@ -31,6 +32,19 @@ export function SkuFormRoute() {
   });
   const [error, setError] = useState<string | null>(null);
 
+  const initialForm = useMemo(
+    () => ({
+      skuId: currentSku?.skuId ?? form.skuId,
+      name: currentSku?.name ?? '',
+      description: currentSku?.description ?? '',
+      unitsInStock: currentSku?.unitsInStock.toString() ?? '0',
+      costPerUnit: currentSku?.costPerUnit.toString() ?? '0',
+      soldAsProduct: currentSku?.soldAsProduct ?? false,
+      productPrice: currentSku?.productPrice?.toString() ?? '',
+    }),
+    [currentSku, form.skuId],
+  );
+
   useEffect(() => {
     if (currentSku) {
       setForm({
@@ -58,8 +72,14 @@ export function SkuFormRoute() {
     }
   }, [currentSku, isNew]);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const hasChanges =
+    JSON.stringify({
+      ...form,
+      name: normalizeText(form.name),
+      description: normalizeText(form.description),
+    }) !== JSON.stringify(initialForm);
+
+  async function onSave() {
     const nameError = validateRequiredText(form.name, limits.skuNameMaxLength);
     const descriptionError = validateRequiredText(
       form.description,
@@ -100,49 +120,65 @@ export function SkuFormRoute() {
     navigate('/inventory');
   }
 
+  function leaveEditor() {
+    if (hasChanges && !window.confirm(t('unsavedChanges'))) {
+      return;
+    }
+    navigate('/inventory');
+  }
+
   return (
     <section className="page-stack">
-      <form className="panel form-panel" onSubmit={onSubmit}>
-        <div className="panel-header">
-          <div>
-            <h1>{t('skuEditorTitle')}</h1>
-            <p>{form.skuId}</p>
-          </div>
-          <div className="action-row">
-            <Link className="button secondary" to="/inventory">
-              {t('cancel')}
-            </Link>
-            <button className="button primary" disabled={isSaving} type="submit">
-              {isNew ? t('createEntry') : t('saveChanges')}
-            </button>
-          </div>
+      <SaveChangeHeader
+        cancelLabel={t('cancel')}
+        hasChanges={hasChanges}
+        isSaving={isSaving}
+        onBack={leaveEditor}
+        onCancel={leaveEditor}
+        onSave={() => {
+          void onSave();
+        }}
+        saveLabel={isNew ? t('createEntry') : t('saveDraft')}
+        title={t('skuEditorTitle')}
+      />
+
+      <ShellCard className="editor-card editor-hero-card">
+        <div className="editor-media">SKU</div>
+        <div className="editor-hero-copy">
+          <p className="editor-id">{form.skuId}</p>
+          <h2>{form.name || t('skuEditorTitle')}</h2>
+          <p>{form.description || 'Add the item details, stock count, and pricing for this SKU.'}</p>
         </div>
+      </ShellCard>
 
-        <label className="field">
-          <span>{t('fieldId')}</span>
-          <input disabled value={form.skuId} />
-        </label>
-
-        <div className="field-grid">
-          <label className="field">
-            <span>{t('fieldName')}</span>
+      <div className="editor-grid">
+        <ShellCard className="editor-card">
+          <label className="editor-field">
+            <span><IconLabel icon="⌗">{t('fieldId')}</IconLabel></span>
+            <input disabled value={form.skuId} />
+          </label>
+          <label className="editor-field">
+            <span><IconLabel icon="🏷">{t('fieldName')}</IconLabel></span>
             <input
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
             />
           </label>
-          <label className="field">
-            <span>{t('fieldDescription')}</span>
+          <label className="editor-field">
+            <span><IconLabel icon="✎">{t('fieldDescription')}</IconLabel></span>
             <textarea
-              rows={4}
+              rows={5}
               value={form.description}
               onChange={(event) =>
                 setForm((current) => ({ ...current, description: event.target.value }))
               }
             />
           </label>
-          <label className="field">
-            <span>{t('fieldUnitsInStock')}</span>
+        </ShellCard>
+
+        <ShellCard className="editor-card">
+          <label className="editor-field">
+            <span><IconLabel icon="◫">{t('fieldUnitsInStock')}</IconLabel></span>
             <input
               inputMode="decimal"
               value={form.unitsInStock}
@@ -151,8 +187,8 @@ export function SkuFormRoute() {
               }
             />
           </label>
-          <label className="field">
-            <span>{t('fieldCostPerUnit')}</span>
+          <label className="editor-field">
+            <span><IconLabel icon="$">{t('fieldCostPerUnit')}</IconLabel></span>
             <input
               inputMode="decimal"
               value={form.costPerUnit}
@@ -161,38 +197,36 @@ export function SkuFormRoute() {
               }
             />
           </label>
-        </div>
-
-        <label className="checkbox-field">
-          <input
-            checked={form.soldAsProduct}
-            type="checkbox"
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                soldAsProduct: event.target.checked,
-                productPrice: event.target.checked ? current.productPrice || '0' : '',
-              }))
-            }
-          />
-          <span>{t('fieldSoldAsProduct')}</span>
-        </label>
-
-        {form.soldAsProduct ? (
-          <label className="field">
-            <span>{t('fieldProductPrice')}</span>
+          <label className="toggle-row">
+            <span><IconLabel icon="◐">{t('fieldSoldAsProduct')}</IconLabel></span>
             <input
-              inputMode="decimal"
-              value={form.productPrice}
+              checked={form.soldAsProduct}
+              type="checkbox"
               onChange={(event) =>
-                setForm((current) => ({ ...current, productPrice: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  soldAsProduct: event.target.checked,
+                  productPrice: event.target.checked ? current.productPrice || '0' : '',
+                }))
               }
             />
           </label>
-        ) : null}
+          {form.soldAsProduct ? (
+            <label className="editor-field">
+              <span><IconLabel icon="¤">{t('fieldProductPrice')}</IconLabel></span>
+              <input
+                inputMode="decimal"
+                value={form.productPrice}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, productPrice: event.target.value }))
+                }
+              />
+            </label>
+          ) : null}
+        </ShellCard>
+      </div>
 
-        {error ? <p className="error-banner">{error}</p> : null}
-      </form>
+      {error ? <p className="banner error-banner">{error}</p> : null}
     </section>
   );
 }

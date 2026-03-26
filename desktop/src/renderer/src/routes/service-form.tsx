@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useInventory } from '../state/inventory';
 import { usePreferences } from '../state/preferences';
 import {
@@ -8,6 +8,7 @@ import {
   validateNonNegativeDecimal,
   validateRequiredText,
 } from '../lib/validation';
+import { IconLabel, SaveChangeHeader, ShellCard } from '../ui';
 
 function randomId(prefix: 'service') {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
@@ -34,6 +35,17 @@ export function ServiceFormRoute() {
   });
   const [error, setError] = useState<string | null>(null);
 
+  const initialForm = useMemo(
+    () => ({
+      serviceId: currentService?.serviceId ?? form.serviceId,
+      name: currentService?.name ?? '',
+      description: currentService?.description ?? '',
+      price: currentService?.price.toString() ?? '',
+      skuIds: currentService?.skuIds ?? [],
+    }),
+    [currentService, form.serviceId],
+  );
+
   useEffect(() => {
     if (currentService) {
       setForm({
@@ -57,8 +69,17 @@ export function ServiceFormRoute() {
     }
   }, [currentService, isNew]);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const hasChanges = JSON.stringify({
+    ...form,
+    name: normalizeText(form.name),
+    description: normalizeText(form.description),
+    skuIds: [...form.skuIds].sort(),
+  }) !== JSON.stringify({
+    ...initialForm,
+    skuIds: [...initialForm.skuIds].sort(),
+  });
+
+  async function onSave() {
     const nameError = validateRequiredText(form.name, limits.serviceNameMaxLength);
     const descriptionError = validateRequiredText(
       form.description,
@@ -93,83 +114,101 @@ export function ServiceFormRoute() {
     navigate('/inventory');
   }
 
+  function leaveEditor() {
+    if (hasChanges && !window.confirm(t('unsavedChanges'))) {
+      return;
+    }
+    navigate('/inventory');
+  }
+
   return (
     <section className="page-stack">
-      <form className="panel form-panel" onSubmit={onSubmit}>
-        <div className="panel-header">
-          <div>
-            <h1>{t('serviceEditorTitle')}</h1>
-            <p>{form.serviceId}</p>
-          </div>
-          <div className="action-row">
-            <Link className="button secondary" to="/inventory">
-              {t('cancel')}
-            </Link>
-            <button className="button primary" disabled={isSaving} type="submit">
-              {isNew ? t('createEntry') : t('saveChanges')}
-            </button>
-          </div>
+      <SaveChangeHeader
+        cancelLabel={t('cancel')}
+        hasChanges={hasChanges}
+        isSaving={isSaving}
+        onBack={leaveEditor}
+        onCancel={leaveEditor}
+        onSave={() => {
+          void onSave();
+        }}
+        saveLabel={isNew ? t('createEntry') : t('saveDraft')}
+        title={t('serviceEditorTitle')}
+      />
+
+      <ShellCard className="editor-card editor-hero-card">
+        <div className="editor-media">SV</div>
+        <div className="editor-hero-copy">
+          <p className="editor-id">{form.serviceId}</p>
+          <h2>{form.name || t('serviceEditorTitle')}</h2>
+          <p>{form.description || 'Describe the service, price it, and link the SKUs it consumes.'}</p>
         </div>
+      </ShellCard>
 
-        <label className="field">
-          <span>{t('fieldId')}</span>
-          <input disabled value={form.serviceId} />
-        </label>
-
-        <div className="field-grid">
-          <label className="field">
-            <span>{t('fieldName')}</span>
+      <div className="editor-grid">
+        <ShellCard className="editor-card">
+          <label className="editor-field">
+            <span><IconLabel icon="⌗">{t('fieldId')}</IconLabel></span>
+            <input disabled value={form.serviceId} />
+          </label>
+          <label className="editor-field">
+            <span><IconLabel icon="🏷">{t('fieldName')}</IconLabel></span>
             <input
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
             />
           </label>
-          <label className="field">
-            <span>{t('fieldDescription')}</span>
+          <label className="editor-field">
+            <span><IconLabel icon="✎">{t('fieldDescription')}</IconLabel></span>
             <textarea
-              rows={4}
+              rows={5}
               value={form.description}
               onChange={(event) =>
                 setForm((current) => ({ ...current, description: event.target.value }))
               }
             />
           </label>
-          <label className="field">
-            <span>{t('fieldPrice')}</span>
+          <label className="editor-field">
+            <span><IconLabel icon="¤">{t('fieldPrice')}</IconLabel></span>
             <input
               inputMode="decimal"
               value={form.price}
               onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
             />
           </label>
-        </div>
+        </ShellCard>
 
-        <fieldset className="checklist">
-          <legend>{t('fieldLinkedSkus')}</legend>
-          {snapshot?.skus.map((sku) => {
-            const selected = form.skuIds.includes(sku.skuId);
-            return (
-              <label className="checkbox-field" key={sku.skuId}>
-                <input
-                  checked={selected}
-                  type="checkbox"
-                  onChange={(event) => {
-                    setForm((current) => ({
-                      ...current,
-                      skuIds: event.target.checked
-                        ? [...current.skuIds, sku.skuId]
-                        : current.skuIds.filter((value) => value !== sku.skuId),
-                    }));
-                  }}
-                />
-                <span>{sku.name}</span>
-              </label>
-            );
-          })}
-        </fieldset>
+        <ShellCard className="editor-card">
+          <div className="field-stack-header">
+            <strong>{t('fieldLinkedSkus')}</strong>
+            <p>{t('fieldSkuSelectionHint')}</p>
+          </div>
+          <div className="choice-list">
+            {snapshot?.skus.map((sku) => {
+              const selected = form.skuIds.includes(sku.skuId);
+              return (
+                <label className={selected ? 'choice-chip choice-chip-selected' : 'choice-chip'} key={sku.skuId}>
+                  <input
+                    checked={selected}
+                    type="checkbox"
+                    onChange={(event) => {
+                      setForm((current) => ({
+                        ...current,
+                        skuIds: event.target.checked
+                          ? [...current.skuIds, sku.skuId]
+                          : current.skuIds.filter((value) => value !== sku.skuId),
+                      }));
+                    }}
+                  />
+                  <span>{sku.name}</span>
+                </label>
+              );
+            })}
+          </div>
+        </ShellCard>
+      </div>
 
-        {error ? <p className="error-banner">{error}</p> : null}
-      </form>
+      {error ? <p className="banner error-banner">{error}</p> : null}
     </section>
   );
 }
