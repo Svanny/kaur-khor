@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { DesktopAppContext } from '@shared/ipc';
 import { PreferencesProvider, usePreferences } from './state/preferences';
@@ -13,6 +13,7 @@ import { StockUpdateRoute } from './routes/stock-update';
 import brandLogo from './assets/banji-logo.svg';
 
 function AppFrame({ desktopContext }: { desktopContext: DesktopAppContext }) {
+  const location = useLocation();
   const { t } = usePreferences();
   const { error, isLoading } = useInventory();
 
@@ -27,47 +28,40 @@ function AppFrame({ desktopContext }: { desktopContext: DesktopAppContext }) {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-block">
+      <header className="top-app-bar">
+        <Link className="brand-lockup" to="/">
           <img alt="Banji logo" className="brand-logo" src={brandLogo} />
-          <p className="eyebrow">macOS-first</p>
-          <h1>{t('appBrand')}</h1>
-          <span>{t('appTitle')}</span>
-        </div>
+          <span className="brand-name">{t('appBrand')}</span>
+        </Link>
 
-        <nav className="nav-stack">
-          <NavLink className="nav-link" to="/">
-            {t('navDashboard')}
-          </NavLink>
-          <NavLink className="nav-link" to="/inventory">
-            {t('navInventory')}
-          </NavLink>
-          <NavLink className="nav-link" to="/inventory/stock">
-            {t('navStock')}
-          </NavLink>
-          <NavLink className="nav-link" to="/inventory/ranking">
-            {t('navRanking')}
-          </NavLink>
-          <NavLink className="nav-link" to="/settings">
-            {t('navSettings')}
-          </NavLink>
-        </nav>
-
-        <div className="status-card">
-          <span className={`status-dot status-${desktopContext.backendStatus}`} />
-          <div>
-            <strong>{statusLabel}</strong>
-            <p>{desktopContext.apiBaseUrl || '127.0.0.1 pending'}</p>
+        <div className="top-app-actions">
+          <Link
+            aria-label={t('navInventory')}
+            className={location.pathname.startsWith('/inventory') ? 'icon-pill icon-pill-active' : 'icon-pill'}
+            to="/inventory"
+          >
+            <span aria-hidden="true">☰</span>
+          </Link>
+          <Link
+            aria-label={t('navSettings')}
+            className={location.pathname === '/settings' ? 'icon-pill icon-pill-active' : 'icon-pill'}
+            to="/settings"
+          >
+            <span aria-hidden="true">⚙</span>
+          </Link>
+          <div className="status-pill" title={desktopContext.apiBaseUrl || ''}>
+            <span className={`status-dot status-${desktopContext.backendStatus}`} />
+            <span>{statusLabel}</span>
           </div>
         </div>
-      </aside>
+      </header>
 
       <main className="main-shell">
         {desktopContext.backendError ? (
           <div className="banner error-banner">
             <span>{desktopContext.backendError}</span>
             <button
-              className="button secondary compact"
+              className="secondary-pill-button compact-pill-button"
               onClick={() => {
                 void window.banjiDesktop.restartBackend();
               }}
@@ -80,7 +74,8 @@ function AppFrame({ desktopContext }: { desktopContext: DesktopAppContext }) {
         {error ? <div className="banner error-banner">{error}</div> : null}
         {isLoading ? <div className="banner info-banner">{t('backendStarting')}</div> : null}
 
-        <Routes>
+        <div className="page-shell">
+          <Routes>
           <Route path="/" element={<DashboardRoute />} />
           <Route path="/inventory" element={<InventoryRoute />} />
           <Route path="/inventory/skus/new" element={<SkuFormRoute />} />
@@ -90,7 +85,8 @@ function AppFrame({ desktopContext }: { desktopContext: DesktopAppContext }) {
           <Route path="/inventory/stock" element={<StockUpdateRoute />} />
           <Route path="/inventory/ranking" element={<RankingRoute />} />
           <Route path="/settings" element={<SettingsRoute />} />
-        </Routes>
+          </Routes>
+        </div>
       </main>
     </div>
   );
@@ -131,7 +127,7 @@ export default function App() {
   if (!desktopContext) {
     return (
       <div className="boot-screen">
-        <p className="eyebrow">Banji</p>
+        <p className="shell-kicker">Banji</p>
         <h1>Loading desktop shell…</h1>
       </div>
     );
