@@ -151,6 +151,7 @@ The tracked template assumes:
 - `AUTH_ENABLED=false`
 - `EDGE_ENFORCEMENT_ENABLED=false`
 - local `http://localhost` and `127.0.0.1` endpoints where applicable
+- Electron desktop development uses `http://localhost:5173` for the renderer dev server and `null` origin for packaged `file://` renderer loads, so both origins are allowed in the tracked dev template
 
 ## Temporary Low-Memory Posture
 - `CACHE_ENABLED=false` in the tracked local template until the temporary rollback is lifted.

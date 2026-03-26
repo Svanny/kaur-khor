@@ -1,28 +1,28 @@
 # Banji
 
 Banji is an inventory platform prototype with:
-- A Flutter dashboard/product UI.
-- A Rust API workstream (`apps/api`) implementing core backend contracts (Postgres source of truth, idempotency, event log, Redis fail-open cache, RabbitMQ job/outbox patterns).
+- A macOS-first Electron desktop app (`desktop/`) built with Vite, React, and TypeScript.
+- A Rust API workstream (`apps/api`) implementing backend contracts plus desktop-focused local inventory APIs.
+- The legacy Flutter app retained temporarily as a migration reference.
 
 ## What Is Implemented
 
-- Dashboard shell with key metrics, performance, and recent activity sections.
-- Inventory domain model with seeded SKU and Service data.
-- View All inventory page with filtering, search, and add/edit flows.
-- SKU detail and Service detail editors with validation, unsaved-change handling, and SKU linking for services.
-- Guided stock update flow with card deck navigation, increment presets, and confirmation/save flow.
-- Product ranking page with reorder interactions and save/discard confirmation.
+- Electron desktop shell that starts and stops the Rust API as a managed local subprocess.
+- Dashboard shell with key metrics, current ranking, and local runtime status.
+- Inventory list with filtering, search, and add/edit flows for SKUs and services.
+- SKU and Service editors with validation and SKU-linking for services.
+- Local stock update flow backed by Rust desktop API mutations.
+- Product ranking flow backed by Rust desktop API persistence.
 - App settings for language (English, Khmer) and currency (USD, KHR).
 - Security utilities for input normalization/validation and opaque ID generation.
 
 ## Tech Stack
 
 - Frontend:
-  - Flutter (Material)
-  - Dart SDK `^3.9.0`
-  - `flutter_svg`
-  - `flutter_card_swiper`
-  - `google_fonts`
+  - Electron
+  - Vite
+  - React
+  - TypeScript
 - Backend:
   - Rust (`axum`, `sqlx`, `tokio`)
   - PostgreSQL
@@ -31,21 +31,19 @@ Banji is an inventory platform prototype with:
 
 ## Project Structure
 
-- `lib/main.dart`: app bootstrap, top-level scopes, and routing entry.
-- `lib/views/home_view.dart`: dashboard home surface.
-- `lib/views/inventory_views.dart`: inventory library and feature parts.
-- `lib/views/inventory/`: inventory flows (view all, details, stock update, ranking).
-- `lib/views/settings_view.dart`: app settings surface.
-- `lib/security/`: shared validation, limits, and ID generation.
-- `lib/localization/` and `lib/l10n/`: locale controller and generated/localized strings.
-- `test/`: widget, logic, and security tests.
+- `desktop/`: Electron main/preload, React renderer, shared desktop types, and desktop tests.
+- `desktop/src/main/`: Electron process lifecycle and Rust API bootstrap logic.
+- `desktop/src/renderer/src/`: React routes, desktop state providers, and UI utilities.
+- `desktop/resources/mac/`: canonical macOS icon source plus generated Dock and `.icns` assets.
 - `tool/security/`: merge-gate security checks.
 - `apps/api/`: Rust API service and backend modules.
+- `apps/api/src/desktop_inventory/`: local inventory store and desktop CRUD/ranking logic.
 - `apps/api/migrations/`: SQLx schema migrations.
 - `config/env/`: tracked local environment template and config policy notes.
 - `docs/architecture/`: canonical backend contracts and architecture decisions.
 - `tool/`: operational scripts for naming, DB operations, and RabbitMQ operations.
 - `tool/otel/`: OpenTelemetry collector config for traces/metrics export pipeline.
+- `lib/` and `test/`: retained Flutter implementation/reference during migration.
 
 ## Root Docs Index
 
@@ -68,22 +66,27 @@ Source:
 
 ## State and Architecture Notes
 
-- App-level state uses `ValueNotifier` + `InheritedNotifier` scopes:
-  - `LocaleController`
-  - `CurrencyController`
-  - `InventoryController`
-- Inventory features are split with `part` files under `lib/views/inventory/` for modular UI + logic.
-- Domain entities:
-  - `SkuItem`
-  - `ServiceItem`
+- Electron owns window lifecycle, preload IPC, and local Rust API startup/shutdown.
+- The React renderer talks to the Rust API over local HTTP.
+- Desktop renderer state separates persisted server data from transient form state:
+  - preferences provider for language/currency
+  - inventory provider for async API-backed inventory snapshot and mutations
+- Rust desktop routes:
+  - `GET /v1/desktop/inventory`
+  - `POST /v1/desktop/skus`
+  - `PUT /v1/desktop/skus/:sku_id`
+  - `POST /v1/desktop/services`
+  - `PUT /v1/desktop/services/:service_id`
+  - `POST /v1/desktop/stock-updates`
+  - `GET /v1/desktop/ranking`
+  - `PUT /v1/desktop/ranking`
 
 ## Localization and Currency
 
 - Locales: English (`en`) and Khmer (`km`).
 - Currency switch: `USD` / `KHR`.
-- Text resources:
-  - `lib/l10n/app_en.arb`
-  - `lib/l10n/app_km.arb`
+- Desktop translations live in `desktop/src/renderer/src/lib/translations.ts`.
+- Flutter ARB files remain in-repo as migration reference assets.
 
 ## Security Baseline
 
@@ -105,46 +108,56 @@ Primary references:
 
 ### Prerequisites
 
-- Flutter SDK installed and on `PATH`
-- A supported Flutter target (macOS, iOS, Android, web, Linux, or Windows)
+- Node.js 20+
+- `pnpm`
+- Rust toolchain
+- macOS for the current desktop-first workflow
 
 ### Install Dependencies
 
 ```bash
-flutter pub get
+pnpm --dir desktop install
 ```
 
 ### Run
 
 ```bash
-flutter run
+pnpm --dir desktop dev
 ```
 
-Example target run:
+The Electron main process will:
+
+- boot the renderer
+- start the Rust API locally
+- wait for `/health`
+- expose the resolved API base URL to the renderer through preload IPC
+
+Regenerate macOS icon assets when the desktop icon changes:
 
 ```bash
-flutter run -d macos
+pnpm --dir desktop build:icon
 ```
+
+Flutter remains available as a reference implementation, but Electron is now the primary local app surface.
 
 ## Testing
 
-Run all tests:
+Run desktop tests:
+
+```bash
+pnpm --dir desktop test
+```
+
+Run desktop-backed Rust API tests:
+
+```bash
+cargo test --manifest-path apps/api/Cargo.toml desktop_inventory_endpoints_support_local_crud_and_ranking
+```
+
+Legacy Flutter tests are still available during migration:
 
 ```bash
 flutter test
-```
-
-Run inventory-focused tests:
-
-```bash
-flutter test test/inventory_pages_test.dart
-flutter test test/update_stock_page_test.dart
-```
-
-Run security tests only:
-
-```bash
-flutter test test/security
 ```
 
 ## Security Gate (Pre-Merge)
@@ -155,8 +168,8 @@ bash tool/security/run_security_checks.sh
 
 This gate runs:
 
-1. `flutter analyze`
-2. `flutter test test/security`
+1. Flutter and Rust checks that remain wired in the repo
+2. Desktop unit tests for the new Electron workspace
 3. Secret pattern checks
 4. Platform hardening checks
 
@@ -172,7 +185,9 @@ bash tool/sync_design_tokens.sh
 
 This repository is an actively evolving prototype.
 
-- Flutter UI flows are implemented for inventory and ranking interactions.
+- Electron is now the primary local UI/runtime path for dashboard, inventory, stock update, ranking, and settings flows.
+- The Rust API now exposes desktop-focused local inventory CRUD/ranking endpoints backed by a persisted local JSON store for the desktop app.
+- Flutter UI flows remain in-repo as a migration reference and fallback while cleanup is staged.
 - Backend architecture and infrastructure contracts are being implemented incrementally in the Rust API workstream.
 - Rust API milestone baseline includes JWT-authenticated owner-scoped item APIs (`POST /v1/items`, `GET /v1/items/:item_id`) with Postgres-backed idempotent writes and read-through cache behavior.
 - Event delivery now uses Postgres outbox-first intent (`app.event_outbox`) with a dedicated relay role (`APP_ROLE=event-relay`) that publishes idempotently into `app.event_log`.

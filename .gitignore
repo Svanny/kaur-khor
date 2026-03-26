@@ -34,6 +34,10 @@ migrate_working_dir/
 /build/
 /coverage/
 /apps/api/target/
+/desktop/node_modules/
+/desktop/out/
+/desktop/.vitest/
+/.pnpm-store/
 .env.local
 .env.*.local
 config/env/*.local
