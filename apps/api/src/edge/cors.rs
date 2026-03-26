@@ -7,7 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-const ALLOW_HEADERS: &str = "content-type,authorization,x-request-id,x-correlation-id,idempotency-key,x-caller-id,traceparent,tracestate,baggage";
+const ALLOW_HEADERS: &str = "content-type,authorization,x-request-id,x-correlation-id,idempotency-key,x-caller-id,x-banji-device-id,traceparent,tracestate,baggage";
 const ALLOW_METHODS: &str = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
 
 pub async fn cors_middleware(

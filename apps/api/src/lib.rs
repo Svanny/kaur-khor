@@ -4,6 +4,7 @@ pub mod build_metadata;
 pub mod cache;
 pub mod config;
 pub mod db;
+pub mod desktop_inventory;
 pub mod edge;
 pub mod events;
 pub mod idempotency;
@@ -20,7 +21,7 @@ use axum::{
     http::{header::HeaderName, HeaderMap, HeaderValue, StatusCode},
     middleware,
     response::IntoResponse,
-    routing::{get, post},
+    routing::{get, post, put},
     Extension, Json, Router,
 };
 use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient, RedisRuntime};
@@ -190,6 +191,19 @@ pub fn app_with_state(state: AppState) -> Router {
         .route("/v1/write-demo", post(write_demo))
         .route("/v1/items", post(create_item))
         .route("/v1/items/:item_id", get(get_item))
+        .route("/v1/desktop/inventory", get(get_desktop_inventory))
+        .route("/v1/desktop/skus", post(create_desktop_sku))
+        .route("/v1/desktop/skus/:sku_id", put(update_desktop_sku))
+        .route("/v1/desktop/services", post(create_desktop_service))
+        .route(
+            "/v1/desktop/services/:service_id",
+            put(update_desktop_service),
+        )
+        .route("/v1/desktop/stock-updates", post(apply_desktop_stock_updates))
+        .route(
+            "/v1/desktop/ranking",
+            get(get_desktop_ranking).put(save_desktop_ranking),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             edge::rate_limit::rate_limit_middleware,
@@ -627,6 +641,176 @@ async fn get_item(
         )
             .into_response(),
     }
+}
+
+async fn get_desktop_inventory(
+    Extension(principal): Extension<AuthPrincipal>,
+) -> axum::response::Response {
+    match desktop_inventory::store::load_inventory(&principal.sub) {
+        Ok(inventory) => (StatusCode::OK, Json(serde_json::json!(inventory))).into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load desktop inventory",
+            err,
+        ),
+    }
+}
+
+async fn create_desktop_sku(
+    Extension(principal): Extension<AuthPrincipal>,
+    Json(mut body): Json<desktop_inventory::types::UpsertDesktopSkuRequest>,
+) -> axum::response::Response {
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+
+    match desktop_inventory::store::create_sku(&principal.sub, body) {
+        Ok(sku) => (StatusCode::CREATED, Json(serde_json::json!({ "sku": sku }))).into_response(),
+        Err(err) => desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to create sku", err),
+    }
+}
+
+async fn update_desktop_sku(
+    Extension(principal): Extension<AuthPrincipal>,
+    Path(sku_id): Path<String>,
+    Json(mut body): Json<desktop_inventory::types::UpsertDesktopSkuRequest>,
+) -> axum::response::Response {
+    if sku_id != body.sku_id {
+        return desktop_inventory_validation_error(anyhow::anyhow!(
+            "path skuId must match request body skuId"
+        ));
+    }
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+
+    match desktop_inventory::store::update_sku(&principal.sub, &sku_id, body) {
+        Ok(sku) => (StatusCode::OK, Json(serde_json::json!({ "sku": sku }))).into_response(),
+        Err(err) => desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to update sku", err),
+    }
+}
+
+async fn create_desktop_service(
+    Extension(principal): Extension<AuthPrincipal>,
+    Json(mut body): Json<desktop_inventory::types::UpsertDesktopServiceRequest>,
+) -> axum::response::Response {
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+
+    match desktop_inventory::store::create_service(&principal.sub, body) {
+        Ok(service) => {
+            (StatusCode::CREATED, Json(serde_json::json!({ "service": service }))).into_response()
+        }
+        Err(err) => {
+            desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to create service", err)
+        }
+    }
+}
+
+async fn update_desktop_service(
+    Extension(principal): Extension<AuthPrincipal>,
+    Path(service_id): Path<String>,
+    Json(mut body): Json<desktop_inventory::types::UpsertDesktopServiceRequest>,
+) -> axum::response::Response {
+    if service_id != body.service_id {
+        return desktop_inventory_validation_error(anyhow::anyhow!(
+            "path serviceId must match request body serviceId"
+        ));
+    }
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+
+    match desktop_inventory::store::update_service(&principal.sub, &service_id, body) {
+        Ok(service) => {
+            (StatusCode::OK, Json(serde_json::json!({ "service": service }))).into_response()
+        }
+        Err(err) => {
+            desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to update service", err)
+        }
+    }
+}
+
+async fn apply_desktop_stock_updates(
+    Extension(principal): Extension<AuthPrincipal>,
+    Json(body): Json<desktop_inventory::types::ApplyDesktopStockUpdatesRequest>,
+) -> axum::response::Response {
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+
+    match desktop_inventory::store::apply_stock_updates(&principal.sub, body) {
+        Ok(updated) => {
+            (StatusCode::OK, Json(serde_json::json!({ "skus": updated }))).into_response()
+        }
+        Err(err) => desktop_inventory_error(
+            StatusCode::BAD_REQUEST,
+            "failed to apply stock updates",
+            err,
+        ),
+    }
+}
+
+async fn get_desktop_ranking(
+    Extension(principal): Extension<AuthPrincipal>,
+) -> axum::response::Response {
+    match desktop_inventory::store::load_ranking(&principal.sub) {
+        Ok(entries) => {
+            (StatusCode::OK, Json(serde_json::json!({ "entries": entries }))).into_response()
+        }
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load ranking",
+            err,
+        ),
+    }
+}
+
+async fn save_desktop_ranking(
+    Extension(principal): Extension<AuthPrincipal>,
+    Json(body): Json<desktop_inventory::types::SaveDesktopRankingRequest>,
+) -> axum::response::Response {
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+
+    match desktop_inventory::store::save_ranking(&principal.sub, body) {
+        Ok(entries) => {
+            (StatusCode::OK, Json(serde_json::json!({ "entries": entries }))).into_response()
+        }
+        Err(err) => desktop_inventory_error(
+            StatusCode::BAD_REQUEST,
+            "failed to save ranking",
+            err,
+        ),
+    }
+}
+
+fn desktop_inventory_validation_error(err: anyhow::Error) -> axum::response::Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({
+            "error_code":"REQUEST_VALIDATION_FAILED",
+            "error": err.to_string()
+        })),
+    )
+        .into_response()
+}
+
+fn desktop_inventory_error(
+    status: StatusCode,
+    message: &str,
+    err: anyhow::Error,
+) -> axum::response::Response {
+    (
+        status,
+        Json(serde_json::json!({
+            "error": message,
+            "details": err.to_string()
+        })),
+    )
+        .into_response()
 }
 
 async fn write_demo(
