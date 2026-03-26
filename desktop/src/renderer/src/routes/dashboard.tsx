@@ -14,7 +14,6 @@ import {
 import { formatCurrency, rankLabel } from '@/lib/format';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
-import brandLogo from '@/assets/banji-logo.svg';
 
 export function DashboardRoute() {
   const { snapshot } = useInventory();
@@ -63,17 +62,6 @@ export function DashboardRoute() {
               </Link>
             </Button>
           </>
-        }
-        aside={
-          <div className="flex items-center gap-4 rounded-[24px] border border-border/80 bg-background/75 px-4 py-4 shadow-sm">
-            <img alt="Banji logo" className="size-14 rounded-2xl border border-border/70 bg-card p-3" src={brandLogo} />
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary/80">
-                {t('appBrand')}
-              </p>
-              <p className="text-sm leading-6 text-muted-foreground">{t('settingsStorage')}</p>
-            </div>
-          </div>
         }
         className="from-card via-card to-primary/10"
         description={t('dashboardBody')}

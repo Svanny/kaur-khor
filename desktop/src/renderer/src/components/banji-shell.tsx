@@ -11,7 +11,6 @@ import {
   SquareChartGantt,
 } from 'lucide-react';
 import type { DesktopAppContext } from '@shared/ipc';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Sidebar,
@@ -31,7 +30,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
@@ -43,14 +41,6 @@ function routeTitle(pathname: string, t: (key: string) => string) {
   if (pathname.startsWith('/inventory/ranking')) return t('navRanking');
   if (pathname.startsWith('/inventory')) return t('navInventory');
   return t('navSettings');
-}
-
-function routeDescription(pathname: string, t: (key: string) => string) {
-  if (pathname === '/') return t('dashboardBody');
-  if (pathname.startsWith('/inventory/stock')) return t('stockUpdateBody');
-  if (pathname.startsWith('/inventory/ranking')) return t('rankingBody');
-  if (pathname.startsWith('/inventory')) return t('inventoryBody');
-  return t('settingsStorage');
 }
 
 export function BanjiShell({
@@ -78,15 +68,6 @@ function BanjiShellFrame({
   const { t } = usePreferences();
   const { error, isLoading } = useInventory();
   const { isMobile, setOpenMobile } = useSidebar();
-
-  const statusLabel =
-    desktopContext.backendStatus === 'ready'
-      ? t('backendReady')
-      : desktopContext.backendStatus === 'error'
-        ? t('backendError')
-        : desktopContext.backendStatus === 'stopped'
-          ? t('apiUnavailable')
-          : t('backendStarting');
 
   function handleSidebarNavigation() {
     if (isMobile) {
@@ -150,14 +131,6 @@ function BanjiShellFrame({
               </p>
             </div>
           </Link>
-          <div className="rounded-[24px] border border-sidebar-border/80 bg-sidebar-accent/70 p-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/70">
-              {t('dashboardEyebrow')}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-sidebar-foreground/85">
-              {t('settingsDisclaimer')}
-            </p>
-          </div>
         </SidebarHeader>
 
         <SidebarSeparator />
@@ -197,21 +170,6 @@ function BanjiShellFrame({
               </Link>
             </Button>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="rounded-2xl border border-sidebar-border/80 bg-background/80 px-3 py-2 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="truncate text-sidebar-foreground/80">{statusLabel}</span>
-                  <Badge className="rounded-full" variant="outline">
-                    {desktopContext.backendStatus}
-                  </Badge>
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>{desktopContext.apiBaseUrl || '127.0.0.1 pending'}</p>
-            </TooltipContent>
-          </Tooltip>
         </SidebarFooter>
 
         <SidebarRail />
@@ -235,16 +193,6 @@ function BanjiShellFrame({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge className="rounded-full border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground" variant="outline">
-                      {statusLabel}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{routeDescription(location.pathname, t)}</p>
-                  </TooltipContent>
-                </Tooltip>
                 {desktopContext.backendError ? (
                   <Button
                     className="rounded-full"

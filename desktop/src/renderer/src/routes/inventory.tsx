@@ -80,14 +80,6 @@ export function InventoryRoute() {
             </Button>
           </>
         }
-        aside={
-          <div className="grid w-full gap-2 rounded-[24px] border border-border/80 bg-background/80 p-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2 text-foreground">
-              <Boxes className="size-4 text-primary" />
-              <span className="font-medium">{t('inventoryBody')}</span>
-            </div>
-          </div>
-        }
         description={t('inventoryBody')}
         eyebrow={t('navInventory')}
         title={t('allItemsTitle')}
