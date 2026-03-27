@@ -5,6 +5,7 @@ import type {
   SaveRankingPayload,
   SistSettings,
   SistSkuDetail,
+  StockReport,
   StockReportSubmission,
   StockUpdatePayload,
   UpsertServicePayload,
@@ -35,6 +36,7 @@ export interface GetSistSkuDetailPayload {
 
 export interface DesktopInventoryBridge {
   getSnapshot: () => Promise<InventorySnapshot>;
+  listStockReports: () => Promise<StockReport[]>;
   saveSku: (payload: SaveSkuPayload) => Promise<InventorySnapshot>;
   saveService: (payload: SaveServicePayload) => Promise<InventorySnapshot>;
   applyStockUpdates: (payload: StockUpdatePayload) => Promise<InventorySnapshot>;
@@ -62,6 +64,7 @@ export interface DesktopBridge {
 export const IPC_CHANNELS = {
   systemGetAppContext: 'banji:system:get-app-context',
   inventoryGetSnapshot: 'banji:inventory:get-snapshot',
+  inventoryListStockReports: 'banji:inventory:list-stock-reports',
   inventorySaveSku: 'banji:inventory:save-sku',
   inventorySaveService: 'banji:inventory:save-service',
   inventoryApplyStockUpdates: 'banji:inventory:apply-stock-updates',

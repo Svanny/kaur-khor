@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { InventorySnapshot, RankingEntry } from '@shared/inventory';
+import type { InventorySnapshot, RankingEntry, StockReport } from '@shared/inventory';
 import { DashboardRoute } from './dashboard';
 import { InventoryRoute } from './inventory';
 import { RankingRoute } from './ranking';
@@ -138,6 +138,7 @@ const snapshot: InventorySnapshot = {
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
 const saveSistSettings = vi.fn();
+const listStockReports = vi.fn();
 const submitReport = vi.fn();
 
 vi.mock('../state/inventory', () => ({
@@ -150,8 +151,45 @@ vi.mock('../state/preferences', () => ({
 
 function LocationProbe() {
   const location = useLocation();
-  return <div data-testid="location-search">{location.search}</div>;
+  return (
+    <>
+      <div data-testid="location-pathname">{location.pathname}</div>
+      <div data-testid="location-search">{location.search}</div>
+    </>
+  );
 }
+
+const stockReports: StockReport[] = [
+  {
+    reportId: 'report-0009',
+    reportSource: 'manual',
+    reportedAt: '2026-03-27T09:15:00Z',
+    skuObservations: [
+      {
+        skuId: 'sku-1',
+        unitsInStock: 10,
+        costPerUnit: 5.5,
+        restockIncluded: true,
+        retailStockout: false,
+        notes: 'Front shelf was restocked.',
+      },
+    ],
+    serviceSignals: [{ serviceId: 'service-1', stockout: true }],
+    topServiceRanking: ['service-1', 'service-2'],
+    topRetailRanking: ['sku-1'],
+    notes: 'Morning floor update.',
+  },
+  {
+    reportId: 'report-0008',
+    reportSource: 'legacy-baseline',
+    reportedAt: '2026-03-26T11:00:00Z',
+    skuObservations: [],
+    serviceSignals: [],
+    topServiceRanking: [],
+    topRetailRanking: [],
+    notes: null,
+  },
+];
 
 function renderInventory(path = '/inventory') {
   return render(
@@ -189,7 +227,9 @@ describe('renderer workspaces', () => {
       { entryType: 'sku', entryId: 'sku-1', position: 2 },
     ];
     saveSistSettings.mockReset();
+    listStockReports.mockReset();
     submitReport.mockReset();
+    listStockReports.mockResolvedValue(stockReports);
     inventoryHook.mockReturnValue({
       snapshot: { ...snapshot, ranking: rankingEntries },
       error: null,
@@ -202,6 +242,7 @@ describe('renderer workspaces', () => {
       persistRanking: vi.fn(),
       saveSistSettings,
       loadSistSkuDetail: vi.fn(),
+      listStockReports,
     });
     preferencesHook.mockReturnValue({
       currency: 'USD',
@@ -213,7 +254,7 @@ describe('renderer workspaces', () => {
         const translations: Record<string, string> = {
           navDashboard: 'Overview',
           navInventory: 'Catalog',
-          navStock: 'Stock Room',
+          navStock: 'Update Sheet',
           navRanking: 'Merchandising',
           navSettings: 'Preferences',
           backToCatalog: 'Back to catalog',
@@ -253,7 +294,7 @@ describe('renderer workspaces', () => {
           filterService: 'Services',
           servicesHeading: 'Services',
           skusHeading: 'SKUs',
-          stockFlow: 'Open stock room',
+          stockFlow: 'Open update sheet',
           productRankingTitle: 'Merchandising',
           merchandisingPriorityNote:
             'Drag by handle to set storefront priority. Keyboard reordering stays available when the handle is focused.',
@@ -295,10 +336,33 @@ describe('renderer workspaces', () => {
           settingsParticleCount: 'Particle count',
           settingsSmoothingWindow: 'Smoothing window (reports)',
           saveDraft: 'Save changes',
-          stockChangesTitle: 'Stock Room',
+          stockChangesTitle: 'Update Sheet',
           stockUpdateBody: 'Capture timestamped stock reports.',
           stockUpdateHint: 'Only rows you edit become part of the report.',
           stockTableTitle: 'Report observations',
+          stockHistoryTitle: 'Update history',
+          stockHistoryDescription: 'Saved update history.',
+          stockHistoryEmptyTitle: 'No saved updates yet',
+          stockHistoryEmptyDescription: 'Start the first update.',
+          stockHistoryViewDetails: 'View details',
+          stockHistoryHideDetails: 'Hide details',
+          stockHistorySourceManual: 'Manual update',
+          stockHistorySourceCompat: 'Imported update',
+          stockHistorySourceLegacy: 'Baseline import',
+          stockHistoryChangedRowSingular: 'changed row',
+          stockHistoryChangedRowPlural: 'changed rows',
+          stockHistoryServiceFlagSingular: 'service flag',
+          stockHistoryServiceFlagPlural: 'service flags',
+          stockHistoryMerchandisingSignalSingular: 'merchandising signal',
+          stockHistoryMerchandisingSignalPlural: 'merchandising signals',
+          stockHistoryNoNotes: 'No report notes were captured for this update.',
+          stockHistoryNoMerchandising: 'No merchandising order was captured in this report.',
+          stockAddUpdate: 'Add update',
+          stockComposerTitle: 'New update',
+          stockComposerDescription: 'Composer copy',
+          stockComposerCancel: 'Cancel update',
+          stockMerchandisingTitle: 'Merchandising order',
+          stockMerchandisingDescription: 'Merchandising copy',
           stockSummaryTitle: 'Pending change set',
           stockReviewTitle: 'Review report before save',
           stockReviewDescription: 'Confirm the report.',
@@ -307,7 +371,7 @@ describe('renderer workspaces', () => {
           stockPresetMedium: 'Standard',
           stockPresetBig: 'Bulk',
           stockConfirm: 'Review changes',
-          stockDone: 'Save stock report',
+          stockDone: 'Save update',
           stockPhaseEditing: 'Editing',
           stockPhaseReview: 'Review',
           validationStockChanges: 'Change at least one SKU before saving.',
@@ -374,15 +438,27 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('Stockout risk')).toBeInTheDocument();
   });
 
-  test('merchandising renders handle-based ordering without the save-order column', () => {
-    renderRoute('/inventory/ranking', <RankingRoute />);
+  test('merchandising route redirects into the update-sheet composer', () => {
+    render(
+      <MemoryRouter initialEntries={['/inventory/ranking']}>
+        <Routes>
+          <Route element={<RankingRoute />} path="/inventory/ranking" />
+          <Route
+            element={
+              <>
+                <div>Update sheet screen</div>
+                <LocationProbe />
+              </>
+            }
+            path="/inventory/stock"
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
 
-    expect(screen.queryByRole('columnheader', { name: 'Save order' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save order' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Reorder / })).toHaveLength(3);
-    expect(screen.getByRole('columnheader', { name: 'Rank' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Price' })).toBeInTheDocument();
+    expect(screen.getByText('Update sheet screen')).toBeInTheDocument();
+    expect(screen.getByTestId('location-pathname').textContent).toBe('/inventory/stock');
+    expect(screen.getByTestId('location-search').textContent).toBe('?compose=1&section=merchandising');
   });
 
   test('sku and service detail editors show a back-to-catalog icon control', () => {
@@ -407,15 +483,34 @@ describe('renderer workspaces', () => {
     expect(screen.getAllByRole('button', { name: 'Back to catalog' }).length).toBeGreaterThan(1);
   });
 
-  test('stock room submits a structured stock report', async () => {
+  test('update sheet defaults to history and keeps the composer hidden', async () => {
     renderRoute('/inventory/stock', <StockUpdateRoute />);
 
+    expect(await screen.findByText('Update history')).toBeInTheDocument();
+    expect(await screen.findByText('Manual update')).toBeInTheDocument();
+    expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Add update' })[0]).toBeInTheDocument();
+    expect(screen.queryByText('New update')).not.toBeInTheDocument();
+  });
+
+  test('update sheet expands saved-report details with merchandising data', async () => {
+    renderRoute('/inventory/stock', <StockUpdateRoute />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'View details' }))[0]);
+
+    expect(await screen.findByText('Merchandising')).toBeInTheDocument();
+    expect(screen.getByText('Front shelf was restocked.')).toBeInTheDocument();
+    expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+  });
+
+  test('update sheet submits a structured stock report and refreshes history', async () => {
+    renderRoute('/inventory/stock', <StockUpdateRoute />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Add update' }))[0]);
+    expect(screen.getByText('New update')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
-    fireEvent.change(screen.getByLabelText('Observed top retail SKUs'), {
-      target: { value: 'sku-1, sku-2' },
-    });
-    fireEvent.click(screen.getByText('Review changes'));
-    fireEvent.click(screen.getByText('Save stock report'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => {
       expect(submitReport).toHaveBeenCalledTimes(1);
@@ -423,35 +518,38 @@ describe('renderer workspaces', () => {
     expect(submitReport.mock.calls[0][0]).toMatchObject({
       skuObservations: expect.any(Array),
       serviceSignals: expect.any(Array),
-      topRetailRanking: ['sku-1'],
     });
+    expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topServiceRanking');
+    expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topRetailRanking');
+    await waitFor(() => {
+      expect(listStockReports).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole('button', { name: 'Add update' })).toBeInTheDocument();
+    expect(screen.queryByText('New update')).not.toBeInTheDocument();
   });
 
-  test('stock room blocks metadata-only reports before review', () => {
+  test('update sheet blocks empty updates', async () => {
     renderRoute('/inventory/stock', <StockUpdateRoute />);
 
-    const serviceFlag = screen.getByText('Service #001').closest('label');
-    expect(serviceFlag).not.toBeNull();
-    fireEvent.click(serviceFlag!);
-    fireEvent.click(screen.getByText('Review changes'));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Add update' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     expect(submitReport).not.toHaveBeenCalled();
     expect(screen.getByText('Change at least one SKU before saving.')).toBeInTheDocument();
-    expect(screen.queryByText('Save stock report')).not.toBeInTheDocument();
   });
 
-  test('stock room validates timestamp before submission', () => {
+  test('update sheet validates timestamp before submission', async () => {
     renderRoute('/inventory/stock', <StockUpdateRoute />);
 
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Add update' }))[0]);
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
     fireEvent.change(screen.getByLabelText('Reported at'), {
       target: { value: '' },
     });
-    fireEvent.click(screen.getByText('Review changes'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     expect(submitReport).not.toHaveBeenCalled();
     expect(screen.getByText('Enter a valid report timestamp.')).toBeInTheDocument();
-    expect(screen.queryByText('Save stock report')).not.toBeInTheDocument();
   });
 
   test('settings renders SIST defaults and saves them', async () => {

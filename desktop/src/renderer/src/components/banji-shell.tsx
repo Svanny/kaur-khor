@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
-  ListOrdered,
   Settings2,
   SquareChartGantt,
 } from 'lucide-react';
@@ -71,12 +70,6 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
         label: t('navStock'),
         icon: SquareChartGantt,
         active: location.pathname.startsWith('/inventory/stock'),
-      },
-      {
-        to: '/inventory/ranking',
-        label: t('navRanking'),
-        icon: ListOrdered,
-        active: location.pathname.startsWith('/inventory/ranking'),
       },
       {
         to: '/settings',

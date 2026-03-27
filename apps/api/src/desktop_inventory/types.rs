@@ -359,9 +359,6 @@ impl SaveDesktopRankingRequest {
 impl SubmitStockReportRequest {
     pub fn validate(&mut self) -> Result<()> {
         validate_reported_at(&self.reported_at)?;
-        if self.sku_observations.is_empty() {
-            return Err(anyhow!("skuObservations must not be empty"));
-        }
         let mut seen_skus = HashSet::new();
         for observation in &mut self.sku_observations {
             validate_entry_id("skuId", &observation.sku_id)?;
@@ -388,6 +385,15 @@ impl SubmitStockReportRequest {
 
         if let Some(notes) = self.notes.as_mut() {
             *notes = normalize_text(notes, REPORT_NOTES_MAX_LENGTH)?;
+        }
+
+        if self.sku_observations.is_empty()
+            && self.service_signals.is_empty()
+            && self.top_service_ranking.is_empty()
+            && self.top_retail_ranking.is_empty()
+            && self.notes.is_none()
+        {
+            return Err(anyhow!("report must include at least one observation, signal, ranking, or note"));
         }
         Ok(())
     }

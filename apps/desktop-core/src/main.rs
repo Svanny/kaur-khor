@@ -3,7 +3,7 @@ use banji_desktop_core::{
     store,
     types::{
         ApplyDesktopStockUpdatesRequest, DesktopInventoryResponse, SaveDesktopRankingRequest,
-        SubmitStockReportRequest, UpdateSistSettingsRequest, UpsertDesktopServiceRequest,
+        StockReportRecord, SubmitStockReportRequest, UpdateSistSettingsRequest, UpsertDesktopServiceRequest,
         UpsertDesktopSkuRequest,
     },
 };
@@ -114,6 +114,9 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
         "inventory.getSnapshot" => {
             Ok(Some(serde_json::to_value(store::load_inventory(DEFAULT_OWNER_SUB)?)?))
         }
+        "inventory.listStockReports" => Ok(Some(serde_json::to_value(
+            store::list_stock_reports(DEFAULT_OWNER_SUB)?,
+        )?)),
         "inventory.saveSku" => {
             let mut request: SaveSkuPayload =
                 serde_json::from_value(payload).context("invalid saveSku payload")?;
@@ -208,4 +211,9 @@ fn write_response(stdout: &mut impl Write, response: ResponseEnvelope) -> Result
 #[allow(dead_code)]
 fn _assert_snapshot_serializable(snapshot: &DesktopInventoryResponse) -> Result<Value> {
     Ok(serde_json::to_value(snapshot)?)
+}
+
+#[allow(dead_code)]
+fn _assert_stock_reports_serializable(reports: &[StockReportRecord]) -> Result<Value> {
+    Ok(serde_json::to_value(reports)?)
 }

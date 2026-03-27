@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import type { RankingEntry, StockReport } from '@shared/inventory';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -14,18 +15,23 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { EditorHeader } from '@/components/system/editor';
 import {
+  buildDefaultReportRanking,
+  hasRankingChanged,
+  MerchandisingEditor,
+  rankingIdsByType,
+} from '@/components/system/merchandising-editor';
+import {
+  WorkspaceActionRow,
   WorkspaceEmpty,
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
-import { formatNumber } from '@/lib/format';
+import { formatCurrency, localeFor } from '@/lib/format';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
 type Preset = 'small' | 'medium' | 'big';
-type Phase = 'edit' | 'review';
 
 const presetSteps: Record<Preset, { units: number; cost: number }> = {
   small: { units: 1, cost: 0.25 },
@@ -44,17 +50,36 @@ function toIsoTimestamp(value: string) {
   if (!value.trim()) {
     return null;
   }
+
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return null;
   }
+
   return parsed.toISOString();
 }
 
+function reportSourceLabel(
+  source: StockReport['reportSource'],
+  t: (key: string) => string,
+) {
+  if (source === 'legacy-baseline') {
+    return t('stockHistorySourceLegacy');
+  }
+  if (source === 'compat-stock-update') {
+    return t('stockHistorySourceCompat');
+  }
+  return t('stockHistorySourceManual');
+}
+
+function summarizeCount(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 export function StockUpdateRoute() {
-  const navigate = useNavigate();
-  const { snapshot, submitReport, isSaving } = useInventory();
-  const { language, t } = usePreferences();
+  const { snapshot, submitReport, listStockReports, isSaving } = useInventory();
+  const { currency, language, t } = usePreferences();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<
     Record<
       string,
@@ -68,25 +93,50 @@ export function StockUpdateRoute() {
     >
   >({});
   const [error, setError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [preset, setPreset] = useState<Preset>('small');
-  const [phase, setPhase] = useState<Phase>('edit');
   const [reportedAt, setReportedAt] = useState(() => toLocalDateTimeValue());
   const [reportNotes, setReportNotes] = useState('');
-  const [topServiceRanking, setTopServiceRanking] = useState('');
-  const [topRetailRanking, setTopRetailRanking] = useState('');
+  const [reportRanking, setReportRanking] = useState<RankingEntry[]>([]);
+  const [reports, setReports] = useState<StockReport[]>([]);
   const [serviceSignals, setServiceSignals] = useState<Record<string, boolean>>({});
+  const [expandedReportIds, setExpandedReportIds] = useState<Record<string, boolean>>({});
+  const merchandisingSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const composerOpen = searchParams.get('compose') === '1';
+  const requestedSection = searchParams.get('section');
+
+  const loadReports = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    try {
+      const nextReports = await listStockReports();
+      setReports(nextReports);
+    } catch (loadError) {
+      setHistoryError(loadError instanceof Error ? loadError.message : t('apiUnavailable'));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [listStockReports, t]);
+
+  useEffect(() => {
+    void loadReports();
+  }, [loadReports]);
 
   useEffect(() => {
     if (!snapshot) {
       return;
     }
+
     setRows(
       Object.fromEntries(
         snapshot.skus.map((sku) => [
           sku.skuId,
           {
-            unitsInStock: sku.unitsInStock.toString(),
-            costPerUnit: sku.costPerUnit.toString(),
+            unitsInStock: String(sku.unitsInStock),
+            costPerUnit: String(sku.costPerUnit),
             restockIncluded: false,
             retailStockout: false,
             notes: '',
@@ -94,13 +144,29 @@ export function StockUpdateRoute() {
         ]),
       ),
     );
-    setServiceSignals(Object.fromEntries(snapshot.services.map((service) => [service.serviceId, false])));
+    setServiceSignals(
+      Object.fromEntries(snapshot.services.map((service) => [service.serviceId, false])),
+    );
+    setReportRanking(buildDefaultReportRanking(snapshot));
     setReportedAt(toLocalDateTimeValue());
     setReportNotes('');
-    setTopServiceRanking('');
-    setTopRetailRanking('');
-    setPhase('edit');
+    setError(null);
   }, [snapshot]);
+
+  useEffect(() => {
+    if (!composerOpen || requestedSection !== 'merchandising') {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      merchandisingSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [composerOpen, requestedSection]);
 
   const changedEntries = useMemo(
     () =>
@@ -128,9 +194,85 @@ export function StockUpdateRoute() {
     () => Object.entries(serviceSignals).filter(([, value]) => value).map(([serviceId]) => serviceId),
     [serviceSignals],
   );
-  const hasRankingSignals = topServiceRanking.trim().length > 0 || topRetailRanking.trim().length > 0;
+
+  const baselineRanking = useMemo(
+    () => (snapshot ? buildDefaultReportRanking(snapshot) : []),
+    [snapshot],
+  );
+  const rankingChanged = useMemo(
+    () => hasRankingChanged(baselineRanking, reportRanking),
+    [baselineRanking, reportRanking],
+  );
   const hasChanges =
-    changedEntries.length > 0 || selectedServiceSignals.length > 0 || hasRankingSignals || reportNotes.trim().length > 0;
+    changedEntries.length > 0 ||
+    selectedServiceSignals.length > 0 ||
+    reportNotes.trim().length > 0 ||
+    rankingChanged;
+
+  const servicesById = useMemo(
+    () => new Map(snapshot?.services.map((service) => [service.serviceId, service]) ?? []),
+    [snapshot],
+  );
+  const skusById = useMemo(
+    () => new Map(snapshot?.skus.map((sku) => [sku.skuId, sku]) ?? []),
+    [snapshot],
+  );
+
+  function patchComposerState(nextOpen: boolean, section?: string | null) {
+    const next = new URLSearchParams(searchParams);
+
+    if (nextOpen) {
+      next.set('compose', '1');
+      if (section) {
+        next.set('section', section);
+      } else {
+        next.delete('section');
+      }
+    } else {
+      next.delete('compose');
+      next.delete('section');
+    }
+
+    setSearchParams(next, { replace: true });
+  }
+
+  function resetComposer(nextSnapshot = snapshot) {
+    if (!nextSnapshot) {
+      return;
+    }
+
+    setRows(
+      Object.fromEntries(
+        nextSnapshot.skus.map((sku) => [
+          sku.skuId,
+          {
+            unitsInStock: String(sku.unitsInStock),
+            costPerUnit: String(sku.costPerUnit),
+            restockIncluded: false,
+            retailStockout: false,
+            notes: '',
+          },
+        ]),
+      ),
+    );
+    setServiceSignals(
+      Object.fromEntries(nextSnapshot.services.map((service) => [service.serviceId, false])),
+    );
+    setReportedAt(toLocalDateTimeValue());
+    setReportNotes('');
+    setReportRanking(buildDefaultReportRanking(nextSnapshot));
+    setError(null);
+  }
+
+  function openComposer(section?: string) {
+    patchComposerState(true, section);
+    setError(null);
+  }
+
+  function closeComposer() {
+    resetComposer();
+    patchComposerState(false);
+  }
 
   function setField(
     skuId: string,
@@ -164,6 +306,7 @@ export function StockUpdateRoute() {
     if (!snapshot) {
       return;
     }
+
     const currentSku = snapshot.skus.find((sku) => sku.skuId === skuId);
     if (!currentSku) {
       return;
@@ -174,7 +317,7 @@ export function StockUpdateRoute() {
     setField(skuId, key, String(Math.max(0, currentValue + step * direction)));
   }
 
-  async function handlePrimaryAction() {
+  async function handleSaveUpdate() {
     const isoReportedAt = toIsoTimestamp(reportedAt);
 
     if (!hasChanges) {
@@ -187,23 +330,7 @@ export function StockUpdateRoute() {
       return;
     }
 
-    if (changedEntries.length === 0) {
-      setError(t('validationStockChanges'));
-      return;
-    }
-
-    if (phase === 'edit') {
-      setError(null);
-      setPhase('review');
-      return;
-    }
-
-    const serviceIds = new Set(snapshot?.services.map((service) => service.serviceId) ?? []);
-    const retailIds = new Set(
-      snapshot?.skus
-        .filter((sku) => sku.soldAsProduct && sku.productPrice !== null)
-        .map((sku) => sku.skuId) ?? [],
-    );
+    setError(null);
 
     await submitReport({
       reportedAt: isoReportedAt,
@@ -216,108 +343,331 @@ export function StockUpdateRoute() {
         notes: entry.notes || null,
       })),
       serviceSignals: selectedServiceSignals.map((serviceId) => ({ serviceId, stockout: true })),
-      topServiceRanking: topServiceRanking
-        .split(',')
-        .map((value) => value.trim())
-        .filter((value) => serviceIds.has(value)),
-      topRetailRanking: topRetailRanking
-        .split(',')
-        .map((value) => value.trim())
-        .filter((value) => retailIds.has(value)),
       notes: reportNotes.trim() || null,
+      ...(rankingChanged
+        ? {
+            topServiceRanking: rankingIdsByType(reportRanking, 'service'),
+            topRetailRanking: rankingIdsByType(reportRanking, 'sku'),
+          }
+        : {}),
     });
-    navigate('/inventory');
+
+    await loadReports();
+    resetComposer();
+    patchComposerState(false);
   }
 
-  function resetChanges() {
-    if (!snapshot) {
-      return;
-    }
-    setRows(
-      Object.fromEntries(
-        snapshot.skus.map((sku) => [
-          sku.skuId,
-          {
-            unitsInStock: String(sku.unitsInStock),
-            costPerUnit: String(sku.costPerUnit),
-            restockIncluded: false,
-            retailStockout: false,
-            notes: '',
-          },
-        ]),
-      ),
+  if (!snapshot) {
+    return (
+      <WorkspacePage>
+        <WorkspaceEmpty description={t('apiUnavailable')} title={t('stockChangesTitle')} />
+      </WorkspacePage>
     );
-    setServiceSignals(Object.fromEntries(snapshot.services.map((service) => [service.serviceId, false])));
-    setReportedAt(toLocalDateTimeValue());
-    setReportNotes('');
-    setTopServiceRanking('');
-    setTopRetailRanking('');
-    setError(null);
-    setPhase('edit');
   }
 
   return (
     <WorkspacePage>
-      <EditorHeader
-        cancelLabel={t('cancel')}
-        isSaving={isSaving}
-        onCancel={resetChanges}
-        onSave={() => {
-          void handlePrimaryAction();
-        }}
-        saveLabel={phase === 'review' ? t('stockDone') : t('stockConfirm')}
-      />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <WorkspacePanel description={t('stockUpdateHint')} title={t('stockTableTitle')}>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <ToggleGroup
-              spacing={1}
-              type="single"
-              value={preset}
-              onValueChange={(value) => {
-                if (!value) return;
-                setPreset(value as Preset);
+      <WorkspaceActionRow className="justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {composerOpen ? (
+            <Button type="button" variant="outline" onClick={closeComposer}>
+              {t('stockComposerCancel')}
+            </Button>
+          ) : (
+            <Button type="button" onClick={() => openComposer()}>
+              {t('stockAddUpdate')}
+            </Button>
+          )}
+          {composerOpen ? (
+            <Button
+              disabled={isSaving}
+              type="button"
+              onClick={() => {
+                void handleSaveUpdate();
               }}
             >
-              <ToggleGroupItem value="small">{t('stockPresetSmall')}</ToggleGroupItem>
-              <ToggleGroupItem value="medium">{t('stockPresetMedium')}</ToggleGroupItem>
-              <ToggleGroupItem value="big">{t('stockPresetBig')}</ToggleGroupItem>
-            </ToggleGroup>
+              {t('stockDone')}
+            </Button>
+          ) : null}
+        </div>
+      </WorkspaceActionRow>
 
-            <Badge className="rounded-full" variant={phase === 'review' ? 'secondary' : 'outline'}>
-              {phase === 'review' ? t('stockPhaseReview') : t('stockPhaseEditing')}
-            </Badge>
+      <WorkspacePanel description={t('stockHistoryDescription')} title={t('stockHistoryTitle')}>
+        {historyLoading ? (
+          <p className="text-sm text-muted-foreground">{t('backendStarting')}</p>
+        ) : historyError ? (
+          <p className="text-sm text-destructive">{historyError}</p>
+        ) : reports.length === 0 ? (
+          <WorkspaceEmpty
+            action={
+              <Button type="button" onClick={() => openComposer()}>
+                {t('stockAddUpdate')}
+              </Button>
+            }
+            description={t('stockHistoryEmptyDescription')}
+            title={t('stockHistoryEmptyTitle')}
+          />
+        ) : (
+          <div className="grid gap-4">
+            {reports.map((report) => {
+              const isExpanded = expandedReportIds[report.reportId] ?? false;
+              const serviceFlagCount = report.serviceSignals.filter(
+                (signal) => signal.stockout !== false,
+              ).length;
+              const merchandisingCount =
+                report.topServiceRanking.length + report.topRetailRanking.length;
+
+              return (
+                <div
+                  className="rounded-3xl border border-border/70 bg-card/55 p-5"
+                  key={report.reportId}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">
+                          {new Intl.DateTimeFormat(localeFor(language), {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          }).format(new Date(report.reportedAt))}
+                        </Badge>
+                        <Badge variant="secondary">
+                          {reportSourceLabel(report.reportSource, t)}
+                        </Badge>
+                        <Badge variant="outline">
+                          {summarizeCount(
+                            report.skuObservations.length,
+                            t('stockHistoryChangedRowSingular'),
+                            t('stockHistoryChangedRowPlural'),
+                          )}
+                        </Badge>
+                        <Badge variant="outline">
+                          {summarizeCount(
+                            serviceFlagCount,
+                            t('stockHistoryServiceFlagSingular'),
+                            t('stockHistoryServiceFlagPlural'),
+                          )}
+                        </Badge>
+                        {merchandisingCount > 0 ? (
+                          <Badge variant="outline">
+                            {summarizeCount(
+                              merchandisingCount,
+                              t('stockHistoryMerchandisingSignalSingular'),
+                              t('stockHistoryMerchandisingSignalPlural'),
+                            )}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      {report.notes ? (
+                        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                          {report.notes}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">{t('stockHistoryNoNotes')}</p>
+                      )}
+                    </div>
+
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                      onClick={() =>
+                        setExpandedReportIds((current) => ({
+                          ...current,
+                          [report.reportId]: !isExpanded,
+                        }))
+                      }
+                    >
+                      {isExpanded ? t('stockHistoryHideDetails') : t('stockHistoryViewDetails')}
+                    </Button>
+                  </div>
+
+                  {isExpanded ? (
+                    <div className="mt-5 grid gap-4 border-t border-border/60 pt-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.95fr)]">
+                      <div className="grid gap-4">
+                        <div className="rounded-3xl border border-border/70 bg-background/50 p-4">
+                          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                            {t('stockTableTitle')}
+                          </p>
+                          {report.skuObservations.length > 0 ? (
+                            <div className="mt-4 grid gap-3">
+                              {report.skuObservations.map((entry) => {
+                                const sku = skusById.get(entry.skuId);
+
+                                return (
+                                  <div
+                                    className="rounded-2xl border border-border/60 bg-card/70 px-4 py-3"
+                                    key={`${report.reportId}-${entry.skuId}`}
+                                  >
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="font-medium text-foreground">
+                                          {sku?.name ?? entry.skuId}
+                                        </p>
+                                        <p className="text-sm text-muted-foreground">{entry.skuId}</p>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        {entry.restockIncluded ? (
+                                          <Badge variant="outline">{t('stockRestockIncluded')}</Badge>
+                                        ) : null}
+                                        {entry.retailStockout ? (
+                                          <Badge variant="outline">{t('stockRetailStockout')}</Badge>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                                      <span>
+                                        {t('fieldUnitsInStock')}: {entry.unitsInStock}
+                                      </span>
+                                      <span>
+                                        {t('fieldCostPerUnit')}:{' '}
+                                        {formatCurrency(entry.costPerUnit, currency, language)}
+                                      </span>
+                                    </div>
+                                    {entry.notes ? (
+                                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                                        {entry.notes}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              {t('validationStockChanges')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4">
+                        <div className="rounded-3xl border border-border/70 bg-background/50 p-4">
+                          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                            {t('stockServiceSignalsTitle')}
+                          </p>
+                          {serviceFlagCount > 0 ? (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {report.serviceSignals
+                                .filter((signal) => signal.stockout !== false)
+                                .map((signal) => (
+                                  <Badge key={`${report.reportId}-${signal.serviceId}`} variant="outline">
+                                    {servicesById.get(signal.serviceId)?.name ?? signal.serviceId}
+                                  </Badge>
+                                ))}
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              {t('stockNoServiceSignals')}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="rounded-3xl border border-border/70 bg-background/50 p-4">
+                          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                            {t('productRankingTitle')}
+                          </p>
+                          <div className="mt-4 grid gap-4">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                {t('stockTopServiceRanking')}
+                              </p>
+                              {report.topServiceRanking.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {report.topServiceRanking.map((serviceId) => (
+                                    <Badge key={`${report.reportId}-${serviceId}`} variant="outline">
+                                      {servicesById.get(serviceId)?.name ?? serviceId}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                  {t('stockHistoryNoMerchandising')}
+                                </p>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                {t('stockTopRetailRanking')}
+                              </p>
+                              {report.topRetailRanking.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {report.topRetailRanking.map((skuId) => (
+                                    <Badge key={`${report.reportId}-${skuId}`} variant="outline">
+                                      {skusById.get(skuId)?.name ?? skuId}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                  {t('stockHistoryNoMerchandising')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
+        )}
+      </WorkspacePanel>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-              <label className="text-sm font-medium text-foreground" htmlFor="reported-at">
-                {t('stockReportedAt')}
-              </label>
-              <Input
-                className="mt-2 rounded-2xl"
-                id="reported-at"
-                type="datetime-local"
-                value={reportedAt}
-                onChange={(event) => setReportedAt(event.target.value)}
-              />
+      {composerOpen ? (
+        <>
+          <WorkspacePanel
+            description={t('stockComposerDescription')}
+            title={t('stockComposerTitle')}
+          >
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                <label className="text-sm font-medium text-foreground" htmlFor="reported-at">
+                  {t('stockReportedAt')}
+                </label>
+                <Input
+                  className="mt-2 rounded-2xl"
+                  id="reported-at"
+                  type="datetime-local"
+                  value={reportedAt}
+                  onChange={(event) => setReportedAt(event.target.value)}
+                />
+              </div>
+              <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                <label className="text-sm font-medium text-foreground" htmlFor="report-notes">
+                  {t('stockReportNotes')}
+                </label>
+                <Textarea
+                  className="mt-2 min-h-24 rounded-2xl"
+                  id="report-notes"
+                  value={reportNotes}
+                  onChange={(event) => setReportNotes(event.target.value)}
+                />
+              </div>
             </div>
-            <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-              <label className="text-sm font-medium text-foreground" htmlFor="report-notes">
-                {t('stockReportNotes')}
-              </label>
-              <Textarea
-                className="mt-2 min-h-24 rounded-2xl"
-                id="report-notes"
-                value={reportNotes}
-                onChange={(event) => setReportNotes(event.target.value)}
-              />
-            </div>
-          </div>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          </WorkspacePanel>
 
-          {snapshot ? (
-            <div className="mt-4 overflow-x-auto">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <WorkspacePanel description={t('stockUpdateHint')} title={t('stockTableTitle')}>
+              <div className="flex flex-wrap items-center gap-4">
+                <ToggleGroup
+                  spacing={1}
+                  type="single"
+                  value={preset}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    setPreset(value as Preset);
+                  }}
+                >
+                  <ToggleGroupItem value="small">{t('stockPresetSmall')}</ToggleGroupItem>
+                  <ToggleGroupItem value="medium">{t('stockPresetMedium')}</ToggleGroupItem>
+                  <ToggleGroupItem value="big">{t('stockPresetBig')}</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -409,101 +759,55 @@ export function StockUpdateRoute() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          ) : (
-            <WorkspaceEmpty description={t('apiUnavailable')} title={t('stockChangesTitle')} />
-          )}
-        </WorkspacePanel>
+            </WorkspacePanel>
 
-        <div className="flex flex-col gap-6">
-          <WorkspacePanel description={t('stockSignalsHint')} title={t('stockServiceSignalsTitle')}>
-            {snapshot && snapshot.services.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                {snapshot.services.map((service) => (
-                  <label
-                    className="flex items-start gap-3 rounded-2xl border border-border/75 bg-card/70 px-4 py-3"
-                    key={service.serviceId}
-                  >
-                    <Checkbox
-                      checked={serviceSignals[service.serviceId] ?? false}
-                      onCheckedChange={(checked) =>
-                        setServiceSignals((current) => ({
-                          ...current,
-                          [service.serviceId]: checked === true,
-                        }))
-                      }
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground">{service.name}</p>
-                      <p className="truncate text-sm text-muted-foreground">{service.serviceId}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t('stockNoServiceSignals')}</p>
-            )}
-          </WorkspacePanel>
-
-          <WorkspacePanel description={t('stockSignalsHint')} title={t('stockSummaryTitle')}>
-            <div className="flex flex-col gap-4">
-              <div>
-                <label className="text-sm font-medium text-foreground" htmlFor="top-services">
-                  {t('stockTopServiceRanking')}
-                </label>
-                <Input
-                  className="mt-2 rounded-2xl"
-                  id="top-services"
-                  placeholder="service-001, service-002"
-                  value={topServiceRanking}
-                  onChange={(event) => setTopServiceRanking(event.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground" htmlFor="top-retail">
-                  {t('stockTopRetailRanking')}
-                </label>
-                <Input
-                  className="mt-2 rounded-2xl"
-                  id="top-retail"
-                  placeholder="sku-001, sku-003"
-                  value={topRetailRanking}
-                  onChange={(event) => setTopRetailRanking(event.target.value)}
-                />
-              </div>
-              <p className="text-sm leading-6 text-muted-foreground">{t('stockRankingHint')}</p>
-            </div>
-          </WorkspacePanel>
-
-          <WorkspacePanel description={t('stockReviewDescription')} title={t('stockReviewTitle')}>
-            {hasChanges ? (
-              <div className="flex flex-col gap-3">
-                <div className="rounded-3xl border border-border/75 bg-background/60 px-4 py-3">
-                  <p className="text-sm font-medium text-foreground">{t('stockUpdatesReady')}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {formatNumber(changedEntries.length, language)} SKU rows,{' '}
-                    {formatNumber(selectedServiceSignals.length, language)} service flags
-                  </p>
-                </div>
-                {changedEntries.slice(0, 6).map((entry) => (
-                  <div
-                    className="rounded-3xl border border-border/75 bg-background/60 px-4 py-3"
-                    key={entry.sku.skuId}
-                  >
-                    <p className="font-medium text-foreground">{entry.sku.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {formatNumber(entry.unitsInStock, language)} units
-                    </p>
+            <div className="flex flex-col gap-6">
+              <WorkspacePanel description={t('stockSignalsHint')} title={t('stockServiceSignalsTitle')}>
+                {snapshot.services.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    {snapshot.services.map((service) => (
+                      <label
+                        className="flex items-start gap-3 rounded-2xl border border-border/75 bg-card/70 px-4 py-3"
+                        key={service.serviceId}
+                      >
+                        <Checkbox
+                          checked={serviceSignals[service.serviceId] ?? false}
+                          onCheckedChange={(checked) =>
+                            setServiceSignals((current) => ({
+                              ...current,
+                              [service.serviceId]: checked === true,
+                            }))
+                          }
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-foreground">{service.name}</p>
+                          <p className="truncate text-sm text-muted-foreground">{service.serviceId}</p>
+                        </div>
+                      </label>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t('stockNoServiceSignals')}</p>
+                )}
+              </WorkspacePanel>
+
+              <div ref={merchandisingSectionRef}>
+                <WorkspacePanel
+                  description={t('stockMerchandisingDescription')}
+                  title={t('stockMerchandisingTitle')}
+                >
+                  <MerchandisingEditor
+                    entries={reportRanking}
+                    snapshot={snapshot}
+                    titleLabel={t('stockMerchandisingTitle')}
+                    onChange={setReportRanking}
+                  />
+                </WorkspacePanel>
               </div>
-            ) : (
-              <WorkspaceEmpty description={t('stockSignalsHint')} title={t('stockSummaryTitle')} />
-            )}
-            {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
-          </WorkspacePanel>
-        </div>
-      </div>
+            </div>
+          </div>
+        </>
+      ) : null}
     </WorkspacePage>
   );
 }

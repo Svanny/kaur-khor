@@ -12,6 +12,7 @@ import type {
   InventorySnapshot,
   SistSettings,
   SistSkuDetail,
+  StockReport,
   StockReportSubmission,
   StockUpdatePayload,
 } from '@shared/inventory';
@@ -23,6 +24,8 @@ const desktopBridge: DesktopBridge = {
   inventory: {
     getSnapshot: (): Promise<InventorySnapshot> =>
       ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSnapshot),
+    listStockReports: (): Promise<StockReport[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryListStockReports),
     saveSku: (payload: SaveSkuPayload): Promise<InventorySnapshot> =>
       ipcRenderer.invoke(IPC_CHANNELS.inventorySaveSku, payload),
     saveService: (payload: SaveServicePayload): Promise<InventorySnapshot> =>

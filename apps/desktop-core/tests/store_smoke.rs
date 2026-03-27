@@ -1,8 +1,13 @@
 use banji_desktop_core::{
     store,
-    types::{SaveDesktopRankingRequest, UpdateSistSettingsRequest, UpsertDesktopSkuRequest},
+    types::{
+        SaveDesktopRankingRequest, StockReportSkuObservation, SubmitStockReportRequest,
+        UpdateSistSettingsRequest, UpsertDesktopSkuRequest,
+    },
 };
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::PathBuf, sync::Mutex};
+
+static STORE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 fn temp_store_path(test_name: &str) -> PathBuf {
     let unique = format!(
@@ -18,6 +23,7 @@ fn temp_store_path(test_name: &str) -> PathBuf {
 
 #[test]
 fn desktop_core_store_supports_local_crud_and_settings() {
+    let _guard = STORE_TEST_LOCK.lock().expect("store test lock should be available");
     let store_path = temp_store_path("smoke");
     env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
@@ -76,6 +82,84 @@ fn desktop_core_store_supports_local_crud_and_settings() {
 
     let raw = fs::read_to_string(&store_path).expect("store file should be written");
     assert!(raw.contains("\"schemaVersion\""));
+
+    let _ = fs::remove_file(store_path);
+    env::remove_var("BANJI_DESKTOP_DATA_PATH");
+}
+
+#[test]
+fn desktop_core_lists_reports_newest_first() {
+    let _guard = STORE_TEST_LOCK.lock().expect("store test lock should be available");
+    let store_path = temp_store_path("report-history");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    let owner = "desktop-owner";
+    let snapshot = store::load_inventory(owner).expect("seeded inventory should load");
+    let sku = snapshot
+        .skus
+        .first()
+        .expect("seeded inventory should include at least one sku");
+
+    store::submit_stock_report(
+        owner,
+        SubmitStockReportRequest {
+            reported_at: "2026-03-25T09:00:00Z".to_string(),
+            sku_observations: vec![StockReportSkuObservation {
+                sku_id: sku.sku_id.clone(),
+                units_in_stock: sku.units_in_stock + 1.0,
+                cost_per_unit: sku.cost_per_unit,
+                restock_included: false,
+                retail_stockout: false,
+                notes: Some("Early update".to_string()),
+            }],
+            service_signals: Vec::new(),
+            top_service_ranking: Vec::new(),
+            top_retail_ranking: Vec::new(),
+            notes: Some("Earlier report".to_string()),
+        },
+    )
+    .expect("earlier report should save");
+
+    store::submit_stock_report(
+        owner,
+        SubmitStockReportRequest {
+            reported_at: "2026-03-27T12:30:00Z".to_string(),
+            sku_observations: Vec::new(),
+            service_signals: Vec::new(),
+            top_service_ranking: snapshot
+                .services
+                .iter()
+                .take(1)
+                .map(|service| service.service_id.clone())
+                .collect(),
+            top_retail_ranking: snapshot
+                .skus
+                .iter()
+                .filter(|sku| sku.sold_as_product)
+                .take(1)
+                .map(|sku| sku.sku_id.clone())
+                .collect(),
+            notes: Some("Merchandising-only update".to_string()),
+        },
+    )
+    .expect("later report should save");
+
+    let reports = store::list_stock_reports(owner).expect("report history should load");
+    assert!(reports.len() >= 3);
+    assert_eq!(reports[0].reported_at, "2026-03-27T12:30:00Z");
+    assert_eq!(reports[0].top_service_ranking.len(), 1);
+    assert_eq!(reports[0].sku_observations.len(), 0);
+    assert!(reports.iter().any(|report| report.reported_at == "2026-03-25T09:00:00Z"));
+
+    let earlier_index = reports
+        .iter()
+        .position(|report| report.reported_at == "2026-03-25T09:00:00Z")
+        .expect("earlier report should be present");
+    let later_index = reports
+        .iter()
+        .position(|report| report.reported_at == "2026-03-27T12:30:00Z")
+        .expect("later report should be present");
+    assert!(later_index < earlier_index);
 
     let _ = fs::remove_file(store_path);
     env::remove_var("BANJI_DESKTOP_DATA_PATH");

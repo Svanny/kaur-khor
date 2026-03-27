@@ -16,6 +16,7 @@ import {
 import type {
   InventorySnapshot,
   SistSettings,
+  StockReport,
   StockReportSubmission,
   StockUpdatePayload,
 } from '@shared/inventory';
@@ -70,6 +71,9 @@ async function boot() {
 ipcMain.handle(IPC_CHANNELS.systemGetAppContext, async () => desktopContext);
 ipcMain.handle(IPC_CHANNELS.inventoryGetSnapshot, async () =>
   managedCore.invoke<InventorySnapshot>('inventory.getSnapshot'),
+);
+ipcMain.handle(IPC_CHANNELS.inventoryListStockReports, async () =>
+  managedCore.invoke<StockReport[]>('inventory.listStockReports'),
 );
 ipcMain.handle(IPC_CHANNELS.inventorySaveSku, async (_event, payload: SaveSkuPayload) =>
   managedCore.invoke<InventorySnapshot>('inventory.saveSku', payload),

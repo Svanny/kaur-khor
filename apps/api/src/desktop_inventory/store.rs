@@ -171,6 +171,16 @@ pub fn load_inventory(owner_sub: &str) -> Result<DesktopInventoryResponse> {
     })
 }
 
+pub fn list_stock_reports(owner_sub: &str) -> Result<Vec<StockReportRecord>> {
+    with_store_mut(|store| {
+        let owner = ensure_owner(store, owner_sub);
+        normalize_owner(owner);
+        let mut reports = owner.sist.stock_reports.clone();
+        reports.sort_by(|left, right| right.reported_at.cmp(&left.reported_at));
+        Ok(reports)
+    })
+}
+
 pub fn create_sku(owner_sub: &str, request: UpsertDesktopSkuRequest) -> Result<DesktopSkuRecord> {
     with_store_mut(|store| {
         let owner = ensure_owner(store, owner_sub);
