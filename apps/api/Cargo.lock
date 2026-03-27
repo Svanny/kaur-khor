@@ -869,6 +869,7 @@ dependencies = [
  "aws-credential-types",
  "aws-sdk-s3",
  "axum 0.7.9",
+ "banji-desktop-core",
  "base64 0.22.1",
  "futures-util",
  "lapin",
@@ -891,6 +892,18 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "banji-desktop-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "time",
 ]
 
 [[package]]

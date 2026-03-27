@@ -34,6 +34,7 @@ migrate_working_dir/
 /build/
 /coverage/
 /apps/api/target/
+/apps/desktop-core/target/
 /desktop/node_modules/
 /desktop/out/
 /desktop/.vitest/
