@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
   TableBody,
@@ -18,7 +20,7 @@ import {
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
-import { formatCurrency } from '@/lib/format';
+import { formatNumber } from '@/lib/format';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
@@ -31,16 +33,48 @@ const presetSteps: Record<Preset, { units: number; cost: number }> = {
   big: { units: 20, cost: 1 },
 };
 
+function toLocalDateTimeValue(value?: string) {
+  const date = value ? new Date(value) : new Date();
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function toIsoTimestamp(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
 export function StockUpdateRoute() {
   const navigate = useNavigate();
-  const { snapshot, saveStock, isSaving } = useInventory();
-  const { currency, language, t } = usePreferences();
-  const [rows, setRows] = useState<Record<string, { unitsInStock: string; costPerUnit: string }>>(
-    {},
-  );
+  const { snapshot, submitReport, isSaving } = useInventory();
+  const { language, t } = usePreferences();
+  const [rows, setRows] = useState<
+    Record<
+      string,
+      {
+        unitsInStock: string;
+        costPerUnit: string;
+        restockIncluded: boolean;
+        retailStockout: boolean;
+        notes: string;
+      }
+    >
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [preset, setPreset] = useState<Preset>('small');
   const [phase, setPhase] = useState<Phase>('edit');
+  const [reportedAt, setReportedAt] = useState(() => toLocalDateTimeValue());
+  const [reportNotes, setReportNotes] = useState('');
+  const [topServiceRanking, setTopServiceRanking] = useState('');
+  const [topRetailRanking, setTopRetailRanking] = useState('');
+  const [serviceSignals, setServiceSignals] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!snapshot) {
@@ -53,10 +87,18 @@ export function StockUpdateRoute() {
           {
             unitsInStock: sku.unitsInStock.toString(),
             costPerUnit: sku.costPerUnit.toString(),
+            restockIncluded: false,
+            retailStockout: false,
+            notes: '',
           },
         ]),
       ),
     );
+    setServiceSignals(Object.fromEntries(snapshot.services.map((service) => [service.serviceId, false])));
+    setReportedAt(toLocalDateTimeValue());
+    setReportNotes('');
+    setTopServiceRanking('');
+    setTopRetailRanking('');
     setPhase('edit');
   }, [snapshot]);
 
@@ -67,22 +109,44 @@ export function StockUpdateRoute() {
           sku,
           unitsInStock: Number(rows[sku.skuId]?.unitsInStock ?? sku.unitsInStock),
           costPerUnit: Number(rows[sku.skuId]?.costPerUnit ?? sku.costPerUnit),
+          restockIncluded: rows[sku.skuId]?.restockIncluded ?? false,
+          retailStockout: rows[sku.skuId]?.retailStockout ?? false,
+          notes: rows[sku.skuId]?.notes?.trim() ?? '',
         }))
         .filter(
           (entry) =>
             entry.unitsInStock !== entry.sku.unitsInStock ||
-            entry.costPerUnit !== entry.sku.costPerUnit,
+            entry.costPerUnit !== entry.sku.costPerUnit ||
+            entry.restockIncluded ||
+            entry.retailStockout ||
+            entry.notes.length > 0,
         ) ?? [],
     [rows, snapshot],
   );
 
-  const hasChanges = changedEntries.length > 0;
+  const selectedServiceSignals = useMemo(
+    () => Object.entries(serviceSignals).filter(([, value]) => value).map(([serviceId]) => serviceId),
+    [serviceSignals],
+  );
+  const hasRankingSignals = topServiceRanking.trim().length > 0 || topRetailRanking.trim().length > 0;
+  const hasChanges =
+    changedEntries.length > 0 || selectedServiceSignals.length > 0 || hasRankingSignals || reportNotes.trim().length > 0;
 
   function setField(
     skuId: string,
-    key: 'unitsInStock' | 'costPerUnit',
+    key: 'unitsInStock' | 'costPerUnit' | 'notes',
     value: string,
   ) {
+    setRows((current) => ({
+      ...current,
+      [skuId]: {
+        ...current[skuId],
+        [key]: value,
+      },
+    }));
+  }
+
+  function toggleField(skuId: string, key: 'restockIncluded' | 'retailStockout', value: boolean) {
     setRows((current) => ({
       ...current,
       [skuId]: {
@@ -111,7 +175,19 @@ export function StockUpdateRoute() {
   }
 
   async function handlePrimaryAction() {
+    const isoReportedAt = toIsoTimestamp(reportedAt);
+
     if (!hasChanges) {
+      setError(t('validationStockChanges'));
+      return;
+    }
+
+    if (!isoReportedAt) {
+      setError(t('validationTimestamp'));
+      return;
+    }
+
+    if (changedEntries.length === 0) {
       setError(t('validationStockChanges'));
       return;
     }
@@ -122,13 +198,34 @@ export function StockUpdateRoute() {
       return;
     }
 
-    await saveStock(
-      changedEntries.map((entry) => ({
+    const serviceIds = new Set(snapshot?.services.map((service) => service.serviceId) ?? []);
+    const retailIds = new Set(
+      snapshot?.skus
+        .filter((sku) => sku.soldAsProduct && sku.productPrice !== null)
+        .map((sku) => sku.skuId) ?? [],
+    );
+
+    await submitReport({
+      reportedAt: isoReportedAt,
+      skuObservations: changedEntries.map((entry) => ({
         skuId: entry.sku.skuId,
         unitsInStock: entry.unitsInStock,
         costPerUnit: entry.costPerUnit,
+        restockIncluded: entry.restockIncluded,
+        retailStockout: entry.retailStockout,
+        notes: entry.notes || null,
       })),
-    );
+      serviceSignals: selectedServiceSignals.map((serviceId) => ({ serviceId, stockout: true })),
+      topServiceRanking: topServiceRanking
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => serviceIds.has(value)),
+      topRetailRanking: topRetailRanking
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => retailIds.has(value)),
+      notes: reportNotes.trim() || null,
+    });
     navigate('/inventory');
   }
 
@@ -143,10 +240,18 @@ export function StockUpdateRoute() {
           {
             unitsInStock: String(sku.unitsInStock),
             costPerUnit: String(sku.costPerUnit),
+            restockIncluded: false,
+            retailStockout: false,
+            notes: '',
           },
         ]),
       ),
     );
+    setServiceSignals(Object.fromEntries(snapshot.services.map((service) => [service.serviceId, false])));
+    setReportedAt(toLocalDateTimeValue());
+    setReportNotes('');
+    setTopServiceRanking('');
+    setTopRetailRanking('');
     setError(null);
     setPhase('edit');
   }
@@ -197,6 +302,32 @@ export function StockUpdateRoute() {
             </Badge>
           </div>
 
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+              <label className="text-sm font-medium text-foreground" htmlFor="reported-at">
+                {t('stockReportedAt')}
+              </label>
+              <Input
+                className="mt-2 rounded-2xl"
+                id="reported-at"
+                type="datetime-local"
+                value={reportedAt}
+                onChange={(event) => setReportedAt(event.target.value)}
+              />
+            </div>
+            <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+              <label className="text-sm font-medium text-foreground" htmlFor="report-notes">
+                {t('stockReportNotes')}
+              </label>
+              <Textarea
+                className="mt-2 min-h-24 rounded-2xl"
+                id="report-notes"
+                value={reportNotes}
+                onChange={(event) => setReportNotes(event.target.value)}
+              />
+            </div>
+          </div>
+
           {snapshot ? (
             <div className="mt-4 overflow-x-auto">
               <Table>
@@ -205,6 +336,8 @@ export function StockUpdateRoute() {
                     <TableHead>{t('inventoryColumnItem')}</TableHead>
                     <TableHead>{t('fieldUnitsInStock')}</TableHead>
                     <TableHead>{t('fieldCostPerUnit')}</TableHead>
+                    <TableHead>{t('stockRestockIncluded')}</TableHead>
+                    <TableHead>{t('stockRetailStockout')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -268,59 +401,120 @@ export function StockUpdateRoute() {
                           </Button>
                         </div>
                       </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          checked={rows[sku.skuId]?.restockIncluded ?? false}
+                          onCheckedChange={(checked) =>
+                            toggleField(sku.skuId, 'restockIncluded', checked === true)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          checked={rows[sku.skuId]?.retailStockout ?? false}
+                          onCheckedChange={(checked) =>
+                            toggleField(sku.skuId, 'retailStockout', checked === true)
+                          }
+                        />
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
-          ) : null}
-        </WorkspacePanel>
-
-        <WorkspacePanel
-          className="xl:sticky xl:top-24 xl:self-start"
-          description={phase === 'review' ? t('stockReviewDescription') : t('stockUpdateHint')}
-          title={phase === 'review' ? t('stockReviewTitle') : t('stockSummaryTitle')}
-        >
-          {hasChanges ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between rounded-3xl border border-border/80 bg-background/60 px-4 py-3">
-                <span className="text-sm text-muted-foreground">{t('stockUpdatesReady')}</span>
-                <Badge className="rounded-full" variant="secondary">
-                  {changedEntries.length}
-                </Badge>
-              </div>
-
-              {changedEntries.map((entry) => (
-                <div
-                  className="rounded-3xl border border-border/80 bg-background/60 px-4 py-3"
-                  key={entry.sku.skuId}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground">{entry.sku.name}</p>
-                      <p className="truncate text-sm text-muted-foreground">{entry.sku.skuId}</p>
-                    </div>
-                    <div className="text-right text-sm text-muted-foreground">
-                      <p>{entry.unitsInStock}</p>
-                      <p>{formatCurrency(entry.costPerUnit, currency, language)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {phase === 'review' ? (
-                <Button type="button" variant="outline" onClick={() => setPhase('edit')}>
-                  {t('stockEditAction')}
-                </Button>
-              ) : null}
-            </div>
           ) : (
-            <WorkspaceEmpty
-              description={error ?? t('stockUpdateHint')}
-              title={t('stockSummaryTitle')}
-            />
+            <WorkspaceEmpty description={t('apiUnavailable')} title={t('stockChangesTitle')} />
           )}
         </WorkspacePanel>
+
+        <div className="flex flex-col gap-6">
+          <WorkspacePanel description={t('stockSignalsHint')} title={t('stockServiceSignalsTitle')}>
+            {snapshot && snapshot.services.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {snapshot.services.map((service) => (
+                  <label
+                    className="flex items-start gap-3 rounded-2xl border border-border/75 bg-card/70 px-4 py-3"
+                    key={service.serviceId}
+                  >
+                    <Checkbox
+                      checked={serviceSignals[service.serviceId] ?? false}
+                      onCheckedChange={(checked) =>
+                        setServiceSignals((current) => ({
+                          ...current,
+                          [service.serviceId]: checked === true,
+                        }))
+                      }
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{service.name}</p>
+                      <p className="truncate text-sm text-muted-foreground">{service.serviceId}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t('stockNoServiceSignals')}</p>
+            )}
+          </WorkspacePanel>
+
+          <WorkspacePanel description={t('stockSignalsHint')} title={t('stockSummaryTitle')}>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-sm font-medium text-foreground" htmlFor="top-services">
+                  {t('stockTopServiceRanking')}
+                </label>
+                <Input
+                  className="mt-2 rounded-2xl"
+                  id="top-services"
+                  placeholder="service-001, service-002"
+                  value={topServiceRanking}
+                  onChange={(event) => setTopServiceRanking(event.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground" htmlFor="top-retail">
+                  {t('stockTopRetailRanking')}
+                </label>
+                <Input
+                  className="mt-2 rounded-2xl"
+                  id="top-retail"
+                  placeholder="sku-001, sku-003"
+                  value={topRetailRanking}
+                  onChange={(event) => setTopRetailRanking(event.target.value)}
+                />
+              </div>
+              <p className="text-sm leading-6 text-muted-foreground">{t('stockRankingHint')}</p>
+            </div>
+          </WorkspacePanel>
+
+          <WorkspacePanel description={t('stockReviewDescription')} title={t('stockReviewTitle')}>
+            {hasChanges ? (
+              <div className="flex flex-col gap-3">
+                <div className="rounded-3xl border border-border/75 bg-background/60 px-4 py-3">
+                  <p className="text-sm font-medium text-foreground">{t('stockUpdatesReady')}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {formatNumber(changedEntries.length, language)} SKU rows,{' '}
+                    {formatNumber(selectedServiceSignals.length, language)} service flags
+                  </p>
+                </div>
+                {changedEntries.slice(0, 6).map((entry) => (
+                  <div
+                    className="rounded-3xl border border-border/75 bg-background/60 px-4 py-3"
+                    key={entry.sku.skuId}
+                  >
+                    <p className="font-medium text-foreground">{entry.sku.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatNumber(entry.unitsInStock, language)} units
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <WorkspaceEmpty description={t('stockSignalsHint')} title={t('stockSummaryTitle')} />
+            )}
+            {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+          </WorkspacePanel>
+        </div>
       </div>
     </WorkspacePage>
   );

@@ -118,15 +118,19 @@ function ServiceCatalogTable({
 
 function SkuCatalogTable({
   rows,
+  snapshot,
   currency,
   language,
   t,
 }: {
   rows: SkuRecord[];
+  snapshot: InventorySnapshot;
   currency: 'USD' | 'KHR';
   language: 'en' | 'km';
   t: (key: any) => string;
 }) {
+  const insightsById = new Map(snapshot.sist.skuInsights.map((insight) => [insight.skuId, insight]));
+
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -136,50 +140,67 @@ function SkuCatalogTable({
             <TableHead>{t('fieldUnitsInStock')}</TableHead>
             <TableHead>{t('fieldCostPerUnit')}</TableHead>
             <TableHead>{t('fieldProductPrice')}</TableHead>
+            <TableHead>{t('catalogDaysOfCover')}</TableHead>
+            <TableHead>{t('catalogStockoutRisk')}</TableHead>
+            <TableHead>{t('catalogLeadTime')}</TableHead>
+            <TableHead>{t('catalogConfidence')}</TableHead>
             <TableHead className="text-right">{t('inventoryColumnValue')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((sku) => (
-            <TableRow key={sku.skuId}>
-              <TableCell className="min-w-0">
-                <Link
-                  className="group inline-flex max-w-full items-start gap-3"
-                  to={`/inventory/skus/${sku.skuId}`}
-                >
-                  <div className="rounded-2xl border border-border/70 bg-background p-2 text-primary">
-                    <PackagePlus className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-medium text-foreground group-hover:text-primary">
-                        {sku.name}
-                      </p>
-                      <Badge
-                        className="rounded-full"
-                        variant={sku.soldAsProduct ? 'secondary' : 'outline'}
-                      >
-                        {sku.soldAsProduct
-                          ? t('inventorySoldAsProduct')
-                          : t('inventoryNotSoldAsProduct')}
-                      </Badge>
+          {rows.map((sku) => {
+            const insight = insightsById.get(sku.skuId);
+            return (
+              <TableRow key={sku.skuId}>
+                <TableCell className="min-w-0">
+                  <Link
+                    className="group inline-flex max-w-full items-start gap-3"
+                    to={`/inventory/skus/${sku.skuId}`}
+                  >
+                    <div className="rounded-2xl border border-border/70 bg-background p-2 text-primary">
+                      <PackagePlus className="size-4" />
                     </div>
-                    <p className="truncate text-sm text-muted-foreground">{sku.description}</p>
-                  </div>
-                </Link>
-              </TableCell>
-              <TableCell>{formatNumber(sku.unitsInStock, language)}</TableCell>
-              <TableCell>{formatCurrency(sku.costPerUnit, currency, language)}</TableCell>
-              <TableCell>
-                {sku.soldAsProduct && sku.productPrice !== null
-                  ? formatCurrency(sku.productPrice, currency, language)
-                  : '—'}
-              </TableCell>
-              <TableCell className="text-right font-medium">
-                {formatCurrency(sku.unitsInStock * sku.costPerUnit, currency, language)}
-              </TableCell>
-            </TableRow>
-          ))}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate font-medium text-foreground group-hover:text-primary">
+                          {sku.name}
+                        </p>
+                        <Badge
+                          className="rounded-full"
+                          variant={sku.soldAsProduct ? 'secondary' : 'outline'}
+                        >
+                          {sku.soldAsProduct
+                            ? t('inventorySoldAsProduct')
+                            : t('inventoryNotSoldAsProduct')}
+                        </Badge>
+                      </div>
+                      <p className="truncate text-sm text-muted-foreground">{sku.description}</p>
+                    </div>
+                  </Link>
+                </TableCell>
+                <TableCell>{formatNumber(sku.unitsInStock, language)}</TableCell>
+                <TableCell>{formatCurrency(sku.costPerUnit, currency, language)}</TableCell>
+                <TableCell>
+                  {sku.soldAsProduct && sku.productPrice !== null
+                    ? formatCurrency(sku.productPrice, currency, language)
+                    : '—'}
+                </TableCell>
+                <TableCell>
+                  {insight?.daysOfCover ? formatNumber(insight.daysOfCover, language) : '—'}
+                </TableCell>
+                <TableCell>
+                  {insight ? `${formatNumber(insight.stockoutRisk * 100, language)}%` : '—'}
+                </TableCell>
+                <TableCell>
+                  {insight ? `${formatNumber(insight.leadTime.meanDays, language)}d` : '—'}
+                </TableCell>
+                <TableCell>{insight ? insight.confidence : '—'}</TableCell>
+                <TableCell className="text-right font-medium">
+                  {formatCurrency(sku.unitsInStock * sku.costPerUnit, currency, language)}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
@@ -243,6 +264,7 @@ export function InventoryRoute() {
     snapshot?.skus.reduce((sum, sku) => sum + sku.unitsInStock * sku.costPerUnit, 0) ?? 0;
   const showServices = filter !== 'sku';
   const showSkus = filter !== 'service';
+  const highRiskCount = snapshot?.sist.highRiskSkuIds.length ?? 0;
 
   return (
     <WorkspacePage>
@@ -289,6 +311,11 @@ export function InventoryRoute() {
           detail={query ? `"${query}"` : t('searchItems')}
           label={t('dashboardTotalValue')}
           value={formatCurrency(totalValue, currency, language)}
+        />
+        <MetricCard
+          detail={snapshot?.sist.status.reason ?? t('dashboardRiskDescription')}
+          label={t('dashboardHighRisk')}
+          value={formatNumber(highRiskCount, language)}
         />
       </MetricGrid>
 
@@ -366,6 +393,7 @@ export function InventoryRoute() {
                 currency={currency}
                 language={language}
                 rows={rows.skus}
+                snapshot={snapshot}
                 t={t}
               />
             ) : (

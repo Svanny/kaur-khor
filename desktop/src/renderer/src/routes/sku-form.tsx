@@ -22,7 +22,14 @@ function randomId(prefix: 'sku') {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-type SkuField = 'name' | 'description' | 'unitsInStock' | 'costPerUnit' | 'productPrice';
+type SkuField =
+  | 'name'
+  | 'description'
+  | 'unitsInStock'
+  | 'costPerUnit'
+  | 'productPrice'
+  | 'leadTimeMeanDays'
+  | 'leadTimeStdDays';
 
 export function SkuFormRoute() {
   const navigate = useNavigate();
@@ -45,6 +52,8 @@ export function SkuFormRoute() {
     costPerUnit: currentSku?.costPerUnit.toString() ?? '0',
     soldAsProduct: currentSku?.soldAsProduct ?? false,
     productPrice: currentSku?.productPrice?.toString() ?? '',
+    leadTimeMeanDays: currentSku?.leadTimeMeanDays?.toString() ?? '',
+    leadTimeStdDays: currentSku?.leadTimeStdDays?.toString() ?? '',
   });
   const [errors, setErrors] = useState<Partial<Record<SkuField, string>>>({});
   const fieldRefs = useRef<Partial<Record<SkuField, HTMLInputElement | HTMLTextAreaElement>>>({});
@@ -58,6 +67,8 @@ export function SkuFormRoute() {
       costPerUnit: currentSku?.costPerUnit.toString() ?? '0',
       soldAsProduct: currentSku?.soldAsProduct ?? false,
       productPrice: currentSku?.productPrice?.toString() ?? '',
+      leadTimeMeanDays: currentSku?.leadTimeMeanDays?.toString() ?? '',
+      leadTimeStdDays: currentSku?.leadTimeStdDays?.toString() ?? '',
     }),
     [currentSku, form.skuId],
   );
@@ -72,6 +83,8 @@ export function SkuFormRoute() {
         costPerUnit: currentSku.costPerUnit.toString(),
         soldAsProduct: currentSku.soldAsProduct,
         productPrice: currentSku.productPrice?.toString() ?? '',
+        leadTimeMeanDays: currentSku.leadTimeMeanDays?.toString() ?? '',
+        leadTimeStdDays: currentSku.leadTimeStdDays?.toString() ?? '',
       });
       return;
     }
@@ -85,6 +98,8 @@ export function SkuFormRoute() {
         costPerUnit: '0',
         soldAsProduct: false,
         productPrice: '',
+        leadTimeMeanDays: '',
+        leadTimeStdDays: '',
       });
     }
   }, [currentSku, isNew]);
@@ -107,12 +122,22 @@ export function SkuFormRoute() {
     const productPriceError = form.soldAsProduct
       ? validateNonNegativeDecimal(form.productPrice, limits.monetaryAmountMax)
       : null;
+    const leadTimeMeanError =
+      form.leadTimeMeanDays.trim() === ''
+        ? null
+        : validateNonNegativeDecimal(form.leadTimeMeanDays, 365);
+    const leadTimeStdError =
+      form.leadTimeStdDays.trim() === ''
+        ? null
+        : validateNonNegativeDecimal(form.leadTimeStdDays, 365);
 
     if (nameError) nextErrors.name = t('validationRequired');
     if (descriptionError) nextErrors.description = t('validationRequired');
     if (unitsError) nextErrors.unitsInStock = t('validationNonNegative');
     if (costError) nextErrors.costPerUnit = t('validationNonNegative');
     if (productPriceError) nextErrors.productPrice = t('validationProductPrice');
+    if (leadTimeMeanError) nextErrors.leadTimeMeanDays = t('validationNonNegative');
+    if (leadTimeStdError) nextErrors.leadTimeStdDays = t('validationNonNegative');
 
     setErrors(nextErrors);
 
@@ -132,6 +157,10 @@ export function SkuFormRoute() {
           costPerUnit: Number(form.costPerUnit),
           soldAsProduct: form.soldAsProduct,
           productPrice: form.soldAsProduct ? Number(form.productPrice) : null,
+          leadTimeMeanDays:
+            form.leadTimeMeanDays.trim() === '' ? null : Number(form.leadTimeMeanDays),
+          leadTimeStdDays:
+            form.leadTimeStdDays.trim() === '' ? null : Number(form.leadTimeStdDays),
         },
         isNew,
       );
@@ -220,6 +249,40 @@ export function SkuFormRoute() {
                 value={form.costPerUnit}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, costPerUnit: event.target.value }))
+                }
+              />
+            </FieldGroup>
+          </WorkspacePanel>
+
+          <WorkspacePanel
+            description={t('editorSkuPlanningHelper')}
+            title={t('preferencesSistTitle')}
+          >
+            <FieldGroup className="md:grid md:grid-cols-2">
+              <TextInputField
+                id="sku-lead-time-mean"
+                error={errors.leadTimeMeanDays}
+                inputMode="decimal"
+                inputRef={(node) => {
+                  fieldRefs.current.leadTimeMeanDays = node ?? undefined;
+                }}
+                label={t('fieldLeadTimeMeanDays')}
+                value={form.leadTimeMeanDays}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, leadTimeMeanDays: event.target.value }))
+                }
+              />
+              <TextInputField
+                id="sku-lead-time-std"
+                error={errors.leadTimeStdDays}
+                inputMode="decimal"
+                inputRef={(node) => {
+                  fieldRefs.current.leadTimeStdDays = node ?? undefined;
+                }}
+                label={t('fieldLeadTimeStdDays')}
+                value={form.leadTimeStdDays}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, leadTimeStdDays: event.target.value }))
                 }
               />
             </FieldGroup>

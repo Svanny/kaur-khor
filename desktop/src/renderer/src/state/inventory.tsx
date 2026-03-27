@@ -12,6 +12,9 @@ import type {
   InventorySnapshot,
   InventoryState,
   RankingEntry,
+  SistSettings,
+  SistSkuDetail,
+  StockReportSubmission,
   UpsertServicePayload,
   UpsertSkuPayload,
 } from '@shared/inventory';
@@ -20,7 +23,10 @@ import {
   createService,
   createSku,
   fetchInventory,
+  fetchSistSkuDetail,
   saveRanking,
+  submitStockReport,
+  updateSistSettings,
   updateService,
   updateSku,
 } from '../lib/api';
@@ -32,7 +38,10 @@ interface InventoryContextValue extends InventoryState {
   saveStock: (
     updates: Array<{ skuId: string; unitsInStock: number; costPerUnit: number }>,
   ) => Promise<void>;
+  submitReport: (payload: StockReportSubmission) => Promise<void>;
   persistRanking: (entries: RankingEntry[]) => Promise<void>;
+  saveSistSettings: (payload: SistSettings) => Promise<void>;
+  loadSistSkuDetail: (skuId: string) => Promise<SistSkuDetail>;
 }
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
@@ -137,11 +146,22 @@ export function InventoryProvider({
           await applyStockUpdates(apiBaseUrl, { updates });
         });
       },
+      submitReport: async (payload) => {
+        await mutate(async () => {
+          await submitStockReport(apiBaseUrl, payload);
+        });
+      },
       persistRanking: async (entries) => {
         await mutate(async () => {
           await saveRanking(apiBaseUrl, { entries });
         });
       },
+      saveSistSettings: async (payload) => {
+        await mutate(async () => {
+          await updateSistSettings(apiBaseUrl, payload);
+        });
+      },
+      loadSistSkuDetail: async (skuId) => fetchSistSkuDetail(apiBaseUrl, skuId),
     }),
     [apiBaseUrl, mutate, reload, state],
   );

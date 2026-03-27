@@ -7,6 +7,7 @@ import {
   PackagePlus,
   PanelsTopLeft,
   SquareChartGantt,
+  TriangleAlert,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +34,15 @@ function healthLabel(
   return t('dashboardHealthReady');
 }
 
+function regimeLabel(regime: string | null | undefined, t: (key: any) => string) {
+  if (!regime) return '—';
+  if (regime === 'spike') return t('regimeSpike');
+  if (regime === 'lull') return t('regimeLull');
+  if (regime === 'stockout_constrained') return t('regimeStockoutConstrained');
+  if (regime === 'correction') return t('regimeCorrection');
+  return t('regimeNormal');
+}
+
 export function DashboardRoute() {
   const { snapshot, backendStatus, error } = useInventory();
   const { currency, language, t } = usePreferences();
@@ -56,6 +66,8 @@ export function DashboardRoute() {
       services: snapshot.services.length,
       ranked: snapshot.ranking.length,
       coverage: `${snapshot.skus.length} SKUs / ${snapshot.services.length} services`,
+      reorderCount: snapshot.sist.pendingReorderCount,
+      highRisk: snapshot.sist.highRiskSkuIds.length,
     };
   }, [snapshot]);
 
@@ -69,6 +81,9 @@ export function DashboardRoute() {
   const runtimeBadgeVariant = runtimeState === 'ready' ? 'secondary' : 'outline';
 
   const recentEntries = snapshot?.ranking.slice(0, 5) ?? [];
+  const highRiskInsights =
+    snapshot?.sist.skuInsights.filter((insight) => snapshot.sist.highRiskSkuIds.includes(insight.skuId)) ??
+    [];
 
   return (
     <WorkspacePage>
@@ -124,6 +139,11 @@ export function DashboardRoute() {
           detail={metrics?.coverage ?? '—'}
           label={t('dashboardRanked')}
           value={metrics ? formatNumber(metrics.ranked, language) : '—'}
+        />
+        <MetricCard
+          detail={t('dashboardRiskDescription')}
+          label={t('dashboardReorderCount')}
+          value={metrics ? formatNumber(metrics.reorderCount, language) : '—'}
         />
       </MetricGrid>
 
@@ -192,6 +212,79 @@ export function DashboardRoute() {
               </p>
             </div>
           </div>
+        </WorkspacePanel>
+
+        <WorkspacePanel
+          description={t('dashboardRiskDescription')}
+          title={t('dashboardRiskTitle')}
+        >
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-3xl border border-border/80 bg-background/60 p-5">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                {t('dashboardReportFreshness')}
+              </p>
+              <p className="mt-3 text-xl font-semibold tracking-[-0.03em]">
+                {snapshot?.sist.asOf ? new Date(snapshot.sist.asOf).toLocaleString() : '—'}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {snapshot?.sist.status.state === 'ready'
+                  ? t('sistStateReady')
+                  : t('sistStateEmpty')}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-border/80 bg-background/60 p-5">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                {t('dashboardTopRegime')}
+              </p>
+              <p className="mt-3 text-xl font-semibold tracking-[-0.03em]">
+                {regimeLabel(snapshot?.sist.topRegime, t)}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {snapshot?.sist.status.reason ?? t('dashboardRiskDescription')}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-border/80 bg-background/60 p-5">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                {t('dashboardHighRisk')}
+              </p>
+              <p className="mt-3 text-xl font-semibold tracking-[-0.03em]">
+                {metrics ? formatNumber(metrics.highRisk, language) : '—'}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {t('dashboardRiskDescription')}
+              </p>
+            </div>
+          </div>
+
+          {highRiskInsights.length > 0 ? (
+            <div className="mt-4 flex flex-col gap-3">
+              {highRiskInsights.map((insight) => {
+                const sku = snapshot?.skus.find((entry) => entry.skuId === insight.skuId);
+                return (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-3xl border border-border/80 bg-card/55 px-4 py-3"
+                    key={insight.skuId}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{sku?.name ?? insight.skuId}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {t('catalogStockoutRisk')}: {formatNumber(insight.stockoutRisk * 100, language)}%
+                      </p>
+                    </div>
+                    <Badge className="rounded-full" variant="outline">
+                      <TriangleAlert className="mr-1 size-3" />
+                      {t('dashboardReorderCount')}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <WorkspaceEmpty
+              description={t('dashboardNoRisk')}
+              title={t('dashboardHighRisk')}
+            />
+          )}
         </WorkspacePanel>
 
         <WorkspacePanel

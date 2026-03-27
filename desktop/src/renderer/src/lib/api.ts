@@ -3,7 +3,11 @@ import type {
   RankingEntry,
   SaveRankingPayload,
   ServiceRecord,
+  SistSettings,
+  SistSkuDetail,
   SkuRecord,
+  StockReport,
+  StockReportSubmission,
   StockUpdatePayload,
   UpsertServicePayload,
   UpsertSkuPayload,
@@ -107,6 +111,17 @@ export async function applyStockUpdates(
   return response.skus;
 }
 
+export async function submitStockReport(
+  baseUrl: string,
+  payload: StockReportSubmission,
+): Promise<StockReport> {
+  const response = await request<{ report: StockReport }>(baseUrl, '/v1/desktop/stock-reports', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return response.report;
+}
+
 export async function saveRanking(
   baseUrl: string,
   payload: SaveRankingPayload,
@@ -116,4 +131,26 @@ export async function saveRanking(
     body: JSON.stringify(payload),
   });
   return response.entries;
+}
+
+export async function fetchSistSkuDetail(
+  baseUrl: string,
+  skuId: string,
+): Promise<SistSkuDetail> {
+  return request<SistSkuDetail>(baseUrl, `/v1/desktop/sist/sku/${skuId}`);
+}
+
+export async function updateSistSettings(
+  baseUrl: string,
+  payload: SistSettings,
+): Promise<SistSettings> {
+  const response = await request<{ settings: SistSettings }>(
+    baseUrl,
+    '/v1/desktop/sist/settings',
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  );
+  return response.settings;
 }
