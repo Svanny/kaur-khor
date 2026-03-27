@@ -34,7 +34,7 @@ function regimeLabel(regime: string | null | undefined, t: (key: any) => string)
 }
 
 export function DashboardRoute() {
-  const { snapshot, backendStatus, error } = useInventory();
+  const { snapshot, error, isLoading } = useInventory();
   const { currency, language, t } = usePreferences();
   const [openMetricTooltip, setOpenMetricTooltip] = useState<string | null>(null);
   const [metricTooltipMode, setMetricTooltipMode] = useState<'pointer' | 'focus' | 'click' | null>(
@@ -65,12 +65,7 @@ export function DashboardRoute() {
     };
   }, [snapshot]);
 
-  const runtimeState =
-    error || backendStatus === 'error'
-      ? 'failed'
-      : backendStatus === 'starting'
-        ? 'starting'
-        : 'ready';
+  const runtimeState = error ? 'failed' : isLoading ? 'starting' : 'ready';
   const runtimeLabel = healthLabel(runtimeState, t);
 
   const highRiskInsights =

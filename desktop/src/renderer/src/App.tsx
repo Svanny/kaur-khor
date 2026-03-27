@@ -12,9 +12,9 @@ import { StockUpdateRoute } from '@/routes/stock-update';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider } from '@/state/inventory';
 
-function AppFrame({ desktopContext }: { desktopContext: DesktopAppContext }) {
+function AppFrame() {
   return (
-    <BanjiShell desktopContext={desktopContext}>
+    <BanjiShell>
       <Routes>
         <Route element={<DashboardRoute />} path="/" />
         <Route element={<InventoryRoute />} path="/inventory" />
@@ -30,14 +30,11 @@ function AppFrame({ desktopContext }: { desktopContext: DesktopAppContext }) {
   );
 }
 
-function LoadedApp({ desktopContext }: { desktopContext: DesktopAppContext }) {
+function LoadedApp() {
   return (
     <PreferencesProvider>
-      <InventoryProvider
-        apiBaseUrl={desktopContext.apiBaseUrl}
-        backendStatus={desktopContext.backendStatus}
-      >
-        <AppFrame desktopContext={desktopContext} />
+      <InventoryProvider>
+        <AppFrame />
       </InventoryProvider>
     </PreferencesProvider>
   );
@@ -48,17 +45,13 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
-    window.banjiDesktop.getAppContext().then((context) => {
+    window.banjiDesktop.system.getAppContext().then((context) => {
       if (mounted) {
         setDesktopContext(context);
       }
     });
-    const unsubscribe = window.banjiDesktop.onBackendStatus((context) => {
-      setDesktopContext(context);
-    });
     return () => {
       mounted = false;
-      unsubscribe();
     };
   }, []);
 
@@ -80,5 +73,5 @@ export default function App() {
     );
   }
 
-  return <LoadedApp desktopContext={desktopContext} />;
+  return <LoadedApp />;
 }

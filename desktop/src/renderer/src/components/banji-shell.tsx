@@ -6,11 +6,9 @@ import {
   ChevronRight,
   LayoutDashboard,
   ListOrdered,
-  RefreshCcw,
   Settings2,
   SquareChartGantt,
 } from 'lucide-react';
-import type { DesktopAppContext } from '@shared/ipc';
 import { Button } from '@/components/ui/button';
 import {
   Sidebar,
@@ -34,29 +32,21 @@ import { usePreferences } from '@/state/preferences';
 import brandLogo from '@/assets/banji-logo.svg';
 
 export function BanjiShell({
-  desktopContext,
   children,
 }: {
-  desktopContext: DesktopAppContext;
   children: React.ReactNode;
 }) {
   return (
     <SidebarProvider defaultOpen>
-      <BanjiShellFrame desktopContext={desktopContext}>{children}</BanjiShellFrame>
+      <BanjiShellFrame>{children}</BanjiShellFrame>
     </SidebarProvider>
   );
 }
 
-function BanjiShellFrame({
-  desktopContext,
-  children,
-}: {
-  desktopContext: DesktopAppContext;
-  children: React.ReactNode;
-}) {
+function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { t } = usePreferences();
-  const { error, isLoading } = useInventory();
+  const { error, isLoading, reload } = useInventory();
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
 
   const navigation = useMemo(
@@ -195,27 +185,23 @@ function BanjiShellFrame({
                   className="size-10 rounded-full border border-border bg-card"
                 />
               </div>
-              {desktopContext.backendError ? (
+              {error ? (
                 <WorkspaceBanner
                   action={
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => {
-                        void window.banjiDesktop.restartBackend();
+                        void reload();
                       }}
                     >
-                      <RefreshCcw data-icon="inline-start" />
                       {t('retry')}
                     </Button>
                   }
-                  description={desktopContext.backendError}
-                  title={t('backendError')}
+                  description={error}
+                  title={t('apiUnavailable')}
                   tone="destructive"
                 />
-              ) : null}
-              {error ? (
-                <WorkspaceBanner description={error} title={t('apiUnavailable')} tone="destructive" />
               ) : null}
               {isLoading ? (
                 <WorkspaceBanner

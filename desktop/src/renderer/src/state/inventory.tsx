@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { BackendStatus } from '@shared/ipc';
 import type {
   InventorySnapshot,
   InventoryState,
@@ -18,23 +17,11 @@ import type {
   UpsertServicePayload,
   UpsertSkuPayload,
 } from '@shared/inventory';
-import {
-  applyStockUpdates,
-  createService,
-  createSku,
-  fetchInventory,
-  fetchSistSkuDetail,
-  saveRanking,
-  submitStockReport,
-  updateSistSettings,
-  updateService,
-  updateSku,
-} from '../lib/api';
 
 interface InventoryContextValue extends InventoryState {
   reload: () => Promise<void>;
-  saveSku: (payload: UpsertSkuPayload, isNew: boolean) => Promise<void>;
-  saveService: (payload: UpsertServicePayload, isNew: boolean) => Promise<void>;
+  saveSku: (payload: UpsertSkuPayload) => Promise<void>;
+  saveService: (payload: UpsertServicePayload) => Promise<void>;
   saveStock: (
     updates: Array<{ skuId: string; unitsInStock: number; costPerUnit: number }>,
   ) => Promise<void>;
@@ -46,42 +33,27 @@ interface InventoryContextValue extends InventoryState {
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
 
-function emptyState(backendStatus: BackendStatus): InventoryState {
+function emptyState(): InventoryState {
   return {
     snapshot: null,
-    isLoading: backendStatus === 'starting',
+    isLoading: true,
     isSaving: false,
     error: null,
-    backendStatus,
   };
 }
 
-export function InventoryProvider({
-  apiBaseUrl,
-  backendStatus,
-  children,
-}: {
-  apiBaseUrl: string;
-  backendStatus: BackendStatus;
-  children: ReactNode;
-}) {
-  const [state, setState] = useState<InventoryState>(() => emptyState(backendStatus));
+export function InventoryProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<InventoryState>(() => emptyState());
 
   const reload = useCallback(async () => {
-    if (!apiBaseUrl) {
-      setState((current) => ({ ...current, isLoading: false }));
-      return;
-    }
-
     setState((current) => ({ ...current, isLoading: true, error: null }));
     try {
-      const snapshot = await fetchInventory(apiBaseUrl);
+      const snapshot = await window.banjiDesktop.inventory.getSnapshot();
       setState({
         snapshot,
         isLoading: false,
         isSaving: false,
         error: null,
-        backendStatus,
       });
     } catch (error) {
       setState((current) => ({
@@ -90,21 +62,23 @@ export function InventoryProvider({
         error: error instanceof Error ? error.message : 'failed to load inventory',
       }));
     }
-  }, [apiBaseUrl, backendStatus]);
+  }, []);
 
   useEffect(() => {
-    setState((current) => ({ ...current, backendStatus }));
-    if (backendStatus === 'ready' && apiBaseUrl) {
-      void reload();
-    }
-  }, [apiBaseUrl, backendStatus, reload]);
+    void reload();
+  }, [reload]);
 
   const mutate = useCallback(
-    async (task: () => Promise<unknown>) => {
+    async (task: () => Promise<InventorySnapshot>) => {
       setState((current) => ({ ...current, isSaving: true, error: null }));
       try {
-        await task();
-        await reload();
+        const snapshot = await task();
+        setState({
+          snapshot,
+          isLoading: false,
+          isSaving: false,
+          error: null,
+        });
       } catch (error) {
         const normalizedError =
           error instanceof Error ? error : new Error('save failed');
@@ -123,47 +97,38 @@ export function InventoryProvider({
     () => ({
       ...state,
       reload,
-      saveSku: async (payload, isNew) => {
-        await mutate(async () => {
-          if (isNew) {
-            await createSku(apiBaseUrl, payload);
-            return;
-          }
-          await updateSku(apiBaseUrl, payload.skuId, payload);
-        });
+      saveSku: async (payload) => {
+        await mutate(() =>
+          window.banjiDesktop.inventory.saveSku({
+            sku: payload,
+          }),
+        );
       },
-      saveService: async (payload, isNew) => {
-        await mutate(async () => {
-          if (isNew) {
-            await createService(apiBaseUrl, payload);
-            return;
-          }
-          await updateService(apiBaseUrl, payload.serviceId, payload);
-        });
+      saveService: async (payload) => {
+        await mutate(() =>
+          window.banjiDesktop.inventory.saveService({
+            service: payload,
+          }),
+        );
       },
       saveStock: async (updates) => {
-        await mutate(async () => {
-          await applyStockUpdates(apiBaseUrl, { updates });
-        });
+        await mutate(() =>
+          window.banjiDesktop.inventory.applyStockUpdates({ updates }),
+        );
       },
       submitReport: async (payload) => {
-        await mutate(async () => {
-          await submitStockReport(apiBaseUrl, payload);
-        });
+        await mutate(() => window.banjiDesktop.inventory.submitStockReport(payload));
       },
       persistRanking: async (entries) => {
-        await mutate(async () => {
-          await saveRanking(apiBaseUrl, { entries });
-        });
+        await mutate(() => window.banjiDesktop.inventory.saveRanking({ entries }));
       },
       saveSistSettings: async (payload) => {
-        await mutate(async () => {
-          await updateSistSettings(apiBaseUrl, payload);
-        });
+        await mutate(() => window.banjiDesktop.inventory.updateSistSettings(payload));
       },
-      loadSistSkuDetail: async (skuId) => fetchSistSkuDetail(apiBaseUrl, skuId),
+      loadSistSkuDetail: async (skuId) =>
+        window.banjiDesktop.inventory.getSistSkuDetail({ skuId }),
     }),
-    [apiBaseUrl, mutate, reload, state],
+    [mutate, reload, state],
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;

@@ -1,5 +1,3 @@
-import type { BackendStatus } from './ipc';
-
 export type AppLanguage = 'en' | 'km';
 export type AppCurrency = 'USD' | 'KHR';
 export type InventoryFilter = 'all' | 'sku' | 'service';
@@ -139,7 +137,6 @@ export interface InventoryState {
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
-  backendStatus: BackendStatus;
 }
 
 export interface UpsertSkuPayload {

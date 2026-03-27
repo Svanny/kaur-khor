@@ -1,40 +1,40 @@
 import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  startManagedApi,
-  stopManagedApi,
-  type ManagedApiProcess,
-} from './backend';
+import { createManagedCoreController } from './core-manager';
 import { hasMacDockIconPair, macIconAssets } from './icon';
+import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import {
   IPC_CHANNELS,
-  type BackendStatus,
   type DesktopAppContext,
+  type DesktopPreferences,
+  type GetSistSkuDetailPayload,
+  type SaveRankingPayload,
+  type SaveServicePayload,
+  type SaveSkuPayload,
 } from '@shared/ipc';
+import type {
+  InventorySnapshot,
+  SistSettings,
+  StockReportSubmission,
+  StockUpdatePayload,
+} from '@shared/inventory';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../../..');
 const iconAssets = macIconAssets(projectRoot);
 
 let mainWindow: BrowserWindow | null = null;
-let managedApi: ManagedApiProcess | null = null;
 let desktopContext: DesktopAppContext = {
-  apiBaseUrl: '',
   appVersion: app.getVersion(),
-  backendStatus: 'starting',
+  platform: process.platform,
 };
-
-function broadcastBackendStatus(status: BackendStatus, backendError?: string) {
-  desktopContext = {
-    ...desktopContext,
-    backendStatus: status,
-    backendError,
-  };
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(IPC_CHANNELS.backendStatus, desktopContext);
-  }
-}
+const managedCore = createManagedCoreController({
+  projectRoot,
+  userDataPath: app.getPath('userData'),
+  isPackaged: app.isPackaged,
+  resourcesPath: process.resourcesPath,
+});
 
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -60,63 +60,60 @@ async function createMainWindow() {
   }
 }
 
-async function restartManagedBackend() {
-  const rendererOrigin = process.env.ELECTRON_RENDERER_URL;
-
-  await stopManagedApi(managedApi);
-  managedApi = null;
-  desktopContext = {
-    ...desktopContext,
-    apiBaseUrl: '',
-    backendStatus: 'starting',
-    backendError: undefined,
-  };
-  broadcastBackendStatus('starting');
-
+async function boot() {
   if (process.platform === 'darwin' && hasMacDockIconPair(projectRoot)) {
     app.dock.setIcon(nativeImage.createFromPath(iconAssets.dockIconPath));
   }
-
-  try {
-    managedApi = await startManagedApi({
-      projectRoot,
-      userDataPath: app.getPath('userData'),
-      rendererOrigin,
-      preferredPort: 8787,
-      isPackaged: app.isPackaged,
-      resourcesPath: process.resourcesPath,
-    });
-    desktopContext = {
-      ...desktopContext,
-      apiBaseUrl: managedApi.apiBaseUrl,
-      backendStatus: 'ready',
-      backendError: undefined,
-    };
-    broadcastBackendStatus('ready');
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Banji API failed to start';
-    managedApi = null;
-    desktopContext = {
-      ...desktopContext,
-      apiBaseUrl: '',
-      backendStatus: 'error',
-      backendError: message,
-    };
-    broadcastBackendStatus('error', message);
-  }
-}
-
-async function boot() {
-  await restartManagedBackend();
   await createMainWindow();
 }
 
-ipcMain.handle(IPC_CHANNELS.getAppContext, async () => desktopContext);
-ipcMain.handle(IPC_CHANNELS.restartBackend, async () => {
-  await restartManagedBackend();
-  return desktopContext;
-});
+ipcMain.handle(IPC_CHANNELS.systemGetAppContext, async () => desktopContext);
+ipcMain.handle(IPC_CHANNELS.inventoryGetSnapshot, async () =>
+  managedCore.invoke<InventorySnapshot>('inventory.getSnapshot'),
+);
+ipcMain.handle(IPC_CHANNELS.inventorySaveSku, async (_event, payload: SaveSkuPayload) =>
+  managedCore.invoke<InventorySnapshot>('inventory.saveSku', payload),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventorySaveService,
+  async (_event, payload: SaveServicePayload) =>
+    managedCore.invoke<InventorySnapshot>('inventory.saveService', payload),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryApplyStockUpdates,
+  async (_event, payload: StockUpdatePayload) =>
+    managedCore.invoke<InventorySnapshot>('inventory.applyStockUpdates', payload),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventorySubmitStockReport,
+  async (_event, payload: StockReportSubmission) =>
+    managedCore.invoke<InventorySnapshot>('inventory.submitStockReport', payload),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventorySaveRanking,
+  async (_event, payload: SaveRankingPayload) =>
+    managedCore.invoke<InventorySnapshot>('inventory.saveRanking', payload),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryGetSistSkuDetail,
+  async (_event, payload: GetSistSkuDetailPayload) =>
+    managedCore.invoke('inventory.getSistSkuDetail', {
+      skuId: payload.skuId,
+    }),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryUpdateSistSettings,
+  async (_event, payload: SistSettings) =>
+    managedCore.invoke<InventorySnapshot>('inventory.updateSistSettings', payload),
+);
+ipcMain.handle(IPC_CHANNELS.preferencesGet, async () =>
+  loadDesktopPreferences(app.getPath('userData')),
+);
+ipcMain.handle(
+  IPC_CHANNELS.preferencesSave,
+  async (_event, payload: Partial<DesktopPreferences>) =>
+    saveDesktopPreferences(app.getPath('userData'), payload),
+);
 
 app.whenReady().then(boot);
 
@@ -128,13 +125,11 @@ app.on('activate', async () => {
 
 app.on('window-all-closed', async () => {
   if (process.platform !== 'darwin') {
-    await stopManagedApi(managedApi);
-    broadcastBackendStatus('stopped');
+    await managedCore.stop();
     app.quit();
   }
 });
 
 app.on('before-quit', async () => {
-  await stopManagedApi(managedApi);
-  broadcastBackendStatus('stopped');
+  await managedCore.stop();
 });

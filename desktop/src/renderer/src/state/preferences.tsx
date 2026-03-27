@@ -1,9 +1,13 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { currencyLabel, getTranslation, type TranslationKey } from '../lib/translations';
-
-const LANGUAGE_KEY = 'banji-language';
-const CURRENCY_KEY = 'banji-currency';
 
 interface PreferencesContextValue {
   language: AppLanguage;
@@ -16,30 +20,47 @@ interface PreferencesContextValue {
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
-function getInitialLanguage(): AppLanguage {
-  const value = window.localStorage.getItem(LANGUAGE_KEY);
-  return value === 'km' ? 'km' : 'en';
-}
-
-function getInitialCurrency(): AppCurrency {
-  return window.localStorage.getItem(CURRENCY_KEY) === 'KHR' ? 'KHR' : 'USD';
-}
-
 export function PreferencesProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<AppLanguage>(getInitialLanguage);
-  const [currency, setCurrencyState] = useState<AppCurrency>(getInitialCurrency);
+  const [language, setLanguageState] = useState<AppLanguage>('en');
+  const [currency, setCurrencyState] = useState<AppCurrency>('USD');
+
+  useEffect(() => {
+    let mounted = true;
+
+    window.banjiDesktop.preferences
+      .get()
+      .then((preferences) => {
+        if (!mounted) {
+          return;
+        }
+
+        setLanguageState(preferences.language);
+        setCurrencyState(preferences.currency);
+      })
+      .catch((error) => {
+        console.error('failed to load desktop preferences', error);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
       language,
       currency,
       setLanguage: (next) => {
-        window.localStorage.setItem(LANGUAGE_KEY, next);
         setLanguageState(next);
+        void window.banjiDesktop.preferences.save({ language: next }).catch((error) => {
+          console.error('failed to save language preference', error);
+        });
       },
       setCurrency: (next) => {
-        window.localStorage.setItem(CURRENCY_KEY, next);
         setCurrencyState(next);
+        void window.banjiDesktop.preferences.save({ currency: next }).catch((error) => {
+          console.error('failed to save currency preference', error);
+        });
       },
       t: (key) => getTranslation(language, key),
       currencyLabel: (next) => currencyLabel(language, next),

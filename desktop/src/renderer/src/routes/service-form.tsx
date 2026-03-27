@@ -133,7 +133,6 @@ export function ServiceFormRoute() {
           price: Number(form.price),
           skuIds: [...form.skuIds].sort(),
         },
-        isNew,
       );
       navigate('/inventory');
     } catch {

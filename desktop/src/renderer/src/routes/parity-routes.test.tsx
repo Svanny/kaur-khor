@@ -195,7 +195,6 @@ describe('renderer workspaces', () => {
       error: null,
       isLoading: false,
       isSaving: false,
-      backendStatus: 'ready',
       saveSku: vi.fn(),
       saveService: vi.fn(),
       saveStock: vi.fn(),

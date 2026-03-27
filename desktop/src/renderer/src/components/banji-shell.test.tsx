@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from './banji-shell';
 
 const inventoryHook = vi.fn();
@@ -15,19 +14,15 @@ vi.mock('@/state/preferences', () => ({
   usePreferences: () => preferencesHook(),
 }));
 
-const desktopContext: DesktopAppContext = {
-  apiBaseUrl: 'http://127.0.0.1:8787',
-  backendError: null,
-  backendStatus: 'ready',
-};
-
 describe('BanjiShell', () => {
   beforeEach(() => {
     setViewport({ width: 375, isMobile: true });
 
+    const reload = vi.fn();
     inventoryHook.mockReturnValue({
       error: null,
       isLoading: false,
+      reload,
     });
     preferencesHook.mockReturnValue({
       t: (key: string) => {
@@ -65,7 +60,7 @@ describe('BanjiShell', () => {
   test('closes the mobile sidebar after following a navigation link', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell desktopContext={desktopContext}>
+        <BanjiShell>
           <Routes>
             <Route element={<div>Dashboard screen</div>} path="/" />
             <Route element={<div>Inventory screen</div>} path="/inventory" />
@@ -93,7 +88,7 @@ describe('BanjiShell', () => {
   test('renders the simplified shell chrome without local runtime cards or ready pills', () => {
     render(
       <MemoryRouter initialEntries={['/settings']}>
-        <BanjiShell desktopContext={desktopContext}>
+        <BanjiShell>
           <Routes>
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
@@ -113,7 +108,7 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/settings']}>
-        <BanjiShell desktopContext={desktopContext}>
+        <BanjiShell>
           <Routes>
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
@@ -132,7 +127,7 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell desktopContext={desktopContext}>
+        <BanjiShell>
           <Routes>
             <Route element={<div>Dashboard screen</div>} path="/" />
           </Routes>
@@ -152,6 +147,29 @@ describe('BanjiShell', () => {
     expect(brandToggle.className).toContain('group-data-[collapsible=icon]:size-10');
     expect(screen.queryByText('Settings')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  test('offers a retry action when inventory loading fails', () => {
+    const reload = vi.fn();
+    inventoryHook.mockReturnValue({
+      error: 'Core failed to start',
+      isLoading: false,
+      reload,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Dashboard screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });
 

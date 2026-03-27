@@ -162,7 +162,6 @@ export function SkuFormRoute() {
           leadTimeStdDays:
             form.leadTimeStdDays.trim() === '' ? null : Number(form.leadTimeStdDays),
         },
-        isNew,
       );
       navigate('/inventory');
     } catch {
