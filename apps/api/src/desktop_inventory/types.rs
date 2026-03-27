@@ -106,12 +106,21 @@ pub struct StockReportServiceSignal {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct StockReportServicePriceAdjustment {
+    pub service_id: String,
+    pub price: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct StockReportRecord {
     pub report_id: String,
     pub report_source: String,
     pub reported_at: String,
     pub sku_observations: Vec<StockReportSkuObservation>,
     pub service_signals: Vec<StockReportServiceSignal>,
+    #[serde(default)]
+    pub service_price_adjustments: Vec<StockReportServicePriceAdjustment>,
     pub top_service_ranking: Vec<String>,
     pub top_retail_ranking: Vec<String>,
     pub notes: Option<String>,
@@ -255,6 +264,8 @@ pub struct SubmitStockReportRequest {
     #[serde(default)]
     pub service_signals: Vec<StockReportServiceSignal>,
     #[serde(default)]
+    pub service_price_adjustments: Vec<StockReportServicePriceAdjustment>,
+    #[serde(default)]
     pub top_service_ranking: Vec<String>,
     #[serde(default)]
     pub top_retail_ranking: Vec<String>,
@@ -380,6 +391,17 @@ impl SubmitStockReportRequest {
             }
         }
 
+        let mut seen_service_prices = HashSet::new();
+        for adjustment in &self.service_price_adjustments {
+            validate_entry_id("serviceId", &adjustment.service_id)?;
+            validate_non_negative("price", adjustment.price, MONETARY_AMOUNT_MAX)?;
+            if !seen_service_prices.insert(adjustment.service_id.clone()) {
+                return Err(anyhow!(
+                    "servicePriceAdjustments must not contain duplicate serviceIds"
+                ));
+            }
+        }
+
         normalize_ranking_ids("topServiceRanking", &mut self.top_service_ranking)?;
         normalize_ranking_ids("topRetailRanking", &mut self.top_retail_ranking)?;
 
@@ -389,11 +411,14 @@ impl SubmitStockReportRequest {
 
         if self.sku_observations.is_empty()
             && self.service_signals.is_empty()
+            && self.service_price_adjustments.is_empty()
             && self.top_service_ranking.is_empty()
             && self.top_retail_ranking.is_empty()
             && self.notes.is_none()
         {
-            return Err(anyhow!("report must include at least one observation, signal, ranking, or note"));
+            return Err(anyhow!(
+                "report must include at least one observation, signal, price adjustment, ranking, or note"
+            ));
         }
         Ok(())
     }

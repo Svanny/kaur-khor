@@ -332,6 +332,7 @@ pub fn apply_stock_updates(
             })
             .collect(),
         service_signals: Vec::new(),
+        service_price_adjustments: Vec::new(),
         top_service_ranking: Vec::new(),
         top_retail_ranking: Vec::new(),
         notes: Some("Created by stock-updates compatibility shim".to_string()),
@@ -360,6 +361,7 @@ pub fn submit_stock_report(
             reported_at: request.reported_at,
             sku_observations: request.sku_observations,
             service_signals: request.service_signals,
+            service_price_adjustments: request.service_price_adjustments,
             top_service_ranking: request.top_service_ranking,
             top_retail_ranking: request.top_retail_ranking,
             notes: request.notes,
@@ -374,6 +376,24 @@ pub fn submit_stock_report(
             {
                 sku.units_in_stock = observation.units_in_stock;
                 sku.cost_per_unit = observation.cost_per_unit;
+            }
+        }
+
+        for adjustment in &record.service_price_adjustments {
+            let should_apply_price = !has_later_service_price_adjustment(
+                owner,
+                &adjustment.service_id,
+                &record.reported_at,
+            );
+            if should_apply_price {
+                if let Some(service) = owner
+                    .catalog
+                    .services
+                    .iter_mut()
+                    .find(|service| service.service_id == adjustment.service_id)
+                {
+                    service.price = adjustment.price;
+                }
             }
         }
 
@@ -501,6 +521,7 @@ fn ensure_baseline_report(owner: &mut OwnerInventory, source: &str) {
             })
             .collect(),
         service_signals: Vec::new(),
+        service_price_adjustments: Vec::new(),
         top_service_ranking: Vec::new(),
         top_retail_ranking: Vec::new(),
         notes: Some("Migrated from legacy desktop snapshot".to_string()),
@@ -543,6 +564,15 @@ fn validate_report_against_catalog(owner: &OwnerInventory, request: &SubmitStock
         }
     }
 
+    for adjustment in &request.service_price_adjustments {
+        if !valid_service_ids.contains(adjustment.service_id.as_str()) {
+            return Err(anyhow!(
+                "servicePriceAdjustments references unknown service '{}'",
+                adjustment.service_id
+            ));
+        }
+    }
+
     for sku_id in &request.top_retail_ranking {
         if !rankable_sku_ids.contains(sku_id.as_str()) {
             return Err(anyhow!("topRetailRanking references unknown or unrankable sku '{sku_id}'"));
@@ -562,6 +592,21 @@ fn validate_report_against_catalog(owner: &OwnerInventory, request: &SubmitStock
     }
 
     Ok(())
+}
+
+fn has_later_service_price_adjustment(
+    owner: &OwnerInventory,
+    service_id: &str,
+    reported_at: &str,
+) -> bool {
+    let reported_at = parse_report_time(reported_at);
+    owner.sist.stock_reports.iter().any(|report| {
+        parse_report_time(&report.reported_at) > reported_at
+            && report
+                .service_price_adjustments
+                .iter()
+                .any(|adjustment| adjustment.service_id == service_id)
+    })
 }
 
 fn validate_ranking_entries(owner: &OwnerInventory, entries: &[DesktopRankingEntry]) -> Result<()> {

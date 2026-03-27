@@ -1,8 +1,8 @@
 use banji_desktop_core::{
     store,
     types::{
-        SaveDesktopRankingRequest, StockReportSkuObservation, SubmitStockReportRequest,
-        UpdateSistSettingsRequest, UpsertDesktopSkuRequest,
+        SaveDesktopRankingRequest, StockReportServicePriceAdjustment, StockReportSkuObservation,
+        SubmitStockReportRequest, UpdateSistSettingsRequest, UpsertDesktopSkuRequest,
     },
 };
 use std::{env, fs, path::PathBuf, sync::Mutex};
@@ -23,7 +23,9 @@ fn temp_store_path(test_name: &str) -> PathBuf {
 
 #[test]
 fn desktop_core_store_supports_local_crud_and_settings() {
-    let _guard = STORE_TEST_LOCK.lock().expect("store test lock should be available");
+    let _guard = STORE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let store_path = temp_store_path("smoke");
     env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
@@ -89,7 +91,9 @@ fn desktop_core_store_supports_local_crud_and_settings() {
 
 #[test]
 fn desktop_core_lists_reports_newest_first() {
-    let _guard = STORE_TEST_LOCK.lock().expect("store test lock should be available");
+    let _guard = STORE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let store_path = temp_store_path("report-history");
     env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
@@ -113,6 +117,7 @@ fn desktop_core_lists_reports_newest_first() {
                 notes: Some("Early update".to_string()),
             }],
             service_signals: Vec::new(),
+            service_price_adjustments: Vec::new(),
             top_service_ranking: Vec::new(),
             top_retail_ranking: Vec::new(),
             notes: Some("Earlier report".to_string()),
@@ -126,6 +131,10 @@ fn desktop_core_lists_reports_newest_first() {
             reported_at: "2026-03-27T12:30:00Z".to_string(),
             sku_observations: Vec::new(),
             service_signals: Vec::new(),
+            service_price_adjustments: vec![StockReportServicePriceAdjustment {
+                service_id: snapshot.services[0].service_id.clone(),
+                price: snapshot.services[0].price + 50.0,
+            }],
             top_service_ranking: snapshot
                 .services
                 .iter()
@@ -146,10 +155,22 @@ fn desktop_core_lists_reports_newest_first() {
 
     let reports = store::list_stock_reports(owner).expect("report history should load");
     assert!(reports.len() >= 3);
-    assert_eq!(reports[0].reported_at, "2026-03-27T12:30:00Z");
-    assert_eq!(reports[0].top_service_ranking.len(), 1);
-    assert_eq!(reports[0].sku_observations.len(), 0);
-    assert!(reports.iter().any(|report| report.reported_at == "2026-03-25T09:00:00Z"));
+    let later_report = reports
+        .iter()
+        .find(|report| report.reported_at == "2026-03-27T12:30:00Z")
+        .expect("later report should be present");
+    assert_eq!(later_report.top_service_ranking.len(), 1);
+    assert_eq!(later_report.service_price_adjustments.len(), 1);
+    assert_eq!(later_report.sku_observations.len(), 0);
+    assert!(reports
+        .iter()
+        .any(|report| report.reported_at == "2026-03-25T09:00:00Z"));
+
+    let updated_snapshot = store::load_inventory(owner).expect("inventory should reflect service price edits");
+    assert_eq!(
+        updated_snapshot.services[0].price,
+        snapshot.services[0].price + 50.0
+    );
 
     let earlier_index = reports
         .iter()
@@ -160,6 +181,63 @@ fn desktop_core_lists_reports_newest_first() {
         .position(|report| report.reported_at == "2026-03-27T12:30:00Z")
         .expect("later report should be present");
     assert!(later_index < earlier_index);
+
+    let _ = fs::remove_file(store_path);
+    env::remove_var("BANJI_DESKTOP_DATA_PATH");
+}
+
+#[test]
+fn desktop_core_ignores_backfilled_service_price_when_newer_adjustment_exists() {
+    let _guard = STORE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let store_path = temp_store_path("service-price-ordering");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    let owner = "desktop-owner";
+    let snapshot = store::load_inventory(owner).expect("seeded inventory should load");
+    let service = snapshot
+        .services
+        .first()
+        .expect("seeded inventory should include at least one service");
+
+    store::submit_stock_report(
+        owner,
+        SubmitStockReportRequest {
+            reported_at: "2026-03-27T12:30:00Z".to_string(),
+            sku_observations: Vec::new(),
+            service_signals: Vec::new(),
+            service_price_adjustments: vec![StockReportServicePriceAdjustment {
+                service_id: service.service_id.clone(),
+                price: service.price + 50.0,
+            }],
+            top_service_ranking: Vec::new(),
+            top_retail_ranking: Vec::new(),
+            notes: Some("Later price update".to_string()),
+        },
+    )
+    .expect("later report should save");
+
+    store::submit_stock_report(
+        owner,
+        SubmitStockReportRequest {
+            reported_at: "2026-03-25T09:00:00Z".to_string(),
+            sku_observations: Vec::new(),
+            service_signals: Vec::new(),
+            service_price_adjustments: vec![StockReportServicePriceAdjustment {
+                service_id: service.service_id.clone(),
+                price: service.price + 10.0,
+            }],
+            top_service_ranking: Vec::new(),
+            top_retail_ranking: Vec::new(),
+            notes: Some("Backfilled older price update".to_string()),
+        },
+    )
+    .expect("backfilled report should save");
+
+    let updated_snapshot =
+        store::load_inventory(owner).expect("inventory should keep the newest service price");
+    assert_eq!(updated_snapshot.services[0].price, service.price + 50.0);
 
     let _ = fs::remove_file(store_path);
     env::remove_var("BANJI_DESKTOP_DATA_PATH");

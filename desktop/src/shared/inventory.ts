@@ -51,12 +51,18 @@ export interface StockReportServiceSignal {
   stockout?: boolean;
 }
 
+export interface StockReportServicePriceAdjustment {
+  serviceId: string;
+  price: number;
+}
+
 export interface StockReport {
   reportId: string;
   reportSource: 'manual' | 'compat-stock-update' | 'legacy-baseline';
   reportedAt: string;
   skuObservations: StockReportSkuObservation[];
   serviceSignals: StockReportServiceSignal[];
+  servicePriceAdjustments: StockReportServicePriceAdjustment[];
   topServiceRanking: string[];
   topRetailRanking: string[];
   notes: string | null;
@@ -66,6 +72,7 @@ export interface StockReportSubmission {
   reportedAt: string;
   skuObservations: StockReportSkuObservation[];
   serviceSignals?: StockReportServiceSignal[];
+  servicePriceAdjustments?: StockReportServicePriceAdjustment[];
   topServiceRanking?: string[];
   topRetailRanking?: string[];
   notes?: string | null;
