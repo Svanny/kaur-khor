@@ -199,11 +199,14 @@ pub fn app_with_state(state: AppState) -> Router {
             "/v1/desktop/services/:service_id",
             put(update_desktop_service),
         )
+        .route("/v1/desktop/stock-reports", post(create_desktop_stock_report))
         .route("/v1/desktop/stock-updates", post(apply_desktop_stock_updates))
         .route(
             "/v1/desktop/ranking",
             get(get_desktop_ranking).put(save_desktop_ranking),
         )
+        .route("/v1/desktop/sist/sku/:sku_id", get(get_desktop_sist_sku))
+        .route("/v1/desktop/sist/settings", put(update_desktop_sist_settings))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             edge::rate_limit::rate_limit_middleware,
@@ -747,6 +750,60 @@ async fn apply_desktop_stock_updates(
         Err(err) => desktop_inventory_error(
             StatusCode::BAD_REQUEST,
             "failed to apply stock updates",
+            err,
+        ),
+    }
+}
+
+async fn create_desktop_stock_report(
+    Extension(principal): Extension<AuthPrincipal>,
+    Json(mut body): Json<desktop_inventory::types::SubmitStockReportRequest>,
+) -> axum::response::Response {
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+
+    match desktop_inventory::store::submit_stock_report(&principal.sub, body) {
+        Ok(report) => {
+            (StatusCode::CREATED, Json(serde_json::json!({ "report": report }))).into_response()
+        }
+        Err(err) => desktop_inventory_error(
+            StatusCode::BAD_REQUEST,
+            "failed to submit stock report",
+            err,
+        ),
+    }
+}
+
+async fn get_desktop_sist_sku(
+    Extension(principal): Extension<AuthPrincipal>,
+    Path(sku_id): Path<String>,
+) -> axum::response::Response {
+    match desktop_inventory::store::load_sku_detail(&principal.sub, &sku_id) {
+        Ok(detail) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::BAD_REQUEST,
+            "failed to load sist sku detail",
+            err,
+        ),
+    }
+}
+
+async fn update_desktop_sist_settings(
+    Extension(principal): Extension<AuthPrincipal>,
+    Json(body): Json<desktop_inventory::types::UpdateSistSettingsRequest>,
+) -> axum::response::Response {
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+
+    match desktop_inventory::store::update_sist_settings(&principal.sub, body) {
+        Ok(settings) => {
+            (StatusCode::OK, Json(serde_json::json!({ "settings": settings }))).into_response()
+        }
+        Err(err) => desktop_inventory_error(
+            StatusCode::BAD_REQUEST,
+            "failed to update sist settings",
             err,
         ),
     }

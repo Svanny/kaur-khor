@@ -377,3 +377,127 @@ async fn desktop_inventory_endpoints_support_local_crud_and_ranking() {
     env::remove_var("BANJI_DESKTOP_DATA_PATH");
     let _ = std::fs::remove_file(store_path);
 }
+
+#[tokio::test]
+async fn desktop_inventory_supports_sist_reports_settings_and_detail_views() {
+    let _env_guard = DESKTOP_STORE_ENV_LOCK
+        .lock()
+        .expect("desktop store env lock should not be poisoned");
+    let store_path = unique_store_path();
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    std::fs::write(
+        &store_path,
+        serde_json::to_vec_pretty(&json!({
+            "owners": {
+                "desktop-tester": {
+                    "skus": [
+                        {
+                            "skuId": "sku-legacy",
+                            "name": "Legacy SKU",
+                            "description": "Migrated from the old store",
+                            "unitsInStock": 10.0,
+                            "costPerUnit": 3.5,
+                            "soldAsProduct": true,
+                            "productPrice": 7.0
+                        }
+                    ],
+                    "services": [
+                        {
+                            "serviceId": "service-legacy",
+                            "name": "Legacy Service",
+                            "description": "Legacy bundle",
+                            "price": 15.0,
+                            "skuIds": ["sku-legacy"]
+                        }
+                    ],
+                    "ranking": [
+                        {
+                            "entryType": "service",
+                            "entryId": "service-legacy",
+                            "position": 0
+                        },
+                        {
+                            "entryType": "sku",
+                            "entryId": "sku-legacy",
+                            "position": 1
+                        }
+                    ]
+                }
+            }
+        }))
+        .expect("legacy json should serialize"),
+    )
+    .expect("legacy store fixture should write");
+
+    let addr = spawn(base_config()).await;
+    let client = desktop_client();
+
+    let migrated_inventory = client
+        .get(format!("http://{addr}/v1/desktop/inventory"))
+        .send()
+        .await
+        .expect("inventory request should succeed");
+    assert_eq!(migrated_inventory.status(), StatusCode::OK);
+    let migrated_body: serde_json::Value = migrated_inventory
+        .json()
+        .await
+        .expect("inventory body should parse");
+    assert_eq!(migrated_body["sist"]["status"]["reportCount"], json!(1));
+    assert_eq!(migrated_body["sist"]["settings"]["particleCount"], json!(512));
+
+    let save_settings = client
+        .put(format!("http://{addr}/v1/desktop/sist/settings"))
+        .json(&json!({
+            "targetServiceLevel": 0.97,
+            "forecastHorizonDays": 21,
+            "particleCount": 768,
+            "smoothingWindowReports": 120
+        }))
+        .send()
+        .await
+        .expect("settings update should succeed");
+    assert_eq!(save_settings.status(), StatusCode::OK);
+
+    let create_report = client
+        .post(format!("http://{addr}/v1/desktop/stock-reports"))
+        .json(&json!({
+            "reportedAt": "2026-03-27T10:00:00Z",
+            "skuObservations": [
+                {
+                    "skuId": "sku-legacy",
+                    "unitsInStock": 6.0,
+                    "costPerUnit": 3.75,
+                    "restockIncluded": false,
+                    "retailStockout": true
+                }
+            ],
+            "serviceSignals": [
+                {
+                    "serviceId": "service-legacy",
+                    "stockout": true
+                }
+            ],
+            "topServiceRanking": ["service-legacy"],
+            "topRetailRanking": ["sku-legacy"],
+            "notes": "Observed constrained demand"
+        }))
+        .send()
+        .await
+        .expect("stock report should succeed");
+    assert_eq!(create_report.status(), StatusCode::CREATED);
+
+    let detail = client
+        .get(format!("http://{addr}/v1/desktop/sist/sku/sku-legacy"))
+        .send()
+        .await
+        .expect("detail request should succeed");
+    assert_eq!(detail.status(), StatusCode::OK);
+    let detail_body: serde_json::Value = detail.json().await.expect("detail body should parse");
+    assert_eq!(detail_body["insight"]["skuId"], json!("sku-legacy"));
+    assert_eq!(detail_body["reports"].as_array().unwrap().len(), 2);
+    assert_eq!(detail_body["reports"][1]["serviceSignals"][0]["stockout"], json!(true));
+
+    env::remove_var("BANJI_DESKTOP_DATA_PATH");
+    let _ = std::fs::remove_file(store_path);
+}
