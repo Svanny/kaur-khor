@@ -132,7 +132,7 @@ export function WorkspacePanel({
   contentClassName,
   footer,
 }: {
-  title: string;
+  title?: string;
   description?: string;
   action?: ReactNode;
   children: ReactNode;
@@ -140,14 +140,18 @@ export function WorkspacePanel({
   contentClassName?: string;
   footer?: ReactNode;
 }) {
+  const hasHeader = Boolean(title || description || action);
+
   return (
     <Card className={cn('border-white/70', className)}>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-        {action ? <CardAction>{action}</CardAction> : null}
-      </CardHeader>
-      <CardContent className={contentClassName}>{children}</CardContent>
+      {hasHeader ? (
+        <CardHeader>
+          {title ? <CardTitle>{title}</CardTitle> : null}
+          {description ? <CardDescription>{description}</CardDescription> : null}
+          {action ? <CardAction>{action}</CardAction> : null}
+        </CardHeader>
+      ) : null}
+      <CardContent className={cn('flex flex-col gap-6', contentClassName)}>{children}</CardContent>
       {footer ? <CardFooter className="border-t border-border/60">{footer}</CardFooter> : null}
     </Card>
   );

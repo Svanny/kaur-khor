@@ -151,17 +151,13 @@ export function ServiceFormRoute() {
   return (
     <WorkspacePage>
       <EditorHeader
-        backLabel={t('navInventory')}
+        backLabel={!isNew ? t('backToCatalog') : undefined}
         cancelLabel={t('cancel')}
-        description={t('editorServiceHelper')}
-        entityId={form.serviceId}
         formId={formId}
         isSaving={isSaving}
-        onBack={leaveEditor}
+        onBack={!isNew ? leaveEditor : undefined}
         onCancel={leaveEditor}
         saveLabel={isNew ? t('createEntry') : t('saveDraft')}
-        saveState={hasChanges ? 'unsaved' : 'saved'}
-        title={form.name || t('serviceEditorTitle')}
       />
 
       <form className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]" id={formId} onSubmit={onSubmit}>

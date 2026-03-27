@@ -180,17 +180,13 @@ export function SkuFormRoute() {
   return (
     <WorkspacePage>
       <EditorHeader
-        backLabel={t('navInventory')}
+        backLabel={!isNew ? t('backToCatalog') : undefined}
         cancelLabel={t('cancel')}
-        description={t('editorSkuHelper')}
-        entityId={form.skuId}
         formId={formId}
         isSaving={isSaving}
-        onBack={leaveEditor}
+        onBack={!isNew ? leaveEditor : undefined}
         onCancel={leaveEditor}
         saveLabel={isNew ? t('createEntry') : t('saveDraft')}
-        saveState={hasChanges ? 'unsaved' : 'saved'}
-        title={form.name || t('skuEditorTitle')}
       />
 
       <form className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]" id={formId} onSubmit={onSubmit}>

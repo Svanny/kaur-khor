@@ -1,6 +1,6 @@
 import { startTransition, useDeferredValue, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Boxes, PackagePlus, PanelsTopLeft, Search, SquareChartGantt } from 'lucide-react';
+import { Boxes, PackagePlus, PanelsTopLeft, Search } from 'lucide-react';
 import type { InventoryFilter, InventorySnapshot, ServiceRecord, SkuRecord } from '@shared/inventory';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,11 +23,8 @@ import {
   InputGroupText,
 } from '@/components/ui/input-group';
 import {
-  MetricCard,
-  MetricGrid,
   WorkspaceActionRow,
   WorkspaceEmpty,
-  WorkspaceHero,
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
@@ -260,64 +257,25 @@ export function InventoryRoute() {
     });
   }
 
-  const totalValue =
-    snapshot?.skus.reduce((sum, sku) => sum + sku.unitsInStock * sku.costPerUnit, 0) ?? 0;
   const showServices = filter !== 'sku';
   const showSkus = filter !== 'service';
-  const highRiskCount = snapshot?.sist.highRiskSkuIds.length ?? 0;
 
   return (
     <WorkspacePage>
-      <WorkspaceHero
-        actions={
-          <WorkspaceActionRow>
-            <Button asChild variant="secondary">
-              <Link to="/inventory/stock">
-                <SquareChartGantt data-icon="inline-start" />
-                {t('stockFlow')}
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link to="/inventory/skus/new">
-                <PackagePlus data-icon="inline-start" />
-                {t('createSkuAction')}
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/inventory/services/new">
-                <PanelsTopLeft data-icon="inline-start" />
-                {t('createServiceAction')}
-              </Link>
-            </Button>
-          </WorkspaceActionRow>
-        }
-        description={t('inventoryBody')}
-        eyebrow={t('navInventory')}
-        title={t('allItemsTitle')}
-      />
-
-      <MetricGrid className="xl:grid-cols-3">
-        <MetricCard
-          detail={t('catalogSkusDescription')}
-          label={t('skusHeading')}
-          value={formatNumber(snapshot?.skus.length ?? 0, language)}
-        />
-        <MetricCard
-          detail={t('catalogServicesDescription')}
-          label={t('servicesHeading')}
-          value={formatNumber(snapshot?.services.length ?? 0, language)}
-        />
-        <MetricCard
-          detail={query ? `"${query}"` : t('searchItems')}
-          label={t('dashboardTotalValue')}
-          value={formatCurrency(totalValue, currency, language)}
-        />
-        <MetricCard
-          detail={snapshot?.sist.status.reason ?? t('dashboardRiskDescription')}
-          label={t('dashboardHighRisk')}
-          value={formatNumber(highRiskCount, language)}
-        />
-      </MetricGrid>
+      <WorkspaceActionRow>
+        <Button asChild>
+          <Link to="/inventory/skus/new">
+            <PackagePlus data-icon="inline-start" />
+            {t('createSkuAction')}
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/inventory/services/new">
+            <PanelsTopLeft data-icon="inline-start" />
+            {t('createServiceAction')}
+          </Link>
+        </Button>
+      </WorkspaceActionRow>
 
       <WorkspacePanel description={t('inventoryBody')} title={t('searchItems')}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

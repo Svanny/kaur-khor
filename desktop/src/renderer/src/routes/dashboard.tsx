@@ -1,27 +1,17 @@
-import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
 import {
-  Boxes,
-  DatabaseZap,
-  ListOrdered,
-  PackagePlus,
-  PanelsTopLeft,
-  SquareChartGantt,
   TriangleAlert,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import {
-  MetricCard,
-  MetricGrid,
-  StatusBadge,
-  WorkspaceActionRow,
   WorkspaceEmpty,
-  WorkspaceHero,
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
-import { formatCurrency, formatNumber, rankLabel } from '@/lib/format';
+import { formatCurrency, formatNumber } from '@/lib/format';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
@@ -46,6 +36,10 @@ function regimeLabel(regime: string | null | undefined, t: (key: any) => string)
 export function DashboardRoute() {
   const { snapshot, backendStatus, error } = useInventory();
   const { currency, language, t } = usePreferences();
+  const [openMetricTooltip, setOpenMetricTooltip] = useState<string | null>(null);
+  const [metricTooltipMode, setMetricTooltipMode] = useState<'pointer' | 'focus' | 'click' | null>(
+    null,
+  );
 
   const metrics = useMemo(() => {
     if (!snapshot) {
@@ -78,142 +72,167 @@ export function DashboardRoute() {
         ? 'starting'
         : 'ready';
   const runtimeLabel = healthLabel(runtimeState, t);
-  const runtimeBadgeVariant = runtimeState === 'ready' ? 'secondary' : 'outline';
 
-  const recentEntries = snapshot?.ranking.slice(0, 5) ?? [];
   const highRiskInsights =
     snapshot?.sist.skuInsights.filter((insight) => snapshot.sist.highRiskSkuIds.includes(insight.skuId)) ??
     [];
+  const summaryMetrics = [
+    {
+      label: t('dashboardTotalValue'),
+      tooltip: t('dashboardQuickCreateDescription'),
+      value: metrics ? formatCurrency(metrics.totalValue, currency, language) : '—',
+    },
+    {
+      label: t('dashboardSaleReady'),
+      tooltip: t('dashboardInventoryDepth'),
+      value: metrics ? formatNumber(metrics.saleReady, language) : '—',
+    },
+    {
+      label: t('dashboardServices'),
+      tooltip: t('dashboardMarginMix'),
+      value: metrics ? formatNumber(metrics.services, language) : '—',
+    },
+    {
+      label: t('dashboardRanked'),
+      tooltip: metrics?.coverage ?? '—',
+      value: metrics ? formatNumber(metrics.ranked, language) : '—',
+    },
+    {
+      label: t('dashboardReorderCount'),
+      tooltip: t('dashboardRiskDescription'),
+      value: metrics ? formatNumber(metrics.reorderCount, language) : '—',
+    },
+  ];
 
   return (
     <WorkspacePage>
-      <WorkspaceHero
-        actions={
-          <WorkspaceActionRow>
-            <Button asChild>
-              <Link to="/inventory">
-                <Boxes data-icon="inline-start" />
-                {t('navInventory')}
-              </Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link to="/inventory/stock">
-                <SquareChartGantt data-icon="inline-start" />
-                {t('navStock')}
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/inventory/ranking">
-                <ListOrdered data-icon="inline-start" />
-                {t('navRanking')}
-              </Link>
-            </Button>
-          </WorkspaceActionRow>
-        }
-        description={t('dashboardBody')}
-        eyebrow={t('dashboardEyebrow')}
-        title={t('dashboardHeading')}
-      >
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge variant={runtimeBadgeVariant}>{runtimeLabel}</StatusBadge>
-        </div>
-      </WorkspaceHero>
+      <TooltipProvider>
+        <Card className="border-white/70">
+          <CardContent className="flex flex-col gap-0 px-0">
+            <div className="grid gap-0 sm:grid-cols-2 xl:grid-cols-5">
+              {summaryMetrics.map((metric, index) => (
+                <div
+                  className={cn(
+                    'px-6 py-6',
+                    index > 0 && 'border-t border-border/60',
+                    index === 1 && 'sm:border-t-0 sm:border-l sm:border-border/60',
+                    index === 2 && 'xl:border-t-0 xl:border-l xl:border-border/60',
+                    index === 3 &&
+                      'sm:border-l sm:border-border/60 xl:border-t-0 xl:border-l xl:border-border/60',
+                    index === 4 &&
+                      'sm:col-span-2 xl:col-span-1 xl:border-t-0 xl:border-l xl:border-border/60',
+                  )}
+                  key={metric.label}
+                >
+                  <Tooltip
+                    onOpenChange={(open) => {
+                      if (!open && openMetricTooltip === metric.label) {
+                        setOpenMetricTooltip(null);
+                        setMetricTooltipMode(null);
+                      }
+                    }}
+                    open={openMetricTooltip === metric.label}
+                  >
+                    <TooltipTrigger asChild>
+                      <button
+                        aria-expanded={openMetricTooltip === metric.label}
+                        className="group/metric block w-full text-left focus-visible:outline-none"
+                        onBlur={() => {
+                          if (metricTooltipMode === 'focus' && openMetricTooltip === metric.label) {
+                            setOpenMetricTooltip(null);
+                            setMetricTooltipMode(null);
+                          }
+                        }}
+                        onClick={() => {
+                          if (openMetricTooltip === metric.label) {
+                            setOpenMetricTooltip(null);
+                            setMetricTooltipMode(null);
+                            return;
+                          }
 
-      <MetricGrid>
-        <MetricCard
-          detail={t('dashboardQuickCreateDescription')}
-          label={t('dashboardTotalValue')}
-          value={metrics ? formatCurrency(metrics.totalValue, currency, language) : '—'}
-        />
-        <MetricCard
-          detail={t('dashboardInventoryDepth')}
-          label={t('dashboardSaleReady')}
-          value={metrics ? formatNumber(metrics.saleReady, language) : '—'}
-        />
-        <MetricCard
-          detail={t('dashboardMarginMix')}
-          label={t('dashboardServices')}
-          value={metrics ? formatNumber(metrics.services, language) : '—'}
-        />
-        <MetricCard
-          detail={metrics?.coverage ?? '—'}
-          label={t('dashboardRanked')}
-          value={metrics ? formatNumber(metrics.ranked, language) : '—'}
-        />
-        <MetricCard
-          detail={t('dashboardRiskDescription')}
-          label={t('dashboardReorderCount')}
-          value={metrics ? formatNumber(metrics.reorderCount, language) : '—'}
-        />
-      </MetricGrid>
+                          setOpenMetricTooltip(metric.label);
+                          setMetricTooltipMode('click');
+                        }}
+                        onFocus={() => {
+                          if (metricTooltipMode === 'click') {
+                            return;
+                          }
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <WorkspacePanel
-          description={t('dashboardHealthDescription')}
-          title={t('dashboardHealthTitle')}
-        >
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-3xl border border-border/80 bg-background/60 p-5">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('dashboardHealthTitle')}
-              </p>
-              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
-                {runtimeLabel}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {t('dashboardHealthDescription')}
-              </p>
+                          setOpenMetricTooltip(metric.label);
+                          setMetricTooltipMode('focus');
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape' && openMetricTooltip === metric.label) {
+                            setOpenMetricTooltip(null);
+                            setMetricTooltipMode(null);
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        onPointerEnter={() => {
+                          if (metricTooltipMode === 'click') {
+                            return;
+                          }
+
+                          setOpenMetricTooltip(metric.label);
+                          setMetricTooltipMode('pointer');
+                        }}
+                        onPointerLeave={() => {
+                          if (metricTooltipMode === 'pointer' && openMetricTooltip === metric.label) {
+                            setOpenMetricTooltip(null);
+                            setMetricTooltipMode(null);
+                          }
+                        }}
+                        type="button"
+                      >
+                        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground transition-colors group-hover/metric:text-foreground group-focus-visible/metric:text-foreground">
+                          {metric.label}
+                        </span>
+                        <span className="mt-3 block text-3xl font-semibold tracking-[-0.04em] transition-colors group-hover/metric:text-primary group-focus-visible/metric:text-primary">
+                          {metric.value}
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-56 leading-5" side="top" sideOffset={8}>
+                      {metric.tooltip}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              ))}
             </div>
 
-            <div className="rounded-3xl border border-border/80 bg-background/60 p-5">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('dashboardQuickCreateTitle')}
-              </p>
-              <div className="mt-4 grid gap-2">
-                <Button asChild className="justify-start" variant="outline">
-                  <Link to="/inventory/skus/new">
-                    <PackagePlus data-icon="inline-start" />
-                    {t('createSkuAction')}
-                  </Link>
-                </Button>
-                <Button asChild className="justify-start" variant="outline">
-                  <Link to="/inventory/services/new">
-                    <PanelsTopLeft data-icon="inline-start" />
-                    {t('createServiceAction')}
-                  </Link>
-                </Button>
+            <div className="border-t border-border/60 px-6 py-5">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    {t('dashboardHealthTitle')}
+                  </p>
+                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                    {runtimeLabel}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    {t('navInventory')}
+                  </p>
+                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                    {metrics?.coverage ?? '—'}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    {t('navStock')}
+                  </p>
+                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                    {runtimeState === 'ready' ? t('stockConfirm') : t('backendStarting')}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
+      </TooltipProvider>
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('dashboardInventoryDepth')}
-              </p>
-              <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
-                {metrics ? formatNumber(metrics.inventoryDepth, language) : '—'}
-              </p>
-            </div>
-            <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('navInventory')}
-              </p>
-              <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
-                {metrics?.coverage ?? '—'}
-              </p>
-            </div>
-            <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('navStock')}
-              </p>
-              <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
-                {runtimeState === 'ready' ? t('stockConfirm') : t('backendStarting')}
-              </p>
-            </div>
-          </div>
-        </WorkspacePanel>
-
+      <div className="grid gap-6">
         <WorkspacePanel
           description={t('dashboardRiskDescription')}
           title={t('dashboardRiskTitle')}
@@ -287,54 +306,6 @@ export function DashboardRoute() {
           )}
         </WorkspacePanel>
 
-        <WorkspacePanel
-          action={
-            <Button asChild size="sm" variant="ghost">
-              <Link to="/inventory/ranking">
-                <ListOrdered data-icon="inline-start" />
-                {t('navRanking')}
-              </Link>
-            </Button>
-          }
-          description={t('dashboardRecentDescription')}
-          title={t('dashboardRecent')}
-        >
-          {recentEntries.length > 0 && snapshot ? (
-            <div className="flex flex-col gap-3">
-              {recentEntries.map((entry) => (
-                <div
-                  className="flex items-center justify-between gap-3 rounded-3xl border border-border/80 bg-background/55 px-4 py-3"
-                  key={`${entry.entryType}:${entry.entryId}`}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-foreground">
-                      {rankLabel(entry, snapshot.skus, snapshot.services)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {entry.entryType === 'service' ? t('serviceLabel') : t('skuLabel')}
-                    </p>
-                  </div>
-                  <Badge className="rounded-full" variant="secondary">
-                    #{entry.position + 1}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <WorkspaceEmpty
-              description={t('inventoryNoResultsDescription')}
-              title={t('dashboardRecent')}
-              action={
-                <Button asChild variant="outline">
-                  <Link to="/inventory/ranking">
-                    <DatabaseZap data-icon="inline-start" />
-                    {t('navRanking')}
-                  </Link>
-                </Button>
-              }
-            />
-          )}
-        </WorkspacePanel>
       </div>
     </WorkspacePage>
   );

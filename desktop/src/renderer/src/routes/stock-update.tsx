@@ -256,28 +256,16 @@ export function StockUpdateRoute() {
     setPhase('edit');
   }
 
-  function leavePage() {
-    if (hasChanges && !window.confirm(t('unsavedChanges'))) {
-      return;
-    }
-    navigate('/inventory');
-  }
-
   return (
     <WorkspacePage>
       <EditorHeader
-        backLabel={t('navInventory')}
         cancelLabel={t('cancel')}
-        description={t('stockUpdateBody')}
         isSaving={isSaving}
-        onBack={leavePage}
         onCancel={resetChanges}
         onSave={() => {
           void handlePrimaryAction();
         }}
         saveLabel={phase === 'review' ? t('stockDone') : t('stockConfirm')}
-        saveState={hasChanges ? 'unsaved' : 'saved'}
-        title={t('stockChangesTitle')}
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">

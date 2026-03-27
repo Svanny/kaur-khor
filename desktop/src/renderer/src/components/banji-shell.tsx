@@ -1,23 +1,20 @@
 import { useMemo } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   Boxes,
+  ChevronLeft,
+  ChevronRight,
   LayoutDashboard,
   ListOrdered,
-  PackagePlus,
-  PanelsTopLeft,
   RefreshCcw,
   Settings2,
   SquareChartGantt,
 } from 'lucide-react';
 import type { DesktopAppContext } from '@shared/ipc';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -27,55 +24,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { StatusBadge, WorkspaceBanner } from '@/components/system/workspace';
+import { WorkspaceBanner } from '@/components/system/workspace';
+import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import brandLogo from '@/assets/banji-logo.svg';
-
-type RouteMeta = {
-  title: string;
-  description: string;
-};
-
-function getRouteMeta(pathname: string, t: (key: any) => string): RouteMeta {
-  if (pathname === '/') {
-    return {
-      title: t('navDashboard'),
-      description: t('dashboardBody'),
-    };
-  }
-
-  if (pathname.startsWith('/inventory/stock')) {
-    return {
-      title: t('navStock'),
-      description: t('stockUpdateBody'),
-    };
-  }
-
-  if (pathname.startsWith('/inventory/ranking')) {
-    return {
-      title: t('navRanking'),
-      description: t('rankingBody'),
-    };
-  }
-
-  if (pathname.startsWith('/inventory')) {
-    return {
-      title: t('navInventory'),
-      description: t('inventoryBody'),
-    };
-  }
-
-  return {
-    title: t('navSettings'),
-    description: t('settingsStorage'),
-  };
-}
 
 export function BanjiShell({
   desktopContext,
@@ -101,9 +57,7 @@ function BanjiShellFrame({
   const location = useLocation();
   const { t } = usePreferences();
   const { error, isLoading } = useInventory();
-  const { isMobile, setOpenMobile } = useSidebar();
-
-  const routeMeta = getRouteMeta(location.pathname, t);
+  const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
 
   const navigation = useMemo(
     () => [
@@ -144,19 +98,14 @@ function BanjiShellFrame({
     [location.pathname, t],
   );
 
-  const runtimeTone =
-    desktopContext.backendError || error ? 'destructive' : isLoading ? 'outline' : 'secondary';
-  const runtimeLabel = desktopContext.backendError
-    ? t('backendError')
-    : isLoading
-      ? t('backendStarting')
-      : t('backendReady');
-
   function handleSidebarNavigation() {
     if (isMobile) {
       setOpenMobile(false);
     }
   }
+
+  const isExpandedLayout = isMobile || state === 'expanded';
+  const showSidebarText = isMobile || state === 'expanded';
 
   return (
     <>
@@ -167,52 +116,59 @@ function BanjiShellFrame({
         {t('skipToContent')}
       </a>
 
-      <Sidebar className="border-r border-sidebar-border/60" variant="inset">
-        <SidebarHeader className="gap-4 px-3 py-4">
-          <Link
-            className="editorial-panel flex items-center gap-3 rounded-3xl px-3 py-3"
-            to="/"
-            onClick={handleSidebarNavigation}
+      <Sidebar className="border-r border-sidebar-border/60" collapsible="icon" variant="sidebar">
+        <SidebarHeader className="px-2 pt-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
+          <button
+            aria-label={state === 'expanded' ? t('collapseNavigation') : t('openNavigation')}
+            className="group/brand flex h-14 w-full items-center gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/80 px-2.5 text-left text-foreground shadow-[0_12px_30px_rgba(27,15,7,0.08)] ring-sidebar-ring outline-none transition-colors hover:border-border hover:bg-card/95 focus-visible:ring-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-[1.25rem] group-data-[collapsible=icon]:px-0"
+            data-testid="sidebar-brand-toggle"
+            type="button"
+            onClick={toggleSidebar}
           >
-            <img
-              alt="Banji logo"
-              className="size-12 rounded-2xl bg-background/80 p-2 shadow-[0_10px_30px_rgba(27,15,7,0.08)]"
-              src={brandLogo}
-            />
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
+            <span className="relative flex size-10 shrink-0 items-center justify-center rounded-[1rem] bg-background/85 shadow-[0_8px_24px_rgba(27,15,7,0.06)] group-data-[collapsible=icon]:size-8">
+              <img
+                alt=""
+                aria-hidden="true"
+                className="size-5 transition-opacity duration-100 ease-out group-hover/brand:opacity-0 motion-reduce:transition-none"
+                src={brandLogo}
+              />
+              <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-100 ease-out group-hover/brand:opacity-100 motion-reduce:transition-none">
+                {state === 'expanded' ? (
+                  <ChevronLeft aria-hidden="true" className="size-4" />
+                ) : (
+                  <ChevronRight aria-hidden="true" className="size-4" />
+                )}
+              </span>
+            </span>
+            {showSidebarText ? (
+              <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-primary/85">
                 {t('appBrand')}
-              </p>
-              <p className="text-lg font-semibold tracking-[-0.03em]">{t('appTitle')}</p>
-            </div>
-          </Link>
-
-          <Card className="paper-grid border-white/70">
-            <CardHeader className="gap-1 px-4">
-              <CardDescription className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('dashboardEyebrow')}
-              </CardDescription>
-              <CardTitle className="text-base">Desktop operations cockpit</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 text-sm leading-6 text-muted-foreground">
-              {t('dashboardHealthDescription')}
-            </CardContent>
-          </Card>
+              </span>
+            ) : null}
+          </button>
         </SidebarHeader>
 
-        <SidebarSeparator />
-
-        <SidebarContent className="px-2">
-          <SidebarGroup>
+        <SidebarContent className="px-2 pb-3 group-data-[collapsible=icon]:px-1.5">
+          <SidebarGroup className="group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
             <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="group-data-[collapsible=icon]:items-center">
                 {navigation.map((item) => (
                   <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton asChild isActive={item.active} tooltip={item.label}>
-                      <NavLink to={item.to} onClick={handleSidebarNavigation}>
+                    <SidebarMenuButton
+                      asChild
+                      className="justify-start group-data-[collapsible=icon]:justify-center"
+                      isActive={item.active}
+                      tooltip={item.label}
+                    >
+                      <NavLink
+                        aria-label={item.label}
+                        className="group-data-[collapsible=icon]:justify-center"
+                        to={item.to}
+                        onClick={handleSidebarNavigation}
+                      >
                         <item.icon className="size-4" />
-                        <span>{item.label}</span>
+                        {showSidebarText ? <span>{item.label}</span> : null}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -221,83 +177,38 @@ function BanjiShellFrame({
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-
-        <SidebarFooter className="gap-3 px-3 pb-4">
-          <Card size="sm">
-            <CardHeader className="gap-2 px-4">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm">Runtime status</CardTitle>
-                <Badge className="rounded-full px-2.5 py-1 text-[0.7rem]" variant={runtimeTone}>
-                  {runtimeLabel}
-                </Badge>
-              </div>
-              <CardDescription>{routeMeta.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2 px-4 pb-4">
-              <Button asChild className="justify-start" size="sm" variant="secondary">
-                <Link to="/inventory/skus/new" onClick={handleSidebarNavigation}>
-                  <PackagePlus data-icon="inline-start" />
-                  {t('createSkuAction')}
-                </Link>
-              </Button>
-              <Button asChild className="justify-start" size="sm" variant="outline">
-                <Link to="/inventory/services/new" onClick={handleSidebarNavigation}>
-                  <PanelsTopLeft data-icon="inline-start" />
-                  {t('createServiceAction')}
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </SidebarFooter>
-
-        <SidebarRail />
       </Sidebar>
 
-      <SidebarInset className="bg-transparent">
+      <SidebarInset>
         <div className="flex min-h-svh flex-col">
-          <header className="sticky top-0 z-20 border-b border-border/60 bg-background/70 backdrop-blur-xl">
-            <div className="mx-auto flex w-full max-w-[1500px] flex-wrap items-center justify-between gap-4 px-[var(--spacing-page)] py-4">
-              <div className="flex min-w-0 items-center gap-3">
+          <main id="main-content" className="flex-1 px-[var(--spacing-page)] py-5">
+            <div
+              className={cn(
+                'flex w-full flex-col gap-4',
+                isExpandedLayout ? 'mx-auto max-w-[1500px]' : 'max-w-none',
+              )}
+              data-testid="shell-main-frame"
+            >
+              <div className="flex items-center justify-between md:hidden">
                 <SidebarTrigger
                   aria-label={t('openNavigation')}
-                  className="size-10 rounded-full border border-border bg-card md:hidden"
+                  className="size-10 rounded-full border border-border bg-card"
                 />
-                <SidebarTrigger
-                  aria-label={t('collapseNavigation')}
-                  className="hidden size-10 rounded-full border border-border bg-card md:flex"
-                />
-                <div className="min-w-0">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    {t('appBrand')}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="truncate text-2xl font-semibold tracking-[-0.04em]">
-                      {routeMeta.title}
-                    </h1>
-                    <StatusBadge variant={runtimeTone}>{runtimeLabel}</StatusBadge>
-                  </div>
-                </div>
               </div>
-
-              {desktopContext.backendError ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    void window.banjiDesktop.restartBackend();
-                  }}
-                >
-                  <RefreshCcw data-icon="inline-start" />
-                  {t('retry')}
-                </Button>
-              ) : null}
-            </div>
-          </header>
-
-          <main id="main-content" className="flex-1 px-[var(--spacing-page)] py-5">
-            <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4">
               {desktopContext.backendError ? (
                 <WorkspaceBanner
+                  action={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        void window.banjiDesktop.restartBackend();
+                      }}
+                    >
+                      <RefreshCcw data-icon="inline-start" />
+                      {t('retry')}
+                    </Button>
+                  }
                   description={desktopContext.backendError}
                   title={t('backendError')}
                   tone="destructive"
