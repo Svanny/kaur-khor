@@ -1,6 +1,6 @@
-import { startTransition, useDeferredValue, useMemo } from 'react';
+import { startTransition, useDeferredValue, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Boxes, PackagePlus, PanelsTopLeft, Search } from 'lucide-react';
+import { Boxes, ChevronDown, ChevronUp, PackagePlus, PanelsTopLeft, Search } from 'lucide-react';
 import type { InventoryFilter, InventorySnapshot, ServiceRecord, SkuRecord } from '@shared/inventory';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -208,6 +208,10 @@ export function InventoryRoute() {
   const { snapshot } = useInventory();
   const { currency, language, t } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [collapsedSections, setCollapsedSections] = useState({
+    services: true,
+    skus: true,
+  });
 
   const filter = normalizeFilter(searchParams.get('type'));
   const query = searchParams.get('q') ?? '';
@@ -260,6 +264,13 @@ export function InventoryRoute() {
   const showServices = filter !== 'sku';
   const showSkus = filter !== 'service';
 
+  function toggleSection(section: 'services' | 'skus') {
+    setCollapsedSections((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  }
+
   return (
     <WorkspacePage>
       <WorkspaceActionRow>
@@ -310,20 +321,42 @@ export function InventoryRoute() {
         </div>
       </WorkspacePanel>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="flex flex-col gap-6">
         {showServices ? (
           <WorkspacePanel
+            contentClassName={collapsedSections.services && rows.services.length > 0 ? 'hidden' : 'gap-0 pt-0'}
             description={t('catalogServicesDescription')}
             title={t('servicesHeading')}
+            action={
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{rows.services.length}</Badge>
+                <Button
+                  aria-expanded={!collapsedSections.services}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => toggleSection('services')}
+                >
+                  {collapsedSections.services ? t('catalogExpand') : t('catalogCollapse')}
+                  {collapsedSections.services ? (
+                    <ChevronDown data-icon="inline-end" />
+                  ) : (
+                    <ChevronUp data-icon="inline-end" />
+                  )}
+                </Button>
+              </div>
+            }
           >
             {snapshot && rows.services.length > 0 ? (
-              <ServiceCatalogTable
-                currency={currency}
-                language={language}
-                rows={rows.services}
-                snapshot={snapshot}
-                t={t}
-              />
+              !collapsedSections.services ? (
+                <ServiceCatalogTable
+                  currency={currency}
+                  language={language}
+                  rows={rows.services}
+                  snapshot={snapshot}
+                  t={t}
+                />
+              ) : null
             ) : (
               <WorkspaceEmpty
                 description={t('inventoryNoResultsDescription')}
@@ -343,17 +376,39 @@ export function InventoryRoute() {
 
         {showSkus ? (
           <WorkspacePanel
+            contentClassName={collapsedSections.skus && rows.skus.length > 0 ? 'hidden' : 'gap-0 pt-0'}
             description={t('catalogSkusDescription')}
             title={t('skusHeading')}
+            action={
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{rows.skus.length}</Badge>
+                <Button
+                  aria-expanded={!collapsedSections.skus}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => toggleSection('skus')}
+                >
+                  {collapsedSections.skus ? t('catalogExpand') : t('catalogCollapse')}
+                  {collapsedSections.skus ? (
+                    <ChevronDown data-icon="inline-end" />
+                  ) : (
+                    <ChevronUp data-icon="inline-end" />
+                  )}
+                </Button>
+              </div>
+            }
           >
             {rows.skus.length > 0 ? (
-              <SkuCatalogTable
-                currency={currency}
-                language={language}
-                rows={rows.skus}
-                snapshot={snapshot}
-                t={t}
-              />
+              !collapsedSections.skus ? (
+                <SkuCatalogTable
+                  currency={currency}
+                  language={language}
+                  rows={rows.skus}
+                  snapshot={snapshot}
+                  t={t}
+                />
+              ) : null
             ) : (
               <WorkspaceEmpty
                 description={t('inventoryNoResultsDescription')}

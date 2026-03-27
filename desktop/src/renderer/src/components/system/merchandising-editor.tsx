@@ -88,11 +88,13 @@ export function MerchandisingEditor({
   snapshot,
   onChange,
   titleLabel,
+  priceOverrides,
 }: {
   entries: RankingEntry[];
   snapshot: InventorySnapshot;
   onChange: (entries: RankingEntry[]) => void;
   titleLabel?: string;
+  priceOverrides?: Record<string, number>;
 }) {
   const { currency, language, t } = usePreferences();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -116,7 +118,9 @@ export function MerchandisingEditor({
       const label = rankLabel(entry, snapshot.skus, snapshot.services);
       const price =
         entry.entryType === 'service'
-          ? snapshot.services.find((service) => service.serviceId === entry.entryId)?.price ?? 0
+          ? priceOverrides?.[entry.entryId] ??
+            snapshot.services.find((service) => service.serviceId === entry.entryId)?.price ??
+            0
           : snapshot.skus.find((sku) => sku.skuId === entry.entryId)?.productPrice ?? 0;
 
       return {
@@ -127,7 +131,7 @@ export function MerchandisingEditor({
         priceText: formatCurrency(price, currency, language),
       };
     });
-  }, [currency, entries, language, snapshot.services, snapshot.skus, t]);
+  }, [currency, entries, language, priceOverrides, snapshot.services, snapshot.skus, t]);
 
   const activeRow = rowModels.find((row) => row.id === activeId) ?? null;
   const overlayModifiers = useMemo<Modifier[]>(

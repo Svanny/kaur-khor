@@ -9,6 +9,7 @@ import { ServiceFormRoute } from './service-form';
 import { SettingsRoute } from './settings';
 import { SkuFormRoute } from './sku-form';
 import { StockUpdateRoute } from './stock-update';
+import { StockUpdateSessionRoute } from './stock-update-session';
 
 let rankingEntries: RankingEntry[] = [
   { entryType: 'service', entryId: 'service-1', position: 0 },
@@ -149,6 +150,45 @@ vi.mock('../state/preferences', () => ({
   usePreferences: () => preferencesHook(),
 }));
 
+vi.mock('../components/system/merchandising-editor', async () => {
+  const actual = await vi.importActual<typeof import('../components/system/merchandising-editor')>(
+    '../components/system/merchandising-editor',
+  );
+
+  return {
+    ...actual,
+    MerchandisingEditor: ({
+      entries,
+      onChange,
+      titleLabel,
+    }: {
+      entries: RankingEntry[];
+      onChange: (entries: RankingEntry[]) => void;
+      titleLabel?: string;
+    }) => (
+      <div>
+        <p>{titleLabel ?? 'Ranking of Items Sold'}</p>
+        <button
+          type="button"
+          onClick={() => {
+            if (entries.length < 2) {
+              return;
+            }
+
+            const reordered = [...entries];
+            const first = reordered[0];
+            reordered[0] = reordered[1];
+            reordered[1] = first;
+            onChange(reordered.map((entry, index) => ({ ...entry, position: index })));
+          }}
+        >
+          Apply ranking change
+        </button>
+      </div>
+    ),
+  };
+});
+
 function LocationProbe() {
   const location = useLocation();
   return (
@@ -175,6 +215,7 @@ const stockReports: StockReport[] = [
       },
     ],
     serviceSignals: [{ serviceId: 'service-1', stockout: true }],
+    servicePriceAdjustments: [{ serviceId: 'service-2', price: 950 }],
     topServiceRanking: ['service-1', 'service-2'],
     topRetailRanking: ['sku-1'],
     notes: 'Morning floor update.',
@@ -185,6 +226,7 @@ const stockReports: StockReport[] = [
     reportedAt: '2026-03-26T11:00:00Z',
     skuObservations: [],
     serviceSignals: [],
+    servicePriceAdjustments: [],
     topServiceRanking: [],
     topRetailRanking: [],
     notes: null,
@@ -256,7 +298,7 @@ describe('renderer workspaces', () => {
           navInventory: 'Catalog',
           navStock: 'Update Sheet',
           navRanking: 'Merchandising',
-          navSettings: 'Preferences',
+          navSettings: 'Settings',
           backToCatalog: 'Back to catalog',
           dashboardEyebrow: 'Warm, local-first retail operations',
           dashboardHeading: 'Daily control for inventory, stock moves, and storefront priorities',
@@ -289,13 +331,15 @@ describe('renderer workspaces', () => {
           allItemsTitle: 'Catalog',
           searchItems: 'Search and segment',
           searchPlaceholder: 'Search name, description, or id…',
+          catalogExpand: 'Expand',
+          catalogCollapse: 'Collapse',
           filterAll: 'Everything',
           filterSku: 'SKUs',
           filterService: 'Services',
           servicesHeading: 'Services',
           skusHeading: 'SKUs',
           stockFlow: 'Open update sheet',
-          productRankingTitle: 'Merchandising',
+          productRankingTitle: 'Ranking of Items Sold',
           merchandisingPriorityNote:
             'Drag by handle to set storefront priority. Keyboard reordering stays available when the handle is focused.',
           createSkuAction: 'New SKU',
@@ -319,7 +363,7 @@ describe('renderer workspaces', () => {
           catalogStockoutRisk: 'Stockout risk',
           catalogLeadTime: 'Lead time',
           catalogConfidence: 'Confidence',
-          settingsTitle: 'Preferences',
+          settingsTitle: 'Settings',
           preferencesRegionalTitle: 'Regional formatting',
           preferencesRegionalDescription: 'Regional formatting copy',
           settingsLanguage: 'Language',
@@ -353,16 +397,45 @@ describe('renderer workspaces', () => {
           stockHistoryChangedRowPlural: 'changed rows',
           stockHistoryServiceFlagSingular: 'service flag',
           stockHistoryServiceFlagPlural: 'service flags',
-          stockHistoryMerchandisingSignalSingular: 'merchandising signal',
-          stockHistoryMerchandisingSignalPlural: 'merchandising signals',
+          stockHistoryPriceEditSingular: 'price edit',
+          stockHistoryPriceEditPlural: 'price edits',
+          stockHistoryRankingSignalSingular: 'ranking signal',
+          stockHistoryRankingSignalPlural: 'ranking signals',
           stockHistoryNoNotes: 'No report notes were captured for this update.',
-          stockHistoryNoMerchandising: 'No merchandising order was captured in this report.',
+          stockHistoryNoRanking: 'No ranking order was captured in this report.',
+          stockHistoryNoObservations: 'No SKU observations were captured in this update.',
+          stockHistoryNoPriceEdits: 'No service price changes were captured in this update.',
           stockAddUpdate: 'Add update',
           stockComposerTitle: 'New update',
           stockComposerDescription: 'Composer copy',
           stockComposerCancel: 'Cancel update',
-          stockMerchandisingTitle: 'Merchandising order',
-          stockMerchandisingDescription: 'Merchandising copy',
+          stockMerchandisingTitle: 'Ranking of Items Sold',
+          stockMerchandisingDescription: 'Ranking copy',
+          stockSessionEyebrow: 'Guided update session',
+          stockSessionTitle: 'Update Sheet mission',
+          stockSessionDescription:
+            'Complete all four steps to capture the latest inventory update.',
+          stockSessionProgress: 'steps complete',
+          stockSessionIncomplete: 'Session incomplete',
+          stockSessionReady: 'Ready to submit',
+          stockSessionStepLabel: 'Step',
+          stockSessionStepDetails: 'Reported at + note',
+          stockSessionStepDetailsDescription:
+            'Set the report timestamp and any context your team should keep.',
+          stockSessionStepObservations: 'Report observations',
+          stockSessionStepObservationsDescription:
+            'Capture the SKU changes that belong in this update.',
+          stockSessionStepServices: 'Service stockouts + prices',
+          stockSessionStepServicesDescription:
+            'Mark service stockouts and any price changes for the session.',
+          stockSessionStepRanking: 'Ranking of Items Sold',
+          stockSessionStepRankingDescription:
+            'Order the items sold so the storefront ranking lands with the update.',
+          stockSessionStepRequired:
+            'Complete every session step before submitting this update.',
+          stockSessionBack: 'Back',
+          stockSessionNext: 'Next',
+          stockSessionSubmit: 'Submit update',
           stockSummaryTitle: 'Pending change set',
           stockReviewTitle: 'Review report before save',
           stockReviewDescription: 'Confirm the report.',
@@ -381,8 +454,13 @@ describe('renderer workspaces', () => {
           stockRestockIncluded: 'Restock included',
           stockRetailStockout: 'Retail stockout',
           stockServiceSignalsTitle: 'Service stockout flags',
+          stockServiceStockoutToggle: 'Flag stockout',
+          stockServicePriceHint: 'Current price',
+          stockServicePriceAdjustmentsTitle: 'Service price changes',
           stockTopServiceRanking: 'Observed top services',
           stockTopRetailRanking: 'Observed top retail SKUs',
+          stockRankingTitle: 'Ranking of Items Sold',
+          stockRankingDescription: 'Ranking copy',
           stockRankingHint: 'Comma separated ids.',
           stockSignalsHint: 'Signals hint',
           stockNoServiceSignals: 'No service flags selected for this report.',
@@ -391,6 +469,7 @@ describe('renderer workspaces', () => {
           fieldUnitsInStock: 'Units in stock',
           fieldCostPerUnit: 'Cost per unit',
           fieldProductPrice: 'Product price',
+          fieldPrice: 'Service price',
           serviceLabel: 'Service',
           skuLabel: 'SKU',
         };
@@ -434,11 +513,25 @@ describe('renderer workspaces', () => {
     renderInventory('/inventory?q=sku&type=sku');
 
     expect(screen.getByTestId('location-search').textContent).toBe('?q=sku&type=sku');
-    expect(screen.getByText('Days of cover')).toBeInTheDocument();
-    expect(screen.getByText('Stockout risk')).toBeInTheDocument();
+    expect(screen.getAllByText('SKUs').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument();
+    expect(screen.queryByText('Days of cover')).not.toBeInTheDocument();
   });
 
-  test('merchandising route redirects into the update-sheet composer', () => {
+  test('catalog stacks sections and lets each visible card expand from its squished state', () => {
+    renderRoute('/inventory', <InventoryRoute />);
+
+    expect(screen.getAllByRole('button', { name: 'Expand' }).length).toBe(2);
+    expect(screen.queryByText('Potential revenue')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Expand' })[0]);
+
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument();
+    expect(screen.getByText('Potential revenue')).toBeInTheDocument();
+    expect(screen.queryByText('Days of cover')).not.toBeInTheDocument();
+  });
+
+  test('merchandising route redirects into the update-sheet session ranking step', () => {
     render(
       <MemoryRouter initialEntries={['/inventory/ranking']}>
         <Routes>
@@ -450,15 +543,15 @@ describe('renderer workspaces', () => {
                 <LocationProbe />
               </>
             }
-            path="/inventory/stock"
+            path="/inventory/stock/session"
           />
         </Routes>
       </MemoryRouter>,
     );
 
     expect(screen.getByText('Update sheet screen')).toBeInTheDocument();
-    expect(screen.getByTestId('location-pathname').textContent).toBe('/inventory/stock');
-    expect(screen.getByTestId('location-search').textContent).toBe('?compose=1&section=merchandising');
+    expect(screen.getByTestId('location-pathname').textContent).toBe('/inventory/stock/session');
+    expect(screen.getByTestId('location-search').textContent).toBe('?step=ranking');
   });
 
   test('sku and service detail editors show a back-to-catalog icon control', () => {
@@ -483,73 +576,161 @@ describe('renderer workspaces', () => {
     expect(screen.getAllByRole('button', { name: 'Back to catalog' }).length).toBeGreaterThan(1);
   });
 
-  test('update sheet defaults to history and keeps the composer hidden', async () => {
+  test('update sheet defaults to history and keeps the session route separate', async () => {
     renderRoute('/inventory/stock', <StockUpdateRoute />);
 
     expect(await screen.findByText('Update history')).toBeInTheDocument();
     expect(await screen.findByText('Manual update')).toBeInTheDocument();
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Add update' })[0]).toBeInTheDocument();
-    expect(screen.queryByText('New update')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Add update' })[0]).toBeInTheDocument();
+    expect(screen.queryByText('Update Sheet mission')).not.toBeInTheDocument();
   });
 
-  test('update sheet expands saved-report details with merchandising data', async () => {
+  test('update sheet expands saved-report details with ranking and service price data', async () => {
     renderRoute('/inventory/stock', <StockUpdateRoute />);
 
     fireEvent.click((await screen.findAllByRole('button', { name: 'View details' }))[0]);
 
-    expect(await screen.findByText('Merchandising')).toBeInTheDocument();
+    expect(await screen.findByText('Ranking of Items Sold')).toBeInTheDocument();
+    expect(screen.getByText('Service price changes')).toBeInTheDocument();
     expect(screen.getByText('Front shelf was restocked.')).toBeInTheDocument();
     expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
     expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
   });
 
-  test('update sheet submits a structured stock report and refreshes history', async () => {
-    renderRoute('/inventory/stock', <StockUpdateRoute />);
+  test('add update navigates from history view into the guided session route', async () => {
+    render(
+      <MemoryRouter initialEntries={['/inventory/stock']}>
+        <Routes>
+          <Route element={<StockUpdateRoute />} path="/inventory/stock" />
+          <Route
+            element={
+              <>
+                <StockUpdateSessionRoute />
+                <LocationProbe />
+              </>
+            }
+            path="/inventory/stock/session"
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Add update' }))[0]);
-    expect(screen.getByText('New update')).toBeInTheDocument();
+    fireEvent.click((await screen.findAllByRole('link', { name: 'Add update' }))[0]);
+
+    expect(await screen.findByText('Update Sheet mission')).toBeInTheDocument();
+    expect(screen.getByTestId('location-pathname').textContent).toBe('/inventory/stock/session');
+  });
+
+  test('update sheet session shows four required steps and blocks submit until complete', async () => {
+    renderRoute('/inventory/stock/session', <StockUpdateSessionRoute />);
+
+    expect(await screen.findByRole('button', { name: /Step 1.*Reported at \+ note/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Step 2.*Report observations/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Step 3.*Service stockouts \+ prices/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Step 4.*Ranking of Items Sold/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+  });
+
+  test('viewing empty steps counts them as edited and enables final submit', async () => {
+    renderRoute('/inventory/stock/session', <StockUpdateSessionRoute />);
+
+    expect(await screen.findByText('Update Sheet mission')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Submit update' })).toBeEnabled();
+    });
+  });
+
+  test('update sheet session submits a structured report with service price and ranking data', async () => {
+    render(
+      <MemoryRouter initialEntries={['/inventory/stock/session']}>
+        <Routes>
+          <Route element={<StockUpdateSessionRoute />} path="/inventory/stock/session" />
+          <Route
+            element={
+              <>
+                <StockUpdateRoute />
+                <LocationProbe />
+              </>
+            }
+            path="/inventory/stock"
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Update Sheet mission')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Step 2.*Report observations/i }));
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Step 3.*Service stockouts \+ prices/i }));
+    fireEvent.change(screen.getAllByLabelText('Service price')[0], {
+      target: { value: '1400' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Step 4.*Ranking of Items Sold/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply ranking change' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Submit update' })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit update' }));
 
     await waitFor(() => {
       expect(submitReport).toHaveBeenCalledTimes(1);
     });
     expect(submitReport.mock.calls[0][0]).toMatchObject({
-      skuObservations: expect.any(Array),
-      serviceSignals: expect.any(Array),
+      skuObservations: expect.arrayContaining([
+        expect.objectContaining({
+          skuId: 'sku-1',
+        }),
+      ]),
+      serviceSignals: [],
+      servicePriceAdjustments: [{ serviceId: 'service-1', price: 1400 }],
+      topServiceRanking: ['service-2', 'service-1'],
+      topRetailRanking: ['sku-1'],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Update history')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('location-pathname').textContent).toBe('/inventory/stock');
+  });
+
+  test('update sheet session omits ranking arrays when the ranking is unchanged', async () => {
+    renderRoute('/inventory/stock/session', <StockUpdateSessionRoute />);
+
+    expect(await screen.findByText('Update Sheet mission')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.change(screen.getAllByLabelText('Service price')[0], {
+      target: { value: '1400' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Submit update' })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit update' }));
+
+    await waitFor(() => {
+      expect(submitReport).toHaveBeenCalledTimes(1);
     });
     expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topServiceRanking');
     expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topRetailRanking');
-    await waitFor(() => {
-      expect(listStockReports).toHaveBeenCalledTimes(2);
+    expect(submitReport.mock.calls[0][0]).toMatchObject({
+      servicePriceAdjustments: [{ serviceId: 'service-1', price: 1400 }],
     });
-    expect(screen.getByRole('button', { name: 'Add update' })).toBeInTheDocument();
-    expect(screen.queryByText('New update')).not.toBeInTheDocument();
-  });
-
-  test('update sheet blocks empty updates', async () => {
-    renderRoute('/inventory/stock', <StockUpdateRoute />);
-
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Add update' }))[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
-
-    expect(submitReport).not.toHaveBeenCalled();
-    expect(screen.getByText('Change at least one SKU before saving.')).toBeInTheDocument();
-  });
-
-  test('update sheet validates timestamp before submission', async () => {
-    renderRoute('/inventory/stock', <StockUpdateRoute />);
-
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Add update' }))[0]);
-    fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
-    fireEvent.change(screen.getByLabelText('Reported at'), {
-      target: { value: '' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
-
-    expect(submitReport).not.toHaveBeenCalled();
-    expect(screen.getByText('Enter a valid report timestamp.')).toBeInTheDocument();
   });
 
   test('settings renders SIST defaults and saves them', async () => {

@@ -9,6 +9,7 @@ import { ServiceFormRoute } from '@/routes/service-form';
 import { SettingsRoute } from '@/routes/settings';
 import { SkuFormRoute } from '@/routes/sku-form';
 import { StockUpdateRoute } from '@/routes/stock-update';
+import { StockUpdateSessionRoute } from '@/routes/stock-update-session';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider } from '@/state/inventory';
 
@@ -23,6 +24,7 @@ function AppFrame() {
         <Route element={<ServiceFormRoute />} path="/inventory/services/new" />
         <Route element={<ServiceFormRoute />} path="/inventory/services/:serviceId" />
         <Route element={<StockUpdateRoute />} path="/inventory/stock" />
+        <Route element={<StockUpdateSessionRoute />} path="/inventory/stock/session" />
         <Route element={<RankingRoute />} path="/inventory/ranking" />
         <Route element={<SettingsRoute />} path="/settings" />
       </Routes>

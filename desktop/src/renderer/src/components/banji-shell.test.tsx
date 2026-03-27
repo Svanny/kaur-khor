@@ -122,6 +122,30 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
+  test('anchors settings as a separate bottom sidebar destination', () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Settings screen</div>} path="/settings" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    const workspaceLabel = screen.getByText('Workspaces');
+    const workspaceGroup = workspaceLabel.closest('[data-sidebar="group"]');
+    const settingsLink = screen.getByRole('link', { name: 'Settings' });
+    const settingsGroup = settingsLink.closest('[data-sidebar="group"]');
+
+    expect(workspaceGroup).not.toBeNull();
+    expect(settingsGroup).not.toBeNull();
+    expect(settingsGroup).not.toBe(workspaceGroup);
+    expect(within(workspaceGroup as HTMLElement).queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+  });
+
   test('expands the shell content to full width when the desktop sidebar collapses', () => {
     setViewport({ width: 1440, isMobile: false });
 

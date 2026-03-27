@@ -5,7 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
-  Settings2,
+  Settings,
   SquareChartGantt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -71,13 +71,17 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
         icon: SquareChartGantt,
         active: location.pathname.startsWith('/inventory/stock'),
       },
-      {
-        to: '/settings',
-        label: t('navSettings'),
-        icon: Settings2,
-        active: location.pathname === '/settings',
-      },
     ],
+    [location.pathname, t],
+  );
+
+  const settingsItem = useMemo(
+    () => ({
+      to: '/settings',
+      label: t('navSettings'),
+      icon: Settings,
+      active: location.pathname === '/settings',
+    }),
     [location.pathname, t],
   );
 
@@ -131,31 +135,58 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
           </button>
         </SidebarHeader>
 
-        <SidebarContent className="px-2 pb-3 group-data-[collapsible=icon]:px-1.5">
-          <SidebarGroup className="group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
-            <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
+        <SidebarContent className="flex flex-col px-2 pb-3 group-data-[collapsible=icon]:px-1.5">
+          <div className="flex flex-1 flex-col gap-6">
+            <SidebarGroup className="group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+              <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+                  {navigation.map((item) => (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton
+                        asChild
+                        className="justify-start group-data-[collapsible=icon]:justify-center"
+                        isActive={item.active}
+                        tooltip={item.label}
+                      >
+                        <NavLink
+                          aria-label={item.label}
+                          className="group-data-[collapsible=icon]:justify-center"
+                          to={item.to}
+                          onClick={handleSidebarNavigation}
+                        >
+                          <item.icon className="size-4" />
+                          {showSidebarText ? <span>{item.label}</span> : null}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </div>
+
+          <SidebarGroup className="mt-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent>
               <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-                {navigation.map((item) => (
-                  <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton
-                      asChild
-                      className="justify-start group-data-[collapsible=icon]:justify-center"
-                      isActive={item.active}
-                      tooltip={item.label}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    className="justify-start group-data-[collapsible=icon]:justify-center"
+                    isActive={settingsItem.active}
+                    tooltip={settingsItem.label}
+                  >
+                    <NavLink
+                      aria-label={settingsItem.label}
+                      className="group-data-[collapsible=icon]:justify-center"
+                      to={settingsItem.to}
+                      onClick={handleSidebarNavigation}
                     >
-                      <NavLink
-                        aria-label={item.label}
-                        className="group-data-[collapsible=icon]:justify-center"
-                        to={item.to}
-                        onClick={handleSidebarNavigation}
-                      >
-                        <item.icon className="size-4" />
-                        {showSidebarText ? <span>{item.label}</span> : null}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                      <settingsItem.icon className="size-4" />
+                      {showSidebarText ? <span>{settingsItem.label}</span> : null}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
