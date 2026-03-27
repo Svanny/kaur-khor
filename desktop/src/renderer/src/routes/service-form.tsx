@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
+import {
+  FieldError,
+  FieldGroup,
+  FieldSet,
+  FieldLegend,
+} from '@/components/ui/field';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Textarea } from '@/components/ui/textarea';
-import { PageIntro, PageSection, SaveHeader, SectionHeading, Surface } from '@/components/banji-primitives';
+import { Badge } from '@/components/ui/badge';
+import { EditorHeader, EditorRail } from '@/components/system/editor';
+import { TextAreaField, TextInputField } from '@/components/system/form-fields';
+import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import {
   limits,
   normalizeText,
@@ -42,7 +48,9 @@ export function ServiceFormRoute() {
     skuIds: currentService?.skuIds ?? [],
   });
   const [errors, setErrors] = useState<Partial<Record<ServiceField, string>>>({});
-  const fieldRefs = useRef<Partial<Record<'name' | 'description' | 'price', HTMLInputElement | HTMLTextAreaElement>>>({});
+  const fieldRefs = useRef<
+    Partial<Record<'name' | 'description' | 'price', HTMLInputElement | HTMLTextAreaElement>>
+  >({});
   const skuSelectionRef = useRef<HTMLDivElement | null>(null);
 
   const initialForm = useMemo(
@@ -141,135 +149,111 @@ export function ServiceFormRoute() {
   }
 
   return (
-    <PageSection className="space-y-6">
-      <SaveHeader
+    <WorkspacePage>
+      <EditorHeader
+        backLabel={t('navInventory')}
         cancelLabel={t('cancel')}
         description={t('editorServiceHelper')}
+        entityId={form.serviceId}
         formId={formId}
-        hasChanges={hasChanges}
         isSaving={isSaving}
         onBack={leaveEditor}
         onCancel={leaveEditor}
         saveLabel={isNew ? t('createEntry') : t('saveDraft')}
-        savedLabel={t('savedState')}
-        title={t('serviceEditorTitle')}
-        unsavedLabel={t('unsavedChanges')}
-      />
-
-      <PageIntro
-        aside={
-          <Badge className="rounded-full px-4 py-2 text-sm" variant="secondary">
-            {form.serviceId}
-          </Badge>
-        }
-        description={t('editorServiceHelper')}
-        eyebrow={t('serviceLabel')}
+        saveState={hasChanges ? 'unsaved' : 'saved'}
         title={form.name || t('serviceEditorTitle')}
       />
 
       <form className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]" id={formId} onSubmit={onSubmit}>
-        <Surface className="space-y-5">
-          <SectionHeading title={t('editorDetailsTitle')} />
-          <div className="grid gap-4">
-            <Field error={errors.name} label={t('fieldName')}>
-              <Input
-                ref={(node) => {
-                  fieldRefs.current.name = node;
-                }}
-                value={form.name}
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-              />
-            </Field>
-            <Field error={errors.description} label={t('fieldDescription')}>
-              <Textarea
-                ref={(node) => {
-                  fieldRefs.current.description = node;
-                }}
-                rows={6}
-                value={form.description}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, description: event.target.value }))
-                }
-              />
-            </Field>
-            <Field error={errors.price} label={t('fieldPrice')}>
-              <Input
-                ref={(node) => {
-                  fieldRefs.current.price = node;
-                }}
-                inputMode="decimal"
-                value={form.price}
-                onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
-              />
-            </Field>
-          </div>
-        </Surface>
+        <WorkspacePanel description={t('editorServiceHelper')} title={t('editorDetailsTitle')}>
+          <FieldGroup>
+            <TextInputField
+              id="service-name"
+              error={errors.name}
+              inputRef={(node) => {
+                fieldRefs.current.name = node ?? undefined;
+              }}
+              label={t('fieldName')}
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+            />
+            <TextAreaField
+              id="service-description"
+              error={errors.description}
+              inputRef={(node) => {
+                fieldRefs.current.description = node ?? undefined;
+              }}
+              label={t('fieldDescription')}
+              rows={6}
+              value={form.description}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, description: event.target.value }))
+              }
+            />
+            <TextInputField
+              id="service-price"
+              error={errors.price}
+              inputMode="decimal"
+              inputRef={(node) => {
+                fieldRefs.current.price = node ?? undefined;
+              }}
+              label={t('fieldPrice')}
+              value={form.price}
+              onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
+            />
+          </FieldGroup>
+        </WorkspacePanel>
 
-        <Surface className="space-y-5">
+        <EditorRail description={t('fieldSkuSelectionHint')} title={t('editorSelectionTitle')}>
           <div className="flex items-center justify-between gap-3">
-            <SectionHeading title={t('editorSelectionTitle')} />
+            <p className="text-sm text-muted-foreground">{t('fieldSkuSelectionHint')}</p>
             <Badge className="rounded-full" variant="secondary">
               {form.skuIds.length} {t('editorSelectionCount')}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{t('fieldSkuSelectionHint')}</p>
-          <div
-            ref={skuSelectionRef}
-            className="rounded-[24px] border border-border/70 bg-background/70 p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            tabIndex={-1}
-          >
-            <ScrollArea className="h-72">
-              <div className="grid gap-2 p-3">
-                {snapshot?.skus.map((sku) => {
-                  const selected = form.skuIds.includes(sku.skuId);
-                  return (
-                    <label
-                      className="flex items-start gap-3 rounded-[20px] border border-border/70 bg-card/80 px-4 py-3"
-                      key={sku.skuId}
-                    >
-                      <Checkbox
-                        checked={selected}
-                        onCheckedChange={(checked) => {
-                          const enabled = checked === true;
-                          setForm((current) => ({
-                            ...current,
-                            skuIds: enabled
-                              ? [...current.skuIds, sku.skuId]
-                              : current.skuIds.filter((value) => value !== sku.skuId),
-                          }));
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-foreground">{sku.name}</p>
-                        <p className="truncate text-sm text-muted-foreground">{sku.skuId}</p>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </div>
-          {errors.skuIds ? <p className="text-sm text-destructive">{errors.skuIds}</p> : null}
-        </Surface>
-      </form>
-    </PageSection>
-  );
-}
 
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="grid gap-2 text-sm font-medium text-foreground">
-      <span>{label}</span>
-      {children}
-      {error ? <span className="text-sm font-normal text-destructive">{error}</span> : null}
-    </label>
+          <FieldSet className="mt-4">
+            <FieldLegend variant="label">{t('fieldLinkedSkus')}</FieldLegend>
+            <div
+              ref={skuSelectionRef}
+              className="rounded-3xl border border-border/70 bg-background/60 p-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              tabIndex={-1}
+            >
+              <ScrollArea className="h-72">
+                <div className="grid gap-2 p-2">
+                  {snapshot?.skus.map((sku) => {
+                    const selected = form.skuIds.includes(sku.skuId);
+                    return (
+                      <label
+                        className="flex items-start gap-3 rounded-2xl border border-border/75 bg-card/70 px-4 py-3"
+                        key={sku.skuId}
+                      >
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={(checked) => {
+                            const enabled = checked === true;
+                            setForm((current) => ({
+                              ...current,
+                              skuIds: enabled
+                                ? [...current.skuIds, sku.skuId]
+                                : current.skuIds.filter((value) => value !== sku.skuId),
+                            }));
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-foreground">{sku.name}</p>
+                          <p className="truncate text-sm text-muted-foreground">{sku.skuId}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+            <FieldError>{errors.skuIds}</FieldError>
+          </FieldSet>
+        </EditorRail>
+      </form>
+    </WorkspacePage>
   );
 }

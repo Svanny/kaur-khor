@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
-import { currencyLabel, translations, type TranslationKey } from '../lib/translations';
+import { currencyLabel, getTranslation, type TranslationKey } from '../lib/translations';
 
 const LANGUAGE_KEY = 'banji-language';
 const CURRENCY_KEY = 'banji-currency';
@@ -41,7 +41,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         window.localStorage.setItem(CURRENCY_KEY, next);
         setCurrencyState(next);
       },
-      t: (key) => translations[language][key] ?? translations.en[key],
+      t: (key) => getTranslation(language, key),
       currencyLabel: (next) => currencyLabel(language, next),
     }),
     [currency, language],

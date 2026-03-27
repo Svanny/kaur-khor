@@ -11,7 +11,9 @@ import {
   SquareChartGantt,
 } from 'lucide-react';
 import type { DesktopAppContext } from '@shared/ipc';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Sidebar,
   SidebarContent,
@@ -30,17 +32,49 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils';
-import { usePreferences } from '@/state/preferences';
+import { StatusBadge, WorkspaceBanner } from '@/components/system/workspace';
 import { useInventory } from '@/state/inventory';
+import { usePreferences } from '@/state/preferences';
 import brandLogo from '@/assets/banji-logo.svg';
 
-function routeTitle(pathname: string, t: (key: string) => string) {
-  if (pathname === '/') return t('navDashboard');
-  if (pathname.startsWith('/inventory/stock')) return t('navStock');
-  if (pathname.startsWith('/inventory/ranking')) return t('navRanking');
-  if (pathname.startsWith('/inventory')) return t('navInventory');
-  return t('navSettings');
+type RouteMeta = {
+  title: string;
+  description: string;
+};
+
+function getRouteMeta(pathname: string, t: (key: any) => string): RouteMeta {
+  if (pathname === '/') {
+    return {
+      title: t('navDashboard'),
+      description: t('dashboardBody'),
+    };
+  }
+
+  if (pathname.startsWith('/inventory/stock')) {
+    return {
+      title: t('navStock'),
+      description: t('stockUpdateBody'),
+    };
+  }
+
+  if (pathname.startsWith('/inventory/ranking')) {
+    return {
+      title: t('navRanking'),
+      description: t('rankingBody'),
+    };
+  }
+
+  if (pathname.startsWith('/inventory')) {
+    return {
+      title: t('navInventory'),
+      description: t('inventoryBody'),
+    };
+  }
+
+  return {
+    title: t('navSettings'),
+    description: t('settingsStorage'),
+  };
 }
 
 export function BanjiShell({
@@ -69,11 +103,7 @@ function BanjiShellFrame({
   const { error, isLoading } = useInventory();
   const { isMobile, setOpenMobile } = useSidebar();
 
-  function handleSidebarNavigation() {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  }
+  const routeMeta = getRouteMeta(location.pathname, t);
 
   const navigation = useMemo(
     () => [
@@ -87,7 +117,10 @@ function BanjiShellFrame({
         to: '/inventory',
         label: t('navInventory'),
         icon: Boxes,
-        active: location.pathname.startsWith('/inventory') && !location.pathname.includes('/ranking') && !location.pathname.includes('/stock'),
+        active:
+          location.pathname.startsWith('/inventory') &&
+          !location.pathname.includes('/ranking') &&
+          !location.pathname.includes('/stock'),
       },
       {
         to: '/inventory/stock',
@@ -111,33 +144,67 @@ function BanjiShellFrame({
     [location.pathname, t],
   );
 
+  const runtimeTone =
+    desktopContext.backendError || error ? 'destructive' : isLoading ? 'outline' : 'secondary';
+  const runtimeLabel = desktopContext.backendError
+    ? t('backendError')
+    : isLoading
+      ? t('backendStarting')
+      : t('backendReady');
+
+  function handleSidebarNavigation() {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }
+
   return (
     <>
       <a
-        className="sr-only z-50 rounded-full bg-card px-4 py-2 text-sm font-medium text-foreground shadow-lg focus:not-sr-only focus:fixed focus:top-4 focus:left-4"
+        className="sr-only fixed top-4 left-4 z-50 rounded-full bg-card px-4 py-2 text-sm font-medium text-foreground shadow-[var(--shadow-float)] focus:not-sr-only"
         href="#main-content"
       >
         {t('skipToContent')}
       </a>
 
-      <Sidebar className="border-r border-sidebar-border/70" variant="inset">
+      <Sidebar className="border-r border-sidebar-border/60" variant="inset">
         <SidebarHeader className="gap-4 px-3 py-4">
-          <Link className="flex items-center gap-3 rounded-2xl px-2 py-1" to="/" onClick={handleSidebarNavigation}>
-            <img alt="Banji logo" className="size-11 rounded-2xl bg-background/80 p-2" src={brandLogo} />
+          <Link
+            className="editorial-panel flex items-center gap-3 rounded-3xl px-3 py-3"
+            to="/"
+            onClick={handleSidebarNavigation}
+          >
+            <img
+              alt="Banji logo"
+              className="size-12 rounded-2xl bg-background/80 p-2 shadow-[0_10px_30px_rgba(27,15,7,0.08)]"
+              src={brandLogo}
+            />
             <div className="min-w-0">
-              <p className="text-lg font-semibold tracking-tight">{t('appBrand')}</p>
-              <p className="text-xs uppercase tracking-[0.18em] text-sidebar-foreground/60">
-                {t('appTitle')}
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
+                {t('appBrand')}
               </p>
+              <p className="text-lg font-semibold tracking-[-0.03em]">{t('appTitle')}</p>
             </div>
           </Link>
+
+          <Card className="paper-grid border-white/70">
+            <CardHeader className="gap-1 px-4">
+              <CardDescription className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                {t('dashboardEyebrow')}
+              </CardDescription>
+              <CardTitle className="text-base">Desktop operations cockpit</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 text-sm leading-6 text-muted-foreground">
+              {t('dashboardHealthDescription')}
+            </CardContent>
+          </Card>
         </SidebarHeader>
 
         <SidebarSeparator />
 
         <SidebarContent className="px-2">
           <SidebarGroup>
-            <SidebarGroupLabel>{t('navInventory')}</SidebarGroupLabel>
+            <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {navigation.map((item) => (
@@ -156,20 +223,31 @@ function BanjiShellFrame({
         </SidebarContent>
 
         <SidebarFooter className="gap-3 px-3 pb-4">
-          <div className="grid grid-cols-2 gap-2">
-            <Button asChild className="justify-start rounded-2xl" size="sm" variant="secondary">
-              <Link to="/inventory/skus/new" onClick={handleSidebarNavigation}>
-                <PackagePlus className="size-4" />
-                <span>{t('createSkuAction')}</span>
-              </Link>
-            </Button>
-            <Button asChild className="justify-start rounded-2xl" size="sm" variant="secondary">
-              <Link to="/inventory/services/new" onClick={handleSidebarNavigation}>
-                <PanelsTopLeft className="size-4" />
-                <span>{t('createServiceAction')}</span>
-              </Link>
-            </Button>
-          </div>
+          <Card size="sm">
+            <CardHeader className="gap-2 px-4">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm">Runtime status</CardTitle>
+                <Badge className="rounded-full px-2.5 py-1 text-[0.7rem]" variant={runtimeTone}>
+                  {runtimeLabel}
+                </Badge>
+              </div>
+              <CardDescription>{routeMeta.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2 px-4 pb-4">
+              <Button asChild className="justify-start" size="sm" variant="secondary">
+                <Link to="/inventory/skus/new" onClick={handleSidebarNavigation}>
+                  <PackagePlus data-icon="inline-start" />
+                  {t('createSkuAction')}
+                </Link>
+              </Button>
+              <Button asChild className="justify-start" size="sm" variant="outline">
+                <Link to="/inventory/services/new" onClick={handleSidebarNavigation}>
+                  <PanelsTopLeft data-icon="inline-start" />
+                  {t('createServiceAction')}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         </SidebarFooter>
 
         <SidebarRail />
@@ -177,73 +255,68 @@ function BanjiShellFrame({
 
       <SidebarInset className="bg-transparent">
         <div className="flex min-h-svh flex-col">
-          <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur">
-            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <header className="sticky top-0 z-20 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+            <div className="mx-auto flex w-full max-w-[1500px] flex-wrap items-center justify-between gap-4 px-[var(--spacing-page)] py-4">
               <div className="flex min-w-0 items-center gap-3">
-                <SidebarTrigger aria-label={t('openNavigation')} className="h-10 w-10 rounded-full border border-border bg-card md:hidden" />
-                <SidebarTrigger aria-label={t('collapseNavigation')} className="hidden h-10 w-10 rounded-full border border-border bg-card md:flex" />
+                <SidebarTrigger
+                  aria-label={t('openNavigation')}
+                  className="size-10 rounded-full border border-border bg-card md:hidden"
+                />
+                <SidebarTrigger
+                  aria-label={t('collapseNavigation')}
+                  className="hidden size-10 rounded-full border border-border bg-card md:flex"
+                />
                 <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                     {t('appBrand')}
                   </p>
-                  <h1 className="truncate text-lg font-semibold tracking-tight">
-                    {routeTitle(location.pathname, t)}
-                  </h1>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="truncate text-2xl font-semibold tracking-[-0.04em]">
+                      {routeMeta.title}
+                    </h1>
+                    <StatusBadge variant={runtimeTone}>{runtimeLabel}</StatusBadge>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {desktopContext.backendError ? (
-                  <Button
-                    className="rounded-full"
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      void window.banjiDesktop.restartBackend();
-                    }}
-                  >
-                    <RefreshCcw className="size-4" />
-                    <span>{t('retry')}</span>
-                  </Button>
-                ) : null}
-              </div>
+              {desktopContext.backendError ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void window.banjiDesktop.restartBackend();
+                  }}
+                >
+                  <RefreshCcw data-icon="inline-start" />
+                  {t('retry')}
+                </Button>
+              ) : null}
             </div>
           </header>
 
-          <main id="main-content" className="flex-1 px-4 py-5 sm:px-6 lg:px-8">
-            <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-4">
+          <main id="main-content" className="flex-1 px-[var(--spacing-page)] py-5">
+            <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4">
               {desktopContext.backendError ? (
-                <Banner tone="error">{desktopContext.backendError}</Banner>
+                <WorkspaceBanner
+                  description={desktopContext.backendError}
+                  title={t('backendError')}
+                  tone="destructive"
+                />
               ) : null}
-              {error ? <Banner tone="error">{error}</Banner> : null}
-              {isLoading ? <Banner tone="info">{t('backendStarting')}</Banner> : null}
+              {error ? (
+                <WorkspaceBanner description={error} title={t('apiUnavailable')} tone="destructive" />
+              ) : null}
+              {isLoading ? (
+                <WorkspaceBanner
+                  description={t('dashboardHealthStarting')}
+                  title={t('backendStarting')}
+                />
+              ) : null}
               {children}
             </div>
           </main>
         </div>
       </SidebarInset>
     </>
-  );
-}
-
-function Banner({
-  children,
-  tone,
-}: {
-  children: React.ReactNode;
-  tone: 'error' | 'info';
-}) {
-  return (
-    <div
-      className={cn(
-        'rounded-2xl border px-4 py-3 text-sm shadow-sm',
-        tone === 'error'
-          ? 'border-destructive/20 bg-destructive/10 text-destructive'
-          : 'border-border bg-card/80 text-muted-foreground',
-      )}
-    >
-      {children}
-    </div>
   );
 }

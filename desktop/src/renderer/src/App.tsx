@@ -65,11 +65,16 @@ export default function App() {
   if (!desktopContext) {
     return (
       <div className="flex min-h-svh items-center justify-center px-6">
-        <div className="w-full max-w-md rounded-[32px] border border-border/70 bg-card/85 p-8 text-center shadow-[0_20px_60px_rgba(76,58,40,0.08)] backdrop-blur">
+        <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
             Banji
           </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">Loading desktop shell…</h1>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+            Loading desktop shell…
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            Warming up the local workspace and syncing the latest inventory snapshot.
+          </p>
         </div>
       </div>
     );
