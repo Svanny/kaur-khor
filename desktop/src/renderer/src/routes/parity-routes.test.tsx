@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, RankingEntry } from '@shared/inventory';
 import { DashboardRoute } from './dashboard';
 import { InventoryRoute } from './inventory';
+import { RankingRoute } from './ranking';
+import { ServiceFormRoute } from './service-form';
 import { SettingsRoute } from './settings';
+import { SkuFormRoute } from './sku-form';
 import { StockUpdateRoute } from './stock-update';
 
 let rankingEntries: RankingEntry[] = [
@@ -214,6 +217,7 @@ describe('renderer workspaces', () => {
           navStock: 'Stock Room',
           navRanking: 'Merchandising',
           navSettings: 'Preferences',
+          backToCatalog: 'Back to catalog',
           dashboardEyebrow: 'Warm, local-first retail operations',
           dashboardHeading: 'Daily control for inventory, stock moves, and storefront priorities',
           dashboardBody: 'Desktop inventory overview',
@@ -251,8 +255,16 @@ describe('renderer workspaces', () => {
           servicesHeading: 'Services',
           skusHeading: 'SKUs',
           stockFlow: 'Open stock room',
+          productRankingTitle: 'Merchandising',
+          merchandisingPriorityNote:
+            'Drag by handle to set storefront priority. Keyboard reordering stays available when the handle is focused.',
           createSkuAction: 'New SKU',
           createServiceAction: 'New Service',
+          rankHeaderRank: 'Rank',
+          rankHeaderName: 'Name',
+          rankHeaderPrice: 'Price',
+          saveRankingAction: 'Save order',
+          resetAction: 'Reset',
           inventoryColumnItem: 'Item',
           inventoryColumnSellable: 'Sellable units',
           inventoryColumnLinkedSkus: 'Linked SKUs',
@@ -316,6 +328,8 @@ describe('renderer workspaces', () => {
           fieldUnitsInStock: 'Units in stock',
           fieldCostPerUnit: 'Cost per unit',
           fieldProductPrice: 'Product price',
+          serviceLabel: 'Service',
+          skuLabel: 'SKU',
         };
         return translations[key] ?? key;
       },
@@ -331,12 +345,67 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('Spike')).toBeInTheDocument();
   });
 
+  test('overview metric tooltips reopen after being dismissed with a click', async () => {
+    renderRoute('/', <DashboardRoute />);
+
+    const metricTrigger = screen.getByText('Merchandising slots').closest('button');
+    expect(metricTrigger).not.toBeNull();
+
+    fireEvent.pointerEnter(metricTrigger!);
+    expect(
+      await screen.findByRole('tooltip', { name: '2 SKUs / 2 services' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(metricTrigger!);
+    await waitFor(() => {
+      expect(screen.queryByRole('tooltip', { name: '2 SKUs / 2 services' })).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(metricTrigger!);
+    expect(
+      await screen.findByRole('tooltip', { name: '2 SKUs / 2 services' }),
+    ).toBeInTheDocument();
+  });
+
   test('catalog keeps search and filter state in the URL', () => {
     renderInventory('/inventory?q=sku&type=sku');
 
     expect(screen.getByTestId('location-search').textContent).toBe('?q=sku&type=sku');
     expect(screen.getByText('Days of cover')).toBeInTheDocument();
     expect(screen.getByText('Stockout risk')).toBeInTheDocument();
+  });
+
+  test('merchandising renders handle-based ordering without the save-order column', () => {
+    renderRoute('/inventory/ranking', <RankingRoute />);
+
+    expect(screen.queryByRole('columnheader', { name: 'Save order' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Reorder / })).toHaveLength(3);
+    expect(screen.getByRole('columnheader', { name: 'Rank' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Price' })).toBeInTheDocument();
+  });
+
+  test('sku and service detail editors show a back-to-catalog icon control', () => {
+    render(
+      <MemoryRouter initialEntries={['/inventory/skus/sku-1']}>
+        <Routes>
+          <Route element={<SkuFormRoute />} path="/inventory/skus/:skuId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Back to catalog' })).toBeInTheDocument();
+
+    render(
+      <MemoryRouter initialEntries={['/inventory/services/service-1']}>
+        <Routes>
+          <Route element={<ServiceFormRoute />} path="/inventory/services/:serviceId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByRole('button', { name: 'Back to catalog' }).length).toBeGreaterThan(1);
   });
 
   test('stock room submits a structured stock report', async () => {
