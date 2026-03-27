@@ -173,13 +173,11 @@ This gate runs:
 3. Secret pattern checks
 4. Platform hardening checks
 
-## Design Token Sync
+## Desktop Design System
 
-If you update `lib/theme/app_theme.dart`, sync exported tokens for references:
-
-```bash
-bash tool/sync_design_tokens.sh
-```
+- Desktop theme tokens now live in [`desktop/src/renderer/src/globals.css`](/Users/svanny/banji/desktop/src/renderer/src/globals.css).
+- Desktop component and composition guidance now lives in [`desktop/DESIGN_SYSTEM.md`](/Users/svanny/banji/desktop/DESIGN_SYSTEM.md).
+- The older Flutter theme source [`lib/theme/app_theme.dart`](/Users/svanny/banji/lib/theme/app_theme.dart) and `tool/sync_design_tokens.sh` remain migration-reference assets, not the active desktop token source.
 
 ## Current Status
 

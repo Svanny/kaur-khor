@@ -58,7 +58,15 @@ This runs:
 - renderer validation tests
 - Electron backend helper tests
 
+## Design System
+
+- Active desktop tokens and theme roles live in [`desktop/src/renderer/src/globals.css`](/Users/svanny/banji/desktop/src/renderer/src/globals.css).
+- Reusable desktop UI primitives live in [`desktop/src/renderer/src/components/ui`](/Users/svanny/banji/desktop/src/renderer/src/components/ui).
+- Banji-specific compositions live in [`desktop/src/renderer/src/components/system`](/Users/svanny/banji/desktop/src/renderer/src/components/system).
+- Reference guide: [`desktop/DESIGN_SYSTEM.md`](/Users/svanny/banji/desktop/DESIGN_SYSTEM.md)
+
 ## Notes
 
 - Flutter stays in-repo as a migration reference for now.
+- Flutter theme token sync via `lib/theme/app_theme.dart` is now legacy-only reference material for desktop work.
 - Packaging is intentionally deferred; the first milestone is local desktop development on macOS.
