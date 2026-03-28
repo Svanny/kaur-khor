@@ -500,13 +500,12 @@ fn ensure_baseline_report(owner: &mut OwnerInventory, source: &str) {
     if !owner.sist.stock_reports.is_empty() {
         return;
     }
-    let reported_at = OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
     owner.sist.stock_reports.push(StockReportRecord {
         report_id: "report-0001".to_string(),
         report_source: source.to_string(),
-        reported_at,
+        // Keep the synthetic migration baseline older than operator-entered reports so
+        // history ordering and detail drill-downs stay deterministic.
+        reported_at: "2000-01-01T00:00:00Z".to_string(),
         sku_observations: owner
             .catalog
             .skus
