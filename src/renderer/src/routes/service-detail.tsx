@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { StockReport } from '@shared/inventory';
+import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,19 +9,40 @@ import {
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
+import { DescriptionText } from '@/components/system/description-text';
 import {
   computeServiceSellableUnits,
-  serviceAvailabilityStatus,
   serviceCoverageState,
   serviceCoverageStateKey,
   serviceLinkedSkus,
 } from '@/lib/catalog';
 import { formatCurrency, formatNumber, localeFor } from '@/lib/format';
 import { stockReportSourceKey, summarizeNotes } from '@/lib/stock-report-summary';
+import type { TranslationKey } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
 const RECENT_ACTIVITY_LIMIT = 3;
+
+function ServiceSummaryField({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="border-b border-border/60 py-4 last:border-b-0 last:pb-0 first:pt-0 xl:border-b-0 xl:pb-0">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-foreground">{value}</p>
+      <DescriptionText className="mt-1 text-sm leading-6 text-muted-foreground">{detail}</DescriptionText>
+    </div>
+  );
+}
 
 function reportDateLabel(reportedAt: string, language: 'en' | 'km') {
   return new Intl.DateTimeFormat(localeFor(language), {
@@ -36,6 +58,56 @@ function serviceReportsFor(serviceId: string, reports: StockReport[]) {
       report.servicePriceAdjustments.some((adjustment) => adjustment.serviceId === serviceId) ||
       report.topServiceRanking.includes(serviceId),
   );
+}
+
+function serviceActivitySummary({
+  report,
+  serviceId,
+  linkedSkuIds,
+  currency,
+  language,
+  t,
+}: {
+  report: StockReport;
+  serviceId: string;
+  linkedSkuIds: Set<string>;
+  currency: 'USD' | 'KHR';
+  language: 'en' | 'km';
+  t: (key: TranslationKey) => string;
+}) {
+  const events: string[] = [];
+  const priceAdjustment = report.servicePriceAdjustments.find(
+    (adjustment) => adjustment.serviceId === serviceId,
+  );
+  const linkedSkuObservation = report.skuObservations.find((observation) =>
+    linkedSkuIds.has(observation.skuId),
+  );
+
+  if (report.serviceSignals.some((signal) => signal.serviceId === serviceId && signal.stockout)) {
+    events.push(t('catalogServiceRecentActivityFlaggedUnavailable'));
+  }
+
+  if (priceAdjustment) {
+    events.push(
+      `${t('catalogServiceRecentActivityPriceOverride')} (${formatCurrency(
+        priceAdjustment.price,
+        currency,
+        language,
+      )})`,
+    );
+  }
+
+  if (linkedSkuObservation) {
+    events.push(
+      `${t('catalogServiceRecentActivityLinkedSkuChange')} (${linkedSkuObservation.skuId})`,
+    );
+  }
+
+  if (report.topServiceRanking.includes(serviceId)) {
+    events.push(t('catalogServiceRecentActivityRanking'));
+  }
+
+  return events.join(' · ');
 }
 
 export function ServiceDetailRoute() {
@@ -57,25 +129,37 @@ export function ServiceDetailRoute() {
     () => (snapshot && service ? computeServiceSellableUnits(service, snapshot) : 0),
     [service, snapshot],
   );
+  const linkedSkuIds = useMemo(() => new Set(linkedSkus.map((sku) => sku.skuId)), [linkedSkus]);
 
   const highRiskSkuIds = new Set(snapshot?.sist.highRiskSkuIds ?? []);
-  const hasHighRiskSku = linkedSkus.some((sku) => highRiskSkuIds.has(sku.skuId));
-  const availability = service && snapshot ? serviceAvailabilityStatus(service, snapshot) : 'unlinked';
   const coverageState = service && snapshot ? serviceCoverageState(service, snapshot) : 'unlinked';
-  const availabilityKey =
-    availability === 'available'
-      ? 'catalogServiceAvailabilityAvailable'
-      : availability === 'stockout'
-        ? 'catalogServiceAvailabilityStockout'
-        : 'catalogServiceAvailabilityUnlinked';
   const coverageStateLabelKey =
-    service && snapshot ? serviceCoverageStateKey(service, snapshot) : availabilityKey;
-  const coverageDescriptionKey =
-    coverageState === 'blocked'
-      ? 'catalogServiceCoverageStateBlocked'
-      : coverageState === 'at-risk'
-        ? 'catalogServiceCoverageStateAtRisk'
-        : 'catalogServiceCoverageStateAvailable';
+    service && snapshot
+      ? serviceCoverageStateKey(service, snapshot)
+      : 'catalogServiceAvailabilityUnlinked';
+  const blockedSku = linkedSkus.find((sku) => sku.unitsInStock <= 0) ?? null;
+  const highRiskSku = linkedSkus.find((sku) => highRiskSkuIds.has(sku.skuId)) ?? null;
+  const limitingSku = blockedSku ?? highRiskSku;
+  const setupIncomplete = linkedSkus.length === 0;
+  const prioritizeOperations = coverageState === 'blocked' || coverageState === 'at-risk';
+  const operationsActionVariant = prioritizeOperations ? 'default' : 'outline';
+  const editActionVariant = setupIncomplete ? 'default' : 'outline';
+  const statusExplanation =
+    coverageState === 'unlinked'
+      ? t('catalogServiceConstraintUnlinked')
+      : coverageState === 'blocked'
+        ? t('catalogServiceCoverageStateBlocked')
+        : coverageState === 'at-risk'
+          ? t('catalogServiceCoverageStateAtRisk')
+          : t('catalogServiceCoverageStateAvailable');
+  const fulfillmentReason =
+    blockedSku
+      ? `${t('catalogServiceConstraintBlockedPrefix')} ${blockedSku.skuId}.`
+      : highRiskSku
+        ? `${t('catalogServiceConstraintRiskPrefix')} ${highRiskSku.skuId}.`
+        : coverageState === 'unlinked'
+          ? t('catalogServiceConstraintUnlinked')
+          : t('catalogServiceConstraintHealthy');
 
   useEffect(() => {
     let cancelled = false;
@@ -138,15 +222,12 @@ export function ServiceDetailRoute() {
       <WorkspacePanel
         action={
           <div className="flex flex-wrap gap-3">
-            <Button asChild variant="outline">
-              <Link to="/catalog">{t('backToCatalog')}</Link>
-            </Button>
-            <Button asChild variant="outline">
+            <Button asChild variant={operationsActionVariant}>
               <Link to={`/operations/session?step=services&focusService=${service.serviceId}`}>
                 {t('catalogServiceOperationsAction')}
               </Link>
             </Button>
-            <Button asChild>
+            <Button asChild variant={editActionVariant}>
               <Link to={`/catalog/services/${service.serviceId}/edit`}>
                 {t('catalogServiceEditAction')}
               </Link>
@@ -154,7 +235,16 @@ export function ServiceDetailRoute() {
           </div>
         }
         description={t('catalogServiceDetailIdentityDescription')}
-        title={service.name}
+        title={
+          <div className="flex items-center gap-3">
+            <Button asChild aria-label={t('backToCatalog')} size="icon" variant="ghost">
+              <Link to="/catalog">
+                <ArrowLeft />
+              </Link>
+            </Button>
+            <span>{service.name}</span>
+          </div>
+        }
       >
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">
@@ -164,183 +254,165 @@ export function ServiceDetailRoute() {
             {t(coverageStateLabelKey)}
           </Badge>
         </div>
-      </WorkspacePanel>
-
-      <WorkspacePanel
-        description={t('catalogServiceDetailOverviewDescription')}
-        title={t('catalogServiceDetailOverviewTitle')}
-      >
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
-          <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(220px,0.65fr)]">
+          <div className="rounded-3xl border border-border/70 bg-background/40 px-5 py-5 sm:px-6">
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('fieldDescription')}
+              {t('catalogServiceFulfillmentStatusTitle')}
             </p>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{service.description}</p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('fieldId')}
-            </p>
-            <p className="mt-3 text-xl font-semibold tracking-[-0.03em]">{service.serviceId}</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">{fulfillmentReason}</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{statusExplanation}</p>
           </div>
         </div>
-      </WorkspacePanel>
 
-      <WorkspacePanel
-        description={t('catalogServiceCommercialSetupDescription')}
-        title={t('catalogServiceCommercialSetupTitle')}
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('fieldPrice')}
-            </p>
-            <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-              {formatCurrency(service.price, currency, language)}
-            </p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('fieldLinkedSkus')}
-            </p>
-            <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-              {formatNumber(linkedSkus.length, language)}
-            </p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('catalogServiceAvailabilityTitle')}
-            </p>
-            <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">{t(availabilityKey)}</p>
+        <div className="rounded-3xl border border-border/70 bg-background/30 px-5 py-5 sm:px-6">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            {t('catalogServiceViabilityTitle')}
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5 xl:gap-x-6">
+            <ServiceSummaryField
+              label={t('fieldPrice')}
+              value={formatCurrency(service.price, currency, language)}
+            />
+            <ServiceSummaryField
+              label={t('fieldLinkedSkus')}
+              value={formatNumber(linkedSkus.length, language)}
+            />
+            <ServiceSummaryField
+              label={t('catalogServiceSellableUnits')}
+              value={formatNumber(sellableUnits, language)}
+            />
+            <ServiceSummaryField
+              detail={statusExplanation}
+              label={t('catalogServiceCurrentStatusTitle')}
+              value={t(coverageStateLabelKey)}
+            />
+            <ServiceSummaryField
+              label={t('catalogServiceLimitingSkuTitle')}
+              value={limitingSku?.skuId ?? t('catalogServiceLimitingSkuHealthy')}
+            />
           </div>
         </div>
-      </WorkspacePanel>
 
-      <WorkspacePanel
-        description={t('catalogServiceFulfillmentDescription')}
-        title={t('catalogServiceFulfillmentTitle')}
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('catalogServiceSellableUnits')}
+        <div className="rounded-3xl border border-border/70 bg-background/30 px-5 py-5 sm:px-6">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            {t('catalogServiceRecentActivityTitle')}
+          </p>
+          <DescriptionText className="mt-2 text-sm leading-6 text-muted-foreground">
+            {t('catalogServiceRecentActivityDescription')}
+          </DescriptionText>
+          {activityLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">{t('overviewRecentActivityLoading')}</p>
+          ) : activityError ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              {t('catalogServiceRecentActivityFallback')}
             </p>
-            <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-              {formatNumber(sellableUnits, language)}
-            </p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('catalogServiceCoverageStateTitle')}
-            </p>
-            <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-              {t(coverageStateLabelKey)}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">{t(coverageDescriptionKey)}</p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('catalogStockoutRisk')}
-            </p>
-            <p className="mt-3 text-xl font-semibold tracking-[-0.03em]">
-              {hasHighRiskSku ? t('catalogServiceAtRiskState') : t(availabilityKey)}
-            </p>
-          </div>
-        </div>
-      </WorkspacePanel>
+          ) : activityReports.length > 0 ? (
+            <div className="mt-4 grid gap-3">
+              {activityReports.map((report) => {
+                const notes = summarizeNotes(report.notes);
+                const changeSummary = serviceActivitySummary({
+                  report,
+                  serviceId: service.serviceId,
+                  linkedSkuIds,
+                  currency,
+                  language,
+                  t,
+                });
 
-      <WorkspacePanel
-        description={t('catalogServiceLinkedSkusDescription')}
-        title={t('catalogServiceLinkedSkusTitle')}
-      >
-        {linkedSkus.length > 0 ? (
-          <div className="grid gap-3">
-            {linkedSkus.map((sku) => {
-              const isHighRisk = highRiskSkuIds.has(sku.skuId);
-              const isBlocked = sku.unitsInStock <= 0;
-
-              return (
-                <Link
-                  className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4 transition-colors hover:border-primary/40 hover:text-primary"
-                  key={sku.skuId}
-                  to={`/catalog/skus/${sku.skuId}`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground">{sku.name}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{sku.skuId}</p>
+                return (
+                  <div
+                    className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4"
+                    key={report.reportId}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{reportDateLabel(report.reportedAt, language)}</Badge>
+                      <Badge variant="secondary">{t(stockReportSourceKey(report.reportSource))}</Badge>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline">{formatNumber(sku.unitsInStock, language)}</Badge>
-                      {isBlocked ? (
-                        <Badge variant="outline">{t('catalogServiceLinkedSkuBlockedBadge')}</Badge>
-                      ) : null}
-                      {isHighRisk ? (
-                        <Badge variant="outline">{t('catalogServiceLinkedSkuRiskBadge')}</Badge>
-                      ) : null}
+                    <p className="mt-3 text-sm leading-6 text-foreground">{changeSummary}</p>
+                    {notes ? (
+                      <p className="mt-2 text-sm text-muted-foreground">{notes}</p>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {t('stockHistoryNoNotes')}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">
+              {t('catalogServiceRecentActivityEmpty')}
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-3xl border border-border/70 bg-background/30 px-5 py-5 sm:px-6">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            {t('catalogServiceLinkedSkusTitle')}
+          </p>
+          <DescriptionText className="mt-2 text-sm leading-6 text-muted-foreground">
+            {t('catalogServiceLinkedSkusDescription')}
+          </DescriptionText>
+          {linkedSkus.length > 0 ? (
+            <div className="mt-4 grid gap-3">
+              {linkedSkus.map((sku) => {
+                const isHighRisk = highRiskSkuIds.has(sku.skuId);
+                const isBlocked = sku.unitsInStock <= 0;
+                const isBottleneck =
+                  (blockedSku && blockedSku.skuId === sku.skuId) ||
+                  (!blockedSku && highRiskSku && highRiskSku.skuId === sku.skuId);
+                const statusLabel = isBlocked
+                  ? t('catalogServiceLinkedSkuBlockedBadge')
+                  : isHighRisk
+                    ? t('catalogServiceLinkedSkuRiskBadge')
+                    : t('catalogServiceLinkedSkuHealthyBadge');
+
+                return (
+                  <Link
+                    className={`rounded-3xl border px-4 py-4 transition-colors hover:border-primary/40 hover:text-primary ${
+                      isBottleneck
+                        ? 'border-primary/50 bg-primary/5'
+                        : 'border-border/70 bg-card/55'
+                    }`}
+                    key={sku.skuId}
+                    to={`/catalog/skus/${sku.skuId}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-foreground">{sku.name}</p>
+                          {isBottleneck ? (
+                            <Badge variant="secondary">
+                              {t('catalogServiceLinkedSkuBottleneckBadge')}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">{sku.skuId}</p>
+                        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                          <p>
+                            <span className="font-medium text-foreground">
+                              {t('fieldUnitsInStock')}:
+                            </span>{' '}
+                            {formatNumber(sku.unitsInStock, language)}
+                          </p>
+                          <p>
+                            <span className="font-medium text-foreground">
+                              {t('catalogServiceLinkedSkuStatusLabel')}:
+                            </span>{' '}
+                            {statusLabel}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('catalogServiceLinkedSkusEmpty')}</p>
-        )}
-      </WorkspacePanel>
-
-      <WorkspacePanel
-        description={t('catalogServiceRecentActivityDescription')}
-        title={t('catalogServiceRecentActivityTitle')}
-      >
-        {activityLoading ? (
-          <p className="text-sm text-muted-foreground">{t('overviewRecentActivityLoading')}</p>
-        ) : activityError ? (
-          <p className="text-sm text-muted-foreground">{t('catalogServiceRecentActivityFallback')}</p>
-        ) : activityReports.length > 0 ? (
-          <div className="grid gap-3">
-            {activityReports.map((report) => {
-              const notes = summarizeNotes(report.notes);
-              const changeSummary = [
-                report.serviceSignals.some((signal) => signal.serviceId === service.serviceId)
-                  ? t('stockServiceSignalsTitle')
-                  : null,
-                report.servicePriceAdjustments.some(
-                  (adjustment) => adjustment.serviceId === service.serviceId,
-                )
-                  ? t('stockServicePriceAdjustmentsTitle')
-                  : null,
-                report.topServiceRanking.includes(service.serviceId)
-                  ? t('stockRankingTitle')
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(' · ');
-
-              return (
-                <div
-                  className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4"
-                  key={report.reportId}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">{reportDateLabel(report.reportedAt, language)}</Badge>
-                    <Badge variant="secondary">{t(stockReportSourceKey(report.reportSource))}</Badge>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-foreground">{changeSummary}</p>
-                  {notes ? (
-                    <p className="mt-2 text-sm text-muted-foreground">{notes}</p>
-                  ) : (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {t('stockHistoryNoNotes')}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('catalogServiceRecentActivityEmpty')}</p>
-        )}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">{t('catalogServiceLinkedSkusEmpty')}</p>
+          )}
+        </div>
       </WorkspacePanel>
     </WorkspacePage>
   );

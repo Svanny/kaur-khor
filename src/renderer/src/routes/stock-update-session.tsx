@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Circle, CircleDot } from 'lucide-react';
+import { CheckCircle2, Circle, CircleDot, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
@@ -15,13 +23,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { buildDefaultReportRanking } from '@/components/system/merchandising-editor';
+import { DescriptionText } from '@/components/system/description-text';
 import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
-import { formatCurrency } from '@/lib/format';
+import { currencyFractionDigits, formatCurrency, formatDecimal } from '@/lib/format';
 import { summarizeCount } from '@/lib/stock-report-summary';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import {
   createOperationsSessionDraft,
+  hasMeaningfulOperationsSessionChanges,
   useOperationsSession,
   type OperationsSessionPreset as Preset,
   type OperationsSessionRowFilter as RowFilter,
@@ -57,6 +68,89 @@ function resolveStep(rawStep: string | null) {
   return 'details' as const;
 }
 
+function fractionDigitsForValue(value: string | number) {
+  const normalized = String(value);
+  const decimalIndex = normalized.indexOf('.');
+  if (decimalIndex === -1) {
+    return 0;
+  }
+  return normalized.length - decimalIndex - 1;
+}
+
+function getPresetName(
+  preset: Preset,
+  t: ReturnType<typeof usePreferences>['t'],
+) {
+  return preset === 'small'
+    ? t('stockPresetSmall')
+    : preset === 'medium'
+      ? t('stockPresetMedium')
+      : t('stockPresetBig');
+}
+
+function getPresetDetails(
+  preset: Preset,
+  t: ReturnType<typeof usePreferences>['t'],
+  language: ReturnType<typeof usePreferences>['language'],
+  currency: ReturnType<typeof usePreferences>['currency'],
+) {
+  const formattedCost = formatDecimal(
+    presetSteps[preset].cost,
+    language,
+    currencyFractionDigits(currency),
+  );
+
+  return {
+    compact: `${t('fieldUnitsInStock')} ±${presetSteps[preset].units} • ${t('fieldCostPerUnit')} ±${formattedCost}`,
+    expanded: `${t('fieldUnitsInStock')} ±${presetSteps[preset].units} • ${t('fieldCostPerUnit')} ±${formattedCost}`,
+  };
+}
+
+function PresetOptionCopy({
+  preset,
+  t,
+  language,
+  currency,
+  compact = false,
+}: {
+  preset: Preset;
+  t: ReturnType<typeof usePreferences>['t'];
+  language: ReturnType<typeof usePreferences>['language'];
+  currency: ReturnType<typeof usePreferences>['currency'];
+  compact?: boolean;
+}) {
+  const details = getPresetDetails(preset, t, language, currency);
+
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      <span className="text-sm font-semibold text-foreground">{getPresetName(preset, t)}</span>
+      {compact ? null : <span className="sr-only">, </span>}
+      {compact ? null : (
+        <span className="text-xs leading-5 whitespace-normal text-muted-foreground">
+          {details.expanded}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function formatDisplayedCostDraftValue(
+  rawValue: string | undefined,
+  language: ReturnType<typeof usePreferences>['language'],
+  currency: ReturnType<typeof usePreferences>['currency'],
+) {
+  if (!rawValue?.trim()) {
+    return rawValue ?? '';
+  }
+
+  const parsed = Number(rawValue);
+  if (Number.isNaN(parsed)) {
+    return rawValue;
+  }
+
+  return formatDecimal(parsed, language, currencyFractionDigits(currency));
+}
+
 export function StockUpdateSessionRoute() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -67,6 +161,8 @@ export function StockUpdateSessionRoute() {
   const [timestampTouched, setTimestampTouched] = useState(false);
   const [servicePanelMode, setServicePanelMode] = useState<'summary' | 'editing'>('summary');
   const [serviceFilter, setServiceFilter] = useState<'all' | 'changed'>('all');
+  const [observationsQuery, setObservationsQuery] = useState('');
+  const [focusedCostSkuId, setFocusedCostSkuId] = useState<string | null>(null);
   const focusedSkuRowRef = useRef<HTMLTableRowElement | null>(null);
   const focusedServiceRowRef = useRef<HTMLTableRowElement | null>(null);
   const focusedSkuScrollKeyRef = useRef<string | null>(null);
@@ -194,9 +290,16 @@ export function StockUpdateSessionRoute() {
     () => serviceChanges.slice(0, 3).map((entry) => entry.service.name),
     [serviceChanges],
   );
+  const planningBaselineCount = useMemo(
+    () => (snapshot ? buildDefaultReportRanking(snapshot).length : 0),
+    [snapshot],
+  );
+  const hasMeaningfulDraftChanges = Boolean(
+    snapshot && sessionDraft && hasMeaningfulOperationsSessionChanges(snapshot, sessionDraft),
+  );
   const detailsComplete = Boolean(toIsoTimestamp(reportedAt));
   const observationsComplete = changedEntries.length > 0;
-  const servicesComplete = true;
+  const servicesComplete = serviceChanges.length > 0;
   const reviewReady = detailsComplete && observationsComplete;
   const timestampError = timestampTouched && !detailsComplete ? t('validationTimestamp') : null;
   const completedCount = [detailsComplete, observationsComplete, servicesComplete, reviewReady].filter(Boolean).length;
@@ -204,6 +307,7 @@ export function StockUpdateSessionRoute() {
     () => new Set(changedEntries.map((entry) => entry.sku.skuId)),
     [changedEntries],
   );
+  const normalizedObservationsQuery = observationsQuery.trim().toLowerCase();
   const visibleSkus = useMemo(
     () => {
       const sourceSkus =
@@ -214,10 +318,22 @@ export function StockUpdateSessionRoute() {
           : (snapshot?.skus ?? []);
 
       if (!focusedSku) {
-        return sourceSkus;
+        return normalizedObservationsQuery
+          ? sourceSkus.filter((sku) =>
+              `${sku.name} ${sku.skuId}`.toLowerCase().includes(normalizedObservationsQuery),
+            )
+          : sourceSkus;
       }
 
-      return [...sourceSkus].sort((left, right) => {
+      const filteredSkus = normalizedObservationsQuery
+        ? sourceSkus.filter(
+            (sku) =>
+              `${sku.name} ${sku.skuId}`.toLowerCase().includes(normalizedObservationsQuery) ||
+              sku.skuId === focusedSku.skuId,
+          )
+        : sourceSkus;
+
+      return [...filteredSkus].sort((left, right) => {
         if (left.skuId === focusedSku.skuId) {
           return -1;
         }
@@ -227,7 +343,16 @@ export function StockUpdateSessionRoute() {
         return 0;
       });
     },
-    [changedEntryIds, focusedSku, rowFilter, snapshot],
+    [changedEntryIds, focusedSku, normalizedObservationsQuery, rowFilter, snapshot],
+  );
+  const presetOptions = useMemo(
+    () =>
+      (['small', 'medium', 'big'] as Preset[]).map((value) => ({
+        value,
+        name: getPresetName(value, t),
+        details: getPresetDetails(value, t, language, currency),
+      })),
+    [currency, language, t],
   );
 
   function getStepStatus(stepId: SessionStepId): StepStatus {
@@ -336,6 +461,15 @@ export function StockUpdateSessionRoute() {
     focusedServiceRowRef.current.scrollIntoView?.({ block: 'center' });
   }, [activeStep, focusedService, visibleServiceEntries]);
 
+  function handleCancelSession() {
+    if (hasMeaningfulDraftChanges && !window.confirm(t('stockSessionDiscardPrompt'))) {
+      return;
+    }
+
+    clearDraft();
+    navigate('/operations');
+  }
+
   function setField(
     skuId: string,
     key: 'unitsInStock' | 'costPerUnit' | 'notes',
@@ -381,8 +515,21 @@ export function StockUpdateSessionRoute() {
     }
 
     const step = key === 'unitsInStock' ? presetSteps[preset].units : presetSteps[preset].cost;
-    const currentValue = Number(rows[skuId]?.[key] ?? currentSku[key]);
-    setField(skuId, key, String(Math.max(0, currentValue + step * direction)));
+    const rawCurrentValue = rows[skuId]?.[key] ?? String(currentSku[key]);
+    const currentValue = Number(rawCurrentValue);
+    const nextValue = Math.max(0, currentValue + step * direction);
+    const fractionDigits = Math.max(
+      fractionDigitsForValue(rawCurrentValue),
+      fractionDigitsForValue(step),
+    );
+
+    setField(
+      skuId,
+      key,
+      fractionDigits > 0
+        ? nextValue.toFixed(fractionDigits).replace(/\.?0+$/, '')
+        : String(nextValue),
+    );
   }
 
   async function handleSubmit() {
@@ -452,13 +599,13 @@ export function StockUpdateSessionRoute() {
               <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
                 {t('stockSessionTitle')}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              <DescriptionText className="mt-2 text-sm leading-6 text-muted-foreground">
                 {t('stockSessionDescription')}
-              </p>
+              </DescriptionText>
               <div className="mt-4 flex items-center gap-3">
                 <Badge variant="secondary">
-                  {completedCount} / {steps.length} {t('stockSessionProgress')}
-                </Badge>
+                {completedCount} / {steps.length} {t('stockSessionProgress')}
+              </Badge>
                 {!reviewReady ? (
                   <Badge variant="outline">{t('stockSessionIncomplete')}</Badge>
                 ) : (
@@ -482,8 +629,12 @@ export function StockUpdateSessionRoute() {
                     type="button"
                     onClick={() => setActiveStep(step.id)}
                   >
-                    <span className="mt-0.5 text-primary">
-                      {step.complete ? (
+                    <span
+                      className="mt-0.5 text-primary"
+                      data-status={step.status}
+                      data-testid={`stock-session-step-icon-${step.id}`}
+                    >
+                      {step.status === 'complete' ? (
                         <CheckCircle2 className="size-5" />
                       ) : isActive ? (
                         <CircleDot className="size-5" />
@@ -501,7 +652,9 @@ export function StockUpdateSessionRoute() {
                         </Badge>
                       </div>
                       <p className="mt-1 font-medium text-foreground">{step.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.description}</p>
+                      <DescriptionText className="mt-1 text-sm leading-6 text-muted-foreground">
+                        {step.description}
+                      </DescriptionText>
                     </div>
                   </button>
                 );
@@ -514,10 +667,7 @@ export function StockUpdateSessionRoute() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => {
-                  clearDraft();
-                  navigate('/operations');
-                }}
+                onClick={handleCancelSession}
               >
                 {t('stockComposerCancel')}
               </Button>
@@ -579,54 +729,117 @@ export function StockUpdateSessionRoute() {
               <WorkspacePanel description={t('stockUpdateHint')} title={t('stockTableTitle')}>
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex flex-wrap items-center gap-3">
-                    <Badge variant="secondary">
-                      {summarizeCount(
-                        changedEntries.length,
-                        t('stockHistoryChangedRowSingular'),
-                        t('stockHistoryChangedRowPlural'),
-                      )}
-                    </Badge>
-                    <p className="text-sm text-muted-foreground">
-                      {changedEntries.length > 0
-                        ? t('stockObservationsChangedSummaryReady')
-                        : t('stockObservationsChangedSummaryEmpty')}
-                    </p>
+                    <ToggleGroup
+                      spacing={1}
+                      type="single"
+                      value={rowFilter}
+                      onValueChange={(value) => {
+                        if (!value) return;
+                        updateDraft((current) => ({
+                          ...current,
+                          rowFilter: value as RowFilter,
+                        }));
+                      }}
+                    >
+                      <ToggleGroupItem value="all">{t('stockObservationsFilterAll')}</ToggleGroupItem>
+                      <ToggleGroupItem value="changed">{t('stockObservationsFilterChanged')}</ToggleGroupItem>
+                    </ToggleGroup>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Badge variant="secondary">
+                        {summarizeCount(
+                          changedEntries.length,
+                          t('stockHistoryChangedRowSingular'),
+                          t('stockHistoryChangedRowPlural'),
+                        )}
+                      </Badge>
+                      <p className="text-sm text-muted-foreground">
+                        {changedEntries.length > 0
+                          ? t('stockObservationsChangedSummaryReady')
+                          : t('stockObservationsChangedSummaryEmpty')}
+                      </p>
+                    </div>
                   </div>
-                  <ToggleGroup
-                    spacing={1}
-                    type="single"
-                    value={preset}
-                    onValueChange={(value) => {
-                      if (!value) return;
-                      updateDraft((current) => ({
-                        ...current,
-                        preset: value as Preset,
-                      }));
-                    }}
-                  >
-                    <ToggleGroupItem value="small">{t('stockPresetSmall')}</ToggleGroupItem>
-                    <ToggleGroupItem value="medium">{t('stockPresetMedium')}</ToggleGroupItem>
-                    <ToggleGroupItem value="big">{t('stockPresetBig')}</ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <ToggleGroup
-                    spacing={1}
-                    type="single"
-                    value={rowFilter}
-                    onValueChange={(value) => {
-                      if (!value) return;
-                      updateDraft((current) => ({
-                        ...current,
-                        rowFilter: value as RowFilter,
-                      }));
-                    }}
-                  >
-                    <ToggleGroupItem value="all">{t('stockObservationsFilterAll')}</ToggleGroupItem>
-                    <ToggleGroupItem value="changed">{t('stockObservationsFilterChanged')}</ToggleGroupItem>
-                  </ToggleGroup>
+                  <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+                    <label className="text-sm font-medium text-foreground" id="stock-increment-size-label">
+                      {t('stockIncrementSize')}:
+                    </label>
+                    <Select
+                      value={preset}
+                      onValueChange={(value) =>
+                        updateDraft((current) => ({
+                          ...current,
+                          preset: value as Preset,
+                        }))
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label={t('stockIncrementSize')}
+                        aria-labelledby="stock-increment-size-label"
+                        className="h-12 min-w-[180px] rounded-full px-5 text-base font-semibold"
+                      >
+                        <SelectValue className="min-w-0 flex-1">
+                          <PresetOptionCopy
+                            compact
+                            currency={currency}
+                            language={language}
+                            preset={preset}
+                            t={t}
+                          />
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent
+                        align="end"
+                        className="rounded-3xl border-border/70 shadow-xl"
+                        position="popper"
+                        sideOffset={10}
+                      >
+                        {presetOptions.map((option) => (
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            className="items-start rounded-2xl px-4 py-3 pr-10"
+                          >
+                            <PresetOptionCopy
+                              currency={currency}
+                              language={language}
+                              preset={option.value}
+                              t={t}
+                            />
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {rowFilter === 'changed' && changedEntries.length === 0 ? (
                     <p className="text-sm text-muted-foreground">{t('stockObservationsFilterEmpty')}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-[240px] flex-1">
+                    <label className="sr-only" htmlFor="stock-observations-search">
+                      {t('stockObservationsSearchLabel')}
+                    </label>
+                    <InputGroup className="h-12 rounded-full">
+                      <InputGroupAddon className="pl-4 text-muted-foreground" align="inline-start">
+                        <Search className="size-4" />
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        className="rounded-full pr-4 text-base"
+                        id="stock-observations-search"
+                        placeholder={t('stockObservationsSearchPlaceholder')}
+                        value={observationsQuery}
+                        onChange={(event) => setObservationsQuery(event.target.value)}
+                      />
+                    </InputGroup>
+                  </div>
+                  {normalizedObservationsQuery && visibleSkus.length > 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {summarizeCount(
+                        visibleSkus.length,
+                        t('stockObservationsSearchResultSingular'),
+                        t('stockObservationsSearchResultPlural'),
+                      )}
+                    </p>
                   ) : null}
                 </div>
                 {focusedSku ? (
@@ -634,121 +847,151 @@ export function StockUpdateSessionRoute() {
                     {t('stockFocusSkuHint')}: <span className="font-medium text-foreground">{focusedSku.name}</span>
                   </p>
                 ) : null}
-
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('inventoryColumnItem')}</TableHead>
-                      <TableHead>{t('fieldUnitsInStock')}</TableHead>
-                      <TableHead>{t('fieldCostPerUnit')}</TableHead>
-                      <TableHead>{t('stockRestockIncluded')}</TableHead>
-                      <TableHead>{t('stockRetailStockout')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visibleSkus.map((sku) => (
-                      <TableRow
-                        className={cn(
-                          changedEntryIds.has(sku.skuId) ? 'bg-primary/5' : undefined,
-                          focusedSku?.skuId === sku.skuId ? 'ring-1 ring-primary/40' : undefined,
-                        )}
-                        data-state={
-                          changedEntryIds.has(sku.skuId) || focusedSku?.skuId === sku.skuId
-                            ? 'selected'
-                            : undefined
-                        }
-                        key={sku.skuId}
-                        ref={focusedSku?.skuId === sku.skuId ? focusedSkuRowRef : null}
-                      >
-                        <TableCell className="min-w-0">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate font-medium text-foreground">{sku.name}</p>
-                              {focusedSku?.skuId === sku.skuId ? (
-                                <Badge variant="secondary">{t('stockFocusedBadge')}</Badge>
-                              ) : null}
-                              {changedEntryIds.has(sku.skuId) ? (
-                                <Badge variant="outline">{t('stockObservationsChangedBadge')}</Badge>
-                              ) : null}
-                            </div>
-                            {focusedSku?.skuId === sku.skuId ? (
-                              <p className="truncate text-xs text-muted-foreground">{t('stockFocusSkuHint')}</p>
-                            ) : null}
-                            <p className="truncate text-sm text-muted-foreground">{sku.skuId}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="icon-sm"
-                              type="button"
-                              variant="outline"
-                              onClick={() => adjustValue(sku.skuId, 'unitsInStock', -1)}
-                            >
-                              −
-                            </Button>
-                            <Input
-                              className="min-w-24 rounded-full text-center"
-                              inputMode="decimal"
-                              value={rows[sku.skuId]?.unitsInStock ?? ''}
-                              onChange={(event) => setField(sku.skuId, 'unitsInStock', event.target.value)}
-                            />
-                            <Button
-                              size="icon-sm"
-                              type="button"
-                              variant="outline"
-                              onClick={() => adjustValue(sku.skuId, 'unitsInStock', 1)}
-                            >
-                              +
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="icon-sm"
-                              type="button"
-                              variant="outline"
-                              onClick={() => adjustValue(sku.skuId, 'costPerUnit', -1)}
-                            >
-                              −
-                            </Button>
-                            <Input
-                              className="min-w-24 rounded-full text-center"
-                              inputMode="decimal"
-                              value={rows[sku.skuId]?.costPerUnit ?? ''}
-                              onChange={(event) => setField(sku.skuId, 'costPerUnit', event.target.value)}
-                            />
-                            <Button
-                              size="icon-sm"
-                              type="button"
-                              variant="outline"
-                              onClick={() => adjustValue(sku.skuId, 'costPerUnit', 1)}
-                            >
-                              +
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Checkbox
-                            checked={rows[sku.skuId]?.restockIncluded ?? false}
-                            onCheckedChange={(checked) =>
-                              toggleField(sku.skuId, 'restockIncluded', checked === true)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Checkbox
-                            checked={rows[sku.skuId]?.retailStockout ?? false}
-                            onCheckedChange={(checked) =>
-                              toggleField(sku.skuId, 'retailStockout', checked === true)
-                            }
-                          />
-                        </TableCell>
+                {visibleSkus.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('inventoryColumnItem')}</TableHead>
+                        <TableHead className="text-center">{t('fieldUnitsInStock')}</TableHead>
+                        <TableHead className="text-center">{t('fieldCostPerUnit')}</TableHead>
+                        <TableHead className="text-center">{t('stockRestockIncluded')}</TableHead>
+                        <TableHead className="text-center">{t('stockRetailStockout')}</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {visibleSkus.map((sku) => (
+                        <TableRow
+                          className={cn(
+                            changedEntryIds.has(sku.skuId) ? 'bg-primary/5' : undefined,
+                            focusedSku?.skuId === sku.skuId ? 'ring-1 ring-primary/40' : undefined,
+                          )}
+                          data-state={
+                            changedEntryIds.has(sku.skuId) || focusedSku?.skuId === sku.skuId
+                              ? 'selected'
+                              : undefined
+                          }
+                          key={sku.skuId}
+                          ref={focusedSku?.skuId === sku.skuId ? focusedSkuRowRef : null}
+                        >
+                          <TableCell className="min-w-0">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate font-medium text-foreground">{sku.name}</p>
+                                {focusedSku?.skuId === sku.skuId ? (
+                                  <Badge variant="secondary">{t('stockFocusedBadge')}</Badge>
+                                ) : null}
+                                {changedEntryIds.has(sku.skuId) ? (
+                                  <Badge variant="outline">{t('stockObservationsChangedBadge')}</Badge>
+                                ) : null}
+                              </div>
+                              {focusedSku?.skuId === sku.skuId ? (
+                                <p className="truncate text-xs text-muted-foreground">{t('stockFocusSkuHint')}</p>
+                              ) : null}
+                              <p className="truncate text-sm text-muted-foreground">{sku.skuId}</p>
+                              <div className="mt-3 space-y-2">
+                                <label
+                                  className="text-xs font-medium text-muted-foreground"
+                                  htmlFor={`sku-note-${sku.skuId}`}
+                                >
+                                  {t('stockObservationRowNotesLabel')}
+                                </label>
+                                <Textarea
+                                  className="min-h-20 rounded-2xl bg-background/70 text-sm"
+                                  id={`sku-note-${sku.skuId}`}
+                                  placeholder={t('stockObservationRowNotesPlaceholder')}
+                                  value={rows[sku.skuId]?.notes ?? ''}
+                                  onChange={(event) => setField(sku.skuId, 'notes', event.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                size="icon-sm"
+                                type="button"
+                                variant="outline"
+                                onClick={() => adjustValue(sku.skuId, 'unitsInStock', -1)}
+                              >
+                                −
+                              </Button>
+                              <Input
+                                className="min-w-24 rounded-full text-center"
+                                inputMode="decimal"
+                                value={rows[sku.skuId]?.unitsInStock ?? ''}
+                                onChange={(event) => setField(sku.skuId, 'unitsInStock', event.target.value)}
+                              />
+                              <Button
+                                size="icon-sm"
+                                type="button"
+                                variant="outline"
+                                onClick={() => adjustValue(sku.skuId, 'unitsInStock', 1)}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                size="icon-sm"
+                                type="button"
+                                variant="outline"
+                                onClick={() => adjustValue(sku.skuId, 'costPerUnit', -1)}
+                              >
+                                −
+                              </Button>
+                              <Input
+                                className="min-w-24 rounded-full text-center"
+                                inputMode="decimal"
+                                value={
+                                  focusedCostSkuId === sku.skuId
+                                    ? rows[sku.skuId]?.costPerUnit ?? ''
+                                    : formatDisplayedCostDraftValue(
+                                        rows[sku.skuId]?.costPerUnit,
+                                        language,
+                                        currency,
+                                      )
+                                }
+                                onBlur={() => setFocusedCostSkuId(null)}
+                                onChange={(event) => setField(sku.skuId, 'costPerUnit', event.target.value)}
+                                onFocus={() => setFocusedCostSkuId(sku.skuId)}
+                              />
+                              <Button
+                                size="icon-sm"
+                                type="button"
+                                variant="outline"
+                                onClick={() => adjustValue(sku.skuId, 'costPerUnit', 1)}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              className="mx-auto"
+                              checked={rows[sku.skuId]?.restockIncluded ?? false}
+                              onCheckedChange={(checked) =>
+                                toggleField(sku.skuId, 'restockIncluded', checked === true)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              className="mx-auto"
+                              checked={rows[sku.skuId]?.retailStockout ?? false}
+                              onCheckedChange={(checked) =>
+                                toggleField(sku.skuId, 'retailStockout', checked === true)
+                              }
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t('stockObservationsSearchEmpty')}</p>
+                )}
               </WorkspacePanel>
             ) : null}
 
@@ -761,7 +1004,9 @@ export function StockUpdateSessionRoute() {
                   <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
                     <div className="flex flex-wrap items-center gap-3">
                       <Badge variant="outline">{t('stockOptionalBadge')}</Badge>
-                      <p className="text-sm text-muted-foreground">{t('stockSessionServicesOptionalDescription')}</p>
+                      <DescriptionText className="text-sm text-muted-foreground">
+                        {t('stockSessionServicesOptionalDescription')}
+                      </DescriptionText>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
                       <Badge variant="secondary">
@@ -779,11 +1024,11 @@ export function StockUpdateSessionRoute() {
                         )}
                       </Badge>
                     </div>
-                    <p className="mt-4 text-sm text-muted-foreground">
+                    <DescriptionText className="mt-4 text-sm text-muted-foreground">
                       {serviceChanges.length > 0
                         ? t('stockServiceSummaryChangedPreview')
                         : t('stockServiceSummaryEmpty')}
-                    </p>
+                    </DescriptionText>
                     {serviceChanges.length > 0 ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {changedServicePreview.map((serviceName) => (
@@ -1016,9 +1261,9 @@ export function StockUpdateSessionRoute() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-medium text-foreground">{t('stockSessionStepServices')}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <DescriptionText className="mt-1 text-sm text-muted-foreground">
                           {t('stockSessionServicesOptionalDescription')}
-                        </p>
+                        </DescriptionText>
                       </div>
                       <Button
                         size="sm"
@@ -1059,9 +1304,9 @@ export function StockUpdateSessionRoute() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-medium text-foreground">{t('stockReviewPlanningTitle')}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <DescriptionText className="mt-1 text-sm text-muted-foreground">
                           {t('stockReviewPlanningDescription')}
-                        </p>
+                        </DescriptionText>
                       </div>
                       <Button asChild size="sm" type="button" variant="ghost">
                         <Link to="/planning?source=operations-review">{t('stockReviewOpenPlanning')}</Link>
@@ -1069,7 +1314,7 @@ export function StockUpdateSessionRoute() {
                     </div>
                     <p className="mt-3 text-sm text-muted-foreground">
                       {summarizeCount(
-                        snapshot.ranking.length,
+                        planningBaselineCount,
                         t('stockReviewPlanningEntrySingular'),
                         t('stockReviewPlanningEntryPlural'),
                       )}

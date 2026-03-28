@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleHelp, ChevronDown, ChevronUp } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  BriefcaseBusiness,
+  ChevronDown,
+  ChevronUp,
+  CircleHelp,
+  Copy,
+  FileSpreadsheet,
+  FolderOpen,
+  Package,
+} from 'lucide-react';
+import type { DesktopLocalDataInfo } from '@shared/ipc';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { HoverTooltip } from '@/components/system/hover-tooltip';
+import { DescriptionText } from '@/components/system/description-text';
 import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -93,12 +106,23 @@ export function SettingsRoute() {
   const [advancedError, setAdvancedError] = useState<string | null>(null);
   const [preferencesSaved, setPreferencesSaved] = useState(false);
   const [advancedSaved, setAdvancedSaved] = useState(false);
+  const [localDataInfo, setLocalDataInfo] = useState<DesktopLocalDataInfo | null>(null);
+  const [localDataError, setLocalDataError] = useState<string | null>(null);
+  const [localDataStatus, setLocalDataStatus] = useState<string | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportMenuPosition, setExportMenuPosition] = useState<{
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
   const fieldRefs = useRef<Record<keyof SettingsForm, HTMLInputElement | null>>({
     targetServiceLevel: null,
     forecastHorizonDays: null,
     particleCount: null,
     smoothingWindowReports: null,
   });
+  const exportMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!snapshot) {
@@ -121,20 +145,157 @@ export function SettingsRoute() {
       settingsForm.smoothingWindowReports !== baseline.smoothingWindowReports
     );
   }, [settingsForm, snapshot]);
+  const advancedHasErrors = useMemo(
+    () => Object.values(advancedErrors).some((value) => Boolean(value)),
+    [advancedErrors],
+  );
 
   useEffect(() => {
-    if (advancedDirty || Object.keys(advancedErrors).length > 0) {
-      setAdvancedOpen(true);
-    }
-  }, [advancedDirty, advancedErrors]);
-
-  useEffect(() => {
-    if (advancedSaved && !advancedDirty && Object.keys(advancedErrors).length === 0 && !advancedError) {
+    if (advancedSaved && !advancedDirty && !advancedHasErrors && !advancedError) {
       setAdvancedOpen(false);
     }
-  }, [advancedDirty, advancedError, advancedErrors, advancedSaved]);
+  }, [advancedDirty, advancedError, advancedHasErrors, advancedSaved]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void window.banjiDesktop.system
+      .getLocalDataInfo()
+      .then((info) => {
+        if (cancelled) {
+          return;
+        }
+        setLocalDataInfo(info);
+        setLocalDataError(null);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setLocalDataError(error instanceof Error ? error.message : t('apiUnavailable'));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  useEffect(() => {
+    if (!exportMenuOpen) {
+      return;
+    }
+
+    const MENU_WIDTH = 320;
+    const VIEWPORT_MARGIN = 12;
+    const MENU_GAP = 8;
+
+    function positionExportMenu() {
+      const button = exportMenuButtonRef.current;
+      if (!button) {
+        return;
+      }
+
+      const buttonRect = button.getBoundingClientRect();
+      const measuredHeight = exportMenuRef.current?.offsetHeight ?? 168;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const fitsBelow =
+        buttonRect.bottom + MENU_GAP + measuredHeight <= viewportHeight - VIEWPORT_MARGIN;
+      const fitsAbove =
+        buttonRect.top - MENU_GAP - measuredHeight >= VIEWPORT_MARGIN;
+
+      const width = Math.min(
+        MENU_WIDTH,
+        Math.max(240, viewportWidth - VIEWPORT_MARGIN * 2),
+      );
+      const left = Math.min(
+        Math.max(VIEWPORT_MARGIN, buttonRect.right - width),
+        viewportWidth - width - VIEWPORT_MARGIN,
+      );
+      const top = fitsBelow || !fitsAbove
+        ? Math.min(
+            buttonRect.bottom + MENU_GAP,
+            viewportHeight - measuredHeight - VIEWPORT_MARGIN,
+          )
+        : Math.max(VIEWPORT_MARGIN, buttonRect.top - measuredHeight - MENU_GAP);
+
+      setExportMenuPosition({ left, top, width });
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node | null;
+      if (
+        target &&
+        (exportMenuRef.current?.contains(target) ||
+          exportMenuButtonRef.current?.contains(target))
+      ) {
+        return;
+      }
+      setExportMenuOpen(false);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setExportMenuOpen(false);
+      }
+    }
+
+    positionExportMenu();
+    window.addEventListener('resize', positionExportMenu);
+    window.addEventListener('scroll', positionExportMenu, true);
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener('resize', positionExportMenu);
+      window.removeEventListener('scroll', positionExportMenu, true);
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [exportMenuOpen]);
+
+  const advancedHeaderBadge = useMemo(() => {
+    if (advancedError || advancedHasErrors) {
+      return { label: t('settingsAdvancedNeedsAttention'), variant: 'secondary' as const };
+    }
+    if (advancedDirty) {
+      return { label: t('settingsAdvancedUnsaved'), variant: 'outline' as const };
+    }
+    return null;
+  }, [advancedDirty, advancedError, advancedHasErrors, t]);
 
   const hasPendingSettingsChanges = hasPendingChanges || advancedDirty;
+  const pageStatus = useMemo(() => {
+    if (advancedError) {
+      return { tone: 'destructive' as const, message: advancedError };
+    }
+    if (preferencesError) {
+      return { tone: 'destructive' as const, message: preferencesError };
+    }
+    if (preferencesSaved || advancedSaved) {
+      return { tone: 'muted' as const, message: t('settingsSaveSuccess') };
+    }
+    return null;
+  }, [
+    advancedError,
+    advancedSaved,
+    preferencesError,
+    preferencesSaved,
+    t,
+  ]);
+  const dirtySummary = useMemo(() => {
+    if (hasPendingChanges && advancedDirty) {
+      return t('settingsDirtySummaryBoth');
+    }
+    if (hasPendingChanges) {
+      return t('settingsDirtySummaryPreferences');
+    }
+    if (advancedDirty) {
+      return t('settingsDirtySummaryAdvanced');
+    }
+    return null;
+  }, [advancedDirty, hasPendingChanges, t]);
+
   useRouteLeaveConfirm({
     enabled: hasPendingSettingsChanges,
     message: t('settingsUnsavedLeavePrompt'),
@@ -222,7 +383,7 @@ export function SettingsRoute() {
       }
     }
 
-    if (!advancedError && Object.keys(advancedErrors).length === 0 && !advancedDirty) {
+    if (!advancedError && !advancedHasErrors && !advancedDirty) {
       setAdvancedOpen(false);
     }
   }
@@ -240,34 +401,102 @@ export function SettingsRoute() {
     setAdvancedOpen(false);
   }
 
+  async function handleOpenLocalDataFolder() {
+    setLocalDataError(null);
+    setLocalDataStatus(null);
+    try {
+      await window.banjiDesktop.system.openLocalDataFolder();
+    } catch (error) {
+      setLocalDataError(error instanceof Error ? error.message : t('apiUnavailable'));
+    }
+  }
+
+  async function handleCopyDataPath() {
+    if (!localDataInfo) {
+      return;
+    }
+
+    setLocalDataError(null);
+    setLocalDataStatus(null);
+    try {
+      await navigator.clipboard.writeText(localDataInfo.dataDirectoryPath);
+      setLocalDataStatus(t('settingsLocalDataCopied'));
+    } catch (error) {
+      setLocalDataError(error instanceof Error ? error.message : t('apiUnavailable'));
+    }
+  }
+
+  async function handleExportCsv(
+    exportAction: () => Promise<{ path: string } | null>,
+    label: string,
+  ) {
+    setLocalDataError(null);
+    setLocalDataStatus(null);
+    try {
+      const result = await exportAction();
+      if (!result) {
+        return;
+      }
+      setExportMenuOpen(false);
+      setLocalDataStatus(`${t('settingsLocalDataExportSuccessPrefix')} ${label}: ${result.path}`);
+    } catch (error) {
+      setLocalDataError(error instanceof Error ? error.message : t('apiUnavailable'));
+    }
+  }
+
   return (
     <WorkspacePage>
-      <WorkspacePanel
-        description={t('settingsBody')}
-        title={t('settingsTitle')}
-      >
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <Button disabled={!hasPendingSettingsChanges || isSaving} type="button" variant="outline" onClick={handleReset}>
-            {t('settingsResetAction')}
-          </Button>
-          <Button disabled={!hasPendingSettingsChanges || isSaving} type="button" onClick={() => void handleSave()}>
-            {t('saveDraft')}
-          </Button>
-        </div>
+      <WorkspacePanel>
+        {pageStatus ? (
+          <p
+            className={cn(
+              'text-sm',
+              pageStatus.tone === 'destructive' ? 'text-destructive' : 'text-muted-foreground',
+            )}
+            data-testid="settings-save-status"
+          >
+            {pageStatus.message}
+          </p>
+        ) : null}
 
         <section className="space-y-6">
-          <div className="space-y-2">
-            <h3 className="text-xl font-medium tracking-[-0.03em]">{t('settingsWorkspacePreferencesTitle')}</h3>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              {t('settingsWorkspacePreferencesDescription')}
-            </p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-heading text-base font-medium tracking-[-0.02em]">
+                  {t('settingsWorkspacePreferencesTitle')}
+                </h3>
+                {dirtySummary ? (
+                  <span
+                    className="text-sm text-muted-foreground"
+                    data-testid="settings-dirty-summary"
+                  >
+                    (changed)
+                  </span>
+                ) : null}
+              </div>
+              <DescriptionText className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                {t('settingsWorkspacePreferencesDescription')}
+              </DescriptionText>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 lg:shrink-0">
+              <Button
+                disabled={!hasPendingSettingsChanges || isSaving}
+                type="button"
+                variant="outline"
+                onClick={handleReset}
+              >
+                {t('settingsResetAction')}
+              </Button>
+              <Button
+                disabled={!hasPendingSettingsChanges || isSaving}
+                type="button"
+                onClick={() => void handleSave()}
+              >
+                {t('saveDraft')}
+              </Button>
+            </div>
           </div>
-
-          {preferencesError ? <p className="text-sm text-destructive">{preferencesError}</p> : null}
-          {!preferencesError && preferencesSaved ? (
-            <p className="text-sm text-muted-foreground">{t('settingsPreferencesSaved')}</p>
-          ) : null}
-
           <FieldGroup>
             <Field orientation="responsive">
               <TooltipFieldLabel htmlFor="language-select" label={t('settingsLanguage')} />
@@ -321,23 +550,24 @@ export function SettingsRoute() {
 
         <section className="space-y-4">
           <div className="rounded-3xl border border-border/70 bg-card/55 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-2">
-                <h3 className="text-xl font-medium tracking-[-0.03em]">{t('settingsAdvancedTitle')}</h3>
-                <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                  {t('settingsAdvancedDescription')}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-heading text-base font-medium tracking-[-0.02em]">{t('settingsAdvancedTitle')}</h3>
+                  {advancedHeaderBadge ? (
+                    <Badge data-testid="settings-advanced-status-badge" variant={advancedHeaderBadge.variant}>
+                      {advancedHeaderBadge.label}
+                    </Badge>
+                  ) : null}
+                </div>
               </div>
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() =>
-                  setAdvancedOpen((current) =>
-                    current && (advancedDirty || Object.keys(advancedErrors).length > 0)
-                      ? true
-                      : !current,
-                  )
-                }
+                onClick={() => {
+                  setAdvancedOpen((current) => !current);
+                  setExportMenuOpen(false);
+                }}
               >
                 {advancedOpen ? t('settingsAdvancedHide') : t('settingsAdvancedShow')}
                 {advancedOpen ? <ChevronUp /> : <ChevronDown />}
@@ -345,13 +575,20 @@ export function SettingsRoute() {
             </div>
 
             {advancedOpen ? (
-              <div className="mt-6 space-y-6">
-                {advancedError ? <p className="text-sm text-destructive">{advancedError}</p> : null}
-                {!advancedError && advancedSaved ? (
-                  <p className="text-sm text-muted-foreground">{t('settingsAdvancedSaved')}</p>
-                ) : null}
+              <div className="mt-5 space-y-4 border-t border-border/50 pt-4">
+                <div className="space-y-2">
+                  <h4 className="font-heading text-sm font-medium tracking-[-0.02em]">
+                    {t('preferencesSistTitle')}
+                  </h4>
+                  <DescriptionText
+                    className="max-w-2xl text-sm leading-6 text-muted-foreground"
+                    data-testid="settings-advanced-summary"
+                  >
+                    {t('preferencesSistDescription')}
+                  </DescriptionText>
+                </div>
 
-                <FieldGroup>
+                <FieldGroup className="gap-5">
                   <Field orientation="responsive">
                     <TooltipFieldLabel
                       htmlFor="target-service-level"
@@ -360,7 +597,7 @@ export function SettingsRoute() {
                     />
                     <FieldContent className="md:max-w-md">
                       <Input
-                        className="w-full rounded-2xl bg-background/60"
+                        className="w-full rounded-2xl bg-background/50"
                         id="target-service-level"
                         inputMode="decimal"
                         ref={(node) => {
@@ -390,7 +627,7 @@ export function SettingsRoute() {
                     />
                     <FieldContent className="md:max-w-md">
                       <Input
-                        className="w-full rounded-2xl bg-background/60"
+                        className="w-full rounded-2xl bg-background/50"
                         id="forecast-horizon"
                         inputMode="numeric"
                         ref={(node) => {
@@ -420,7 +657,7 @@ export function SettingsRoute() {
                     />
                     <FieldContent className="md:max-w-md">
                       <Input
-                        className="w-full rounded-2xl bg-background/60"
+                        className="w-full rounded-2xl bg-background/50"
                         id="particle-count"
                         inputMode="numeric"
                         ref={(node) => {
@@ -450,7 +687,7 @@ export function SettingsRoute() {
                     />
                     <FieldContent className="md:max-w-md">
                       <Input
-                        className="w-full rounded-2xl bg-background/60"
+                        className="w-full rounded-2xl bg-background/50"
                         id="smoothing-window"
                         inputMode="numeric"
                         ref={(node) => {
@@ -472,19 +709,146 @@ export function SettingsRoute() {
                     </FieldContent>
                   </Field>
                 </FieldGroup>
+
+                <section className="space-y-4 border-t border-border/50 pt-5">
+                  <div className="space-y-2">
+                    <h4 className="font-heading text-sm font-medium tracking-[-0.02em]">
+                      {t('settingsLocalDataTitle')}
+                    </h4>
+                    <DescriptionText className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                      {t('settingsLocalDataDescription')}
+                    </DescriptionText>
+                  </div>
+
+                  {localDataStatus ? (
+                    <p className="text-sm text-muted-foreground" data-testid="settings-local-data-status">
+                      {localDataStatus}
+                    </p>
+                  ) : null}
+                  {localDataError ? (
+                    <p className="text-sm text-destructive" data-testid="settings-local-data-error">
+                      {localDataError}
+                    </p>
+                  ) : null}
+
+                  {localDataInfo ? (
+                    <div className="space-y-3 text-sm">
+                      <div className="space-y-1">
+                        <p className="font-medium text-foreground">{t('settingsLocalDataFolderLabel')}</p>
+                        <p className="break-all text-muted-foreground">{localDataInfo.dataDirectoryPath}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-medium text-foreground">{t('settingsLocalDataRawFiles')}</p>
+                        <ul className="space-y-1 text-muted-foreground">
+                          <li>{localDataInfo.inventoryStorePath}</li>
+                          <li>{localDataInfo.preferencesPath}</li>
+                        </ul>
+                      </div>
+                      <p className="text-muted-foreground">{t('settingsLocalDataRawFormatNote')}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t('overviewLoading')}</p>
+                  )}
+
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleOpenLocalDataFolder()}
+                    >
+                      <FolderOpen />
+                      {t('settingsOpenDataFolder')}
+                    </Button>
+                    <Button
+                      disabled={!localDataInfo}
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleCopyDataPath()}
+                    >
+                      <Copy />
+                      {t('settingsCopyDataPath')}
+                    </Button>
+                    <div className="relative">
+                      <Button
+                        aria-expanded={exportMenuOpen}
+                        aria-haspopup="menu"
+                        ref={exportMenuButtonRef}
+                        type="button"
+                        variant="outline"
+                        onClick={() => setExportMenuOpen((current) => !current)}
+                      >
+                        <FileSpreadsheet />
+                      {t('settingsExportData')}
+                      <ChevronDown />
+                    </Button>
+                    </div>
+                  </div>
+                </section>
               </div>
             ) : null}
           </div>
         </section>
 
-        <div className="rounded-3xl border border-border/70 bg-background/50 p-4">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            {t('settingsStorageTitle')}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('settingsStorage')}</p>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('settingsDisclaimer')}</p>
-        </div>
       </WorkspacePanel>
+      {exportMenuOpen && exportMenuPosition
+        ? createPortal(
+            <div
+              aria-label={t('settingsExportData')}
+              className="fixed z-50 rounded-2xl border border-border/70 bg-background p-2 shadow-lg"
+              ref={exportMenuRef}
+              role="menu"
+              style={{
+                left: exportMenuPosition.left,
+                top: exportMenuPosition.top,
+                width: exportMenuPosition.width,
+              }}
+            >
+              <button
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-accent/60"
+                role="menuitem"
+                type="button"
+                onClick={() =>
+                  void handleExportCsv(
+                    () => window.banjiDesktop.system.exportSkusCsv(),
+                    t('catalogResultSkuPlural'),
+                  )
+                }
+              >
+                <Package className="size-4" />
+                <span>{t('settingsExportSkusCsv')}</span>
+              </button>
+              <button
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-accent/60"
+                role="menuitem"
+                type="button"
+                onClick={() =>
+                  void handleExportCsv(
+                    () => window.banjiDesktop.system.exportServicesCsv(),
+                    t('catalogResultServicePlural'),
+                  )
+                }
+              >
+                <BriefcaseBusiness className="size-4" />
+                <span>{t('settingsExportServicesCsv')}</span>
+              </button>
+              <button
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-accent/60"
+                role="menuitem"
+                type="button"
+                onClick={() =>
+                  void handleExportCsv(
+                    () => window.banjiDesktop.system.exportStockReportsCsv(),
+                    t('operationsHistoryTitle'),
+                  )
+                }
+              >
+                <FileSpreadsheet className="size-4" />
+                <span>{t('settingsExportStockReportsCsv')}</span>
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </WorkspacePage>
   );
 }

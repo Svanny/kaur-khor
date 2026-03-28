@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createManagedCoreController } from './core-manager';
@@ -8,6 +9,8 @@ import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import {
   IPC_CHANNELS,
   type DesktopAppContext,
+  type DesktopExportResult,
+  type DesktopLocalDataInfo,
   type DesktopPreferences,
   type GetSistSkuDetailPayload,
   type SaveRankingPayload,
@@ -16,6 +19,9 @@ import {
 } from '@shared/ipc';
 import type {
   InventorySnapshot,
+  RankingEntryType,
+  ServiceRecord,
+  SkuRecord,
   SistSettings,
   StockReport,
   StockReportSubmission,
@@ -40,6 +46,189 @@ const managedCore = createManagedCoreController({
   isPackaged: app.isPackaged,
   resourcesPath: process.resourcesPath,
 });
+
+const INVENTORY_STORE_FILENAME = 'desktop-inventory-store.json';
+const PREFERENCES_STORE_FILENAME = 'desktop-preferences.json';
+
+function toCsvValue(value: boolean | number | string | null | undefined) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value);
+}
+
+function toCsvLine(values: Array<boolean | number | string | null | undefined>) {
+  return values
+    .map((value) => `"${toCsvValue(value).replace(/"/g, '""')}"`)
+    .join(',');
+}
+
+function getRankingPosition(
+  snapshot: InventorySnapshot,
+  entryType: RankingEntryType,
+  entryId: string,
+) {
+  const match = snapshot.ranking.find(
+    (entry) => entry.entryType === entryType && entry.entryId === entryId,
+  );
+  return match ? match.position + 1 : null;
+}
+
+function buildSkusCsv(snapshot: InventorySnapshot) {
+  const header = toCsvLine([
+    'sku_id',
+    'name',
+    'description',
+    'units_in_stock',
+    'cost_per_unit',
+    'sold_as_product',
+    'product_price',
+    'lead_time_mean_days',
+    'lead_time_std_days',
+    'ranking_position',
+  ]);
+  const rows = snapshot.skus.map((sku: SkuRecord) =>
+    toCsvLine([
+      sku.skuId,
+      sku.name,
+      sku.description,
+      sku.unitsInStock,
+      sku.costPerUnit,
+      sku.soldAsProduct,
+      sku.productPrice,
+      sku.leadTimeMeanDays,
+      sku.leadTimeStdDays,
+      getRankingPosition(snapshot, 'sku', sku.skuId),
+    ]),
+  );
+  return `${[header, ...rows].join('\n')}\n`;
+}
+
+function buildServicesCsv(snapshot: InventorySnapshot) {
+  const header = toCsvLine([
+    'service_id',
+    'name',
+    'description',
+    'price',
+    'linked_sku_ids',
+    'linked_sku_count',
+    'ranking_position',
+  ]);
+  const rows = snapshot.services.map((service: ServiceRecord) =>
+    toCsvLine([
+      service.serviceId,
+      service.name,
+      service.description,
+      service.price,
+      service.skuIds.join('|'),
+      service.skuIds.length,
+      getRankingPosition(snapshot, 'service', service.serviceId),
+    ]),
+  );
+  return `${[header, ...rows].join('\n')}\n`;
+}
+
+function buildStockReportsCsv(snapshot: InventorySnapshot, reports: StockReport[]) {
+  const skuNames = new Map(snapshot.skus.map((sku) => [sku.skuId, sku.name]));
+  const serviceNames = new Map(snapshot.services.map((service) => [service.serviceId, service.name]));
+  const header = toCsvLine([
+    'report_id',
+    'report_source',
+    'reported_at',
+    'row_type',
+    'item_id',
+    'item_name',
+    'units_in_stock',
+    'cost_per_unit',
+    'restock_included',
+    'retail_stockout',
+    'stockout',
+    'price',
+    'report_notes',
+    'row_notes',
+  ]);
+  const rows = reports.flatMap((report) => {
+    const skuRows = report.skuObservations.map((row) =>
+      toCsvLine([
+        report.reportId,
+        report.reportSource,
+        report.reportedAt,
+        'sku_observation',
+        row.skuId,
+        skuNames.get(row.skuId) ?? row.skuId,
+        row.unitsInStock,
+        row.costPerUnit,
+        row.restockIncluded ?? null,
+        row.retailStockout ?? null,
+        null,
+        null,
+        report.notes,
+        row.notes,
+      ]),
+    );
+    const signalRows = report.serviceSignals.map((row) =>
+      toCsvLine([
+        report.reportId,
+        report.reportSource,
+        report.reportedAt,
+        'service_signal',
+        row.serviceId,
+        serviceNames.get(row.serviceId) ?? row.serviceId,
+        null,
+        null,
+        null,
+        null,
+        row.stockout ?? null,
+        null,
+        report.notes,
+        null,
+      ]),
+    );
+    const priceRows = report.servicePriceAdjustments.map((row) =>
+      toCsvLine([
+        report.reportId,
+        report.reportSource,
+        report.reportedAt,
+        'service_price_adjustment',
+        row.serviceId,
+        serviceNames.get(row.serviceId) ?? row.serviceId,
+        null,
+        null,
+        null,
+        null,
+        null,
+        row.price,
+        report.notes,
+        null,
+      ]),
+    );
+
+    return [...skuRows, ...signalRows, ...priceRows];
+  });
+
+  return `${[header, ...rows].join('\n')}\n`;
+}
+
+async function exportCsv(
+  defaultFileName: string,
+  buildContents: () => Promise<string>,
+): Promise<DesktopExportResult | null> {
+  const result = await dialog.showSaveDialog(mainWindow ?? undefined, {
+    defaultPath: join(desktopDataPath, defaultFileName),
+    filters: [{ name: 'CSV', extensions: ['csv'] }],
+    properties: ['createDirectory', 'showOverwriteConfirmation'],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return null;
+  }
+
+  await mkdir(dirname(result.filePath), { recursive: true });
+  const contents = await buildContents();
+  await writeFile(result.filePath, contents, 'utf8');
+  return { path: result.filePath };
+}
 
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -101,6 +290,43 @@ async function boot() {
 }
 
 ipcMain.handle(IPC_CHANNELS.systemGetAppContext, async () => desktopContext);
+ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, async () => {
+  const info: DesktopLocalDataInfo = {
+    dataDirectoryPath: desktopDataPath,
+    inventoryStorePath: join(desktopDataPath, INVENTORY_STORE_FILENAME),
+    preferencesPath: join(desktopDataPath, PREFERENCES_STORE_FILENAME),
+    storageFormat: 'json',
+  };
+  return info;
+});
+ipcMain.handle(IPC_CHANNELS.systemOpenLocalDataFolder, async () => {
+  await mkdir(desktopDataPath, { recursive: true });
+  const openError = await shell.openPath(desktopDataPath);
+  if (openError) {
+    throw new Error(openError);
+  }
+});
+ipcMain.handle(IPC_CHANNELS.systemExportSkusCsv, async () =>
+  exportCsv('banji-skus.csv', async () => {
+    const snapshot = await managedCore.invoke<InventorySnapshot>('inventory.getSnapshot');
+    return buildSkusCsv(snapshot);
+  }),
+);
+ipcMain.handle(IPC_CHANNELS.systemExportServicesCsv, async () =>
+  exportCsv('banji-services.csv', async () => {
+    const snapshot = await managedCore.invoke<InventorySnapshot>('inventory.getSnapshot');
+    return buildServicesCsv(snapshot);
+  }),
+);
+ipcMain.handle(IPC_CHANNELS.systemExportStockReportsCsv, async () =>
+  exportCsv('banji-stock-reports.csv', async () => {
+    const [snapshot, reports] = await Promise.all([
+      managedCore.invoke<InventorySnapshot>('inventory.getSnapshot'),
+      managedCore.invoke<StockReport[]>('inventory.listStockReports'),
+    ]);
+    return buildStockReportsCsv(snapshot, reports);
+  }),
+);
 ipcMain.handle(IPC_CHANNELS.inventoryGetSnapshot, async () =>
   managedCore.invoke<InventorySnapshot>('inventory.getSnapshot'),
 );

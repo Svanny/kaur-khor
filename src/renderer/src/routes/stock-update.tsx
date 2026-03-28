@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import type { StockReport } from '@shared/inventory';
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import type { InventorySnapshot, StockReport } from '@shared/inventory';
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +26,11 @@ import {
   summarizeNotes,
 } from '@/lib/stock-report-summary';
 import { useInventory } from '@/state/inventory';
-import { useOperationsSession } from '@/state/operations-session';
+import {
+  useOperationsSession,
+  type OperationsSessionDraft,
+  type OperationsSessionStepId,
+} from '@/state/operations-session';
 import { usePreferences } from '@/state/preferences';
 
 type ReportSourceFilter = 'all' | 'manual' | 'compat-stock-update' | 'legacy-baseline';
@@ -53,9 +58,174 @@ function buildReportSearchText(report: StockReport, skuNames: Map<string, string
     .toLowerCase();
 }
 
+function formatIncludesHint(name: string | null, t: ReturnType<typeof usePreferences>['t']) {
+  return name ? `${t('operationsHistoryIncludes')} ${name}` : null;
+}
+
+function formatReportCount(count: number, t: ReturnType<typeof usePreferences>['t']) {
+  return summarizeCount(count, t('operationsReportSingular'), t('operationsReportPlural'));
+}
+
+function titleCaseLabel(label: string) {
+  return label.replace(/\b\p{L}/gu, (character) => character.toUpperCase());
+}
+
+function sourceFilterLabel(
+  sourceFilter: ReportSourceFilter,
+  t: ReturnType<typeof usePreferences>['t'],
+) {
+  switch (sourceFilter) {
+    case 'manual':
+      return t('operationsFilterManual').toLowerCase();
+    case 'compat-stock-update':
+      return t('operationsFilterImported').toLowerCase();
+    case 'legacy-baseline':
+      return t('operationsFilterBaseline').toLowerCase();
+    case 'all':
+    default:
+      return null;
+  }
+}
+
+function countDraftChangedRows(snapshot: InventorySnapshot, draft: OperationsSessionDraft) {
+  return snapshot.skus.filter((sku) => {
+    const row = draft.rows[sku.skuId];
+    if (!row) {
+      return false;
+    }
+
+    return (
+      Number(row.unitsInStock) !== sku.unitsInStock ||
+      Number(row.costPerUnit) !== sku.costPerUnit ||
+      row.restockIncluded ||
+      row.retailStockout ||
+      row.notes.trim().length > 0
+    );
+  }).length;
+}
+
+function countDraftServiceChanges(
+  snapshot: InventorySnapshot,
+  draft: OperationsSessionDraft,
+) {
+  return snapshot.services.filter((service) => {
+    const serviceDraft = draft.serviceDrafts[service.serviceId];
+    if (!serviceDraft) {
+      return false;
+    }
+
+    return serviceDraft.stockout || Number(serviceDraft.price) !== service.price;
+  }).length;
+}
+
+function operationsResumeStepKey(lastStep: OperationsSessionStepId) {
+  switch (lastStep) {
+    case 'review':
+      return 'operationsResumeReview';
+    case 'services':
+      return 'operationsResumeServices';
+    case 'observations':
+      return 'operationsResumeObservations';
+    case 'details':
+    default:
+      return 'operationsResumeDetails';
+  }
+}
+
+function buildOperationsDraftSummary(
+  changedRowCount: number,
+  changedServiceCount: number,
+  t: ReturnType<typeof usePreferences>['t'],
+) {
+  const parts: string[] = [];
+
+  if (changedRowCount > 0) {
+    parts.push(
+      summarizeCount(
+        changedRowCount,
+        t('stockHistoryChangedRowSingular'),
+        t('stockHistoryChangedRowPlural'),
+      ),
+    );
+  }
+
+  if (changedServiceCount > 0) {
+    parts.push(
+      summarizeCount(
+        changedServiceCount,
+        t('operationsResumeServiceChangeSingular'),
+        t('operationsResumeServiceChangePlural'),
+      ),
+    );
+  }
+
+  if (parts.length === 0) {
+    return t('operationsResumeSummaryEmpty');
+  }
+
+  return `${parts.join(' • ')} ${t('operationsResumeSummaryQueued')}`;
+}
+
+function OperationsSessionAction({
+  hasDraft,
+  statusLine,
+  t,
+}: {
+  hasDraft: boolean;
+  statusLine?: string | null;
+  t: ReturnType<typeof usePreferences>['t'];
+}) {
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <Button asChild>
+        <Link to="/operations/session">
+          {hasDraft ? t('operationsResumeSession') : t('operationsStartSession')}
+        </Link>
+      </Button>
+      {hasDraft && statusLine ? (
+        <p className="max-w-56 text-xs leading-5 text-muted-foreground" data-testid="operations-draft-status">
+          {statusLine}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function OperationsLedgerSummaryCell({
+  summary,
+  preview,
+}: {
+  summary: string;
+  preview?: string | null;
+}) {
+  return (
+    <TableCell className="align-top text-sm text-muted-foreground">
+      <p>{summary}</p>
+      {preview ? <p className="mt-1 text-xs leading-5 text-foreground/75">{preview}</p> : null}
+    </TableCell>
+  );
+}
+
+function OperationsDetailSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        {title}
+      </p>
+      {children}
+    </section>
+  );
+}
+
 export function StockUpdateRoute() {
   const { snapshot, listStockReports } = useInventory();
-  const { hasDraft } = useOperationsSession();
+  const { draft, hasDraft } = useOperationsSession();
   const { currency, language, t } = usePreferences();
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -121,6 +291,26 @@ export function StockUpdateRoute() {
 
   const latestReport = reports[0] ?? null;
   const latestChangedRowCount = latestReport?.skuObservations.length ?? 0;
+  const normalizedSearchQuery = searchQuery.trim();
+  const draftChangedRowCount = snapshot && draft ? countDraftChangedRows(snapshot, draft) : 0;
+  const draftChangedServiceCount = snapshot && draft ? countDraftServiceChanges(snapshot, draft) : 0;
+  const draftStatusLine =
+    draft && hasDraft
+      ? `${t(operationsResumeStepKey(draft.lastStep))}. ${buildOperationsDraftSummary(
+          draftChangedRowCount,
+          draftChangedServiceCount,
+          t,
+        )}`
+      : null;
+  const activeSourceFilterLabel = sourceFilterLabel(sourceFilter, t);
+  const historyResultsSummary =
+    filteredReports.length === 0 && normalizedSearchQuery
+      ? `${t('operationsResultsNoneMatch')} "${normalizedSearchQuery}"`
+      : filteredReports.length === 0 && sourceFilter !== 'all'
+        ? `${t('operationsResultsShowing')} 0 ${activeSourceFilterLabel} ${t('operationsReportPlural')}`
+        : sourceFilter === 'all'
+          ? `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)}`
+          : `${t('operationsResultsShowing')} ${filteredReports.length} ${activeSourceFilterLabel} ${filteredReports.length === 1 ? t('operationsReportSingular') : t('operationsReportPlural')}`;
 
   if (!snapshot) {
     return (
@@ -133,13 +323,7 @@ export function StockUpdateRoute() {
   return (
     <WorkspacePage>
       <WorkspacePanel
-        action={
-          <Button asChild>
-            <Link to="/operations/session">
-              {hasDraft ? t('operationsResumeSession') : t('operationsStartSession')}
-            </Link>
-          </Button>
-        }
+        action={<OperationsSessionAction hasDraft={hasDraft} statusLine={draftStatusLine} t={t} />}
         description={t('operationsBody')}
         title={t('operationsTitle')}
       >
@@ -216,6 +400,9 @@ export function StockUpdateRoute() {
             ))}
           </div>
         </div>
+        <p className="text-sm text-muted-foreground" data-testid="operations-history-results-summary">
+          {historyResultsSummary}
+        </p>
 
         {historyLoading ? (
           <p className="text-sm text-muted-foreground">{t('operationsHistoryLoading')}</p>
@@ -255,18 +442,21 @@ export function StockUpdateRoute() {
             title={t('operationsHistoryNoResultsTitle')}
           />
         ) : (
-          <div className="overflow-hidden rounded-3xl border border-border/70 bg-card/55" data-testid="operations-history-ledger">
+          <div
+            className="overflow-hidden rounded-3xl border border-border/70 bg-card/55 p-2"
+            data-testid="operations-history-ledger"
+          >
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('stockReportedAt')}</TableHead>
-                  <TableHead>{t('operationsHistorySourceColumn')}</TableHead>
-                  <TableHead>{t('stockHistoryChangedRowPlural')}</TableHead>
-                  <TableHead>{t('stockHistoryServiceFlagPlural')}</TableHead>
-                  <TableHead>{t('stockHistoryPriceEditPlural')}</TableHead>
-                  <TableHead>{t('stockHistoryRankingSignalPlural')}</TableHead>
-                  <TableHead>{t('stockReportNotes')}</TableHead>
-                  <TableHead className="text-right">{t('operationsInspectAction')}</TableHead>
+                  <TableHead>{titleCaseLabel(t('stockReportedAt'))}</TableHead>
+                  <TableHead>{titleCaseLabel(t('operationsHistorySourceColumn'))}</TableHead>
+                  <TableHead>{titleCaseLabel(t('stockHistoryChangedRowPlural'))}</TableHead>
+                  <TableHead>{titleCaseLabel(t('stockHistoryServiceFlagPlural'))}</TableHead>
+                  <TableHead>{titleCaseLabel(t('stockHistoryPriceEditPlural'))}</TableHead>
+                  <TableHead>{titleCaseLabel(t('stockHistoryRankingSignalPlural'))}</TableHead>
+                  <TableHead>{titleCaseLabel(t('stockReportNotes'))}</TableHead>
+                  <TableHead aria-hidden="true" className="w-24 text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -277,6 +467,26 @@ export function StockUpdateRoute() {
                   ).length;
                   const merchandisingCount = rankingSignalCount(report);
                   const notesSnippet = summarizeNotes(report.notes) ?? t('stockHistoryNoNotes');
+                  const firstChangedSkuName =
+                    report.skuObservations.length > 0
+                      ? (skuNames.get(report.skuObservations[0]?.skuId) ?? report.skuObservations[0]?.skuId)
+                      : null;
+                  const firstFlaggedServiceName =
+                    serviceFlagCount > 0
+                      ? (() => {
+                          const firstFlaggedService = report.serviceSignals.find(
+                            (signal) => signal.stockout !== false,
+                          );
+                          return firstFlaggedService
+                            ? (serviceNames.get(firstFlaggedService.serviceId) ?? firstFlaggedService.serviceId)
+                            : null;
+                        })()
+                      : null;
+                  const firstPriceEditedServiceName =
+                    report.servicePriceAdjustments.length > 0
+                      ? (serviceNames.get(report.servicePriceAdjustments[0]?.serviceId) ??
+                        report.servicePriceAdjustments[0]?.serviceId)
+                      : null;
 
                   return (
                     <Fragment key={report.reportId}>
@@ -296,27 +506,30 @@ export function StockUpdateRoute() {
                             {t(stockReportSourceKey(report.reportSource))}
                           </Badge>
                         </TableCell>
-                        <TableCell className="align-top text-sm text-muted-foreground">
-                          {summarizeCount(
+                        <OperationsLedgerSummaryCell
+                          preview={formatIncludesHint(firstChangedSkuName, t)}
+                          summary={summarizeCount(
                             report.skuObservations.length,
                             t('stockHistoryChangedRowSingular'),
                             t('stockHistoryChangedRowPlural'),
                           )}
-                        </TableCell>
-                        <TableCell className="align-top text-sm text-muted-foreground">
-                          {summarizeCount(
+                        />
+                        <OperationsLedgerSummaryCell
+                          preview={formatIncludesHint(firstFlaggedServiceName, t)}
+                          summary={summarizeCount(
                             serviceFlagCount,
                             t('stockHistoryServiceFlagSingular'),
                             t('stockHistoryServiceFlagPlural'),
                           )}
-                        </TableCell>
-                        <TableCell className="align-top text-sm text-muted-foreground">
-                          {summarizeCount(
+                        />
+                        <OperationsLedgerSummaryCell
+                          preview={formatIncludesHint(firstPriceEditedServiceName, t)}
+                          summary={summarizeCount(
                             report.servicePriceAdjustments.length,
                             t('stockHistoryPriceEditSingular'),
                             t('stockHistoryPriceEditPlural'),
                           )}
-                        </TableCell>
+                        />
                         <TableCell className="align-top text-sm text-muted-foreground">
                           {summarizeCount(
                             merchandisingCount,
@@ -329,6 +542,7 @@ export function StockUpdateRoute() {
                         </TableCell>
                         <TableCell className="text-right align-top">
                           <Button
+                            aria-label={isExpanded ? t('operationsInspectHide') : t('operationsInspectAction')}
                             size="sm"
                             type="button"
                             variant="ghost"
@@ -338,7 +552,7 @@ export function StockUpdateRoute() {
                               )
                             }
                           >
-                            {isExpanded ? t('operationsInspectHide') : t('operationsInspectAction')}
+                            {isExpanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -346,115 +560,102 @@ export function StockUpdateRoute() {
                       {isExpanded ? (
                         <TableRow data-testid="operations-history-detail">
                           <TableCell className="bg-background/40 py-4" colSpan={8}>
-                            <div className="grid gap-4 lg:grid-cols-2">
-                              <div className="grid gap-4">
-                                <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                                    {t('stockTableTitle')}
-                                  </p>
-                                  {report.skuObservations.length > 0 ? (
-                                    <div className="mt-3 grid gap-3">
-                                      {report.skuObservations.map((entry) => {
-                                        const sku = skusById.get(entry.skuId);
+                            <div className="space-y-5">
+                              <OperationsDetailSection title={t('stockTableTitle')}>
+                                {report.skuObservations.length > 0 ? (
+                                  <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
+                                    {report.skuObservations.map((entry) => {
+                                      const sku = skusById.get(entry.skuId);
 
-                                        return (
-                                          <div
-                                            className="rounded-xl border border-border/60 bg-card/70 px-3 py-3"
-                                            key={`${report.reportId}-${entry.skuId}`}
-                                          >
-                                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                              <div className="min-w-0">
-                                                <p className="font-medium text-foreground">
-                                                  {sku?.name ?? entry.skuId}
-                                                </p>
-                                                <p className="text-sm text-muted-foreground">{entry.skuId}</p>
-                                              </div>
-                                              <div className="flex flex-wrap items-center gap-2">
-                                                {entry.restockIncluded ? (
-                                                  <Badge variant="outline">{t('stockRestockIncluded')}</Badge>
-                                                ) : null}
-                                                {entry.retailStockout ? (
-                                                  <Badge variant="outline">{t('stockRetailStockout')}</Badge>
-                                                ) : null}
-                                              </div>
-                                            </div>
-                                            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-                                              <span>{t('fieldUnitsInStock')}: {entry.unitsInStock}</span>
-                                              <span>
-                                                {t('fieldCostPerUnit')}: {formatCurrency(entry.costPerUnit, currency, language)}
-                                              </span>
-                                            </div>
-                                            {entry.notes ? (
-                                              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                                                {entry.notes}
-                                              </p>
-                                            ) : null}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : (
-                                    <p className="mt-3 text-sm text-muted-foreground">
-                                      {t('stockHistoryNoObservations')}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="grid gap-4">
-                                <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                                    {t('stockServiceSignalsTitle')}
-                                  </p>
-                                  {serviceFlagCount > 0 ? (
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                      {report.serviceSignals
-                                        .filter((signal) => signal.stockout !== false)
-                                        .map((signal) => (
-                                          <Badge key={`${report.reportId}-${signal.serviceId}`} variant="outline">
-                                            {servicesById.get(signal.serviceId)?.name ?? signal.serviceId}
-                                          </Badge>
-                                        ))}
-                                    </div>
-                                  ) : (
-                                    <p className="mt-3 text-sm text-muted-foreground">{t('stockNoServiceSignals')}</p>
-                                  )}
-                                </div>
-
-                                <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                                    {t('stockServicePriceAdjustmentsTitle')}
-                                  </p>
-                                  {report.servicePriceAdjustments.length > 0 ? (
-                                    <div className="mt-3 grid gap-3">
-                                      {report.servicePriceAdjustments.map((adjustment) => (
+                                      return (
                                         <div
-                                          className="rounded-xl border border-border/60 bg-card/70 px-3 py-3"
-                                          key={`${report.reportId}-${adjustment.serviceId}`}
+                                          className="space-y-2 px-4 py-3"
+                                          key={`${report.reportId}-${entry.skuId}`}
                                         >
+                                          <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                              <p className="font-medium text-foreground">
+                                                {sku?.name ?? entry.skuId}
+                                              </p>
+                                              <p className="text-sm text-muted-foreground">{entry.skuId}</p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              {entry.restockIncluded ? (
+                                                <Badge variant="outline">{t('stockRestockIncluded')}</Badge>
+                                              ) : null}
+                                              {entry.retailStockout ? (
+                                                <Badge variant="outline">{t('stockRetailStockout')}</Badge>
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                                            <span>{t('fieldUnitsInStock')}: {entry.unitsInStock}</span>
+                                            <span>
+                                              {t('fieldCostPerUnit')}: {formatCurrency(entry.costPerUnit, currency, language)}
+                                            </span>
+                                          </div>
+                                          {entry.notes ? (
+                                            <p className="text-sm leading-6 text-muted-foreground">{entry.notes}</p>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">{t('stockHistoryNoObservations')}</p>
+                                )}
+                              </OperationsDetailSection>
+
+                              <OperationsDetailSection title={t('stockServiceSignalsTitle')}>
+                                {serviceFlagCount > 0 || report.servicePriceAdjustments.length > 0 ? (
+                                  <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
+                                    {report.serviceSignals
+                                      .filter((signal) => signal.stockout !== false)
+                                      .map((signal) => (
+                                        <div
+                                          className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                                          key={`${report.reportId}-${signal.serviceId}-flag`}
+                                        >
+                                          <div>
+                                            <p className="font-medium text-foreground">
+                                              {servicesById.get(signal.serviceId)?.name ?? signal.serviceId}
+                                            </p>
+                                            <p className="text-sm text-muted-foreground">{t('stockServiceStockoutToggle')}</p>
+                                          </div>
+                                          <Badge variant="outline">{t('stockRetailStockout')}</Badge>
+                                        </div>
+                                      ))}
+                                    {report.servicePriceAdjustments.map((adjustment) => (
+                                      <div
+                                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                                        key={`${report.reportId}-${adjustment.serviceId}-price`}
+                                      >
+                                        <div>
                                           <p className="font-medium text-foreground">
                                             {servicesById.get(adjustment.serviceId)?.name ?? adjustment.serviceId}
                                           </p>
-                                          <p className="mt-1 text-sm text-muted-foreground">
-                                            {formatCurrency(adjustment.price, currency, language)}
+                                          <p className="text-sm text-muted-foreground">
+                                            {t('stockServicePriceAdjustmentsTitle')}
                                           </p>
                                         </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <p className="mt-3 text-sm text-muted-foreground">{t('stockHistoryNoPriceEdits')}</p>
-                                  )}
-                                </div>
+                                        <p className="text-sm text-muted-foreground">
+                                          {formatCurrency(adjustment.price, currency, language)}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">{t('stockNoServiceSignals')}</p>
+                                )}
+                              </OperationsDetailSection>
 
-                                <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                                    {t('stockRankingTitle')}
-                                  </p>
-                                  <div className="mt-3 grid gap-3">
-                                    <div>
+                              <OperationsDetailSection title={t('stockRankingTitle')}>
+                                {report.topServiceRanking.length > 0 || report.topRetailRanking.length > 0 ? (
+                                  <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
+                                    <div className="space-y-2 px-4 py-3">
                                       <p className="text-sm font-medium text-foreground">{t('stockTopServiceRanking')}</p>
                                       {report.topServiceRanking.length > 0 ? (
-                                        <div className="mt-2 flex flex-wrap gap-2">
+                                        <div className="flex flex-wrap gap-2">
                                           {report.topServiceRanking.map((serviceId) => (
                                             <Badge key={`${report.reportId}-${serviceId}`} variant="outline">
                                               {servicesById.get(serviceId)?.name ?? serviceId}
@@ -462,13 +663,13 @@ export function StockUpdateRoute() {
                                           ))}
                                         </div>
                                       ) : (
-                                        <p className="mt-2 text-sm text-muted-foreground">{t('stockHistoryNoRanking')}</p>
+                                        <p className="text-sm text-muted-foreground">{t('stockHistoryNoRanking')}</p>
                                       )}
                                     </div>
-                                    <div>
+                                    <div className="space-y-2 px-4 py-3">
                                       <p className="text-sm font-medium text-foreground">{t('stockTopRetailRanking')}</p>
                                       {report.topRetailRanking.length > 0 ? (
-                                        <div className="mt-2 flex flex-wrap gap-2">
+                                        <div className="flex flex-wrap gap-2">
                                           {report.topRetailRanking.map((skuId) => (
                                             <Badge key={`${report.reportId}-${skuId}`} variant="outline">
                                               {skusById.get(skuId)?.name ?? skuId}
@@ -476,12 +677,14 @@ export function StockUpdateRoute() {
                                           ))}
                                         </div>
                                       ) : (
-                                        <p className="mt-2 text-sm text-muted-foreground">{t('stockHistoryNoRanking')}</p>
+                                        <p className="text-sm text-muted-foreground">{t('stockHistoryNoRanking')}</p>
                                       )}
                                     </div>
                                   </div>
-                                </div>
-                              </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">{t('stockHistoryNoRanking')}</p>
+                                )}
+                              </OperationsDetailSection>
                             </div>
                           </TableCell>
                         </TableRow>

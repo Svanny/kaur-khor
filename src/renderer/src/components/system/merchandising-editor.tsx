@@ -38,7 +38,7 @@ type RankingRowModel = {
 };
 
 const rankingGridClassName =
-  'grid grid-cols-[128px_minmax(0,1.55fr)_minmax(168px,0.85fr)] gap-4';
+  'grid grid-cols-[128px_minmax(0,1.45fr)_minmax(120px,0.65fr)_minmax(168px,0.85fr)] gap-4';
 
 const dropAnimation = {
   duration: 160,
@@ -88,12 +88,14 @@ export function MerchandisingEditor({
   snapshot,
   onChange,
   titleLabel,
+  helperText,
   priceOverrides,
 }: {
   entries: RankingEntry[];
   snapshot: InventorySnapshot;
   onChange: (entries: RankingEntry[]) => void;
   titleLabel?: string;
+  helperText?: string;
   priceOverrides?: Record<string, number>;
 }) {
   const { currency, language, t } = usePreferences();
@@ -171,9 +173,12 @@ export function MerchandisingEditor({
     <div className="overflow-x-auto">
       <div
         aria-label={titleLabel ?? t('productRankingTitle')}
-        className="min-w-[720px]"
+        className="min-w-[860px]"
         role="table"
       >
+        {helperText ? (
+          <p className="mb-3 text-sm text-muted-foreground">{helperText}</p>
+        ) : null}
         <div className="border-b border-border/60 pb-3" role="rowgroup">
           <div
             className={cn(rankingGridClassName, 'px-3 text-sm font-medium text-foreground md:px-4')}
@@ -187,6 +192,9 @@ export function MerchandisingEditor({
             </div>
             <div className="px-2" role="columnheader">
               {t('rankHeaderName')}
+            </div>
+            <div className="px-2" role="columnheader">
+              {t('rankHeaderType')}
             </div>
             <div className="px-2" role="columnheader">
               {t('rankHeaderPrice')}
@@ -352,6 +360,8 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
       </div>
       <div className="min-w-0 px-2" role="cell">
         <p className="truncate text-[1.05rem] font-medium tracking-tight text-foreground">{label}</p>
+      </div>
+      <div className="px-2" role="cell">
         <p className="text-sm text-muted-foreground">{kindLabel}</p>
       </div>
       <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums" role="cell">

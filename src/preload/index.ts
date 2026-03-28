@@ -20,6 +20,11 @@ import type {
 const desktopBridge: DesktopBridge = {
   system: {
     getAppContext: () => ipcRenderer.invoke(IPC_CHANNELS.systemGetAppContext),
+    getLocalDataInfo: () => ipcRenderer.invoke(IPC_CHANNELS.systemGetLocalDataInfo),
+    openLocalDataFolder: () => ipcRenderer.invoke(IPC_CHANNELS.systemOpenLocalDataFolder),
+    exportSkusCsv: () => ipcRenderer.invoke(IPC_CHANNELS.systemExportSkusCsv),
+    exportServicesCsv: () => ipcRenderer.invoke(IPC_CHANNELS.systemExportServicesCsv),
+    exportStockReportsCsv: () => ipcRenderer.invoke(IPC_CHANNELS.systemExportStockReportsCsv),
   },
   inventory: {
     getSnapshot: (): Promise<InventorySnapshot> =>

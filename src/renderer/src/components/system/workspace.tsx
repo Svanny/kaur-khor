@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/empty';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { DescriptionText, hasDescriptionText } from '@/components/system/description-text';
 
 export function WorkspacePage({
   className,
@@ -44,11 +45,13 @@ export function WorkspaceHero({
   children?: ReactNode;
   className?: string;
 }) {
+  const showDescription = hasDescriptionText(description);
+
   return (
-    <Card className={cn('hero-mesh relative overflow-hidden border-white/70', className)}>
+    <Card className={cn('hero-mesh relative overflow-hidden border-white/70', !showDescription && 'gap-4', className)}>
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-64 bg-[radial-gradient(circle_at_top,rgba(189,124,81,0.2),transparent_60%)] lg:block" />
-      <CardHeader className="relative gap-4">
-        <div className="flex flex-col gap-3">
+      <CardHeader className={cn('relative gap-4', !showDescription && 'gap-2')}>
+        <div className={cn('flex flex-col gap-3', !showDescription && 'gap-2')}>
           {eyebrow ? (
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-primary/85">
               {eyebrow}
@@ -58,9 +61,11 @@ export function WorkspaceHero({
             <CardTitle className="text-3xl tracking-[-0.04em] sm:text-4xl">
               {title}
             </CardTitle>
-            {description ? (
+            {showDescription ? (
               <CardDescription className="max-w-2xl text-sm leading-6 sm:text-base">
-                {description}
+                <DescriptionText as="div">
+                  {description}
+                </DescriptionText>
               </CardDescription>
             ) : null}
           </div>
@@ -132,26 +137,36 @@ export function WorkspacePanel({
   contentClassName,
   footer,
 }: {
-  title?: string;
-  description?: string;
+  title?: ReactNode;
+  description?: ReactNode;
   action?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
   contentClassName?: string;
   footer?: ReactNode;
 }) {
-  const hasHeader = Boolean(title || description || action);
+  const showDescription = hasDescriptionText(description);
+  const hasHeader = Boolean(title || showDescription || action);
+  const hasContent = children != null;
 
   return (
-    <Card className={cn('border-white/70', className)}>
+    <Card className={cn('border-white/70', !showDescription && hasHeader && 'gap-4', className)}>
       {hasHeader ? (
-        <CardHeader>
+        <CardHeader className={cn(!showDescription && 'gap-0')}>
           {title ? <CardTitle>{title}</CardTitle> : null}
-          {description ? <CardDescription>{description}</CardDescription> : null}
+          {showDescription ? (
+            <CardDescription>
+              <DescriptionText as="div">{description}</DescriptionText>
+            </CardDescription>
+          ) : null}
           {action ? <CardAction>{action}</CardAction> : null}
         </CardHeader>
       ) : null}
-      <CardContent className={cn('flex flex-col gap-6', contentClassName)}>{children}</CardContent>
+      {hasContent ? (
+        <CardContent className={cn('flex flex-col gap-6', !showDescription && hasHeader && 'pt-0', contentClassName)}>
+          {children}
+        </CardContent>
+      ) : null}
       {footer ? <CardFooter className="border-t border-border/60">{footer}</CardFooter> : null}
     </Card>
   );
@@ -174,7 +189,11 @@ export function WorkspaceBanner({
     <Alert variant={tone}>
       {icon}
       <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>{description}</AlertDescription>
+      {hasDescriptionText(description) ? (
+        <AlertDescription>
+          <DescriptionText as="div">{description}</DescriptionText>
+        </AlertDescription>
+      ) : null}
       {action ? <div data-slot="alert-action">{action}</div> : null}
     </Alert>
   );
@@ -189,14 +208,20 @@ export function WorkspaceEmpty({
   description: string;
   action?: ReactNode;
 }) {
+  const showDescription = hasDescriptionText(description);
+
   return (
-    <Empty className="border-border/80 bg-card/45">
-      <EmptyHeader>
+    <Empty className={cn('border-border/80 bg-card/45', !showDescription && 'gap-3 p-10')}>
+      <EmptyHeader className={cn(!showDescription && 'gap-1')}>
         <EmptyMedia variant="icon">
           <Sparkles />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
+        {showDescription ? (
+          <EmptyDescription>
+            <DescriptionText as="div">{description}</DescriptionText>
+          </EmptyDescription>
+        ) : null}
       </EmptyHeader>
       {action ? <EmptyContent>{action}</EmptyContent> : null}
     </Empty>

@@ -9,6 +9,7 @@ import {
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
+import { DescriptionText } from '@/components/system/description-text';
 import { buildDefaultReportRanking } from '@/components/system/merchandising-editor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -291,9 +292,9 @@ export function DashboardRoute() {
             <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
               {primaryActions.primary.label}
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+            <DescriptionText className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               {primaryActions.primary.description}
-            </p>
+            </DescriptionText>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button asChild>
                 <Link to={primaryActions.primary.href}>
@@ -314,7 +315,9 @@ export function DashboardRoute() {
             <p className="mt-3 text-lg font-semibold tracking-[-0.03em] text-foreground">
               {heroSupport.title}
             </p>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{heroSupport.body}</p>
+            <DescriptionText className="mt-3 text-sm leading-6 text-muted-foreground">
+              {heroSupport.body}
+            </DescriptionText>
             {heroSupport.detail ? (
               <p className="mt-4 text-sm text-foreground">{heroSupport.detail}</p>
             ) : null}
@@ -414,9 +417,9 @@ export function DashboardRoute() {
 
             <div className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4">
               <p className="font-medium text-foreground">{t('overviewReorderPressureOnlyTitle')}</p>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <DescriptionText className="mt-2 text-sm text-muted-foreground">
                 {t('overviewReorderPressureOnlyDescription')}
-              </p>
+              </DescriptionText>
             </div>
           </div>
         ) : (

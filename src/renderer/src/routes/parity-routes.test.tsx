@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, RankingEntry, StockReport } from '@shared/inventory';
@@ -151,6 +151,15 @@ const loadSistSkuDetail = vi.fn();
 const savePreferences = vi.fn();
 const resetPreferences = vi.fn();
 const persistRanking = vi.fn();
+const getLocalDataInfo = vi.fn();
+const openLocalDataFolder = vi.fn();
+const exportSkusCsv = vi.fn();
+const exportServicesCsv = vi.fn();
+const exportStockReportsCsv = vi.fn();
+
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+}
 
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -170,14 +179,23 @@ vi.mock('../components/system/merchandising-editor', async () => {
     MerchandisingEditor: ({
       entries,
       onChange,
+      helperText,
       titleLabel,
     }: {
       entries: RankingEntry[];
       onChange: (entries: RankingEntry[]) => void;
+      helperText?: string;
       titleLabel?: string;
     }) => (
       <div>
         <p>{titleLabel ?? 'Ranking of Items Sold'}</p>
+        {helperText ? <p>{helperText}</p> : null}
+        <div>
+          <span>Rank</span>
+          <span>Name</span>
+          <span>Type</span>
+          <span>Price</span>
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -329,6 +347,11 @@ describe('renderer workspaces', () => {
     savePreferences.mockReset();
     resetPreferences.mockReset();
     persistRanking.mockReset();
+    getLocalDataInfo.mockReset();
+    openLocalDataFolder.mockReset();
+    exportSkusCsv.mockReset();
+    exportServicesCsv.mockReset();
+    exportStockReportsCsv.mockReset();
     listStockReports.mockResolvedValue(stockReports);
     saveSku.mockResolvedValue(undefined);
     saveService.mockResolvedValue(undefined);
@@ -363,7 +386,7 @@ describe('renderer workspaces', () => {
           backToCatalog: 'Back to catalog',
           catalogEditAction: 'Edit',
           catalogSkuEditAction: 'Edit SKU',
-          catalogSkuStockAction: 'Update this SKU in session',
+          catalogSkuStockAction: 'Record stock update',
           catalogSkuDetailNotFoundTitle: 'SKU not found',
           catalogSkuDetailNotFoundDescription:
             'This SKU is no longer in the current snapshot. Return to the catalog to choose another record.',
@@ -373,6 +396,14 @@ describe('renderer workspaces', () => {
           catalogSkuLeadTimeSummary: 'Lead-time summary',
           catalogSkuSnapshotFallback:
             'Using snapshot planning data while richer detail is unavailable.',
+          catalogSkuOperationalStatusTitle: 'Operational status',
+          catalogSkuOperationalHealthy: 'Healthy',
+          catalogSkuOperationalAtRisk: 'At risk',
+          catalogSkuOperationalReorderSoon: 'Reorder soon',
+          catalogSkuOperationalOverstocked: 'Overstocked',
+          catalogSkuOperationalNoPlanning: 'Planning status unavailable.',
+          catalogSkuOperationalLinkedServiceSingular: 'linked service depends on this SKU',
+          catalogSkuOperationalLinkedServicePlural: 'linked services depend on this SKU',
           catalogSkuPlanningSignalsFallback:
             'Detailed planning context could not be loaded. Showing the latest snapshot values instead.',
           catalogSkuRecentReportsTitle: 'Recent reports',
@@ -381,6 +412,11 @@ describe('renderer workspaces', () => {
           catalogSkuRecentReportsEmpty: 'No recent report history is available for this SKU yet.',
           catalogSkuRecentReportsFallback:
             'Recent report history could not be loaded right now. The rest of the SKU page is still available.',
+          catalogSkuRecentReportsStockAdjusted: 'Stock adjusted',
+          catalogSkuRecentReportsCostUpdated: 'Cost updated',
+          catalogSkuRecentReportsRetailStockout: 'Marked retail stockout',
+          catalogSkuRecentReportsRestockIncluded: 'Restock included',
+          catalogSkuRecentReportsNoSkuChanges: 'No SKU-specific changes recorded',
           catalogSkuEditorTitleNew: 'New SKU',
           catalogSkuEditorTitleEdit: 'Edit SKU',
           catalogSkuEditorDescriptionNew:
@@ -391,19 +427,37 @@ describe('renderer workspaces', () => {
             'The SKU identifier is read-only in this phase and remains the stable record reference.',
           catalogSkuPlanningInputsTitle: 'Planning inputs',
           catalogSkuPlanningInputsDescription:
-            'Lead-time inputs stay secondary here. Update them when planning assumptions need a refresh.',
+            'Optional lead-time calibration. Update it when planning assumptions need a refresh.',
+          catalogSkuPlanningInputsShow: 'Show inputs',
+          catalogSkuPlanningInputsHide: 'Hide inputs',
           createEntry: 'Create entry',
           fieldName: 'Name',
           fieldDescription: 'Description',
           fieldId: 'Identifier',
           fieldLinkedSkus: 'Linked SKUs',
           editorDetailsTitle: 'Core details',
+          serviceEditorDetailsTitle: 'Service details',
+          skuEditorDetailsTitle: 'SKU details',
+          skuEditorStockSellingTitle: 'Stock and selling',
           editorSkuHelper: 'SKU helper',
           editorServiceHelper: 'Service helper',
           editorInventoryTitle: 'Inventory profile',
           editorPricingTitle: 'Commercial setup',
           editorSelectionTitle: 'Linked SKUs',
           editorSelectionCount: 'selected',
+          serviceEditorLinkedSkusSelected: 'linked SKUs selected',
+          serviceEditorCoverageTitle: 'Current sellable coverage',
+          serviceEditorCoverageEmpty: 'No linked SKU coverage yet',
+          serviceEditorLimitingSkuTitle: 'Limiting SKU',
+          serviceEditorLimitingSkuNone: 'None',
+          editorNoChangesYet: 'No changes yet',
+          editorUnsavedChanges: 'Unsaved changes',
+          skuEditorDetailsChanged: 'Details updated',
+          skuEditorInventoryChanged: 'Inventory updated',
+          skuEditorPricingChanged: 'Pricing updated',
+          skuEditorPlanningChanged: 'Planning inputs updated',
+          serviceEditorDetailsChanged: 'Service details updated',
+          serviceEditorLinkedSkusChanged: 'Linked SKUs updated',
           overviewHeading: 'Overview',
           overviewBody: 'See what needs attention now, what changed recently, and what to do next.',
           overviewLoading: 'Loading the latest overview context…',
@@ -535,29 +589,40 @@ describe('renderer workspaces', () => {
           createServiceAction: 'New Service',
           rankHeaderRank: 'Rank',
           rankHeaderName: 'Name',
+          rankHeaderType: 'Type',
           rankHeaderPrice: 'Price',
           saveRankingAction: 'Save order',
           resetAction: 'Reset',
           planningBody:
-            'Set merchandising order first, then use the supporting context to pressure-test the decisions before saving.',
+            'Set the sales priority order your team uses on the floor, then review the supporting signals before saving.',
           planningOperationsSource:
-            'You opened Planning from operations review. Finish the ranking decision here, then return to review.',
+            'You opened Planning from operations review. Finalize the order here, then return to review.',
           planningReturnToOperationsReview: 'Return to operations review',
           planningRankingEntries: 'Ranking entries',
-          planningLeadSpotlight: 'Lead spotlight',
+          planningLeadSpotlight: 'Top of list preview',
           planningLeadSpotlightEmpty: 'No ranked entries yet.',
           planningCoverageTitle: 'Ranking coverage',
           planningCoverageDescription: 'Entries currently in scope for merchandising decisions.',
           planningCoverageBadge: 'entries in scope',
           planningContextTitle: 'Decision context',
-          planningContextDescription:
-            'Use these signals to validate the order above without turning the page into a KPI dashboard.',
-          planningRankingWorkspaceTitle: 'Set merchandising order',
+          planningContextDescription: 'Use these signals to pressure-test the order above.',
+          planningRankingWorkspaceTitle: 'Set sales priority order',
           planningRankingWorkspaceDescription:
-            'Rank the services and sellable SKUs your team should push first, then save when the order is ready.',
+            'Rank the services and sellable SKUs by how strongly they tend to sell or how strongly your team pushes them. Highest priority means first to push, first to assume demand for when evidence is thin.',
+          planningUnsavedBadge: 'You have unsaved changes',
+          planningExplainerTitle: 'Why this order matters',
+          planningExplainerTeamLabel: 'For your team',
+          planningExplainerTeamBody: 'Shows what should be pushed or is most likely to sell first.',
+          planningExplainerSistLabel: 'For SIST',
+          planningExplainerSistBody:
+            'Helps Banji estimate hidden demand patterns when direct stock signals are incomplete.',
+          planningExplainerFooter: 'Treat this as a business signal, not a strict sales report.',
+          planningDemandPressureTitle: 'Demand pressure',
+          planningDemandPressureLabel: 'Reorder pressure',
+          planningDemandPressureEmpty: 'No high-risk SKUs right now.',
           planningEmptyTitle: 'Planning needs rankable items',
           planningEmptyDescription:
-            'Add a service or a sellable SKU in the catalog before setting merchandising order here.',
+            'Add a service or a sellable SKU before setting the sales priority order.',
           planningEmptyAction: 'Open catalog',
           inventoryColumnItem: 'Item',
           inventoryColumnStatus: 'Status',
@@ -599,14 +664,24 @@ describe('renderer workspaces', () => {
           catalogServiceDetailIdentityDescription:
             'Use this record to review service setup, fulfillment coverage, and the latest relevant operations activity.',
           catalogServiceEditAction: 'Edit service',
-          catalogServiceOperationsAction: 'Update this service in session',
+          catalogServiceOperationsAction: 'Review this service in session',
           catalogServiceCommercialSetupTitle: 'Commercial setup',
           catalogServiceCommercialSetupDescription:
             'Keep the selling price and linked SKU footprint clear before opening the editor.',
           catalogServiceFulfillmentTitle: 'Fulfillment coverage',
           catalogServiceFulfillmentDescription:
             'Derived coverage combines linked SKU stock and planning risk to show whether this service is blocked or at risk.',
+          catalogServiceFulfillmentStatusTitle: 'Fulfillment status',
+          catalogServiceFulfillmentReady: 'Fulfillable',
           catalogServiceSellableUnits: 'Sellable units',
+          catalogServiceConstraintHealthy: 'All linked SKUs currently healthy.',
+          catalogServiceConstraintUnlinked: 'No linked SKUs are attached to this service yet.',
+          catalogServiceConstraintBlockedPrefix: 'Limited by',
+          catalogServiceConstraintRiskPrefix: 'Risk signaled on',
+          catalogServiceViabilityTitle: 'Service viability',
+          catalogServiceCurrentStatusTitle: 'Current status',
+          catalogServiceLimitingSkuTitle: 'Limiting SKU',
+          catalogServiceLimitingSkuHealthy: 'None',
           catalogServiceBlockedState: 'Blocked',
           catalogServiceAtRiskState: 'At risk',
           catalogServiceCoverageStateTitle: 'Coverage state',
@@ -614,12 +689,23 @@ describe('renderer workspaces', () => {
           catalogServiceCoverageStateBlocked: 'Blocked because at least one linked SKU is out of stock.',
           catalogServiceCoverageStateAtRisk:
             'At risk because a linked SKU has a current high-risk planning signal.',
-          catalogLinkedServicesTitle: 'Linked services',
-          catalogLinkedServicesDescription: 'These services currently depend on this SKU.',
+          catalogLinkedServicesTitle: 'Service impact',
+          catalogLinkedServicesDescription:
+            'These services currently depend on this SKU, so changes here affect their fulfillability.',
           catalogLinkedServicesEmpty: 'No services currently depend on this SKU.',
+          catalogLinkedServicesAffectedSingular: 'affected service',
+          catalogLinkedServicesAffectedPlural: 'affected services',
+          catalogLinkedServicesLimiting: 'Limiting component',
+          catalogLinkedServicesSellableUnits: 'Service sellable units',
           catalogSkuPlanningSignalsTitle: 'Planning signals',
           catalogSkuPlanningSignalsDescription:
             'Use the current planning snapshot to understand reorder pressure before editing.',
+          catalogSkuPlanningActionTitle: 'Recommended action',
+          catalogSkuPlanningActionSteady: 'No immediate action needed',
+          catalogSkuPlanningActionPressure: 'Reorder pressure is rising',
+          catalogSkuPlanningActionLowConfidence: 'Coverage is strong, but confidence is low',
+          catalogSkuPlanningActionRisk: 'Coverage is at risk',
+          catalogSkuPlanningMetricsTitle: 'Supporting metrics',
           catalogSkuPlanningSignalsEmpty: 'No planning signals are available for this SKU yet.',
           catalogSkuDetailLoaderTitle: 'SIST detail',
           catalogSkuDetailLoaderDescription:
@@ -633,8 +719,11 @@ describe('renderer workspaces', () => {
           catalogServiceLinkedSkusDescription:
             'These SKUs determine how many units of this service can be sold.',
           catalogServiceLinkedSkusEmpty: 'No SKUs are linked to this service yet.',
+          catalogServiceLinkedSkuStatusLabel: 'Status',
+          catalogServiceLinkedSkuHealthyBadge: 'Healthy',
           catalogServiceLinkedSkuRiskBadge: 'High risk',
           catalogServiceLinkedSkuBlockedBadge: 'Blocked',
+          catalogServiceLinkedSkuBottleneckBadge: 'Bottleneck',
           catalogServiceAvailabilityTitle: 'Availability',
           catalogServiceAvailabilityAvailable: 'Available',
           catalogServiceAvailabilityStockout: 'Stockout',
@@ -645,25 +734,50 @@ describe('renderer workspaces', () => {
           catalogServiceRecentActivityEmpty: 'No recent service-related updates were found.',
           catalogServiceRecentActivityFallback:
             'Recent service activity could not be loaded right now. The rest of the service page is still available.',
+          catalogServiceRecentActivityFlaggedUnavailable: 'Service flagged unavailable',
+          catalogServiceRecentActivityPriceOverride: 'Price override recorded',
+          catalogServiceRecentActivityLinkedSkuChange: 'Linked SKU change affecting coverage',
+          catalogServiceRecentActivityRanking: 'Priority ranking updated',
           catalogServiceEditorTitleNew: 'New service',
           catalogServiceEditorTitleEdit: 'Edit service',
           catalogServiceEditorDescriptionNew:
             'Create a new service record, then land on its detail page for follow-up fulfillment and operations review.',
           catalogServiceEditorDescriptionEdit:
-            'Update editable service fields without changing the record identifier or route.',
+            'Update the service name, price, description, and linked SKUs.',
           catalogServiceEditorIdentifierDescription:
-            'The service identifier is read-only in this phase and remains the stable record reference.',
+            'The identifier is fixed for this service.',
           settingsTitle: 'Settings',
           settingsBody: 'Settings body',
           settingsWorkspacePreferencesTitle: 'Workspace preferences',
           settingsWorkspacePreferencesDescription: 'Workspace preferences copy',
-          settingsAdvancedTitle: 'Advanced model settings',
+          settingsAdvancedTitle: 'Advanced settings',
           settingsAdvancedDescription: 'Advanced model copy',
           settingsAdvancedShow: 'Show advanced settings',
           settingsAdvancedHide: 'Hide advanced settings',
+          settingsAdvancedUnsaved: 'Unsaved',
+          settingsAdvancedNeedsAttention: 'Needs attention',
+          settingsDirtySummaryPreferences: 'Workspace preferences changed.',
+          settingsDirtySummaryAdvanced: 'Advanced model settings changed.',
+          settingsDirtySummaryBoth: 'Workspace preferences and advanced model settings changed.',
           settingsResetAction: 'Reset changes',
           settingsPreferencesSaved: 'Workspace preferences saved.',
           settingsAdvancedSaved: 'Advanced model settings saved.',
+          settingsSaveSuccess: 'Changes saved.',
+          settingsLocalDataTitle: 'Local data',
+          settingsLocalDataDescription:
+            'Banji stores its raw working data on this device in JSON files. Use CSV export when you want to inspect the data in Excel or Numbers.',
+          settingsLocalDataFolderLabel: 'Data folder',
+          settingsLocalDataRawFiles: 'Raw files',
+          settingsLocalDataRawFormatNote:
+            'Raw files use Banji’s internal JSON format. CSV exports are for spreadsheet review.',
+          settingsOpenDataFolder: 'Open data folder',
+          settingsCopyDataPath: 'Copy data path',
+          settingsExportData: 'Export data',
+          settingsExportSkusCsv: 'Export SKUs CSV',
+          settingsExportServicesCsv: 'Export services CSV',
+          settingsExportStockReportsCsv: 'Export stock reports CSV',
+          settingsLocalDataCopied: 'Data folder path copied.',
+          settingsLocalDataExportSuccessPrefix: 'Exported',
           settingsUnsavedLeavePrompt:
             'You have unsaved settings changes. Leave this page and discard the current draft?',
           planningUnsavedLeavePrompt:
@@ -698,12 +812,25 @@ describe('renderer workspaces', () => {
           operationsBody: 'Operations body',
           operationsStartSession: 'Start update session',
           operationsResumeSession: 'Resume update session',
+          operationsResumeDetails: 'Resume details',
+          operationsResumeObservations: 'Resume SKU observations',
+          operationsResumeServices: 'Resume service updates',
+          operationsResumeReview: 'Resume review',
+          operationsResumeServiceChangeSingular: 'service change',
+          operationsResumeServiceChangePlural: 'service changes',
+          operationsResumeSummaryQueued: 'queued',
+          operationsResumeSummaryEmpty: 'Draft saved on this device',
           operationsSummaryLatestReport: 'Latest report',
           operationsSummarySavedUpdates: 'Saved updates',
           operationsSummaryLatestChangeCount: 'Latest changed rows',
           operationsSummaryNone: 'No saved updates yet',
           operationsHistoryTitle: 'Recent activity',
           operationsHistoryDescription: 'Recent operations activity.',
+          operationsHistoryIncludes: 'Includes',
+          operationsResultsShowing: 'Showing',
+          operationsResultsNoneMatch: 'No reports match',
+          operationsReportSingular: 'report',
+          operationsReportPlural: 'reports',
           operationsHistorySourceColumn: 'Source',
           operationsHistoryLoading: 'Loading recent activity…',
           operationsHistoryEmptyTitle: 'No saved updates yet',
@@ -773,6 +900,8 @@ describe('renderer workspaces', () => {
           stockSessionBack: 'Back',
           stockSessionNext: 'Next',
           stockSessionSubmit: 'Submit update',
+          stockSessionDiscardPrompt:
+            'You have an in-progress operations update. Leave this page and discard the current draft?',
           stockOptionalBadge: 'Optional',
           stockStepStatusRequired: 'Required',
           stockStepStatusOptional: 'Optional',
@@ -799,6 +928,11 @@ describe('renderer workspaces', () => {
           stockObservationsFilterAll: 'All rows',
           stockObservationsFilterChanged: 'Changed rows',
           stockObservationsFilterEmpty: 'No rows have changed yet.',
+          stockObservationsSearchLabel: 'Search SKU rows',
+          stockObservationsSearchPlaceholder: 'Search SKU name or id…',
+          stockObservationsSearchResultSingular: 'matching row',
+          stockObservationsSearchResultPlural: 'matching rows',
+          stockObservationsSearchEmpty: 'No SKU rows match the current search.',
           stockObservationsChangedBadge: 'Changed',
           stockFocusedBadge: 'Focused',
           stockFocusSkuHint: 'Opened from SKU detail',
@@ -824,6 +958,7 @@ describe('renderer workspaces', () => {
           stockPresetSmall: 'Fine',
           stockPresetMedium: 'Standard',
           stockPresetBig: 'Bulk',
+          stockIncrementSize: 'Increment size',
           stockConfirm: 'Review changes',
           stockDone: 'Save update',
           stockPhaseEditing: 'Editing',
@@ -832,6 +967,8 @@ describe('renderer workspaces', () => {
           validationTimestamp: 'Enter a valid report timestamp.',
           stockReportedAt: 'Reported at',
           stockReportNotes: 'Report notes',
+          stockObservationRowNotesLabel: 'SKU notes',
+          stockObservationRowNotesPlaceholder: 'Capture any row-specific exception or context.',
           stockRestockIncluded: 'Restock included',
           stockRetailStockout: 'Retail stockout',
           stockServiceSignalsTitle: 'Service stockout flags',
@@ -859,6 +996,33 @@ describe('renderer workspaces', () => {
           skuLabel: 'SKU',
         };
         return translations[key] ?? key;
+      },
+    });
+    getLocalDataInfo.mockResolvedValue({
+      dataDirectoryPath: '/tmp/banji-data',
+      inventoryStorePath: '/tmp/banji-data/desktop-inventory-store.json',
+      preferencesPath: '/tmp/banji-data/desktop-preferences.json',
+      storageFormat: 'json',
+    });
+    openLocalDataFolder.mockResolvedValue(undefined);
+    exportSkusCsv.mockResolvedValue({ path: '/tmp/banji-skus.csv' });
+    exportServicesCsv.mockResolvedValue({ path: '/tmp/banji-services.csv' });
+    exportStockReportsCsv.mockResolvedValue({ path: '/tmp/banji-stock-reports.csv' });
+    window.banjiDesktop = {
+      ...window.banjiDesktop,
+      system: {
+        ...window.banjiDesktop?.system,
+        getAppContext: vi.fn(),
+        getLocalDataInfo,
+        openLocalDataFolder,
+        exportSkusCsv,
+        exportServicesCsv,
+        exportStockReportsCsv,
+      },
+    };
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined),
       },
     });
   });
@@ -955,8 +1119,8 @@ describe('renderer workspaces', () => {
     );
     expect(screen.getByText('Reorder pressure is rising')).toBeInTheDocument();
     expect(
-      screen.getByText('Reorder pressure is rising even though no SKU is in the current top risk list.'),
-    ).toBeInTheDocument();
+      screen.queryByText('Reorder pressure is rising even though no SKU is in the current top risk list.'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('No urgent planning signals')).not.toBeInTheDocument();
   });
 
@@ -1046,7 +1210,7 @@ describe('renderer workspaces', () => {
     renderInventory('/catalog?q=sku&view=skus');
 
     expect(screen.getByTestId('location-search').textContent).toBe('?q=sku&view=skus');
-    expect(screen.getByText('SKU copy')).toBeInTheDocument();
+    expect(screen.queryByText('SKU copy')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Services' }));
 
@@ -1057,8 +1221,8 @@ describe('renderer workspaces', () => {
     renderRoute('/catalog', <InventoryRoute />);
 
     expect(screen.getByText('2 SKUs and 2 services')).toBeInTheDocument();
-    expect(screen.getByText('Preview the first SKU matches here, then switch into the dedicated SKU comparison table.')).toBeInTheDocument();
-    expect(screen.getByText('Preview the first service matches here, then switch into the dedicated service comparison table.')).toBeInTheDocument();
+    expect(screen.queryByText('Preview the first SKU matches here, then switch into the dedicated SKU comparison table.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Preview the first service matches here, then switch into the dedicated service comparison table.')).not.toBeInTheDocument();
     expect(screen.getByText('Direct sell status')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
     expect(screen.queryByText('Days of cover')).not.toBeInTheDocument();
@@ -1075,7 +1239,7 @@ describe('renderer workspaces', () => {
 
   test('catalog dedicated SKU and service views render the correct comparison tables', () => {
     renderInventory('/catalog?view=skus');
-    expect(screen.getByText('SKU copy')).toBeInTheDocument();
+    expect(screen.queryByText('SKU copy')).not.toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
     expect(screen.getByText('Cost per unit')).toBeInTheDocument();
     expect(screen.getByText('Product price')).toBeInTheDocument();
@@ -1086,7 +1250,7 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('Service bundle copy')).not.toBeInTheDocument();
 
     renderInventory('/catalog?view=services');
-    expect(screen.getByText('Service bundle copy')).toBeInTheDocument();
+    expect(screen.queryByText('Service bundle copy')).not.toBeInTheDocument();
     expect(screen.getAllByText('Status').length).toBeGreaterThan(0);
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
     expect(screen.getByText('Potential revenue')).toBeInTheDocument();
@@ -1098,16 +1262,29 @@ describe('renderer workspaces', () => {
     expect(screen.getByTestId('planning-route')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'You opened Planning from operations review. Finish the ranking decision here, then return to review.',
+        'You opened Planning from operations review. Finalize the order here, then return to review.',
       ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'Return to operations review' }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByText('Set merchandising order').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Set sales priority order').length).toBeGreaterThan(0);
     expect(screen.getByText('Decision context')).toBeInTheDocument();
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Set sales priority order help' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Why this order matters');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('For your team');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('For SIST');
     expect(screen.queryByText('Ranking entries')).not.toBeInTheDocument();
     expect(screen.getByText('3 entries in scope')).toBeInTheDocument();
+    expect(screen.getByText('Type')).toBeInTheDocument();
+    expect(screen.getByText('SKU #001')).toBeInTheDocument();
+    expect(screen.getByText('47% stockout risk')).toBeInTheDocument();
+    expect(screen.getByText('#1 Service #001')).toBeInTheDocument();
+    const actionRail = screen.getByTestId('planning-action-rail');
+    expect(screen.queryByRole('link', { name: 'Open catalog' })).not.toBeInTheDocument();
+    expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Reset' }));
+    expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Save order' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply ranking change' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save order' }));
@@ -1130,6 +1307,7 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('3 entries in scope')).toBeInTheDocument();
     expect(screen.getByText('Ranking of Items Sold')).toBeInTheDocument();
     expect(screen.queryByText('0 entries in scope')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Return to operations review' })).not.toBeInTheDocument();
   });
 
   test('planning shows an empty state with catalog CTA when nothing is rankable', () => {
@@ -1144,9 +1322,6 @@ describe('renderer workspaces', () => {
     renderRoute('/planning', <PlanningRoute />);
 
     expect(screen.getByText('Planning needs rankable items')).toBeInTheDocument();
-    expect(
-      screen.getByText('Add a service or a sellable SKU in the catalog before setting merchandising order here.'),
-    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open catalog' })).toHaveAttribute('href', '/catalog');
     expect(screen.queryByText('Ranking of Items Sold')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save order' })).not.toBeInTheDocument();
@@ -1180,6 +1355,10 @@ describe('renderer workspaces', () => {
       'href',
       '/operations/session?step=review',
     );
+    const actionRail = screen.getByTestId('planning-action-rail');
+    expect(actionRail).toContainElement(screen.getByRole('link', { name: 'Return to operations review' }));
+    expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Reset' }));
+    expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Save order' }));
     expect(screen.getByTestId('location-pathname').textContent).toBe('/planning');
     expect(screen.getByTestId('location-search').textContent).toBe('?source=operations-review');
   });
@@ -1303,15 +1482,42 @@ describe('renderer workspaces', () => {
     expect(loadSistSkuDetail).toHaveBeenCalledTimes(1);
     expect(loadSistSkuDetail).toHaveBeenCalledWith('sku-1');
     expect(screen.getByText('Identifier: sku-1')).toBeInTheDocument();
-    expect(screen.getAllByText('Linked services').length).toBeGreaterThan(0);
+    expect(screen.getByText('Operational status')).toBeInTheDocument();
+    expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
+    expect(
+      screen.getByText('4.2 days of cover, 1 linked service depends on this SKU'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('SKU overview')).not.toBeInTheDocument();
+    expect(screen.getByText('Inventory profile')).toBeInTheDocument();
+    expect(screen.getAllByText('Service impact').length).toBeGreaterThan(0);
+    expect(screen.getByText('1 affected service')).toBeInTheDocument();
     expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
-    expect(screen.getByText('Planning signals')).toBeInTheDocument();
+    expect(screen.getAllByText('Limiting component').length).toBeGreaterThan(0);
+    const impactedServiceRow = screen.getByRole('link', { name: /Service #001/ });
+    expect(impactedServiceRow).not.toHaveTextContent('Current status:');
+    expect(impactedServiceRow).not.toHaveTextContent('Service sellable units:');
+    expect(screen.getAllByText('Recommended action').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Coverage is at risk').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Supporting metrics').length).toBeGreaterThan(0);
     expect(screen.getByText('47%')).toBeInTheDocument();
     expect(await screen.findByText('Recent reports')).toBeInTheDocument();
+    expect(screen.getByText('Stock adjusted 12 -> 10 · Cost updated $5.50 · Restock included')).toBeInTheDocument();
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Update this SKU in session' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Record stock update' })).toHaveAttribute(
       'href',
       '/operations/session?step=observations&focusSku=sku-1',
+    );
+    expect(screen.getByRole('link', { name: 'Back to catalog' })).toHaveAttribute(
+      'data-variant',
+      'ghost',
+    );
+    expect(screen.getByRole('link', { name: 'Record stock update' })).toHaveAttribute(
+      'data-variant',
+      'default',
+    );
+    expect(screen.getByRole('link', { name: 'Edit SKU' })).toHaveAttribute(
+      'data-variant',
+      'outline',
     );
   });
 
@@ -1328,7 +1534,7 @@ describe('renderer workspaces', () => {
 
     expect(await screen.findByText('Detailed planning context could not be loaded. Showing the latest snapshot values instead.')).toBeInTheDocument();
     expect(screen.getByText('Recent report history could not be loaded right now. The rest of the SKU page is still available.')).toBeInTheDocument();
-    expect(screen.getByText('SKU #001')).toBeInTheDocument();
+    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
   });
 
   test('unknown SKU id shows a not-found state with a catalog CTA', () => {
@@ -1355,15 +1561,48 @@ describe('renderer workspaces', () => {
 
     expect(listStockReports).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Identifier: service-1')).toBeInTheDocument();
+    expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
+    expect(screen.getByText('Fulfillment status')).toBeInTheDocument();
+    expect(screen.queryByText('Availability')).not.toBeInTheDocument();
+    expect(screen.queryByText('Coverage state')).not.toBeInTheDocument();
+    expect(screen.queryByText('Stockout risk')).not.toBeInTheDocument();
+    expect(screen.getByText('Service viability')).toBeInTheDocument();
+    expect(screen.getByText('Risk signaled on sku-1.')).toBeInTheDocument();
+    const viabilityBlock = screen.getByText('Service viability').closest('div');
+    expect(viabilityBlock).not.toBeNull();
+    expect(viabilityBlock).toHaveTextContent('Limiting SKU');
+    expect(viabilityBlock).toHaveTextContent('sku-1');
     expect(screen.getAllByText('Linked SKUs').length).toBeGreaterThan(0);
     expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    const linkedSkuRow = screen.getByRole('link', { name: /SKU #001/ });
+    expect(linkedSkuRow).toHaveTextContent('Units in stock: 12');
+    expect(linkedSkuRow).toHaveAttribute(
+      'href',
+      '/catalog/skus/sku-1',
+    );
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
     expect(screen.getAllByText('12').length).toBeGreaterThan(0);
     expect(await screen.findByText('Recent activity')).toBeInTheDocument();
-    expect(screen.getByText('Service stockout flags · Ranking of Items Sold')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Update this service in session' })).toHaveAttribute(
+    expect(
+      screen.getByText(
+        'Service flagged unavailable · Linked SKU change affecting coverage (sku-1) · Priority ranking updated',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review this service in session' })).toHaveAttribute(
       'href',
       '/operations/session?step=services&focusService=service-1',
+    );
+    expect(screen.getByRole('link', { name: 'Back to catalog' })).toHaveAttribute(
+      'data-variant',
+      'ghost',
+    );
+    expect(screen.getByRole('link', { name: 'Review this service in session' })).toHaveAttribute(
+      'data-variant',
+      'default',
+    );
+    expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute(
+      'data-variant',
+      'outline',
     );
   });
 
@@ -1389,6 +1628,8 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getAllByText('Blocked').length).toBeGreaterThan(0);
+    expect(screen.getByText('Limited by sku-1.')).toBeInTheDocument();
+    expect(screen.getByText('Bottleneck')).toBeInTheDocument();
 
     setInventoryState(
       createSnapshot({
@@ -1408,6 +1649,41 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
+    expect(screen.getByText('Risk signaled on sku-1.')).toBeInTheDocument();
+  });
+
+  test('service detail makes edit primary when service setup is incomplete', async () => {
+    setInventoryState(
+      createSnapshot({
+        services: [
+          {
+            ...snapshot.services[0],
+            skuIds: [],
+          },
+          snapshot.services[1],
+        ],
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={['/catalog/services/service-1']}>
+        <Routes>
+          <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute(
+      'data-variant',
+      'default',
+    );
+    expect(screen.getByRole('link', { name: 'Review this service in session' })).toHaveAttribute(
+      'data-variant',
+      'outline',
+    );
+    expect(
+      screen.getAllByText('No linked SKUs are attached to this service yet.').length,
+    ).toBeGreaterThan(0);
   });
 
   test('service detail recent activity failure stays scoped to the recent activity section', async () => {
@@ -1422,7 +1698,7 @@ describe('renderer workspaces', () => {
     );
 
     expect(await screen.findByText('Recent service activity could not be loaded right now. The rest of the service page is still available.')).toBeInTheDocument();
-    expect(screen.getByText('Service #001')).toBeInTheDocument();
+    expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Linked SKUs').length).toBeGreaterThan(0);
   });
 
@@ -1508,13 +1784,15 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'SKU #001 updated' } });
     fireEvent.click(screen.getByText('Save changes'));
 
     await waitFor(() => {
       expect(saveSku).toHaveBeenCalledTimes(1);
       expect(screen.getAllByTestId('location-pathname')[0].textContent).toBe('/catalog/skus/sku-1');
     });
-    expect(screen.getByText('SKU #001')).toBeInTheDocument();
+    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
   });
 
   test('sku edit route pre-fills current values and keeps the identifier read-only', () => {
@@ -1528,9 +1806,14 @@ describe('renderer workspaces', () => {
 
     expect(screen.getByDisplayValue('SKU #001')).toBeInTheDocument();
     expect(screen.getByDisplayValue('First sku')).toBeInTheDocument();
+    expect(screen.getByText('SKU details')).toBeInTheDocument();
+    expect(screen.getByText('Stock and selling')).toBeInTheDocument();
+    expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
     expect(screen.getByText('Identifier')).toBeInTheDocument();
     expect(screen.getByText('sku-1')).toBeInTheDocument();
     expect(screen.getByText('Planning inputs')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show inputs' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Lead time mean (days)')).not.toBeInTheDocument();
   });
 
   test('saving a new SKU lands on the new detail page and cancel returns to catalog', async () => {
@@ -1603,8 +1886,9 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByText('Cancel'));
-    expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog');
+    expect(screen.getByText('Cancel')).toBeDisabled();
+    expect(screen.getByText('Create entry')).toBeDisabled();
+    expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog/skus/new');
   });
 
   test('cancel from existing SKU edit returns to detail and respects the unsaved-change guard', () => {
@@ -1672,6 +1956,8 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Service #001 updated' } });
     fireEvent.click(screen.getByText('Save changes'));
 
     await waitFor(() => {
@@ -1705,11 +1991,12 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByText('Cancel'));
-    expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog');
+    expect(screen.getByText('Cancel')).toBeDisabled();
+    expect(screen.getByText('Create entry')).toBeDisabled();
+    expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog/services/new');
   });
 
-  test('service edit route pre-fills values, keeps identifier read-only, and sorts selected SKUs first', () => {
+  test('service edit route pre-fills values, keeps identifier compact and read-only, and sorts selected SKUs first', () => {
     render(
       <MemoryRouter initialEntries={['/catalog/services/service-1/edit']}>
         <Routes>
@@ -1720,10 +2007,50 @@ describe('renderer workspaces', () => {
 
     expect(screen.getByDisplayValue('Service #001')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Main service')).toBeInTheDocument();
+    expect(screen.getByText('Service details')).toBeInTheDocument();
+    expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
     expect(screen.getByText('Identifier')).toBeInTheDocument();
     expect(screen.getByText('service-1')).toBeInTheDocument();
+    expect(screen.queryByText('The identifier is fixed for this service.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No changes yet')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    expect(screen.getByText('1 linked SKUs selected')).toBeInTheDocument();
+    expect(screen.getByText('Current sellable coverage')).toBeInTheDocument();
+    expect(screen.getByText('12 units')).toBeInTheDocument();
+    expect(screen.getByText('Limiting SKU')).toBeInTheDocument();
 
     expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+
+    const skuRows = screen.getAllByText(/SKU #00[12]/).map((node) => node.closest('label')).filter(Boolean);
+    const sku1Row = skuRows.find((row) => row?.textContent?.includes('SKU #001')) ?? null;
+    const sku2Row = skuRows.find((row) => row?.textContent?.includes('SKU #002')) ?? null;
+    expect(sku1Row).not.toBeNull();
+    expect(sku2Row).not.toBeNull();
+    expect(sku1Row?.compareDocumentPosition(sku2Row as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'sku-2' } });
+    const filteredRows = screen.getAllByText('SKU #002').map((node) => node.closest('label')).filter(Boolean);
+    expect(filteredRows.length).toBeGreaterThan(0);
+    expect(
+      screen
+        .getAllByText(/SKU #00[12]/)
+        .map((node) => node.closest('label'))
+        .filter((row) => row?.textContent?.includes('SKU #001')).length,
+    ).toBe(0);
+
+    fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'second sku' } });
+    const descriptionFilteredRows = screen
+      .getAllByText('SKU #002')
+      .map((node) => node.closest('label'))
+      .filter(Boolean);
+    expect(descriptionFilteredRows.length).toBeGreaterThan(0);
+    expect(
+      screen
+        .getAllByText(/SKU #00[12]/)
+        .map((node) => node.closest('label'))
+        .filter((row) => row?.textContent?.includes('SKU #001')).length,
+    ).toBe(0);
   });
 
   test('service editor keeps validation and unsaved-change guard behavior', async () => {
@@ -1756,6 +2083,8 @@ describe('renderer workspaces', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Service price'), { target: { value: '' } });
+    expect(screen.getByText('Cancel')).toBeEnabled();
+    expect(screen.getByText('Save changes')).toBeEnabled();
     fireEvent.click(screen.getByText('Save changes'));
     expect(
       screen.getByText((content) =>
@@ -1782,11 +2111,28 @@ describe('renderer workspaces', () => {
     expect(await screen.findByText('Manual update')).toBeInTheDocument();
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
     expect(screen.getAllByText('1 changed row').length).toBeGreaterThan(0);
+    expect(screen.getByText('Includes SKU #001')).toBeInTheDocument();
     expect(screen.getByText('1 service flag')).toBeInTheDocument();
+    expect(screen.getByText('Includes Service #001')).toBeInTheDocument();
     expect(screen.getByText('1 price edit')).toBeInTheDocument();
+    expect(screen.getByText('Includes Service #002')).toBeInTheDocument();
     expect(screen.getByText('3 ranking signals')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: 'Start update session' })[0]).toBeInTheDocument();
     expect(screen.queryByText('Review and submit one operations update')).not.toBeInTheDocument();
+  });
+
+  test('operations history uses title case headers and keeps the action header blank', async () => {
+    renderRoute('/operations', <StockUpdateRoute />);
+
+    const headerRow = (await screen.findByText('Reported At')).closest('tr');
+    expect(headerRow).not.toBeNull();
+    expect(within(headerRow as HTMLElement).getByText('Source')).toBeInTheDocument();
+    expect(within(headerRow as HTMLElement).getByText('Changed Rows')).toBeInTheDocument();
+    expect(within(headerRow as HTMLElement).getByText('Service Flags')).toBeInTheDocument();
+    expect(within(headerRow as HTMLElement).getByText('Price Edits')).toBeInTheDocument();
+    expect(within(headerRow as HTMLElement).getByText('Ranking Signals')).toBeInTheDocument();
+    expect(within(headerRow as HTMLElement).getByText('Report Notes')).toBeInTheDocument();
+    expect(within(headerRow as HTMLElement).queryByText('Inspect')).not.toBeInTheDocument();
   });
 
   test('operations history expands one inspected report at a time', async () => {
@@ -1800,6 +2146,7 @@ describe('renderer workspaces', () => {
     expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
     expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('operations-history-detail')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Hide' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Inspect' }));
     expect(screen.queryByText('Front shelf was restocked.')).not.toBeInTheDocument();
@@ -1817,15 +2164,27 @@ describe('renderer workspaces', () => {
     renderRoute('/operations', <StockUpdateRoute />);
 
     expect(await screen.findByText('Morning floor update.')).toBeInTheDocument();
+    expect(screen.getByTestId('operations-history-results-summary')).toHaveTextContent(
+      'Showing 2 reports',
+    );
     fireEvent.change(screen.getByLabelText('Search history'), { target: { value: 'service-2' } });
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
+    expect(screen.getByTestId('operations-history-results-summary')).toHaveTextContent(
+      'Showing 1 report',
+    );
 
     fireEvent.change(screen.getByLabelText('Search history'), { target: { value: 'does-not-match' } });
     expect(screen.getByText('No matching updates')).toBeInTheDocument();
+    expect(screen.getByTestId('operations-history-results-summary')).toHaveTextContent(
+      'No reports match "does-not-match"',
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     fireEvent.click(screen.getByRole('button', { name: 'Baseline' }));
     expect(screen.queryByText('Morning floor update.')).not.toBeInTheDocument();
+    expect(screen.getByTestId('operations-history-results-summary')).toHaveTextContent(
+      'Showing 1 baseline report',
+    );
   });
 
   test('start update session navigates from operations into the guided session route', async () => {
@@ -1904,6 +2263,9 @@ describe('renderer workspaces', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Step 2.*SKU observations/i }));
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+    fireEvent.change(screen.getByLabelText('SKU notes', { selector: '#sku-note-sku-1' }), {
+      target: { value: 'Front shelf was restocked.' },
+    });
     fireEvent.click(screen.getByRole('radio', { name: 'Changed rows' }));
 
     fireEvent.click(screen.getByRole('button', { name: /Step 3.*Service updates/i }));
@@ -1929,6 +2291,9 @@ describe('renderer workspaces', () => {
     fireEvent.click(screen.getByRole('button', { name: /Step 2.*SKU observations/i }));
     expect(screen.getByRole('radio', { name: 'Changed rows' })).toHaveAttribute('data-state', 'on');
     expect(screen.getByDisplayValue('13')).toBeInTheDocument();
+    expect(screen.getByLabelText('SKU notes', { selector: '#sku-note-sku-1' })).toHaveValue(
+      'Front shelf was restocked.',
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /Step 3.*Service updates/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review service updates' }));
@@ -1939,6 +2304,9 @@ describe('renderer workspaces', () => {
     expect(await screen.findByRole('link', { name: 'Resume update session' })).toHaveAttribute(
       'href',
       '/operations/session',
+    );
+    expect(screen.getByTestId('operations-draft-status')).toHaveTextContent(
+      'Resume service updates. 1 changed row • 1 service change queued',
     );
 
     fireEvent.click(screen.getByRole('link', { name: 'Resume update session' }));
@@ -1956,6 +2324,11 @@ describe('renderer workspaces', () => {
     expect(screen.getAllByText('Needs attention').length).toBeGreaterThan(0);
     expect(screen.getByText('Required')).toBeInTheDocument();
     expect(screen.getByText('Skipped')).toBeInTheDocument();
+    expect(screen.getByText('1 / 4 sections ready')).toBeInTheDocument();
+    expect(screen.getByTestId('stock-session-step-icon-services')).toHaveAttribute(
+      'data-status',
+      'skipped',
+    );
     expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
   });
@@ -1993,6 +2366,79 @@ describe('renderer workspaces', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'All rows' }));
     expect(screen.getByDisplayValue('13')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'sku-2' } });
+    expect(screen.getByText('1 matching row')).toBeInTheDocument();
+    expect(screen.getByText('SKU #002')).toBeInTheDocument();
+    expect(screen.queryByText('SKU #001')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'missing' } });
+    expect(screen.getByText('No SKU rows match the current search.')).toBeInTheDocument();
+  });
+
+  test('observations preset dropdown shows increment sizes and changes button step sizes', async () => {
+    renderRoute('/operations/session?step=observations', <StockUpdateSessionRoute />);
+
+    const incrementSize = await screen.findByRole('combobox', { name: /Increment size/ });
+    expect(incrementSize).toHaveTextContent('Fine');
+    expect(incrementSize).not.toHaveTextContent('Units in stock ±1 • Cost per unit ±0.25');
+
+    const sku1Row = screen.getByText('SKU #001').closest('tr');
+    expect(sku1Row).not.toBeNull();
+    expect(within(sku1Row as HTMLTableRowElement).getByDisplayValue('5.00')).toBeInTheDocument();
+
+    fireEvent.keyDown(incrementSize, { key: 'ArrowDown' });
+    const bulkOption = await screen.findByRole('option', { name: /Bulk/i });
+    expect(bulkOption).toHaveTextContent('Units in stock ±20 • Cost per unit ±1.00');
+    fireEvent.click(bulkOption);
+
+    expect(await screen.findByRole('combobox', { name: /Increment size/ })).toHaveTextContent('Bulk');
+    expect(await screen.findByRole('combobox', { name: /Increment size/ })).not.toHaveTextContent(
+      'Units in stock ±20 • Cost per unit ±1.00',
+    );
+
+    fireEvent.click(within(sku1Row as HTMLTableRowElement).getAllByRole('button', { name: '+' })[0]);
+    fireEvent.click(within(sku1Row as HTMLTableRowElement).getAllByRole('button', { name: '+' })[1]);
+
+    expect(within(sku1Row as HTMLTableRowElement).getByDisplayValue('32')).toBeInTheDocument();
+    expect(within(sku1Row as HTMLTableRowElement).getByDisplayValue('6.00')).toBeInTheDocument();
+  });
+
+  test('observations cost per unit display follows currency rounding without changing submitted precision', async () => {
+    preferencesHook.mockReturnValue({
+      ...preferencesHook.mock.results.at(-1)?.value,
+      currency: 'KHR',
+      persistedCurrency: 'KHR',
+    });
+
+    renderRoute('/operations/session?step=observations', <StockUpdateSessionRoute />);
+
+    const sku1Row = (await screen.findByText('SKU #001')).closest('tr');
+    expect(sku1Row).not.toBeNull();
+
+    const costInput = within(sku1Row as HTMLTableRowElement).getByDisplayValue('5');
+    fireEvent.focus(costInput);
+    fireEvent.change(costInput, { target: { value: '5.6789' } });
+    expect(costInput).toHaveValue('5.6789');
+
+    fireEvent.blur(costInput);
+    expect(within(sku1Row as HTMLTableRowElement).getByDisplayValue('6')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Step 4.*Review & submit/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit update' }));
+
+    await waitFor(() => {
+      expect(submitReport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skuObservations: expect.arrayContaining([
+            expect.objectContaining({
+              skuId: 'sku-1',
+              costPerUnit: 5.6789,
+            }),
+          ]),
+        }),
+      );
+    });
   });
 
   test('focused sku handoff lands on observations and highlights the requested sku without creating changes', async () => {
@@ -2000,6 +2446,8 @@ describe('renderer workspaces', () => {
 
     expect(await screen.findByText('Opened from SKU detail')).toBeInTheDocument();
     expect(screen.getAllByText('Focused').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SKU #002').length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'sku-1' } });
     expect(screen.getAllByText('SKU #002').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     expect(screen.queryByText('Changed rows are ready for review and submit.')).not.toBeInTheDocument();
@@ -2016,10 +2464,10 @@ describe('renderer workspaces', () => {
   test('service updates stay optional while summarizing stockout and price changes', async () => {
     renderRoute('/operations/session?step=services', <StockUpdateSessionRoute />);
 
-    expect(await screen.findByText('Skip this section when there are no service stockouts or service price changes to capture.')).toBeInTheDocument();
+    expect(screen.queryByText('Skip this section when there are no service stockouts or service price changes to capture.')).not.toBeInTheDocument();
     expect(screen.getByText('0 service flags')).toBeInTheDocument();
     expect(screen.getByText('0 price edits')).toBeInTheDocument();
-    expect(screen.getByText('No service stockouts or override prices are queued right now. Skip this section unless something needs review.')).toBeInTheDocument();
+    expect(screen.queryByText('No service stockouts or override prices are queued right now. Skip this section unless something needs review.')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Service price')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review service updates' })).toBeInTheDocument();
 
@@ -2077,6 +2525,9 @@ describe('renderer workspaces', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Step 2.*SKU observations/i }));
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+    fireEvent.change(screen.getByLabelText('SKU notes', { selector: '#sku-note-sku-1' }), {
+      target: { value: 'Front shelf was restocked.' },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /Step 3.*Service updates/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review service updates' }));
@@ -2103,6 +2554,7 @@ describe('renderer workspaces', () => {
       skuObservations: expect.arrayContaining([
         expect.objectContaining({
           skuId: 'sku-1',
+          notes: 'Front shelf was restocked.',
         }),
       ]),
       servicePriceAdjustments: [{ serviceId: 'service-1', price: 1400 }],
@@ -2119,6 +2571,16 @@ describe('renderer workspaces', () => {
       'href',
       '/operations/session',
     );
+  });
+
+  test('operations review uses baseline planning scope when saved ranking is empty', async () => {
+    setInventoryState(createSnapshot({ ranking: [] }));
+
+    renderRoute('/operations/session?step=review', <StockUpdateSessionRoute />);
+
+    expect(await screen.findByRole('button', { name: /Step 4.*Review & submit/i })).toBeInTheDocument();
+    expect(screen.getByText('3 ranking entries in the current planning order')).toBeInTheDocument();
+    expect(screen.queryByText('0 ranking entries in the current planning order')).not.toBeInTheDocument();
   });
 
   test('operations session omits optional service arrays when optional sections are unchanged', async () => {
@@ -2156,7 +2618,7 @@ describe('renderer workspaces', () => {
     expect(await screen.findByRole('button', { name: /Step 1.*Details/i })).toBeInTheDocument();
   });
 
-  test('cancel update clears the operations draft before returning to operations', async () => {
+  test('cancel update exits immediately when the session draft is still pristine', async () => {
     render(
       <OperationsSessionProvider>
         <MemoryRouter initialEntries={['/operations/session']}>
@@ -2183,6 +2645,52 @@ describe('renderer workspaces', () => {
     expect(screen.getByRole('link', { name: 'Start update session' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Resume update session' })).not.toBeInTheDocument();
     expect(screen.getByTestId('location-pathname').textContent).toBe('/operations');
+  });
+
+  test('cancel update confirms before discarding a changed operations draft', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    confirmSpy.mockReturnValueOnce(false).mockReturnValueOnce(true);
+
+    try {
+      render(
+        <OperationsSessionProvider>
+          <MemoryRouter initialEntries={['/operations/session']}>
+            <Routes>
+              <Route element={<StockUpdateSessionRoute />} path="/operations/session" />
+              <Route
+                element={
+                  <>
+                    <StockUpdateRoute />
+                    <LocationProbe />
+                  </>
+                }
+                path="/operations"
+              />
+            </Routes>
+          </MemoryRouter>
+        </OperationsSessionProvider>,
+      );
+
+      expect(await screen.findByText('Review and submit one operations update')).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Report notes'), {
+        target: { value: 'Hold for recount.' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel session' }));
+      expect(confirmSpy).toHaveBeenCalledWith(
+        'You have an in-progress operations update. Leave this page and discard the current draft?',
+      );
+      expect(screen.getByText('Review and submit one operations update')).toBeInTheDocument();
+      expect(screen.queryByText('Recent activity')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel session' }));
+      expect(await screen.findByText('Recent activity')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Start update session' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Resume update session' })).not.toBeInTheDocument();
+      expect(screen.getByTestId('location-pathname').textContent).toBe('/operations');
+    } finally {
+      confirmSpy.mockRestore();
+    }
   });
 
   test('review return-to-editing actions jump to the matching section', async () => {
@@ -2230,15 +2738,77 @@ describe('renderer workspaces', () => {
     renderRoute('/settings', <SettingsRoute />);
 
     expect(await screen.findByText('Workspace preferences')).toBeInTheDocument();
-    expect(screen.getByText('Advanced model settings')).toBeInTheDocument();
+    expect(screen.getByText('Advanced settings')).toBeInTheDocument();
+    expect(screen.queryByText('Local data')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Particle count')).not.toBeInTheDocument();
+  });
+
+  test('settings local data section loads raw file paths and copies the data directory', async () => {
+    renderRoute('/settings', <SettingsRoute />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
+    expect(await screen.findByText('Local data')).toBeInTheDocument();
+    expect(await screen.findByText('/tmp/banji-data')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/banji-data/desktop-inventory-store.json')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/banji-data/desktop-preferences.json')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy data path' }));
+
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('/tmp/banji-data');
+    });
+    expect(await screen.findByTestId('settings-local-data-status')).toHaveTextContent(
+      'Data folder path copied.',
+    );
+  });
+
+  test('settings local data actions open the folder and show export success', async () => {
+    renderRoute('/settings', <SettingsRoute />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
+    await screen.findByText('Local data');
+    fireEvent.click(screen.getByRole('button', { name: 'Open data folder' }));
+    await waitFor(() => {
+      expect(openLocalDataFolder).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export data' }));
+    expect(screen.getByRole('menu', { name: 'Export data' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Export SKUs CSV' }));
+    await waitFor(() => {
+      expect(exportSkusCsv).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByTestId('settings-local-data-status')).toHaveTextContent(
+      'Exported SKUs: /tmp/banji-skus.csv',
+    );
+  });
+
+  test('settings action row summarizes which sections are dirty', async () => {
+    preferencesHook.mockReturnValue({
+      ...preferencesHook.mock.results.at(-1)?.value,
+      hasPendingChanges: true,
+      savePreferences,
+      resetPreferences,
+    });
+
+    renderRoute('/settings', <SettingsRoute />);
+
+    expect(await screen.findByTestId('settings-dirty-summary')).toHaveTextContent('(changed)');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
+    fireEvent.change(screen.getByLabelText('Particle count'), {
+      target: { value: '768' },
+    });
+
+    expect(screen.getByTestId('settings-dirty-summary')).toHaveTextContent('(changed)');
   });
 
   test('settings expands advanced settings and preserves SIST tooltip behavior', async () => {
     renderRoute('/settings', <SettingsRoute />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
+    expect(screen.queryByTestId('settings-advanced-summary')).not.toBeInTheDocument();
 
     const helpButton = screen.getByRole('button', { name: 'Particle count help' });
     const tooltipText =
@@ -2293,6 +2863,7 @@ describe('renderer workspaces', () => {
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledTimes(1);
     });
+    expect(await screen.findByTestId('settings-save-status')).toHaveTextContent('Changes saved.');
   });
 
   test('settings reset restores draft state back to baseline', async () => {
@@ -2333,7 +2904,7 @@ describe('renderer workspaces', () => {
     expect(saveSistSettings).not.toHaveBeenCalled();
   });
 
-  test('dirty advanced settings reopen automatically when the user tries to collapse them', async () => {
+  test('dirty advanced settings can collapse while keeping an unsaved badge in the header', async () => {
     renderRoute('/settings', <SettingsRoute />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
@@ -2342,7 +2913,10 @@ describe('renderer workspaces', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
 
-    expect(screen.getByRole('button', { name: 'Hide advanced settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Particle count')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-advanced-status-badge')).toHaveTextContent('Unsaved');
+    expect(screen.getByTestId('settings-dirty-summary')).toHaveTextContent('(changed)');
   });
 
   test('settings blocks route navigation with unsaved changes and discards drafts on confirmed leave', async () => {
@@ -2409,6 +2983,6 @@ describe('renderer workspaces', () => {
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText('preferences failed')).toBeInTheDocument();
+    expect(await screen.findByTestId('settings-save-status')).toHaveTextContent('preferences failed');
   });
 });

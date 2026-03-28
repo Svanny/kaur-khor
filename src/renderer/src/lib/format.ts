@@ -15,10 +15,27 @@ export function formatCurrency(
   currency: AppCurrency,
   language: AppLanguage,
 ): string {
+  const fractionDigits = currencyFractionDigits(currency);
   return new Intl.NumberFormat(localeFor(language), {
     style: 'currency',
     currency,
-    maximumFractionDigits: currency === 'KHR' ? 0 : 2,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
+export function currencyFractionDigits(currency: AppCurrency): number {
+  return currency === 'KHR' ? 0 : 2;
+}
+
+export function formatDecimal(
+  value: number,
+  language: AppLanguage,
+  fractionDigits: number,
+): string {
+  return new Intl.NumberFormat(localeFor(language), {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
   }).format(value);
 }
 
@@ -26,6 +43,15 @@ export function formatNumber(value: number, language: AppLanguage): string {
   return new Intl.NumberFormat(localeFor(language), {
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+export function formatEditableDecimal(value: number, maximumFractionDigits: number): string {
+  const rounded = value.toFixed(maximumFractionDigits);
+  return rounded.replace(/(?:\.0+|(\.\d*?[1-9])0+)$/, '$1');
+}
+
+export function formatEditableMoney(value: number): string {
+  return formatEditableDecimal(value, 2);
 }
 
 export function rankLabel(

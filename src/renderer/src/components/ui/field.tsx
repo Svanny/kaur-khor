@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { hasDescriptionText } from '@/components/system/description-text';
 import { cn } from '@/lib/utils';
 
 function FieldSet({ className, ...props }: React.ComponentProps<'fieldset'>) {
@@ -121,6 +122,10 @@ function FieldTitle({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
+  if (!hasDescriptionText(props.children)) {
+    return null;
+  }
+
   return (
     <p
       className={cn(

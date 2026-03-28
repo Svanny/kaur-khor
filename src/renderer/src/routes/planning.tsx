@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { CircleHelp } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { HoverTooltip } from '@/components/system/hover-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
+import { DescriptionText } from '@/components/system/description-text';
 import {
   WorkspaceEmpty,
   WorkspacePage,
@@ -21,14 +24,12 @@ export function PlanningRoute() {
   const { hasDraft } = useOperationsSession();
   const { language, t } = usePreferences();
   const [draftRanking, setDraftRanking] = useState(snapshot ? buildDefaultReportRanking(snapshot) : []);
-  const [savedMessage, setSavedMessage] = useState(false);
 
   useEffect(() => {
     if (!snapshot) {
       return;
     }
     setDraftRanking(buildDefaultReportRanking(snapshot));
-    setSavedMessage(false);
   }, [snapshot]);
 
   const planningBaselineEntries = snapshot ? buildDefaultReportRanking(snapshot) : [];
@@ -43,7 +44,6 @@ export function PlanningRoute() {
     message: t('planningUnsavedLeavePrompt'),
     onDiscard: () => {
       setDraftRanking(planningBaselineEntries);
-      setSavedMessage(false);
     },
   });
 
@@ -55,7 +55,14 @@ export function PlanningRoute() {
     );
   }
 
-  const highRiskCount = snapshot.sist.highRiskSkuIds.length;
+  const topHighRiskSkus = snapshot.sist.skuInsights
+    .filter((insight) => snapshot.sist.highRiskSkuIds.includes(insight.skuId))
+    .sort((left, right) => right.stockoutRisk - left.stockoutRisk)
+    .slice(0, 3)
+    .map((insight) => ({
+      ...insight,
+      name: snapshot.skus.find((sku) => sku.skuId === insight.skuId)?.name ?? insight.skuId,
+    }));
   const topRankedEntries = draftRanking.slice(0, 3).map((entry) => {
     const label =
       entry.entryType === 'service'
@@ -71,12 +78,10 @@ export function PlanningRoute() {
 
   async function handleSave() {
     await persistRanking(draftRanking);
-    setSavedMessage(true);
   }
 
   function handleReset() {
     setDraftRanking(baselineRanking);
-    setSavedMessage(false);
   }
 
   return (
@@ -93,35 +98,62 @@ export function PlanningRoute() {
 
         <WorkspacePanel
           description={t('planningRankingWorkspaceDescription')}
-          title={t('planningRankingWorkspaceTitle')}
+          title={
+            <div className="flex items-center gap-2">
+              <span>{t('planningRankingWorkspaceTitle')}</span>
+              <HoverTooltip
+                ariaLabel={`${t('planningRankingWorkspaceTitle')} help`}
+                className="group rounded-full p-1 text-muted-foreground"
+                content={
+                  <div className="space-y-3 text-left">
+                    <p className="font-medium text-background">{t('planningExplainerTitle')}</p>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="font-medium text-background">{t('planningExplainerTeamLabel')}</p>
+                        <DescriptionText>{t('planningExplainerTeamBody')}</DescriptionText>
+                      </div>
+                      <div>
+                        <p className="font-medium text-background">{t('planningExplainerSistLabel')}</p>
+                        <DescriptionText>{t('planningExplainerSistBody')}</DescriptionText>
+                      </div>
+                    </div>
+                    <DescriptionText className="text-[11px] text-background/80">
+                      {t('planningExplainerFooter')}
+                    </DescriptionText>
+                  </div>
+                }
+                tooltipClassName="max-w-80"
+              >
+                {({ open }) => (
+                  <CircleHelp
+                    aria-hidden="true"
+                    className={open ? 'size-4 text-foreground' : 'size-4 text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:text-foreground'}
+                  />
+                )}
+              </HoverTooltip>
+            </div>
+          }
         >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {showReturnToReview ? (
-              <Button asChild type="button" variant="outline">
-                <Link to="/operations/session?step=review">
-                  {t('planningReturnToOperationsReview')}
-                </Link>
-              </Button>
-            ) : (
-              <Button asChild type="button" variant="outline">
-                <Link to="/operations">{t('navOperations')}</Link>
-              </Button>
-            )}
-          </div>
-
           {hasRankableEntries ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div
+                className="flex flex-wrap items-center justify-between gap-3"
+                data-testid="planning-action-rail"
+              >
                 <div className="flex flex-wrap items-center gap-2">
-                  {savedMessage && !hasChanges ? (
-                    <Badge variant="secondary">{t('savedState')}</Badge>
-                  ) : null}
-                  {hasChanges ? <Badge variant="outline">{t('unsavedChanges')}</Badge> : null}
+                  {hasChanges ? <Badge variant="outline">{t('planningUnsavedBadge')}</Badge> : null}
                   <Badge variant="outline">
                     {formatNumber(rankableEntryCount, language)} {t('planningCoverageBadge')}
                   </Badge>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                  {showReturnToReview ? (
+                    <Button asChild type="button" variant="outline">
+                      <Link to="/operations/session?step=review">
+                        {t('planningReturnToOperationsReview')}
+                      </Link>
+                    </Button>
+                  ) : null}
                   <Button type="button" variant="outline" onClick={handleReset}>
                     {t('resetAction')}
                   </Button>
@@ -159,22 +191,31 @@ export function PlanningRoute() {
           description={t('planningContextDescription')}
           title={t('planningContextTitle')}
         >
-          <div className="grid gap-4 lg:grid-cols-4">
+          <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('overviewReorderPressure')}
+                {t('planningDemandPressureTitle')}
               </p>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                {formatNumber(snapshot.sist.pendingReorderCount, language)}
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t('planningDemandPressureLabel')}: {formatNumber(snapshot.sist.pendingReorderCount, language)}
               </p>
-            </div>
-            <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('overviewHighRiskSkuCount')}
-              </p>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                {formatNumber(highRiskCount, language)}
-              </p>
+              <div className="mt-4 space-y-3">
+                {topHighRiskSkus.length > 0 ? (
+                  topHighRiskSkus.map((sku) => (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/70 px-3 py-2"
+                      key={sku.skuId}
+                    >
+                      <p className="text-sm font-medium text-foreground">{sku.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {Math.round(sku.stockoutRisk * 100)}% {t('catalogStockoutRisk').toLowerCase()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t('planningDemandPressureEmpty')}</p>
+                )}
+              </div>
             </div>
             <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
@@ -184,22 +225,13 @@ export function PlanningRoute() {
                 {topRankedEntries.length > 0 ? (
                   topRankedEntries.map((entry, index) => (
                     <p className="text-sm font-medium text-foreground" key={`${entry.entryType}-${entry.entryId}`}>
-                      {index + 1}. {entry.label}
+                      #{index + 1} {entry.label}
                     </p>
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">{t('planningLeadSpotlightEmpty')}</p>
                 )}
               </div>
-            </div>
-            <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                {t('planningCoverageTitle')}
-              </p>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                {formatNumber(rankableEntryCount, language)}
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">{t('planningCoverageDescription')}</p>
             </div>
           </div>
         </WorkspacePanel>

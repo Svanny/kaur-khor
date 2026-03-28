@@ -26,6 +26,7 @@ export interface OperationsSessionServiceDraft {
 }
 
 export interface OperationsSessionDraft {
+  seededReportedAt: string;
   reportedAt: string;
   reportNotes: string;
   preset: OperationsSessionPreset;
@@ -57,8 +58,10 @@ function toLocalDateTimeValue(value?: string) {
 export function createOperationsSessionDraft(
   snapshot: InventorySnapshot,
 ): OperationsSessionDraft {
+  const seededReportedAt = toLocalDateTimeValue();
   return {
-    reportedAt: toLocalDateTimeValue(),
+    seededReportedAt,
+    reportedAt: seededReportedAt,
     reportNotes: '',
     preset: 'small',
     rowFilter: 'all',
@@ -85,6 +88,49 @@ export function createOperationsSessionDraft(
     ),
     lastStep: 'details',
   };
+}
+
+export function hasMeaningfulOperationsSessionChanges(
+  snapshot: InventorySnapshot,
+  draft: OperationsSessionDraft,
+) {
+  if (draft.reportedAt !== draft.seededReportedAt) {
+    return true;
+  }
+  if (draft.reportNotes.trim().length > 0) {
+    return true;
+  }
+  if (draft.preset !== 'small' || draft.rowFilter !== 'all') {
+    return true;
+  }
+
+  const hasSkuChanges = snapshot.skus.some((sku) => {
+    const row = draft.rows[sku.skuId];
+    if (!row) {
+      return false;
+    }
+
+    return (
+      Number(row.unitsInStock) !== sku.unitsInStock ||
+      Number(row.costPerUnit) !== sku.costPerUnit ||
+      row.restockIncluded ||
+      row.retailStockout ||
+      row.notes.trim().length > 0
+    );
+  });
+
+  if (hasSkuChanges) {
+    return true;
+  }
+
+  return snapshot.services.some((service) => {
+    const serviceDraft = draft.serviceDrafts[service.serviceId];
+    if (!serviceDraft) {
+      return false;
+    }
+
+    return serviceDraft.stockout || Number(serviceDraft.price) !== service.price;
+  });
 }
 
 export function OperationsSessionProvider({ children }: { children: ReactNode }) {

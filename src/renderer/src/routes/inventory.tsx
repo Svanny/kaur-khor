@@ -24,6 +24,7 @@ import {
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
+import { DescriptionText } from '@/components/system/description-text';
 import {
   catalogViewFromSearchParams,
   computeServiceSellableUnits,
@@ -151,7 +152,9 @@ function ServiceCatalogTable({
                       <p className="truncate font-medium text-foreground group-hover:text-primary">
                         {service.name}
                       </p>
-                      <p className="truncate text-sm text-muted-foreground">{service.description}</p>
+                      <DescriptionText className="truncate text-sm text-muted-foreground">
+                        {service.description}
+                      </DescriptionText>
                     </div>
                   </Link>
                 </TableCell>
@@ -384,7 +387,6 @@ function CatalogSectionHeader({
   description,
   title,
 }: {
-  action?: React.ReactNode;
   action?: ReactNode;
   count: number;
   description: string;
@@ -397,7 +399,7 @@ function CatalogSectionHeader({
           <p className="text-lg font-semibold tracking-[-0.03em]">{title}</p>
           <Badge variant="outline">{count}</Badge>
         </div>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <DescriptionText className="text-sm text-muted-foreground">{description}</DescriptionText>
       </div>
       {action}
     </div>

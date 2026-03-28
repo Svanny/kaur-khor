@@ -7,7 +7,12 @@ import {
   type ReactNode,
 } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
+import { SHOW_DESCRIPTION_TEXT } from '@/components/system/description-text';
 import { currencyLabel, getTranslation, type TranslationKey } from '../lib/translations';
+
+function isDescriptionTranslationKey(key: TranslationKey) {
+  return key.endsWith('Body') || key.endsWith('Description');
+}
 
 interface PreferencesContextValue {
   language: AppLanguage;
@@ -79,7 +84,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       },
       hasPendingChanges:
         language !== persistedLanguage || currency !== persistedCurrency,
-      t: (key) => getTranslation(language, key),
+      t: (key) => {
+        if (!SHOW_DESCRIPTION_TEXT && isDescriptionTranslationKey(key)) {
+          return '';
+        }
+
+        return getTranslation(language, key);
+      },
       currencyLabel: (next) => currencyLabel(language, next),
     }),
     [currency, language, persistedCurrency, persistedLanguage],

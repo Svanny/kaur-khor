@@ -2,15 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { FieldGroup } from '@/components/ui/field';
-import { EditorHeader, EditorRail } from '@/components/system/editor';
+import { Badge } from '@/components/ui/badge';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { EditorHeader } from '@/components/system/editor';
 import {
-  InlineCheckField,
   TextAreaField,
   TextInputField,
 } from '@/components/system/form-fields';
 import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
+import { formatEditableMoney } from '@/lib/format';
 import {
   limits,
   normalizeText,
@@ -51,13 +52,15 @@ export function SkuFormRoute() {
     name: currentSku?.name ?? '',
     description: currentSku?.description ?? '',
     unitsInStock: currentSku?.unitsInStock.toString() ?? '0',
-    costPerUnit: currentSku?.costPerUnit.toString() ?? '0',
+    costPerUnit: currentSku ? formatEditableMoney(currentSku.costPerUnit) : '0',
     soldAsProduct: currentSku?.soldAsProduct ?? false,
-    productPrice: currentSku?.productPrice?.toString() ?? '',
+    productPrice:
+      currentSku?.productPrice == null ? '' : formatEditableMoney(currentSku.productPrice),
     leadTimeMeanDays: currentSku?.leadTimeMeanDays?.toString() ?? '',
     leadTimeStdDays: currentSku?.leadTimeStdDays?.toString() ?? '',
   });
   const [errors, setErrors] = useState<Partial<Record<SkuField, string>>>({});
+  const [planningExpanded, setPlanningExpanded] = useState(false);
   const fieldRefs = useRef<Partial<Record<SkuField, HTMLInputElement | HTMLTextAreaElement>>>({});
 
   const initialForm = useMemo(
@@ -66,9 +69,10 @@ export function SkuFormRoute() {
       name: currentSku?.name ?? '',
       description: currentSku?.description ?? '',
       unitsInStock: currentSku?.unitsInStock.toString() ?? '0',
-      costPerUnit: currentSku?.costPerUnit.toString() ?? '0',
+      costPerUnit: currentSku ? formatEditableMoney(currentSku.costPerUnit) : '0',
       soldAsProduct: currentSku?.soldAsProduct ?? false,
-      productPrice: currentSku?.productPrice?.toString() ?? '',
+      productPrice:
+        currentSku?.productPrice == null ? '' : formatEditableMoney(currentSku.productPrice),
       leadTimeMeanDays: currentSku?.leadTimeMeanDays?.toString() ?? '',
       leadTimeStdDays: currentSku?.leadTimeStdDays?.toString() ?? '',
     }),
@@ -82,9 +86,10 @@ export function SkuFormRoute() {
         name: currentSku.name,
         description: currentSku.description,
         unitsInStock: currentSku.unitsInStock.toString(),
-        costPerUnit: currentSku.costPerUnit.toString(),
+        costPerUnit: formatEditableMoney(currentSku.costPerUnit),
         soldAsProduct: currentSku.soldAsProduct,
-        productPrice: currentSku.productPrice?.toString() ?? '',
+        productPrice:
+          currentSku.productPrice == null ? '' : formatEditableMoney(currentSku.productPrice),
         leadTimeMeanDays: currentSku.leadTimeMeanDays?.toString() ?? '',
         leadTimeStdDays: currentSku.leadTimeStdDays?.toString() ?? '',
       });
@@ -112,6 +117,28 @@ export function SkuFormRoute() {
       name: normalizeText(form.name),
       description: normalizeText(form.description),
     }) !== JSON.stringify(initialForm);
+  const impactNotes = useMemo(() => {
+    const notes: string[] = [];
+
+    if (form.soldAsProduct !== initialForm.soldAsProduct) {
+      notes.push(
+        form.soldAsProduct
+          ? t('skuEditorImpactSellableEnabled')
+          : t('skuEditorImpactSellableDisabled'),
+      );
+    }
+    if (form.soldAsProduct && form.productPrice !== initialForm.productPrice) {
+      notes.push(t('skuEditorImpactPrice'));
+    }
+    if (
+      form.leadTimeMeanDays !== initialForm.leadTimeMeanDays ||
+      form.leadTimeStdDays !== initialForm.leadTimeStdDays
+    ) {
+      notes.push(t('skuEditorImpactPlanning'));
+    }
+
+    return notes;
+  }, [form, initialForm, t]);
 
   const confirmLeave = useRouteLeaveConfirm({
     enabled: hasChanges,
@@ -145,6 +172,10 @@ export function SkuFormRoute() {
     if (productPriceError) nextErrors.productPrice = t('validationProductPrice');
     if (leadTimeMeanError) nextErrors.leadTimeMeanDays = t('validationNonNegative');
     if (leadTimeStdError) nextErrors.leadTimeStdDays = t('validationNonNegative');
+
+    if (leadTimeMeanError || leadTimeStdError) {
+      setPlanningExpanded(true);
+    }
 
     setErrors(nextErrors);
 
@@ -215,33 +246,49 @@ export function SkuFormRoute() {
 
   return (
     <WorkspacePage>
-      <WorkspacePanel
-        description={isNew ? t('catalogSkuEditorDescriptionNew') : t('catalogSkuEditorDescriptionEdit')}
-        title={isNew ? t('catalogSkuEditorTitleNew') : t('catalogSkuEditorTitleEdit')}
-      >
-        <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            {t('fieldId')}
-          </p>
-          <p className="mt-3 text-xl font-semibold tracking-[-0.03em]">{form.skuId}</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t('catalogSkuEditorIdentifierDescription')}
-          </p>
-        </div>
-      </WorkspacePanel>
-
       <EditorHeader
         backLabel={!isNew ? t('backToCatalog') : undefined}
         cancelLabel={t('cancel')}
+        description={isNew ? t('catalogSkuEditorDescriptionNew') : t('catalogSkuEditorDescriptionEdit')}
+        disableCancel={!hasChanges}
+        disableSave={!hasChanges}
         formId={formId}
         isSaving={isSaving}
         onBack={!isNew ? leaveEditor : undefined}
         onCancel={leaveEditor}
         saveLabel={isNew ? t('createEntry') : t('saveDraft')}
+        title={isNew ? t('catalogSkuEditorTitleNew') : t('catalogSkuEditorTitleEdit')}
+        titleMeta={
+          <div className="flex min-w-0 items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1.5">
+            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              {t('fieldId')}
+            </span>
+            <code className="truncate text-xs font-semibold text-foreground">{form.skuId}</code>
+          </div>
+        }
       />
 
-      <form className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]" id={formId} onSubmit={onSubmit}>
-        <WorkspacePanel description={t('editorSkuHelper')} title={t('editorDetailsTitle')}>
+      {impactNotes.length > 0 ? (
+        <div className="flex w-full flex-col gap-3 rounded-2xl border border-border/60 bg-card/30 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{t('skuEditorImpactTitle')}</Badge>
+            <p className="text-sm text-muted-foreground">{impactNotes[0]}</p>
+          </div>
+          {impactNotes.length > 1 ? (
+            <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+              {impactNotes.slice(1).map((note) => (
+                <p key={note}>{note}</p>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <form className="flex w-full flex-col gap-6" id={formId} onSubmit={onSubmit}>
+        <WorkspacePanel
+          description={t('skuEditorDetailsDescription')}
+          title={t('skuEditorDetailsTitle')}
+        >
           <FieldGroup>
             <TextInputField
               id="sku-name"
@@ -269,43 +316,89 @@ export function SkuFormRoute() {
           </FieldGroup>
         </WorkspacePanel>
 
-        <div className="flex flex-col gap-6">
-          <WorkspacePanel description={t('editorSkuHelper')} title={t('editorInventoryTitle')}>
-            <FieldGroup className="md:grid md:grid-cols-2">
-              <TextInputField
-                id="sku-units"
-                error={errors.unitsInStock}
-                inputMode="decimal"
-                inputRef={(node) => {
-                  fieldRefs.current.unitsInStock = node ?? undefined;
-                }}
-                label={t('fieldUnitsInStock')}
-                value={form.unitsInStock}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, unitsInStock: event.target.value }))
+        <WorkspacePanel
+          description={t('skuEditorStockSellingDescription')}
+          title={t('skuEditorStockSellingTitle')}
+        >
+          <FieldGroup className="md:grid md:grid-cols-2">
+            <TextInputField
+              id="sku-units"
+              error={errors.unitsInStock}
+              inputMode="decimal"
+              inputRef={(node) => {
+                fieldRefs.current.unitsInStock = node ?? undefined;
+              }}
+              label={t('fieldUnitsInStock')}
+              value={form.unitsInStock}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, unitsInStock: event.target.value }))
+              }
+            />
+            <TextInputField
+              id="sku-cost"
+              error={errors.costPerUnit}
+              inputMode="decimal"
+              inputRef={(node) => {
+                fieldRefs.current.costPerUnit = node ?? undefined;
+              }}
+              label={t('fieldCostPerUnit')}
+              value={form.costPerUnit}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, costPerUnit: event.target.value }))
+              }
+            />
+            <Field className="gap-3 rounded-2xl border border-border/60 px-4 py-3" orientation="horizontal">
+              <Checkbox
+                checked={form.soldAsProduct}
+                onCheckedChange={(checked) =>
+                  setForm((current) => ({
+                    ...current,
+                    soldAsProduct: checked === true,
+                    productPrice: checked === true ? current.productPrice || '0' : '',
+                  }))
                 }
               />
+              <FieldContent>
+                <FieldLabel className="font-medium">{t('fieldSoldAsProduct')}</FieldLabel>
+                <FieldDescription>{t('skuEditorSellAsProductDescription')}</FieldDescription>
+              </FieldContent>
+            </Field>
+            {form.soldAsProduct ? (
               <TextInputField
-                id="sku-cost"
-                error={errors.costPerUnit}
+                id="sku-price"
+                error={errors.productPrice}
                 inputMode="decimal"
                 inputRef={(node) => {
-                  fieldRefs.current.costPerUnit = node ?? undefined;
+                  fieldRefs.current.productPrice = node ?? undefined;
                 }}
-                label={t('fieldCostPerUnit')}
-                value={form.costPerUnit}
+                label={t('fieldProductPrice')}
+                value={form.productPrice}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, costPerUnit: event.target.value }))
+                  setForm((current) => ({ ...current, productPrice: event.target.value }))
                 }
               />
-            </FieldGroup>
-          </WorkspacePanel>
+            ) : null}
+          </FieldGroup>
+        </WorkspacePanel>
 
-          <WorkspacePanel
-            className="border-dashed bg-card/30"
-            description={t('catalogSkuPlanningInputsDescription')}
-            title={t('catalogSkuPlanningInputsTitle')}
-          >
+        <WorkspacePanel
+          action={
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setPlanningExpanded((current) => !current)}
+            >
+              {planningExpanded
+                ? t('catalogSkuPlanningInputsHide')
+                : t('catalogSkuPlanningInputsShow')}
+            </Button>
+          }
+          className="border-dashed bg-card/20 shadow-none"
+          contentClassName="gap-4"
+          description={t('catalogSkuPlanningInputsDescription')}
+          title={t('catalogSkuPlanningInputsTitle')}
+        >
+          {planningExpanded ? (
             <FieldGroup className="md:grid md:grid-cols-2">
               <TextInputField
                 id="sku-lead-time-mean"
@@ -334,44 +427,8 @@ export function SkuFormRoute() {
                 }
               />
             </FieldGroup>
-          </WorkspacePanel>
-
-          <EditorRail description={t('editorSkuHelper')} title={t('editorPricingTitle')}>
-            <div className="flex flex-col gap-4">
-              <InlineCheckField
-                description={t('editorSkuHelper')}
-                title={t('fieldSoldAsProduct')}
-              >
-                <Checkbox
-                  checked={form.soldAsProduct}
-                  onCheckedChange={(checked) =>
-                    setForm((current) => ({
-                      ...current,
-                      soldAsProduct: checked === true,
-                      productPrice: checked === true ? current.productPrice || '0' : '',
-                    }))
-                  }
-                />
-              </InlineCheckField>
-
-              {form.soldAsProduct ? (
-                <TextInputField
-                  id="sku-price"
-                  error={errors.productPrice}
-                  inputMode="decimal"
-                  inputRef={(node) => {
-                    fieldRefs.current.productPrice = node ?? undefined;
-                  }}
-                  label={t('fieldProductPrice')}
-                  value={form.productPrice}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, productPrice: event.target.value }))
-                  }
-                />
-              ) : null}
-            </div>
-          </EditorRail>
-        </div>
+          ) : null}
+        </WorkspacePanel>
       </form>
     </WorkspacePage>
   );

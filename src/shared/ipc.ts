@@ -17,6 +17,17 @@ export interface DesktopAppContext {
   platform: string;
 }
 
+export interface DesktopLocalDataInfo {
+  dataDirectoryPath: string;
+  inventoryStorePath: string;
+  preferencesPath: string;
+  storageFormat: 'json';
+}
+
+export interface DesktopExportResult {
+  path: string;
+}
+
 export interface DesktopPreferences {
   language: AppLanguage;
   currency: AppCurrency;
@@ -53,6 +64,11 @@ export interface DesktopPreferencesBridge {
 
 export interface DesktopSystemBridge {
   getAppContext: () => Promise<DesktopAppContext>;
+  getLocalDataInfo: () => Promise<DesktopLocalDataInfo>;
+  openLocalDataFolder: () => Promise<void>;
+  exportSkusCsv: () => Promise<DesktopExportResult | null>;
+  exportServicesCsv: () => Promise<DesktopExportResult | null>;
+  exportStockReportsCsv: () => Promise<DesktopExportResult | null>;
 }
 
 export interface DesktopBridge {
@@ -63,6 +79,11 @@ export interface DesktopBridge {
 
 export const IPC_CHANNELS = {
   systemGetAppContext: 'banji:system:get-app-context',
+  systemGetLocalDataInfo: 'banji:system:get-local-data-info',
+  systemOpenLocalDataFolder: 'banji:system:open-local-data-folder',
+  systemExportSkusCsv: 'banji:system:export-skus-csv',
+  systemExportServicesCsv: 'banji:system:export-services-csv',
+  systemExportStockReportsCsv: 'banji:system:export-stock-reports-csv',
   inventoryGetSnapshot: 'banji:inventory:get-snapshot',
   inventoryListStockReports: 'banji:inventory:list-stock-reports',
   inventorySaveSku: 'banji:inventory:save-sku',

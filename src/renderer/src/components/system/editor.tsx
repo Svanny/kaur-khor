@@ -1,12 +1,22 @@
 import type { ReactNode } from 'react';
 import { ArrowLeft, Save } from 'lucide-react';
+import { DescriptionText, hasDescriptionText } from '@/components/system/description-text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 export function EditorHeader({
   backLabel,
   cancelLabel,
   saveLabel,
+  title,
+  titleMeta,
+  description,
+  statusDetail,
+  statusLabel,
+  meta,
+  disableCancel,
+  disableSave,
   isSaving,
   formId,
   onBack,
@@ -16,42 +26,79 @@ export function EditorHeader({
   backLabel?: string;
   cancelLabel: string;
   saveLabel: string;
+  title?: string;
+  titleMeta?: ReactNode;
+  description?: string;
+  statusDetail?: string;
+  statusLabel?: string;
+  meta?: ReactNode;
+  disableCancel?: boolean;
+  disableSave?: boolean;
   isSaving: boolean;
   formId?: string;
   onBack?: () => void;
   onCancel: () => void;
   onSave?: () => void;
 }) {
+  const showDescription = hasDescriptionText(description);
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
-        {onBack && backLabel ? (
-          <Button
-            aria-label={backLabel}
-            size="icon-sm"
-            title={backLabel}
-            type="button"
-            variant="ghost"
-            onClick={onBack}
-          >
-            <ArrowLeft />
-            <span className="sr-only">{backLabel}</span>
+    <div className="rounded-2xl border border-white/70 bg-card/45 px-4 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className={cn('flex min-w-0 flex-1 flex-col gap-3', !showDescription && 'gap-2')}>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {onBack && backLabel ? (
+              <Button
+                aria-label={backLabel}
+                className="size-10 rounded-full p-0"
+                title={backLabel}
+                type="button"
+                variant="ghost"
+                onClick={onBack}
+              >
+                <ArrowLeft />
+              </Button>
+            ) : null}
+            {meta ? <div className="min-w-0">{meta}</div> : null}
+          </div>
+          {title ? (
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-lg font-semibold tracking-[-0.03em] text-foreground sm:text-xl">
+                  {title}
+                </h1>
+                {titleMeta ? <div className="min-w-0">{titleMeta}</div> : null}
+              </div>
+              {showDescription ? (
+                <DescriptionText className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  {description}
+                </DescriptionText>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {statusLabel ? (
+            <div className="text-right">
+              <p className="text-sm font-medium text-foreground">{statusLabel}</p>
+              {statusDetail ? (
+                <p className="text-xs text-muted-foreground">{statusDetail}</p>
+              ) : null}
+            </div>
+          ) : null}
+          <Button disabled={disableCancel} type="button" variant="ghost" onClick={onCancel}>
+            {cancelLabel}
           </Button>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          {cancelLabel}
-        </Button>
-        <Button
-          disabled={isSaving}
-          form={formId}
-          type={formId ? 'submit' : 'button'}
-          onClick={formId ? undefined : onSave}
-        >
-          <Save data-icon="inline-start" />
-          {saveLabel}
-        </Button>
+          <Button
+            disabled={isSaving || disableSave}
+            form={formId}
+            type={formId ? 'submit' : 'button'}
+            onClick={formId ? undefined : onSave}
+          >
+            <Save data-icon="inline-start" />
+            {saveLabel}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -70,7 +117,9 @@ export function EditorRail({
     <Card className="border-white/70">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        {hasDescriptionText(description) ? (
+          <DescriptionText className="text-sm text-muted-foreground">{description}</DescriptionText>
+        ) : null}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
