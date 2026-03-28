@@ -1,110 +1,88 @@
 # Banji Threat Model
 
-Date: 2026-02-18  
-Scope: `/Users/svanny/banji` (Flutter client runtime + platform/web config + security gates)
+Date: 2026-03-28  
+Scope: `/Users/svanny/banji` (Electron desktop runtime, desktop-core integration, and security gates)
 
-## 1) System Model (Repo-Evidenced)
-- Flutter client app with inventory/service editing flows:
-  - `/Users/svanny/banji/lib/main.dart:9`
-  - `/Users/svanny/banji/lib/views/inventory/view_all_page.dart:10`
-  - `/Users/svanny/banji/lib/views/inventory/sku_detail_page.dart:12`
-  - `/Users/svanny/banji/lib/views/inventory/service_detail_page.dart:17`
-- Shared validation and ID generation security controls:
-  - `/Users/svanny/banji/lib/security/security_validators.dart:1`
-  - `/Users/svanny/banji/lib/security/id_generator.dart:5`
-- Platform and web hardening controls verified by tests/scripts:
-  - `/Users/svanny/banji/tool/security/check_platform_hardening.sh:1`
-  - `/Users/svanny/banji/test/security/platform_security_policy_test.dart:5`
-  - `/Users/svanny/banji/web/index.html:23`
+## 1) System Model
 
-Out of scope: CI secrets management outside repo, backend/API controls (no backend service present in this codebase).
+- Electron desktop runtime:
+  - `/Users/svanny/banji/src/main/index.ts`
+  - `/Users/svanny/banji/src/preload/index.ts`
+  - `/Users/svanny/banji/src/renderer/src/App.tsx`
+- Shared validation and opaque ID generation:
+  - `/Users/svanny/banji/src/renderer/src/lib/validation.ts`
+  - `/Users/svanny/banji/src/renderer/src/lib/ids.ts`
+- Security gate and platform hardening:
+  - `/Users/svanny/banji/tool/security/run_security_checks.sh`
+  - `/Users/svanny/banji/tool/security/check_platform_hardening.sh`
+
+Out of scope: packaging, signing/notarization, and non-local deployment paths.
 
 ## 2) Trust Boundaries, Assets, and Entry Points
+
 ### Trust Boundaries
-- User input -> in-app model state (text and numeric fields).
-- Platform/web config -> release runtime behavior.
-- Source tree -> security gate scripts/tests.
+
+- User input -> renderer form state -> persisted desktop-core data.
+- Electron main/preload -> renderer execution context.
+- Source tree -> merge gate scripts/tests.
 
 ### Assets
-- Inventory/service data integrity.
-- Platform hardening posture (backup/cleartext/ATS/entitlements/CSP).
-- Future-sensitive identifiers and potential integration tokens.
+
+- Inventory, services, ranking, and stock-report integrity.
+- Desktop runtime integrity.
+- Future auth/session material.
 
 ### Entry Points
-- SKU and Service edit forms:
-  - `/Users/svanny/banji/lib/views/inventory/sku_detail_page.dart:103`
-  - `/Users/svanny/banji/lib/views/inventory/service_detail_page.dart:58`
-- Search fields:
-  - `/Users/svanny/banji/lib/views/inventory/shared_widgets.dart:350`
-- Android manifest and web CSP policy surfaces:
-  - `/Users/svanny/banji/android/app/src/main/AndroidManifest.xml:2`
-  - `/Users/svanny/banji/web/index.html:23`
 
-## 3) Attacker Capabilities (Assumed)
-- Can provide arbitrary UI input values (including malformed numeric/text payloads).
-- Can attempt to exploit platform misconfiguration in release builds.
-- Cannot execute arbitrary native code from this repo alone.
-- Cannot directly access a backend data plane (none present in scope).
+- Catalog and editor routes:
+  - `/Users/svanny/banji/src/renderer/src/routes/inventory.tsx`
+  - `/Users/svanny/banji/src/renderer/src/routes/sku-form.tsx`
+  - `/Users/svanny/banji/src/renderer/src/routes/service-form.tsx`
+- Operations and planning routes:
+  - `/Users/svanny/banji/src/renderer/src/routes/stock-update.tsx`
+  - `/Users/svanny/banji/src/renderer/src/routes/stock-update-session.tsx`
+  - `/Users/svanny/banji/src/renderer/src/routes/planning.tsx`
+- Electron runtime boundary:
+  - `/Users/svanny/banji/src/main/index.ts`
+  - `/Users/svanny/banji/src/preload/index.ts`
 
-## 4) Prioritized Threats (Abuse Paths)
-### T1: Integrity degradation through oversized numeric payloads
+## 3) Prioritized Threats
+
+### T1: Integrity degradation through invalid or oversized input
+
 - Likelihood: Medium
 - Impact: Medium
-- Priority: Medium
-- Path: User submits very large finite values; app computations/persistence accept them; downstream displays/logic may degrade.
-- Mitigations now present:
-  - Max-bound validation and save-time clamping:
-    - `/Users/svanny/banji/lib/security/security_validators.dart:43`
-    - `/Users/svanny/banji/lib/views/inventory/sku_detail_page.dart:623`
-    - `/Users/svanny/banji/lib/views/inventory/service_detail_page.dart:403`
+- Mitigations:
+  - shared validation and normalization in the renderer
+  - route-level save guards before persistence
 
-### T2: Release hardening regression via weak policy checks
-- Likelihood: Medium
-- Impact: High
-- Priority: High
-- Path: Insecure manifest value committed while gates only check attribute presence.
-- Mitigations now present:
-  - Exact-value assertions for backup/cleartext flags:
-    - `/Users/svanny/banji/tool/security/check_platform_hardening.sh:36`
-    - `/Users/svanny/banji/test/security/platform_security_policy_test.dart:16`
+### T2: Predictable IDs or accidental collisions
 
-### T3: Relationship tampering/staleness in service SKU references
 - Likelihood: Low
 - Impact: Medium
-- Priority: Low
-- Path: Service save includes SKU IDs not present in current catalog.
-- Mitigations now present:
-  - Save-time filtering to existing SKU IDs:
-    - `/Users/svanny/banji/lib/views/inventory/service_detail_page.dart:412`
+- Mitigations:
+  - opaque 20-character random IDs for SKU and service records
+  - test coverage for format and collision smoke checks
 
-### T4: Visual text spoofing using bidi control characters
+### T3: Renderer escape through weak Electron configuration
+
 - Likelihood: Medium
-- Impact: Medium
-- Priority: Medium
-- Path: User submits names/descriptions containing Unicode bidi controls; rendered text can visually differ from stored bytes and mislead human review.
-- Mitigations now present:
-  - Required-text validator rejects bidi override/isolation controls:
-    - `/Users/svanny/banji/lib/security/security_validators.dart:10`
-    - `/Users/svanny/banji/lib/security/security_validators.dart:30`
-  - Regression test coverage:
-    - `/Users/svanny/banji/test/security/security_validators_test.dart:70`
+- Impact: High
+- Mitigations:
+  - preload bridge required
+  - `contextIsolation: true`
+  - `nodeIntegration: false`
+  - no remote renderer scripts
 
-## 5) Existing Controls
-- Shared input normalization and validation:
-  - `/Users/svanny/banji/lib/security/security_validators.dart:24`
-- Opaque random IDs:
-  - `/Users/svanny/banji/lib/security/id_generator.dart:8`
-- Secret pattern scanning:
-  - `/Users/svanny/banji/tool/security/check_secret_patterns.sh:49`
-- Platform security gate and tests:
-  - `/Users/svanny/banji/tool/security/run_security_checks.sh:1`
+### T4: Secret leakage through tracked source or templates
 
-## 6) Recommended Next Controls
-- Add integration tests asserting clamped numeric values remain stable in list/detail rendering.
-- If export/import is implemented, validate schema at import boundary and cap collection sizes.
-- If backend is introduced, define authN/authZ model and token storage requirements before implementation.
+- Likelihood: Medium
+- Impact: High
+- Mitigations:
+  - merge-gate secret scanning
+  - approved placeholder enforcement in env templates
 
-## 7) Assumptions Affecting Ranking
-- App remains local-first with no internet-exposed backend in current scope.
-- No high-sensitivity regulated data is currently handled.
-- Future network features may materially increase threat severity and control requirements.
+## 4) Residual Risks
+
+- Packaging and signing controls are not yet implemented.
+- Future network/auth features will increase threat severity and require a dedicated review.

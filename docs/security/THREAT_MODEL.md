@@ -1,27 +1,32 @@
 # Threat Model
 
 ## Assets
-- Inventory and service business data.
-- Future auth/session tokens.
-- Build and release integrity.
+
+- Inventory, service, ranking, and stock-report data.
+- Desktop runtime integrity.
+- Future auth/session tokens and local secrets.
 
 ## Trust Boundaries
-- User text input to in-app model state.
-- Build configuration files to release artifacts.
-- Future boundary: app-to-backend API traffic.
+
+- User input to renderer state and persisted desktop-core records.
+- Electron main/preload contracts to renderer execution.
+- Source tree to security gate scripts and tests.
 
 ## Threats
+
 - Input abuse causing invalid state or unsafe rendering.
-- Predictable IDs enabling resource enumeration.
+- Predictable IDs enabling resource enumeration or accidental collisions.
+- Renderer escape through weak Electron window or preload configuration.
 - Secret leakage via source, tests, or scripts.
-- Weak platform configs (debug signing, weak web CSP, ATS weakening).
 
 ## Mitigations
-- Shared validation and normalization across UI flows.
-- Opaque random ID generation.
-- Secret pattern scanning in merge gate.
-- Platform policy checks in merge gate.
+
+- Shared normalization and validation in the renderer.
+- Opaque random ID generation for SKU and service records.
+- Preload-only IPC bridge with `contextIsolation: true` and `nodeIntegration: false`.
+- Secret pattern scanning and Electron hardening checks in the merge gate.
 
 ## Residual Risks
-- No backend currently; auth/network controls are future-facing.
-- Manual backup/export actions are placeholders and need secure design when implemented.
+
+- Packaging, signing, and notarization are out of scope for the current local desktop workflow.
+- Future networked auth/storage features will require additional transport and token-storage controls.

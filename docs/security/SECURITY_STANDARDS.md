@@ -1,49 +1,51 @@
-# Banji Security Standards (OWASP MASVS + ASVS)
+# Banji Security Standards (Electron + OWASP ASVS)
 
 ## Purpose
-This document defines mandatory secure-by-default controls for Banji.
+
+This document defines the mandatory secure-by-default controls for the Banji desktop app.
 
 ## Mandatory Controls
 
-### 1) Input Validation and Canonicalization (MASVS-CODE, ASVS V5)
+### 1) Input Validation and Canonicalization
+
 - All user-controlled fields must be validated with shared validators.
 - Validation must enforce:
-  - required/non-empty checks where applicable
+  - required or non-empty checks where applicable
   - numeric domain checks (non-negative or positive)
-  - rejection of control characters
+  - rejection of control characters and bidi controls
   - bounded length limits
-- Text is normalized before persistence.
+- Text must be normalized before persistence.
+- Source of truth: [`src/renderer/src/lib/validation.ts`](/Users/svanny/banji/src/renderer/src/lib/validation.ts)
 
-### 2) Identifier Security (MASVS-CRYPTO/CODE, ASVS V4)
-- Externally visible resource IDs must be opaque and non-predictable.
+### 2) Identifier Security
+
+- Externally visible SKU and service IDs must be opaque and non-predictable.
 - Timestamp-derived IDs are prohibited for user-facing resources.
-- Use `/Users/svanny/banji/lib/security/id_generator.dart`.
+- Source of truth: [`src/renderer/src/lib/ids.ts`](/Users/svanny/banji/src/renderer/src/lib/ids.ts)
 
-### 3) Secret Handling (MASVS-STORAGE, ASVS V9)
+### 3) Secret Handling
+
 - Do not store credentials, tokens, private keys, or secrets in source control.
 - Do not print sensitive material to logs.
 - Secret scanning is mandatory in the security gate.
 
-### 4) Platform Hardening Baseline (MASVS-PLATFORM)
-- Android
-  - Release builds must not use debug signing.
-  - Production app ID must not use `com.example.*`.
-  - Manifest must define explicit backup policy.
-- iOS
-  - `NSAllowsArbitraryLoads` must remain absent unless explicitly approved and documented.
-- macOS
-  - Release entitlements must remain minimal.
-  - Do not enable network-server entitlement in release unless justified.
-- Web
-  - `index.html` must include a Content Security Policy meta tag.
+### 4) Electron Runtime Hardening Baseline
 
-### 5) Future-Ready Controls for API/Auth/Storage (MASVS-NETWORK, ASVS V2/V3/V8)
-- Enforce TLS for backend transport.
+- `BrowserWindow` must use a preload bridge.
+- `contextIsolation` must remain enabled.
+- `nodeIntegration` must remain disabled.
+- Preload must expose a narrow `contextBridge` API instead of direct Node access in the renderer.
+- Renderer HTML must not load remote scripts.
+
+### 5) Future-Ready Controls for API/Auth/Storage
+
+- Enforce TLS for any non-local backend transport.
 - Use short-lived session tokens and explicit expiration handling.
-- Store secrets only in platform secure storage (Keychain/Keystore equivalents).
+- Store secrets only in OS-backed secure storage when secrets are introduced.
 - Apply request/response schema validation at network boundaries.
 
 ## Enforcement
+
 Run:
 - `bash /Users/svanny/banji/tool/security/run_security_checks.sh`
 
