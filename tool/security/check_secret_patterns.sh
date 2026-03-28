@@ -71,7 +71,9 @@ scan_tracked_files() {
       filtered="$(echo "$output" \
         | grep -v "$APPROVED_SECRET_PLACEHOLDER" \
         | grep -Ev 'postgres://postgres:postgres@(localhost|127\\.0\\.0\\.1)(:[0-9]+)?/' \
+        | grep -Ev 'postgres://user:pass@(localhost|127\\.0\\.0\\.1)(:[0-9]+)?/' \
         | grep -Ev 'redis://(:[^@]+@)?(localhost|127\\.0\\.0\\.1)(:[0-9]+)?' \
+        | grep -Ev 'amqps?://guest:guest@(((localhost|127\\.0\\.0\\.1)(:[0-9]+)?/)|/)%2f' \
         || true)"
       if [[ -n "$filtered" ]]; then
         report "Credential-bearing URL" "$file" "$filtered"

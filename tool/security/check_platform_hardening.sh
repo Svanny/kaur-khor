@@ -15,52 +15,38 @@ pass() {
   echo "[platform-check] PASS: $1"
 }
 
-ANDROID_GRADLE="android/app/build.gradle.kts"
-ANDROID_MANIFEST="android/app/src/main/AndroidManifest.xml"
-IOS_INFO="ios/Runner/Info.plist"
-MACOS_RELEASE_ENTITLEMENTS="macos/Runner/Release.entitlements"
-WEB_INDEX="web/index.html"
+MAIN_ENTRY="src/main/index.ts"
+PRELOAD_ENTRY="src/preload/index.ts"
+RENDERER_HTML="src/renderer/index.html"
 
-if grep -q 'signingConfig = signingConfigs.getByName("debug")' "$ANDROID_GRADLE"; then
-  fail "Android release build uses debug signing config"
+if grep -q "preload: join(__dirname, '../preload/index.mjs')" "$MAIN_ENTRY"; then
+  pass "Electron main process uses the dedicated preload bridge"
 else
-  pass "Android release build does not use debug signing config"
+  fail "Electron main process must configure the preload bridge"
 fi
 
-if grep -q 'applicationId = "com\.example\.' "$ANDROID_GRADLE"; then
-  fail "Android applicationId still uses com.example.*"
+if grep -q 'contextIsolation: true' "$MAIN_ENTRY"; then
+  pass "Electron renderer keeps context isolation enabled"
 else
-  pass "Android applicationId is not com.example.*"
+  fail "Electron renderer must keep context isolation enabled"
 fi
 
-if grep -q 'android:allowBackup="false"' "$ANDROID_MANIFEST"; then
-  pass "Android manifest disables app data backup"
+if grep -q 'nodeIntegration: false' "$MAIN_ENTRY"; then
+  pass "Electron renderer keeps Node integration disabled"
 else
-  fail "Android manifest must set android:allowBackup=\"false\""
+  fail "Electron renderer must keep Node integration disabled"
 fi
 
-if grep -q 'android:usesCleartextTraffic="false"' "$ANDROID_MANIFEST"; then
-  pass "Android manifest disables cleartext traffic"
+if grep -q "contextBridge.exposeInMainWorld('banjiDesktop', desktopBridge)" "$PRELOAD_ENTRY"; then
+  pass "Preload exposes the audited desktop bridge"
 else
-  fail "Android manifest must set android:usesCleartextTraffic=\"false\""
+  fail "Preload must expose the audited desktop bridge"
 fi
 
-if grep -q 'NSAllowsArbitraryLoads' "$IOS_INFO"; then
-  fail "iOS Info.plist contains NSAllowsArbitraryLoads"
+if grep -qiE '<script[^>]+src="https?://' "$RENDERER_HTML"; then
+  fail "Renderer HTML must not load remote scripts"
 else
-  pass "iOS Info.plist does not weaken ATS"
-fi
-
-if grep -q 'com.apple.security.network.server' "$MACOS_RELEASE_ENTITLEMENTS"; then
-  fail "macOS release entitlements include network server capability"
-else
-  pass "macOS release entitlements are minimal"
-fi
-
-if grep -qi 'Content-Security-Policy' "$WEB_INDEX"; then
-  pass "Web index defines a Content-Security-Policy"
-else
-  fail "Web index is missing Content-Security-Policy"
+  pass "Renderer HTML avoids remote script origins"
 fi
 
 if [[ "$findings" -gt 0 ]]; then
