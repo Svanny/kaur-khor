@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   TriangleAlert,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { HoverTooltip } from '@/components/system/hover-tooltip';
 import { cn } from '@/lib/utils';
 import {
   WorkspaceEmpty,
@@ -36,10 +36,6 @@ function regimeLabel(regime: string | null | undefined, t: (key: any) => string)
 export function DashboardRoute() {
   const { snapshot, error, isLoading } = useInventory();
   const { currency, language, t } = usePreferences();
-  const [openMetricTooltip, setOpenMetricTooltip] = useState<string | null>(null);
-  const [metricTooltipMode, setMetricTooltipMode] = useState<'pointer' | 'focus' | 'click' | null>(
-    null,
-  );
 
   const metrics = useMemo(() => {
     if (!snapshot) {
@@ -101,131 +97,67 @@ export function DashboardRoute() {
 
   return (
     <WorkspacePage>
-      <TooltipProvider>
-        <Card className="border-white/70">
-          <CardContent className="flex flex-col gap-0 px-0">
-            <div className="grid gap-0 sm:grid-cols-2 xl:grid-cols-5">
-              {summaryMetrics.map((metric, index) => (
-                <div
-                  className={cn(
-                    'px-6 py-6',
-                    index > 0 && 'border-t border-border/60',
-                    index === 1 && 'sm:border-t-0 sm:border-l sm:border-border/60',
-                    index === 2 && 'xl:border-t-0 xl:border-l xl:border-border/60',
-                    index === 3 &&
-                      'sm:border-l sm:border-border/60 xl:border-t-0 xl:border-l xl:border-border/60',
-                    index === 4 &&
-                      'sm:col-span-2 xl:col-span-1 xl:border-t-0 xl:border-l xl:border-border/60',
-                  )}
-                  key={metric.label}
-                >
-                  <Tooltip
-                    onOpenChange={(open) => {
-                      if (!open && openMetricTooltip === metric.label) {
-                        setOpenMetricTooltip(null);
-                        setMetricTooltipMode(null);
-                      }
-                    }}
-                    open={openMetricTooltip === metric.label}
-                  >
-                    <TooltipTrigger asChild>
-                      <button
-                        aria-expanded={openMetricTooltip === metric.label}
-                        className="group/metric block w-full text-left focus-visible:outline-none"
-                        onBlur={() => {
-                          if (metricTooltipMode === 'focus' && openMetricTooltip === metric.label) {
-                            setOpenMetricTooltip(null);
-                            setMetricTooltipMode(null);
-                          }
-                        }}
-                        onClick={() => {
-                          if (openMetricTooltip === metric.label) {
-                            setOpenMetricTooltip(null);
-                            setMetricTooltipMode(null);
-                            return;
-                          }
+      <Card className="border-white/70">
+        <CardContent className="flex flex-col gap-0 px-0">
+          <div className="grid gap-0 sm:grid-cols-2 xl:grid-cols-5">
+            {summaryMetrics.map((metric, index) => (
+              <div
+                className={cn(
+                  'px-6 py-6',
+                  index > 0 && 'border-t border-border/60',
+                  index === 1 && 'sm:border-t-0 sm:border-l sm:border-border/60',
+                  index === 2 && 'xl:border-t-0 xl:border-l xl:border-border/60',
+                  index === 3 &&
+                    'sm:border-l sm:border-border/60 xl:border-t-0 xl:border-l xl:border-border/60',
+                  index === 4 &&
+                    'sm:col-span-2 xl:col-span-1 xl:border-t-0 xl:border-l xl:border-border/60',
+                )}
+                key={metric.label}
+              >
+                <HoverTooltip className="group/metric block w-full text-left" content={metric.tooltip}>
+                  <>
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground transition-colors group-hover/metric:text-foreground group-focus-visible/metric:text-foreground">
+                      {metric.label}
+                    </span>
+                    <span className="mt-3 block text-3xl font-semibold tracking-[-0.04em] transition-colors group-hover/metric:text-primary group-focus-visible/metric:text-primary">
+                      {metric.value}
+                    </span>
+                  </>
+                </HoverTooltip>
+              </div>
+            ))}
+          </div>
 
-                          setOpenMetricTooltip(metric.label);
-                          setMetricTooltipMode('click');
-                        }}
-                        onFocus={() => {
-                          if (metricTooltipMode === 'click') {
-                            return;
-                          }
-
-                          setOpenMetricTooltip(metric.label);
-                          setMetricTooltipMode('focus');
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Escape' && openMetricTooltip === metric.label) {
-                            setOpenMetricTooltip(null);
-                            setMetricTooltipMode(null);
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        onPointerEnter={() => {
-                          if (metricTooltipMode === 'click') {
-                            return;
-                          }
-
-                          setOpenMetricTooltip(metric.label);
-                          setMetricTooltipMode('pointer');
-                        }}
-                        onPointerLeave={() => {
-                          if (metricTooltipMode === 'pointer' && openMetricTooltip === metric.label) {
-                            setOpenMetricTooltip(null);
-                            setMetricTooltipMode(null);
-                          }
-                        }}
-                        type="button"
-                      >
-                        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground transition-colors group-hover/metric:text-foreground group-focus-visible/metric:text-foreground">
-                          {metric.label}
-                        </span>
-                        <span className="mt-3 block text-3xl font-semibold tracking-[-0.04em] transition-colors group-hover/metric:text-primary group-focus-visible/metric:text-primary">
-                          {metric.value}
-                        </span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-56 leading-5" side="top" sideOffset={8}>
-                      {metric.tooltip}
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t border-border/60 px-6 py-5">
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    {t('dashboardHealthTitle')}
-                  </p>
-                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
-                    {runtimeLabel}
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    {t('navInventory')}
-                  </p>
-                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
-                    {metrics?.coverage ?? '—'}
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    {t('navStock')}
-                  </p>
-                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
-                    {runtimeState === 'ready' ? t('stockConfirm') : t('backendStarting')}
-                  </p>
-                </div>
+          <div className="border-t border-border/60 px-6 py-5">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  {t('dashboardHealthTitle')}
+                </p>
+                <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                  {runtimeLabel}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  {t('navInventory')}
+                </p>
+                <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                  {metrics?.coverage ?? '—'}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  {t('navStock')}
+                </p>
+                <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                  {runtimeState === 'ready' ? t('stockConfirm') : t('backendStarting')}
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </TooltipProvider>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6">
         <WorkspacePanel

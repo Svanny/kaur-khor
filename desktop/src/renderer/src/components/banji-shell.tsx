@@ -4,9 +4,9 @@ import {
   Boxes,
   ChevronLeft,
   ChevronRight,
+  ClipboardPen,
   LayoutDashboard,
   Settings,
-  SquareChartGantt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,7 +68,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
       {
         to: '/inventory/stock',
         label: t('navStock'),
-        icon: SquareChartGantt,
+        icon: ClipboardPen,
         active: location.pathname.startsWith('/inventory/stock'),
       },
     ],

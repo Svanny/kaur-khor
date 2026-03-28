@@ -242,6 +242,14 @@ const en = {
   settingsForecastHorizon: 'Forecast horizon (days)',
   settingsParticleCount: 'Particle count',
   settingsSmoothingWindow: 'Smoothing window (reports)',
+  settingsTargetServiceLevelTooltip:
+    'Sets the reorder-point service target SIST should protect. Higher values reduce stockout risk but usually recommend more stock.',
+  settingsForecastHorizonTooltip:
+    'Controls how far ahead SIST projects demand and stock risk from the latest report.',
+  settingsParticleCountTooltip:
+    'Sets how many particle samples SIST uses during inference. Higher counts are steadier but take longer to compute.',
+  settingsSmoothingWindowTooltip:
+    'Controls how many recent reports SIST emphasizes when smoothing sparse observations and drift.',
   sistStateReady: 'Ready',
   sistStateRunning: 'Refreshing',
   sistStateStale: 'Stale',

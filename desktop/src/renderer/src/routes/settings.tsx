@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { CircleHelp } from 'lucide-react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
+import { HoverTooltip } from '@/components/system/hover-tooltip';
 import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,8 +14,44 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
+import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+
+function TooltipFieldLabel({
+  htmlFor,
+  label,
+  tooltip,
+}: {
+  htmlFor: string;
+  label: string;
+  tooltip?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 md:basis-56 md:shrink-0">
+      <FieldLabel className="w-auto" htmlFor={htmlFor}>
+        {label}
+      </FieldLabel>
+      {tooltip ? (
+        <HoverTooltip
+          ariaLabel={`${label} help`}
+          className="group rounded-full p-1 text-muted-foreground"
+          content={tooltip}
+        >
+          {({ open }) => (
+            <CircleHelp
+              aria-hidden="true"
+              className={cn(
+                'size-4 transition-colors group-hover:text-foreground group-focus-visible:text-foreground',
+                open ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            />
+          )}
+        </HoverTooltip>
+      ) : null}
+    </div>
+  );
+}
 
 export function SettingsRoute() {
   const { snapshot, saveSistSettings, isSaving } = useInventory();
@@ -46,6 +84,13 @@ export function SettingsRoute() {
     });
   }
 
+  const sistFieldTooltips = {
+    targetServiceLevel: t('settingsTargetServiceLevelTooltip'),
+    forecastHorizonDays: t('settingsForecastHorizonTooltip'),
+    particleCount: t('settingsParticleCountTooltip'),
+    smoothingWindowReports: t('settingsSmoothingWindowTooltip'),
+  };
+
   return (
     <WorkspacePage>
       <WorkspacePanel contentClassName="pt-0">
@@ -60,9 +105,7 @@ export function SettingsRoute() {
 
             <FieldGroup>
               <Field orientation="responsive">
-                <FieldLabel className="md:basis-56 md:shrink-0" htmlFor="language-select">
-                  {t('settingsLanguage')}
-                </FieldLabel>
+                <TooltipFieldLabel htmlFor="language-select" label={t('settingsLanguage')} />
                 <FieldContent className="md:max-w-md">
                   <Select value={language} onValueChange={(value) => setLanguage(value as AppLanguage)}>
                     <SelectTrigger className="w-full rounded-2xl bg-background/60" id="language-select">
@@ -79,9 +122,7 @@ export function SettingsRoute() {
               </Field>
 
               <Field orientation="responsive">
-                <FieldLabel className="md:basis-56 md:shrink-0" htmlFor="currency-select">
-                  {t('settingsCurrency')}
-                </FieldLabel>
+                <TooltipFieldLabel htmlFor="currency-select" label={t('settingsCurrency')} />
                 <FieldContent className="md:max-w-md">
                   <Select value={currency} onValueChange={(value) => setCurrency(value as AppCurrency)}>
                     <SelectTrigger className="w-full rounded-2xl bg-background/60" id="currency-select">
@@ -109,9 +150,11 @@ export function SettingsRoute() {
 
             <FieldGroup>
               <Field orientation="responsive">
-                <FieldLabel className="md:basis-56 md:shrink-0" htmlFor="target-service-level">
-                  {t('settingsTargetServiceLevel')}
-                </FieldLabel>
+                <TooltipFieldLabel
+                  htmlFor="target-service-level"
+                  label={t('settingsTargetServiceLevel')}
+                  tooltip={sistFieldTooltips.targetServiceLevel}
+                />
                 <FieldContent className="md:max-w-md">
                   <Input
                     className="w-full rounded-2xl bg-background/60"
@@ -129,9 +172,11 @@ export function SettingsRoute() {
               </Field>
 
               <Field orientation="responsive">
-                <FieldLabel className="md:basis-56 md:shrink-0" htmlFor="forecast-horizon">
-                  {t('settingsForecastHorizon')}
-                </FieldLabel>
+                <TooltipFieldLabel
+                  htmlFor="forecast-horizon"
+                  label={t('settingsForecastHorizon')}
+                  tooltip={sistFieldTooltips.forecastHorizonDays}
+                />
                 <FieldContent className="md:max-w-md">
                   <Input
                     className="w-full rounded-2xl bg-background/60"
@@ -149,9 +194,11 @@ export function SettingsRoute() {
               </Field>
 
               <Field orientation="responsive">
-                <FieldLabel className="md:basis-56 md:shrink-0" htmlFor="particle-count">
-                  {t('settingsParticleCount')}
-                </FieldLabel>
+                <TooltipFieldLabel
+                  htmlFor="particle-count"
+                  label={t('settingsParticleCount')}
+                  tooltip={sistFieldTooltips.particleCount}
+                />
                 <FieldContent className="md:max-w-md">
                   <Input
                     className="w-full rounded-2xl bg-background/60"
@@ -169,9 +216,11 @@ export function SettingsRoute() {
               </Field>
 
               <Field orientation="responsive">
-                <FieldLabel className="md:basis-56 md:shrink-0" htmlFor="smoothing-window">
-                  {t('settingsSmoothingWindow')}
-                </FieldLabel>
+                <TooltipFieldLabel
+                  htmlFor="smoothing-window"
+                  label={t('settingsSmoothingWindow')}
+                  tooltip={sistFieldTooltips.smoothingWindowReports}
+                />
                 <FieldContent className="md:max-w-md">
                   <Input
                     className="w-full rounded-2xl bg-background/60"

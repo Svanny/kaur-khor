@@ -379,6 +379,14 @@ describe('renderer workspaces', () => {
           settingsForecastHorizon: 'Forecast horizon (days)',
           settingsParticleCount: 'Particle count',
           settingsSmoothingWindow: 'Smoothing window (reports)',
+          settingsTargetServiceLevelTooltip:
+            'Sets the reorder-point service target SIST should protect. Higher values reduce stockout risk but usually recommend more stock.',
+          settingsForecastHorizonTooltip:
+            'Controls how far ahead SIST projects demand and stock risk from the latest report.',
+          settingsParticleCountTooltip:
+            'Sets how many particle samples SIST uses during inference. Higher counts are steadier but take longer to compute.',
+          settingsSmoothingWindowTooltip:
+            'Controls how many recent reports SIST emphasizes when smoothing sparse observations and drift.',
           saveDraft: 'Save changes',
           stockChangesTitle: 'Update Sheet',
           stockUpdateBody: 'Capture timestamped stock reports.',
@@ -487,26 +495,30 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('Spike')).toBeInTheDocument();
   });
 
-  test('overview metric tooltips reopen after being dismissed with a click', async () => {
+  test('overview metric tooltips dismiss with one click after hover and reopen on a later click', async () => {
     renderRoute('/', <DashboardRoute />);
 
     const metricTrigger = screen.getByText('Merchandising slots').closest('button');
     expect(metricTrigger).not.toBeNull();
 
     fireEvent.pointerEnter(metricTrigger!);
+    await waitFor(() => {
+      expect(metricTrigger).toHaveAttribute('aria-expanded', 'true');
+    });
     expect(
       await screen.findByRole('tooltip', { name: '2 SKUs / 2 services' }),
     ).toBeInTheDocument();
 
     fireEvent.click(metricTrigger!);
     await waitFor(() => {
-      expect(screen.queryByRole('tooltip', { name: '2 SKUs / 2 services' })).not.toBeInTheDocument();
+      expect(metricTrigger).toHaveAttribute('aria-expanded', 'false');
     });
 
+    fireEvent.pointerLeave(metricTrigger!);
     fireEvent.click(metricTrigger!);
-    expect(
-      await screen.findByRole('tooltip', { name: '2 SKUs / 2 services' }),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(metricTrigger).toHaveAttribute('aria-expanded', 'true');
+    });
   });
 
   test('catalog keeps search and filter state in the URL', () => {
@@ -748,6 +760,33 @@ describe('renderer workspaces', () => {
         particleCount: 768,
         smoothingWindowReports: 90,
       });
+    });
+  });
+
+  test('settings SIST help tooltips dismiss with one click after hover and reopen on a later click', async () => {
+    renderRoute('/settings', <SettingsRoute />);
+
+    const helpButton = screen.getByRole('button', { name: 'Particle count help' });
+    const tooltipText =
+      'Sets how many particle samples SIST uses during inference. Higher counts are steadier but take longer to compute.';
+
+    fireEvent.pointerEnter(helpButton);
+    await waitFor(() => {
+      expect(helpButton).toHaveAttribute('aria-expanded', 'true');
+    });
+    expect(
+      await screen.findByRole('tooltip', { name: tooltipText }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(helpButton);
+    await waitFor(() => {
+      expect(helpButton).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    fireEvent.pointerLeave(helpButton);
+    fireEvent.click(helpButton);
+    await waitFor(() => {
+      expect(helpButton).toHaveAttribute('aria-expanded', 'true');
     });
   });
 });
