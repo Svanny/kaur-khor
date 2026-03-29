@@ -1,9 +1,9 @@
 use super::types::{
     ApplyDesktopStockUpdatesRequest, DesktopInventoryResponse, DesktopRankingEntry,
     DesktopRankingEntryType, DesktopServiceRecord, DesktopSkuRecord, LeadTimeSummary,
-    SaveDesktopRankingRequest, SistAnalysisState, SistAnalysisStatus, SistConfidence,
-    SistOverview, SistRegime, SistSettings, SistSkuDetailResponse, SistSkuInsight,
-    StockReportRecord, StockReportSkuObservation, SubmitStockReportRequest,
+    MONETARY_AMOUNT_MAX, SaveDesktopRankingRequest, SistAnalysisState, SistAnalysisStatus,
+    SistConfidence, SistOverview, SistRegime, SistSettings, SistSkuDetailResponse,
+    SistSkuInsight, StockReportRecord, StockReportSkuObservation, SubmitStockReportRequest,
     UpdateSistSettingsRequest, UpsertDesktopServiceRequest, UpsertDesktopSkuRequest,
 };
 use anyhow::{anyhow, Context, Result};
@@ -18,12 +18,17 @@ use std::{
     path::{Path, PathBuf},
     sync::Mutex,
 };
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
 
 static STORE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 const STORE_SCHEMA_VERSION: u8 = 2;
 const SIST_SCHEMA_VERSION: u8 = 1;
+const SEEDED_HISTORY_REPORT_COUNT: usize = 272;
+const SEEDED_HISTORY_INTERVAL_DAYS: i64 = 14;
+const SEEDED_HISTORY_LATEST_AT: &str = "2026-03-27T09:00:00Z";
+const SEEDED_CATALOG_SEED: u64 = 0xBA4A_110C_5EED;
+const SEEDED_HISTORY_SEED: u64 = 0xBA4A_110C_7001;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -82,68 +87,10 @@ struct LegacyOwnerInventory {
 
 impl OwnerInventory {
     fn seeded() -> Self {
-        let skus = vec![
-            DesktopSkuRecord {
-                sku_id: "sku-001".to_string(),
-                name: "SKU #001".to_string(),
-                description: "Base ingredient for high volume items.".to_string(),
-                units_in_stock: 264.0,
-                cost_per_unit: 1296.0 / 264.0,
-                sold_as_product: true,
-                product_price: Some(10.0),
-                lead_time_mean_days: Some(5.0),
-                lead_time_std_days: Some(1.5),
-            },
-            DesktopSkuRecord {
-                sku_id: "sku-002".to_string(),
-                name: "SKU #002".to_string(),
-                description: "Reusable material with stable demand.".to_string(),
-                units_in_stock: 146.0,
-                cost_per_unit: 601.2 / 146.0,
-                sold_as_product: false,
-                product_price: None,
-                lead_time_mean_days: Some(7.0),
-                lead_time_std_days: Some(2.0),
-            },
-            DesktopSkuRecord {
-                sku_id: "sku-003".to_string(),
-                name: "SKU #003".to_string(),
-                description: "Low-rotation backup stock.".to_string(),
-                units_in_stock: 76.0,
-                cost_per_unit: 592.0 / 76.0,
-                sold_as_product: true,
-                product_price: Some(16.0),
-                lead_time_mean_days: None,
-                lead_time_std_days: None,
-            },
-            DesktopSkuRecord {
-                sku_id: "sku-004".to_string(),
-                name: "SKU #004".to_string(),
-                description: "Seasonal inventory reserved for peak periods.".to_string(),
-                units_in_stock: 98.0,
-                cost_per_unit: 931.0 / 98.0,
-                sold_as_product: false,
-                product_price: None,
-                lead_time_mean_days: None,
-                lead_time_std_days: None,
-            },
-        ];
-        let services = vec![
-            DesktopServiceRecord {
-                service_id: "service-001".to_string(),
-                name: "Service #001".to_string(),
-                description: "Basic package for recurring customers.".to_string(),
-                price: 1200.0,
-                sku_ids: vec!["sku-001".to_string(), "sku-002".to_string()],
-            },
-            DesktopServiceRecord {
-                service_id: "service-002".to_string(),
-                name: "Service #002".to_string(),
-                description: "Premium package with deeper SKU usage.".to_string(),
-                price: 2200.0,
-                sku_ids: vec!["sku-002".to_string(), "sku-003".to_string()],
-            },
-        ];
+        let mut skus = build_seeded_skus();
+        let mut services = build_seeded_services(&skus);
+        let stock_reports = build_seeded_stock_reports(&skus, &services);
+        sync_catalog_with_latest_history(&mut skus, &mut services, &stock_reports);
         let ranking = build_default_ranking(&skus, &services);
         let mut owner = Self {
             catalog: CatalogState { skus, services },
@@ -151,15 +98,383 @@ impl OwnerInventory {
             sist: OwnerSistState {
                 schema_version: SIST_SCHEMA_VERSION,
                 settings: SistSettings::default(),
-                stock_reports: Vec::new(),
+                stock_reports,
                 cached_analysis: CachedSistAnalysis {
                     overview: empty_overview("seed data initialized"),
                 },
             },
         };
-        ensure_baseline_report(&mut owner, "manual");
         recompute_analysis("seed", &mut owner);
         owner
+    }
+}
+
+fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
+    let definitions = [
+        (
+            "sku-001",
+            "SKU #001",
+            "High-turn pantry staple used across bundled services.",
+            248.0,
+            5.10,
+            true,
+            Some(12.0),
+            Some(5.0),
+            Some(1.5),
+        ),
+        (
+            "sku-002",
+            "SKU #002",
+            "Reusable prep material with stable demand.",
+            168.0,
+            4.35,
+            false,
+            None,
+            Some(7.0),
+            Some(2.0),
+        ),
+        (
+            "sku-003",
+            "SKU #003",
+            "Retail-ready add-on with periodic spikes.",
+            118.0,
+            7.90,
+            true,
+            Some(18.0),
+            None,
+            None,
+        ),
+        (
+            "sku-004",
+            "SKU #004",
+            "Backup material held for constrained weeks.",
+            142.0,
+            6.75,
+            false,
+            None,
+            None,
+            None,
+        ),
+        (
+            "sku-005",
+            "SKU #005",
+            "Small-format impulse item sold at checkout.",
+            96.0,
+            3.40,
+            true,
+            Some(9.0),
+            Some(4.0),
+            Some(1.0),
+        ),
+        (
+            "sku-006",
+            "SKU #006",
+            "Durable support supply shared by premium services.",
+            132.0,
+            8.25,
+            false,
+            None,
+            Some(11.0),
+            Some(3.0),
+        ),
+        (
+            "sku-007",
+            "SKU #007",
+            "Seasonal hero item with promotion-driven swings.",
+            110.0,
+            6.10,
+            true,
+            Some(15.0),
+            None,
+            None,
+        ),
+        (
+            "sku-008",
+            "SKU #008",
+            "Special handling component with slower replenishment.",
+            88.0,
+            9.80,
+            false,
+            None,
+            Some(14.0),
+            Some(4.5),
+        ),
+        (
+            "sku-009",
+            "SKU #009",
+            "Core retail pack for repeat buyers.",
+            156.0,
+            5.95,
+            true,
+            Some(13.5),
+            Some(6.0),
+            Some(1.8),
+        ),
+        (
+            "sku-010",
+            "SKU #010",
+            "Reserve ingredient activated during corrections.",
+            174.0,
+            7.15,
+            false,
+            None,
+            None,
+            None,
+        ),
+    ];
+
+    definitions
+        .into_iter()
+        .map(
+            |(
+                sku_id,
+                name,
+                description,
+                units_in_stock,
+                cost_per_unit,
+                sold_as_product,
+                product_price,
+                lead_time_mean_days,
+                lead_time_std_days,
+            )| DesktopSkuRecord {
+                sku_id: sku_id.to_string(),
+                name: name.to_string(),
+                description: description.to_string(),
+                units_in_stock,
+                cost_per_unit,
+                sold_as_product,
+                product_price,
+                lead_time_mean_days,
+                lead_time_std_days,
+            },
+        )
+        .collect()
+}
+
+fn build_seeded_services(skus: &[DesktopSkuRecord]) -> Vec<DesktopServiceRecord> {
+    let mut rng = StdRng::seed_from_u64(SEEDED_CATALOG_SEED);
+    let sku_ids = skus.iter().map(|sku| sku.sku_id.clone()).collect::<Vec<_>>();
+    let mut services = Vec::with_capacity(10);
+
+    for index in 0..10 {
+        let mut linked_skus = Vec::new();
+        let target_links = 2 + rng.gen_range(0..3);
+        while linked_skus.len() < target_links {
+            let candidate = sku_ids[rng.gen_range(0..sku_ids.len())].clone();
+            if !linked_skus.contains(&candidate) {
+                linked_skus.push(candidate);
+            }
+        }
+        linked_skus.sort();
+
+        let service_number = index + 1;
+        services.push(DesktopServiceRecord {
+            service_id: format!("service-{service_number:03}"),
+            name: format!("Service #{service_number:03}"),
+            description: format!(
+                "Synthetic bundle #{service_number:03} linking a rotating set of inventory inputs."
+            ),
+            price: 900.0 + service_number as f64 * 135.0 + rng.gen_range(0.0..140.0),
+            sku_ids: linked_skus,
+        });
+    }
+
+    for (index, sku_id) in sku_ids.iter().enumerate() {
+        if services
+            .iter()
+            .any(|service| service.sku_ids.iter().any(|linked| linked == sku_id))
+        {
+            continue;
+        }
+        let service_count = services.len();
+        let service = &mut services[index % service_count];
+        service.sku_ids.push(sku_id.clone());
+        service.sku_ids.sort();
+        service.sku_ids.dedup();
+    }
+
+    services
+}
+
+fn build_seeded_stock_reports(
+    skus: &[DesktopSkuRecord],
+    services: &[DesktopServiceRecord],
+) -> Vec<StockReportRecord> {
+    let mut rng = StdRng::seed_from_u64(SEEDED_HISTORY_SEED);
+    let latest_at = OffsetDateTime::parse(SEEDED_HISTORY_LATEST_AT, &Rfc3339)
+        .expect("seeded history timestamp should parse");
+    let start_at = latest_at
+        - Duration::days(SEEDED_HISTORY_INTERVAL_DAYS * (SEEDED_HISTORY_REPORT_COUNT as i64 - 1));
+    let mut report_time = start_at;
+    let mut sku_units = skus.iter().map(|sku| sku.units_in_stock).collect::<Vec<_>>();
+    let mut sku_costs = skus.iter().map(|sku| sku.cost_per_unit).collect::<Vec<_>>();
+    let mut service_prices = services.iter().map(|service| service.price).collect::<Vec<_>>();
+    let retail_sku_ids = skus
+        .iter()
+        .filter(|sku| sku.sold_as_product && sku.product_price.is_some())
+        .map(|sku| sku.sku_id.clone())
+        .collect::<Vec<_>>();
+    let mut reports = Vec::with_capacity(SEEDED_HISTORY_REPORT_COUNT);
+
+    for report_index in 0..SEEDED_HISTORY_REPORT_COUNT {
+        let mut sku_observations = Vec::with_capacity(skus.len());
+        let mut retail_stockout_flags = vec![false; skus.len()];
+        let mut service_price_adjustments = Vec::new();
+
+        for (sku_index, sku) in skus.iter().enumerate() {
+            let periodic_draw =
+                10.0 + (sku_index % 4) as f64 * 3.0 + ((report_index + sku_index) % 5) as f64;
+            let seasonal_draw = if (report_index + sku_index * 2) % 13 == 0 {
+                9.0
+            } else if (report_index + sku_index) % 9 == 0 {
+                -4.0
+            } else {
+                0.0
+            };
+            let draw = (periodic_draw + seasonal_draw).max(2.0);
+            let low_stock_threshold = 18.0 + sku_index as f64 * 1.8;
+            let restock_included =
+                sku_units[sku_index] <= low_stock_threshold || (report_index + sku_index * 3) % 17 == 0;
+            let restock_units = if restock_included {
+                36.0 + sku_index as f64 * 5.0 + rng.gen_range(0.0..22.0)
+            } else {
+                0.0
+            };
+            let next_units = (sku_units[sku_index] + restock_units - draw).max(0.0);
+            let cost_drift = ((report_index + sku_index * 5) % 7) as f64 * 0.03;
+            let next_cost = (sku_costs[sku_index] * (1.0 + cost_drift / 10.0)
+                + if restock_included {
+                    rng.gen_range(0.02..0.18)
+                } else {
+                    0.0
+                })
+            .min(MONETARY_AMOUNT_MAX / 100.0);
+            let retail_stockout = sku.sold_as_product && next_units <= 10.0 + sku_index as f64;
+
+            retail_stockout_flags[sku_index] = retail_stockout;
+            sku_units[sku_index] = next_units;
+            sku_costs[sku_index] = next_cost;
+            sku_observations.push(StockReportSkuObservation {
+                sku_id: sku.sku_id.clone(),
+                units_in_stock: next_units,
+                cost_per_unit: next_cost,
+                restock_included,
+                retail_stockout,
+                notes: if restock_included {
+                    Some("Scheduled replenishment landed before close.".to_string())
+                } else if retail_stockout {
+                    Some("Retail shelf pressure observed.".to_string())
+                } else {
+                    None
+                },
+            });
+        }
+
+        if report_index % 9 == 0 {
+            let service_index = (report_index / 9) % services.len();
+            service_prices[service_index] =
+                (service_prices[service_index] + rng.gen_range(15.0..85.0)).min(MONETARY_AMOUNT_MAX / 10.0);
+            service_price_adjustments.push(super::types::StockReportServicePriceAdjustment {
+                service_id: services[service_index].service_id.clone(),
+                price: service_prices[service_index],
+            });
+        }
+
+        let service_signals = services
+            .iter()
+            .filter_map(|service| {
+                let linked_low = service.sku_ids.iter().any(|sku_id| {
+                    skus.iter().position(|sku| &sku.sku_id == sku_id).map_or(false, |position| {
+                        retail_stockout_flags[position] || sku_units[position] <= 12.0
+                    })
+                });
+                if linked_low || (report_index + service.sku_ids.len()) % 23 == 0 {
+                    Some(super::types::StockReportServiceSignal {
+                        service_id: service.service_id.clone(),
+                        stockout: linked_low,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let top_service_ranking = if report_index % 4 == 0 {
+            ranked_service_ids_for_report(report_index, services)
+        } else {
+            Vec::new()
+        };
+        let top_retail_ranking = if report_index % 3 == 0 {
+            ranked_retail_sku_ids_for_report(report_index, &retail_sku_ids)
+        } else {
+            Vec::new()
+        };
+
+        reports.push(StockReportRecord {
+            report_id: format!("report-{:04}", report_index + 1),
+            report_source: if report_index == 0 {
+                "legacy-baseline".to_string()
+            } else {
+                "manual".to_string()
+            },
+            reported_at: report_time
+                .format(&Rfc3339)
+                .expect("seeded history timestamp should format"),
+            sku_observations,
+            service_signals,
+            service_price_adjustments,
+            top_service_ranking,
+            top_retail_ranking,
+            notes: if report_index % 12 == 0 {
+                Some("Synthetic biweekly operating snapshot.".to_string())
+            } else {
+                None
+            },
+        });
+
+        report_time += Duration::days(SEEDED_HISTORY_INTERVAL_DAYS);
+    }
+
+    reports
+}
+
+fn ranked_service_ids_for_report(
+    report_index: usize,
+    services: &[DesktopServiceRecord],
+) -> Vec<String> {
+    let service_count = services.len().min(3);
+    (0..service_count)
+        .map(|offset| services[(report_index + offset) % services.len()].service_id.clone())
+        .collect()
+}
+
+fn ranked_retail_sku_ids_for_report(report_index: usize, retail_sku_ids: &[String]) -> Vec<String> {
+    let retail_count = retail_sku_ids.len().min(3);
+    (0..retail_count)
+        .map(|offset| retail_sku_ids[(report_index + offset) % retail_sku_ids.len()].clone())
+        .collect()
+}
+
+fn sync_catalog_with_latest_history(
+    skus: &mut [DesktopSkuRecord],
+    services: &mut [DesktopServiceRecord],
+    reports: &[StockReportRecord],
+) {
+    for report in reports {
+        for observation in &report.sku_observations {
+            if let Some(sku) = skus.iter_mut().find(|sku| sku.sku_id == observation.sku_id) {
+                sku.units_in_stock = observation.units_in_stock;
+                sku.cost_per_unit = observation.cost_per_unit;
+            }
+        }
+        for adjustment in &report.service_price_adjustments {
+            if let Some(service) = services
+                .iter_mut()
+                .find(|service| service.service_id == adjustment.service_id)
+            {
+                service.price = adjustment.price;
+            }
+        }
     }
 }
 

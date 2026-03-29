@@ -10,6 +10,7 @@ import {
   WorkspacePanel,
 } from '@/components/system/workspace';
 import { DescriptionText } from '@/components/system/description-text';
+import { RecentActivityList } from '@/components/system/recent-activity-list';
 import {
   computeServiceSellableUnits,
   serviceCoverageState,
@@ -307,39 +308,23 @@ export function ServiceDetailRoute() {
               {t('catalogServiceRecentActivityFallback')}
             </p>
           ) : activityReports.length > 0 ? (
-            <div className="mt-4 grid gap-3">
-              {activityReports.map((report) => {
-                const notes = summarizeNotes(report.notes);
-                const changeSummary = serviceActivitySummary({
+            <RecentActivityList
+              className="mt-4"
+              items={activityReports}
+              renderDateLabel={(report) => reportDateLabel(report.reportedAt, language)}
+              renderSourceLabel={(report) => t(stockReportSourceKey(report.reportSource))}
+              renderSummary={(report) =>
+                serviceActivitySummary({
                   report,
                   serviceId: service.serviceId,
                   linkedSkuIds,
                   currency,
                   language,
                   t,
-                });
-
-                return (
-                  <div
-                    className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4"
-                    key={report.reportId}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{reportDateLabel(report.reportedAt, language)}</Badge>
-                      <Badge variant="secondary">{t(stockReportSourceKey(report.reportSource))}</Badge>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-foreground">{changeSummary}</p>
-                    {notes ? (
-                      <p className="mt-2 text-sm text-muted-foreground">{notes}</p>
-                    ) : (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {t('stockHistoryNoNotes')}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                })
+              }
+              renderNotes={(report) => summarizeNotes(report.notes) ?? t('stockHistoryNoNotes')}
+            />
           ) : (
             <p className="mt-4 text-sm text-muted-foreground">
               {t('catalogServiceRecentActivityEmpty')}

@@ -128,6 +128,55 @@ export function MetricCard({
   );
 }
 
+export function MetricStrip({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        'grid gap-0 overflow-hidden rounded-[1.5rem] border border-border/50 bg-background/35 sm:grid-cols-2 xl:grid-cols-4',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function MetricStripItem({
+  label,
+  value,
+  detail,
+  className,
+}: {
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 flex-col gap-2 px-5 py-4 sm:px-6 sm:py-5',
+        'border-t border-border/50 first:border-t-0 sm:odd:border-t-0 xl:border-t-0 xl:border-l xl:first:border-l-0',
+        className,
+      )}
+    >
+      <p className="text-[0.72rem] font-medium tracking-[0.08em] text-muted-foreground/80">
+        {label}
+      </p>
+      <p className="text-3xl font-semibold tracking-[-0.04em] text-foreground [font-variant-numeric:tabular-nums]">
+        {value}
+      </p>
+      {detail ? (
+        <p className="min-w-0 text-sm leading-5 text-muted-foreground">
+          {detail}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function WorkspacePanel({
   title,
   description,

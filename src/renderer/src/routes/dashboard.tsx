@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import type { StockReport } from '@shared/inventory';
 import { ArrowRight, TriangleAlert } from 'lucide-react';
 import {
-  MetricCard,
-  MetricGrid,
+  MetricStrip,
+  MetricStripItem,
   WorkspaceEmpty,
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
 import { DescriptionText } from '@/components/system/description-text';
+import { RecentActivityList } from '@/components/system/recent-activity-list';
 import { buildDefaultReportRanking } from '@/components/system/merchandising-editor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -453,40 +454,13 @@ export function DashboardRoute() {
         ) : recentReports.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('overviewRecentActivityEmpty')}</p>
         ) : (
-          <div className="grid gap-3">
-            {recentReports.map((report) => {
-              const serviceFlagCount = report.serviceSignals.filter(
-                (signal) => signal.stockout !== false,
-              ).length;
-              const notesSnippet = summarizeNotes(report.notes);
-
-              return (
-                <div
-                  className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4"
-                  key={report.reportId}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">
-                      {recentActivityDateLabel(report.reportedAt, language)}
-                    </Badge>
-                    <Badge variant="secondary">
-                      {t(stockReportSourceKey(report.reportSource))}
-                    </Badge>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-foreground">
-                    {latestReportSummary(report, t)}
-                  </p>
-                  {notesSnippet ? (
-                    <p className="mt-2 text-sm text-muted-foreground">{notesSnippet}</p>
-                  ) : (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {t('stockHistoryNoNotes')}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <RecentActivityList
+            items={recentReports}
+            renderDateLabel={(report) => recentActivityDateLabel(report.reportedAt, language)}
+            renderSourceLabel={(report) => t(stockReportSourceKey(report.reportSource))}
+            renderSummary={(report) => latestReportSummary(report, t)}
+            renderNotes={(report) => summarizeNotes(report.notes) ?? t('stockHistoryNoNotes')}
+          />
         )}
       </WorkspacePanel>
 
@@ -494,28 +468,28 @@ export function DashboardRoute() {
         description={t('overviewSupportMetricsDescription')}
         title={t('overviewSupportMetricsTitle')}
       >
-        <MetricGrid>
-          <MetricCard
+        <MetricStrip>
+          <MetricStripItem
             detail={t('overviewSupportMetricsValueDetail')}
             label={t('dashboardTotalValue')}
             value={formatCurrency(inventoryValue, currency, language)}
           />
-          <MetricCard
+          <MetricStripItem
             detail={t('overviewSupportMetricsSaleReadyDetail')}
             label={t('dashboardSaleReady')}
             value={formatNumber(sellableSkuCount, language)}
           />
-          <MetricCard
+          <MetricStripItem
             detail={t('overviewSupportMetricsServicesDetail')}
             label={t('dashboardServices')}
             value={formatNumber(snapshot.services.length, language)}
           />
-          <MetricCard
+          <MetricStripItem
             detail={rankingCoverageDetail(sellableSkuCount, snapshot.services.length)}
             label={t('overviewRankingCoverage')}
             value={formatNumber(rankableEntryCount, language)}
           />
-        </MetricGrid>
+        </MetricStrip>
       </WorkspacePanel>
     </WorkspacePage>
   );

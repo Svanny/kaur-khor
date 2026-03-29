@@ -199,14 +199,23 @@ pub fn app_with_state(state: AppState) -> Router {
             "/v1/desktop/services/:service_id",
             put(update_desktop_service),
         )
-        .route("/v1/desktop/stock-reports", post(create_desktop_stock_report))
-        .route("/v1/desktop/stock-updates", post(apply_desktop_stock_updates))
+        .route(
+            "/v1/desktop/stock-reports",
+            post(create_desktop_stock_report),
+        )
+        .route(
+            "/v1/desktop/stock-updates",
+            post(apply_desktop_stock_updates),
+        )
         .route(
             "/v1/desktop/ranking",
             get(get_desktop_ranking).put(save_desktop_ranking),
         )
         .route("/v1/desktop/sist/sku/:sku_id", get(get_desktop_sist_sku))
-        .route("/v1/desktop/sist/settings", put(update_desktop_sist_settings))
+        .route(
+            "/v1/desktop/sist/settings",
+            put(update_desktop_sist_settings),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             edge::rate_limit::rate_limit_middleware,
@@ -702,9 +711,11 @@ async fn create_desktop_service(
     }
 
     match desktop_inventory::store::create_service(&principal.sub, body) {
-        Ok(service) => {
-            (StatusCode::CREATED, Json(serde_json::json!({ "service": service }))).into_response()
-        }
+        Ok(service) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "service": service })),
+        )
+            .into_response(),
         Err(err) => {
             desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to create service", err)
         }
@@ -726,9 +737,11 @@ async fn update_desktop_service(
     }
 
     match desktop_inventory::store::update_service(&principal.sub, &service_id, body) {
-        Ok(service) => {
-            (StatusCode::OK, Json(serde_json::json!({ "service": service }))).into_response()
-        }
+        Ok(service) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "service": service })),
+        )
+            .into_response(),
         Err(err) => {
             desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to update service", err)
         }
@@ -764,9 +777,11 @@ async fn create_desktop_stock_report(
     }
 
     match desktop_inventory::store::submit_stock_report(&principal.sub, body) {
-        Ok(report) => {
-            (StatusCode::CREATED, Json(serde_json::json!({ "report": report }))).into_response()
-        }
+        Ok(report) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "report": report })),
+        )
+            .into_response(),
         Err(err) => desktop_inventory_error(
             StatusCode::BAD_REQUEST,
             "failed to submit stock report",
@@ -798,9 +813,11 @@ async fn update_desktop_sist_settings(
     }
 
     match desktop_inventory::store::update_sist_settings(&principal.sub, body) {
-        Ok(settings) => {
-            (StatusCode::OK, Json(serde_json::json!({ "settings": settings }))).into_response()
-        }
+        Ok(settings) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "settings": settings })),
+        )
+            .into_response(),
         Err(err) => desktop_inventory_error(
             StatusCode::BAD_REQUEST,
             "failed to update sist settings",
@@ -813,9 +830,11 @@ async fn get_desktop_ranking(
     Extension(principal): Extension<AuthPrincipal>,
 ) -> axum::response::Response {
     match desktop_inventory::store::load_ranking(&principal.sub) {
-        Ok(entries) => {
-            (StatusCode::OK, Json(serde_json::json!({ "entries": entries }))).into_response()
-        }
+        Ok(entries) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "entries": entries })),
+        )
+            .into_response(),
         Err(err) => desktop_inventory_error(
             StatusCode::INTERNAL_SERVER_ERROR,
             "failed to load ranking",
@@ -833,14 +852,12 @@ async fn save_desktop_ranking(
     }
 
     match desktop_inventory::store::save_ranking(&principal.sub, body) {
-        Ok(entries) => {
-            (StatusCode::OK, Json(serde_json::json!({ "entries": entries }))).into_response()
-        }
-        Err(err) => desktop_inventory_error(
-            StatusCode::BAD_REQUEST,
-            "failed to save ranking",
-            err,
-        ),
+        Ok(entries) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "entries": entries })),
+        )
+            .into_response(),
+        Err(err) => desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to save ranking", err),
     }
 }
 

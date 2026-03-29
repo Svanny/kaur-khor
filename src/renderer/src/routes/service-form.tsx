@@ -332,14 +332,9 @@ export function ServiceFormRoute() {
         saveLabel={isNew ? t('createEntry') : t('saveDraft')}
         title={isNew ? t('catalogServiceEditorTitleNew') : t('catalogServiceEditorTitleEdit')}
         titleMeta={
-          <div className="flex min-w-0 items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1.5">
-            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('fieldId')}
-            </span>
-            <code className="truncate text-xs font-semibold text-foreground">
-              {form.serviceId}
-            </code>
-          </div>
+          <Badge variant="outline">
+            {t('fieldId')}: {form.serviceId}
+          </Badge>
         }
       />
 

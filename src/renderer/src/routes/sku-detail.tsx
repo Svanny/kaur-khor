@@ -5,11 +5,14 @@ import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  MetricStrip,
+  MetricStripItem,
   WorkspaceEmpty,
   WorkspacePage,
   WorkspacePanel,
 } from '@/components/system/workspace';
 import { DescriptionText } from '@/components/system/description-text';
+import { RecentActivityList } from '@/components/system/recent-activity-list';
 import { formatCurrency, formatNumber, localeFor } from '@/lib/format';
 import {
   linkedServicesForSku,
@@ -169,38 +172,59 @@ function RecentReportList({
   t: (key: string) => string;
 }) {
   return (
-    <div className="grid gap-3">
-      {reports.map((report) => {
-        const notes = summarizeNotes(report.notes);
+    <RecentActivityList
+      items={reports}
+      renderDateLabel={(report) => reportDateLabel(report.reportedAt, language)}
+      renderSourceLabel={(report) => t(stockReportSourceKey(report.reportSource))}
+      renderSummary={(report) =>
+        skuReportSummary({
+          currentSku: sku,
+          report,
+          currency,
+          language,
+          t,
+        })
+      }
+      renderNotes={(report) => summarizeNotes(report.notes) ?? t('stockHistoryNoNotes')}
+    />
+  );
+}
 
-        return (
-          <div
-            className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4"
-            key={report.reportId}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">{reportDateLabel(report.reportedAt, language)}</Badge>
-              <Badge variant="secondary">{t(stockReportSourceKey(report.reportSource))}</Badge>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-foreground">
-              {skuReportSummary({
-                currentSku: sku,
-                report,
-                currency,
-                language,
-                t,
-              })}
-            </p>
-            {notes ? (
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{notes}</p>
-            ) : (
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {t('stockHistoryNoNotes')}
-              </p>
-            )}
-          </div>
-        );
-      })}
+function PlanningMetricsList({
+  language,
+  planningInsight,
+  t,
+}: {
+  language: 'en' | 'km';
+  planningInsight: SistSkuInsight;
+  t: (key: string) => string;
+}) {
+  return (
+    <div className="mt-4 grid gap-2 border-t border-border/60 pt-4 sm:grid-cols-2 xl:grid-cols-1">
+      <SkuSummaryField
+        label={t('catalogDaysOfCover')}
+        value={
+          planningInsight.daysOfCover == null
+            ? '—'
+            : formatNumber(planningInsight.daysOfCover, language)
+        }
+      />
+      <SkuSummaryField
+        label={t('catalogStockoutRisk')}
+        value={`${formatNumber(planningInsight.stockoutRisk * 100, language)}%`}
+      />
+      <SkuSummaryField
+        label={t('catalogReorderPoint')}
+        value={formatNumber(planningInsight.reorderPoint, language)}
+      />
+      <SkuSummaryField
+        label={t('catalogConfidence')}
+        value={planningInsight.confidence}
+      />
+      <SkuSummaryField
+        label={t('catalogSkuLeadTimeSummary')}
+        value={leadTimeSummary(planningInsight, language)}
+      />
     </div>
   );
 }
@@ -212,6 +236,7 @@ export function SkuDetailRoute() {
   const [skuDetail, setSkuDetail] = useState<SistSkuDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [planningMetricsExpanded, setPlanningMetricsExpanded] = useState(true);
 
   const sku = useMemo(
     () => snapshot?.skus.find((entry) => entry.skuId === skuId) ?? null,
@@ -433,9 +458,22 @@ export function SkuDetailRoute() {
         </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
           <div className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('catalogSkuPlanningActionTitle')}
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                {t('catalogSkuPlanningActionTitle')}
+              </p>
+              {planningInsight ? (
+                <button
+                  aria-controls="sku-planning-metrics"
+                  aria-expanded={planningMetricsExpanded}
+                  className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  type="button"
+                  onClick={() => setPlanningMetricsExpanded((current) => !current)}
+                >
+                  {t('catalogSkuPlanningMetricsTitle')}
+                </button>
+              ) : null}
+            </div>
             {planningInsight ? (
               <>
                 <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-foreground">
@@ -450,6 +488,15 @@ export function SkuDetailRoute() {
                   <p className="mt-3 text-sm text-muted-foreground">
                     {t('catalogSkuPlanningSignalsFallback')}
                   </p>
+                ) : null}
+                {planningMetricsExpanded ? (
+                  <div id="sku-planning-metrics">
+                    <PlanningMetricsList
+                      language={language}
+                      planningInsight={planningInsight}
+                      t={t}
+                    />
+                  </div>
                 ) : null}
               </>
             ) : detailLoading ? (
@@ -471,34 +518,38 @@ export function SkuDetailRoute() {
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
               {t('editorInventoryTitle')}
             </p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:gap-x-6">
-                <SkuSummaryField
-                  divider={false}
-                  label={t('fieldUnitsInStock')}
-                  value={formatNumber(sku.unitsInStock, language)}
-                />
-                <SkuSummaryField
-                  divider={false}
-                  label={t('fieldCostPerUnit')}
-                  value={formatCurrency(sku.costPerUnit, currency, language)}
-                />
-                <SkuSummaryField
-                  divider={false}
-                  label={t('catalogSkuDirectSellStatus')}
-                  value={
-                    sku.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct')
-                  }
-                />
-                <SkuSummaryField
-                  divider={false}
-                  label={t('fieldProductPrice')}
-                  value={
-                    sku.soldAsProduct && sku.productPrice !== null
+            <MetricStrip className="mt-4 rounded-none border-0 bg-transparent">
+              <MetricStripItem
+                className="px-0 sm:px-0 xl:pl-0 xl:pr-6"
+                detail={undefined}
+                label={t('fieldUnitsInStock')}
+                value={formatNumber(sku.unitsInStock, language)}
+              />
+              <MetricStripItem
+                className="px-0 sm:px-0 xl:px-6"
+                detail={undefined}
+                label={t('fieldCostPerUnit')}
+                value={formatCurrency(sku.costPerUnit, currency, language)}
+              />
+              <MetricStripItem
+                className="px-0 sm:px-0 xl:px-6"
+                detail={undefined}
+                label={t('catalogSkuDirectSellStatus')}
+                value={
+                  sku.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct')
+                }
+              />
+              <MetricStripItem
+                className="px-0 sm:px-0 xl:pl-6 xl:pr-0"
+                detail={undefined}
+                label={t('fieldProductPrice')}
+                value={
+                  sku.soldAsProduct && sku.productPrice !== null
                     ? formatCurrency(sku.productPrice, currency, language)
                     : '—'
                 }
               />
-            </div>
+            </MetricStrip>
           </div>
         </div>
       </WorkspacePanel>
@@ -507,98 +558,37 @@ export function SkuDetailRoute() {
         description={t('catalogLinkedServicesDescription')}
         title={t('catalogLinkedServicesTitle')}
       >
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.28fr)_minmax(300px,0.72fr)]">
-          <div>
-            {linkedServices.length > 0 ? (
-              <div className="grid gap-3">
-                {linkedServices.map((service) => {
-                  const linkedServiceSkus = serviceLinkedSkus(service, snapshot);
-                  const minUnits = linkedServiceSkus.reduce(
-                    (minimum, entry) => Math.min(minimum, entry.unitsInStock),
-                    linkedServiceSkus[0]?.unitsInStock ?? 0,
-                  );
-                  const isLimitingComponent = linkedServiceSkus.some(
-                    (entry) => entry.skuId === sku.skuId && entry.unitsInStock === minUnits,
-                  );
+        {linkedServices.length > 0 ? (
+          <div className="grid gap-3">
+            {linkedServices.map((service) => {
+              const linkedServiceSkus = serviceLinkedSkus(service, snapshot);
+              const minUnits = linkedServiceSkus.reduce(
+                (minimum, entry) => Math.min(minimum, entry.unitsInStock),
+                linkedServiceSkus[0]?.unitsInStock ?? 0,
+              );
+              const isLimitingComponent = linkedServiceSkus.some(
+                (entry) => entry.skuId === sku.skuId && entry.unitsInStock === minUnits,
+              );
 
-                  return (
-                    <Link
-                      className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl px-2 py-2 transition-colors hover:text-primary ${
-                        isLimitingComponent ? 'text-primary' : 'text-foreground'
-                      }`}
-                      key={service.serviceId}
-                      to={`/catalog/services/${service.serviceId}`}
-                    >
-                      <p className="font-medium">{service.name}</p>
-                      {isLimitingComponent ? (
-                        <Badge variant="secondary">{t('catalogLinkedServicesLimiting')}</Badge>
-                      ) : null}
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t('catalogLinkedServicesEmpty')}</p>
-            )}
+              return (
+                <Link
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl px-2 py-2 transition-colors hover:text-primary ${
+                    isLimitingComponent ? 'text-primary' : 'text-foreground'
+                  }`}
+                  key={service.serviceId}
+                  to={`/catalog/services/${service.serviceId}`}
+                >
+                  <p className="font-medium">{service.name}</p>
+                  {isLimitingComponent ? (
+                    <Badge variant="secondary">{t('catalogLinkedServicesLimiting')}</Badge>
+                  ) : null}
+                </Link>
+              );
+            })}
           </div>
-
-          <div>
-            {planningInsight ? (
-              <details className="rounded-3xl border border-border/70 bg-background/40 px-5 py-5 sm:px-6">
-                <summary className="cursor-pointer list-none">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                        {t('catalogSkuPlanningActionTitle')}
-                      </p>
-                      <p className="mt-2 text-base font-semibold tracking-[-0.03em] text-foreground">
-                        {t(planningActionTitleKey)}
-                      </p>
-                      {planningActionExplanation ? (
-                        <DescriptionText className="mt-2 text-sm leading-6 text-muted-foreground">
-                          {planningActionExplanation}
-                        </DescriptionText>
-                      ) : null}
-                    </div>
-                    <Badge variant="outline">{t('catalogSkuPlanningMetricsTitle')}</Badge>
-                  </div>
-                </summary>
-                <div className="mt-4 grid gap-2 border-t border-border/60 pt-4 sm:grid-cols-2 xl:grid-cols-1">
-                  <SkuSummaryField
-                    label={t('catalogDaysOfCover')}
-                    value={
-                      planningInsight.daysOfCover == null
-                        ? '—'
-                        : formatNumber(planningInsight.daysOfCover, language)
-                    }
-                  />
-                  <SkuSummaryField
-                    label={t('catalogStockoutRisk')}
-                    value={`${formatNumber(planningInsight.stockoutRisk * 100, language)}%`}
-                  />
-                  <SkuSummaryField
-                    label={t('catalogReorderPoint')}
-                    value={formatNumber(planningInsight.reorderPoint, language)}
-                  />
-                  <SkuSummaryField
-                    label={t('catalogConfidence')}
-                    value={planningInsight.confidence}
-                  />
-                  <SkuSummaryField
-                    label={t('catalogSkuLeadTimeSummary')}
-                    value={leadTimeSummary(planningInsight, language)}
-                  />
-                </div>
-              </details>
-            ) : detailLoading ? (
-              <p className="text-sm text-muted-foreground">{t('catalogSkuDetailLoaderLoading')}</p>
-            ) : detailError ? (
-              <p className="text-sm text-muted-foreground">{t('catalogSkuPlanningSignalsFallback')}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t('catalogSkuPlanningSignalsEmpty')}</p>
-            )}
-          </div>
-        </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('catalogLinkedServicesEmpty')}</p>
+        )}
       </WorkspacePanel>
 
       <WorkspacePanel

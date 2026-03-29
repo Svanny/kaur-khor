@@ -107,6 +107,18 @@ function CatalogPreviewColGroup() {
   );
 }
 
+function SkuCatalogColGroup() {
+  return (
+    <colgroup>
+      <col className="w-[46%]" />
+      <col className="w-[20%]" />
+      <col className="w-[12%]" />
+      <col className="w-[11%]" />
+      <col className="w-[11%]" />
+    </colgroup>
+  );
+}
+
 function ServiceCatalogTable({
   currency,
   language,
@@ -263,12 +275,13 @@ function SkuCatalogTable({
 
   return (
     <div className="overflow-x-auto">
-      <Table>
+      <Table className="table-fixed">
+        <SkuCatalogColGroup />
         <TableHeader>
           <TableRow>
             <TableHead>{t('inventoryColumnItem')}</TableHead>
             <TableHead>{t('inventoryColumnStatus')}</TableHead>
-            <TableHead className="text-right">{t('fieldUnitsInStock')}</TableHead>
+            <TableHead>{t('fieldUnitsInStock')}</TableHead>
             <TableHead>{t('fieldCostPerUnit')}</TableHead>
             <TableHead>{t('fieldProductPrice')}</TableHead>
           </TableRow>
@@ -317,7 +330,7 @@ function SkuCatalogTable({
                     {t(statusKey)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">{formatNumber(sku.unitsInStock, language)}</TableCell>
+                <TableCell>{formatNumber(sku.unitsInStock, language)}</TableCell>
                 <TableCell>{formatCurrency(sku.costPerUnit, currency, language)}</TableCell>
                 <TableCell>
                   {sku.soldAsProduct && sku.productPrice !== null
@@ -350,7 +363,7 @@ function SkuCatalogPreviewTable({
           <TableRow>
             <TableHead>{t('inventoryColumnItem')}</TableHead>
             <TableHead>{t('catalogSkuDirectSellStatus')}</TableHead>
-            <TableHead className="text-right">{t('fieldUnitsInStock')}</TableHead>
+            <TableHead>{t('fieldUnitsInStock')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -372,7 +385,7 @@ function SkuCatalogPreviewTable({
                   {sku.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct')}
                 </Badge>
               </TableCell>
-              <TableCell className="text-right">{formatNumber(sku.unitsInStock, language)}</TableCell>
+              <TableCell>{formatNumber(sku.unitsInStock, language)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

@@ -43,10 +43,10 @@ export function EditorHeader({
   const showDescription = hasDescriptionText(description);
 
   return (
-    <div className="rounded-2xl border border-white/70 bg-card/45 px-4 py-4">
+    <div className="px-4 py-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className={cn('flex min-w-0 flex-1 flex-col gap-3', !showDescription && 'gap-2')}>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             {onBack && backLabel ? (
               <Button
                 aria-label={backLabel}
@@ -59,22 +59,18 @@ export function EditorHeader({
                 <ArrowLeft />
               </Button>
             ) : null}
+            {title ? (
+              <div className="min-w-0 font-heading text-base font-medium tracking-[-0.02em] text-foreground">
+                {title}
+              </div>
+            ) : null}
+            {titleMeta ? <div className="min-w-0">{titleMeta}</div> : null}
             {meta ? <div className="min-w-0">{meta}</div> : null}
           </div>
-          {title ? (
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-lg font-semibold tracking-[-0.03em] text-foreground sm:text-xl">
-                  {title}
-                </h1>
-                {titleMeta ? <div className="min-w-0">{titleMeta}</div> : null}
-              </div>
-              {showDescription ? (
-                <DescriptionText className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  {description}
-                </DescriptionText>
-              ) : null}
-            </div>
+          {showDescription ? (
+            <DescriptionText className="max-w-2xl text-sm leading-6 text-muted-foreground">
+              {description}
+            </DescriptionText>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">

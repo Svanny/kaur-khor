@@ -139,7 +139,9 @@ fn desktop_client() -> Client {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         "x-banji-device-id",
-        "desktop-test-device".parse().expect("device id should parse"),
+        "desktop-test-device"
+            .parse()
+            .expect("device id should parse"),
     );
     headers.insert(
         "x-caller-id",
@@ -169,9 +171,65 @@ async fn desktop_inventory_endpoints_support_local_crud_and_ranking() {
         .expect("inventory request should succeed");
     assert_eq!(inventory.status(), StatusCode::OK);
     let inventory_body: serde_json::Value = inventory.json().await.expect("json body should parse");
-    assert_eq!(inventory_body["skus"].as_array().unwrap().len(), 4);
-    assert_eq!(inventory_body["services"].as_array().unwrap().len(), 2);
-    assert_eq!(inventory_body["ranking"].as_array().unwrap().len(), 4);
+    assert_eq!(inventory_body["skus"].as_array().unwrap().len(), 10);
+    assert_eq!(inventory_body["services"].as_array().unwrap().len(), 10);
+    assert_eq!(inventory_body["ranking"].as_array().unwrap().len(), 15);
+    assert_eq!(
+        inventory_body["sist"]["status"]["confidence"],
+        json!("high")
+    );
+    assert!(
+        inventory_body["sist"]["status"]["reportCount"]
+            .as_u64()
+            .expect("seeded report count should be numeric")
+            > 260
+    );
+
+    let sku_ids = inventory_body["skus"]
+        .as_array()
+        .expect("skus should be an array")
+        .iter()
+        .map(|sku| {
+            sku["skuId"]
+                .as_str()
+                .expect("sku id should be a string")
+                .to_string()
+        })
+        .collect::<std::collections::HashSet<_>>();
+    for service in inventory_body["services"]
+        .as_array()
+        .expect("services should be an array")
+    {
+        let linked_skus = service["skuIds"]
+            .as_array()
+            .expect("service skuIds should be an array");
+        assert!(!linked_skus.is_empty());
+        for sku_id in linked_skus {
+            assert!(sku_ids.contains(sku_id.as_str().expect("linked sku id should be a string")));
+        }
+    }
+
+    let seeded_detail = client
+        .get(format!("http://{addr}/v1/desktop/sist/sku/sku-001"))
+        .send()
+        .await
+        .expect("seeded sku detail request should succeed");
+    assert_eq!(seeded_detail.status(), StatusCode::OK);
+    let reports_body: serde_json::Value = seeded_detail
+        .json()
+        .await
+        .expect("seeded sku detail body should parse");
+    let reports_array = reports_body["reports"]
+        .as_array()
+        .expect("seeded sku detail should include reports");
+    assert!(reports_array.len() > 260);
+    assert_eq!(reports_array[0]["reportSource"], json!("legacy-baseline"));
+    assert_eq!(
+        reports_array
+            .last()
+            .expect("seeded reports should not be empty")["reportSource"],
+        json!("manual")
+    );
 
     let create_sku = client
         .post(format!("http://{addr}/v1/desktop/skus"))
@@ -234,38 +292,30 @@ async fn desktop_inventory_endpoints_support_local_crud_and_ranking() {
         .expect("ranking request should succeed");
     assert_eq!(ranking.status(), StatusCode::OK);
     let ranking_body: serde_json::Value = ranking.json().await.expect("ranking json should parse");
-    let reordered_entries = json!([
-        {
+    let ranking_entries = ranking_body["entries"]
+        .as_array()
+        .expect("ranking entries should be an array");
+    assert_eq!(ranking_entries.len(), 16);
+    let mut reordered_entries = ranking_entries
+        .iter()
+        .filter(|entry| entry["entryId"] != "sku-200")
+        .cloned()
+        .collect::<Vec<_>>();
+    reordered_entries.insert(
+        0,
+        json!({
             "entryType": "sku",
             "entryId": "sku-200",
             "position": 0
-        },
-        {
-            "entryType": "service",
-            "entryId": "service-001",
-            "position": 1
-        },
-        {
-            "entryType": "service",
-            "entryId": "service-002",
-            "position": 2
-        },
-        {
-            "entryType": "sku",
-            "entryId": "sku-001",
-            "position": 3
-        },
-        {
-            "entryType": "sku",
-            "entryId": "sku-003",
-            "position": 4
-        }
-    ]);
-    assert_eq!(ranking_body["entries"].as_array().unwrap().len(), 5);
+        }),
+    );
+    for (index, entry) in reordered_entries.iter_mut().enumerate() {
+        entry["position"] = json!(index);
+    }
 
     let save_ranking = client
         .put(format!("http://{addr}/v1/desktop/ranking"))
-        .json(&json!({ "entries": reordered_entries }))
+        .json(&json!({ "entries": reordered_entries.clone() }))
         .send()
         .await
         .expect("save ranking should succeed");
@@ -317,46 +367,18 @@ async fn desktop_inventory_endpoints_support_local_crud_and_ranking() {
         .unwrap()
         .iter()
         .any(|sku| sku["skuId"] == "sku-200" && sku["unitsInStock"] == json!(18.0)));
-    assert_eq!(
-        persisted_body["ranking"],
-        json!([
-            {
-                "entryType": "sku",
-                "entryId": "sku-200",
-                "position": 0
-            },
-            {
-                "entryType": "service",
-                "entryId": "service-001",
-                "position": 1
-            },
-            {
-                "entryType": "service",
-                "entryId": "service-002",
-                "position": 2
-            },
-            {
-                "entryType": "sku",
-                "entryId": "sku-001",
-                "position": 3
-            },
-            {
-                "entryType": "sku",
-                "entryId": "sku-003",
-                "position": 4
-            },
-            {
-                "entryType": "service",
-                "entryId": "service-200",
-                "position": 5
-            },
-            {
-                "entryType": "sku",
-                "entryId": "sku-201",
-                "position": 6
-            }
-        ])
-    );
+    let mut expected_ranking = reordered_entries;
+    expected_ranking.push(json!({
+        "entryType": "service",
+        "entryId": "service-200",
+        "position": expected_ranking.len()
+    }));
+    expected_ranking.push(json!({
+        "entryType": "sku",
+        "entryId": "sku-201",
+        "position": expected_ranking.len()
+    }));
+    assert_eq!(persisted_body["ranking"], json!(expected_ranking));
 
     let invalid_ranking = client
         .put(format!("http://{addr}/v1/desktop/ranking"))
@@ -444,7 +466,10 @@ async fn desktop_inventory_supports_sist_reports_settings_and_detail_views() {
         .await
         .expect("inventory body should parse");
     assert_eq!(migrated_body["sist"]["status"]["reportCount"], json!(1));
-    assert_eq!(migrated_body["sist"]["settings"]["particleCount"], json!(512));
+    assert_eq!(
+        migrated_body["sist"]["settings"]["particleCount"],
+        json!(512)
+    );
 
     let save_settings = client
         .put(format!("http://{addr}/v1/desktop/sist/settings"))
@@ -496,7 +521,10 @@ async fn desktop_inventory_supports_sist_reports_settings_and_detail_views() {
     let detail_body: serde_json::Value = detail.json().await.expect("detail body should parse");
     assert_eq!(detail_body["insight"]["skuId"], json!("sku-legacy"));
     assert_eq!(detail_body["reports"].as_array().unwrap().len(), 2);
-    assert_eq!(detail_body["reports"][1]["serviceSignals"][0]["stockout"], json!(true));
+    assert_eq!(
+        detail_body["reports"][1]["serviceSignals"][0]["stockout"],
+        json!(true)
+    );
 
     env::remove_var("BANJI_DESKTOP_DATA_PATH");
     let _ = std::fs::remove_file(store_path);
