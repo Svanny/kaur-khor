@@ -466,7 +466,7 @@ function ForecastChart({
     stockoutDay != null && stockoutDay <= FORECAST_HORIZON_DAYS ? xScale(stockoutDay) : null;
 
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-border/70 bg-background/85 p-4 sm:p-5">
+    <div className="flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-border/70 bg-background/85 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
@@ -991,15 +991,17 @@ export function SkuDetailRoute() {
       <section className="rounded-[2rem] border border-white/70 bg-card/75 p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <Button asChild aria-label={t('backToCatalog')} size="icon" variant="ghost">
                 <Link to="/catalog">
                   <ArrowLeft />
                 </Link>
               </Button>
-              <h1 className="min-w-0 text-2xl font-semibold tracking-[-0.04em] text-foreground sm:text-3xl">
+              <h1 className="min-w-0 font-heading text-base font-medium tracking-[-0.02em] text-foreground">
                 {sku.name}
               </h1>
+            </div>
+            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3">
               <Badge variant="outline">{`${t('fieldId')}: ${sku.skuId}`}</Badge>
               <Badge variant={state === 'at-risk' ? 'destructive' : state === 'reorder-soon' ? 'secondary' : 'outline'}>
                 {riskLabel}
@@ -1091,7 +1093,7 @@ export function SkuDetailRoute() {
                       {sku.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct')}
                     </Badge>
                   </div>
-                  <MetricStrip className="mt-4 rounded-none border-0 bg-transparent">
+                  <MetricStrip className="mt-4 rounded-none border-0 bg-transparent xl:grid-cols-5">
                     <MetricStripItem
                       className="px-0 sm:px-0 xl:pl-0 xl:pr-6"
                       detail={undefined}
@@ -1155,10 +1157,8 @@ export function SkuDetailRoute() {
                     </p>
                   ))}
                 </div>
-                <details className="mt-5 border-t border-border/60 pt-4" id="sku-forecast-why">
-                  <summary className="cursor-pointer list-none text-sm font-medium text-foreground">
-                    Why SIST thinks this
-                  </summary>
+                <div className="mt-5 border-t border-border/60 pt-4" id="sku-forecast-why">
+                  <p className="text-sm font-medium text-foreground">Why SIST thinks this</p>
                   <div className="mt-3 grid gap-3 text-sm leading-6 text-muted-foreground">
                     <p>
                       Posterior units start at {planningInsight ? formatNumber(planningInsight.latestPosteriorUnits, language) : '—'} and drain using the current expected demand range.
@@ -1167,14 +1167,14 @@ export function SkuDetailRoute() {
                       Lead-time arrivals land around {planningInsight ? leadTimeSummary(planningInsight, language) : '—'}, while the reorder line stays fixed at {planningInsight ? formatNumber(planningInsight.reorderPoint, language) : '—'} units.
                     </p>
                   </div>
-                </details>
+                </div>
               </div>
             </div>
 
           </TabsContent>
 
           <TabsContent className="mt-6" value="forecast">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
+            <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
               <div>
                 {planningInsight ? (
                   <ForecastChart insight={planningInsight} language={language} />
@@ -1184,7 +1184,7 @@ export function SkuDetailRoute() {
                   </div>
                 )}
               </div>
-              <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-5" id="sku-forecast-why">
+              <div className="flex h-full flex-col rounded-[1.75rem] border border-border/70 bg-background/70 p-5" id="sku-forecast-why">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                   Why SIST thinks this
                 </p>

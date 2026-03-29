@@ -131,7 +131,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={toggleSidebar}
           >
-            <span className="relative flex size-10 shrink-0 items-center justify-center rounded-[1rem] bg-background/85 shadow-[0_8px_24px_rgba(27,15,7,0.06)] group-data-[collapsible=icon]:size-8">
+            <span className="relative flex size-10 shrink-0 items-center justify-center rounded-[1rem] group-data-[collapsible=icon]:size-8">
               <img
                 alt=""
                 aria-hidden="true"
@@ -147,7 +147,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
               </span>
             </span>
             {showSidebarText ? (
-              <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-primary/85">
+              <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-foreground">
                 {t('appBrand')}
               </span>
             ) : null}

@@ -662,8 +662,9 @@ describe('renderer workspaces', () => {
           catalogServiceDetailOverviewDescription:
             'Review price, sellable coverage, and current availability for this service.',
           catalogServiceDetailIdentityDescription:
-            'Use this record to review service setup, fulfillment coverage, and the latest relevant operations activity.',
+            'Monitor operational state, current constraints, dependency health, and the latest evidence for this service.',
           catalogServiceEditAction: 'Edit service',
+          catalogServiceAdjustPriceAction: 'Adjust price',
           catalogServiceOperationsAction: 'Review this service in session',
           catalogServiceCommercialSetupTitle: 'Commercial setup',
           catalogServiceCommercialSetupDescription:
@@ -671,17 +672,24 @@ describe('renderer workspaces', () => {
           catalogServiceFulfillmentTitle: 'Fulfillment coverage',
           catalogServiceFulfillmentDescription:
             'Derived coverage combines linked SKU stock and planning risk to show whether this service is blocked or at risk.',
-          catalogServiceFulfillmentStatusTitle: 'Fulfillment status',
+          catalogServiceFulfillmentStatusTitle: 'Service heartbeat',
+          catalogServiceHeartbeatTitle: 'Service heartbeat',
+          catalogServiceHeartbeatHealthyHint: 'No active limiter',
           catalogServiceFulfillmentReady: 'Fulfillable',
           catalogServiceSellableUnits: 'Sellable units',
           catalogServiceConstraintHealthy: 'All linked SKUs currently healthy.',
           catalogServiceConstraintUnlinked: 'No linked SKUs are attached to this service yet.',
           catalogServiceConstraintBlockedPrefix: 'Limited by',
           catalogServiceConstraintRiskPrefix: 'Risk signaled on',
-          catalogServiceViabilityTitle: 'Service viability',
+          catalogServiceViabilityTitle: 'Operational condition',
+          catalogServiceOperationalConditionTitle: 'Operational condition',
           catalogServiceCurrentStatusTitle: 'Current status',
-          catalogServiceLimitingSkuTitle: 'Limiting SKU',
+          catalogServiceLimitingSkuTitle: 'Current bottleneck',
+          catalogServiceCurrentBottleneckTitle: 'Current bottleneck',
           catalogServiceLimitingSkuHealthy: 'None',
+          catalogServiceNoActiveLimiter: 'No active limiter',
+          catalogServiceDecisionRibbonHealthy: 'No limiter in play',
+          catalogServiceCoverageModeTitle: 'Coverage mode',
           catalogServiceBlockedState: 'Blocked',
           catalogServiceAtRiskState: 'At risk',
           catalogServiceCoverageStateTitle: 'Coverage state',
@@ -715,7 +723,7 @@ describe('renderer workspaces', () => {
           catalogSkuDetailReports: 'Supporting reports',
           catalogSkuDetailPosteriorUnits: 'Posterior units',
           catalogSkuDetailDemandPerDay: 'Expected demand/day',
-          catalogServiceLinkedSkusTitle: 'Linked SKUs',
+          catalogServiceLinkedSkusTitle: 'Dependency contributors',
           catalogServiceLinkedSkusDescription:
             'These SKUs determine how many units of this service can be sold.',
           catalogServiceLinkedSkusEmpty: 'No SKUs are linked to this service yet.',
@@ -728,7 +736,7 @@ describe('renderer workspaces', () => {
           catalogServiceAvailabilityAvailable: 'Available',
           catalogServiceAvailabilityStockout: 'Stockout',
           catalogServiceAvailabilityUnlinked: 'Unlinked',
-          catalogServiceRecentActivityTitle: 'Recent activity',
+          catalogServiceRecentActivityTitle: 'Evidence timeline',
           catalogServiceRecentActivityDescription:
             'Recent stock reports that mention this service help explain price changes, service stockouts, or ranking movement.',
           catalogServiceRecentActivityEmpty: 'No recent service-related updates were found.',
@@ -738,6 +746,23 @@ describe('renderer workspaces', () => {
           catalogServiceRecentActivityPriceOverride: 'Price override recorded',
           catalogServiceRecentActivityLinkedSkuChange: 'Linked SKU change affecting coverage',
           catalogServiceRecentActivityRanking: 'Priority ranking updated',
+          catalogServiceDependencyMapTitle: 'Dependency map',
+          catalogServiceDependencyMapEmpty: 'No linked dependencies are available for this service yet.',
+          catalogServiceContributorsTitle: 'Dependency contributors',
+          catalogServiceContributorBottleneckBadge: 'Bottleneck',
+          catalogServiceOpenSkuDetailAction: 'Open SKU detail',
+          catalogServiceFragilityTitle: 'Fragility',
+          catalogServiceFragilityCurrentState: 'Current availability state',
+          catalogServiceFragilityNextLimiter: 'Next likely limiter',
+          catalogServiceFragilityDisruptionWindow: 'Estimated disruption window',
+          catalogServiceFragilityConfidence: 'Confidence',
+          catalogServiceFragilityUnavailable: 'Unavailable',
+          catalogServiceFailureModesTitle: 'Failure modes',
+          catalogServiceFailureModesEmpty: 'No failure modes are available without linked SKUs.',
+          catalogServiceEconomicsTitle: 'Economic context',
+          catalogServiceEstimatedInputCost: 'Estimated input cost',
+          catalogServiceGrossMargin: 'Gross margin',
+          catalogServiceEvidenceTimelineTitle: 'Evidence timeline',
           catalogServiceEditorTitleNew: 'New service',
           catalogServiceEditorTitleEdit: 'Edit service',
           catalogServiceEditorDescriptionNew:
@@ -1094,7 +1119,7 @@ describe('renderer workspaces', () => {
         return content.includes('High-risk SKUs') && content.includes('Reorder pressure');
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText('SKU #001')).toBeInTheDocument();
+    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
     expect(screen.getByText(/Stockout risk: 47%/)).toBeInTheDocument();
     expect(screen.getByText('Urgent')).toBeInTheDocument();
   });
@@ -1278,7 +1303,7 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('Ranking entries')).not.toBeInTheDocument();
     expect(screen.getByText('3 entries in scope')).toBeInTheDocument();
     expect(screen.getByText('Type')).toBeInTheDocument();
-    expect(screen.getByText('SKU #001')).toBeInTheDocument();
+    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
     expect(screen.getByText('47% stockout risk')).toBeInTheDocument();
     expect(screen.getByText('#1 Service #001')).toBeInTheDocument();
     const actionRail = screen.getByTestId('planning-action-rail');
@@ -1567,32 +1592,42 @@ describe('renderer workspaces', () => {
     expect(listStockReports).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Identifier: service-1')).toBeInTheDocument();
     expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
-    expect(screen.getByText('Fulfillment status')).toBeInTheDocument();
+    expect(screen.getByText('Service heartbeat')).toBeInTheDocument();
     expect(screen.queryByText('Availability')).not.toBeInTheDocument();
     expect(screen.queryByText('Coverage state')).not.toBeInTheDocument();
     expect(screen.queryByText('Stockout risk')).not.toBeInTheDocument();
-    expect(screen.getByText('Service viability')).toBeInTheDocument();
-    expect(screen.getByText('Risk signaled on sku-1.')).toBeInTheDocument();
-    const viabilityBlock = screen.getByText('Service viability').closest('div');
-    expect(viabilityBlock).not.toBeNull();
-    expect(viabilityBlock).toHaveTextContent('Limiting SKU');
-    expect(viabilityBlock).toHaveTextContent('sku-1');
-    expect(screen.getAllByText('Linked SKUs').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Fulfillment status')).not.toBeInTheDocument();
+    expect(screen.getByText('Operational condition')).toBeInTheDocument();
+    expect(screen.getByText('12 sellable units across 1 linked SKUs · SKU #001')).toBeInTheDocument();
+    const conditionBlock = screen.getByText('Operational condition').closest('div');
+    expect(conditionBlock).not.toBeNull();
+    expect(conditionBlock).toHaveTextContent('Current bottleneck');
+    expect(conditionBlock).toHaveTextContent('SKU #001');
+    expect(screen.getAllByText('Dependency contributors').length).toBeGreaterThan(0);
+    expect(screen.getByText('Dependency map')).toBeInTheDocument();
+    expect(screen.getByText('Fragility')).toBeInTheDocument();
+    expect(screen.getByText('Economic context')).toBeInTheDocument();
     expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
     const linkedSkuRow = screen.getByRole('link', { name: /SKU #001/ });
     expect(linkedSkuRow).toHaveTextContent('Units in stock: 12');
+    expect(linkedSkuRow).toHaveTextContent('47% constraint risk');
     expect(linkedSkuRow).toHaveAttribute(
       'href',
       '/catalog/skus/sku-1',
     );
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('12').length).toBeGreaterThan(0);
-    expect(await screen.findByText('Recent activity')).toBeInTheDocument();
+    expect(screen.getByText('Estimated input cost')).toBeInTheDocument();
+    expect(screen.getByText('$5.00')).toBeInTheDocument();
+    expect(screen.getByText('$1,195.00')).toBeInTheDocument();
+    expect(screen.getByText('Failure modes')).toBeInTheDocument();
+    expect(screen.getByText('If SKU #001 drops below 1, service becomes unavailable.')).toBeInTheDocument();
+    expect(await screen.findByText('Evidence timeline')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Service flagged unavailable · Linked SKU change affecting coverage (sku-1) · Priority ranking updated',
+        'Service unavailable flag · Coverage changed through sku-1 · Ranking updated',
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText('Reviewed in latest session')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review this service in session' })).toHaveAttribute(
       'href',
       '/operations/session?step=services&focusService=service-1',
@@ -1609,9 +1644,13 @@ describe('renderer workspaces', () => {
       'data-variant',
       'outline',
     );
+    expect(screen.getByRole('link', { name: 'Adjust price' })).toHaveAttribute(
+      'href',
+      '/catalog/services/service-1/edit',
+    );
   });
 
-  test('service detail computes blocked and at-risk fulfillment states from linked SKUs', async () => {
+  test('service detail computes blocked and at-risk operational states from linked SKUs', async () => {
     setInventoryState(
       createSnapshot({
         skus: [
@@ -1633,8 +1672,9 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getAllByText('Blocked').length).toBeGreaterThan(0);
-    expect(screen.getByText('Limited by sku-1.')).toBeInTheDocument();
-    expect(screen.getByText('Bottleneck')).toBeInTheDocument();
+    expect(screen.getAllByText('Current bottleneck').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    expect(screen.getByText('0 sellable units across 1 linked SKUs · SKU #001')).toBeInTheDocument();
 
     setInventoryState(
       createSnapshot({
@@ -1654,7 +1694,7 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
-    expect(screen.getByText('Risk signaled on sku-1.')).toBeInTheDocument();
+    expect(screen.getByText('12 sellable units across 1 linked SKUs · SKU #001')).toBeInTheDocument();
   });
 
   test('service detail makes edit primary when service setup is incomplete', async () => {
@@ -1686,12 +1726,11 @@ describe('renderer workspaces', () => {
       'data-variant',
       'outline',
     );
-    expect(
-      screen.getAllByText('No linked SKUs are attached to this service yet.').length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText('No active limiter').length).toBeGreaterThan(0);
+    expect(screen.getByText('No SKUs are linked to this service yet.')).toBeInTheDocument();
   });
 
-  test('service detail recent activity failure stays scoped to the recent activity section', async () => {
+  test('service detail recent activity failure stays scoped to the evidence timeline section', async () => {
     listStockReports.mockRejectedValueOnce(new Error('boom'));
 
     render(
@@ -1704,7 +1743,7 @@ describe('renderer workspaces', () => {
 
     expect(await screen.findByText('Recent service activity could not be loaded right now. The rest of the service page is still available.')).toBeInTheDocument();
     expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Linked SKUs').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Dependency contributors').length).toBeGreaterThan(0);
   });
 
   test('unknown service id shows a not-found state with a catalog CTA', () => {
