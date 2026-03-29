@@ -1580,7 +1580,7 @@ describe('renderer workspaces', () => {
     expect(screen.getByRole('link', { name: 'Back to catalog' })).toHaveAttribute('href', '/catalog');
   });
 
-  test('service detail shows identifier, linked SKU coverage, and relevant recent activity', async () => {
+  test('service detail matches the SKU cockpit shell with overview default and service-native hero', async () => {
     render(
       <MemoryRouter initialEntries={['/catalog/services/service-1']}>
         <Routes>
@@ -1591,43 +1591,21 @@ describe('renderer workspaces', () => {
 
     expect(listStockReports).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Identifier: service-1')).toBeInTheDocument();
-    expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
-    expect(screen.getByText('Service heartbeat')).toBeInTheDocument();
-    expect(screen.queryByText('Availability')).not.toBeInTheDocument();
-    expect(screen.queryByText('Coverage state')).not.toBeInTheDocument();
-    expect(screen.queryByText('Stockout risk')).not.toBeInTheDocument();
-    expect(screen.queryByText('Fulfillment status')).not.toBeInTheDocument();
-    expect(screen.getByText('Operational condition')).toBeInTheDocument();
-    expect(screen.getByText('12 sellable units across 1 linked SKUs · SKU #001')).toBeInTheDocument();
-    const conditionBlock = screen.getByText('Operational condition').closest('div');
-    expect(conditionBlock).not.toBeNull();
-    expect(conditionBlock).toHaveTextContent('Current bottleneck');
-    expect(conditionBlock).toHaveTextContent('SKU #001');
-    expect(screen.getAllByText('Dependency contributors').length).toBeGreaterThan(0);
-    expect(screen.getByText('Dependency map')).toBeInTheDocument();
-    expect(screen.getByText('Fragility')).toBeInTheDocument();
-    expect(screen.getByText('Economic context')).toBeInTheDocument();
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
-    const linkedSkuRow = screen.getByRole('link', { name: /SKU #001/ });
-    expect(linkedSkuRow).toHaveTextContent('Units in stock: 12');
-    expect(linkedSkuRow).toHaveTextContent('47% constraint risk');
-    expect(linkedSkuRow).toHaveAttribute(
-      'href',
-      '/catalog/skus/sku-1',
-    );
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: 'Forecast' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Dependencies' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'History' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
-    expect(screen.getByText('Estimated input cost')).toBeInTheDocument();
-    expect(screen.getByText('$5.00')).toBeInTheDocument();
-    expect(screen.getByText('$1,195.00')).toBeInTheDocument();
-    expect(screen.getByText('Failure modes')).toBeInTheDocument();
-    expect(screen.getByText('If SKU #001 drops below 1, service becomes unavailable.')).toBeInTheDocument();
-    expect(await screen.findByText('Evidence timeline')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Service unavailable flag · Coverage changed through sku-1 · Ranking updated',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Reviewed in latest session')).toBeInTheDocument();
+    expect(screen.getByText('Likely service disruption in 4.2 days')).toBeInTheDocument();
+    expect(screen.getByText('12 sellable units · 1 linked SKUs · SKU #001 · Medium confidence')).toBeInTheDocument();
+    expect(await screen.findByText('Reviewed in latest session')).toBeInTheDocument();
+    expect(screen.getByText('Service rail')).toBeInTheDocument();
+    expect(screen.getByText('Next move')).toBeInTheDocument();
+    expect(screen.getByText('Why SIST thinks this')).toBeInTheDocument();
+    expect(screen.queryByText('Dependency map')).not.toBeInTheDocument();
+    expect(screen.queryByText('Economics')).not.toBeInTheDocument();
+    expect(screen.queryByText('What changed')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review this service in session' })).toHaveAttribute(
       'href',
       '/operations/session?step=services&focusService=service-1',
@@ -1644,13 +1622,14 @@ describe('renderer workspaces', () => {
       'data-variant',
       'outline',
     );
-    expect(screen.getByRole('link', { name: 'Adjust price' })).toHaveAttribute(
-      'href',
-      '/catalog/services/service-1/edit',
-    );
+    expect(screen.queryByRole('link', { name: 'Adjust price' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View why' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View why' }));
+    expect(screen.getByRole('tab', { name: 'Forecast' })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByLabelText('Service forecast chart')).toBeInTheDocument();
   });
 
-  test('service detail computes blocked and at-risk operational states from linked SKUs', async () => {
+  test('service detail computes blocked and at-risk operational hero states from linked SKUs', async () => {
     setInventoryState(
       createSnapshot({
         skus: [
@@ -1672,9 +1651,7 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getAllByText('Blocked').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Current bottleneck').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
-    expect(screen.getByText('0 sellable units across 1 linked SKUs · SKU #001')).toBeInTheDocument();
+    expect(screen.getByText('0 sellable units before sku-1 blocks fulfillment')).toBeInTheDocument();
 
     setInventoryState(
       createSnapshot({
@@ -1694,7 +1671,7 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
-    expect(screen.getByText('12 sellable units across 1 linked SKUs · SKU #001')).toBeInTheDocument();
+    expect(screen.getByText('Likely service disruption in 4.2 days')).toBeInTheDocument();
   });
 
   test('service detail makes edit primary when service setup is incomplete', async () => {
@@ -1726,11 +1703,91 @@ describe('renderer workspaces', () => {
       'data-variant',
       'outline',
     );
-    expect(screen.getAllByText('No active limiter').length).toBeGreaterThan(0);
-    expect(screen.getByText('No SKUs are linked to this service yet.')).toBeInTheDocument();
+    expect(screen.getByText('Link SKUs to model service coverage')).toBeInTheDocument();
   });
 
-  test('service detail recent activity failure stays scoped to the evidence timeline section', async () => {
+  test('service detail dependencies tab coordinates the map and contributor selection', async () => {
+    setInventoryState(
+      createSnapshot({
+        services: [
+          {
+            ...snapshot.services[0],
+            skuIds: ['sku-1', 'sku-2'],
+          },
+          snapshot.services[1],
+        ],
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={['/catalog/services/service-1']}>
+        <Routes>
+          <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const dependenciesTab = screen.getByRole('tab', { name: 'Dependencies' });
+    fireEvent.pointerDown(dependenciesTab);
+    fireEvent.click(dependenciesTab);
+
+    expect(await screen.findByText('Dependency map')).toBeInTheDocument();
+    expect(screen.getByText('Dependency contributors')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /SKU #002/i }));
+    const selectedBadge = screen.getByText('Selected');
+    expect(selectedBadge.closest('div')).toHaveTextContent('SKU #002');
+    expect(screen.getAllByRole('link', { name: 'Open SKU detail' })[0]).toHaveAttribute(
+      'href',
+      '/catalog/skus/sku-1',
+    );
+    expect(screen.getAllByRole('link', { name: 'Open SKU detail' })[1]).toHaveAttribute(
+      'href',
+      '/catalog/skus/sku-2',
+    );
+  });
+
+  test('service detail history tab renders causal evidence cards', async () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog/services/service-1']}>
+        <Routes>
+          <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const historyTab = screen.getByRole('tab', { name: 'History' });
+    fireEvent.pointerDown(historyTab);
+    fireEvent.click(historyTab);
+
+    expect(await screen.findByText('What changed')).toBeInTheDocument();
+    expect(screen.getByText('SIST inferred')).toBeInTheDocument();
+    expect(screen.getByText('Banji recommends')).toBeInTheDocument();
+    expect(screen.getByText('Service unavailable flag · Coverage changed through sku-1 · Ranking updated')).toBeInTheDocument();
+    expect(screen.getByText('Notes')).toBeInTheDocument();
+  });
+
+  test('service detail parameters tab contains economics and recipe metadata', async () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog/services/service-1']}>
+        <Routes>
+          <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const parametersTab = screen.getByRole('tab', { name: 'Parameters' });
+    fireEvent.pointerDown(parametersTab);
+    fireEvent.click(parametersTab);
+
+    expect(await screen.findByText('Economics')).toBeInTheDocument();
+    expect(screen.getByText('Recipe composition')).toBeInTheDocument();
+    expect(screen.getByText('$5.00')).toBeInTheDocument();
+    expect(screen.getByText('$1,195.00')).toBeInTheDocument();
+    expect(screen.getByText('No recorded adjustment')).toBeInTheDocument();
+    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+  });
+
+  test('service detail report failure stays scoped to history content', async () => {
     listStockReports.mockRejectedValueOnce(new Error('boom'));
 
     render(
@@ -1741,9 +1798,13 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
+    expect(screen.queryByText('Recent service activity could not be loaded right now. The rest of the service page is still available.')).not.toBeInTheDocument();
+    expect(screen.getByText('Likely service disruption in 4.2 days')).toBeInTheDocument();
+    const historyFailureTab = screen.getByRole('tab', { name: 'History' });
+    fireEvent.pointerDown(historyFailureTab);
+    fireEvent.click(historyFailureTab);
     expect(await screen.findByText('Recent service activity could not be loaded right now. The rest of the service page is still available.')).toBeInTheDocument();
     expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Dependency contributors').length).toBeGreaterThan(0);
   });
 
   test('unknown service id shows a not-found state with a catalog CTA', () => {

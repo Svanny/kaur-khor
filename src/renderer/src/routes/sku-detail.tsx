@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { SistConfidence, SistSkuDetail, SistSkuInsight, StockReport } from '@shared/inventory';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ClipboardPen, Search, SquarePen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -990,16 +990,32 @@ export function SkuDetailRoute() {
     <WorkspacePage data-testid="sku-detail-route">
       <section className="rounded-[2rem] border border-white/70 bg-card/75 p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-3">
-              <Button asChild aria-label={t('backToCatalog')} size="icon" variant="ghost">
-                <Link to="/catalog">
-                  <ArrowLeft />
-                </Link>
-              </Button>
-              <h1 className="min-w-0 font-heading text-base font-medium tracking-[-0.02em] text-foreground">
-                {sku.name}
-              </h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <Button asChild aria-label={t('backToCatalog')} size="icon" variant="ghost">
+                  <Link to="/catalog">
+                    <ArrowLeft />
+                  </Link>
+                </Button>
+                <h1 className="min-w-0 font-heading text-base font-medium tracking-[-0.02em] text-foreground">
+                  {sku.name}
+                </h1>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <Button asChild variant={recordStockActionVariant}>
+                  <Link to={`/operations/session?step=observations&focusSku=${sku.skuId}`}>
+                    <ClipboardPen className="size-4" />
+                    {t('catalogSkuStockAction')}
+                  </Link>
+                </Button>
+                <Button asChild variant={editSkuActionVariant}>
+                  <Link to={`/catalog/skus/${sku.skuId}/edit`}>
+                    <SquarePen className="size-4" />
+                    {t('catalogSkuEditAction')}
+                  </Link>
+                </Button>
+              </div>
             </div>
             <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3">
               <Badge variant="outline">{`${t('fieldId')}: ${sku.skuId}`}</Badge>
@@ -1043,15 +1059,8 @@ export function SkuDetailRoute() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button asChild variant={recordStockActionVariant}>
-                <Link to={`/operations/session?step=observations&focusSku=${sku.skuId}`}>
-                  {t('catalogSkuStockAction')}
-                </Link>
-              </Button>
-              <Button asChild variant={editSkuActionVariant}>
-                <Link to={`/catalog/skus/${sku.skuId}/edit`}>{t('catalogSkuEditAction')}</Link>
-              </Button>
-              <Button type="button" variant="ghost" onClick={handleViewWhy}>
+              <Button type="button" variant="default" onClick={handleViewWhy}>
+                <Search className="size-4" />
                 View why
               </Button>
             </div>
