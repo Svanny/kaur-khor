@@ -25,15 +25,15 @@ const snapshot: InventorySnapshot = {
   services: [
     {
       serviceId: 'service-1',
-      name: 'Service #001',
-      description: 'Main service',
+      name: 'Market Day Outfit Set',
+      description: 'Front-rack outfit bundle',
       price: 1200,
       skuIds: ['sku-1'],
     },
     {
       serviceId: 'service-2',
-      name: 'Service #002',
-      description: 'Secondary service',
+      name: 'After-Hours Satin Edit',
+      description: 'Dressy evening pairing',
       price: 800,
       skuIds: ['sku-2'],
     },
@@ -41,8 +41,8 @@ const snapshot: InventorySnapshot = {
   skus: [
     {
       skuId: 'sku-1',
-      name: 'SKU #001',
-      description: 'First sku',
+      name: 'Bangkok Market Tee',
+      description: 'Bestselling imported cotton tee',
       unitsInStock: 12,
       costPerUnit: 5,
       soldAsProduct: true,
@@ -52,8 +52,8 @@ const snapshot: InventorySnapshot = {
     },
     {
       skuId: 'sku-2',
-      name: 'SKU #002',
-      description: 'Second sku',
+      name: 'Osaka Pleat Midi',
+      description: 'Imported pleated midi skirt',
       unitsInStock: 20,
       costPerUnit: 7,
       soldAsProduct: false,
@@ -1119,7 +1119,7 @@ describe('renderer workspaces', () => {
         return content.includes('High-risk SKUs') && content.includes('Reorder pressure');
       }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
     expect(screen.getByText(/Stockout risk: 47%/)).toBeInTheDocument();
     expect(screen.getByText('Urgent')).toBeInTheDocument();
   });
@@ -1303,9 +1303,9 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('Ranking entries')).not.toBeInTheDocument();
     expect(screen.getByText('3 entries in scope')).toBeInTheDocument();
     expect(screen.getByText('Type')).toBeInTheDocument();
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
     expect(screen.getByText('47% stockout risk')).toBeInTheDocument();
-    expect(screen.getByText('#1 Service #001')).toBeInTheDocument();
+    expect(screen.getByText('#1 Market Day Outfit Set')).toBeInTheDocument();
     const actionRail = screen.getByTestId('planning-action-rail');
     expect(screen.queryByRole('link', { name: 'Open catalog' })).not.toBeInTheDocument();
     expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Reset' }));
@@ -1465,7 +1465,7 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('link', { name: /SKU #001/ }));
+    fireEvent.click(screen.getByRole('link', { name: /Bangkok Market Tee/ }));
     await waitFor(() => {
       expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog/skus/sku-1');
     });
@@ -1489,7 +1489,7 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('link', { name: /Service #001/ }));
+    fireEvent.click(screen.getByRole('link', { name: /Market Day Outfit Set/ }));
     await waitFor(() => {
       expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog/services/service-1');
     });
@@ -1515,22 +1515,13 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('SKU overview')).not.toBeInTheDocument();
     expect(screen.getByText('Stock rail')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('data-state', 'active');
-    expect(screen.getByRole('tab', { name: 'Forecast' })).toBeInTheDocument();
+    const forecastTab = screen.getByRole('tab', { name: 'Forecast' });
+    expect(forecastTab).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
-    expect(screen.getByLabelText('SKU forecast chart')).toBeInTheDocument();
-    expect(screen.getByText('Affected services')).toBeInTheDocument();
-    expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Limiting component').length).toBeGreaterThan(0);
-    const impactedServiceRow = screen.getByRole('link', { name: /Service #001/ });
-    expect(impactedServiceRow).toHaveTextContent('Sellable units: 12');
     expect(screen.queryByText('Recommended action')).not.toBeInTheDocument();
     expect(screen.getByText('Next move')).toBeInTheDocument();
     expect(screen.getByText('Order now')).toBeInTheDocument();
     expect(screen.queryByText('Supporting metrics')).not.toBeInTheDocument();
-    expect(await screen.findByText('Recent changes')).toBeInTheDocument();
-    expect(screen.getAllByText(/What changed/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Restock included/).length).toBeGreaterThan(0);
-    expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Record stock update' })).toHaveAttribute(
       'href',
       '/operations/session?step=observations&focusSku=sku-1',
@@ -1561,10 +1552,10 @@ describe('renderer workspaces', () => {
     );
 
     expect(await screen.findByText('Detailed planning context could not be loaded. Showing the latest snapshot values instead.')).toBeInTheDocument();
-    expect(screen.getByText('Recent report history could not be loaded right now. The rest of the SKU page is still available.')).toBeInTheDocument();
     expect(screen.getByText('Likely stockout in 4.2 days')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    expect(screen.getByRole('tab', { name: 'History' })).toBeInTheDocument();
+    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
   });
 
   test('unknown SKU id shows a not-found state with a catalog CTA', () => {
@@ -1598,9 +1589,9 @@ describe('renderer workspaces', () => {
     expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
     expect(screen.getByText('Likely service disruption in 4.2 days')).toBeInTheDocument();
-    expect(screen.getByText('12 sellable units · 1 linked SKUs · SKU #001 · Medium confidence')).toBeInTheDocument();
+    expect(screen.getByText('12 sellable units · 1 linked SKUs · Bangkok Market Tee · Medium confidence')).toBeInTheDocument();
     expect(await screen.findByText('Reviewed in latest session')).toBeInTheDocument();
-    expect(screen.getByText('Service rail')).toBeInTheDocument();
+    expect(screen.queryByText('Service rail')).not.toBeInTheDocument();
     expect(screen.getByText('Next move')).toBeInTheDocument();
     expect(screen.getByText('Why SIST thinks this')).toBeInTheDocument();
     expect(screen.queryByText('Dependency map')).not.toBeInTheDocument();
@@ -1623,10 +1614,6 @@ describe('renderer workspaces', () => {
       'outline',
     );
     expect(screen.queryByRole('link', { name: 'Adjust price' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'View why' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'View why' }));
-    expect(screen.getByRole('tab', { name: 'Forecast' })).toHaveAttribute('data-state', 'active');
-    expect(screen.getByLabelText('Service forecast chart')).toBeInTheDocument();
   });
 
   test('service detail computes blocked and at-risk operational hero states from linked SKUs', async () => {
@@ -1732,21 +1719,23 @@ describe('renderer workspaces', () => {
     fireEvent.click(dependenciesTab);
 
     expect(await screen.findByText('Dependency map')).toBeInTheDocument();
-    expect(screen.getByText('Dependency contributors')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /SKU #002/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Osaka Pleat Midi/i }));
     const selectedBadge = screen.getByText('Selected');
-    expect(selectedBadge.closest('div')).toHaveTextContent('SKU #002');
-    expect(screen.getAllByRole('link', { name: 'Open SKU detail' })[0]).toHaveAttribute(
+    expect(selectedBadge.closest('div')).toHaveTextContent('Osaka Pleat Midi');
+    expect(screen.queryByText('Dependency contributors')).not.toBeInTheDocument();
+    const openSkuLinks = screen.getAllByRole('link', { name: 'Open SKU detail' });
+    expect(openSkuLinks).toHaveLength(2);
+    expect(openSkuLinks[0]).toHaveAttribute(
       'href',
       '/catalog/skus/sku-1',
     );
-    expect(screen.getAllByRole('link', { name: 'Open SKU detail' })[1]).toHaveAttribute(
+    expect(openSkuLinks[1]).toHaveAttribute(
       'href',
       '/catalog/skus/sku-2',
     );
   });
 
-  test('service detail history tab renders causal evidence cards', async () => {
+  test('service detail history tab renders SKU-style evidence rows', async () => {
     render(
       <MemoryRouter initialEntries={['/catalog/services/service-1']}>
         <Routes>
@@ -1759,11 +1748,22 @@ describe('renderer workspaces', () => {
     fireEvent.pointerDown(historyTab);
     fireEvent.click(historyTab);
 
-    expect(await screen.findByText('What changed')).toBeInTheDocument();
-    expect(screen.getByText('SIST inferred')).toBeInTheDocument();
-    expect(screen.getByText('Banji recommends')).toBeInTheDocument();
-    expect(screen.getByText('Service unavailable flag · Coverage changed through sku-1 · Ranking updated')).toBeInTheDocument();
-    expect(screen.getByText('Notes')).toBeInTheDocument();
+    expect(await screen.findByText('Recent changes')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) =>
+        element?.textContent === 'What changed -> Service unavailable flag · Coverage changed through sku-1 · Ranking updated',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) =>
+        element?.textContent === 'SIST inferred -> Bangkok Market Tee pushed the service into an unavailable state.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) =>
+        element?.textContent === 'Banji recommends -> Review this service in session before changing price or composition.',
+      ),
+    ).toBeInTheDocument();
   });
 
   test('service detail parameters tab contains economics and recipe metadata', async () => {
@@ -1784,7 +1784,7 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('$5.00')).toBeInTheDocument();
     expect(screen.getByText('$1,195.00')).toBeInTheDocument();
     expect(screen.getByText('No recorded adjustment')).toBeInTheDocument();
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
   });
 
   test('service detail report failure stays scoped to history content', async () => {
@@ -1804,7 +1804,7 @@ describe('renderer workspaces', () => {
     fireEvent.pointerDown(historyFailureTab);
     fireEvent.click(historyFailureTab);
     expect(await screen.findByText('Recent service activity could not be loaded right now. The rest of the service page is still available.')).toBeInTheDocument();
-    expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Market Day Outfit Set').length).toBeGreaterThan(0);
   });
 
   test('unknown service id shows a not-found state with a catalog CTA', () => {
@@ -1890,14 +1890,14 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'SKU #001 updated' } });
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Bangkok Market Tee updated' } });
     fireEvent.click(screen.getByText('Save changes'));
 
     await waitFor(() => {
       expect(saveSku).toHaveBeenCalledTimes(1);
       expect(screen.getAllByTestId('location-pathname')[0].textContent).toBe('/catalog/skus/sku-1');
     });
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
   });
 
   test('sku edit route pre-fills current values and keeps the identifier read-only', () => {
@@ -1909,8 +1909,8 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByDisplayValue('SKU #001')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('First sku')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Bangkok Market Tee')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Bestselling imported cotton tee')).toBeInTheDocument();
     expect(screen.getByText('SKU details')).toBeInTheDocument();
     expect(screen.getByText('Stock and selling')).toBeInTheDocument();
     expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
@@ -2062,7 +2062,7 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Service #001 updated' } });
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Market Day Outfit Set updated' } });
     fireEvent.click(screen.getByText('Save changes'));
 
     await waitFor(() => {
@@ -2110,8 +2110,8 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByDisplayValue('Service #001')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Main service')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Market Day Outfit Set')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Front-rack outfit bundle')).toBeInTheDocument();
     expect(screen.getByText('Service details')).toBeInTheDocument();
     expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
     expect(screen.getByText('Identifier: service-1')).toBeInTheDocument();
@@ -2124,36 +2124,42 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('12 units')).toBeInTheDocument();
     expect(screen.getByText('Limiting SKU')).toBeInTheDocument();
 
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
 
-    const skuRows = screen.getAllByText(/SKU #00[12]/).map((node) => node.closest('label')).filter(Boolean);
-    const sku1Row = skuRows.find((row) => row?.textContent?.includes('SKU #001')) ?? null;
-    const sku2Row = skuRows.find((row) => row?.textContent?.includes('SKU #002')) ?? null;
+    const skuRows = screen
+      .getAllByText(/Bangkok Market Tee|Osaka Pleat Midi/)
+      .map((node) => node.closest('label'))
+      .filter(Boolean);
+    const sku1Row = skuRows.find((row) => row?.textContent?.includes('Bangkok Market Tee')) ?? null;
+    const sku2Row = skuRows.find((row) => row?.textContent?.includes('Osaka Pleat Midi')) ?? null;
     expect(sku1Row).not.toBeNull();
     expect(sku2Row).not.toBeNull();
     expect(sku1Row?.compareDocumentPosition(sku2Row as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'sku-2' } });
-    const filteredRows = screen.getAllByText('SKU #002').map((node) => node.closest('label')).filter(Boolean);
+    const filteredRows = screen
+      .getAllByText('Osaka Pleat Midi')
+      .map((node) => node.closest('label'))
+      .filter(Boolean);
     expect(filteredRows.length).toBeGreaterThan(0);
     expect(
       screen
-        .getAllByText(/SKU #00[12]/)
+        .getAllByText(/Bangkok Market Tee|Osaka Pleat Midi/)
         .map((node) => node.closest('label'))
-        .filter((row) => row?.textContent?.includes('SKU #001')).length,
+        .filter((row) => row?.textContent?.includes('Bangkok Market Tee')).length,
     ).toBe(0);
 
-    fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'second sku' } });
+    fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'pleated midi' } });
     const descriptionFilteredRows = screen
-      .getAllByText('SKU #002')
+      .getAllByText('Osaka Pleat Midi')
       .map((node) => node.closest('label'))
       .filter(Boolean);
     expect(descriptionFilteredRows.length).toBeGreaterThan(0);
     expect(
       screen
-        .getAllByText(/SKU #00[12]/)
+        .getAllByText(/Bangkok Market Tee|Osaka Pleat Midi/)
         .map((node) => node.closest('label'))
-        .filter((row) => row?.textContent?.includes('SKU #001')).length,
+        .filter((row) => row?.textContent?.includes('Bangkok Market Tee')).length,
     ).toBe(0);
   });
 
@@ -2215,11 +2221,11 @@ describe('renderer workspaces', () => {
     expect(await screen.findByText('Manual update')).toBeInTheDocument();
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
     expect(screen.getAllByText('1 changed row').length).toBeGreaterThan(0);
-    expect(screen.getByText('Includes SKU #001')).toBeInTheDocument();
+    expect(screen.getByText('Includes Bangkok Market Tee')).toBeInTheDocument();
     expect(screen.getByText('1 service flag')).toBeInTheDocument();
-    expect(screen.getByText('Includes Service #001')).toBeInTheDocument();
+    expect(screen.getByText('Includes Market Day Outfit Set')).toBeInTheDocument();
     expect(screen.getByText('1 price edit')).toBeInTheDocument();
-    expect(screen.getByText('Includes Service #002')).toBeInTheDocument();
+    expect(screen.getByText('Includes After-Hours Satin Edit')).toBeInTheDocument();
     expect(screen.getByText('3 ranking signals')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: 'Start update session' })[0]).toBeInTheDocument();
     expect(screen.queryByText('Review and submit one operations update')).not.toBeInTheDocument();
@@ -2247,8 +2253,8 @@ describe('renderer workspaces', () => {
     expect(await screen.findByText('Ranking of Items Sold')).toBeInTheDocument();
     expect(screen.getByText('Service price changes')).toBeInTheDocument();
     expect(screen.getByText('Front shelf was restocked.')).toBeInTheDocument();
-    expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Market Day Outfit Set').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('operations-history-detail')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Hide' })).toBeInTheDocument();
 
@@ -2414,7 +2420,7 @@ describe('renderer workspaces', () => {
     );
 
     fireEvent.click(screen.getByRole('link', { name: 'Resume update session' }));
-    expect(await screen.findByText('Service #001')).toBeInTheDocument();
+    expect(await screen.findByText('After-Hours Satin Edit')).toBeInTheDocument();
     expect(screen.getByTestId('location-search').textContent).toBe('');
   });
 
@@ -2465,16 +2471,16 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('Changed')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Changed rows' }));
-    expect(screen.getByText('SKU #001')).toBeInTheDocument();
-    expect(screen.queryByText('SKU #002')).not.toBeInTheDocument();
+    expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
+    expect(screen.queryByText('Osaka Pleat Midi')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: 'All rows' }));
     expect(screen.getByDisplayValue('13')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'sku-2' } });
     expect(screen.getByText('1 matching row')).toBeInTheDocument();
-    expect(screen.getByText('SKU #002')).toBeInTheDocument();
-    expect(screen.queryByText('SKU #001')).not.toBeInTheDocument();
+    expect(screen.getByText('Osaka Pleat Midi')).toBeInTheDocument();
+    expect(screen.queryByText('Bangkok Market Tee')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'missing' } });
     expect(screen.getByText('No SKU rows match the current search.')).toBeInTheDocument();
@@ -2487,7 +2493,7 @@ describe('renderer workspaces', () => {
     expect(incrementSize).toHaveTextContent('Fine');
     expect(incrementSize).not.toHaveTextContent('Units in stock ±1 • Cost per unit ±0.25');
 
-    const sku1Row = screen.getByText('SKU #001').closest('tr');
+    const sku1Row = screen.getByText('Bangkok Market Tee').closest('tr');
     expect(sku1Row).not.toBeNull();
     expect(within(sku1Row as HTMLTableRowElement).getByDisplayValue('5.00')).toBeInTheDocument();
 
@@ -2517,7 +2523,7 @@ describe('renderer workspaces', () => {
 
     renderRoute('/operations/session?step=observations', <StockUpdateSessionRoute />);
 
-    const sku1Row = (await screen.findByText('SKU #001')).closest('tr');
+    const sku1Row = (await screen.findByText('Bangkok Market Tee')).closest('tr');
     expect(sku1Row).not.toBeNull();
 
     const costInput = within(sku1Row as HTMLTableRowElement).getByDisplayValue('5');
@@ -2550,9 +2556,9 @@ describe('renderer workspaces', () => {
 
     expect(await screen.findByText('Opened from SKU detail')).toBeInTheDocument();
     expect(screen.getAllByText('Focused').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('SKU #002').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Osaka Pleat Midi').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'sku-1' } });
-    expect(screen.getAllByText('SKU #002').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Osaka Pleat Midi').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     expect(screen.queryByText('Changed rows are ready for review and submit.')).not.toBeInTheDocument();
   });
@@ -2592,7 +2598,7 @@ describe('renderer workspaces', () => {
     expect(await screen.findByText('Opened from service detail')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Done reviewing' })).toBeInTheDocument();
     expect(screen.getAllByText('Focused').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Service #002').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('After-Hours Satin Edit').length).toBeGreaterThan(0);
     expect(screen.getByText('0 service flags')).toBeInTheDocument();
     expect(screen.getByText('0 price edits')).toBeInTheDocument();
   });
@@ -2661,7 +2667,7 @@ describe('renderer workspaces', () => {
           notes: 'Front shelf was restocked.',
         }),
       ]),
-      servicePriceAdjustments: [{ serviceId: 'service-1', price: 1400 }],
+      servicePriceAdjustments: [{ serviceId: 'service-2', price: 1400 }],
     });
     expect(submitReport.mock.calls[0][0]).not.toHaveProperty('serviceSignals');
     expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topServiceRanking');

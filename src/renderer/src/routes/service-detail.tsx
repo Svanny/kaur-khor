@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { StockReport } from '@shared/inventory';
-import { ArrowLeft, ClipboardPen, Search, SquarePen } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BadgeDollarSign,
+  ClipboardPen,
+  ShieldAlert,
+  SquarePen,
+  Target,
+  Boxes,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DescriptionText } from '@/components/system/description-text';
-import { MetricStrip, MetricStripItem, WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
+import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { computeServiceSellableUnits } from '@/lib/catalog';
 import { formatCurrency, formatNumber, localeFor } from '@/lib/format';
 import {
@@ -31,6 +40,8 @@ type ForecastPoint = {
   day: number;
   remaining: number;
 };
+
+type ServiceRecommendation = ReturnType<typeof recommendationForService>;
 
 function reportDateLabel(reportedAt: string, language: 'en' | 'km') {
   return new Intl.DateTimeFormat(localeFor(language), {
@@ -67,6 +78,19 @@ function serviceRiskToneClass(state: ReturnType<typeof serviceStateLabel>) {
     return 'border-amber-500/30 bg-amber-500/[0.05]';
   }
   return 'border-border/70 bg-background/65';
+}
+
+function dependencyToneClass(health: ReturnType<typeof contributorHealthLabel>, isSelected: boolean) {
+  if (isSelected) {
+    return 'border-primary/35 bg-primary/5';
+  }
+  if (health === 'Blocked') {
+    return 'border-destructive/25 bg-destructive/[0.04]';
+  }
+  if (health === 'High risk') {
+    return 'border-amber-500/30 bg-amber-500/[0.05]';
+  }
+  return 'border-border/60 bg-background/40';
 }
 
 function eventTypeLabel(type: ReturnType<typeof mapServiceTimelineEvents>[number]['types'][number]) {
@@ -115,6 +139,51 @@ function serviceHeroMessage({
     return latestEvidence;
   }
   return `${formatNumber(sellableUnits, language)} sellable units holding steady`;
+}
+
+function serviceHeroDescriptor({
+  sellableUnits,
+  linkedSkuCount,
+  bottleneckName,
+  confidenceLabel,
+  language,
+}: {
+  sellableUnits: number;
+  linkedSkuCount: number;
+  bottleneckName: string | null;
+  confidenceLabel: string;
+  language: 'en' | 'km';
+}) {
+  return `${formatNumber(sellableUnits, language)} sellable units · ${formatNumber(
+    linkedSkuCount,
+    language,
+  )} linked SKUs · ${bottleneckName ?? 'No active limiter'} · ${confidenceLabel}`;
+}
+
+function disruptionWindowLabel(disruptionWindowDays: number | null, language: 'en' | 'km') {
+  if (disruptionWindowDays == null) {
+    return 'Unavailable';
+  }
+  return `${formatNumber(disruptionWindowDays, language)} days`;
+}
+
+function collapsePathLabel({
+  bottleneckName,
+  nextLimiterName,
+}: {
+  bottleneckName: string | null;
+  nextLimiterName: string | null;
+}) {
+  if (bottleneckName && nextLimiterName && bottleneckName !== nextLimiterName) {
+    return `${bottleneckName} first, then ${nextLimiterName}`;
+  }
+  if (bottleneckName) {
+    return `${bottleneckName} stays the limiting path`;
+  }
+  if (nextLimiterName) {
+    return `${nextLimiterName} is the first likely handoff`;
+  }
+  return 'No active collapse path';
 }
 
 function recommendationForService({
@@ -170,6 +239,43 @@ function recommendationForService({
   };
 }
 
+function historyInferenceText({
+  eventTypes,
+  bottleneckName,
+  nextLimiterName,
+}: {
+  eventTypes: ReturnType<typeof mapServiceTimelineEvents>[number]['types'];
+  bottleneckName: string | null;
+  nextLimiterName: string | null;
+}) {
+  if (eventTypes.includes('service-unavailable')) {
+    return `${bottleneckName ?? 'The current bottleneck'} pushed the service into an unavailable state.`;
+  }
+  if (eventTypes.includes('limiter-shift')) {
+    return `${nextLimiterName ?? 'The dependency order'} changed enough to move the likely constraint path.`;
+  }
+  if (eventTypes.includes('price-adjustment')) {
+    return 'Economic context changed, but service fragility still comes from linked-SKU coverage.';
+  }
+  return `${bottleneckName ?? 'The current bottleneck'} remains the first dependency Banji would check from this evidence.`;
+}
+
+function historyRecommendationText({
+  eventTypes,
+  recommendation,
+}: {
+  eventTypes: ReturnType<typeof mapServiceTimelineEvents>[number]['types'];
+  recommendation: ServiceRecommendation;
+}) {
+  if (eventTypes.includes('service-unavailable')) {
+    return 'Review this service in session before changing price or composition.';
+  }
+  if (eventTypes.includes('price-adjustment')) {
+    return 'Confirm price intent against the latest input cost and dependency pressure.';
+  }
+  return recommendation.suggestion;
+}
+
 function deriveForecastPoints({
   sellableUnits,
   disruptionWindowDays,
@@ -196,16 +302,22 @@ function deriveForecastPoints({
 function ServiceForecastChart({
   sellableUnits,
   disruptionWindowDays,
+  bottleneckName,
+  nextLimiterName,
   language,
 }: {
   sellableUnits: number;
   disruptionWindowDays: number | null;
+  bottleneckName: string | null;
+  nextLimiterName: string | null;
   language: 'en' | 'km';
 }) {
   const points = deriveForecastPoints({ sellableUnits, disruptionWindowDays });
   const maxRemaining = Math.max(...points.map((point) => point.remaining), 1);
   const width = 640;
   const height = 240;
+  const markerDay =
+    disruptionWindowDays == null ? null : Math.max(0, Math.min(Math.ceil(disruptionWindowDays), points.length - 1));
   const path = points
     .map((point, index) => {
       const x = (index / Math.max(points.length - 1, 1)) * width;
@@ -238,6 +350,18 @@ function ServiceForecastChart({
         viewBox={`0 0 ${width} ${height}`}
       >
         <line stroke="currentColor" strokeOpacity="0.12" strokeWidth="1" x1="0" x2={width} y1={height - 12} y2={height - 12} />
+        {markerDay != null ? (
+          <line
+            stroke="currentColor"
+            strokeDasharray="6 6"
+            strokeOpacity="0.3"
+            strokeWidth="2"
+            x1={(markerDay / Math.max(points.length - 1, 1)) * width}
+            x2={(markerDay / Math.max(points.length - 1, 1)) * width}
+            y1="12"
+            y2={height - 12}
+          />
+        ) : null}
         <path d={path} fill="none" stroke="currentColor" strokeWidth="4" />
       </svg>
       <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
@@ -247,7 +371,215 @@ function ServiceForecastChart({
             ? 'No disruption window is available from current signals.'
             : `Service crosses the disruption zone around day ${formatNumber(disruptionWindowDays, language)}.`}
         </p>
+        <p>Current bottleneck: {bottleneckName ?? 'No active limiter'}</p>
+        <p>Likely handoff: {nextLimiterName ?? 'Unavailable'}</p>
       </div>
+    </div>
+  );
+}
+
+function ServiceDependencyMap({
+  serviceId,
+  serviceName,
+  contributors,
+  selectedSkuId,
+  setSelectedSkuId,
+  language,
+}: {
+  serviceId: string;
+  serviceName: string;
+  contributors: ReturnType<typeof rankedServiceContributors>;
+  selectedSkuId: string | null;
+  setSelectedSkuId: (skuId: string) => void;
+  language: 'en' | 'km';
+}) {
+  return (
+    <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-5">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        Dependency map
+      </p>
+      {contributors.length > 0 ? (
+        <div className="mt-5 flex flex-col items-center gap-4">
+          <div className="min-w-[220px] rounded-[1.5rem] border border-primary/25 bg-primary/5 px-5 py-4 text-center">
+            <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">{serviceId}</p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{serviceName}</p>
+          </div>
+          <div className="grid w-full gap-3">
+            {contributors.map((contributor) => {
+              const isSelected = contributor.sku.skuId === selectedSkuId;
+              const healthLabel = contributorHealthLabel(contributor.health);
+              return (
+                <div className="grid gap-2 xl:grid-cols-[100px_minmax(0,1fr)]" key={contributor.sku.skuId}>
+                  <div className="hidden items-center justify-center xl:flex">
+                    <div
+                      className={cn(
+                        'h-px w-full',
+                        isSelected
+                          ? 'bg-primary'
+                          : contributor.health === 'blocked'
+                            ? 'bg-destructive/80'
+                            : contributor.health === 'at-risk'
+                              ? 'bg-amber-500/70'
+                              : 'bg-border',
+                      )}
+                    />
+                  </div>
+                  <div
+                    className={cn('rounded-[1.5rem] border px-5 py-4', dependencyToneClass(healthLabel, isSelected))}
+                    data-selected={isSelected ? 'true' : 'false'}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <button
+                        aria-pressed={isSelected}
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => setSelectedSkuId(contributor.sku.skuId)}
+                        type="button"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-foreground">{contributor.sku.name}</p>
+                          <Badge variant="outline">#{contributor.rank}</Badge>
+                          <Badge variant={badgeVariantForHealth(healthLabel)}>{healthLabel}</Badge>
+                          {contributor.isBottleneck ? <Badge variant="secondary">Bottleneck</Badge> : null}
+                          {isSelected ? <Badge variant="outline">Selected</Badge> : null}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {contributor.sku.skuId} · {formatNumber(contributor.sku.unitsInStock, language)} on hand
+                        </p>
+                        <p className="mt-3 text-sm text-muted-foreground">{contributor.probabilityLabel}</p>
+                      </button>
+                      <Button asChild size="sm" variant="ghost">
+                        <Link to={`/catalog/skus/${contributor.sku.skuId}`}>Open SKU detail</Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-muted-foreground">No linked dependencies are available for this service yet.</p>
+      )}
+    </div>
+  );
+}
+
+function ServiceRailFrame({
+  icon: Icon,
+  label,
+  value,
+  toneClass,
+  valueClassName,
+  className,
+}: {
+  icon: typeof Boxes;
+  label: string;
+  value: string;
+  toneClass: string;
+  valueClassName?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex h-full min-h-0 flex-col items-center rounded-[1.45rem] border px-4 py-3 sm:px-4 sm:py-3.5',
+        toneClass,
+        className,
+      )}
+    >
+      <div className="flex size-16 items-center justify-center rounded-full border border-current/15 bg-white/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+        <Icon className="size-9" strokeWidth={1.8} />
+      </div>
+      <div className="mt-3 flex min-h-0 flex-1 items-center justify-center self-stretch">
+        <p
+          className={cn(
+            'w-full text-center font-semibold leading-[0.92] tracking-[-0.05em] text-foreground text-[clamp(1.65rem,2.7vw,2.85rem)]',
+            valueClassName,
+          )}
+        >
+          {value}
+        </p>
+      </div>
+      <p className="mt-2 text-center text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-foreground/70">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function ServiceEvidencePanel({
+  events,
+  recommendation,
+  bottleneckName,
+  nextLimiterName,
+  language,
+  t,
+  emptyText,
+}: {
+  events: ReturnType<typeof mapServiceTimelineEvents>;
+  recommendation: ServiceRecommendation;
+  bottleneckName: string | null;
+  nextLimiterName: string | null;
+  language: 'en' | 'km';
+  t: ReturnType<typeof usePreferences>['t'];
+  emptyText: string;
+}) {
+  return (
+    <div className="rounded-[1.75rem] border border-border/70 bg-background/65 p-4 sm:p-5">
+      <div>
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          Recent changes
+        </p>
+        <DescriptionText className="mt-1 text-sm text-muted-foreground">
+          What changed, what SIST inferred, and what Banji recommends next.
+        </DescriptionText>
+      </div>
+      {events.length > 0 ? (
+        <div className="mt-4 divide-y divide-border/60">
+          {events.map((event) => (
+            <div className="py-4 first:pt-0 last:pb-0" key={event.report.reportId}>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{reportDateLabel(event.report.reportedAt, language)}</Badge>
+                <Badge variant="secondary">{t(stockReportSourceKey(event.report.reportSource))}</Badge>
+                {event.types.map((type) => (
+                  <Badge key={`${event.report.reportId}-${type}`} variant="outline">
+                    {eventTypeLabel(type)}
+                  </Badge>
+                ))}
+              </div>
+              <div className="mt-3 grid gap-2">
+                <p className="text-sm leading-6 text-foreground">
+                  <span className="font-medium">What changed</span>
+                  {' -> '}
+                  {event.summary}
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  <span className="font-medium text-foreground">SIST inferred</span>
+                  {' -> '}
+                  {historyInferenceText({
+                    bottleneckName,
+                    eventTypes: event.types,
+                    nextLimiterName,
+                  })}
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  <span className="font-medium text-foreground">Banji recommends</span>
+                  {' -> '}
+                  {historyRecommendationText({
+                    eventTypes: event.types,
+                    recommendation,
+                  })}
+                </p>
+                {event.secondary ? (
+                  <p className="text-sm leading-6 text-muted-foreground">{event.secondary}</p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-muted-foreground">{emptyText}</p>
+      )}
     </div>
   );
 }
@@ -391,29 +723,43 @@ export function ServiceDetailRoute() {
   const marginUnderPressure =
     economics.servicePrice > 0 && economics.grossMargin / economics.servicePrice <= 0.2;
   const overviewHint = timelineEvents[0]?.summary ?? null;
-  const selectedContributor =
-    contributors.find((entry) => entry.sku.skuId === selectedSkuId) ?? contributors[0] ?? null;
   const prioritizeOperations = stateLabel === 'Blocked' || stateLabel === 'At risk';
   const editPrimary = contributors.length === 0;
-  const handleViewWhy = () => {
-    setActiveTab('forecast');
-  };
+  const heroDescriptor = serviceHeroDescriptor({
+    sellableUnits,
+    linkedSkuCount: contributors.length,
+    bottleneckName: bottleneck?.name ?? null,
+    confidenceLabel,
+    language,
+  });
+  const collapsePath = collapsePathLabel({
+    bottleneckName: bottleneck?.name ?? null,
+    nextLimiterName: fragility.nextLikelyLimiter?.sku.name ?? null,
+  });
+  const coverageMode = stateLabel === 'Unlinked' ? 'Recipe incomplete' : stateLabel;
 
   return (
     <WorkspacePage data-testid="service-detail-route">
       <section className="rounded-[2rem] border border-white/70 bg-card/75 p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
                 <Button asChild aria-label={t('backToCatalog')} size="icon" variant="ghost">
                   <Link to="/catalog">
                     <ArrowLeft />
                   </Link>
                 </Button>
-                <h1 className="min-w-0 font-heading text-base font-medium tracking-[-0.02em] text-foreground">
-                  {service.name}
-                </h1>
+                <div className="min-w-0">
+                  <h1 className="min-w-0 font-heading text-base font-medium tracking-[-0.02em] text-foreground">
+                    {service.name}
+                  </h1>
+                  <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3">
+                    <Badge variant="outline">{`${t('fieldId')}: ${service.serviceId}`}</Badge>
+                    <Badge variant={badgeVariantForState(stateLabel)}>{stateLabel}</Badge>
+                    <Badge variant="outline">{latestEvidence ?? confidenceLabel}</Badge>
+                  </div>
+                </div>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3">
                 <Button asChild variant={prioritizeOperations ? 'default' : 'outline'}>
@@ -430,11 +776,6 @@ export function ServiceDetailRoute() {
                 </Button>
               </div>
             </div>
-            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3">
-              <Badge variant="outline">{`${t('fieldId')}: ${service.serviceId}`}</Badge>
-              <Badge variant={badgeVariantForState(stateLabel)}>{stateLabel}</Badge>
-              <Badge variant="outline">{latestEvidence ?? confidenceLabel}</Badge>
-            </div>
             <DescriptionText className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
               {service.description || 'Track bundle readiness, fragility, and supporting evidence before editing the service.'}
             </DescriptionText>
@@ -450,23 +791,19 @@ export function ServiceDetailRoute() {
               <p className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-foreground sm:text-4xl">
                 {heroMessage}
               </p>
+              {marginUnderPressure ? (
+                <div className="mt-3">
+                  <Badge variant="secondary">Margin under pressure</Badge>
+                </div>
+              ) : null}
               <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-                {`${formatNumber(sellableUnits, language)} sellable units · ${formatNumber(
-                  contributors.length,
-                  language,
-                )} linked SKUs · ${bottleneck?.name ?? 'No active limiter'} · ${confidenceLabel}`}
+                {heroDescriptor}
               </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" variant="default" onClick={handleViewWhy}>
-                <Search className="size-4" />
-                View why
-              </Button>
             </div>
           </div>
         </div>
 
-        <Tabs className="mt-6" value={activeTab} onValueChange={(value) => setActiveTab(value as CockpitTab)}>
+          <Tabs className="mt-6" value={activeTab} onValueChange={(value) => setActiveTab(value as CockpitTab)}>
           <TabsList className="w-full justify-start overflow-x-auto" variant="line">
             <TabsTrigger onClick={() => setActiveTab('overview')} value="overview">Overview</TabsTrigger>
             <TabsTrigger onClick={() => setActiveTab('forecast')} value="forecast">Forecast</TabsTrigger>
@@ -476,51 +813,51 @@ export function ServiceDetailRoute() {
           </TabsList>
 
           <TabsContent className="mt-6" value="overview">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-              <div className="space-y-5">
-                <div className="rounded-[1.75rem] border border-border/70 bg-background/65 p-4 sm:p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                        Service rail
-                      </p>
-                      <DescriptionText className="mt-1 text-sm text-muted-foreground">
-                        Keep the operating stats visible without repeating the hero state.
-                      </DescriptionText>
-                    </div>
-                    {marginUnderPressure ? <Badge variant="secondary">Margin under pressure</Badge> : null}
-                  </div>
-                  <MetricStrip className="mt-4 rounded-none border-0 bg-transparent xl:grid-cols-5">
-                    <MetricStripItem
-                      className="px-0 sm:px-0 xl:pl-0 xl:pr-6"
-                      label={t('catalogServiceSellableUnits')}
-                      value={formatNumber(sellableUnits, language)}
-                    />
-                    <MetricStripItem
-                      className="px-0 sm:px-0 xl:px-6"
-                      label={t('fieldPrice')}
-                      value={formatCurrency(service.price, currency, language)}
-                    />
-                    <MetricStripItem
-                      className="px-0 sm:px-0 xl:px-6"
-                      label="Current bottleneck"
-                      value={bottleneck?.name ?? 'No active limiter'}
-                    />
-                    <MetricStripItem
-                      className="px-0 sm:px-0 xl:px-6"
-                      label="Next likely limiter"
-                      value={fragility.nextLikelyLimiter?.sku.name ?? 'Unavailable'}
-                    />
-                    <MetricStripItem
-                      className="px-0 sm:px-0 xl:pl-6 xl:pr-0"
-                      label="Coverage mode"
-                      value={contributors.length === 0 ? 'Unlinked' : `${formatNumber(contributors.length, language)} linked`}
-                    />
-                  </MetricStrip>
+            <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+              <div className="flex h-full flex-col rounded-[1.75rem] bg-transparent">
+                <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-6 md:grid-rows-2">
+                  <ServiceRailFrame
+                    className="md:col-span-2"
+                    icon={Boxes}
+                    label={t('catalogServiceSellableUnits')}
+                    toneClass="border-sky-300/70 bg-sky-100/75 text-sky-950"
+                    value={formatNumber(sellableUnits, language)}
+                  />
+                  <ServiceRailFrame
+                    className="md:col-span-2"
+                    icon={BadgeDollarSign}
+                    label={t('fieldPrice')}
+                    toneClass="border-emerald-300/70 bg-emerald-100/75 text-emerald-950"
+                    valueClassName="whitespace-nowrap text-[clamp(1.55rem,2.2vw,2.4rem)]"
+                    value={formatCurrency(service.price, currency, language)}
+                  />
+                  <ServiceRailFrame
+                    className="md:col-span-2"
+                    icon={AlertTriangle}
+                    label="Current bottleneck"
+                    toneClass="border-amber-300/75 bg-amber-100/80 text-amber-950"
+                    valueClassName="text-[clamp(1.3rem,1.55vw,2rem)]"
+                    value={bottleneck?.name ?? 'No active limiter'}
+                  />
+                  <ServiceRailFrame
+                    className="md:col-span-3"
+                    icon={Target}
+                    label="Next likely limiter"
+                    toneClass="border-rose-300/75 bg-rose-100/80 text-rose-950"
+                    valueClassName="text-[clamp(1.3rem,1.7vw,2.1rem)]"
+                    value={fragility.nextLikelyLimiter?.sku.name ?? 'Unavailable'}
+                  />
+                  <ServiceRailFrame
+                    className="md:col-span-3"
+                    icon={ShieldAlert}
+                    label="Coverage mode"
+                    toneClass="border-violet-300/75 bg-violet-100/80 text-violet-950"
+                    value={coverageMode}
+                  />
                 </div>
               </div>
 
-              <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-4 sm:p-5">
+              <div className="flex h-full flex-col rounded-[1.75rem] border border-border/70 bg-background/70 p-4 sm:p-5">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                   Next move
                 </p>
@@ -540,15 +877,14 @@ export function ServiceDetailRoute() {
                   <div className="mt-3 grid gap-3 text-sm leading-6 text-muted-foreground">
                     <p>Current bottleneck: {bottleneck?.name ?? 'No active limiter'}.</p>
                     <p>Next likely limiter: {fragility.nextLikelyLimiter?.sku.name ?? 'Unavailable'}.</p>
+                    <p>Collapse path: {collapsePath}.</p>
                     <p>
-                      {fragility.disruptionWindowDays == null
-                        ? 'Disruption timing is unavailable because the limiting SKU does not have days-of-cover detail.'
-                        : `The limiting signal implies a disruption window of about ${formatNumber(fragility.disruptionWindowDays, language)} days.`}
+                      Disruption window: {disruptionWindowLabel(fragility.disruptionWindowDays, language)}.
                     </p>
                     <p>
-                      If the bottleneck worsens first, service sellable units collapse before other linked SKUs matter.
+                      Confidence: {confidenceLabel}. If the bottleneck worsens first, service sellable units collapse before other linked SKUs matter.
                     </p>
-                    {overviewHint ? <p>Latest evidence: {overviewHint}</p> : null}
+                    {overviewHint ? <p>Evidence hint: {overviewHint}</p> : null}
                   </div>
                 </div>
               </div>
@@ -558,141 +894,46 @@ export function ServiceDetailRoute() {
           <TabsContent className="mt-6" value="forecast">
             <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
               <ServiceForecastChart
+                bottleneckName={bottleneck?.name ?? null}
                 disruptionWindowDays={fragility.disruptionWindowDays}
                 language={language}
+                nextLimiterName={fragility.nextLikelyLimiter?.sku.name ?? null}
                 sellableUnits={sellableUnits}
               />
               <div className="flex h-full flex-col rounded-[1.75rem] border border-border/70 bg-background/70 p-5">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Why SIST thinks this
+                  Forecast reading
                 </p>
                 <div className="mt-4 space-y-4 text-sm leading-6 text-muted-foreground">
                   <p>
-                    Banji derives the service horizon from current linked-SKU stock and the strongest linked-SKU SIST cover signal.
+                    Service sellable-units horizon comes from the current recipe stock floor and the strongest linked-SKU cover signal.
                   </p>
                   <p>
-                    {bottleneck?.name ?? 'The current recipe'} drives the first depletion curve, while {fragility.nextLikelyLimiter?.sku.name ?? 'the next ranked SKU'} becomes the next handoff marker if pressure continues.
+                    {bottleneck?.name ?? 'The current recipe'} drives the first depletion curve, while {fragility.nextLikelyLimiter?.sku.name ?? 'the next ranked SKU'} is the most likely handoff marker if the first limiter is addressed or worsens.
                   </p>
                   <p>
                     Confidence stays {confidenceLabel.toLowerCase()} because the strongest linked SKU controls the service-level forecast.
                   </p>
                 </div>
-                <div className="mt-5 border-t border-border/60 pt-4 text-sm text-muted-foreground">
-                  <p>Uncertainty / disruption window</p>
-                  <p className="mt-2 text-foreground">
-                    {fragility.disruptionWindowDays == null
-                      ? 'Unavailable from current linked-SKU cover data.'
-                      : `${formatNumber(fragility.disruptionWindowDays, language)} days to likely disruption.`}
-                  </p>
+                <div className="mt-5 grid gap-3 border-t border-border/60 pt-4 text-sm text-muted-foreground">
+                  <p>Current bottleneck: <span className="text-foreground">{bottleneck?.name ?? 'No active limiter'}</span></p>
+                  <p>Limiter handoff: <span className="text-foreground">{fragility.nextLikelyLimiter?.sku.name ?? 'Unavailable'}</span></p>
+                  <p>Uncertainty / disruption window: <span className="text-foreground">{disruptionWindowLabel(fragility.disruptionWindowDays, language)}</span></p>
+                  <p>Confidence: <span className="text-foreground">{confidenceLabel}</span></p>
                 </div>
               </div>
             </div>
           </TabsContent>
 
           <TabsContent className="mt-6" value="dependencies">
-            <div className="grid gap-5">
-              <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-5">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Dependency map
-                </p>
-                {contributors.length > 0 ? (
-                  <div className="mt-5 flex flex-col items-center gap-4">
-                    <div className="min-w-[220px] rounded-[1.5rem] border border-primary/25 bg-primary/5 px-5 py-4 text-center">
-                      <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">
-                        {service.serviceId}
-                      </p>
-                      <p className="mt-2 text-lg font-semibold text-foreground">{service.name}</p>
-                    </div>
-                    <div className="grid w-full gap-3">
-                      {contributors.map((contributor) => {
-                        const isSelected = contributor.sku.skuId === selectedContributor?.sku.skuId;
-                        const healthLabel = contributorHealthLabel(contributor.health);
-                        return (
-                          <div className="grid gap-2 xl:grid-cols-[100px_minmax(0,1fr)]" key={contributor.sku.skuId}>
-                            <div className="hidden items-center justify-center xl:flex">
-                              <div
-                                className={cn(
-                                  'h-px w-full',
-                                  isSelected
-                                    ? 'bg-primary'
-                                    : contributor.health === 'blocked'
-                                      ? 'bg-destructive/80'
-                                      : contributor.health === 'at-risk'
-                                        ? 'bg-amber-500/70'
-                                        : 'bg-border',
-                                )}
-                              />
-                            </div>
-                            <div
-                              className={cn(
-                                'rounded-[1.5rem] border px-5 py-4',
-                                isSelected ? 'border-primary/35 bg-primary/5' : 'border-border/60 bg-background/40',
-                              )}
-                            >
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-semibold text-foreground">{contributor.sku.name}</p>
-                                <Badge variant={badgeVariantForHealth(healthLabel)}>{healthLabel}</Badge>
-                                {contributor.isBottleneck ? <Badge variant="secondary">Bottleneck</Badge> : null}
-                                {isSelected ? <Badge variant="outline">Selected</Badge> : null}
-                              </div>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {contributor.sku.skuId} · {formatNumber(contributor.sku.unitsInStock, language)} on hand
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-4 text-sm text-muted-foreground">No linked dependencies are available for this service yet.</p>
-                )}
-              </div>
-
-              <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-5">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Dependency contributors
-                </p>
-                {contributors.length > 0 ? (
-                  <div className="mt-4 grid gap-3">
-                    {contributors.map((contributor) => {
-                      const healthLabel = contributorHealthLabel(contributor.health);
-                      const isSelected = contributor.sku.skuId === selectedContributor?.sku.skuId;
-                      return (
-                        <div
-                          className={cn(
-                            'flex flex-wrap items-start justify-between gap-3 rounded-[1.5rem] border px-4 py-4',
-                            isSelected ? 'border-primary/35 bg-primary/5' : 'border-border/70 bg-background/40',
-                          )}
-                          key={contributor.sku.skuId}
-                        >
-                          <button
-                            className="min-w-0 flex-1 text-left"
-                            onClick={() => setSelectedSkuId(contributor.sku.skuId)}
-                            type="button"
-                          >
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold text-foreground">{contributor.sku.name}</p>
-                              <Badge variant="outline">#{contributor.rank}</Badge>
-                              <Badge variant={badgeVariantForHealth(healthLabel)}>{healthLabel}</Badge>
-                            </div>
-                            <p className="mt-1 text-sm text-muted-foreground">{contributor.sku.skuId}</p>
-                            <p className="mt-3 text-sm text-muted-foreground">
-                              {t('fieldUnitsInStock')}: {formatNumber(contributor.sku.unitsInStock, language)} · {contributor.probabilityLabel}
-                            </p>
-                          </button>
-                          <Button asChild size="sm" variant="ghost">
-                            <Link to={`/catalog/skus/${contributor.sku.skuId}`}>Open SKU detail</Link>
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="mt-4 text-sm text-muted-foreground">{t('catalogServiceLinkedSkusEmpty')}</p>
-                )}
-              </div>
-            </div>
+            <ServiceDependencyMap
+              contributors={contributors}
+              language={language}
+              selectedSkuId={selectedSkuId}
+              serviceId={service.serviceId}
+              serviceName={service.name}
+              setSelectedSkuId={setSelectedSkuId}
+            />
           </TabsContent>
 
           <TabsContent className="mt-6" value="history">
@@ -700,56 +941,16 @@ export function ServiceDetailRoute() {
               <p className="text-sm text-muted-foreground">{t('overviewRecentActivityLoading')}</p>
             ) : activityError ? (
               <p className="text-sm text-muted-foreground">{t('catalogServiceRecentActivityFallback')}</p>
-            ) : timelineEvents.length > 0 ? (
-              <div className="grid gap-4">
-                {timelineEvents.map((event) => (
-                  <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-5" key={event.report.reportId}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{reportDateLabel(event.report.reportedAt, language)}</Badge>
-                      <Badge variant="secondary">{t(stockReportSourceKey(event.report.reportSource))}</Badge>
-                      {event.types.map((type) => (
-                        <Badge key={`${event.report.reportId}-${type}`} variant="outline">
-                          {eventTypeLabel(type)}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">What changed</p>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">{event.summary}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">SIST inferred</p>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          {event.types.includes('service-unavailable')
-                            ? `${bottleneck?.name ?? 'The bottleneck'} was driving the service closest to disruption.`
-                            : event.types.includes('price-adjustment')
-                              ? 'Economic context changed, but service fragility still comes from linked-SKU coverage.'
-                              : 'Linked dependency movement shifted the service constraint profile.'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Banji recommends</p>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          {event.types.includes('service-unavailable')
-                            ? 'Review this service in session before pricing or recipe edits.'
-                            : event.types.includes('price-adjustment')
-                              ? 'Confirm price intent against the latest input cost and dependency risk.'
-                              : 'Check the limiting SKU first, then re-rank the service if pressure changed.'}
-                        </p>
-                      </div>
-                    </div>
-                    {event.secondary ? (
-                      <details className="mt-4 text-sm text-muted-foreground">
-                        <summary className="cursor-pointer">Notes</summary>
-                        <p className="mt-2 leading-6">{event.secondary}</p>
-                      </details>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
             ) : (
-              <p className="text-sm text-muted-foreground">{t('catalogServiceRecentActivityEmpty')}</p>
+              <ServiceEvidencePanel
+                bottleneckName={bottleneck?.name ?? null}
+                emptyText={t('catalogServiceRecentActivityEmpty')}
+                events={timelineEvents}
+                language={language}
+                nextLimiterName={fragility.nextLikelyLimiter?.sku.name ?? null}
+                recommendation={recommendation}
+                t={t}
+              />
             )}
           </TabsContent>
 
@@ -786,6 +987,9 @@ export function ServiceDetailRoute() {
                         : 'No recorded adjustment'}
                     </p>
                   </div>
+                  <div className="rounded-[1.25rem] border border-border/60 bg-background/35 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                    Assumptions: margin uses current linked-SKU cost basis only. Banji is not modeling stressed replenishment cost in this pass.
+                  </div>
                 </div>
               </div>
 
@@ -803,9 +1007,6 @@ export function ServiceDetailRoute() {
                         </p>
                       </div>
                     ))}
-                    <div className="rounded-[1.25rem] border border-border/60 bg-background/35 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                      Derived notes: service margin is calculated from current linked-SKU cost basis only. Banji is not modeling stressed replenishment cost in this pass.
-                    </div>
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">No linked SKUs are attached to this service yet.</p>

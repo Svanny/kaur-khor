@@ -251,7 +251,7 @@ async fn desktop_inventory_endpoints_support_local_crud_and_ranking() {
         .put(format!("http://{addr}/v1/desktop/services/service-001"))
         .json(&json!({
             "serviceId": "service-001",
-            "name": "Service #001",
+            "name": "Market Day Outfit Set",
             "description": "Updated package linked to new sku",
             "price": 1350.0,
             "skuIds": ["sku-001", "sku-200"]

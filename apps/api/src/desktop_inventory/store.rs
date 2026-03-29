@@ -29,6 +29,48 @@ const SEEDED_HISTORY_INTERVAL_DAYS: i64 = 14;
 const SEEDED_HISTORY_LATEST_AT: &str = "2026-03-27T09:00:00Z";
 const SEEDED_CATALOG_SEED: u64 = 0xBA4A_110C_5EED;
 const SEEDED_HISTORY_SEED: u64 = 0xBA4A_110C_7001;
+const SEEDED_SERVICE_FLAVORS: [(&str, &str); 10] = [
+    (
+        "Market Day Outfit Set",
+        "An easy front-rack look that pairs bestsellers into a full outfit shoppers can grab in one go.",
+    ),
+    (
+        "After-Hours Satin Edit",
+        "A dressier imported pairing for dinner plans, built to feel polished without looking overworked.",
+    ),
+    (
+        "Monsoon Layer Bundle",
+        "Lightweight layers chosen for humid afternoons, scooter rides, and sudden rain on the way home.",
+    ),
+    (
+        "Travel Capsule Pairing",
+        "Two-and-three piece staples customers pick for weekend flights and tight carry-on space.",
+    ),
+    (
+        "Office to Alley Set",
+        "Sharp enough for desk hours, relaxed enough for a late noodle stop after closing.",
+    ),
+    (
+        "Soft Weekend Uniform",
+        "Comfort-first separates with enough texture and shape to still feel intentionally styled.",
+    ),
+    (
+        "Night Market Gift Pack",
+        "A ready-made bundle popular with returning customers buying a quick present for sisters and cousins.",
+    ),
+    (
+        "Resort Linen Story",
+        "Airy imported pieces merchandised together for holiday shoppers chasing a breezy coastal look.",
+    ),
+    (
+        "Denim Refresh Bundle",
+        "An updated casual set that lifts core denim with one standout imported accent piece.",
+    ),
+    (
+        "Festival Color Mix",
+        "A playful, high-margin combination built around bright fabric and easy try-on appeal.",
+    ),
+];
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -113,8 +155,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
     let definitions = [
         (
             "sku-001",
-            "SKU #001",
-            "High-turn pantry staple used across bundled services.",
+            "Bangkok Market Tee",
+            "Soft imported cotton tee from a Bangkok overrun lot; easy to sell with denim, skirts, and sandals.",
             248.0,
             5.10,
             true,
@@ -124,8 +166,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-002",
-            "SKU #002",
-            "Reusable prep material with stable demand.",
+            "Osaka Pleat Midi",
+            "Japanese-inspired pleated midi skirt with a forgiving waist and steady repeat demand from office shoppers.",
             168.0,
             4.35,
             false,
@@ -135,8 +177,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-003",
-            "SKU #003",
-            "Retail-ready add-on with periodic spikes.",
+            "Seoul Cafe Cardigan",
+            "Light knit cardigan bought as an easy add-on when weather shifts or air-con is too cold.",
             118.0,
             7.90,
             true,
@@ -146,8 +188,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-004",
-            "SKU #004",
-            "Backup material held for constrained weeks.",
+            "Hanoi Ribbon Blouse",
+            "A drapey blouse with tie-neck detail that the shop keeps in reserve for dressier customer requests.",
             142.0,
             6.75,
             false,
@@ -157,8 +199,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-005",
-            "SKU #005",
-            "Small-format impulse item sold at checkout.",
+            "Busan Stripe Socks",
+            "Colorful imported ankle socks stacked near checkout for quick add-on sales and gift bundles.",
             96.0,
             3.40,
             true,
@@ -168,8 +210,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-006",
-            "SKU #006",
-            "Durable support supply shared by premium services.",
+            "Kyoto Linen Trousers",
+            "Relaxed linen trousers with clean tailoring, often used as the anchor piece in higher-ticket outfit sets.",
             132.0,
             8.25,
             false,
@@ -179,8 +221,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-007",
-            "SKU #007",
-            "Seasonal hero item with promotion-driven swings.",
+            "Taipei Sunset Dress",
+            "Printed day dress that flies during payday weekends and slows the minute the promo table comes down.",
             110.0,
             6.10,
             true,
@@ -190,8 +232,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-008",
-            "SKU #008",
-            "Special handling component with slower replenishment.",
+            "Incheon Cropped Jacket",
+            "A structured cropped jacket with slower inbound replenishment and strong appeal for layered looks.",
             88.0,
             9.80,
             false,
@@ -201,8 +243,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-009",
-            "SKU #009",
-            "Core retail pack for repeat buyers.",
+            "Milan Satin Cami",
+            "Glossy satin camisole that repeat buyers grab in multiple colors once they trust the fit.",
             156.0,
             5.95,
             true,
@@ -212,8 +254,8 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
         ),
         (
             "sku-010",
-            "SKU #010",
-            "Reserve ingredient activated during corrections.",
+            "Phnom Penh Denim Short",
+            "A dependable warm-weather short kept deep in back stock to steady the floor when other fits run thin.",
             174.0,
             7.15,
             false,
@@ -256,7 +298,7 @@ fn build_seeded_services(skus: &[DesktopSkuRecord]) -> Vec<DesktopServiceRecord>
     let sku_ids = skus.iter().map(|sku| sku.sku_id.clone()).collect::<Vec<_>>();
     let mut services = Vec::with_capacity(10);
 
-    for index in 0..10 {
+    for (index, (name, description)) in SEEDED_SERVICE_FLAVORS.iter().enumerate() {
         let mut linked_skus = Vec::new();
         let target_links = 2 + rng.gen_range(0..3);
         while linked_skus.len() < target_links {
@@ -270,10 +312,8 @@ fn build_seeded_services(skus: &[DesktopSkuRecord]) -> Vec<DesktopServiceRecord>
         let service_number = index + 1;
         services.push(DesktopServiceRecord {
             service_id: format!("service-{service_number:03}"),
-            name: format!("Service #{service_number:03}"),
-            description: format!(
-                "Synthetic bundle #{service_number:03} linking a rotating set of inventory inputs."
-            ),
+            name: (*name).to_string(),
+            description: (*description).to_string(),
             price: 900.0 + service_number as f64 * 135.0 + rng.gen_range(0.0..140.0),
             sku_ids: linked_skus,
         });

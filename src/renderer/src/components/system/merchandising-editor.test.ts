@@ -8,8 +8,8 @@ describe('buildDefaultReportRanking', () => {
       services: [
         {
           serviceId: 'service-1',
-          name: 'Service #001',
-          description: 'Main service',
+          name: 'Market Day Outfit Set',
+          description: 'Front-rack outfit bundle',
           price: 1200,
           skuIds: ['sku-1'],
         },
@@ -17,8 +17,8 @@ describe('buildDefaultReportRanking', () => {
       skus: [
         {
           skuId: 'sku-1',
-          name: 'SKU #001',
-          description: 'Priced retail SKU',
+          name: 'Bangkok Market Tee',
+          description: 'Priced retail tee',
           unitsInStock: 12,
           costPerUnit: 5,
           soldAsProduct: true,
@@ -28,7 +28,7 @@ describe('buildDefaultReportRanking', () => {
         },
         {
           skuId: 'sku-2',
-          name: 'SKU #002',
+          name: 'Osaka Pleat Midi',
           description: 'Missing product price',
           unitsInStock: 8,
           costPerUnit: 4,
