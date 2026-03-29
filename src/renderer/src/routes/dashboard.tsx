@@ -37,6 +37,7 @@ import {
 } from '@/lib/stock-report-summary';
 import { matchesRecentActivityFilter, type RecentActivityFilter } from '@/lib/recent-activity';
 import { cn } from '@/lib/utils';
+import { traceRenderer } from '@/lib/trace';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
@@ -494,16 +495,25 @@ export function DashboardRoute() {
     let cancelled = false;
 
     async function loadReports() {
+      traceRenderer('dashboard', 'reports-effect-start', {
+        source: 'DashboardRoute.useEffect',
+      });
       setReportsLoading(true);
       setReportsError(null);
 
       try {
         const nextReports = await listStockReports();
         if (!cancelled) {
+          traceRenderer('dashboard', 'reports-effect-success', {
+            count: nextReports.length,
+          });
           setReports(nextReports);
         }
       } catch (error) {
         if (!cancelled) {
+          traceRenderer('dashboard', 'reports-effect-error', {
+            error: error instanceof Error ? error.message : t('overviewRecentActivityFallback'),
+          });
           setReportsError(error instanceof Error ? error.message : t('overviewRecentActivityFallback'));
         }
       } finally {
@@ -517,6 +527,7 @@ export function DashboardRoute() {
 
     return () => {
       cancelled = true;
+      traceRenderer('dashboard', 'reports-effect-cancel');
     };
   }, [listStockReports, t]);
 

@@ -21,10 +21,11 @@ use std::{
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::Mutex,
+    time::Instant,
 };
 use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
 
-static STORE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+static STORE_CACHE: Lazy<Mutex<StoreCacheState>> = Lazy::new(|| Mutex::new(StoreCacheState::default()));
 
 const STORE_SCHEMA_VERSION: u8 = 2;
 const SIST_SCHEMA_VERSION: u8 = 2;
@@ -75,6 +76,22 @@ const SEEDED_SERVICE_FLAVORS: [(&str, &str); 10] = [
         "A playful, high-margin combination built around bright fabric and easy try-on appeal.",
     ),
 ];
+
+fn desktop_store_trace_enabled() -> bool {
+    match env::var("BANJI_DESKTOP_TRACE_STORE") {
+        Ok(value) => matches!(
+            value.to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        Err(_) => false,
+    }
+}
+
+fn trace_store(message: impl AsRef<str>) {
+    if desktop_store_trace_enabled() {
+        eprintln!("[banji-desktop-store] {}", message.as_ref());
+    }
+}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -135,6 +152,19 @@ struct LegacyOwnerInventory {
     skus: Vec<DesktopSkuRecord>,
     services: Vec<DesktopServiceRecord>,
     ranking: Vec<DesktopRankingEntry>,
+}
+
+#[derive(Debug, Default)]
+struct StoreCacheState {
+    path: Option<PathBuf>,
+    metadata: Option<StoreFileMetadata>,
+    store: Option<DesktopInventoryStore>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StoreFileMetadata {
+    len: u64,
+    modified: std::time::SystemTime,
 }
 
 impl OwnerInventory {
@@ -881,25 +911,38 @@ fn normalize_owner(owner: &mut OwnerInventory) -> bool {
     if owner.merchandising.ranking.is_empty() {
         owner.merchandising.ranking = build_default_ranking(&owner.catalog.skus, &owner.catalog.services);
         changed = true;
+        trace_store("normalize_owner rebuilt empty merchandising ranking");
     }
     if owner.sist.stock_reports.is_empty() {
         ensure_baseline_report(owner, "legacy-baseline");
         changed = true;
+        trace_store("normalize_owner seeded baseline stock report");
     }
-    if !sist_cache_is_valid(owner) {
+    let invalid_reasons = sist_cache_invalid_reasons(owner);
+    if !invalid_reasons.is_empty() {
         owner.sist.schema_version = SIST_SCHEMA_VERSION;
+        let started_at = Instant::now();
         recompute_analysis("normalize", owner);
         changed = true;
+        trace_store(format!(
+            "normalize_owner recomputed sist cache reasons={} elapsed_ms={} reports={} skus={} services={}",
+            invalid_reasons.join(","),
+            started_at.elapsed().as_millis(),
+            owner.sist.stock_reports.len(),
+            owner.catalog.skus.len(),
+            owner.catalog.services.len()
+        ));
     }
     changed
 }
 
-fn sist_cache_is_valid(owner: &OwnerInventory) -> bool {
+fn sist_cache_invalid_reasons(owner: &OwnerInventory) -> Vec<&'static str> {
+    let mut reasons = Vec::new();
     if owner.sist.schema_version != SIST_SCHEMA_VERSION {
-        return false;
+        reasons.push("schema-version");
     }
     if owner.sist.cached_analysis.overview.status.state == SistAnalysisState::Empty {
-        return false;
+        reasons.push("overview-empty");
     }
 
     let expected_sku_ids = owner
@@ -909,7 +952,7 @@ fn sist_cache_is_valid(owner: &OwnerInventory) -> bool {
         .map(|sku| sku.sku_id.as_str())
         .collect::<HashSet<_>>();
     if owner.sist.cached_analysis.sku_details.len() != expected_sku_ids.len() {
-        return false;
+        reasons.push("sku-detail-count");
     }
     if owner
         .sist
@@ -918,7 +961,7 @@ fn sist_cache_is_valid(owner: &OwnerInventory) -> bool {
         .keys()
         .any(|sku_id| !expected_sku_ids.contains(sku_id.as_str()))
     {
-        return false;
+        reasons.push("sku-detail-ids");
     }
 
     let expected_service_ids = owner
@@ -928,7 +971,7 @@ fn sist_cache_is_valid(owner: &OwnerInventory) -> bool {
         .map(|service| service.service_id.as_str())
         .collect::<HashSet<_>>();
     if owner.sist.cached_analysis.service_details.len() != expected_service_ids.len() {
-        return false;
+        reasons.push("service-detail-count");
     }
     if owner
         .sist
@@ -937,16 +980,16 @@ fn sist_cache_is_valid(owner: &OwnerInventory) -> bool {
         .keys()
         .any(|service_id| !expected_service_ids.contains(service_id.as_str()))
     {
-        return false;
+        reasons.push("service-detail-ids");
     }
 
     if system_detail_is_placeholder(&owner.sist.cached_analysis.system_detail)
         && !owner.sist.stock_reports.is_empty()
     {
-        return false;
+        reasons.push("system-detail-placeholder");
     }
 
-    true
+    reasons
 }
 
 fn system_detail_is_placeholder(detail: &SistSystemDetailResponse) -> bool {
@@ -1230,12 +1273,18 @@ fn empty_system_detail() -> SistSystemDetailResponse {
 }
 
 fn recompute_analysis(owner_sub: &str, owner: &mut OwnerInventory) {
+    let started_at = Instant::now();
     let report_count = owner.sist.stock_reports.len();
     if report_count == 0 {
         owner.sist.cached_analysis.overview = empty_overview("No stock reports yet");
         owner.sist.cached_analysis.sku_details.clear();
         owner.sist.cached_analysis.service_details.clear();
         owner.sist.cached_analysis.system_detail = empty_system_detail();
+        trace_store(format!(
+            "recompute_analysis owner={} reports=0 elapsed_ms={}",
+            owner_sub,
+            started_at.elapsed().as_millis()
+        ));
         return;
     }
     let computed = analysis::compute_sist_analysis(owner_sub, owner);
@@ -1243,6 +1292,14 @@ fn recompute_analysis(owner_sub: &str, owner: &mut OwnerInventory) {
     owner.sist.cached_analysis.sku_details = computed.sku_details;
     owner.sist.cached_analysis.service_details = computed.service_details;
     owner.sist.cached_analysis.system_detail = computed.system_detail;
+    trace_store(format!(
+        "recompute_analysis owner={} reports={} skus={} services={} elapsed_ms={}",
+        owner_sub,
+        report_count,
+        owner.catalog.skus.len(),
+        owner.catalog.services.len(),
+        started_at.elapsed().as_millis()
+    ));
 }
 
 #[allow(dead_code)]
@@ -1593,28 +1650,109 @@ fn store_path() -> PathBuf {
 }
 
 fn with_store_mut<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<T>) -> Result<T> {
-    let _guard = STORE_LOCK.lock().expect("desktop inventory lock poisoned");
+    let mut cache = STORE_CACHE.lock().expect("desktop inventory lock poisoned");
     let path = store_path();
-    let mut store = load_store(&path)?;
-    let result = f(&mut store)?;
-    store.schema_version = STORE_SCHEMA_VERSION;
-    save_store(&path, &store)?;
+    let request_started_at = Instant::now();
+    trace_store(format!(
+        "with_store_mut start path={} exists={} bytes={}",
+        path.display(),
+        path.exists(),
+        fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0)
+    ));
+    let save_started_at = Instant::now();
+    let (result, owner_count) = {
+        let store = load_cached_store(&mut cache, &path)?;
+        let result = f(store)?;
+        store.schema_version = STORE_SCHEMA_VERSION;
+        save_store(&path, store)?;
+        (result, store.owners.len())
+    };
+    cache.metadata = store_file_metadata(&path);
+    trace_store(format!(
+        "with_store_mut save_elapsed_ms={} total_elapsed_ms={} owners={}",
+        save_started_at.elapsed().as_millis(),
+        request_started_at.elapsed().as_millis(),
+        owner_count
+    ));
     Ok(result)
 }
 
 fn with_store_read<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<(T, bool)>) -> Result<T> {
-    let _guard = STORE_LOCK.lock().expect("desktop inventory lock poisoned");
+    let mut cache = STORE_CACHE.lock().expect("desktop inventory lock poisoned");
     let path = store_path();
-    let mut store = load_store(&path)?;
-    let (result, changed) = f(&mut store)?;
+    let request_started_at = Instant::now();
+    trace_store(format!(
+        "with_store_read start path={} exists={} bytes={}",
+        path.display(),
+        path.exists(),
+        fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0)
+    ));
+    let save_started_at = Instant::now();
+    let (result, changed, owner_count) = {
+        let store = load_cached_store(&mut cache, &path)?;
+        let (result, changed) = f(store)?;
+        (result, changed, store.owners.len())
+    };
     if changed {
+        let store = load_cached_store(&mut cache, &path)?;
         store.schema_version = STORE_SCHEMA_VERSION;
-        save_store(&path, &store)?;
+        save_store(&path, store)?;
+        cache.metadata = store_file_metadata(&path);
+        trace_store(format!(
+            "with_store_read saved changed=true save_elapsed_ms={} total_elapsed_ms={} owners={}",
+            save_started_at.elapsed().as_millis(),
+            request_started_at.elapsed().as_millis(),
+            owner_count
+        ));
+    } else {
+        trace_store(format!(
+            "with_store_read saved changed=false total_elapsed_ms={} owners={}",
+            request_started_at.elapsed().as_millis(),
+            owner_count
+        ));
     }
     Ok(result)
 }
 
-fn load_store(path: &Path) -> Result<DesktopInventoryStore> {
+fn load_cached_store<'a>(cache: &'a mut StoreCacheState, path: &Path) -> Result<&'a mut DesktopInventoryStore> {
+    let current_metadata = store_file_metadata(path);
+    let cache_hit = cache.path.as_ref().is_some_and(|cached_path| cached_path == path)
+        && cache.store.is_some()
+        && cached_store_is_fresh(cache.metadata.as_ref(), current_metadata.as_ref());
+    if cache_hit {
+        trace_store(format!("store-cache result=hit path={}", path.display()));
+        return Ok(cache.store.as_mut().expect("cached store should exist"));
+    }
+
+    trace_store(format!("store-cache result=miss path={}", path.display()));
+    let store = load_store_from_disk(path)?;
+    cache.path = Some(path.to_path_buf());
+    cache.metadata = store_file_metadata(path);
+    cache.store = Some(store);
+    Ok(cache.store.as_mut().expect("loaded store should exist"))
+}
+
+fn cached_store_is_fresh(
+    cached_metadata: Option<&StoreFileMetadata>,
+    current_metadata: Option<&StoreFileMetadata>,
+) -> bool {
+    match (cached_metadata, current_metadata) {
+        (Some(cached), Some(current)) => cached == current,
+        (Some(_), None) => true,
+        (None, None) => true,
+        (None, Some(_)) => false,
+    }
+}
+
+fn store_file_metadata(path: &Path) -> Option<StoreFileMetadata> {
+    let metadata = fs::metadata(path).ok()?;
+    Some(StoreFileMetadata {
+        len: metadata.len(),
+        modified: metadata.modified().ok()?,
+    })
+}
+
+fn load_store_from_disk(path: &Path) -> Result<DesktopInventoryStore> {
     if !path.exists() {
         return Ok(DesktopInventoryStore::default());
     }
@@ -1627,16 +1765,30 @@ fn load_store(path: &Path) -> Result<DesktopInventoryStore> {
     let value: serde_json::Value = serde_json::from_str(&raw)
         .with_context(|| format!("failed to parse desktop inventory store at {}", path.display()))?;
     if value.get("schemaVersion").is_some() {
+        let decode_started_at = Instant::now();
         let mut store: DesktopInventoryStore = serde_json::from_value(value).with_context(|| {
             format!("failed to decode v2 desktop inventory store at {}", path.display())
         })?;
+        trace_store(format!(
+            "load_store decoded_v2 path={} owners={} elapsed_ms={}",
+            path.display(),
+            store.owners.len(),
+            decode_started_at.elapsed().as_millis()
+        ));
         let mut changed = false;
         for owner in store.owners.values_mut() {
             changed |= normalize_owner(owner);
         }
         if changed {
+            let save_started_at = Instant::now();
             store.schema_version = STORE_SCHEMA_VERSION;
             save_store(path, &store)?;
+            trace_store(format!(
+                "load_store normalized_and_saved path={} owners={} save_elapsed_ms={}",
+                path.display(),
+                store.owners.len(),
+                save_started_at.elapsed().as_millis()
+            ));
         }
         return Ok(store);
     }

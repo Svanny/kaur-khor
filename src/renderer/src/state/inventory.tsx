@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -20,6 +21,17 @@ import type {
   UpsertServicePayload,
   UpsertSkuPayload,
 } from '@shared/inventory';
+import { traceRenderer } from '@/lib/trace';
+
+type ReadCacheKey = `sku:${string}` | `service:${string}` | 'reports' | 'snapshot' | 'system';
+
+type ReadResultMap = {
+  reports: StockReport[];
+  snapshot: InventorySnapshot;
+  system: SistSystemDetail;
+  [key: `sku:${string}`]: SistSkuDetail;
+  [key: `service:${string}`]: SistServiceDetail;
+};
 
 interface InventoryContextValue extends InventoryState {
   reload: () => Promise<void>;
@@ -50,11 +62,103 @@ function emptyState(): InventoryState {
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<InventoryState>(() => emptyState());
+  const requestCounterRef = useRef(0);
+  const stateRef = useRef(state);
+  const readCacheRef = useRef<Partial<ReadResultMap>>({});
+  const inflightReadsRef = useRef<Partial<Record<ReadCacheKey, Promise<unknown>>>>({});
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  function nextRequestId() {
+    requestCounterRef.current += 1;
+    return requestCounterRef.current;
+  }
+
+  async function traceRequest<T>(
+    command: string,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const requestId = nextRequestId();
+    const startedAt = performance.now();
+    const currentState = stateRef.current;
+    traceRenderer('inventory', 'request-start', {
+      command,
+      requestId,
+      snapshotLoaded: currentState.snapshot !== null,
+      isLoading: currentState.isLoading,
+      isSaving: currentState.isSaving,
+    });
+    try {
+      const result = await run();
+      traceRenderer('inventory', 'request-success', {
+        command,
+        requestId,
+        elapsedMs: Math.round(performance.now() - startedAt),
+      });
+      return result;
+    } catch (error) {
+      traceRenderer('inventory', 'request-error', {
+        command,
+        requestId,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  function primeReadCache<K extends ReadCacheKey>(key: K, value: ReadResultMap[K]) {
+    readCacheRef.current[key] = value;
+    traceRenderer('inventory', 'cache-store', { key });
+  }
+
+  function invalidateReadCaches(reason: string) {
+    readCacheRef.current = {};
+    inflightReadsRef.current = {};
+    traceRenderer('inventory', 'cache-invalidate', { reason });
+  }
+
+  async function readThroughCache<K extends ReadCacheKey>(
+    key: K,
+    command: string,
+    run: () => Promise<ReadResultMap[K]>,
+  ): Promise<ReadResultMap[K]> {
+    const cached = readCacheRef.current[key];
+    if (cached !== undefined) {
+      traceRenderer('inventory', 'cache-hit', { key, command });
+      return cached as ReadResultMap[K];
+    }
+
+    const inflight = inflightReadsRef.current[key];
+    if (inflight) {
+      traceRenderer('inventory', 'cache-await-inflight', { key, command });
+      return (await inflight) as ReadResultMap[K];
+    }
+
+    traceRenderer('inventory', 'cache-miss', { key, command });
+    const request = traceRequest(command, run)
+      .then((result) => {
+        primeReadCache(key, result);
+        delete inflightReadsRef.current[key];
+        return result;
+      })
+      .catch((error) => {
+        delete inflightReadsRef.current[key];
+        throw error;
+      });
+    inflightReadsRef.current[key] = request;
+    return request;
+  }
 
   const reload = useCallback(async () => {
+    invalidateReadCaches('reload');
     setState((current) => ({ ...current, isLoading: true, error: null }));
     try {
-      const snapshot = await window.banjiDesktop.inventory.getSnapshot();
+      const snapshot = await readThroughCache('snapshot', 'inventory.getSnapshot', () =>
+        window.banjiDesktop.inventory.getSnapshot(),
+      );
       setState({
         snapshot,
         isLoading: false,
@@ -71,14 +175,17 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    traceRenderer('inventory', 'provider-mount', { source: 'InventoryProvider.useEffect' });
     void reload();
   }, [reload]);
 
   const mutate = useCallback(
     async (task: () => Promise<InventorySnapshot>) => {
+      invalidateReadCaches('mutation-start');
       setState((current) => ({ ...current, isSaving: true, error: null }));
       try {
         const snapshot = await task();
+        primeReadCache('snapshot', snapshot);
         setState({
           snapshot,
           isLoading: false,
@@ -131,12 +238,22 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       saveSistSettings: async (payload) => {
         await mutate(() => window.banjiDesktop.inventory.updateSistSettings(payload));
       },
-      loadSistSystemDetail: async () => window.banjiDesktop.inventory.getSistSystemDetail(),
+      loadSistSystemDetail: async () =>
+        readThroughCache('system', 'inventory.getSistSystemDetail', () =>
+          window.banjiDesktop.inventory.getSistSystemDetail(),
+        ),
       loadSistServiceDetail: async (serviceId) =>
-        window.banjiDesktop.inventory.getSistServiceDetail({ serviceId }),
+        readThroughCache(`service:${serviceId}`, 'inventory.getSistServiceDetail', () =>
+          window.banjiDesktop.inventory.getSistServiceDetail({ serviceId }),
+        ),
       loadSistSkuDetail: async (skuId) =>
-        window.banjiDesktop.inventory.getSistSkuDetail({ skuId }),
-      listStockReports: async () => window.banjiDesktop.inventory.listStockReports(),
+        readThroughCache(`sku:${skuId}`, 'inventory.getSistSkuDetail', () =>
+          window.banjiDesktop.inventory.getSistSkuDetail({ skuId }),
+        ),
+      listStockReports: async () =>
+        readThroughCache('reports', 'inventory.listStockReports', () =>
+          window.banjiDesktop.inventory.listStockReports(),
+        ),
     }),
     [mutate, reload, state],
   );

@@ -557,3 +557,69 @@ fn desktop_core_read_only_sist_queries_do_not_rewrite_a_valid_store() {
     let _ = fs::remove_file(store_path);
     env::remove_var("BANJI_DESKTOP_DATA_PATH");
 }
+
+#[test]
+fn desktop_core_serves_warm_reads_from_memory_after_backing_file_is_removed() {
+    let _guard = STORE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let store_path = temp_store_path("sist-warm-read-memory");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    let owner = "desktop-owner";
+    let snapshot = store::load_inventory(owner).expect("seeded inventory should load");
+    assert!(store_path.exists(), "initial read should materialize the store file");
+
+    fs::remove_file(&store_path).expect("test should remove backing store file");
+    let reports = store::list_stock_reports(owner).expect("warm report read should use cached store");
+    let system_detail = store::load_system_detail(owner).expect("warm system detail should use cached store");
+
+    assert_eq!(reports.len(), snapshot.sist.status.report_count as usize);
+    assert!(!system_detail.regime_posterior_history.is_empty());
+
+    env::remove_var("BANJI_DESKTOP_DATA_PATH");
+}
+
+#[test]
+fn desktop_core_writes_through_cached_store_when_backing_file_was_removed() {
+    let _guard = STORE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let store_path = temp_store_path("sist-write-through-memory");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    let owner = "desktop-owner";
+    let _ = store::load_inventory(owner).expect("seeded inventory should load");
+    fs::remove_file(&store_path).expect("test should remove backing store file");
+
+    let settings = store::update_sist_settings(
+        owner,
+        UpdateSistSettingsRequest {
+            target_service_level: 0.98,
+            forecast_horizon_days: 11,
+            particle_count: 700,
+            smoothing_window_reports: 45,
+        },
+    )
+    .expect("settings update should recreate backing store");
+    assert_eq!(settings.forecast_horizon_days, 11);
+    assert!(store_path.exists(), "write should recreate the store file");
+
+    let persisted = read_store_json(&store_path);
+    let forecast_horizon = persisted
+        .get("owners")
+        .and_then(Value::as_object)
+        .and_then(|owners| owners.get(owner))
+        .and_then(Value::as_object)
+        .and_then(|owner_value| owner_value.get("sist"))
+        .and_then(Value::as_object)
+        .and_then(|sist| sist.get("settings"))
+        .and_then(Value::as_object)
+        .and_then(|settings| settings.get("forecastHorizonDays"))
+        .and_then(Value::as_u64)
+        .expect("forecast horizon should persist");
+    assert_eq!(forecast_horizon, 11);
+
+    let _ = fs::remove_file(store_path);
+    env::remove_var("BANJI_DESKTOP_DATA_PATH");
+}

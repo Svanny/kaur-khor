@@ -35,6 +35,38 @@ export interface StartManagedCoreOptions {
   isPackaged?: boolean;
 }
 
+function desktopTraceEnabled() {
+  const raw = process.env.BANJI_DESKTOP_TRACE_IPC;
+  if (!raw) {
+    return false;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
+}
+
+function summarizePayload(payload: unknown) {
+  if (payload === undefined) {
+    return 'undefined';
+  }
+  if (payload === null) {
+    return 'null';
+  }
+  if (Array.isArray(payload)) {
+    return `array(len=${payload.length})`;
+  }
+  if (typeof payload === 'object') {
+    const keys = Object.keys(payload as Record<string, unknown>);
+    return `object(keys=${keys.slice(0, 8).join(',')}${keys.length > 8 ? ',…' : ''})`;
+  }
+  return `${typeof payload}(${String(payload)})`;
+}
+
+function traceIpc(message: string) {
+  if (!desktopTraceEnabled()) {
+    return;
+  }
+  console.log(`[banji-desktop-ipc] ${message}`);
+}
+
 function resolveDesktopCoreBinaryName() {
   return process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core';
 }
@@ -90,6 +122,7 @@ export async function startManagedCore(
     env,
     stdio: 'pipe',
   });
+  traceIpc(`spawn command=${command} args=${JSON.stringify(args)} dataPath=${env.BANJI_DESKTOP_DATA_PATH ?? 'unset'}`);
   const pending = new Map<number, PendingRequest>();
   const stderr: string[] = [];
   let nextId = 1;
@@ -124,6 +157,9 @@ export async function startManagedCore(
 
     clearTimeout(request.timeout);
     pending.delete(response.id);
+    traceIpc(
+      `response id=${response.id} ok=${response.ok} pending=${pending.size} payload=${summarizePayload(response.payload)}`,
+    );
 
     if (response.ok) {
       request.resolve(response.payload as unknown);
@@ -165,16 +201,33 @@ export async function startManagedCore(
     };
 
     return new Promise<T>((resolvePromise, rejectPromise) => {
+      const startedAt = Date.now();
       const timeout = setTimeout(() => {
         pending.delete(id);
+        traceIpc(
+          `timeout id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size}`,
+        );
         rejectPromise(new Error(`desktop core timed out while handling ${commandName}`));
       }, 15_000);
 
       pending.set(id, {
-        resolve: (payloadValue) => resolvePromise(payloadValue as T),
-        reject: rejectPromise,
+        resolve: (payloadValue) => {
+          traceIpc(
+            `resolve id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} payload=${summarizePayload(payloadValue)}`,
+          );
+          resolvePromise(payloadValue as T);
+        },
+        reject: (error) => {
+          traceIpc(
+            `reject id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} error=${error.message}`,
+          );
+          rejectPromise(error);
+        },
         timeout,
       });
+      traceIpc(
+        `invoke id=${id} command=${commandName} pending=${pending.size} payload=${summarizePayload(payload)}`,
+      );
 
       child.stdin.write(`${JSON.stringify(envelope)}\n`, (error) => {
         if (!error) {
@@ -183,6 +236,9 @@ export async function startManagedCore(
 
         clearTimeout(timeout);
         pending.delete(id);
+        traceIpc(
+          `stdin-error id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} error=${error.message}`,
+        );
         rejectPromise(error);
       });
     });

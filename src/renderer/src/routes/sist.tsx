@@ -31,6 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatNumber, localeFor } from '@/lib/format';
+import { traceRenderer } from '@/lib/trace';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -75,6 +76,10 @@ const SIST_TABS: Array<{ id: SistTab; label: string }> = [
   { id: 'evidence', label: 'Evidence' },
   { id: 'settings', label: 'Settings' },
 ];
+
+function traceSist(message: string, details?: Record<string, unknown>) {
+  traceRenderer('sist', message, details);
+}
 
 function emptyLoadState<T>(): LoadState<T> {
   return {
@@ -498,10 +503,71 @@ export function SistRoute() {
   );
 
   useEffect(() => {
+    traceSist('state-snapshot', {
+      activeTab,
+      reportsStatus: reportsState.status,
+      systemStatus: systemState.status,
+      systemHasData: Boolean(systemState.data),
+      systemError: systemState.error,
+      systemRegimeHistoryCount: systemState.data?.regimePosteriorHistory.length ?? 0,
+      systemRiskEntityCount: systemState.data?.topRiskyEntities.length ?? 0,
+      selectedSkuId,
+      selectedSkuStatus: selectedSkuId ? (skuDetails[selectedSkuId]?.status ?? 'idle') : 'none',
+      selectedServiceId,
+      selectedServiceStatus: selectedServiceId
+        ? (serviceDetails[selectedServiceId]?.status ?? 'idle')
+        : 'none',
+      forecastEntityType,
+    });
+  }, [
+    activeTab,
+    forecastEntityType,
+    reportsState.status,
+    selectedServiceId,
+    selectedSkuId,
+    serviceDetails,
+    skuDetails,
+    systemState.status,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== 'system') {
+      return;
+    }
+    traceSist('system-tab-render-branch', {
+      systemStatus: systemState.status,
+      systemHasData: Boolean(systemState.data),
+      regimeTimelineBranch:
+        systemState.status === 'error'
+          ? 'error'
+          : systemState.status !== 'ready'
+            ? 'loading'
+            : 'ready',
+      riskPressureBranch:
+        systemState.status === 'ready'
+          ? 'ready'
+          : systemState.status === 'error'
+            ? 'error'
+            : 'loading',
+      signalIntakeBranch: systemState.status === 'ready' ? 'ready' : 'loading',
+      regimeHistoryCount: systemState.data?.regimePosteriorHistory.length ?? 0,
+      riskEntityCount: systemState.data?.topRiskyEntities.length ?? 0,
+    });
+  }, [activeTab, systemState]);
+
+  useEffect(() => {
     if (!snapshot) {
+      traceSist('seed-selection-skip', { reason: 'no-snapshot' });
       return;
     }
 
+    traceSist('seed-selection-run', {
+      selectedSkuId,
+      selectedServiceId,
+      validSkuCount: validSkuIds.size,
+      firstSnapshotSkuId: snapshot.sist.skuInsights[0]?.skuId ?? null,
+      firstSnapshotServiceId: snapshot.services[0]?.serviceId ?? null,
+    });
     setSettingsForm({
       targetServiceLevel: String(snapshot.sist.settings.targetServiceLevel),
       forecastHorizonDays: String(snapshot.sist.settings.forecastHorizonDays),
@@ -518,19 +584,28 @@ export function SistRoute() {
 
   useEffect(() => {
     if (!snapshot || reportsState.status !== 'idle') {
+      traceSist('reports-effect-skip', {
+        hasSnapshot: Boolean(snapshot),
+        reportsStatus: reportsState.status,
+      });
       return;
     }
 
     let cancelled = false;
+    traceSist('reports-effect-start', { reportsStatus: reportsState.status });
     setReportsState({ data: null, error: null, status: 'loading' });
     listStockReports()
       .then((reports) => {
         if (!cancelled) {
+          traceSist('reports-effect-success', { count: reports.length });
           setReportsState({ data: reports, error: null, status: 'ready' });
         }
       })
       .catch((error) => {
         if (!cancelled) {
+          traceSist('reports-effect-error', {
+            error: errorMessage(error, 'Failed to load report history.'),
+          });
           setReportsState({
             data: null,
             error: errorMessage(error, 'Failed to load report history.'),
@@ -540,8 +615,9 @@ export function SistRoute() {
       });
     return () => {
       cancelled = true;
+      traceSist('reports-effect-cancel');
     };
-  }, [listStockReports, reportsState.status, snapshot]);
+  }, [listStockReports, snapshot]);
 
   useEffect(() => {
     if (
@@ -550,19 +626,36 @@ export function SistRoute() {
       systemState.status === 'loading' ||
       systemState.status === 'ready'
     ) {
+      traceSist('system-detail-effect-skip', {
+        hasSnapshot: Boolean(snapshot),
+        activeTab,
+        systemStatus: systemState.status,
+      });
       return;
     }
 
     let cancelled = false;
+    traceSist('system-detail-effect-start', {
+      activeTab,
+      systemStatus: systemState.status,
+    });
     setSystemState({ data: null, error: null, status: 'loading' });
     loadSistSystemDetail()
       .then((detail) => {
         if (!cancelled) {
+          traceSist('system-detail-effect-success', {
+            intervalTimeline: detail.intervalTimeline.length,
+            regimeHistory: detail.regimePosteriorHistory.length,
+            topRiskyEntities: detail.topRiskyEntities.length,
+          });
           setSystemState({ data: detail, error: null, status: 'ready' });
         }
       })
       .catch((error) => {
         if (!cancelled) {
+          traceSist('system-detail-effect-error', {
+            error: errorMessage(error, 'Failed to load system detail.'),
+          });
           setSystemState({
             data: null,
             error: errorMessage(error, 'Failed to load system detail.'),
@@ -572,8 +665,9 @@ export function SistRoute() {
       });
     return () => {
       cancelled = true;
+      traceSist('system-detail-effect-cancel', { activeTab });
     };
-  }, [activeTab, loadSistSystemDetail, snapshot, systemState.status]);
+  }, [activeTab, loadSistSystemDetail, snapshot]);
 
   useEffect(() => {
     const targetSkuId =
@@ -581,14 +675,31 @@ export function SistRoute() {
         ? selectedSkuId
         : '';
     if (!targetSkuId || !snapshot) {
+      traceSist('sku-detail-effect-skip', {
+        activeTab,
+        forecastEntityType,
+        selectedSkuId,
+        targetSkuId,
+        hasSnapshot: Boolean(snapshot),
+      });
       return;
     }
     const current = skuDetails[targetSkuId];
     if (current && current.status !== 'idle') {
+      traceSist('sku-detail-effect-skip', {
+        targetSkuId,
+        currentStatus: current.status,
+        reason: 'already-requested',
+      });
       return;
     }
 
     let cancelled = false;
+    traceSist('sku-detail-effect-start', {
+      activeTab,
+      forecastEntityType,
+      targetSkuId,
+    });
     setSkuDetails((currentState) => ({
       ...currentState,
       [targetSkuId]: { data: null, error: null, status: 'loading' },
@@ -596,6 +707,11 @@ export function SistRoute() {
     loadSistSkuDetail(targetSkuId)
       .then((detail) => {
         if (!cancelled) {
+          traceSist('sku-detail-effect-success', {
+            targetSkuId,
+            forecastPoints: detail.forecastTrajectory.length,
+            posteriorPoints: detail.posteriorInventoryTrajectory.length,
+          });
           setSkuDetails((currentState) => ({
             ...currentState,
             [targetSkuId]: { data: detail, error: null, status: 'ready' },
@@ -604,6 +720,10 @@ export function SistRoute() {
       })
       .catch((error) => {
         if (!cancelled) {
+          traceSist('sku-detail-effect-error', {
+            targetSkuId,
+            error: errorMessage(error, 'Failed to load SKU detail.'),
+          });
           setSkuDetails((currentState) => ({
             ...currentState,
             [targetSkuId]: {
@@ -616,8 +736,9 @@ export function SistRoute() {
       });
     return () => {
       cancelled = true;
+      traceSist('sku-detail-effect-cancel', { targetSkuId });
     };
-  }, [activeTab, forecastEntityType, loadSistSkuDetail, selectedSkuId, skuDetails, snapshot]);
+  }, [activeTab, forecastEntityType, loadSistSkuDetail, selectedSkuId, snapshot]);
 
   useEffect(() => {
     const targetServiceId =
@@ -625,14 +746,31 @@ export function SistRoute() {
         ? selectedServiceId
         : '';
     if (!targetServiceId || !snapshot) {
+      traceSist('service-detail-effect-skip', {
+        activeTab,
+        forecastEntityType,
+        selectedServiceId,
+        targetServiceId,
+        hasSnapshot: Boolean(snapshot),
+      });
       return;
     }
     const current = serviceDetails[targetServiceId];
     if (current && current.status !== 'idle') {
+      traceSist('service-detail-effect-skip', {
+        targetServiceId,
+        currentStatus: current.status,
+        reason: 'already-requested',
+      });
       return;
     }
 
     let cancelled = false;
+    traceSist('service-detail-effect-start', {
+      activeTab,
+      forecastEntityType,
+      targetServiceId,
+    });
     setServiceDetails((currentState) => ({
       ...currentState,
       [targetServiceId]: { data: null, error: null, status: 'loading' },
@@ -640,6 +778,10 @@ export function SistRoute() {
     loadSistServiceDetail(targetServiceId)
       .then((detail) => {
         if (!cancelled) {
+          traceSist('service-detail-effect-success', {
+            targetServiceId,
+            forecastPoints: detail.viabilityForecast.length,
+          });
           setServiceDetails((currentState) => ({
             ...currentState,
             [targetServiceId]: { data: detail, error: null, status: 'ready' },
@@ -648,6 +790,10 @@ export function SistRoute() {
       })
       .catch((error) => {
         if (!cancelled) {
+          traceSist('service-detail-effect-error', {
+            targetServiceId,
+            error: errorMessage(error, 'Failed to load service detail.'),
+          });
           setServiceDetails((currentState) => ({
             ...currentState,
             [targetServiceId]: {
@@ -660,8 +806,9 @@ export function SistRoute() {
       });
     return () => {
       cancelled = true;
+      traceSist('service-detail-effect-cancel', { targetServiceId });
     };
-  }, [activeTab, forecastEntityType, loadSistServiceDetail, selectedServiceId, serviceDetails, snapshot]);
+  }, [activeTab, forecastEntityType, loadSistServiceDetail, selectedServiceId, snapshot]);
 
   const reports = reportsState.data ?? [];
   const rankingReports = useMemo(
@@ -680,26 +827,48 @@ export function SistRoute() {
 
   useEffect(() => {
     if (!snapshot || !selectedRankReport) {
+      traceSist('rank-prefetch-skip', {
+        hasSnapshot: Boolean(snapshot),
+        selectedRankReportId: selectedRankReport?.reportId ?? null,
+      });
       return;
     }
 
     selectedRankReport.topServiceRanking.forEach((serviceId) => {
       const current = serviceDetails[serviceId];
       if (current && current.status !== 'idle') {
+        traceSist('rank-prefetch-skip-service', {
+          serviceId,
+          currentStatus: current.status,
+        });
         return;
       }
+      traceSist('rank-prefetch-start-service', {
+        reportId: selectedRankReport.reportId,
+        serviceId,
+      });
       setServiceDetails((currentState) => ({
         ...currentState,
         [serviceId]: { data: null, error: null, status: 'loading' },
       }));
       void loadSistServiceDetail(serviceId)
         .then((detail) => {
+          traceSist('rank-prefetch-success-service', {
+            reportId: selectedRankReport.reportId,
+            serviceId,
+            forecastPoints: detail.viabilityForecast.length,
+          });
           setServiceDetails((currentState) => ({
             ...currentState,
             [serviceId]: { data: detail, error: null, status: 'ready' },
           }));
         })
         .catch((error) => {
+          traceSist('rank-prefetch-error-service', {
+            reportId: selectedRankReport.reportId,
+            serviceId,
+            error: errorMessage(error, 'Failed to load service detail.'),
+          });
           setServiceDetails((currentState) => ({
             ...currentState,
             [serviceId]: {

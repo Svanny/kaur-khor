@@ -31,6 +31,7 @@ import {
 } from '@/lib/service-control-panel';
 import { stockReportSourceKey } from '@/lib/stock-report-summary';
 import { cn } from '@/lib/utils';
+import { traceRenderer } from '@/lib/trace';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
@@ -748,20 +749,36 @@ export function ServiceDetailRoute() {
     let cancelled = false;
 
     if (!serviceId || !service) {
+      traceRenderer('service-detail', 'activity-effect-skip', {
+        serviceId: serviceId ?? null,
+        hasService: Boolean(service),
+      });
       return;
     }
 
+    traceRenderer('service-detail', 'activity-effect-start', {
+      serviceId,
+      source: 'ServiceDetailRoute.useEffect',
+    });
     setActivityLoading(true);
     setActivityError(null);
 
     listStockReports()
       .then((reports) => {
         if (!cancelled) {
+          traceRenderer('service-detail', 'activity-effect-success', {
+            serviceId,
+            count: reports.length,
+          });
           setActivityReports(reports);
         }
       })
       .catch((error) => {
         if (!cancelled) {
+          traceRenderer('service-detail', 'activity-effect-error', {
+            serviceId,
+            error: error instanceof Error ? error.message : t('apiUnavailable'),
+          });
           setActivityError(error instanceof Error ? error.message : t('apiUnavailable'));
         }
       })
@@ -773,6 +790,7 @@ export function ServiceDetailRoute() {
 
     return () => {
       cancelled = true;
+      traceRenderer('service-detail', 'activity-effect-cancel', { serviceId });
     };
   }, [listStockReports, service, serviceId, t]);
 

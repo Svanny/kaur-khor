@@ -10,6 +10,7 @@ use banji_desktop_core::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
+use std::time::Instant;
 
 const DEFAULT_OWNER_SUB: &str = "desktop-owner";
 
@@ -55,6 +56,22 @@ struct GetSistServiceDetailPayload {
     service_id: String,
 }
 
+fn core_trace_enabled() -> bool {
+    match std::env::var("BANJI_DESKTOP_TRACE_STORE") {
+        Ok(value) => matches!(
+            value.to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        Err(_) => false,
+    }
+}
+
+fn trace_core(message: &str) {
+    if core_trace_enabled() {
+        eprintln!("[banji-desktop-core] {message}");
+    }
+}
+
 fn main() -> Result<()> {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -98,6 +115,13 @@ fn main() -> Result<()> {
 fn handle_line(line: &str) -> Result<ResponseEnvelope> {
     let envelope: CommandEnvelope =
         serde_json::from_str(line).context("failed to decode desktop core command")?;
+    let started_at = Instant::now();
+    trace_core(&format!(
+        "command-start id={} command={} payload_kind={}",
+        envelope.id,
+        envelope.command,
+        payload_kind(&envelope.payload)
+    ));
     let result = handle_command(&envelope.command, envelope.payload)
         .map(|payload| ResponseEnvelope {
             id: envelope.id,
@@ -111,7 +135,25 @@ fn handle_line(line: &str) -> Result<ResponseEnvelope> {
             payload: None,
             error: Some(error.to_string()),
         });
+    trace_core(&format!(
+        "command-end id={} command={} ok={} elapsed_ms={}",
+        result.id,
+        envelope.command,
+        result.ok,
+        started_at.elapsed().as_millis()
+    ));
     Ok(result)
+}
+
+fn payload_kind(payload: &Value) -> &'static str {
+    match payload {
+        Value::Null => "null",
+        Value::Bool(_) => "bool",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
 }
 
 fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {

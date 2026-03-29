@@ -30,6 +30,7 @@ import {
   summarizeCount,
   summarizeNotes,
 } from '@/lib/stock-report-summary';
+import { traceRenderer } from '@/lib/trace';
 import { useInventory } from '@/state/inventory';
 import {
   useOperationsSession,
@@ -255,11 +256,17 @@ export function StockUpdateRoute() {
   );
 
   const loadReports = useCallback(async () => {
+    traceRenderer('stock-update', 'history-load-start', {
+      source: 'StockUpdateRoute.loadReports',
+    });
     setHistoryLoading(true);
     setHistoryError(null);
 
     try {
       const nextReports = await listStockReports();
+      traceRenderer('stock-update', 'history-load-success', {
+        count: nextReports.length,
+      });
       setReports(
         [...nextReports].sort(
           (left, right) =>
@@ -267,6 +274,9 @@ export function StockUpdateRoute() {
         ),
       );
     } catch (error) {
+      traceRenderer('stock-update', 'history-load-error', {
+        error: error instanceof Error ? error.message : t('apiUnavailable'),
+      });
       setHistoryError(error instanceof Error ? error.message : t('apiUnavailable'));
     } finally {
       setHistoryLoading(false);

@@ -16,6 +16,7 @@ import {
 } from '@/lib/catalog';
 import { formatCurrency, formatNumber, localeFor } from '@/lib/format';
 import { stockReportSourceKey, summarizeNotes } from '@/lib/stock-report-summary';
+import { traceRenderer } from '@/lib/trace';
 import type { TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -902,23 +903,50 @@ export function SkuDetailRoute() {
   );
 
   useEffect(() => {
+    traceRenderer('sku-detail', 'state-snapshot', {
+      skuId: skuId ?? null,
+      hasSku: Boolean(sku),
+      detailLoading,
+      hasDetail: Boolean(skuDetail),
+      detailError,
+    });
+  }, [detailError, detailLoading, sku, skuDetail, skuId]);
+
+  useEffect(() => {
     let cancelled = false;
 
     if (!skuId || !sku) {
+      traceRenderer('sku-detail', 'detail-effect-skip', {
+        skuId: skuId ?? null,
+        hasSku: Boolean(sku),
+      });
       return;
     }
 
+    traceRenderer('sku-detail', 'detail-effect-start', {
+      skuId,
+      source: 'SkuDetailRoute.useEffect',
+    });
     setDetailLoading(true);
     setDetailError(null);
 
     loadSistSkuDetail(skuId)
       .then((nextDetail) => {
         if (!cancelled) {
+          traceRenderer('sku-detail', 'detail-effect-success', {
+            skuId,
+            forecastPoints: nextDetail.forecastTrajectory.length,
+            posteriorPoints: nextDetail.posteriorInventoryTrajectory.length,
+          });
           setSkuDetail(nextDetail);
         }
       })
       .catch((error) => {
         if (!cancelled) {
+          traceRenderer('sku-detail', 'detail-effect-error', {
+            skuId,
+            error: error instanceof Error ? error.message : t('apiUnavailable'),
+          });
           setDetailError(error instanceof Error ? error.message : t('apiUnavailable'));
         }
       })
@@ -930,6 +958,7 @@ export function SkuDetailRoute() {
 
     return () => {
       cancelled = true;
+      traceRenderer('sku-detail', 'detail-effect-cancel', { skuId });
     };
   }, [loadSistSkuDetail, sku, skuId, t]);
 
