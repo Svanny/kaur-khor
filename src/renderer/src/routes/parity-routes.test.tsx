@@ -1482,26 +1482,29 @@ describe('renderer workspaces', () => {
     expect(loadSistSkuDetail).toHaveBeenCalledTimes(1);
     expect(loadSistSkuDetail).toHaveBeenCalledWith('sku-1');
     expect(screen.getByText('Identifier: sku-1')).toBeInTheDocument();
-    expect(screen.getByText('Operational status')).toBeInTheDocument();
+    expect(screen.getByText('Likely stockout in 4.2 days')).toBeInTheDocument();
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
     expect(
-      screen.getByText('4.2 days of cover, 1 linked service depends on this SKU'),
+      screen.getByText('12 on hand · 47% stockout risk · Medium confidence · 1 affected service'),
     ).toBeInTheDocument();
     expect(screen.queryByText('SKU overview')).not.toBeInTheDocument();
-    expect(screen.getByText('Inventory profile')).toBeInTheDocument();
-    expect(screen.getAllByText('Service impact').length).toBeGreaterThan(0);
-    expect(screen.getByText('1 affected service')).toBeInTheDocument();
+    expect(screen.getByText('Stock rail')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: 'Forecast' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
+    expect(screen.getByLabelText('SKU forecast chart')).toBeInTheDocument();
+    expect(screen.getByText('Affected services')).toBeInTheDocument();
     expect(screen.getAllByText('Service #001').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Limiting component').length).toBeGreaterThan(0);
     const impactedServiceRow = screen.getByRole('link', { name: /Service #001/ });
-    expect(impactedServiceRow).not.toHaveTextContent('Current status:');
-    expect(impactedServiceRow).not.toHaveTextContent('Service sellable units:');
-    expect(screen.getAllByText('Recommended action').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Coverage is at risk').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Supporting metrics').length).toBeGreaterThan(0);
-    expect(screen.getByText('47%')).toBeInTheDocument();
-    expect(await screen.findByText('Recent reports')).toBeInTheDocument();
-    expect(screen.getByText('Stock adjusted 12 -> 10 · Cost updated $5.50 · Restock included')).toBeInTheDocument();
+    expect(impactedServiceRow).toHaveTextContent('Sellable units: 12');
+    expect(screen.queryByText('Recommended action')).not.toBeInTheDocument();
+    expect(screen.getByText('Next move')).toBeInTheDocument();
+    expect(screen.getByText('Order now')).toBeInTheDocument();
+    expect(screen.queryByText('Supporting metrics')).not.toBeInTheDocument();
+    expect(await screen.findByText('Recent changes')).toBeInTheDocument();
+    expect(screen.getAllByText(/What changed/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Restock included/).length).toBeGreaterThan(0);
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Record stock update' })).toHaveAttribute(
       'href',
@@ -1534,6 +1537,8 @@ describe('renderer workspaces', () => {
 
     expect(await screen.findByText('Detailed planning context could not be loaded. Showing the latest snapshot values instead.')).toBeInTheDocument();
     expect(screen.getByText('Recent report history could not be loaded right now. The rest of the SKU page is still available.')).toBeInTheDocument();
+    expect(screen.getByText('Likely stockout in 4.2 days')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getAllByText('SKU #001').length).toBeGreaterThan(0);
   });
 
@@ -2009,8 +2014,7 @@ describe('renderer workspaces', () => {
     expect(screen.getByDisplayValue('Main service')).toBeInTheDocument();
     expect(screen.getByText('Service details')).toBeInTheDocument();
     expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
-    expect(screen.getByText('Identifier')).toBeInTheDocument();
-    expect(screen.getByText('service-1')).toBeInTheDocument();
+    expect(screen.getByText('Identifier: service-1')).toBeInTheDocument();
     expect(screen.queryByText('The identifier is fixed for this service.')).not.toBeInTheDocument();
     expect(screen.queryByText('No changes yet')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
