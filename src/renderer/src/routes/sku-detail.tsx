@@ -48,6 +48,11 @@ type ImpactRow = {
   severity: number;
 };
 
+type HistoricalPoint = {
+  date: Date;
+  units: number;
+};
+
 function reportDateLabel(reportedAt: string, language: 'en' | 'km') {
   return new Intl.DateTimeFormat(localeFor(language), {
     dateStyle: 'medium',
@@ -302,6 +307,43 @@ function deriveForecastPoints(insight: SistSkuInsight, horizonDays = FORECAST_HO
   }));
 }
 
+function deriveHistoricalPoints({
+  skuId,
+  currentUnits,
+  reports,
+}: {
+  skuId: string;
+  currentUnits: number;
+  reports: StockReport[];
+}): HistoricalPoint[] {
+  const now = new Date();
+  const trailingStart = new Date(now);
+  trailingStart.setFullYear(now.getFullYear() - 1);
+
+  const reportPoints = reports
+    .map((report) => {
+      const observation = report.skuObservations.find((entry) => entry.skuId === skuId);
+      if (!observation) {
+        return null;
+      }
+
+      return {
+        date: new Date(report.reportedAt),
+        units: observation.unitsInStock,
+      };
+    })
+    .filter((point): point is HistoricalPoint => Boolean(point))
+    .filter((point) => point.date >= trailingStart)
+    .sort((left, right) => left.date.getTime() - right.date.getTime());
+
+  const currentPoint = {
+    date: now,
+    units: currentUnits,
+  };
+
+  return [...reportPoints, currentPoint];
+}
+
 function impactRowsFor(
   skuId: string,
   snapshot: NonNullable<ReturnType<typeof useInventory>['snapshot']>,
@@ -430,9 +472,9 @@ function ForecastChart({
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             14-day forecast
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <DescriptionText className="mt-1 text-sm text-muted-foreground">
             Posterior units, demand band, reorder threshold, and lead-time arrival window.
-          </p>
+          </DescriptionText>
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
@@ -539,6 +581,102 @@ function ForecastChart({
   );
 }
 
+function HistoricalOverviewChart({
+  points,
+  language,
+}: {
+  points: HistoricalPoint[];
+  language: 'en' | 'km';
+}) {
+  const width = 720;
+  const height = 300;
+  const padding = { top: 18, right: 18, bottom: 30, left: 18 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const firstDate = points[0]?.date ?? new Date();
+  const lastDate = points[points.length - 1]?.date ?? new Date();
+  const dateSpan = Math.max(lastDate.getTime() - firstDate.getTime(), 1);
+  const maxUnits = Math.max(...points.map((point) => point.units), 1);
+  const minUnits = Math.min(...points.map((point) => point.units), 0);
+  const paddedMaxUnits = maxUnits * 1.1;
+  const paddedMinUnits = Math.max(0, minUnits - Math.max(1, minUnits * 0.1));
+
+  const xScale = (date: Date) =>
+    padding.left + ((date.getTime() - firstDate.getTime()) / dateSpan) * plotWidth;
+  const yScale = (units: number) =>
+    padding.top + ((paddedMaxUnits - units) / Math.max(paddedMaxUnits - paddedMinUnits, 1)) * plotHeight;
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${xScale(point.date)} ${yScale(point.units)}`)
+    .join(' ');
+  const areaPath = `${linePath} L ${xScale(lastDate)} ${yScale(paddedMinUnits)} L ${xScale(firstDate)} ${yScale(
+    paddedMinUnits,
+  )} Z`;
+
+  const midDate = new Date((firstDate.getTime() + lastDate.getTime()) / 2);
+  const xTicks = [
+    { date: firstDate, label: '-1y' },
+    { date: midDate, label: '-6m' },
+    { date: lastDate, label: 'Today' },
+  ];
+
+  return (
+    <div className="overflow-hidden rounded-[1.75rem] border border-border/70 bg-background/85 p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            Trailing 1Y history
+          </p>
+          <DescriptionText className="mt-1 text-sm text-muted-foreground">
+            Historical SKU unit observations across the last year, ending with the current on-hand count.
+          </DescriptionText>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Units now: {formatNumber(points[points.length - 1]?.units ?? 0, language)}
+        </div>
+      </div>
+      <svg aria-label="SKU historical chart" className="mt-4 h-[300px] w-full" viewBox={`0 0 ${width} ${height}`}>
+        <rect height={height} rx="24" width={width} fill="transparent" />
+        <path d={areaPath} fill="color-mix(in oklab, var(--chart-1) 10%, transparent)" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="var(--chart-1)"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="4"
+        />
+        {xTicks.map((tick) => (
+          <g key={tick.label}>
+            <line
+              stroke="var(--border)"
+              strokeDasharray="3 8"
+              strokeWidth="1"
+              x1={xScale(tick.date)}
+              x2={xScale(tick.date)}
+              y1={padding.top}
+              y2={height - padding.bottom}
+            />
+            <text
+              fill="var(--muted-foreground)"
+              fontSize="12"
+              textAnchor="middle"
+              x={xScale(tick.date)}
+              y={height - 8}
+            >
+              {tick.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+        <span>Window: trailing 12 months</span>
+        <span>Observed points: {formatNumber(points.length, language)}</span>
+      </div>
+    </div>
+  );
+}
+
 function ImpactPanel({
   impactRows,
   language,
@@ -553,9 +691,9 @@ function ImpactPanel({
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             Affected services
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <DescriptionText className="mt-1 text-sm text-muted-foreground">
             Limiting services are pinned first so the operational blast radius is obvious.
-          </p>
+          </DescriptionText>
         </div>
         <p className="text-sm text-muted-foreground">
           {formatNumber(impactRows.length, language)} linked
@@ -624,9 +762,9 @@ function EvidencePanel({
         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
           Recent changes
         </p>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <DescriptionText className="mt-1 text-sm text-muted-foreground">
           What changed, what SIST inferred, and what Banji recommends next.
-        </p>
+        </DescriptionText>
       </div>
       {reports.length > 0 ? (
         <div className="mt-4 divide-y divide-border/60">
@@ -833,6 +971,11 @@ export function SkuDetailRoute() {
   const impactRows = impactRowsFor(sku.skuId, snapshot, t);
   const historyReports = skuDetail?.reports ?? [];
   const previewReports = historyReports.slice(0, 3);
+  const historicalPoints = deriveHistoricalPoints({
+    skuId: sku.skuId,
+    currentUnits: sku.unitsInStock,
+    reports: historyReports,
+  });
   const recordStockActionVariant = state === 'at-risk' || state === 'reorder-soon' ? 'default' : 'outline';
   const editSkuActionVariant = state === 'at-risk' || state === 'reorder-soon' ? 'outline' : 'default';
 
@@ -863,9 +1006,9 @@ export function SkuDetailRoute() {
               </Badge>
               <Badge variant="outline">{confidenceLabel(planningInsight?.confidence ?? 'low')} confidence</Badge>
             </div>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+            <DescriptionText className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
               {sku.description || t('catalogSkuOverviewIdentityDescription')}
-            </p>
+            </DescriptionText>
           </div>
         </div>
 
@@ -925,11 +1068,13 @@ export function SkuDetailRoute() {
           <TabsContent className="mt-6" value="overview">
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
               <div className="space-y-5">
-                {planningInsight ? (
-                  <ForecastChart insight={planningInsight} language={language} />
+                {historicalPoints.length > 1 ? (
+                  <HistoricalOverviewChart language={language} points={historicalPoints} />
                 ) : (
                   <div className="rounded-[1.75rem] border border-border/70 bg-background/65 p-5">
-                    <p className="text-sm text-muted-foreground">{t('catalogSkuPlanningSignalsEmpty')}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Historical observations are still sparse. Capture more stock updates to fill the trailing view.
+                    </p>
                   </div>
                 )}
                 <div className="rounded-[1.75rem] border border-border/70 bg-background/65 p-4 sm:p-5">
@@ -938,9 +1083,9 @@ export function SkuDetailRoute() {
                       <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                         Stock rail
                       </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <DescriptionText className="mt-1 text-sm text-muted-foreground">
                         Keep the core decision metrics in one glanceable strip.
-                      </p>
+                      </DescriptionText>
                     </div>
                     <Badge variant={sku.soldAsProduct ? 'secondary' : 'outline'}>
                       {sku.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct')}
@@ -1026,29 +1171,6 @@ export function SkuDetailRoute() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-5 xl:grid-cols-2">
-              <ImpactPanel impactRows={impactRows} language={language} />
-              {detailLoading && !skuDetail ? (
-                <div className="rounded-[1.75rem] border border-border/70 bg-background/65 p-5">
-                  <p className="text-sm text-muted-foreground">{t('catalogSkuDetailLoaderLoading')}</p>
-                </div>
-              ) : detailError ? (
-                <div className="rounded-[1.75rem] border border-border/70 bg-background/65 p-5">
-                  <p className="text-sm text-muted-foreground">{t('catalogSkuRecentReportsFallback')}</p>
-                </div>
-              ) : (
-                <EvidencePanel
-                  currency={currency}
-                  emptyText={t('catalogSkuRecentReportsEmpty')}
-                  language={language}
-                  planningInsight={planningInsight}
-                  recommendation={recommendation}
-                  reports={previewReports}
-                  sku={sku}
-                  t={t}
-                />
-              )}
-            </div>
           </TabsContent>
 
           <TabsContent className="mt-6" value="forecast">
