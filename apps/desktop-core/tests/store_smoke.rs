@@ -6,7 +6,7 @@ use banji_desktop_core::{
     },
 };
 use serde_json::{json, Value};
-use std::{env, fs, path::PathBuf, sync::Mutex};
+use std::{env, fs, path::PathBuf, sync::Mutex, thread::sleep, time::Duration};
 
 static STORE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
@@ -516,6 +516,43 @@ fn desktop_core_rebuilds_sist_cache_when_schema_version_is_stale() {
             .expect("schema version should persist"),
         2
     );
+
+    let _ = fs::remove_file(store_path);
+    env::remove_var("BANJI_DESKTOP_DATA_PATH");
+}
+
+#[test]
+fn desktop_core_read_only_sist_queries_do_not_rewrite_a_valid_store() {
+    let _guard = STORE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let store_path = temp_store_path("sist-read-no-rewrite");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    let owner = "desktop-owner";
+    let snapshot = store::load_inventory(owner).expect("seeded inventory should load");
+    let sku = snapshot
+        .skus
+        .iter()
+        .find(|entry| entry.sold_as_product)
+        .expect("seeded inventory should include a sellable sku");
+
+    let before = fs::metadata(&store_path)
+        .expect("store file should exist after load")
+        .modified()
+        .expect("store file should expose a modification time");
+
+    sleep(Duration::from_millis(20));
+
+    let _ = store::list_stock_reports(owner).expect("report history should load");
+    let _ = store::load_system_detail(owner).expect("system detail should load");
+    let _ = store::load_sku_detail(owner, &sku.sku_id).expect("sku detail should load");
+
+    let after = fs::metadata(&store_path)
+        .expect("store file should still exist")
+        .modified()
+        .expect("store file should expose a modification time");
+    assert_eq!(after, before);
 
     let _ = fs::remove_file(store_path);
     env::remove_var("BANJI_DESKTOP_DATA_PATH");

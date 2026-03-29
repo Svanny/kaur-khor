@@ -532,20 +532,22 @@ fn sync_catalog_with_latest_history(
 }
 
 pub fn load_inventory(owner_sub: &str) -> Result<DesktopInventoryResponse> {
-    with_store_mut(|store| {
+    with_store_read(|store| {
+        let owner_created = !store.owners.contains_key(owner_sub);
         let owner = ensure_owner(store, owner_sub);
-        normalize_owner(owner);
-        Ok(snapshot_from_owner(owner))
+        let changed = owner_created || normalize_owner(owner);
+        Ok((snapshot_from_owner(owner), changed))
     })
 }
 
 pub fn list_stock_reports(owner_sub: &str) -> Result<Vec<StockReportRecord>> {
-    with_store_mut(|store| {
+    with_store_read(|store| {
+        let owner_created = !store.owners.contains_key(owner_sub);
         let owner = ensure_owner(store, owner_sub);
-        normalize_owner(owner);
+        let changed = owner_created || normalize_owner(owner);
         let mut reports = owner.sist.stock_reports.clone();
         reports.sort_by(|left, right| right.reported_at.cmp(&left.reported_at));
-        Ok(reports)
+        Ok((reports, changed))
     })
 }
 
@@ -773,47 +775,57 @@ pub fn submit_stock_report(
 }
 
 pub fn load_sku_detail(owner_sub: &str, sku_id: &str) -> Result<SistSkuDetailResponse> {
-    with_store_mut(|store| {
+    with_store_read(|store| {
+        let owner_created = !store.owners.contains_key(owner_sub);
         let owner = ensure_owner(store, owner_sub);
-        normalize_owner(owner);
-        owner
+        let changed = owner_created || normalize_owner(owner);
+        let detail = owner
             .sist
             .cached_analysis
             .sku_details
             .get(sku_id)
             .cloned()
-            .ok_or_else(|| anyhow!("sist insight not found"))
+            .ok_or_else(|| anyhow!("sist insight not found"))?;
+        Ok((detail, changed))
     })
 }
 
 pub fn load_service_detail(owner_sub: &str, service_id: &str) -> Result<SistServiceDetailResponse> {
-    with_store_mut(|store| {
+    with_store_read(|store| {
+        let owner_created = !store.owners.contains_key(owner_sub);
         let owner = ensure_owner(store, owner_sub);
-        normalize_owner(owner);
-        owner
+        let changed = owner_created || normalize_owner(owner);
+        let detail = owner
             .sist
             .cached_analysis
             .service_details
             .get(service_id)
             .cloned()
-            .ok_or_else(|| anyhow!("sist service detail not found"))
+            .ok_or_else(|| anyhow!("sist service detail not found"))?;
+        Ok((detail, changed))
     })
 }
 
 pub fn load_system_detail(owner_sub: &str) -> Result<SistSystemDetailResponse> {
-    with_store_mut(|store| {
+    with_store_read(|store| {
+        let owner_created = !store.owners.contains_key(owner_sub);
         let owner = ensure_owner(store, owner_sub);
-        normalize_owner(owner);
-        Ok(owner.sist.cached_analysis.system_detail.clone())
+        let changed = owner_created || normalize_owner(owner);
+        Ok((owner.sist.cached_analysis.system_detail.clone(), changed))
     })
 }
 
 pub fn load_ranking(owner_sub: &str) -> Result<Vec<DesktopRankingEntry>> {
-    with_store_mut(|store| {
+    with_store_read(|store| {
+        let owner_created = !store.owners.contains_key(owner_sub);
         let owner = ensure_owner(store, owner_sub);
-        owner.merchandising.ranking =
+        let normalized =
             normalize_ranking(&owner.merchandising.ranking, &owner.catalog.skus, &owner.catalog.services);
-        Ok(owner.merchandising.ranking.clone())
+        let changed = owner_created || normalized != owner.merchandising.ranking;
+        if changed {
+            owner.merchandising.ranking = normalized;
+        }
+        Ok((owner.merchandising.ranking.clone(), changed))
     })
 }
 
@@ -864,17 +876,22 @@ fn ensure_owner<'a>(store: &'a mut DesktopInventoryStore, owner_sub: &str) -> &'
         .or_insert_with(OwnerInventory::seeded)
 }
 
-fn normalize_owner(owner: &mut OwnerInventory) {
+fn normalize_owner(owner: &mut OwnerInventory) -> bool {
+    let mut changed = false;
     if owner.merchandising.ranking.is_empty() {
         owner.merchandising.ranking = build_default_ranking(&owner.catalog.skus, &owner.catalog.services);
+        changed = true;
     }
     if owner.sist.stock_reports.is_empty() {
         ensure_baseline_report(owner, "legacy-baseline");
+        changed = true;
     }
     if !sist_cache_is_valid(owner) {
         owner.sist.schema_version = SIST_SCHEMA_VERSION;
         recompute_analysis("normalize", owner);
+        changed = true;
     }
+    changed
 }
 
 fn sist_cache_is_valid(owner: &OwnerInventory) -> bool {
@@ -1585,6 +1602,18 @@ fn with_store_mut<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<T>) ->
     Ok(result)
 }
 
+fn with_store_read<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<(T, bool)>) -> Result<T> {
+    let _guard = STORE_LOCK.lock().expect("desktop inventory lock poisoned");
+    let path = store_path();
+    let mut store = load_store(&path)?;
+    let (result, changed) = f(&mut store)?;
+    if changed {
+        store.schema_version = STORE_SCHEMA_VERSION;
+        save_store(&path, &store)?;
+    }
+    Ok(result)
+}
+
 fn load_store(path: &Path) -> Result<DesktopInventoryStore> {
     if !path.exists() {
         return Ok(DesktopInventoryStore::default());
@@ -1601,8 +1630,13 @@ fn load_store(path: &Path) -> Result<DesktopInventoryStore> {
         let mut store: DesktopInventoryStore = serde_json::from_value(value).with_context(|| {
             format!("failed to decode v2 desktop inventory store at {}", path.display())
         })?;
+        let mut changed = false;
         for owner in store.owners.values_mut() {
-            normalize_owner(owner);
+            changed |= normalize_owner(owner);
+        }
+        if changed {
+            store.schema_version = STORE_SCHEMA_VERSION;
+            save_store(path, &store)?;
         }
         return Ok(store);
     }
