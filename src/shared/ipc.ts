@@ -4,7 +4,9 @@ import type {
   InventorySnapshot,
   SaveRankingPayload,
   SistSettings,
+  SistServiceDetail,
   SistSkuDetail,
+  SistSystemDetail,
   StockReport,
   StockReportSubmission,
   StockUpdatePayload,
@@ -45,6 +47,10 @@ export interface GetSistSkuDetailPayload {
   skuId: string;
 }
 
+export interface GetSistServiceDetailPayload {
+  serviceId: string;
+}
+
 export interface DesktopInventoryBridge {
   getSnapshot: () => Promise<InventorySnapshot>;
   listStockReports: () => Promise<StockReport[]>;
@@ -54,6 +60,8 @@ export interface DesktopInventoryBridge {
   submitStockReport: (payload: StockReportSubmission) => Promise<InventorySnapshot>;
   saveRanking: (payload: SaveRankingPayload) => Promise<InventorySnapshot>;
   getSistSkuDetail: (payload: GetSistSkuDetailPayload) => Promise<SistSkuDetail>;
+  getSistServiceDetail: (payload: GetSistServiceDetailPayload) => Promise<SistServiceDetail>;
+  getSistSystemDetail: () => Promise<SistSystemDetail>;
   updateSistSettings: (payload: SistSettings) => Promise<InventorySnapshot>;
 }
 
@@ -92,6 +100,8 @@ export const IPC_CHANNELS = {
   inventorySubmitStockReport: 'banji:inventory:submit-stock-report',
   inventorySaveRanking: 'banji:inventory:save-ranking',
   inventoryGetSistSkuDetail: 'banji:inventory:get-sist-sku-detail',
+  inventoryGetSistServiceDetail: 'banji:inventory:get-sist-service-detail',
+  inventoryGetSistSystemDetail: 'banji:inventory:get-sist-system-detail',
   inventoryUpdateSistSettings: 'banji:inventory:update-sist-settings',
   preferencesGet: 'banji:preferences:get',
   preferencesSave: 'banji:preferences:save',

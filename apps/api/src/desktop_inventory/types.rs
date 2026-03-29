@@ -30,6 +30,7 @@ pub enum SistRegime {
     Spike,
     Lull,
     StockoutConstrained,
+    Promo,
     Correction,
 }
 
@@ -166,6 +167,109 @@ pub struct SistSkuInsight {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct SistAnalysisMetadata {
+    pub report_count_used: usize,
+    pub effective_smoothing_window_used: usize,
+    pub analysis_timestamp: String,
+    pub seasonality_active: bool,
+    pub change_point_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistTrajectoryPoint {
+    pub at: String,
+    pub mean: f64,
+    pub low: f64,
+    pub high: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistForecastSeries {
+    pub label: String,
+    pub points: Vec<SistTrajectoryPoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistIntervalDemandBreakdown {
+    pub interval_index: usize,
+    pub start_at: String,
+    pub end_at: String,
+    pub duration_days: f64,
+    pub service_demand_mean: f64,
+    pub retail_demand_mean: f64,
+    pub total_demand_mean: f64,
+    pub restock_mean: f64,
+    pub correction_mean: f64,
+    pub observed_units: Option<f64>,
+    pub posterior_units_mean: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistRegimePosteriorPoint {
+    pub interval_index: usize,
+    pub start_at: String,
+    pub end_at: String,
+    pub dominant_regime: SistRegime,
+    pub change_point_probability: f64,
+    pub regime_probabilities: std::collections::BTreeMap<String, f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistReportEvidenceSummary {
+    pub report_id: String,
+    pub reported_at: String,
+    pub ranking_evidence: f64,
+    pub restock_evidence: f64,
+    pub stockout_evidence: f64,
+    pub price_adjustment_evidence: f64,
+    pub correction_evidence: f64,
+    pub notes_present: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistRankSignalDetail {
+    pub report_id: String,
+    pub reported_at: String,
+    pub top_service_ranking: Vec<String>,
+    pub top_retail_ranking: Vec<String>,
+    pub signal_strength: String,
+    pub completeness: String,
+    pub affected_entity_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistEvidenceLedgerEntry {
+    pub report_id: String,
+    pub reported_at: String,
+    pub has_ranking_signal: bool,
+    pub has_restock_flag: bool,
+    pub has_service_stockout_flag: bool,
+    pub affected_entity_ids: Vec<String>,
+    pub dominant_regime: Option<SistRegime>,
+    pub notes_present: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistReorderPolicyBreakdown {
+    pub target_service_level: f64,
+    pub lead_time_days_mean: f64,
+    pub lead_time_days_std: f64,
+    pub expected_lead_time_demand: f64,
+    pub reorder_point: f64,
+    pub safety_stock: f64,
+    pub reorder_trigger_probability: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SistOverview {
     pub status: SistAnalysisStatus,
     pub settings: SistSettings,
@@ -174,6 +278,7 @@ pub struct SistOverview {
     pub pending_reorder_count: usize,
     pub high_risk_sku_ids: Vec<String>,
     pub sku_insights: Vec<SistSkuInsight>,
+    pub metadata: Option<SistAnalysisMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -181,6 +286,98 @@ pub struct SistOverview {
 pub struct SistSkuDetailResponse {
     pub insight: SistSkuInsight,
     pub reports: Vec<StockReportRecord>,
+    #[serde(default)]
+    pub posterior_inventory_trajectory: Vec<SistTrajectoryPoint>,
+    #[serde(default)]
+    pub forecast_trajectory: Vec<SistTrajectoryPoint>,
+    #[serde(default)]
+    pub interval_demand: Vec<SistIntervalDemandBreakdown>,
+    #[serde(default)]
+    pub regime_timeline: Vec<SistRegimePosteriorPoint>,
+    #[serde(default)]
+    pub evidence_summary: Vec<SistReportEvidenceSummary>,
+    pub reorder_policy: Option<SistReorderPolicyBreakdown>,
+    pub metadata: Option<SistAnalysisMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistServiceContributor {
+    pub sku_id: String,
+    pub pressure_probability: f64,
+    pub expected_days_of_cover: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistDisruptionWindow {
+    pub start_at: Option<String>,
+    pub end_at: Option<String>,
+    pub probability: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistServiceDetailResponse {
+    pub service_id: String,
+    pub service_name: String,
+    pub estimated_activity_per_interval: f64,
+    pub bottleneck_probability: f64,
+    pub viability_forecast: Vec<SistTrajectoryPoint>,
+    pub contributors: Vec<SistServiceContributor>,
+    pub disruption_window: SistDisruptionWindow,
+    pub evidence_timeline: Vec<SistReportEvidenceSummary>,
+    pub regime_timeline: Vec<SistRegimePosteriorPoint>,
+    pub metadata: Option<SistAnalysisMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistSignalIntakeSummary {
+    pub ranking_observations: usize,
+    pub restock_flags: usize,
+    pub stockout_flags: usize,
+    pub price_adjustments: usize,
+    pub correction_signals: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistModelHealthSummary {
+    pub particle_count_used: usize,
+    pub interval_count: usize,
+    pub effective_sample_size_mean: f64,
+    pub confidence: SistConfidence,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistRiskEntity {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub risk_score: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistDriftDiagnostics {
+    pub seasonality_active: bool,
+    pub change_point_active: bool,
+    pub recent_change_point_probability: f64,
+    pub service_drift_scale: f64,
+    pub retail_drift_scale: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SistSystemDetailResponse {
+    pub interval_timeline: Vec<SistIntervalDemandBreakdown>,
+    pub regime_posterior_history: Vec<SistRegimePosteriorPoint>,
+    pub signal_intake: SistSignalIntakeSummary,
+    pub model_health: SistModelHealthSummary,
+    pub top_risky_entities: Vec<SistRiskEntity>,
+    pub drift_diagnostics: SistDriftDiagnostics,
+    pub metadata: Option<SistAnalysisMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

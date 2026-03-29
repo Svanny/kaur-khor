@@ -6,6 +6,7 @@ const en = {
   navOverview: 'Overview',
   navCatalog: 'Catalog',
   navOperations: 'Operations',
+  navSist: 'SIST',
   navPlanning: 'Planning',
   shellGroupWorkflows: 'Workflows',
   navDashboard: 'Overview',
@@ -433,10 +434,11 @@ const en = {
   operationsSearchLabel: 'Search history',
   operationsSearchPlaceholder: 'Search notes, SKU ids, service names, or item ids…',
   operationsSearchClear: 'Clear filters',
-  operationsFilterAll: 'All',
-  operationsFilterManual: 'Manual',
-  operationsFilterImported: 'Imported',
-  operationsFilterBaseline: 'Baseline',
+  operationsFiltersLabel: 'Recent activity filters',
+  operationsFilterEverything: 'Everything',
+  operationsFilterStockChanges: 'Stock changes',
+  operationsFilterServiceUpdates: 'Service updates',
+  operationsFilterPriceChanges: 'Price changes',
   operationsInspectAction: 'Inspect',
   operationsInspectHide: 'Hide',
   stockUpdateHint: 'Only rows you edit become part of the submitted stock report.',
@@ -472,7 +474,7 @@ const en = {
   stockSessionEyebrow: 'Operations session',
   stockSessionTitle: 'Review and submit one operations update',
   stockSessionDescription:
-    'Timestamp the update, capture at least one SKU observation, optionally add service changes, and submit from the final review.',
+    'Timestamp the update, capture at least one SKU observation, optionally add service changes and a sales signal, then submit from the final review.',
   stockSessionProgress: 'sections ready',
   stockSessionIncomplete: 'Session incomplete',
   stockSessionReady: 'Ready to submit',
@@ -486,6 +488,9 @@ const en = {
   stockSessionStepServices: 'Service updates',
   stockSessionStepServicesDescription:
     'Optional service stockouts and price overrides live here so they do not block the rest of operations.',
+  stockSessionStepSalesSignal: 'Sales signal',
+  stockSessionStepSalesSignalDescription:
+    'Capture the recent selling order Banji should use as a demand signal.',
   stockSessionStepReview: 'Review & submit',
   stockSessionStepReviewDescription:
     'Confirm the required details, review optional changes, and submit the final payload from here.',
@@ -504,6 +509,20 @@ const en = {
   stockSessionNotesOptional: 'Notes are optional and only saved when they are non-empty.',
   stockSessionServicesOptionalDescription:
     'Skip this section when there are no service stockouts or service price changes to capture.',
+  stockSalesSignalPanelTitle: 'Recent selling order',
+  stockSalesSignalSupportCopy:
+    'Rank services and sellable SKUs by recent observed demand, not by what you want to push next.',
+  stockSalesSignalExplainerTitle: 'Why this signal matters',
+  stockSalesSignalExplainerBody:
+    'Use recent selling order to help Banji interpret demand. This is not a priority list or push list. Rank what sold first or most often recently so Banji can read current demand patterns.',
+  stockSalesSignalUnsavedBadge: 'Unsaved changes',
+  stockSalesSignalEntrySingular: 'entry in scope',
+  stockSalesSignalEntryPlural: 'entries in scope',
+  stockSalesSignalResetAction: 'Reset order',
+  stockSalesSignalHelperNote: 'Only update this when recent selling order changed meaningfully.',
+  stockSalesSignalEmptyTitle: 'No recent selling order to capture',
+  stockSalesSignalEmptyDescription:
+    'Add a service or a sellable SKU before using this step as a demand signal.',
   stockServiceSummaryEmpty:
     'No service stockouts or override prices are queued right now. Skip this section unless something needs review.',
   stockServiceSummaryChangedPreview:
@@ -540,18 +559,14 @@ const en = {
   stockSummaryTitle: 'Pending change set',
   stockReviewTitle: 'Review & submit',
   stockReviewDescription:
-    'Confirm the timestamp, changed SKU rows, optional service updates, planning context, and notes before saving.',
+    'Confirm the timestamp, changed SKU rows, optional service updates, sales signal, and notes before saving.',
   stockReviewMissingTimestamp: 'Add a valid timestamp before submitting.',
   stockReviewNoNotes: 'No notes will be included with this update.',
   stockReviewNoServiceChanges: 'No optional service updates will be sent with this report.',
   stockReviewServiceSummarySingular: 'service change ready to submit',
   stockReviewServiceSummaryPlural: 'service changes ready to submit',
-  stockReviewPlanningTitle: 'Planning context',
-  stockReviewPlanningDescription:
-    'Ranking changes now live in Planning. Review the current ordering there if this operations update changes merchandising priorities.',
-  stockReviewOpenPlanning: 'Open planning',
-  stockReviewPlanningEntrySingular: 'ranking entry in the current planning order',
-  stockReviewPlanningEntryPlural: 'ranking entries in the current planning order',
+  stockReviewSalesSignalChanged: 'Changed this session',
+  stockReviewSalesSignalUnchanged: 'No change captured',
   stockUpdatesReady: 'Rows ready to report',
   stockEditAction: 'Return to editing',
   stockPresetSmall: 'Fine',
@@ -575,7 +590,7 @@ const en = {
   stockRankingHint: 'Use comma-separated ids in order of observed activity.',
   stockSignalsHint: 'Optional low-effort signals help SIST separate demand, restocks, and stockouts.',
   stockNoServiceSignals: 'No service flags selected for this report.',
-  productRankingTitle: 'Ranking of Items Sold',
+  productRankingTitle: 'Recent selling order',
   rankingBody:
     'Set the order in which services and sellable SKUs are promoted inside the desktop storefront flow.',
   planningBody:
@@ -779,6 +794,7 @@ const km: Partial<Record<TranslationKey, string>> = {
   navOverview: 'ទិដ្ឋភាពទូទៅ',
   navCatalog: 'កាតាឡុក',
   navOperations: 'ប្រតិបត្តិការ',
+  navSist: 'SIST',
   navPlanning: 'ផែនការ',
   shellGroupWorkflows: 'លំហូរការងារ',
   navDashboard: 'ទិដ្ឋភាពទូទៅ',

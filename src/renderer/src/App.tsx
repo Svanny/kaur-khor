@@ -4,10 +4,10 @@ import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from '@/components/banji-shell';
 import { DashboardRoute } from '@/routes/dashboard';
 import { InventoryRoute } from '@/routes/inventory';
-import { PlanningRoute } from '@/routes/planning';
 import { ServiceDetailRoute } from '@/routes/service-detail';
 import { ServiceFormRoute } from '@/routes/service-form';
 import { SettingsRoute } from '@/routes/settings';
+import { SistRoute } from '@/routes/sist';
 import { SkuDetailRoute } from '@/routes/sku-detail';
 import { SkuFormRoute } from '@/routes/sku-form';
 import { StockUpdateRoute } from '@/routes/stock-update';
@@ -54,7 +54,7 @@ export function AppRoutes() {
         element={<LegacyInventoryRedirect to="/operations/session" />}
         path="/inventory/stock/session"
       />
-      <Route element={<LegacyInventoryRedirect to="/planning" />} path="/inventory/ranking" />
+      <Route element={<Navigate replace to="/sist?tab=rank-signals" />} path="/inventory/ranking" />
       <Route element={<InventoryRoute />} path="/catalog" />
       <Route element={<SkuFormRoute />} path="/catalog/skus/new" />
       <Route element={<SkuDetailRoute />} path="/catalog/skus/:skuId" />
@@ -64,7 +64,8 @@ export function AppRoutes() {
       <Route element={<ServiceFormRoute />} path="/catalog/services/:serviceId/edit" />
       <Route element={<StockUpdateRoute />} path="/operations" />
       <Route element={<StockUpdateSessionRoute />} path="/operations/session" />
-      <Route element={<PlanningRoute />} path="/planning" />
+      <Route element={<Navigate replace to="/sist?tab=rank-signals" />} path="/planning" />
+      <Route element={<SistRoute />} path="/sist" />
       <Route element={<SettingsRoute />} path="/settings" />
       <Route element={<Navigate replace to="/" />} path="*" />
     </Routes>

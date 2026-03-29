@@ -5,10 +5,10 @@ import type { InventorySnapshot, RankingEntry, StockReport } from '@shared/inven
 import { AppRoutes } from '../App';
 import { DashboardRoute } from './dashboard';
 import { InventoryRoute } from './inventory';
-import { PlanningRoute } from './planning';
 import { ServiceDetailRoute } from './service-detail';
 import { ServiceFormRoute } from './service-form';
 import { SettingsRoute } from './settings';
+import { SistRoute } from './sist';
 import { SkuDetailRoute } from './sku-detail';
 import { SkuFormRoute } from './sku-form';
 import { StockUpdateRoute } from './stock-update';
@@ -147,7 +147,9 @@ const listStockReports = vi.fn();
 const submitReport = vi.fn();
 const saveSku = vi.fn();
 const saveService = vi.fn();
+const loadSistServiceDetail = vi.fn();
 const loadSistSkuDetail = vi.fn();
+const loadSistSystemDetail = vi.fn();
 const savePreferences = vi.fn();
 const resetPreferences = vi.fn();
 const persistRanking = vi.fn();
@@ -261,6 +263,105 @@ const stockReports: StockReport[] = [
   },
 ];
 
+const sampleSistSystemDetail = {
+  intervalTimeline: [
+    {
+      intervalIndex: 0,
+      startAt: '2026-03-20T09:00:00Z',
+      endAt: '2026-03-21T09:00:00Z',
+      durationDays: 1,
+      serviceDemandMean: 4.2,
+      retailDemandMean: 2.5,
+      totalDemandMean: 6.7,
+      restockMean: 0.8,
+      correctionMean: 0.2,
+      observedUnits: 11,
+      posteriorUnitsMean: 12,
+    },
+  ],
+  regimePosteriorHistory: [
+    {
+      intervalIndex: 0,
+      startAt: '2026-03-20T09:00:00Z',
+      endAt: '2026-03-21T09:00:00Z',
+      dominantRegime: 'spike',
+      changePointProbability: 0.32,
+      regimeProbabilities: {
+        normal: 0.25,
+        spike: 0.55,
+        lull: 0.05,
+        stockout_constrained: 0.1,
+        promo: 0.02,
+        correction: 0.03,
+      },
+    },
+  ],
+  signalIntake: {
+    rankingObservations: 3,
+    restockFlags: 2,
+    stockoutFlags: 1,
+    priceAdjustments: 1,
+    correctionSignals: 0,
+  },
+  modelHealth: {
+    particleCountUsed: 128,
+    intervalCount: 1,
+    effectiveSampleSizeMean: 82,
+    confidence: 'medium',
+  },
+  topRiskyEntities: [
+    { entityType: 'sku', entityId: 'sku-1', riskScore: 0.47 },
+    { entityType: 'service', entityId: 'service-1', riskScore: 0.38 },
+  ],
+  driftDiagnostics: {
+    seasonalityActive: true,
+    changePointActive: true,
+    recentChangePointProbability: 0.32,
+    serviceDriftScale: 1.2,
+    retailDriftScale: 0.9,
+  },
+  metadata: {
+    reportCountUsed: 4,
+    effectiveSmoothingWindowUsed: 30,
+    analysisTimestamp: '2026-03-27T09:00:00Z',
+    seasonalityActive: true,
+    changePointActive: true,
+  },
+};
+
+const sampleSistServiceDetail = {
+  serviceId: 'service-1',
+  serviceName: 'Market Day Outfit Set',
+  estimatedActivityPerInterval: 5.6,
+  bottleneckProbability: 0.52,
+  viabilityForecast: [
+    { at: '2026-03-28T09:00:00Z', mean: 8, low: 6, high: 10 },
+    { at: '2026-03-29T09:00:00Z', mean: 6, low: 4, high: 8 },
+  ],
+  contributors: [
+    { skuId: 'sku-1', pressureProbability: 0.52, expectedDaysOfCover: 4.2 },
+  ],
+  disruptionWindow: {
+    startAt: '2026-03-30T09:00:00Z',
+    endAt: '2026-04-01T09:00:00Z',
+    probability: 0.44,
+  },
+  evidenceTimeline: [
+    {
+      reportId: 'report-0009',
+      reportedAt: '2026-03-27T09:15:00Z',
+      rankingEvidence: 0.7,
+      restockEvidence: 0.4,
+      stockoutEvidence: 0.6,
+      priceAdjustmentEvidence: 0.1,
+      correctionEvidence: 0.05,
+      notesPresent: true,
+    },
+  ],
+  regimeTimeline: sampleSistSystemDetail.regimePosteriorHistory,
+  metadata: sampleSistSystemDetail.metadata,
+};
+
 function createSnapshot(overrides: Partial<InventorySnapshot> = {}): InventorySnapshot {
   return {
     ...snapshot,
@@ -283,6 +384,8 @@ function setInventoryState(nextSnapshot: InventorySnapshot | null) {
     submitReport,
     persistRanking,
     saveSistSettings,
+    loadSistSystemDetail,
+    loadSistServiceDetail,
     loadSistSkuDetail,
     listStockReports,
   });
@@ -343,7 +446,9 @@ describe('renderer workspaces', () => {
     submitReport.mockReset();
     saveSku.mockReset();
     saveService.mockReset();
+    loadSistServiceDetail.mockReset();
     loadSistSkuDetail.mockReset();
+    loadSistSystemDetail.mockReset();
     savePreferences.mockReset();
     resetPreferences.mockReset();
     persistRanking.mockReset();
@@ -355,10 +460,21 @@ describe('renderer workspaces', () => {
     listStockReports.mockResolvedValue(stockReports);
     saveSku.mockResolvedValue(undefined);
     saveService.mockResolvedValue(undefined);
+    loadSistServiceDetail.mockResolvedValue(sampleSistServiceDetail);
     loadSistSkuDetail.mockResolvedValue({
       insight: snapshot.sist.skuInsights[0],
       reports: stockReports,
+      posteriorInventoryTrajectory: [
+        { at: '2026-03-26T09:00:00Z', mean: 12, low: 9, high: 14 },
+        { at: '2026-03-27T09:00:00Z', mean: 11, low: 8, high: 14 },
+      ],
+      forecastTrajectory: [
+        { at: '2026-03-28T09:00:00Z', mean: 9, low: 6, high: 12 },
+        { at: '2026-03-29T09:00:00Z', mean: 7, low: 4, high: 10 },
+      ],
+      evidenceSummary: sampleSistServiceDetail.evidenceTimeline,
     });
+    loadSistSystemDetail.mockResolvedValue(sampleSistSystemDetail);
     setInventoryState(createSnapshot());
     preferencesHook.mockReturnValue({
       currency: 'USD',
@@ -376,7 +492,7 @@ describe('renderer workspaces', () => {
           navOverview: 'Overview',
           navCatalog: 'Catalog',
           navOperations: 'Operations',
-          navPlanning: 'Planning',
+          navSist: 'SIST',
           shellGroupWorkflows: 'Workflows',
           navDashboard: 'Overview',
           navInventory: 'Catalog',
@@ -905,10 +1021,11 @@ describe('renderer workspaces', () => {
           operationsSearchLabel: 'Search history',
           operationsSearchPlaceholder: 'Search notes, SKU ids, service names, or item ids…',
           operationsSearchClear: 'Clear filters',
-          operationsFilterAll: 'All',
-          operationsFilterManual: 'Manual',
-          operationsFilterImported: 'Imported',
-          operationsFilterBaseline: 'Baseline',
+          operationsFiltersLabel: 'Recent activity filters',
+          operationsFilterEverything: 'Everything',
+          operationsFilterStockChanges: 'Stock changes',
+          operationsFilterServiceUpdates: 'Service updates',
+          operationsFilterPriceChanges: 'Price changes',
           operationsInspectAction: 'Inspect',
           operationsInspectHide: 'Hide',
           stockUpdateHint: 'Only rows you edit become part of the report.',
@@ -943,7 +1060,7 @@ describe('renderer workspaces', () => {
           stockSessionEyebrow: 'Operations session',
           stockSessionTitle: 'Review and submit one operations update',
           stockSessionDescription:
-            'Timestamp the update, capture at least one SKU observation, optionally add service changes, and submit from the final review.',
+            'Timestamp the update, capture at least one SKU observation, optionally add service changes and a sales signal, then submit from the final review.',
           stockSessionProgress: 'sections ready',
           stockSessionIncomplete: 'Session incomplete',
           stockSessionReady: 'Ready to submit',
@@ -957,6 +1074,9 @@ describe('renderer workspaces', () => {
           stockSessionStepServices: 'Service updates',
           stockSessionStepServicesDescription:
             'Mark service stockouts and any price changes for the session.',
+          stockSessionStepSalesSignal: 'Sales signal',
+          stockSessionStepSalesSignalDescription:
+            'Capture the recent selling order Banji should use as a demand signal.',
           stockSessionStepReview: 'Review & submit',
           stockSessionStepReviewDescription:
             'Confirm the required details and submit from here.',
@@ -976,6 +1096,21 @@ describe('renderer workspaces', () => {
           stockSessionNotesOptional: 'Notes are optional and only saved when they are non-empty.',
           stockSessionServicesOptionalDescription:
             'Skip this section when there are no service stockouts or service price changes to capture.',
+          stockSalesSignalPanelTitle: 'Recent selling order',
+          stockSalesSignalSupportCopy:
+            'Rank services and sellable SKUs by recent observed demand, not by what you want to push next.',
+          stockSalesSignalExplainerTitle: 'Why this signal matters',
+          stockSalesSignalExplainerBody:
+            'Use recent selling order to help Banji interpret demand. This is not a priority list or push list. Rank what sold first or most often recently so Banji can read current demand patterns.',
+          stockSalesSignalUnsavedBadge: 'Unsaved changes',
+          stockSalesSignalEntrySingular: 'entry in scope',
+          stockSalesSignalEntryPlural: 'entries in scope',
+          stockSalesSignalResetAction: 'Reset order',
+          stockSalesSignalHelperNote:
+            'Only update this when recent selling order changed meaningfully.',
+          stockSalesSignalEmptyTitle: 'No recent selling order to capture',
+          stockSalesSignalEmptyDescription:
+            'Add a service or a sellable SKU before using this step as a demand signal.',
           stockServiceSummaryEmpty:
             'No service stockouts or override prices are queued right now. Skip this section unless something needs review.',
           stockServiceSummaryChangedPreview:
@@ -1005,19 +1140,15 @@ describe('renderer workspaces', () => {
           stockSummaryTitle: 'Pending change set',
           stockReviewTitle: 'Review & submit',
           stockReviewDescription:
-            'Confirm the timestamp, changed SKU rows, optional service updates, planning context, and notes before saving.',
+            'Confirm the timestamp, changed SKU rows, optional service updates, sales signal, and notes before saving.',
           stockReviewMissingTimestamp: 'Add a valid timestamp before submitting.',
           stockReviewNoNotes: 'No notes will be included with this update.',
           stockReviewNoServiceChanges: 'No optional service updates will be sent with this report.',
           stockReviewServiceSummaryDetailed: 'service review summary',
           stockReviewServiceSummarySingular: 'service change ready to submit',
           stockReviewServiceSummaryPlural: 'service changes ready to submit',
-          stockReviewPlanningTitle: 'Planning context',
-          stockReviewPlanningDescription:
-            'Ranking changes now live in Planning. Review the current ordering there if this operations update changes merchandising priorities.',
-          stockReviewOpenPlanning: 'Open planning',
-          stockReviewPlanningEntrySingular: 'ranking entry in the current planning order',
-          stockReviewPlanningEntryPlural: 'ranking entries in the current planning order',
+          stockReviewSalesSignalChanged: 'Changed this session',
+          stockReviewSalesSignalUnchanged: 'No change captured',
           stockUpdatesReady: 'Rows ready to report',
           stockEditAction: 'Return to editing',
           stockPresetSmall: 'Fine',
@@ -1100,364 +1231,121 @@ describe('renderer workspaces', () => {
     ['/inventory/services/service-1', '/catalog/services/service-1/edit'],
     ['/inventory/stock', '/operations'],
     ['/inventory/stock/session', '/operations/session'],
-    ['/inventory/ranking', '/planning'],
+    ['/inventory/ranking', '/sist'],
   ])('redirects legacy workspace route %s to %s', (legacyPath, expectedPath) => {
     renderAppRoutes(legacyPath);
     expect(screen.getByTestId('location-pathname').textContent).toBe(expectedPath);
   });
 
-  test('overview renders the new action-first structure without dashboard-only chrome', async () => {
+  test('overview renders the monitoring header, flat summary strip, and internal tabs', async () => {
     renderRoute('/', <DashboardRoute />);
 
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Planning queue')).toBeInTheDocument();
-    expect(screen.getByText('Recent activity')).toBeInTheDocument();
-    expect(screen.getByText('Support metrics')).toBeInTheDocument();
-    expect(screen.queryByText('Quick actions')).not.toBeInTheDocument();
-    expect(screen.queryByText('Local runtime')).not.toBeInTheDocument();
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Record stock update' })).toHaveAttribute(
+      'href',
+      '/operations/session',
+    );
+    expect(
+      screen
+        .getAllByRole('link', { name: 'Open catalog' })
+        .some((link) => link.getAttribute('href') === '/catalog'),
+    ).toBe(true);
+    expect(screen.getByText('Sellable SKUs ready')).toBeInTheDocument();
+    expect(screen.getByText('Services available')).toBeInTheDocument();
+    expect(screen.getByText('Blocked services')).toBeInTheDocument();
+    expect(screen.getByText('Low-stock SKUs')).toBeInTheDocument();
+    expect(screen.getByText('Latest stock update')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Summary' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Sellable health' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'SKU levels' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Recent activity' })).toBeInTheDocument();
+    expect(screen.queryByText('Planning queue')).not.toBeInTheDocument();
+    expect(screen.queryByText('Support metrics')).not.toBeInTheDocument();
     expect(await screen.findByText('Morning floor update.')).toBeInTheDocument();
   });
 
-  test('overview uses add first SKU as the primary action when the catalog is empty', async () => {
-    setInventoryState(
-      createSnapshot({
-        services: [],
-        skus: [],
-        ranking: [],
-        sist: {
-          ...snapshot.sist,
-          pendingReorderCount: 0,
-          highRiskSkuIds: [],
-          skuInsights: [],
-        },
-      }),
-    );
-    listStockReports.mockResolvedValue([]);
-
+  test('overview summary tab shows current state, watchlist rows, and latest update block', async () => {
     renderRoute('/', <DashboardRoute />);
 
-    expect(await screen.findAllByRole('link', { name: 'Add first SKU' })).not.toHaveLength(0);
-    expect(screen.getAllByRole('link', { name: 'Open catalog' })[0]).toHaveAttribute(
-      'href',
-      '/catalog',
-    );
-    expect(screen.queryByRole('link', { name: 'Open reorder queue' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Start update session' })).not.toBeInTheDocument();
+    expect(screen.getByText('Current state')).toBeInTheDocument();
+    expect(screen.getByText('No blocked service')).toBeInTheDocument();
+    expect(screen.getByText('Market Day Outfit Set')).toBeInTheDocument();
+    expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
+    expect(screen.getByText('Service availability')).toBeInTheDocument();
+    expect(screen.getByText('Latest update')).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText('1 changed row · 1 service flag · 1 price edit · 3 ranking signals')).length,
+    ).toBeGreaterThan(0);
   });
 
-  test('overview sends risk-driven snapshots toward planning and shows the planning queue summary and triage rows', async () => {
+  test('overview sellable health defaults to services and switches to sellable skus', async () => {
     renderRoute('/', <DashboardRoute />);
 
-    expect(screen.getByRole('link', { name: 'Review reorder priorities' })).toHaveAttribute(
-      'href',
-      '/planning',
-    );
-    expect(screen.getByText('Current risk summary')).toBeInTheDocument();
-    expect(
-      screen.getByText((content) => {
-        return content.includes('High-risk SKUs') && content.includes('Reorder pressure');
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('1 reorder candidates · 1 high risk · 0 due within 48h')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open reorder queue' })).toHaveAttribute(
-      'href',
-      '/planning',
-    );
+    const sellableHealthTab = screen.getByRole('tab', { name: 'Sellable health' });
+    fireEvent.pointerDown(sellableHealthTab);
+    fireEvent.click(sellableHealthTab);
+    await waitFor(() => expect(sellableHealthTab).toHaveAttribute('data-state', 'active'));
+
+    expect(screen.getByText('Distribution summary')).toBeInTheDocument();
+    expect(screen.getAllByText('Market Day Outfit Set').length).toBeGreaterThan(0);
+    expect(screen.getByText('Top blockers')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Sellable SKUs' }));
+
+    expect(screen.getByText('Affected services')).toBeInTheDocument();
     expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
-    expect(screen.getByText('Stockout risk is elevated. Review now.')).toBeInTheDocument();
-    expect(screen.getByText('47% risk · reorder point breached · affects 1 service')).toBeInTheDocument();
-    expect(screen.getByText('At risk')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review SKU' })).toHaveAttribute(
       'href',
       '/catalog/skus/sku-1',
     );
   });
 
-  test('overview shows reorder-pressure urgency even without high-risk sku rows', async () => {
-    setInventoryState(
-      createSnapshot({
-        sist: {
-          ...snapshot.sist,
-          pendingReorderCount: 2,
-          highRiskSkuIds: [],
-          skuInsights: snapshot.sist.skuInsights,
-        },
-      }),
-    );
-
+  test('overview sku levels tab filters and searches the dense inventory table', async () => {
     renderRoute('/', <DashboardRoute />);
 
-    expect(screen.getByRole('link', { name: 'Review reorder priorities' })).toHaveAttribute(
-      'href',
-      '/planning',
-    );
-    expect(screen.getByText('Planning queue')).toBeInTheDocument();
-    expect(screen.getByText('Stockout risk is elevated. Review now.')).toBeInTheDocument();
-    expect(screen.queryByText('Planning queue is clear')).not.toBeInTheDocument();
-  });
+    const skuLevelsTab = screen.getByRole('tab', { name: 'SKU levels' });
+    fireEvent.pointerDown(skuLevelsTab);
+    fireEvent.click(skuLevelsTab);
+    await waitFor(() => expect(skuLevelsTab).toHaveAttribute('data-state', 'active'));
 
-  test('overview sorts the queue by urgency, highlights the lead row, and filters by issue type', async () => {
-    setInventoryState(
-      createSnapshot({
-        services: [
-          ...snapshot.services,
-          {
-            serviceId: 'service-3',
-            name: 'Zero Cover Bundle',
-            description: 'Bundle tied to a blocked SKU',
-            price: 1600,
-            skuIds: ['sku-3'],
-          },
-          {
-            serviceId: 'service-4',
-            name: 'Service Watch Bundle',
-            description: 'Bundle tied to a watch SKU',
-            price: 1400,
-            skuIds: ['sku-5'],
-          },
-        ],
-        skus: [
-          ...snapshot.skus,
-          {
-            skuId: 'sku-3',
-            name: 'Zero Cover Jacket',
-            description: 'Out of stock lead item',
-            unitsInStock: 0,
-            costPerUnit: 12,
-            soldAsProduct: true,
-            productPrice: 22,
-            leadTimeMeanDays: 6,
-            leadTimeStdDays: 1,
-          },
-          {
-            skuId: 'sku-4',
-            name: 'Reorder Now Tote',
-            description: 'Fast moving tote',
-            unitsInStock: 3,
-            costPerUnit: 4,
-            soldAsProduct: true,
-            productPrice: 12,
-            leadTimeMeanDays: 4,
-            leadTimeStdDays: 1,
-          },
-          {
-            skuId: 'sku-5',
-            name: 'Service Watch Scarf',
-            description: 'Service-linked watch item',
-            unitsInStock: 9,
-            costPerUnit: 3,
-            soldAsProduct: true,
-            productPrice: 10,
-            leadTimeMeanDays: 7,
-            leadTimeStdDays: 2,
-          },
-          {
-            skuId: 'sku-6',
-            name: 'Queue Overflow Cap',
-            description: 'Additional queue candidate',
-            unitsInStock: 8,
-            costPerUnit: 2,
-            soldAsProduct: true,
-            productPrice: 7,
-            leadTimeMeanDays: 5,
-            leadTimeStdDays: 1,
-          },
-        ],
-        sist: {
-          ...snapshot.sist,
-          pendingReorderCount: 5,
-          highRiskSkuIds: ['sku-1', 'sku-3'],
-          skuInsights: [
-            snapshot.sist.skuInsights[0],
-            {
-              ...snapshot.sist.skuInsights[1],
-              skuId: 'sku-3',
-              latestPosteriorUnits: 0,
-              credibleIntervalLow: 0,
-              credibleIntervalHigh: 2,
-              daysOfCover: 0,
-              stockoutRisk: 0.92,
-              reorderPoint: 9,
-              safetyStock: 4,
-              reorderTriggerProbability: 0.98,
-              expectedDemandPerDay: 2.4,
-              demandIntervalLow: 1.8,
-              demandIntervalHigh: 2.8,
-              confidence: 'high',
-            },
-            {
-              ...snapshot.sist.skuInsights[1],
-              skuId: 'sku-4',
-              latestPosteriorUnits: 3,
-              credibleIntervalLow: 2,
-              credibleIntervalHigh: 4,
-              daysOfCover: 1.5,
-              stockoutRisk: 0.56,
-              reorderPoint: 7,
-              safetyStock: 3,
-              reorderTriggerProbability: 0.88,
-              expectedDemandPerDay: 2,
-              demandIntervalLow: 1.3,
-              demandIntervalHigh: 2.5,
-              confidence: 'medium',
-            },
-            {
-              ...snapshot.sist.skuInsights[1],
-              skuId: 'sku-5',
-              latestPosteriorUnits: 9,
-              credibleIntervalLow: 7,
-              credibleIntervalHigh: 11,
-              daysOfCover: 6,
-              stockoutRisk: 0.22,
-              reorderPoint: 5,
-              safetyStock: 2,
-              reorderTriggerProbability: 0.25,
-              expectedDemandPerDay: 1.5,
-              demandIntervalLow: 1.1,
-              demandIntervalHigh: 1.9,
-              confidence: 'high',
-            },
-            {
-              ...snapshot.sist.skuInsights[1],
-              skuId: 'sku-6',
-              latestPosteriorUnits: 8,
-              credibleIntervalLow: 6,
-              credibleIntervalHigh: 10,
-              daysOfCover: 5,
-              stockoutRisk: 0.21,
-              reorderPoint: 10,
-              safetyStock: 2,
-              reorderTriggerProbability: 0.54,
-              expectedDemandPerDay: 1.2,
-              demandIntervalLow: 0.9,
-              demandIntervalHigh: 1.6,
-              confidence: 'low',
-            },
-          ],
-        },
-      }),
-    );
-
-    renderRoute('/', <DashboardRoute />);
-
-    expect(screen.getByText('5 reorder candidates · 2 high risk · 2 due within 48h')).toBeInTheDocument();
-    expect(screen.getByText('1 more waiting in queue.')).toBeInTheDocument();
-
-    const queueRows = screen.getAllByTestId('planning-queue-row');
-    expect(queueRows).toHaveLength(4);
-    expect(queueRows[0]).toHaveAttribute('data-lead-row', 'true');
-    expect(within(queueRows[0]).getByText('Zero Cover Jacket')).toBeInTheDocument();
-    expect(within(queueRows[0]).getByText('Critical')).toBeInTheDocument();
-    expect(within(queueRows[1]).getByText('Reorder Now Tote')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Reorder now' }));
-    expect(screen.getByText('Zero Cover Jacket')).toBeInTheDocument();
-    expect(screen.getByText('Reorder Now Tote')).toBeInTheDocument();
-    expect(screen.queryByText('Service Watch Scarf')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('radio', { name: 'High risk' }));
-    expect(screen.getByText('Zero Cover Jacket')).toBeInTheDocument();
+    expect(screen.getByLabelText('Search SKU levels')).toBeInTheDocument();
     expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
-    expect(screen.queryByText('Reorder Now Tote')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Service impact' }));
-    expect(screen.getByText('Zero Cover Jacket')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Low stock' }));
     expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
-    expect(screen.getByText('Service Watch Scarf')).toBeInTheDocument();
-    expect(screen.queryByText('Queue Overflow Cap')).not.toBeInTheDocument();
+    expect(screen.queryByText('Osaka Pleat Midi')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Everything' }));
+    fireEvent.change(screen.getByLabelText('Search SKU levels'), {
+      target: { value: 'osaka' },
+    });
+    expect(screen.getByText('Osaka Pleat Midi')).toBeInTheDocument();
+    expect(screen.queryByText('Bangkok Market Tee')).not.toBeInTheDocument();
   });
 
-  test('overview keeps queue framing when reorder pressure exists without queue rows from insights', async () => {
-    setInventoryState(
-      createSnapshot({
-        sist: {
-          ...snapshot.sist,
-          pendingReorderCount: 2,
-          highRiskSkuIds: [],
-          skuInsights: [],
-        },
-      }),
-    );
-
+  test('overview recent activity tab reuses report loading and applies local filters', async () => {
     renderRoute('/', <DashboardRoute />);
 
-    expect(await screen.findByText('2 reorder candidates · 0 high risk · 0 due within 48h')).toBeInTheDocument();
-    expect(screen.getByText('Reorder pressure still needs review')).toBeInTheDocument();
-    expect(screen.queryByText('Planning queue is clear')).not.toBeInTheDocument();
-  });
+    const recentActivityTab = screen.getByRole('tab', { name: 'Recent activity' });
+    fireEvent.pointerDown(recentActivityTab);
+    fireEvent.click(recentActivityTab);
+    await waitFor(() => expect(recentActivityTab).toHaveAttribute('data-state', 'active'));
 
-  test('overview shows the healthy queue empty state when planning signals are clear', async () => {
-    setInventoryState(
-      createSnapshot({
-        sist: {
-          ...snapshot.sist,
-          pendingReorderCount: 0,
-          highRiskSkuIds: [],
-          skuInsights: [],
-        },
-      }),
-    );
-
-    renderRoute('/', <DashboardRoute />);
-
-    expect(await screen.findByText('Planning queue is clear')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open reorder queue' })).not.toBeInTheDocument();
-  });
-
-  test('overview prompts for the first update session when reports have not been captured yet', async () => {
-    setInventoryState(
-      createSnapshot({
-        sist: {
-          ...snapshot.sist,
-          pendingReorderCount: 0,
-          highRiskSkuIds: [],
-          skuInsights: [],
-        },
-      }),
-    );
-    listStockReports.mockResolvedValue([]);
-
-    renderRoute('/', <DashboardRoute />);
-
-    expect(await screen.findByRole('link', { name: 'Start first update session' })).toHaveAttribute(
-      'href',
-      '/operations/session',
-    );
-    expect(screen.getAllByRole('link', { name: 'Open operations' })[0]).toHaveAttribute(
-      'href',
-      '/operations',
-    );
-  });
-
-  test('overview keeps the hero as the only primary CTA and removes competing quick actions', async () => {
-    renderRoute('/', <DashboardRoute />);
-
-    expect(await screen.findByRole('link', { name: 'Review reorder priorities' })).toHaveAttribute(
-      'href',
-      '/planning',
-    );
-    expect(screen.getAllByRole('link', { name: 'Open planning' }).length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Open reorder queue' })).toHaveAttribute(
-      'href',
-      '/planning',
-    );
-    expect(screen.getAllByRole('link', { name: 'Review reorder priorities' })).toHaveLength(1);
-    expect(screen.queryByRole('link', { name: 'Start update session' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Quick actions')).not.toBeInTheDocument();
-  });
-
-  test('overview recent activity renders lightweight report summaries and notes snippets', async () => {
-    renderRoute('/', <DashboardRoute />);
-
-    expect(await screen.findByText('Manual update')).toBeInTheDocument();
     expect(
-      screen.getByText('1 changed row · 1 service flag · 1 price edit · 3 ranking signals'),
-    ).toBeInTheDocument();
+      (await screen.findAllByText('1 changed row · 1 service flag · 1 price edit · 3 ranking signals')).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Price changes' }));
+    expect(
+      screen.getAllByText('1 changed row · 1 service flag · 1 price edit · 3 ranking signals').length,
+    ).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Service updates' }));
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
   });
 
-  test('overview recent activity failure is non-blocking and keeps the rest of the page usable', async () => {
+  test('overview keeps report failures scoped to recent-update areas', async () => {
     listStockReports.mockRejectedValueOnce(new Error('boom'));
 
     renderRoute('/', <DashboardRoute />);
@@ -1467,28 +1355,15 @@ describe('renderer workspaces', () => {
         'Recent activity could not be loaded right now. The rest of Overview is still available.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Planning queue')).toBeInTheDocument();
-    expect(screen.getByText('Support metrics')).toBeInTheDocument();
-  });
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+    expect(screen.getByText('Sellable SKUs ready')).toBeInTheDocument();
 
-  test('overview keeps support metrics as passive summary content below the action sections', async () => {
-    renderRoute('/', <DashboardRoute />);
-
-    expect(screen.getByText('Inventory value')).toBeInTheDocument();
-    expect(screen.getByText('Sale-ready SKUs')).toBeInTheDocument();
-    expect(screen.getByText('Service bundles')).toBeInTheDocument();
-    expect(screen.getByText('Latest ranking coverage')).toBeInTheDocument();
-    expect(screen.getByText('1 SKUs + 2 services')).toBeInTheDocument();
-  });
-
-  test('overview ranking coverage uses the planning baseline when saved ranking is empty', async () => {
-    setInventoryState(createSnapshot({ ranking: [] }));
-
-    renderRoute('/', <DashboardRoute />);
-
-    expect(screen.getByText('Latest ranking coverage')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Recent activity' }));
+    expect(
+      screen.getByText(
+        'Recent activity could not be loaded right now. The rest of Overview is still available.',
+      ),
+    ).toBeInTheDocument();
   });
 
   test('catalog keeps q and view in the URL', () => {
@@ -1541,117 +1416,98 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('Potential revenue')).toBeInTheDocument();
   });
 
-  test('planning stays on its own route, shows operations-review context, and saves ranking changes', async () => {
-    renderRoute('/planning?source=operations-review', <PlanningRoute />);
+  test('sist renders the new diagnostics workspace with summary strip and analyst tabs', async () => {
+    renderRoute('/sist', <SistRoute />);
 
-    expect(screen.getByTestId('planning-route')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'You opened Planning from operations review. Finalize the order here, then return to review.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: 'Return to operations review' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getAllByText('Set sales priority order').length).toBeGreaterThan(0);
-    expect(screen.getByText('Decision context')).toBeInTheDocument();
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Set sales priority order help' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Why this order matters');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('For your team');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('For SIST');
-    expect(screen.queryByText('Ranking entries')).not.toBeInTheDocument();
-    expect(screen.getByText('3 entries in scope')).toBeInTheDocument();
-    expect(screen.getByText('Type')).toBeInTheDocument();
-    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
-    expect(screen.getByText('47% stockout risk')).toBeInTheDocument();
-    expect(screen.getByText('#1 Market Day Outfit Set')).toBeInTheDocument();
-    const actionRail = screen.getByTestId('planning-action-rail');
-    expect(screen.queryByRole('link', { name: 'Open catalog' })).not.toBeInTheDocument();
-    expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Reset' }));
-    expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Save order' }));
+    expect(screen.getByTestId('sist-route')).toBeInTheDocument();
+    expect(screen.getAllByText('SIST').length).toBeGreaterThan(0);
+    expect(screen.getByText('Sparse Inventory Service Twin diagnostics, forecasts, and demand evidence.')).toBeInTheDocument();
+    expect(screen.getByText('High-risk SKUs')).toBeInTheDocument();
+    expect(screen.getByText('Pending reorders')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'System' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Forecasts' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Rank signals' })).toBeInTheDocument();
+    expect(await screen.findByText('Regime timeline')).toBeInTheDocument();
+    expect(screen.getByText('Risk pressure map')).toBeInTheDocument();
+    expect(screen.getByText('Signal intake')).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Apply ranking change' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save order' }));
+  test('legacy planning route redirects into sist rank signals', () => {
+    renderAppRoutes('/planning');
+    expect(screen.getByTestId('location-pathname').textContent).toBe('/sist');
+    expect(screen.getByTestId('location-search').textContent).toBe('?tab=rank-signals');
+  });
+
+  test('sist switches tabs, loads forecast details, and saves settings inside the route', async () => {
+    renderRoute('/sist?tab=forecasts', <SistRoute />);
+
+    expect(await screen.findByText('Forecast controls')).toBeInTheDocument();
+    expect(loadSistSkuDetail).toHaveBeenCalledWith('sku-1');
+    expect(await screen.findByText('Inventory trajectory')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Model settings' }));
+    expect(await screen.findByRole('button', { name: 'Save model settings' })).toBeInTheDocument();
+
+    const targetServiceLevelInput = screen.getAllByRole('textbox')[0];
+    fireEvent.change(targetServiceLevelInput, { target: { value: '0.97' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save model settings' }));
 
     await waitFor(() => {
-      expect(persistRanking).toHaveBeenCalledTimes(1);
+      expect(saveSistSettings).toHaveBeenCalledWith({
+        targetServiceLevel: 0.97,
+        forecastHorizonDays: 14,
+        particleCount: 512,
+        smoothingWindowReports: 90,
+      });
     });
-    expect(persistRanking.mock.calls[0][0]).toMatchObject([
-      { entryType: 'service', entryId: 'service-2', position: 0 },
-      { entryType: 'service', entryId: 'service-1', position: 1 },
-      { entryType: 'sku', entryId: 'sku-1', position: 2 },
-    ]);
   });
 
-  test('planning uses baseline rankable entries for scope counts even when saved ranking is empty', () => {
-    setInventoryState(createSnapshot({ ranking: [] }));
-
-    renderRoute('/planning', <PlanningRoute />);
-
-    expect(screen.getByText('3 entries in scope')).toBeInTheDocument();
-    expect(screen.getByText('Ranking of Items Sold')).toBeInTheDocument();
-    expect(screen.queryByText('0 entries in scope')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Return to operations review' })).not.toBeInTheDocument();
-  });
-
-  test('planning shows an empty state with catalog CTA when nothing is rankable', () => {
+  test('sist skips non-modeled skus when choosing the default forecast entity', async () => {
     setInventoryState(
       createSnapshot({
-        services: [],
-        skus: snapshot.skus.map((sku) => ({ ...sku, soldAsProduct: false })),
-        ranking: [],
+        skus: [
+          {
+            skuId: 'sku-unmodeled',
+            name: 'Unmodeled SKU',
+            description: 'No SIST insight for this record',
+            unitsInStock: 4,
+            costPerUnit: 2,
+            soldAsProduct: true,
+            productPrice: 5,
+            leadTimeMeanDays: null,
+            leadTimeStdDays: null,
+          },
+          ...snapshot.skus,
+        ],
       }),
     );
 
-    renderRoute('/planning', <PlanningRoute />);
+    renderRoute('/sist?tab=forecasts', <SistRoute />);
 
-    expect(screen.getByText('Planning needs rankable items')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open catalog' })).toHaveAttribute('href', '/catalog');
-    expect(screen.queryByText('Ranking of Items Sold')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save order' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Forecast controls')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadSistSkuDetail).toHaveBeenCalledWith('sku-1');
+    });
+    expect(loadSistSkuDetail).not.toHaveBeenCalledWith('sku-unmodeled');
   });
 
-  test('planning returns to operations review only when an operations draft exists', async () => {
-    render(
-      <OperationsSessionProvider>
-        <MemoryRouter initialEntries={['/operations/session?step=review']}>
-          <Routes>
-            <Route element={<StockUpdateSessionRoute />} path="/operations/session" />
-            <Route
-              element={
-                <>
-                  <PlanningRoute />
-                  <LocationProbe />
-                </>
-              }
-              path="/planning"
-            />
-          </Routes>
-        </MemoryRouter>
-      </OperationsSessionProvider>,
-    );
+  test('sist scopes forecast detail failures to the active panel instead of hanging', async () => {
+    loadSistSkuDetail.mockRejectedValue(new Error('sist insight not found'));
 
-    expect(await screen.findByRole('link', { name: 'Open planning' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Open planning' }));
+    renderRoute('/sist?tab=forecasts', <SistRoute />);
 
-    expect(await screen.findByRole('link', { name: 'Return to operations review' })).toHaveAttribute(
-      'href',
-      '/operations/session?step=review',
-    );
-    const actionRail = screen.getByTestId('planning-action-rail');
-    expect(actionRail).toContainElement(screen.getByRole('link', { name: 'Return to operations review' }));
-    expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Reset' }));
-    expect(actionRail).toContainElement(screen.getByRole('button', { name: 'Save order' }));
-    expect(screen.getByTestId('location-pathname').textContent).toBe('/planning');
-    expect(screen.getByTestId('location-search').textContent).toBe('?source=operations-review');
+    expect(await screen.findByText('Forecast controls')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadSistSkuDetail).toHaveBeenCalledWith('sku-1');
+    });
+    await waitFor(() => {
+      expect(loadSistSkuDetail).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByText('High-risk SKUs')).toBeInTheDocument();
+    expect(screen.getByText('Selected entity')).toBeInTheDocument();
   });
 
-  test('planning confirms before discarding dirty ranking changes when returning to operations review', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm');
-    confirmSpy.mockReturnValueOnce(false).mockReturnValueOnce(true);
-
+  test('operations review no longer links out to planning', async () => {
     render(
       <OperationsSessionProvider>
         <MemoryRouter initialEntries={['/operations/session?step=review']}>
@@ -1665,37 +1521,26 @@ describe('renderer workspaces', () => {
               }
               path="/operations/session"
             />
-            <Route
-              element={
-                <>
-                  <PlanningRoute />
-                  <LocationProbe />
-                </>
-              }
-              path="/planning"
-            />
           </Routes>
         </MemoryRouter>
       </OperationsSessionProvider>,
     );
 
-    fireEvent.click(await screen.findByRole('link', { name: 'Open planning' }));
-    expect(await screen.findByTestId('planning-route')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Apply ranking change' }));
-    fireEvent.click(screen.getByRole('link', { name: 'Return to operations review' }));
-
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'You have unsaved ranking changes. Leave this page and discard the current draft?',
-    );
-    expect(screen.getByTestId('location-pathname').textContent).toBe('/planning');
-
-    fireEvent.click(screen.getByRole('link', { name: 'Return to operations review' }));
-    expect(await screen.findByText('Review and submit one operations update')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Step 5.*Review & submit/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open planning' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Step 4.*Sales signal/i })).toBeInTheDocument();
     expect(screen.getByTestId('location-pathname').textContent).toBe('/operations/session');
     expect(screen.getByTestId('location-search').textContent).toBe('?step=review');
+  });
 
-    confirmSpy.mockRestore();
+  test('sales signal changes stay inside the operations session review loop', async () => {
+    renderRoute('/operations/session?step=sales-signal', <StockUpdateSessionRoute />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply ranking change' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(await screen.findByText('Changed this session')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open planning' })).not.toBeInTheDocument();
   });
 
   test('unknown routes fall back to the canonical overview entrypoint', async () => {
@@ -2534,7 +2379,7 @@ describe('renderer workspaces', () => {
     expect(sourceCells[1]).toHaveTextContent('Baseline import');
   });
 
-  test('operations history search and source filter narrow visible rows', async () => {
+  test('operations history search and activity filters narrow visible rows', async () => {
     renderRoute('/operations', <StockUpdateRoute />);
 
     expect(await screen.findByText('Morning floor update.')).toBeInTheDocument();
@@ -2554,10 +2399,10 @@ describe('renderer workspaces', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Baseline' }));
-    expect(screen.queryByText('Morning floor update.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Price changes' }));
+    expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
     expect(screen.getByTestId('operations-history-results-summary')).toHaveTextContent(
-      'Showing 1 baseline report',
+      'Showing 1 report includes price changes',
     );
   });
 
@@ -2587,7 +2432,7 @@ describe('renderer workspaces', () => {
     expect(screen.getByTestId('location-pathname').textContent).toBe('/operations/session');
   });
 
-  test('operations draft survives planning handoff and resume restores the last session step', async () => {
+  test('operations draft survives leaving the session and resume restores the last session step', async () => {
     render(
       <OperationsSessionProvider>
         <MemoryRouter initialEntries={['/operations/session?step=review']}>
@@ -2610,15 +2455,6 @@ describe('renderer workspaces', () => {
                 </>
               }
               path="/operations"
-            />
-            <Route
-              element={
-                <>
-                  <PlanningRoute />
-                  <LocationProbe />
-                </>
-              }
-              path="/planning"
             />
           </Routes>
         </MemoryRouter>
@@ -2648,15 +2484,6 @@ describe('renderer workspaces', () => {
     fireEvent.change(screen.getAllByLabelText('Service price')[0], {
       target: { value: '1400' },
     });
-
-    fireEvent.click(screen.getByRole('button', { name: /Step 4.*Review & submit/i }));
-    fireEvent.click(screen.getByRole('link', { name: 'Open planning' }));
-
-    expect(await screen.findByRole('link', { name: 'Return to operations review' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Return to operations review' }));
-
-    expect(await screen.findByText('Review and submit one operations update')).toBeInTheDocument();
-    expect(screen.getByTestId('location-search').textContent).toBe('?step=review');
 
     fireEvent.click(screen.getByRole('button', { name: /Step 1.*Details/i }));
     expect(screen.getByLabelText('Reported at')).toHaveValue('2026-03-28T10:30');
@@ -2688,18 +2515,23 @@ describe('renderer workspaces', () => {
     expect(screen.getByTestId('location-search').textContent).toBe('');
   });
 
-  test('operations session shows details, observations, optional services, and review', async () => {
+  test('operations session shows details, observations, optional services, sales signal, and review', async () => {
     renderRoute('/operations/session', <StockUpdateSessionRoute />);
 
     expect(await screen.findByRole('button', { name: /Step 1.*Details/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Step 2.*SKU observations/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Step 3.*Service updates/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Step 4.*Review & submit/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Step 4.*Sales signal/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Step 5.*Review & submit/i })).toBeInTheDocument();
     expect(screen.getAllByText('Needs attention').length).toBeGreaterThan(0);
-    expect(screen.getByText('Required')).toBeInTheDocument();
-    expect(screen.getByText('Skipped')).toBeInTheDocument();
-    expect(screen.getByText('1 / 4 sections ready')).toBeInTheDocument();
+    expect(screen.getAllByText('Required').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Skipped').length).toBeGreaterThan(0);
+    expect(screen.getByText('1 / 5 sections ready')).toBeInTheDocument();
     expect(screen.getByTestId('stock-session-step-icon-services')).toHaveAttribute(
+      'data-status',
+      'skipped',
+    );
+    expect(screen.getByTestId('stock-session-step-icon-sales-signal')).toHaveAttribute(
       'data-status',
       'skipped',
     );
@@ -2798,7 +2630,7 @@ describe('renderer workspaces', () => {
     fireEvent.blur(costInput);
     expect(within(sku1Row as HTMLTableRowElement).getByDisplayValue('6')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Step 4.*Review & submit/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Step 5.*Review & submit/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Submit update' }));
 
     await waitFor(() => {
@@ -2875,7 +2707,7 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('Focused')).not.toBeInTheDocument();
   });
 
-  test('operations session submits a structured report with changed SKU rows and optional service data only', async () => {
+  test('operations session submits a structured report with changed SKU rows, optional service data, and sales signal only when changed', async () => {
     render(
       <OperationsSessionProvider>
         <MemoryRouter initialEntries={['/operations/session']}>
@@ -2909,11 +2741,13 @@ describe('renderer workspaces', () => {
       target: { value: '1400' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Step 4.*Review & submit/i }));
-    expect(screen.getByRole('link', { name: 'Open planning' })).toHaveAttribute(
-      'href',
-      '/planning?source=operations-review',
-    );
+    fireEvent.click(screen.getByRole('button', { name: /Step 4.*Sales signal/i }));
+    expect(screen.getAllByText('Recent selling order').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Apply ranking change' }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Step 5.*Review & submit/i }));
+    expect(screen.queryByRole('link', { name: 'Open planning' })).not.toBeInTheDocument();
+    expect(screen.getByText('Changed this session')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Submit update' })).toBeEnabled();
@@ -2934,8 +2768,10 @@ describe('renderer workspaces', () => {
       servicePriceAdjustments: [{ serviceId: 'service-2', price: 1400 }],
     });
     expect(submitReport.mock.calls[0][0]).not.toHaveProperty('serviceSignals');
-    expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topServiceRanking');
-    expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topRetailRanking');
+    expect(submitReport.mock.calls[0][0]).toMatchObject({
+      topServiceRanking: ['service-2', 'service-1'],
+      topRetailRanking: ['sku-1'],
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Recent activity')).toBeInTheDocument();
@@ -2947,17 +2783,17 @@ describe('renderer workspaces', () => {
     );
   });
 
-  test('operations review uses baseline planning scope when saved ranking is empty', async () => {
+  test('operations review uses baseline sales-signal scope when saved ranking is empty', async () => {
     setInventoryState(createSnapshot({ ranking: [] }));
 
     renderRoute('/operations/session?step=review', <StockUpdateSessionRoute />);
 
-    expect(await screen.findByRole('button', { name: /Step 4.*Review & submit/i })).toBeInTheDocument();
-    expect(screen.getByText('3 ranking entries in the current planning order')).toBeInTheDocument();
-    expect(screen.queryByText('0 ranking entries in the current planning order')).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Step 5.*Review & submit/i })).toBeInTheDocument();
+    expect(screen.getByText('3 entries in scope')).toBeInTheDocument();
+    expect(screen.queryByText('0 entries in scope')).not.toBeInTheDocument();
   });
 
-  test('operations session omits optional service arrays when optional sections are unchanged', async () => {
+  test('operations session omits optional service and sales-signal arrays when optional sections are unchanged', async () => {
     renderRoute('/operations/session', <StockUpdateSessionRoute />);
 
     expect(await screen.findByText('Review and submit one operations update')).toBeInTheDocument();
@@ -2965,6 +2801,7 @@ describe('renderer workspaces', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
@@ -2979,17 +2816,71 @@ describe('renderer workspaces', () => {
     });
     expect(submitReport.mock.calls[0][0]).not.toHaveProperty('serviceSignals');
     expect(submitReport.mock.calls[0][0]).not.toHaveProperty('servicePriceAdjustments');
+    expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topServiceRanking');
+    expect(submitReport.mock.calls[0][0]).not.toHaveProperty('topRetailRanking');
   });
 
   test('operations session supports canonical review only', async () => {
     const reviewRoute = renderRoute('/operations/session?step=review', <StockUpdateSessionRoute />);
 
-    expect(await screen.findByRole('button', { name: /Step 4.*Review & submit/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open planning' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Step 5.*Review & submit/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open planning' })).not.toBeInTheDocument();
+    expect((await screen.findAllByRole('button', { name: 'Return to editing' })).length).toBeGreaterThan(0);
 
     reviewRoute.unmount();
     renderRoute('/operations/session?step=details', <StockUpdateSessionRoute />);
     expect(await screen.findByRole('button', { name: /Step 1.*Details/i })).toBeInTheDocument();
+  });
+
+  test('operations session marks sales signal optional, updates it in-session, and resets back to skipped', async () => {
+    renderRoute('/operations/session?step=sales-signal', <StockUpdateSessionRoute />);
+
+    expect(await screen.findByRole('button', { name: /Step 4.*Sales signal/i })).toBeInTheDocument();
+    expect(screen.getAllByText('Optional').length).toBeGreaterThan(0);
+    expect(screen.getByText('3 entries in scope')).toBeInTheDocument();
+    expect(screen.getAllByText('Recent selling order').length).toBeGreaterThan(0);
+    expect(screen.getByText('Only update this when recent selling order changed meaningfully.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset order' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply ranking change' }));
+
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    expect(screen.getByTestId('stock-session-step-icon-sales-signal')).toHaveAttribute(
+      'data-status',
+      'complete',
+    );
+    expect(screen.getByRole('button', { name: 'Reset order' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset order' }));
+
+    expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument();
+    expect(screen.getByTestId('stock-session-step-icon-sales-signal')).toHaveAttribute(
+      'data-status',
+      'skipped',
+    );
+  });
+
+  test('operations session shows an empty sales-signal state when nothing is rankable', async () => {
+    setInventoryState(
+      createSnapshot({
+        services: [],
+        skus: snapshot.skus.map((sku) => ({
+          ...sku,
+          soldAsProduct: false,
+          productPrice: null,
+        })),
+        ranking: [],
+      }),
+    );
+
+    renderRoute('/operations/session?step=sales-signal', <StockUpdateSessionRoute />);
+
+    expect(await screen.findByText('No recent selling order to capture')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply ranking change' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('stock-session-step-icon-sales-signal')).toHaveAttribute(
+      'data-status',
+      'skipped',
+    );
   });
 
   test('cancel update exits immediately when the session draft is still pristine', async () => {
@@ -3074,6 +2965,7 @@ describe('renderer workspaces', () => {
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(await screen.findByRole('button', { name: 'Submit update' })).toBeInTheDocument();
 
@@ -3087,6 +2979,7 @@ describe('renderer workspaces', () => {
     expect(await screen.findByRole('button', { name: 'Review service updates' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Review service updates' }));
     fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     expect((await screen.findAllByRole('button', { name: 'Return to editing' })).length).toBeGreaterThan(1);

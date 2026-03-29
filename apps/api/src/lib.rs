@@ -213,6 +213,11 @@ pub fn app_with_state(state: AppState) -> Router {
         )
         .route("/v1/desktop/sist/sku/:sku_id", get(get_desktop_sist_sku))
         .route(
+            "/v1/desktop/sist/service/:service_id",
+            get(get_desktop_sist_service),
+        )
+        .route("/v1/desktop/sist/system", get(get_desktop_sist_system))
+        .route(
             "/v1/desktop/sist/settings",
             put(update_desktop_sist_settings),
         )
@@ -799,6 +804,33 @@ async fn get_desktop_sist_sku(
         Err(err) => desktop_inventory_error(
             StatusCode::BAD_REQUEST,
             "failed to load sist sku detail",
+            err,
+        ),
+    }
+}
+
+async fn get_desktop_sist_service(
+    Extension(principal): Extension<AuthPrincipal>,
+    Path(service_id): Path<String>,
+) -> axum::response::Response {
+    match desktop_inventory::store::load_service_detail(&principal.sub, &service_id) {
+        Ok(detail) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::BAD_REQUEST,
+            "failed to load sist service detail",
+            err,
+        ),
+    }
+}
+
+async fn get_desktop_sist_system(
+    Extension(principal): Extension<AuthPrincipal>,
+) -> axum::response::Response {
+    match desktop_inventory::store::load_system_detail(&principal.sub) {
+        Ok(detail) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::BAD_REQUEST,
+            "failed to load sist system detail",
             err,
         ),
     }

@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   type DesktopBridge,
   type DesktopPreferences,
+  type GetSistServiceDetailPayload,
   type GetSistSkuDetailPayload,
   type SaveRankingPayload,
   type SaveServicePayload,
@@ -11,7 +12,9 @@ import {
 import type {
   InventorySnapshot,
   SistSettings,
+  SistServiceDetail,
   SistSkuDetail,
+  SistSystemDetail,
   StockReport,
   StockReportSubmission,
   StockUpdatePayload,
@@ -43,6 +46,12 @@ const desktopBridge: DesktopBridge = {
       ipcRenderer.invoke(IPC_CHANNELS.inventorySaveRanking, payload),
     getSistSkuDetail: (payload: GetSistSkuDetailPayload): Promise<SistSkuDetail> =>
       ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSistSkuDetail, payload),
+    getSistServiceDetail: (
+      payload: GetSistServiceDetailPayload,
+    ): Promise<SistServiceDetail> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSistServiceDetail, payload),
+    getSistSystemDetail: (): Promise<SistSystemDetail> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSistSystemDetail),
     updateSistSettings: (payload: SistSettings): Promise<InventorySnapshot> =>
       ipcRenderer.invoke(IPC_CHANNELS.inventoryUpdateSistSettings, payload),
   },

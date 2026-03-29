@@ -1,10 +1,14 @@
+#[path = "analysis.rs"]
+mod analysis;
+
 use super::types::{
     ApplyDesktopStockUpdatesRequest, DesktopInventoryResponse, DesktopRankingEntry,
     DesktopRankingEntryType, DesktopServiceRecord, DesktopSkuRecord, LeadTimeSummary,
     MONETARY_AMOUNT_MAX, SaveDesktopRankingRequest, SistAnalysisState, SistAnalysisStatus,
-    SistConfidence, SistOverview, SistRegime, SistSettings, SistSkuDetailResponse,
-    SistSkuInsight, StockReportRecord, StockReportSkuObservation, SubmitStockReportRequest,
-    UpdateSistSettingsRequest, UpsertDesktopServiceRequest, UpsertDesktopSkuRequest,
+    SistConfidence, SistOverview, SistRegime, SistServiceDetailResponse, SistSettings,
+    SistSkuDetailResponse, SistSkuInsight, SistSystemDetailResponse, StockReportRecord,
+    StockReportSkuObservation, SubmitStockReportRequest, UpdateSistSettingsRequest,
+    UpsertDesktopServiceRequest, UpsertDesktopSkuRequest,
 };
 use anyhow::{anyhow, Context, Result};
 use once_cell::sync::Lazy;
@@ -23,7 +27,7 @@ use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
 static STORE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 const STORE_SCHEMA_VERSION: u8 = 2;
-const SIST_SCHEMA_VERSION: u8 = 1;
+const SIST_SCHEMA_VERSION: u8 = 2;
 const SEEDED_HISTORY_REPORT_COUNT: usize = 272;
 const SEEDED_HISTORY_INTERVAL_DAYS: i64 = 14;
 const SEEDED_HISTORY_LATEST_AT: &str = "2026-03-27T09:00:00Z";
@@ -113,6 +117,12 @@ struct OwnerSistState {
 #[serde(rename_all = "camelCase")]
 struct CachedSistAnalysis {
     overview: SistOverview,
+    #[serde(default)]
+    sku_details: BTreeMap<String, SistSkuDetailResponse>,
+    #[serde(default)]
+    service_details: BTreeMap<String, SistServiceDetailResponse>,
+    #[serde(default = "empty_system_detail")]
+    system_detail: SistSystemDetailResponse,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -143,6 +153,9 @@ impl OwnerInventory {
                 stock_reports,
                 cached_analysis: CachedSistAnalysis {
                     overview: empty_overview("seed data initialized"),
+                    sku_details: BTreeMap::new(),
+                    service_details: BTreeMap::new(),
+                    system_detail: empty_system_detail(),
                 },
             },
         };
@@ -763,23 +776,35 @@ pub fn load_sku_detail(owner_sub: &str, sku_id: &str) -> Result<SistSkuDetailRes
     with_store_mut(|store| {
         let owner = ensure_owner(store, owner_sub);
         normalize_owner(owner);
-        let insight = owner
+        owner
             .sist
             .cached_analysis
-            .overview
-            .sku_insights
-            .iter()
-            .find(|insight| insight.sku_id == sku_id)
+            .sku_details
+            .get(sku_id)
             .cloned()
-            .ok_or_else(|| anyhow!("sist insight not found"))?;
-        let reports = owner
+            .ok_or_else(|| anyhow!("sist insight not found"))
+    })
+}
+
+pub fn load_service_detail(owner_sub: &str, service_id: &str) -> Result<SistServiceDetailResponse> {
+    with_store_mut(|store| {
+        let owner = ensure_owner(store, owner_sub);
+        normalize_owner(owner);
+        owner
             .sist
-            .stock_reports
-            .iter()
-            .filter(|report| report.sku_observations.iter().any(|observation| observation.sku_id == sku_id))
+            .cached_analysis
+            .service_details
+            .get(service_id)
             .cloned()
-            .collect();
-        Ok(SistSkuDetailResponse { insight, reports })
+            .ok_or_else(|| anyhow!("sist service detail not found"))
+    })
+}
+
+pub fn load_system_detail(owner_sub: &str) -> Result<SistSystemDetailResponse> {
+    with_store_mut(|store| {
+        let owner = ensure_owner(store, owner_sub);
+        normalize_owner(owner);
+        Ok(owner.sist.cached_analysis.system_detail.clone())
     })
 }
 
@@ -846,9 +871,72 @@ fn normalize_owner(owner: &mut OwnerInventory) {
     if owner.sist.stock_reports.is_empty() {
         ensure_baseline_report(owner, "legacy-baseline");
     }
-    if owner.sist.cached_analysis.overview.status.state == SistAnalysisState::Empty {
+    if !sist_cache_is_valid(owner) {
+        owner.sist.schema_version = SIST_SCHEMA_VERSION;
         recompute_analysis("normalize", owner);
     }
+}
+
+fn sist_cache_is_valid(owner: &OwnerInventory) -> bool {
+    if owner.sist.schema_version != SIST_SCHEMA_VERSION {
+        return false;
+    }
+    if owner.sist.cached_analysis.overview.status.state == SistAnalysisState::Empty {
+        return false;
+    }
+
+    let expected_sku_ids = owner
+        .catalog
+        .skus
+        .iter()
+        .map(|sku| sku.sku_id.as_str())
+        .collect::<HashSet<_>>();
+    if owner.sist.cached_analysis.sku_details.len() != expected_sku_ids.len() {
+        return false;
+    }
+    if owner
+        .sist
+        .cached_analysis
+        .sku_details
+        .keys()
+        .any(|sku_id| !expected_sku_ids.contains(sku_id.as_str()))
+    {
+        return false;
+    }
+
+    let expected_service_ids = owner
+        .catalog
+        .services
+        .iter()
+        .map(|service| service.service_id.as_str())
+        .collect::<HashSet<_>>();
+    if owner.sist.cached_analysis.service_details.len() != expected_service_ids.len() {
+        return false;
+    }
+    if owner
+        .sist
+        .cached_analysis
+        .service_details
+        .keys()
+        .any(|service_id| !expected_service_ids.contains(service_id.as_str()))
+    {
+        return false;
+    }
+
+    if system_detail_is_placeholder(&owner.sist.cached_analysis.system_detail)
+        && !owner.sist.stock_reports.is_empty()
+    {
+        return false;
+    }
+
+    true
+}
+
+fn system_detail_is_placeholder(detail: &SistSystemDetailResponse) -> bool {
+    detail.interval_timeline.is_empty()
+        && detail.regime_posterior_history.is_empty()
+        && detail.top_risky_entities.is_empty()
+        && detail.metadata.is_none()
 }
 
 fn ensure_baseline_report(owner: &mut OwnerInventory, source: &str) {
@@ -1091,6 +1179,36 @@ fn empty_overview(reason: &str) -> SistOverview {
         pending_reorder_count: 0,
         high_risk_sku_ids: Vec::new(),
         sku_insights: Vec::new(),
+        metadata: None,
+    }
+}
+
+fn empty_system_detail() -> SistSystemDetailResponse {
+    SistSystemDetailResponse {
+        interval_timeline: Vec::new(),
+        regime_posterior_history: Vec::new(),
+        signal_intake: super::types::SistSignalIntakeSummary {
+            ranking_observations: 0,
+            restock_flags: 0,
+            stockout_flags: 0,
+            price_adjustments: 0,
+            correction_signals: 0,
+        },
+        model_health: super::types::SistModelHealthSummary {
+            particle_count_used: 0,
+            interval_count: 0,
+            effective_sample_size_mean: 0.0,
+            confidence: SistConfidence::Low,
+        },
+        top_risky_entities: Vec::new(),
+        drift_diagnostics: super::types::SistDriftDiagnostics {
+            seasonality_active: false,
+            change_point_active: false,
+            recent_change_point_probability: 0.0,
+            service_drift_scale: 0.0,
+            retail_drift_scale: 0.0,
+        },
+        metadata: None,
     }
 }
 
@@ -1098,82 +1216,19 @@ fn recompute_analysis(owner_sub: &str, owner: &mut OwnerInventory) {
     let report_count = owner.sist.stock_reports.len();
     if report_count == 0 {
         owner.sist.cached_analysis.overview = empty_overview("No stock reports yet");
+        owner.sist.cached_analysis.sku_details.clear();
+        owner.sist.cached_analysis.service_details.clear();
+        owner.sist.cached_analysis.system_detail = empty_system_detail();
         return;
     }
-
-    let particle_count = owner.sist.settings.particle_count.max(64);
-    let mut sku_insights = owner
-        .catalog
-        .skus
-        .iter()
-        .map(|sku| analyze_sku(owner_sub, sku, owner, particle_count))
-        .collect::<Vec<_>>();
-    sku_insights.sort_by(|left, right| {
-        right
-            .stockout_risk
-            .partial_cmp(&left.stockout_risk)
-            .unwrap_or(Ordering::Equal)
-    });
-
-    let mut regime_scores = BTreeMap::<SistRegime, f64>::new();
-    for regime in [
-        SistRegime::Normal,
-        SistRegime::Spike,
-        SistRegime::Lull,
-        SistRegime::StockoutConstrained,
-        SistRegime::Correction,
-    ] {
-        regime_scores.insert(regime, 0.0);
-    }
-
-    for insight in &sku_insights {
-        for (regime, probability) in &insight.regime_probabilities {
-            if let Some(score) = regime_scores.get_mut(&regime_from_key(regime)) {
-                *score += probability;
-            }
-        }
-    }
-
-    let top_regime = regime_scores
-        .into_iter()
-        .max_by(|left, right| left.1.partial_cmp(&right.1).unwrap_or(Ordering::Equal))
-        .map(|(regime, _)| regime);
-
-    let pending_reorder_count = sku_insights
-        .iter()
-        .filter(|insight| {
-            insight.reorder_trigger_probability >= 0.5
-                || insight.latest_posterior_units <= insight.reorder_point
-        })
-        .count();
-
-    let mut high_risk = sku_insights
-        .iter()
-        .filter(|insight| insight.stockout_risk >= 0.4)
-        .map(|insight| (insight.sku_id.clone(), insight.stockout_risk))
-        .collect::<Vec<_>>();
-    high_risk.sort_by(|left, right| right.1.partial_cmp(&left.1).unwrap_or(Ordering::Equal));
-
-    let updated_at = OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .ok();
-    owner.sist.cached_analysis.overview = SistOverview {
-        status: SistAnalysisStatus {
-            state: SistAnalysisState::Ready,
-            updated_at: updated_at.clone(),
-            report_count,
-            confidence: confidence_for_report_count(report_count),
-            reason: None,
-        },
-        settings: owner.sist.settings.clone(),
-        as_of: owner.sist.stock_reports.last().map(|report| report.reported_at.clone()),
-        top_regime,
-        pending_reorder_count,
-        high_risk_sku_ids: high_risk.into_iter().take(3).map(|entry| entry.0).collect(),
-        sku_insights,
-    };
+    let computed = analysis::compute_sist_analysis(owner_sub, owner);
+    owner.sist.cached_analysis.overview = computed.overview;
+    owner.sist.cached_analysis.sku_details = computed.sku_details;
+    owner.sist.cached_analysis.service_details = computed.service_details;
+    owner.sist.cached_analysis.system_detail = computed.system_detail;
 }
 
+#[allow(dead_code)]
 fn analyze_sku(
     owner_sub: &str,
     sku: &DesktopSkuRecord,
@@ -1354,6 +1409,7 @@ fn demand_hint_for_sku(sku: &DesktopSkuRecord, owner: &OwnerInventory) -> f64 {
     (linked_services * 0.4 + retail_bonus).max(0.08)
 }
 
+#[allow(dead_code)]
 fn ranking_signal_boost(
     sku: &DesktopSkuRecord,
     owner: &OwnerInventory,
@@ -1429,6 +1485,7 @@ fn infer_lead_time(
     }
 }
 
+#[allow(dead_code)]
 fn pick_regime<'a>(
     rng: &mut StdRng,
     stockout_signals: u32,
@@ -1452,6 +1509,7 @@ fn pick_regime<'a>(
     "normal"
 }
 
+#[allow(dead_code)]
 fn regime_from_key(key: &str) -> SistRegime {
     match key {
         "spike" => SistRegime::Spike,
@@ -1584,6 +1642,9 @@ fn migrate_legacy_store(legacy: LegacyDesktopInventoryStore) -> DesktopInventory
                 stock_reports: Vec::new(),
                 cached_analysis: CachedSistAnalysis {
                     overview: empty_overview("Migrated from legacy desktop inventory"),
+                    sku_details: BTreeMap::new(),
+                    service_details: BTreeMap::new(),
+                    system_detail: empty_system_detail(),
                 },
             },
         };

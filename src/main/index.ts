@@ -12,6 +12,7 @@ import {
   type DesktopExportResult,
   type DesktopLocalDataInfo,
   type DesktopPreferences,
+  type GetSistServiceDetailPayload,
   type GetSistSkuDetailPayload,
   type SaveRankingPayload,
   type SaveServicePayload,
@@ -362,6 +363,16 @@ ipcMain.handle(
     managedCore.invoke('inventory.getSistSkuDetail', {
       skuId: payload.skuId,
     }),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryGetSistServiceDetail,
+  async (_event, payload: GetSistServiceDetailPayload) =>
+    managedCore.invoke('inventory.getSistServiceDetail', {
+      serviceId: payload.serviceId,
+    }),
+);
+ipcMain.handle(IPC_CHANNELS.inventoryGetSistSystemDetail, async () =>
+  managedCore.invoke('inventory.getSistSystemDetail'),
 );
 ipcMain.handle(
   IPC_CHANNELS.inventoryUpdateSistSettings,

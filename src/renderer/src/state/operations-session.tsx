@@ -6,10 +6,19 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { InventorySnapshot } from '@shared/inventory';
+import type { InventorySnapshot, RankingEntry } from '@shared/inventory';
+import {
+  buildDefaultReportRanking,
+  hasRankingChanged,
+} from '@/components/system/merchandising-editor';
 
 export type OperationsSessionPreset = 'small' | 'medium' | 'big';
-export type OperationsSessionStepId = 'details' | 'observations' | 'services' | 'review';
+export type OperationsSessionStepId =
+  | 'details'
+  | 'observations'
+  | 'services'
+  | 'sales-signal'
+  | 'review';
 export type OperationsSessionRowFilter = 'all' | 'changed';
 
 export interface OperationsSessionRowDraft {
@@ -33,6 +42,7 @@ export interface OperationsSessionDraft {
   rowFilter: OperationsSessionRowFilter;
   rows: Record<string, OperationsSessionRowDraft>;
   serviceDrafts: Record<string, OperationsSessionServiceDraft>;
+  rankingDraft: RankingEntry[];
   lastStep: OperationsSessionStepId;
 }
 
@@ -86,6 +96,7 @@ export function createOperationsSessionDraft(
         },
       ]),
     ),
+    rankingDraft: buildDefaultReportRanking(snapshot),
     lastStep: 'details',
   };
 }
@@ -123,7 +134,7 @@ export function hasMeaningfulOperationsSessionChanges(
     return true;
   }
 
-  return snapshot.services.some((service) => {
+  const hasServiceChanges = snapshot.services.some((service) => {
     const serviceDraft = draft.serviceDrafts[service.serviceId];
     if (!serviceDraft) {
       return false;
@@ -131,6 +142,12 @@ export function hasMeaningfulOperationsSessionChanges(
 
     return serviceDraft.stockout || Number(serviceDraft.price) !== service.price;
   });
+
+  if (hasServiceChanges) {
+    return true;
+  }
+
+  return hasRankingChanged(buildDefaultReportRanking(snapshot), draft.rankingDraft);
 }
 
 export function OperationsSessionProvider({ children }: { children: ReactNode }) {

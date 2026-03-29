@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Circle, CircleDot, Search } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { CheckCircle2, Circle, CircleDot, CircleHelp, Search } from 'lucide-react';
+import type { InventorySnapshot, RankingEntry } from '@shared/inventory';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,8 +24,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { buildDefaultReportRanking } from '@/components/system/merchandising-editor';
+import {
+  MerchandisingEditor,
+  buildDefaultReportRanking,
+  hasRankingChanged,
+  rankingIdsByType,
+} from '@/components/system/merchandising-editor';
 import { DescriptionText } from '@/components/system/description-text';
+import { HoverTooltip } from '@/components/system/hover-tooltip';
 import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { currencyFractionDigits, formatCurrency, formatDecimal } from '@/lib/format';
 import { summarizeCount } from '@/lib/stock-report-summary';
@@ -48,7 +55,26 @@ const presetSteps: Record<Preset, { units: number; cost: number }> = {
   big: { units: 20, cost: 1 },
 };
 
-const stepOrder: SessionStepId[] = ['details', 'observations', 'services', 'review'];
+const stepOrder: SessionStepId[] = ['details', 'observations', 'services', 'sales-signal', 'review'];
+
+function getSalesSignalBaseline(snapshot: InventorySnapshot) {
+  return buildDefaultReportRanking(snapshot);
+}
+
+function getSalesSignalScopeCount(snapshot: InventorySnapshot) {
+  return getSalesSignalBaseline(snapshot).length;
+}
+
+function didSalesSignalChange(snapshot: InventorySnapshot, rankingDraft: RankingEntry[]) {
+  return hasRankingChanged(getSalesSignalBaseline(snapshot), rankingDraft);
+}
+
+function splitRankingDraft(entries: RankingEntry[]) {
+  return {
+    topServiceRanking: rankingIdsByType(entries, 'service'),
+    topRetailRanking: rankingIdsByType(entries, 'sku'),
+  };
+}
 
 function toIsoTimestamp(value: string) {
   if (!value.trim()) {
@@ -178,6 +204,7 @@ export function StockUpdateSessionRoute() {
   const sessionDraft = snapshot ? (draft ?? createOperationsSessionDraft(snapshot)) : null;
   const rows = sessionDraft?.rows ?? {};
   const serviceDrafts = sessionDraft?.serviceDrafts ?? {};
+  const rankingDraft = sessionDraft?.rankingDraft ?? [];
   const preset = sessionDraft?.preset ?? 'small';
   const reportedAt = sessionDraft?.reportedAt ?? '';
   const reportNotes = sessionDraft?.reportNotes ?? '';
@@ -290,9 +317,25 @@ export function StockUpdateSessionRoute() {
     () => serviceChanges.slice(0, 3).map((entry) => entry.service.name),
     [serviceChanges],
   );
-  const planningBaselineCount = useMemo(
-    () => (snapshot ? buildDefaultReportRanking(snapshot).length : 0),
+  const salesSignalScopeCount = useMemo(
+    () => (snapshot ? getSalesSignalScopeCount(snapshot) : 0),
     [snapshot],
+  );
+  const salesSignalChanged = useMemo(
+    () => Boolean(snapshot && didSalesSignalChange(snapshot, rankingDraft)),
+    [rankingDraft, snapshot],
+  );
+  const salesSignalTopPreview = useMemo(
+    () =>
+      rankingDraft
+        .slice(0, 3)
+        .map((entry) =>
+          entry.entryType === 'service'
+            ? snapshot?.services.find((service) => service.serviceId === entry.entryId)?.name
+            : snapshot?.skus.find((sku) => sku.skuId === entry.entryId)?.name,
+        )
+        .filter((name): name is string => Boolean(name)),
+    [rankingDraft, snapshot],
   );
   const hasMeaningfulDraftChanges = Boolean(
     snapshot && sessionDraft && hasMeaningfulOperationsSessionChanges(snapshot, sessionDraft),
@@ -300,9 +343,16 @@ export function StockUpdateSessionRoute() {
   const detailsComplete = Boolean(toIsoTimestamp(reportedAt));
   const observationsComplete = changedEntries.length > 0;
   const servicesComplete = serviceChanges.length > 0;
+  const salesSignalComplete = salesSignalChanged;
   const reviewReady = detailsComplete && observationsComplete;
   const timestampError = timestampTouched && !detailsComplete ? t('validationTimestamp') : null;
-  const completedCount = [detailsComplete, observationsComplete, servicesComplete, reviewReady].filter(Boolean).length;
+  const completedCount = [
+    detailsComplete,
+    observationsComplete,
+    servicesComplete,
+    salesSignalComplete,
+    reviewReady,
+  ].filter(Boolean).length;
   const changedEntryIds = useMemo(
     () => new Set(changedEntries.map((entry) => entry.sku.skuId)),
     [changedEntries],
@@ -365,6 +415,12 @@ export function StockUpdateSessionRoute() {
     if (stepId === 'services') {
       return serviceChanges.length > 0 ? 'complete' : 'skipped';
     }
+    if (stepId === 'sales-signal') {
+      if (salesSignalScopeCount === 0) {
+        return 'skipped';
+      }
+      return salesSignalChanged ? 'complete' : 'skipped';
+    }
     if (reviewReady) {
       return 'complete';
     }
@@ -395,6 +451,14 @@ export function StockUpdateSessionRoute() {
       complete: servicesComplete,
       optional: true,
       status: getStepStatus('services'),
+    },
+    {
+      id: 'sales-signal' as const,
+      title: t('stockSessionStepSalesSignal'),
+      description: t('stockSessionStepSalesSignalDescription'),
+      complete: salesSignalComplete,
+      optional: true,
+      status: getStepStatus('sales-signal'),
     },
     {
       id: 'review' as const,
@@ -532,6 +596,24 @@ export function StockUpdateSessionRoute() {
     );
   }
 
+  function handleSalesSignalChange(nextEntries: RankingEntry[]) {
+    updateDraft((current) => ({
+      ...current,
+      rankingDraft: nextEntries,
+    }));
+  }
+
+  function handleResetSalesSignal() {
+    if (!snapshot) {
+      return;
+    }
+
+    updateDraft((current) => ({
+      ...current,
+      rankingDraft: getSalesSignalBaseline(snapshot),
+    }));
+  }
+
   async function handleSubmit() {
     const isoReportedAt = toIsoTimestamp(reportedAt);
 
@@ -550,6 +632,7 @@ export function StockUpdateSessionRoute() {
     setError(null);
 
     const trimmedNotes = reportNotes.trim();
+    const rankingSubmission = salesSignalChanged ? splitRankingDraft(rankingDraft) : null;
     const nextSubmission = {
       reportedAt: isoReportedAt,
       skuObservations: changedEntries.map((entry) => ({
@@ -575,6 +658,7 @@ export function StockUpdateSessionRoute() {
           }
         : {}),
       ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+      ...(rankingSubmission ?? {}),
     };
 
     await submitReport(nextSubmission);
@@ -1200,6 +1284,106 @@ export function StockUpdateSessionRoute() {
               </WorkspacePanel>
             ) : null}
 
+            {activeStep === 'sales-signal' ? (
+              <WorkspacePanel
+                description={t('stockSessionStepSalesSignalDescription')}
+                title={t('stockSessionStepSalesSignal')}
+              >
+                <div className="space-y-4">
+                  <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {salesSignalChanged ? (
+                          <Badge variant="secondary">{t('stockSalesSignalUnsavedBadge')}</Badge>
+                        ) : null}
+                        <Badge variant="outline">
+                          {summarizeCount(
+                            salesSignalScopeCount,
+                            t('stockSalesSignalEntrySingular'),
+                            t('stockSalesSignalEntryPlural'),
+                          )}
+                        </Badge>
+                        <Badge variant="outline">{t('stockOptionalBadge')}</Badge>
+                      </div>
+                      <Button
+                        disabled={!salesSignalChanged}
+                        type="button"
+                        variant="outline"
+                        onClick={handleResetSalesSignal}
+                      >
+                        {t('stockSalesSignalResetAction')}
+                      </Button>
+                    </div>
+
+                    {salesSignalScopeCount > 0 ? (
+                      <div className="mt-4 space-y-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-base font-semibold text-foreground">
+                              {t('stockSalesSignalPanelTitle')}
+                            </p>
+                            <HoverTooltip
+                              ariaLabel={`${t('stockSalesSignalExplainerTitle')} help`}
+                              className="group rounded-full p-1 text-muted-foreground"
+                              content={
+                                <div className="space-y-2 text-left">
+                                  <p className="font-medium text-background">
+                                    {t('stockSalesSignalExplainerTitle')}
+                                  </p>
+                                  <p className="text-sm leading-6 text-background/85">
+                                    {t('stockSalesSignalExplainerBody')}
+                                  </p>
+                                </div>
+                              }
+                              tooltipClassName="max-w-80"
+                            >
+                              {({ open }) => (
+                                <CircleHelp
+                                  aria-hidden="true"
+                                  className={
+                                    open
+                                      ? 'size-4 text-foreground'
+                                      : 'size-4 text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:text-foreground'
+                                  }
+                                />
+                              )}
+                            </HoverTooltip>
+                          </div>
+                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                            {t('stockSalesSignalSupportCopy')}
+                          </p>
+                        </div>
+
+                        <MerchandisingEditor
+                          entries={rankingDraft}
+                          priceOverrides={Object.fromEntries(
+                            snapshot.services.map((service) => [
+                              service.serviceId,
+                              Number(serviceDrafts[service.serviceId]?.price ?? service.price),
+                            ]),
+                          )}
+                          snapshot={snapshot}
+                          titleLabel={t('stockSalesSignalPanelTitle')}
+                          onChange={handleSalesSignalChange}
+                        />
+
+                        <p className="text-sm text-muted-foreground">
+                          {t('stockSalesSignalHelperNote')}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-3xl border border-dashed border-border/70 bg-background/40 p-5">
+                        <p className="font-medium text-foreground">{t('stockSalesSignalEmptyTitle')}</p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                          {t('stockSalesSignalEmptyDescription')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </WorkspacePanel>
+            ) : null}
+
             {activeStep === 'review' ? (
               <div className="space-y-6">
                 <WorkspacePanel
@@ -1303,22 +1487,36 @@ export function StockUpdateSessionRoute() {
                   <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="font-medium text-foreground">{t('stockReviewPlanningTitle')}</p>
+                        <p className="font-medium text-foreground">{t('stockSessionStepSalesSignal')}</p>
                         <DescriptionText className="mt-1 text-sm text-muted-foreground">
-                          {t('stockReviewPlanningDescription')}
+                          {t('stockSessionStepSalesSignalDescription')}
                         </DescriptionText>
                       </div>
-                      <Button asChild size="sm" type="button" variant="ghost">
-                        <Link to="/planning?source=operations-review">{t('stockReviewOpenPlanning')}</Link>
+                      <Button size="sm" type="button" variant="ghost" onClick={() => setActiveStep('sales-signal')}>
+                        {t('stockEditAction')}
                       </Button>
                     </div>
                     <p className="mt-3 text-sm text-muted-foreground">
+                      {salesSignalChanged
+                        ? t('stockReviewSalesSignalChanged')
+                        : t('stockReviewSalesSignalUnchanged')}
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
                       {summarizeCount(
-                        planningBaselineCount,
-                        t('stockReviewPlanningEntrySingular'),
-                        t('stockReviewPlanningEntryPlural'),
+                        salesSignalScopeCount,
+                        t('stockSalesSignalEntrySingular'),
+                        t('stockSalesSignalEntryPlural'),
                       )}
                     </p>
+                    {salesSignalTopPreview.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {salesSignalTopPreview.map((name) => (
+                          <Badge key={name} variant="outline">
+                            {name}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </WorkspacePanel>
               </div>

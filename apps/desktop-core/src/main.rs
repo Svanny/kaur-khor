@@ -49,6 +49,12 @@ struct GetSistSkuDetailPayload {
     sku_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetSistServiceDetailPayload {
+    service_id: String,
+}
+
 fn main() -> Result<()> {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -184,6 +190,17 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
                 &request.sku_id,
             )?)?))
         }
+        "inventory.getSistServiceDetail" => {
+            let request: GetSistServiceDetailPayload =
+                serde_json::from_value(payload).context("invalid getSistServiceDetail payload")?;
+            Ok(Some(serde_json::to_value(store::load_service_detail(
+                DEFAULT_OWNER_SUB,
+                &request.service_id,
+            )?)?))
+        }
+        "inventory.getSistSystemDetail" => Ok(Some(serde_json::to_value(
+            store::load_system_detail(DEFAULT_OWNER_SUB)?,
+        )?)),
         "inventory.updateSistSettings" => {
             let request: UpdateSistSettingsRequest =
                 serde_json::from_value(payload).context("invalid updateSistSettings payload")?;

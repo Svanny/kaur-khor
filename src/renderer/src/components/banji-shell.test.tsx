@@ -32,7 +32,7 @@ describe('BanjiShell', () => {
           navOverview: 'Overview',
           navCatalog: 'Catalog',
           navOperations: 'Operations',
-          navPlanning: 'Planning',
+          navSist: 'SIST',
           navSettings: 'Settings',
           shellGroupWorkflows: 'Workflows',
           dashboardEyebrow: 'Local-first operations',
@@ -137,7 +137,7 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
-    const primaryLinks = ['Overview', 'Catalog', 'Operations', 'Planning'];
+    const primaryLinks = ['Overview', 'Catalog', 'Operations', 'SIST'];
     for (const label of primaryLinks) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
     }
@@ -170,7 +170,7 @@ describe('BanjiShell', () => {
     expectActiveSidebarLink('Catalog');
     expectInactiveSidebarLink('Overview');
     expectInactiveSidebarLink('Operations');
-    expectInactiveSidebarLink('Planning');
+    expectInactiveSidebarLink('SIST');
   });
 
   test('highlights operations for the guided session route', () => {
@@ -189,7 +189,7 @@ describe('BanjiShell', () => {
     expectActiveSidebarLink('Operations');
     expectInactiveSidebarLink('Overview');
     expectInactiveSidebarLink('Catalog');
-    expectInactiveSidebarLink('Planning');
+    expectInactiveSidebarLink('SIST');
   });
 
   test('expands the shell content to full width when the desktop sidebar collapses', () => {

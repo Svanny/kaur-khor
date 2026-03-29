@@ -12,7 +12,9 @@ import type {
   InventoryState,
   RankingEntry,
   SistSettings,
+  SistServiceDetail,
   SistSkuDetail,
+  SistSystemDetail,
   StockReport,
   StockReportSubmission,
   UpsertServicePayload,
@@ -29,6 +31,8 @@ interface InventoryContextValue extends InventoryState {
   submitReport: (payload: StockReportSubmission) => Promise<void>;
   persistRanking: (entries: RankingEntry[]) => Promise<void>;
   saveSistSettings: (payload: SistSettings) => Promise<void>;
+  loadSistSystemDetail: () => Promise<SistSystemDetail>;
+  loadSistServiceDetail: (serviceId: string) => Promise<SistServiceDetail>;
   loadSistSkuDetail: (skuId: string) => Promise<SistSkuDetail>;
   listStockReports: () => Promise<StockReport[]>;
 }
@@ -127,6 +131,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       saveSistSettings: async (payload) => {
         await mutate(() => window.banjiDesktop.inventory.updateSistSettings(payload));
       },
+      loadSistSystemDetail: async () => window.banjiDesktop.inventory.getSistSystemDetail(),
+      loadSistServiceDetail: async (serviceId) =>
+        window.banjiDesktop.inventory.getSistServiceDetail({ serviceId }),
       loadSistSkuDetail: async (skuId) =>
         window.banjiDesktop.inventory.getSistSkuDetail({ skuId }),
       listStockReports: async () => window.banjiDesktop.inventory.listStockReports(),

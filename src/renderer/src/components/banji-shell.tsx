@@ -2,8 +2,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   Boxes,
   ClipboardPen,
+  ChartNoAxesCombined,
   LayoutDashboard,
-  LayoutList,
   PanelRightClose,
   PanelRightOpen,
   Settings,
@@ -32,13 +32,8 @@ import brandLogo from '@/assets/banji-logo.svg';
 type ShellSectionConfig = {
   destination: string;
   icon: typeof LayoutDashboard;
-  id: 'overview' | 'catalog' | 'operations' | 'planning' | 'settings';
-  labelKey:
-    | 'navOverview'
-    | 'navCatalog'
-    | 'navOperations'
-    | 'navPlanning'
-    | 'navSettings';
+  id: 'overview' | 'catalog' | 'operations' | 'sist' | 'settings';
+  labelKey: 'navOverview' | 'navCatalog' | 'navOperations' | 'navSist' | 'navSettings';
   matches: (pathname: string) => boolean;
 };
 
@@ -69,11 +64,11 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     matches: (pathname) => matchesSection(pathname, '/operations'),
   },
   {
-    id: 'planning',
-    destination: '/planning',
-    labelKey: 'navPlanning',
-    icon: LayoutList,
-    matches: (pathname) => matchesSection(pathname, '/planning'),
+    id: 'sist',
+    destination: '/sist',
+    labelKey: 'navSist',
+    icon: ChartNoAxesCombined,
+    matches: (pathname) => matchesSection(pathname, '/sist'),
   },
 ];
 

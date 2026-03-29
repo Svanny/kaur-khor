@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Table,
   TableBody,
@@ -20,6 +21,10 @@ import {
 } from '@/components/system/workspace';
 import { formatCurrency, localeFor } from '@/lib/format';
 import {
+  matchesRecentActivityFilter,
+  type RecentActivityFilter,
+} from '@/lib/recent-activity';
+import {
   rankingSignalCount,
   stockReportSourceKey,
   summarizeCount,
@@ -32,8 +37,6 @@ import {
   type OperationsSessionStepId,
 } from '@/state/operations-session';
 import { usePreferences } from '@/state/preferences';
-
-type ReportSourceFilter = 'all' | 'manual' | 'compat-stock-update' | 'legacy-baseline';
 
 function buildReportSearchText(report: StockReport, skuNames: Map<string, string>, serviceNames: Map<string, string>) {
   return [
@@ -70,17 +73,17 @@ function titleCaseLabel(label: string) {
   return label.replace(/\b\p{L}/gu, (character) => character.toUpperCase());
 }
 
-function sourceFilterLabel(
-  sourceFilter: ReportSourceFilter,
+function activityFilterLabel(
+  filter: RecentActivityFilter,
   t: ReturnType<typeof usePreferences>['t'],
 ) {
-  switch (sourceFilter) {
-    case 'manual':
-      return t('operationsFilterManual').toLowerCase();
-    case 'compat-stock-update':
-      return t('operationsFilterImported').toLowerCase();
-    case 'legacy-baseline':
-      return t('operationsFilterBaseline').toLowerCase();
+  switch (filter) {
+    case 'stock-changes':
+      return t('operationsFilterStockChanges').toLowerCase();
+    case 'service-updates':
+      return t('operationsFilterServiceUpdates').toLowerCase();
+    case 'price-changes':
+      return t('operationsFilterPriceChanges').toLowerCase();
     case 'all':
     default:
       return null;
@@ -232,7 +235,7 @@ export function StockUpdateRoute() {
   const [reports, setReports] = useState<StockReport[]>([]);
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<ReportSourceFilter>('all');
+  const [activityFilter, setActivityFilter] = useState<RecentActivityFilter>('all');
 
   const servicesById = useMemo(
     () => new Map(snapshot?.services.map((service) => [service.serviceId, service]) ?? []),
@@ -278,7 +281,7 @@ export function StockUpdateRoute() {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     return reports.filter((report) => {
-      if (sourceFilter !== 'all' && report.reportSource !== sourceFilter) {
+      if (!matchesRecentActivityFilter(report, activityFilter)) {
         return false;
       }
       if (!normalizedQuery) {
@@ -287,7 +290,7 @@ export function StockUpdateRoute() {
 
       return buildReportSearchText(report, skuNames, serviceNames).includes(normalizedQuery);
     });
-  }, [reports, searchQuery, serviceNames, skuNames, sourceFilter]);
+  }, [activityFilter, reports, searchQuery, serviceNames, skuNames]);
 
   const latestReport = reports[0] ?? null;
   const latestChangedRowCount = latestReport?.skuObservations.length ?? 0;
@@ -302,15 +305,13 @@ export function StockUpdateRoute() {
           t,
         )}`
       : null;
-  const activeSourceFilterLabel = sourceFilterLabel(sourceFilter, t);
+  const activeActivityFilterLabel = activityFilterLabel(activityFilter, t);
   const historyResultsSummary =
     filteredReports.length === 0 && normalizedSearchQuery
       ? `${t('operationsResultsNoneMatch')} "${normalizedSearchQuery}"`
-      : filteredReports.length === 0 && sourceFilter !== 'all'
-        ? `${t('operationsResultsShowing')} 0 ${activeSourceFilterLabel} ${t('operationsReportPlural')}`
-        : sourceFilter === 'all'
+      : activityFilter === 'all'
           ? `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)}`
-          : `${t('operationsResultsShowing')} ${filteredReports.length} ${activeSourceFilterLabel} ${filteredReports.length === 1 ? t('operationsReportSingular') : t('operationsReportPlural')}`;
+          : `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)} ${t('operationsHistoryIncludes').toLowerCase()} ${activeActivityFilterLabel}`;
 
   if (!snapshot) {
     return (
@@ -380,25 +381,21 @@ export function StockUpdateRoute() {
               onChange={(event) => setSearchQuery(event.target.value)}
             />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ['all', t('operationsFilterAll')],
-                ['manual', t('operationsFilterManual')],
-                ['compat-stock-update', t('operationsFilterImported')],
-                ['legacy-baseline', t('operationsFilterBaseline')],
-              ] as Array<[ReportSourceFilter, string]>
-            ).map(([value, label]) => (
-              <Button
-                key={value}
-                type="button"
-                variant={sourceFilter === value ? 'default' : 'outline'}
-                onClick={() => setSourceFilter(value)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
+          <ToggleGroup
+            aria-label={t('operationsFiltersLabel')}
+            onValueChange={(nextValue) => {
+              if (nextValue) {
+                setActivityFilter(nextValue as RecentActivityFilter);
+              }
+            }}
+            type="single"
+            value={activityFilter}
+          >
+            <ToggleGroupItem value="all">{t('operationsFilterEverything')}</ToggleGroupItem>
+            <ToggleGroupItem value="stock-changes">{t('operationsFilterStockChanges')}</ToggleGroupItem>
+            <ToggleGroupItem value="service-updates">{t('operationsFilterServiceUpdates')}</ToggleGroupItem>
+            <ToggleGroupItem value="price-changes">{t('operationsFilterPriceChanges')}</ToggleGroupItem>
+          </ToggleGroup>
         </div>
         <p className="text-sm text-muted-foreground" data-testid="operations-history-results-summary">
           {historyResultsSummary}
@@ -432,7 +429,7 @@ export function StockUpdateRoute() {
             action={
               <Button type="button" variant="outline" onClick={() => {
                 setSearchQuery('');
-                setSourceFilter('all');
+                setActivityFilter('all');
               }}
               >
                 {t('operationsSearchClear')}
