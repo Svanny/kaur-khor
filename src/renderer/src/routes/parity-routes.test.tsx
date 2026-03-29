@@ -497,11 +497,51 @@ describe('renderer workspaces', () => {
           overviewOpenOperationsDescription: 'Review saved stock reports.',
           overviewOpenPlanning: 'Open planning',
           overviewOpenPlanningDescription: 'Review merchandising and reorder priorities.',
+          overviewOpenReorderQueue: 'Open reorder queue',
           overviewReviewRecentActivity: 'Review recent activity',
           overviewReviewRecentActivityDescription:
             'Open operations to inspect saved reports.',
           overviewNeedsAttentionTitle: 'Needs attention',
           overviewNeedsAttentionDescription: 'Surface the strongest reorder and stockout signals.',
+          overviewPlanningQueueTitle: 'Planning queue',
+          overviewPlanningQueueDescription:
+            'Use this queue to decide what needs review next, why it matters now, and which SKU should move first.',
+          overviewQueueSummaryReorderCandidates: 'reorder candidates',
+          overviewQueueSummaryHighRisk: 'high risk',
+          overviewQueueSummaryDueSoon: 'due within 48h',
+          overviewQueueSummaryRemaining: '{count} more waiting in queue.',
+          overviewQueueFilterLabel: 'Planning queue filters',
+          overviewQueueFilterDescription:
+            'Keep the list short and switch issue types locally without leaving Overview.',
+          overviewQueueFilterReorderNow: 'Reorder now',
+          overviewQueueFilterHighRisk: 'High risk',
+          overviewQueueFilterServiceImpact: 'Service impact',
+          overviewQueueSeverityCritical: 'Critical',
+          overviewQueueSeverityReorderNow: 'Reorder now',
+          overviewQueueSeverityAtRisk: 'At risk',
+          overviewQueueSeverityWatch: 'Watch',
+          overviewQueueDecisionImmediate: 'Likely stockout in {days} days. Reorder now.',
+          overviewQueueDecisionImmediateUnknownCover: 'Likely stockout soon. Reorder now.',
+          overviewQueueDecisionElevated: 'Stockout risk is elevated. Review now.',
+          overviewQueueDecisionPressure: 'Reorder point is under pressure. Review replenishment.',
+          overviewQueueDecisionWatch: 'Linked demand needs review. Keep this SKU in view.',
+          overviewQueueReasonRiskSuffix: 'risk',
+          overviewQueueReasonReorderBreached: 'reorder point breached',
+          overviewQueueReasonReorderPressure: 'reorder pressure active',
+          overviewQueueReasonServiceImpact: 'affects {count} {noun}',
+          overviewQueueReasonServiceSingular: 'service',
+          overviewQueueReasonServicePlural: 'services',
+          overviewQueueReasonLowConfidence: 'low confidence',
+          overviewReviewSku: 'Review SKU',
+          overviewQueueNoFilterMatchesTitle: 'No queue items match this filter',
+          overviewQueueNoFilterMatchesDescription:
+            'Try another issue type to bring the next decision back into view.',
+          overviewQueueReorderPressureTitle: 'Reorder pressure still needs review',
+          overviewQueueReorderPressureDescription:
+            'Planning signals are active even without a visible lead row. Open the reorder queue to confirm priorities.',
+          overviewQueueHealthyTitle: 'Planning queue is clear',
+          overviewQueueHealthyDescription:
+            'No immediate reorder or service-impact decisions are waiting right now. Keep operations moving or continue shaping the catalog.',
           overviewReorderPressure: 'Reorder pressure',
           overviewHighRiskSkuCount: 'High-risk SKUs',
           overviewUrgentBadge: 'Urgent',
@@ -1070,7 +1110,7 @@ describe('renderer workspaces', () => {
     renderRoute('/', <DashboardRoute />);
 
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Needs attention')).toBeInTheDocument();
+    expect(screen.getByText('Planning queue')).toBeInTheDocument();
     expect(screen.getByText('Recent activity')).toBeInTheDocument();
     expect(screen.getByText('Support metrics')).toBeInTheDocument();
     expect(screen.queryByText('Quick actions')).not.toBeInTheDocument();
@@ -1102,11 +1142,11 @@ describe('renderer workspaces', () => {
       'href',
       '/catalog',
     );
-    expect(screen.queryByRole('link', { name: 'Open planning' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open reorder queue' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Start update session' })).not.toBeInTheDocument();
   });
 
-  test('overview sends risk-driven snapshots toward planning and shows urgent SKUs', async () => {
+  test('overview sends risk-driven snapshots toward planning and shows the planning queue summary and triage rows', async () => {
     renderRoute('/', <DashboardRoute />);
 
     expect(screen.getByRole('link', { name: 'Review reorder priorities' })).toHaveAttribute(
@@ -1119,9 +1159,19 @@ describe('renderer workspaces', () => {
         return content.includes('High-risk SKUs') && content.includes('Reorder pressure');
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText('1 reorder candidates · 1 high risk · 0 due within 48h')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open reorder queue' })).toHaveAttribute(
+      'href',
+      '/planning',
+    );
     expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Stockout risk: 47%/)).toBeInTheDocument();
-    expect(screen.getByText('Urgent')).toBeInTheDocument();
+    expect(screen.getByText('Stockout risk is elevated. Review now.')).toBeInTheDocument();
+    expect(screen.getByText('47% risk · reorder point breached · affects 1 service')).toBeInTheDocument();
+    expect(screen.getByText('At risk')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review SKU' })).toHaveAttribute(
+      'href',
+      '/catalog/skus/sku-1',
+    );
   });
 
   test('overview shows reorder-pressure urgency even without high-risk sku rows', async () => {
@@ -1142,11 +1192,217 @@ describe('renderer workspaces', () => {
       'href',
       '/planning',
     );
-    expect(screen.getByText('Reorder pressure is rising')).toBeInTheDocument();
-    expect(
-      screen.queryByText('Reorder pressure is rising even though no SKU is in the current top risk list.'),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText('No urgent planning signals')).not.toBeInTheDocument();
+    expect(screen.getByText('Planning queue')).toBeInTheDocument();
+    expect(screen.getByText('Stockout risk is elevated. Review now.')).toBeInTheDocument();
+    expect(screen.queryByText('Planning queue is clear')).not.toBeInTheDocument();
+  });
+
+  test('overview sorts the queue by urgency, highlights the lead row, and filters by issue type', async () => {
+    setInventoryState(
+      createSnapshot({
+        services: [
+          ...snapshot.services,
+          {
+            serviceId: 'service-3',
+            name: 'Zero Cover Bundle',
+            description: 'Bundle tied to a blocked SKU',
+            price: 1600,
+            skuIds: ['sku-3'],
+          },
+          {
+            serviceId: 'service-4',
+            name: 'Service Watch Bundle',
+            description: 'Bundle tied to a watch SKU',
+            price: 1400,
+            skuIds: ['sku-5'],
+          },
+        ],
+        skus: [
+          ...snapshot.skus,
+          {
+            skuId: 'sku-3',
+            name: 'Zero Cover Jacket',
+            description: 'Out of stock lead item',
+            unitsInStock: 0,
+            costPerUnit: 12,
+            soldAsProduct: true,
+            productPrice: 22,
+            leadTimeMeanDays: 6,
+            leadTimeStdDays: 1,
+          },
+          {
+            skuId: 'sku-4',
+            name: 'Reorder Now Tote',
+            description: 'Fast moving tote',
+            unitsInStock: 3,
+            costPerUnit: 4,
+            soldAsProduct: true,
+            productPrice: 12,
+            leadTimeMeanDays: 4,
+            leadTimeStdDays: 1,
+          },
+          {
+            skuId: 'sku-5',
+            name: 'Service Watch Scarf',
+            description: 'Service-linked watch item',
+            unitsInStock: 9,
+            costPerUnit: 3,
+            soldAsProduct: true,
+            productPrice: 10,
+            leadTimeMeanDays: 7,
+            leadTimeStdDays: 2,
+          },
+          {
+            skuId: 'sku-6',
+            name: 'Queue Overflow Cap',
+            description: 'Additional queue candidate',
+            unitsInStock: 8,
+            costPerUnit: 2,
+            soldAsProduct: true,
+            productPrice: 7,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+        ],
+        sist: {
+          ...snapshot.sist,
+          pendingReorderCount: 5,
+          highRiskSkuIds: ['sku-1', 'sku-3'],
+          skuInsights: [
+            snapshot.sist.skuInsights[0],
+            {
+              ...snapshot.sist.skuInsights[1],
+              skuId: 'sku-3',
+              latestPosteriorUnits: 0,
+              credibleIntervalLow: 0,
+              credibleIntervalHigh: 2,
+              daysOfCover: 0,
+              stockoutRisk: 0.92,
+              reorderPoint: 9,
+              safetyStock: 4,
+              reorderTriggerProbability: 0.98,
+              expectedDemandPerDay: 2.4,
+              demandIntervalLow: 1.8,
+              demandIntervalHigh: 2.8,
+              confidence: 'high',
+            },
+            {
+              ...snapshot.sist.skuInsights[1],
+              skuId: 'sku-4',
+              latestPosteriorUnits: 3,
+              credibleIntervalLow: 2,
+              credibleIntervalHigh: 4,
+              daysOfCover: 1.5,
+              stockoutRisk: 0.56,
+              reorderPoint: 7,
+              safetyStock: 3,
+              reorderTriggerProbability: 0.88,
+              expectedDemandPerDay: 2,
+              demandIntervalLow: 1.3,
+              demandIntervalHigh: 2.5,
+              confidence: 'medium',
+            },
+            {
+              ...snapshot.sist.skuInsights[1],
+              skuId: 'sku-5',
+              latestPosteriorUnits: 9,
+              credibleIntervalLow: 7,
+              credibleIntervalHigh: 11,
+              daysOfCover: 6,
+              stockoutRisk: 0.22,
+              reorderPoint: 5,
+              safetyStock: 2,
+              reorderTriggerProbability: 0.25,
+              expectedDemandPerDay: 1.5,
+              demandIntervalLow: 1.1,
+              demandIntervalHigh: 1.9,
+              confidence: 'high',
+            },
+            {
+              ...snapshot.sist.skuInsights[1],
+              skuId: 'sku-6',
+              latestPosteriorUnits: 8,
+              credibleIntervalLow: 6,
+              credibleIntervalHigh: 10,
+              daysOfCover: 5,
+              stockoutRisk: 0.21,
+              reorderPoint: 10,
+              safetyStock: 2,
+              reorderTriggerProbability: 0.54,
+              expectedDemandPerDay: 1.2,
+              demandIntervalLow: 0.9,
+              demandIntervalHigh: 1.6,
+              confidence: 'low',
+            },
+          ],
+        },
+      }),
+    );
+
+    renderRoute('/', <DashboardRoute />);
+
+    expect(screen.getByText('5 reorder candidates · 2 high risk · 2 due within 48h')).toBeInTheDocument();
+    expect(screen.getByText('1 more waiting in queue.')).toBeInTheDocument();
+
+    const queueRows = screen.getAllByTestId('planning-queue-row');
+    expect(queueRows).toHaveLength(4);
+    expect(queueRows[0]).toHaveAttribute('data-lead-row', 'true');
+    expect(within(queueRows[0]).getByText('Zero Cover Jacket')).toBeInTheDocument();
+    expect(within(queueRows[0]).getByText('Critical')).toBeInTheDocument();
+    expect(within(queueRows[1]).getByText('Reorder Now Tote')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Reorder now' }));
+    expect(screen.getByText('Zero Cover Jacket')).toBeInTheDocument();
+    expect(screen.getByText('Reorder Now Tote')).toBeInTheDocument();
+    expect(screen.queryByText('Service Watch Scarf')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'High risk' }));
+    expect(screen.getByText('Zero Cover Jacket')).toBeInTheDocument();
+    expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
+    expect(screen.queryByText('Reorder Now Tote')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Service impact' }));
+    expect(screen.getByText('Zero Cover Jacket')).toBeInTheDocument();
+    expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
+    expect(screen.getByText('Service Watch Scarf')).toBeInTheDocument();
+    expect(screen.queryByText('Queue Overflow Cap')).not.toBeInTheDocument();
+  });
+
+  test('overview keeps queue framing when reorder pressure exists without queue rows from insights', async () => {
+    setInventoryState(
+      createSnapshot({
+        sist: {
+          ...snapshot.sist,
+          pendingReorderCount: 2,
+          highRiskSkuIds: [],
+          skuInsights: [],
+        },
+      }),
+    );
+
+    renderRoute('/', <DashboardRoute />);
+
+    expect(await screen.findByText('2 reorder candidates · 0 high risk · 0 due within 48h')).toBeInTheDocument();
+    expect(screen.getByText('Reorder pressure still needs review')).toBeInTheDocument();
+    expect(screen.queryByText('Planning queue is clear')).not.toBeInTheDocument();
+  });
+
+  test('overview shows the healthy queue empty state when planning signals are clear', async () => {
+    setInventoryState(
+      createSnapshot({
+        sist: {
+          ...snapshot.sist,
+          pendingReorderCount: 0,
+          highRiskSkuIds: [],
+          skuInsights: [],
+        },
+      }),
+    );
+
+    renderRoute('/', <DashboardRoute />);
+
+    expect(await screen.findByText('Planning queue is clear')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open reorder queue' })).not.toBeInTheDocument();
   });
 
   test('overview prompts for the first update session when reports have not been captured yet', async () => {
@@ -1182,6 +1438,10 @@ describe('renderer workspaces', () => {
       '/planning',
     );
     expect(screen.getAllByRole('link', { name: 'Open planning' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: 'Open reorder queue' })).toHaveAttribute(
+      'href',
+      '/planning',
+    );
     expect(screen.getAllByRole('link', { name: 'Review reorder priorities' })).toHaveLength(1);
     expect(screen.queryByRole('link', { name: 'Start update session' })).not.toBeInTheDocument();
     expect(screen.queryByText('Quick actions')).not.toBeInTheDocument();
@@ -1207,7 +1467,7 @@ describe('renderer workspaces', () => {
         'Recent activity could not be loaded right now. The rest of Overview is still available.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Needs attention')).toBeInTheDocument();
+    expect(screen.getByText('Planning queue')).toBeInTheDocument();
     expect(screen.getByText('Support metrics')).toBeInTheDocument();
   });
 
@@ -1766,7 +2026,7 @@ describe('renderer workspaces', () => {
     ).toBeInTheDocument();
   });
 
-  test('service detail parameters tab contains economics and recipe metadata', async () => {
+  test('service detail parameters tab contains compact economics summary', async () => {
     render(
       <MemoryRouter initialEntries={['/catalog/services/service-1']}>
         <Routes>
@@ -1780,11 +2040,15 @@ describe('renderer workspaces', () => {
     fireEvent.click(parametersTab);
 
     expect(await screen.findByText('Economics')).toBeInTheDocument();
-    expect(screen.getByText('Recipe composition')).toBeInTheDocument();
+    expect(screen.queryByText('Recipe composition')).not.toBeInTheDocument();
     expect(screen.getByText('$5.00')).toBeInTheDocument();
     expect(screen.getByText('$1,195.00')).toBeInTheDocument();
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
+    expect(screen.getByText('Current price')).toBeInTheDocument();
+    expect(screen.getByText('Current estimate')).toBeInTheDocument();
     expect(screen.getByText('No recorded adjustment')).toBeInTheDocument();
-    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
+    expect(screen.getByText('No timestamp available')).toBeInTheDocument();
+    expect(screen.getByText(/Assumption: margin uses current linked-SKU cost basis only\./)).toBeInTheDocument();
   });
 
   test('service detail report failure stays scoped to history content', async () => {

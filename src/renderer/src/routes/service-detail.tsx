@@ -167,6 +167,27 @@ function disruptionWindowLabel(disruptionWindowDays: number | null, language: 'e
   return `${formatNumber(disruptionWindowDays, language)} days`;
 }
 
+function marginStateLabel({
+  servicePrice,
+  grossMargin,
+}: {
+  servicePrice: number;
+  grossMargin: number;
+}) {
+  if (servicePrice <= 0) {
+    return 'Low margin';
+  }
+
+  const marginRatio = grossMargin / servicePrice;
+  if (marginRatio <= 0.2) {
+    return 'Low margin';
+  }
+  if (marginRatio <= 0.35) {
+    return 'Compressed';
+  }
+  return 'Healthy';
+}
+
 function collapsePathLabel({
   bottleneckName,
   nextLimiterName,
@@ -315,13 +336,21 @@ function ServiceForecastChart({
   const points = deriveForecastPoints({ sellableUnits, disruptionWindowDays });
   const maxRemaining = Math.max(...points.map((point) => point.remaining), 1);
   const width = 640;
-  const height = 240;
+  const height = 280;
+  const plotTop = 36;
+  const plotBottom = height - 42;
+  const plotLeft = 40;
+  const plotRight = width - 18;
+  const xForIndex = (index: number) =>
+    plotLeft + (index / Math.max(points.length - 1, 1)) * (plotRight - plotLeft);
+  const yForRemaining = (remaining: number) =>
+    plotBottom - (remaining / maxRemaining) * (plotBottom - plotTop);
   const markerDay =
     disruptionWindowDays == null ? null : Math.max(0, Math.min(Math.ceil(disruptionWindowDays), points.length - 1));
   const path = points
     .map((point, index) => {
-      const x = (index / Math.max(points.length - 1, 1)) * width;
-      const y = height - (point.remaining / maxRemaining) * (height - 24) - 12;
+      const x = xForIndex(index);
+      const y = yForRemaining(point.remaining);
       return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
     })
     .join(' ');
@@ -349,17 +378,94 @@ function ServiceForecastChart({
         role="img"
         viewBox={`0 0 ${width} ${height}`}
       >
-        <line stroke="currentColor" strokeOpacity="0.12" strokeWidth="1" x1="0" x2={width} y1={height - 12} y2={height - 12} />
+        <text
+          fill="currentColor"
+          fontSize="13"
+          fontWeight="600"
+          textAnchor="middle"
+          x={width / 2}
+          y="18"
+        >
+          Sellable units forecast
+        </text>
+        <text
+          fill="currentColor"
+          fontSize="12"
+          opacity="0.7"
+          textAnchor="middle"
+          transform={`rotate(-90 16 ${height / 2})`}
+          x="16"
+          y={height / 2}
+        >
+          Sellable units
+        </text>
+        <text
+          fill="currentColor"
+          fontSize="12"
+          opacity="0.7"
+          textAnchor="middle"
+          x={(plotLeft + plotRight) / 2}
+          y={height - 8}
+        >
+          Time (days)
+        </text>
+        <line
+          stroke="currentColor"
+          strokeOpacity="0.16"
+          strokeWidth="1"
+          x1={plotLeft}
+          x2={plotRight}
+          y1={plotBottom}
+          y2={plotBottom}
+        />
+        <line
+          stroke="currentColor"
+          strokeOpacity="0.12"
+          strokeWidth="1"
+          x1={plotLeft}
+          x2={plotLeft}
+          y1={plotTop}
+          y2={plotBottom}
+        />
+        {[0, maxRemaining].map((remaining) => (
+          <text
+            fill="currentColor"
+            fontSize="11"
+            key={remaining}
+            opacity="0.65"
+            textAnchor="end"
+            x={plotLeft - 8}
+            y={yForRemaining(remaining) + 4}
+          >
+            {formatNumber(remaining, language)}
+          </text>
+        ))}
+        {[0, markerDay ?? Math.max(points.length - 1, 1), Math.max(points.length - 1, 1)].filter(
+          (value, index, array) => array.indexOf(value) === index,
+        ).map((index) => (
+          <g key={index}>
+            <text
+              fill="currentColor"
+              fontSize="11"
+              opacity="0.65"
+              textAnchor="middle"
+              x={xForIndex(index)}
+              y={plotBottom + 18}
+            >
+              {formatNumber(points[index]?.day ?? index, language)}
+            </text>
+          </g>
+        ))}
         {markerDay != null ? (
           <line
             stroke="currentColor"
             strokeDasharray="6 6"
             strokeOpacity="0.3"
             strokeWidth="2"
-            x1={(markerDay / Math.max(points.length - 1, 1)) * width}
-            x2={(markerDay / Math.max(points.length - 1, 1)) * width}
-            y1="12"
-            y2={height - 12}
+            x1={xForIndex(markerDay)}
+            x2={xForIndex(markerDay)}
+            y1={plotTop}
+            y2={plotBottom}
           />
         ) : null}
         <path d={path} fill="none" stroke="currentColor" strokeWidth="4" />
@@ -737,6 +843,10 @@ export function ServiceDetailRoute() {
     nextLimiterName: fragility.nextLikelyLimiter?.sku.name ?? null,
   });
   const coverageMode = stateLabel === 'Unlinked' ? 'Recipe incomplete' : stateLabel;
+  const marginState = marginStateLabel({
+    grossMargin: economics.grossMargin,
+    servicePrice: economics.servicePrice,
+  });
 
   return (
     <WorkspacePage data-testid="service-detail-route">
@@ -865,26 +975,35 @@ export function ServiceDetailRoute() {
                   {recommendation.headline}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{recommendation.suggestion}</p>
-                <div className="mt-5 space-y-3">
-                  {recommendation.reasons.map((reason) => (
-                    <p className="text-sm leading-6 text-foreground/85" key={reason}>
-                      {reason}
-                    </p>
-                  ))}
-                </div>
-                <div className="mt-5 border-t border-border/60 pt-4">
+                <div className="mt-5">
                   <p className="text-sm font-medium text-foreground">Why SIST thinks this</p>
                   <div className="mt-3 grid gap-3 text-sm leading-6 text-muted-foreground">
-                    <p>Current bottleneck: {bottleneck?.name ?? 'No active limiter'}.</p>
-                    <p>Next likely limiter: {fragility.nextLikelyLimiter?.sku.name ?? 'Unavailable'}.</p>
-                    <p>Collapse path: {collapsePath}.</p>
                     <p>
-                      Disruption window: {disruptionWindowLabel(fragility.disruptionWindowDays, language)}.
+                      Current bottleneck:{' '}
+                      <span className="text-foreground">{bottleneck?.name ?? 'No active limiter'}.</span>
                     </p>
                     <p>
-                      Confidence: {confidenceLabel}. If the bottleneck worsens first, service sellable units collapse before other linked SKUs matter.
+                      Next likely limiter:{' '}
+                      <span className="text-foreground">{fragility.nextLikelyLimiter?.sku.name ?? 'Unavailable'}.</span>
                     </p>
-                    {overviewHint ? <p>Evidence hint: {overviewHint}</p> : null}
+                    <p>
+                      Collapse path: <span className="text-foreground">{collapsePath}.</span>
+                    </p>
+                    <p>
+                      Disruption window:{' '}
+                      <span className="text-foreground">{disruptionWindowLabel(fragility.disruptionWindowDays, language)}.</span>
+                    </p>
+                    <p>
+                      Confidence:{' '}
+                      <span className="text-foreground">
+                        {confidenceLabel}. If the bottleneck worsens first, service sellable units collapse before other linked SKUs matter.
+                      </span>
+                    </p>
+                    {overviewHint ? (
+                      <p>
+                        Evidence hint: <span className="text-foreground">{overviewHint}</span>
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -955,63 +1074,57 @@ export function ServiceDetailRoute() {
           </TabsContent>
 
           <TabsContent className="mt-6" value="parameters">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-              <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-5">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Economics
-                </p>
-                <div className="mt-4 grid gap-3">
-                  <div className="rounded-[1.25rem] border border-border/60 bg-background/35 px-4 py-4">
-                    <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">{t('fieldPrice')}</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">
-                      {formatCurrency(economics.servicePrice, currency, language)}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-border/60 bg-background/35 px-4 py-4">
-                    <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">Estimated input cost</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">
-                      {formatCurrency(economics.estimatedInputCost, currency, language)}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-border/60 bg-background/35 px-4 py-4">
-                    <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">Gross margin</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">
-                      {formatCurrency(economics.grossMargin, currency, language)}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-border/60 bg-background/35 px-4 py-4">
-                    <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">Last price adjustment</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">
-                      {latestPriceAdjustment
-                        ? `${formatCurrency(latestPriceAdjustment.adjustment.price, currency, language)} · ${reportDateLabel(latestPriceAdjustment.reportedAt, language)}`
-                        : 'No recorded adjustment'}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-border/60 bg-background/35 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                    Assumptions: margin uses current linked-SKU cost basis only. Banji is not modeling stressed replenishment cost in this pass.
-                  </div>
+            <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-5">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Economics
+              </p>
+              <div className="mt-4 grid gap-x-6 gap-y-5 border-t border-border/60 pt-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1fr)]">
+                <div className="border-b border-border/50 pb-4 xl:border-b-0 xl:pb-0">
+                  <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    Gross margin
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-foreground sm:text-4xl">
+                    {formatCurrency(economics.grossMargin, currency, language)}
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-muted-foreground">{marginState}</p>
+                </div>
+                <div className="border-b border-border/50 pb-4 xl:border-b-0 xl:pb-0">
+                  <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    {t('fieldPrice')}
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                    {formatCurrency(economics.servicePrice, currency, language)}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">Current price</p>
+                </div>
+                <div className="border-b border-border/50 pb-4 xl:border-b-0 xl:pb-0">
+                  <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    Estimated input cost
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                    {formatCurrency(economics.estimatedInputCost, currency, language)}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">Current estimate</p>
+                </div>
+                <div>
+                  <p className="text-[0.72rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    Last price adjustment
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                    {latestPriceAdjustment
+                      ? formatCurrency(latestPriceAdjustment.adjustment.price, currency, language)
+                      : 'No recorded adjustment'}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {latestPriceAdjustment
+                      ? reportDateLabel(latestPriceAdjustment.reportedAt, language)
+                      : 'No timestamp available'}
+                  </p>
                 </div>
               </div>
-
-              <div className="rounded-[1.75rem] border border-border/70 bg-background/70 p-5">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Recipe composition
-                </p>
-                {contributors.length > 0 ? (
-                  <div className="mt-4 grid gap-3">
-                    {contributors.map((contributor) => (
-                      <div className="rounded-[1.25rem] border border-border/60 bg-background/35 px-4 py-4" key={contributor.sku.skuId}>
-                        <p className="font-medium text-foreground">{contributor.sku.name}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {contributor.sku.skuId} · {formatCurrency(contributor.sku.costPerUnit, currency, language)} input cost · {formatNumber(contributor.sku.unitsInStock, language)} on hand
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-4 text-sm text-muted-foreground">No linked SKUs are attached to this service yet.</p>
-                )}
-              </div>
+              <p className="mt-5 text-sm leading-6 text-muted-foreground">
+                Assumption: margin uses current linked-SKU cost basis only. Banji is not modeling stressed replenishment cost in this pass.
+              </p>
             </div>
           </TabsContent>
         </Tabs>

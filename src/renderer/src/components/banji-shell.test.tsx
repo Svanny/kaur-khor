@@ -104,7 +104,7 @@ describe('BanjiShell', () => {
     expect(screen.queryByText('Desktop operations cockpit')).not.toBeInTheDocument();
   });
 
-  test('keeps only the Banji logo text inside the sidebar brand pill', () => {
+  test('renders the sidebar brand as plain logo and text', () => {
     setViewport({ width: 1440, isMobile: false });
 
     render(
@@ -117,9 +117,10 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
-    const brandToggle = screen.getByTestId('sidebar-brand-toggle');
+    const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(within(brandToggle).getByText('Banji')).toBeInTheDocument();
     expect(within(brandToggle).queryByText('Settings')).not.toBeInTheDocument();
+    expect(brandToggle).toHaveAttribute('aria-label', 'Collapse navigation');
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
@@ -141,8 +142,9 @@ describe('BanjiShell', () => {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
     }
 
-    const workspaceLabel = screen.getByText('Workflows');
-    const workspaceGroup = workspaceLabel.closest('[data-sidebar="group"]');
+    const workspaceGroup = screen
+      .getByRole('link', { name: 'Overview' })
+      .closest('[data-sidebar="group"]');
     const settingsLink = screen.getByRole('link', { name: 'Settings' });
     const settingsGroup = settingsLink.closest('[data-sidebar="group"]');
 
@@ -204,15 +206,19 @@ describe('BanjiShell', () => {
     );
 
     const mainFrame = screen.getByTestId('shell-main-frame');
-    const brandToggle = screen.getByTestId('sidebar-brand-toggle');
+    const collapseToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(mainFrame.className).toContain('max-w-[1500px]');
     expect(screen.getByText('Settings')).toBeInTheDocument();
+    expect(collapseToggle).toHaveAttribute('aria-label', 'Collapse navigation');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }));
+    fireEvent.click(collapseToggle);
 
     expect(mainFrame.className).toContain('max-w-none');
     expect(mainFrame.className).not.toContain('max-w-[1500px]');
-    expect(brandToggle.className).toContain('group-data-[collapsible=icon]:size-10');
+    expect(screen.getByTestId('sidebar-collapse-toggle')).toHaveAttribute(
+      'aria-label',
+      'Open navigation',
+    );
     expect(screen.queryByText('Settings')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });

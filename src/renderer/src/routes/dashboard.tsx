@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { StockReport } from '@shared/inventory';
-import { ArrowRight, TriangleAlert } from 'lucide-react';
+import type { InventorySnapshot, StockReport, SkuRecord, SistSkuInsight } from '@shared/inventory';
+import { ArrowRight } from 'lucide-react';
 import {
   MetricStrip,
   MetricStripItem,
@@ -14,6 +14,8 @@ import { RecentActivityList } from '@/components/system/recent-activity-list';
 import { buildDefaultReportRanking } from '@/components/system/merchandising-editor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { linkedServicesForSku } from '@/lib/catalog';
 import { formatCurrency, formatNumber, localeFor } from '@/lib/format';
 import {
   rankingSignalCount,
@@ -21,11 +23,29 @@ import {
   summarizeCount,
   summarizeNotes,
 } from '@/lib/stock-report-summary';
+import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 
 const RECENT_REPORT_LIMIT = 3;
-const URGENT_SKU_LIMIT = 3;
+const PLANNING_QUEUE_VISIBLE_LIMIT = 4;
+
+type QueueFilter = 'all' | 'reorder-now' | 'high-risk' | 'service-impact';
+type QueueSeverity = 'critical' | 'reorder-now' | 'at-risk' | 'watch';
+
+type PlanningQueueItem = {
+  skuId: string;
+  name: string;
+  insight: SistSkuInsight;
+  sku: SkuRecord | null;
+  affectedServiceCount: number;
+  isHighRisk: boolean;
+  hasReorderPressure: boolean;
+  dueWithin48h: boolean;
+  severity: QueueSeverity;
+  decisionSentence: string;
+  reasonLine: string;
+};
 
 function rankingCoverageDetail(sellableSkuCount: number, serviceCount: number) {
   return `${sellableSkuCount} SKUs + ${serviceCount} services`;
@@ -65,23 +85,228 @@ function latestReportSummary(report: StockReport, t: (key: string) => string) {
   ].join(' · ');
 }
 
-function urgentSignalLabel({
-  daysOfCover,
+function reorderPressureActive(insight: SistSkuInsight) {
+  return insight.latestPosteriorUnits <= insight.reorderPoint || insight.reorderTriggerProbability >= 0.5;
+}
+
+function isQueueCandidate(insight: SistSkuInsight, isHighRisk: boolean) {
+  return (
+    isHighRisk ||
+    reorderPressureActive(insight) ||
+    (insight.daysOfCover != null && insight.daysOfCover <= 5) ||
+    insight.stockoutRisk >= 0.2
+  );
+}
+
+function queueSeverity({
+  affectedServiceCount,
+  insight,
+  isHighRisk,
+}: {
+  affectedServiceCount: number;
+  insight: SistSkuInsight;
+  isHighRisk: boolean;
+}): QueueSeverity {
+  const zeroCover =
+    insight.latestPosteriorUnits <= 0 || (insight.daysOfCover != null && insight.daysOfCover <= 0);
+
+  if (zeroCover || insight.stockoutRisk >= 0.8) {
+    return 'critical';
+  }
+  if (
+    (insight.daysOfCover != null && insight.daysOfCover <= 2) ||
+    insight.stockoutRisk >= 0.5 ||
+    insight.reorderTriggerProbability >= 0.8
+  ) {
+    return affectedServiceCount > 0 && insight.stockoutRisk >= 0.45 ? 'critical' : 'reorder-now';
+  }
+  if (isHighRisk || insight.stockoutRisk >= 0.25 || reorderPressureActive(insight)) {
+    return 'at-risk';
+  }
+  return 'watch';
+}
+
+function queueSeverityLabel(severity: QueueSeverity, t: (key: string) => string) {
+  if (severity === 'critical') {
+    return t('overviewQueueSeverityCritical');
+  }
+  if (severity === 'reorder-now') {
+    return t('overviewQueueSeverityReorderNow');
+  }
+  if (severity === 'at-risk') {
+    return t('overviewQueueSeverityAtRisk');
+  }
+  return t('overviewQueueSeverityWatch');
+}
+
+function queueDecisionSentence({
+  hasReorderPressure,
+  insight,
+  isHighRisk,
   language,
-  stockoutRisk,
+  severity,
   t,
 }: {
-  daysOfCover: number | null;
+  hasReorderPressure: boolean;
+  insight: SistSkuInsight;
+  isHighRisk: boolean;
   language: 'en' | 'km';
-  stockoutRisk: number;
+  severity: QueueSeverity;
   t: (key: string) => string;
 }) {
-  const risk = `${t('catalogStockoutRisk')}: ${formatNumber(stockoutRisk * 100, language)}%`;
-  if (daysOfCover == null) {
-    return risk;
+  if (severity === 'critical' || (insight.daysOfCover != null && insight.daysOfCover <= 2)) {
+    if (insight.daysOfCover == null) {
+      return t('overviewQueueDecisionImmediateUnknownCover');
+    }
+
+    return t('overviewQueueDecisionImmediate').replace(
+      '{days}',
+      formatNumber(insight.daysOfCover, language),
+    );
   }
 
-  return `${risk} · ${formatNumber(daysOfCover, language)} ${t('overviewDaysOfCoverSuffix')}`;
+  if (isHighRisk || severity === 'at-risk') {
+    return t('overviewQueueDecisionElevated');
+  }
+
+  if (hasReorderPressure) {
+    return t('overviewQueueDecisionPressure');
+  }
+
+  return t('overviewQueueDecisionWatch');
+}
+
+function queueReasonLine({
+  affectedServiceCount,
+  hasReorderPressure,
+  insight,
+  language,
+  t,
+}: {
+  affectedServiceCount: number;
+  hasReorderPressure: boolean;
+  insight: SistSkuInsight;
+  language: 'en' | 'km';
+  t: (key: string) => string;
+}) {
+  const reasons = [
+    `${formatNumber(insight.stockoutRisk * 100, language)}% ${t('overviewQueueReasonRiskSuffix')}`,
+    hasReorderPressure
+      ? insight.latestPosteriorUnits <= insight.reorderPoint
+        ? t('overviewQueueReasonReorderBreached')
+        : t('overviewQueueReasonReorderPressure')
+      : null,
+    affectedServiceCount > 0
+      ? t('overviewQueueReasonServiceImpact')
+          .replace('{count}', formatNumber(affectedServiceCount, language))
+          .replace(
+            '{noun}',
+            affectedServiceCount === 1
+              ? t('overviewQueueReasonServiceSingular')
+              : t('overviewQueueReasonServicePlural'),
+          )
+      : null,
+    insight.confidence === 'low' ? t('overviewQueueReasonLowConfidence') : null,
+  ].filter((reason): reason is string => Boolean(reason));
+
+  return reasons.slice(0, 3).join(' · ');
+}
+
+function planningQueueSort(left: PlanningQueueItem, right: PlanningQueueItem) {
+  const leftZeroCover =
+    left.insight.latestPosteriorUnits <= 0 ||
+    (left.insight.daysOfCover != null && left.insight.daysOfCover <= 0);
+  const rightZeroCover =
+    right.insight.latestPosteriorUnits <= 0 ||
+    (right.insight.daysOfCover != null && right.insight.daysOfCover <= 0);
+
+  if (leftZeroCover !== rightZeroCover) {
+    return leftZeroCover ? -1 : 1;
+  }
+
+  const leftDays = left.insight.daysOfCover ?? Number.POSITIVE_INFINITY;
+  const rightDays = right.insight.daysOfCover ?? Number.POSITIVE_INFINITY;
+  if (leftDays !== rightDays) {
+    return leftDays - rightDays;
+  }
+
+  if (left.insight.stockoutRisk !== right.insight.stockoutRisk) {
+    return right.insight.stockoutRisk - left.insight.stockoutRisk;
+  }
+
+  if (left.affectedServiceCount !== right.affectedServiceCount) {
+    return right.affectedServiceCount - left.affectedServiceCount;
+  }
+
+  return left.name.localeCompare(right.name);
+}
+
+function buildPlanningQueue({
+  language,
+  snapshot,
+  t,
+}: {
+  language: 'en' | 'km';
+  snapshot: InventorySnapshot;
+  t: (key: string) => string;
+}) {
+  const highRiskSkuIds = new Set(snapshot.sist.highRiskSkuIds);
+
+  return snapshot.sist.skuInsights
+    .map((insight) => {
+      const sku = snapshot.skus.find((entry) => entry.skuId === insight.skuId) ?? null;
+      const affectedServiceCount = linkedServicesForSku(insight.skuId, snapshot).length;
+      const isHighRisk = highRiskSkuIds.has(insight.skuId);
+      const hasReorderPressure = reorderPressureActive(insight);
+
+      if (!isQueueCandidate(insight, isHighRisk)) {
+        return null;
+      }
+
+      const severity = queueSeverity({ affectedServiceCount, insight, isHighRisk });
+
+      return {
+        skuId: insight.skuId,
+        name: sku?.name ?? insight.skuId,
+        insight,
+        sku,
+        affectedServiceCount,
+        isHighRisk,
+        hasReorderPressure,
+        dueWithin48h: insight.daysOfCover != null && insight.daysOfCover <= 2,
+        severity,
+        decisionSentence: queueDecisionSentence({
+          hasReorderPressure,
+          insight,
+          isHighRisk,
+          language,
+          severity,
+          t,
+        }),
+        reasonLine: queueReasonLine({
+          affectedServiceCount,
+          hasReorderPressure,
+          insight,
+          language,
+          t,
+        }),
+      } satisfies PlanningQueueItem;
+    })
+    .filter((item): item is PlanningQueueItem => Boolean(item))
+    .sort(planningQueueSort);
+}
+
+function queueMatchesFilter(item: PlanningQueueItem, filter: QueueFilter) {
+  if (filter === 'all') {
+    return true;
+  }
+  if (filter === 'reorder-now') {
+    return item.dueWithin48h || item.severity === 'critical' || item.severity === 'reorder-now';
+  }
+  if (filter === 'high-risk') {
+    return item.isHighRisk;
+  }
+  return item.affectedServiceCount > 0;
 }
 
 function buildPrimaryActions({
@@ -162,6 +387,7 @@ export function DashboardRoute() {
   const [recentReports, setRecentReports] = useState<StockReport[]>([]);
   const [recentReportsError, setRecentReportsError] = useState<string | null>(null);
   const [recentReportsLoading, setRecentReportsLoading] = useState(true);
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -212,13 +438,15 @@ export function DashboardRoute() {
   const rankableEntryCount = buildDefaultReportRanking(snapshot).length;
   const sellableSkuCount = snapshot.skus.filter((sku) => sku.soldAsProduct).length;
   const hasCatalog = snapshot.skus.length > 0 || snapshot.services.length > 0;
-  const highRiskInsights = snapshot.sist.skuInsights
-    .filter((insight) => snapshot.sist.highRiskSkuIds.includes(insight.skuId))
-    .sort((left, right) => right.stockoutRisk - left.stockoutRisk);
-  const urgentSkus = highRiskInsights.slice(0, URGENT_SKU_LIMIT);
   const hasReorderPressure = snapshot.sist.pendingReorderCount > 0;
   const hasHighRiskSkus = snapshot.sist.highRiskSkuIds.length > 0;
-  const urgentPlanningSignal = hasReorderPressure || hasHighRiskSkus;
+  const planningQueue = buildPlanningQueue({ language, snapshot, t });
+  const filteredQueue = planningQueue.filter((item) => queueMatchesFilter(item, queueFilter));
+  const visibleQueue = filteredQueue.slice(0, PLANNING_QUEUE_VISIBLE_LIMIT);
+  const hiddenQueueCount = Math.max(filteredQueue.length - visibleQueue.length, 0);
+  const dueWithin48hCount = planningQueue.filter((item) => item.dueWithin48h).length;
+  const hasQueueSignals = hasReorderPressure || hasHighRiskSkus || planningQueue.length > 0;
+  const urgentPlanningSignal = hasQueueSignals;
   const reportsLoaded = !recentReportsLoading && recentReportsError == null;
   const primaryActions = buildPrimaryActions({
     hasCatalog,
@@ -328,9 +556,9 @@ export function DashboardRoute() {
 
       <WorkspacePanel
         action={
-          urgentPlanningSignal ? (
+          hasQueueSignals ? (
             <Button asChild variant="outline">
-              <Link to="/planning">{t('overviewOpenPlanning')}</Link>
+              <Link to="/planning">{t('overviewOpenReorderQueue')}</Link>
             </Button>
           ) : (
             <Button asChild variant="outline">
@@ -340,88 +568,125 @@ export function DashboardRoute() {
             </Button>
           )
         }
-        description={t('overviewNeedsAttentionDescription')}
-        title={t('overviewNeedsAttentionTitle')}
+        description={t('overviewPlanningQueueDescription')}
+        title={t('overviewPlanningQueueTitle')}
       >
-        {hasHighRiskSkus ? (
+        {hasQueueSignals ? (
           <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  {t('overviewReorderPressure')}
+            <div className="rounded-3xl border border-border/70 bg-background/60 px-4 py-3">
+              <p className="text-sm text-foreground">
+                {[
+                  `${formatNumber(snapshot.sist.pendingReorderCount, language)} ${t('overviewQueueSummaryReorderCandidates')}`,
+                  `${formatNumber(snapshot.sist.highRiskSkuIds.length, language)} ${t('overviewQueueSummaryHighRisk')}`,
+                  `${formatNumber(dueWithin48hCount, language)} ${t('overviewQueueSummaryDueSoon')}`,
+                ].join(' · ')}
+              </p>
+              {hiddenQueueCount > 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('overviewQueueSummaryRemaining').replace(
+                    '{count}',
+                    formatNumber(hiddenQueueCount, language),
+                  )}
                 </p>
-                <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                  {formatNumber(snapshot.sist.pendingReorderCount, language)}
-                </p>
-              </div>
-              <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  {t('overviewHighRiskSkuCount')}
-                </p>
-                <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                  {formatNumber(snapshot.sist.highRiskSkuIds.length, language)}
-                </p>
-              </div>
+              ) : null}
             </div>
 
-            <div className="grid gap-3">
-              {urgentSkus.map((insight) => {
-                const sku = snapshot.skus.find((entry) => entry.skuId === insight.skuId);
-
-                return (
-                  <div
-                    className="flex items-start justify-between gap-3 rounded-3xl border border-border/70 bg-card/55 px-4 py-4"
-                    key={insight.skuId}
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground">
-                        {sku?.name ?? insight.skuId}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {urgentSignalLabel({
-                          daysOfCover: insight.daysOfCover,
-                          language,
-                          stockoutRisk: insight.stockoutRisk,
-                          t,
-                        })}
-                      </p>
-                    </div>
-                    <Badge className="rounded-full" variant="outline">
-                      <TriangleAlert className="mr-1 size-3" />
-                      {t('overviewUrgentBadge')}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : hasReorderPressure ? (
-          <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  {t('overviewReorderPressure')}
-                </p>
-                <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                  {formatNumber(snapshot.sist.pendingReorderCount, language)}
-                </p>
-              </div>
-              <div className="rounded-3xl border border-border/70 bg-background/55 p-5">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  {t('overviewHighRiskSkuCount')}
-                </p>
-                <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                  {formatNumber(snapshot.sist.highRiskSkuIds.length, language)}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-border/70 bg-card/55 px-4 py-4">
-              <p className="font-medium text-foreground">{t('overviewReorderPressureOnlyTitle')}</p>
-              <DescriptionText className="mt-2 text-sm text-muted-foreground">
-                {t('overviewReorderPressureOnlyDescription')}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <DescriptionText className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                {t('overviewQueueFilterDescription')}
               </DescriptionText>
+              <ToggleGroup
+                aria-label={t('overviewQueueFilterLabel')}
+                spacing={1}
+                type="single"
+                value={queueFilter}
+                onValueChange={(nextValue) => {
+                  if (!nextValue) {
+                    return;
+                  }
+                  setQueueFilter(nextValue as QueueFilter);
+                }}
+              >
+                <ToggleGroupItem value="all">{t('filterAll')}</ToggleGroupItem>
+                <ToggleGroupItem value="reorder-now">{t('overviewQueueFilterReorderNow')}</ToggleGroupItem>
+                <ToggleGroupItem value="high-risk">{t('overviewQueueFilterHighRisk')}</ToggleGroupItem>
+                <ToggleGroupItem value="service-impact">
+                  {t('overviewQueueFilterServiceImpact')}
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
+
+            {visibleQueue.length > 0 ? (
+              <div className="grid gap-3">
+                {visibleQueue.map((item, index) => (
+                  <div
+                    className={cn(
+                      'flex items-start justify-between gap-4 rounded-3xl border px-4 py-4',
+                      index === 0
+                        ? 'border-amber-300/70 bg-amber-50/80 shadow-[inset_4px_0_0_rgba(217,119,6,0.9)] dark:bg-amber-950/20'
+                        : 'border-border/70 bg-card/55',
+                    )}
+                    data-lead-row={index === 0 ? 'true' : 'false'}
+                    data-testid="planning-queue-row"
+                    key={item.skuId}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-foreground">{item.name}</p>
+                      <p
+                        className={cn(
+                          'mt-1 text-sm text-foreground',
+                          index === 0 && 'text-base font-semibold tracking-[-0.02em]',
+                        )}
+                      >
+                        {item.decisionSentence}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">{item.reasonLine}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-3">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Badge
+                          className={cn(
+                            item.severity === 'critical' &&
+                              'border-red-300/80 bg-red-50 text-red-900 dark:bg-red-950/20 dark:text-red-100',
+                            item.severity === 'reorder-now' &&
+                              'border-amber-300/80 bg-amber-50 text-amber-900 dark:bg-amber-950/20 dark:text-amber-100',
+                            item.severity === 'at-risk' &&
+                              'border-orange-300/80 bg-orange-50 text-orange-900 dark:bg-orange-950/20 dark:text-orange-100',
+                            item.severity === 'watch' &&
+                              'border-border/80 bg-background/70 text-foreground',
+                          )}
+                          variant="outline"
+                        >
+                          {queueSeverityLabel(item.severity, t)}
+                        </Badge>
+                        {item.affectedServiceCount > 0 ? (
+                          <Badge className="border-border/80 bg-background/70" variant="outline">
+                            {t('overviewQueueFilterServiceImpact')}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/catalog/skus/${item.skuId}`}>{t('overviewReviewSku')}</Link>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : planningQueue.length > 0 ? (
+              <div className="rounded-3xl border border-dashed border-border/70 bg-card/40 px-4 py-4">
+                <p className="font-medium text-foreground">{t('overviewQueueNoFilterMatchesTitle')}</p>
+                <DescriptionText className="mt-2 text-sm text-muted-foreground">
+                  {t('overviewQueueNoFilterMatchesDescription')}
+                </DescriptionText>
+              </div>
+            ) : (
+              <div className="rounded-3xl border border-dashed border-border/70 bg-card/40 px-4 py-4">
+                <p className="font-medium text-foreground">{t('overviewQueueReorderPressureTitle')}</p>
+                <DescriptionText className="mt-2 text-sm text-muted-foreground">
+                  {t('overviewQueueReorderPressureDescription')}
+                </DescriptionText>
+              </div>
+            )}
           </div>
         ) : (
           <WorkspaceEmpty
@@ -432,8 +697,8 @@ export function DashboardRoute() {
                 </Link>
               </Button>
             }
-            description={t('overviewHealthyStateDescription')}
-            title={t('overviewHealthyStateTitle')}
+            description={t('overviewQueueHealthyDescription')}
+            title={t('overviewQueueHealthyTitle')}
           />
         )}
       </WorkspacePanel>

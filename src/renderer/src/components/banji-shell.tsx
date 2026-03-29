@@ -1,11 +1,11 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Boxes,
-  ChevronLeft,
-  ChevronRight,
   ClipboardPen,
   LayoutDashboard,
   LayoutList,
+  PanelRightClose,
+  PanelRightOpen,
   Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,6 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -123,41 +122,46 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
       </a>
 
       <Sidebar className="border-r border-sidebar-border/60" collapsible="icon" variant="sidebar">
-        <SidebarHeader className="px-2 pt-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
-          <button
-            aria-label={state === 'expanded' ? t('collapseNavigation') : t('openNavigation')}
-            className="group/brand flex h-14 w-full items-center gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/80 px-2.5 text-left text-foreground shadow-[0_12px_30px_rgba(27,15,7,0.08)] ring-sidebar-ring outline-none transition-colors hover:border-border hover:bg-card/95 focus-visible:ring-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-[1.25rem] group-data-[collapsible=icon]:px-0"
-            data-testid="sidebar-brand-toggle"
-            type="button"
-            onClick={toggleSidebar}
-          >
-            <span className="relative flex size-10 shrink-0 items-center justify-center rounded-[1rem] group-data-[collapsible=icon]:size-8">
-              <img
-                alt=""
-                aria-hidden="true"
-                className="size-5 transition-opacity duration-100 ease-out group-hover/brand:opacity-0 motion-reduce:transition-none"
-                src={brandLogo}
-              />
-              <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-100 ease-out group-hover/brand:opacity-100 motion-reduce:transition-none">
-                {state === 'expanded' ? (
-                  <ChevronLeft aria-hidden="true" className="size-4" />
-                ) : (
-                  <ChevronRight aria-hidden="true" className="size-4" />
-                )}
-              </span>
-            </span>
-            {showSidebarText ? (
-              <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-foreground">
-                {t('appBrand')}
-              </span>
-            ) : null}
-          </button>
+        <SidebarHeader className="px-3 pt-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
+          {showSidebarText ? (
+            <button
+              aria-label={t('collapseNavigation')}
+              className="group/brand flex h-10 w-full min-w-0 items-center gap-3 rounded-xl px-1 text-left text-foreground ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent/55 focus-visible:ring-2"
+              data-testid="sidebar-collapse-toggle"
+              type="button"
+              onClick={toggleSidebar}
+            >
+                <span className="relative flex size-10 shrink-0 items-center justify-center">
+                  <img
+                    alt=""
+                    aria-hidden="true"
+                    className="size-5 transition-opacity duration-150 ease-out group-hover/brand:opacity-0 motion-reduce:transition-none"
+                    src={brandLogo}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 ease-out group-hover/brand:opacity-100 motion-reduce:transition-none">
+                    <PanelRightOpen aria-hidden="true" className="size-4.5" />
+                  </span>
+                </span>
+                <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-foreground">
+                  {t('appBrand')}
+                </span>
+            </button>
+          ) : (
+            <button
+              aria-label={t('openNavigation')}
+              className="flex size-10 items-center justify-center rounded-[1.25rem] text-foreground ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2"
+              data-testid="sidebar-collapse-toggle"
+              type="button"
+              onClick={toggleSidebar}
+            >
+              <PanelRightClose aria-hidden="true" className="size-4.5" />
+            </button>
+          )}
         </SidebarHeader>
 
         <SidebarContent className="flex flex-col px-2 pb-3 group-data-[collapsible=icon]:px-1.5">
           <div className="flex flex-1 flex-col gap-6">
             <SidebarGroup className="group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
-              <SidebarGroupLabel>{t('shellGroupWorkflows')}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu className="group-data-[collapsible=icon]:items-center">
                   {PRIMARY_SECTIONS.map((section) => {
