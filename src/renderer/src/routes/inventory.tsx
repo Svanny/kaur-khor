@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useMemo, type ReactNode } from 'react';
+import { startTransition, useDeferredValue, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { HandCoins, Package, PackagePlus, Search, type LucideIcon } from 'lucide-react';
 import type { InventorySnapshot, ServiceRecord, SkuRecord } from '@shared/inventory';
@@ -40,20 +40,7 @@ import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
 const CATALOG_PREVIEW_LIMIT = 4;
-
-function catalogCountLabel({
-  count,
-  language,
-  singular,
-  plural,
-}: {
-  count: number;
-  language: 'en' | 'km';
-  singular: string;
-  plural: string;
-}) {
-  return `${formatNumber(count, language)} ${count === 1 ? singular : plural}`;
-}
+type SkuRevenueMetric = 'revenue' | 'gross-margin';
 
 function patchCatalogSearchParams({
   query,
@@ -112,9 +99,11 @@ function CatalogPreviewColGroup() {
 function SkuCatalogColGroup() {
   return (
     <colgroup>
-      <col className="w-[46%]" />
-      <col className="w-[20%]" />
-      <col className="w-[12%]" />
+      <col className="w-[34%]" />
+      <col className="w-[14%]" />
+      <col className="w-[10%]" />
+      <col className="w-[10%]" />
+      <col className="w-[10%]" />
       <col className="w-[11%]" />
       <col className="w-[11%]" />
     </colgroup>
@@ -272,12 +261,14 @@ function ServiceCatalogPreviewTable({
 function SkuCatalogTable({
   currency,
   language,
+  metric,
   rows,
   snapshot,
   t,
 }: {
   currency: 'USD' | 'KHR';
   language: 'en' | 'km';
+  metric: SkuRevenueMetric;
   rows: SkuRecord[];
   snapshot: InventorySnapshot;
   t: (key: string) => string;
@@ -292,9 +283,15 @@ function SkuCatalogTable({
           <TableRow>
             <TableHead>{t('inventoryColumnItem')}</TableHead>
             <TableHead>{t('inventoryColumnStatus')}</TableHead>
-            <TableHead>{t('fieldUnitsInStock')}</TableHead>
-            <TableHead>{t('fieldCostPerUnit')}</TableHead>
-            <TableHead>{t('fieldProductPrice')}</TableHead>
+            <TableHead className="text-right">{t('fieldUnitsInStock')}</TableHead>
+            <TableHead className="text-right">{t('fieldCostPerUnit')}</TableHead>
+            <TableHead className="text-right">{t('fieldProductPrice')}</TableHead>
+            <TableHead className="text-right">{t('inventoryColumnValue')}</TableHead>
+            <TableHead className="text-right">
+              {metric === 'gross-margin'
+                ? t('inventoryPotentialGrossMargin')
+                : t('inventoryPotentialRevenue')}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -304,6 +301,13 @@ function SkuCatalogTable({
               : sku.soldAsProduct
                 ? 'inventorySoldAsProduct'
                 : 'inventoryNotSoldAsProduct';
+            const inventoryValue = sku.unitsInStock * sku.costPerUnit;
+            const potentialRevenue =
+              sku.soldAsProduct && sku.productPrice !== null
+                ? sku.unitsInStock * sku.productPrice
+                : null;
+            const potentialGrossMargin =
+              potentialRevenue === null ? null : potentialRevenue - inventoryValue;
 
             return (
               <TableRow key={sku.skuId}>
@@ -339,12 +343,26 @@ function SkuCatalogTable({
                     {t(statusKey)}
                   </Badge>
                 </TableCell>
-                <TableCell>{formatNumber(sku.unitsInStock, language)}</TableCell>
-                <TableCell>{formatCurrency(sku.costPerUnit, currency, language)}</TableCell>
-                <TableCell>
+                <TableCell className="text-right">{formatNumber(sku.unitsInStock, language)}</TableCell>
+                <TableCell className="text-right">
+                  {formatCurrency(sku.costPerUnit, currency, language)}
+                </TableCell>
+                <TableCell className="text-right">
                   {sku.soldAsProduct && sku.productPrice !== null
                     ? formatCurrency(sku.productPrice, currency, language)
                     : '—'}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatCurrency(inventoryValue, currency, language)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {metric === 'gross-margin'
+                    ? potentialGrossMargin === null
+                      ? '—'
+                      : formatCurrency(potentialGrossMargin, currency, language)
+                    : potentialRevenue === null
+                      ? '—'
+                      : formatCurrency(potentialRevenue, currency, language)}
                 </TableCell>
               </TableRow>
             );
@@ -439,6 +457,7 @@ export function InventoryRoute() {
   const view = catalogViewFromSearchParams(searchParams);
   const query = searchParams.get('q') ?? '';
   const deferredQuery = useDeferredValue(query.trim());
+  const [skuRevenueMetric, setSkuRevenueMetric] = useState<SkuRevenueMetric>('revenue');
 
   const rows = useMemo(() => {
     if (!snapshot) {
@@ -464,35 +483,6 @@ export function InventoryRoute() {
 
   const hasCatalog = Boolean(snapshot && (snapshot.skus.length > 0 || snapshot.services.length > 0));
   const hasMatches = rows.skus.length > 0 || rows.services.length > 0;
-  const resultSummary = (() => {
-    const skuSummary = catalogCountLabel({
-      count: rows.skus.length,
-      language,
-      singular: t('catalogResultSkuSingular'),
-      plural: t('catalogResultSkuPlural'),
-    });
-    const serviceSummary = catalogCountLabel({
-      count: rows.services.length,
-      language,
-      singular: t('catalogResultServiceSingular'),
-      plural: t('catalogResultServicePlural'),
-    });
-
-    if (view === 'skus') {
-      return query.trim()
-        ? `${skuSummary} ${t('catalogResultsMatchingFor')} "${query.trim()}"`
-        : skuSummary;
-    }
-
-    if (view === 'services') {
-      return query.trim()
-        ? `${serviceSummary} ${t('catalogResultsMatchingFor')} "${query.trim()}"`
-        : serviceSummary;
-    }
-
-    const combined = `${skuSummary} ${t('catalogResultsJoiner')} ${serviceSummary}`;
-    return query.trim() ? `${combined} ${t('catalogResultsMatchingFor')} "${query.trim()}"` : combined;
-  })();
 
   function updateCatalog(queryValue: string, nextView: CatalogView) {
     patchCatalogSearchParams({
@@ -557,24 +547,25 @@ export function InventoryRoute() {
         description={t('inventoryBody')}
         title={<WorkspacePageTitle>{t('allItemsTitle')}</WorkspacePageTitle>}
       >
-        <div className="grid gap-3">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <InputGroup className="lg:max-w-xl">
-              <InputGroupAddon align="inline-start">
-                <InputGroupText>
-                  <Search />
-                </InputGroupText>
-              </InputGroupAddon>
-              <InputGroupInput
-                aria-label={t('searchItems')}
-                placeholder={t('searchPlaceholder')}
-                value={query}
-                onChange={(event) => updateCatalog(event.target.value, view)}
-              />
-            </InputGroup>
+        <div className="grid gap-4">
+          <InputGroup className="h-12 w-full rounded-full">
+            <InputGroupAddon align="inline-start">
+              <InputGroupText>
+                <Search />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label={t('searchItems')}
+              placeholder={t('searchPlaceholder')}
+              value={query}
+              onChange={(event) => updateCatalog(event.target.value, view)}
+            />
+          </InputGroup>
 
+          <div>
             <ToggleGroup
               aria-label={t('searchItems')}
+              className="inline-flex max-w-full justify-start overflow-x-auto"
               spacing={1}
               type="single"
               value={view}
@@ -590,7 +581,6 @@ export function InventoryRoute() {
               <ToggleGroupItem value="services">{t('filterService')}</ToggleGroupItem>
             </ToggleGroup>
           </div>
-          <p className="text-sm text-muted-foreground">{resultSummary}</p>
         </div>
       </WorkspacePanel>
 
@@ -646,6 +636,24 @@ export function InventoryRoute() {
       ) : view === 'skus' ? (
         <WorkspacePanel>
           <CatalogSectionHeader
+            action={
+              <ToggleGroup
+                aria-label={t('catalogSkuMetricToggle')}
+                spacing={1}
+                type="single"
+                value={skuRevenueMetric}
+                onValueChange={(nextValue) => {
+                  if (nextValue) {
+                    setSkuRevenueMetric(nextValue as SkuRevenueMetric);
+                  }
+                }}
+              >
+                <ToggleGroupItem value="revenue">{t('catalogSkuMetricRevenue')}</ToggleGroupItem>
+                <ToggleGroupItem value="gross-margin">
+                  {t('catalogSkuMetricGrossMargin')}
+                </ToggleGroupItem>
+              </ToggleGroup>
+            }
             count={rows.skus.length}
             description={t('catalogSkusDescription')}
             title={t('skusHeading')}
@@ -653,6 +661,7 @@ export function InventoryRoute() {
           <SkuCatalogTable
             currency={currency}
             language={language}
+            metric={skuRevenueMetric}
             rows={rows.skus}
             snapshot={snapshot!}
             t={t}

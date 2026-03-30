@@ -21,7 +21,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, HandCoins, Package, Triangle, type LucideIcon } from 'lucide-react';
 import type { InventorySnapshot } from '@shared/inventory';
 import { formatCurrency, rankLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -33,7 +33,9 @@ type RankingRowModel = {
   id: string;
   index: number;
   label: string;
+  kindIcon: LucideIcon;
   kindLabel: string;
+  priceChangeDirection: 'up' | 'down' | null;
   priceText: string;
 };
 
@@ -45,23 +47,54 @@ const dropAnimation = {
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
 
+export function buildEligibleReportRanking(snapshot: InventorySnapshot): RankingEntry[] {
+  return [
+    ...snapshot.services.map((service, index) => ({
+      entryType: 'service' as const,
+      entryId: service.serviceId,
+      position: index,
+    })),
+    ...snapshot.skus
+      .filter((sku) => sku.soldAsProduct && sku.productPrice !== null)
+      .map((sku, index) => ({
+        entryType: 'sku' as const,
+        entryId: sku.skuId,
+        position: snapshot.services.length + index,
+      })),
+  ];
+}
+
+export function normalizeReportRanking(
+  snapshot: InventorySnapshot,
+  preferredEntries?: RankingEntry[],
+): RankingEntry[] {
+  const eligibleEntries = buildEligibleReportRanking(snapshot);
+  const eligibleIds = new Set(eligibleEntries.map((entry) => `${entry.entryType}:${entry.entryId}`));
+  const seen = new Set<string>();
+
+  const preferredInScope =
+    preferredEntries?.filter((entry) => {
+      const key = `${entry.entryType}:${entry.entryId}`;
+      if (!eligibleIds.has(key) || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    }) ?? [];
+
+  const remainingEntries = eligibleEntries.filter((entry) => {
+    const key = `${entry.entryType}:${entry.entryId}`;
+    return !seen.has(key);
+  });
+
+  return [...preferredInScope, ...remainingEntries].map((entry, index) => ({
+    ...entry,
+    position: index,
+  }));
+}
+
 export function buildDefaultReportRanking(snapshot: InventorySnapshot): RankingEntry[] {
-  return snapshot.ranking.length > 0
-    ? snapshot.ranking
-    : [
-        ...snapshot.services.map((service, index) => ({
-          entryType: 'service' as const,
-          entryId: service.serviceId,
-          position: index,
-        })),
-        ...snapshot.skus
-          .filter((sku) => sku.soldAsProduct && sku.productPrice !== null)
-          .map((sku, index) => ({
-            entryType: 'sku' as const,
-            entryId: sku.skuId,
-            position: snapshot.services.length + index,
-          })),
-      ];
+  return normalizeReportRanking(snapshot, snapshot.ranking.length > 0 ? snapshot.ranking : undefined);
 }
 
 export function rankingIdsByType(entries: RankingEntry[], entryType: RankingEntryType) {
@@ -89,14 +122,16 @@ export function MerchandisingEditor({
   onChange,
   titleLabel,
   helperText,
-  priceOverrides,
+  priceByEntryKey,
+  priceChangeByEntryKey,
 }: {
   entries: RankingEntry[];
   snapshot: InventorySnapshot;
   onChange: (entries: RankingEntry[]) => void;
   titleLabel?: string;
   helperText?: string;
-  priceOverrides?: Record<string, number>;
+  priceByEntryKey?: Record<string, number>;
+  priceChangeByEntryKey?: Record<string, 'up' | 'down' | null>;
 }) {
   const { currency, language, t } = usePreferences();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -118,22 +153,24 @@ export function MerchandisingEditor({
   const rowModels = useMemo(() => {
     return entries.map((entry, index) => {
       const label = rankLabel(entry, snapshot.skus, snapshot.services);
-      const price =
+      const entryKey = `${entry.entryType}:${entry.entryId}`;
+      const fallbackPrice =
         entry.entryType === 'service'
-          ? priceOverrides?.[entry.entryId] ??
-            snapshot.services.find((service) => service.serviceId === entry.entryId)?.price ??
-            0
-          : snapshot.skus.find((sku) => sku.skuId === entry.entryId)?.productPrice ?? 0;
+          ? snapshot.services.find((service) => service.serviceId === entry.entryId)?.price ?? 0
+          : snapshot.skus.find((sku) => sku.skuId === entry.entryId)?.costPerUnit ?? 0;
+      const price = priceByEntryKey?.[entryKey] ?? fallbackPrice;
 
       return {
         id: buildRankingEntryId(entry),
         index,
         label,
+        kindIcon: entry.entryType === 'service' ? HandCoins : Package,
         kindLabel: entry.entryType === 'service' ? t('serviceLabel') : t('skuLabel'),
+        priceChangeDirection: priceChangeByEntryKey?.[entryKey] ?? null,
         priceText: formatCurrency(price, currency, language),
       };
     });
-  }, [currency, entries, language, priceOverrides, snapshot.services, snapshot.skus, t]);
+  }, [currency, entries, language, priceByEntryKey, priceChangeByEntryKey, snapshot.services, snapshot.skus, t]);
 
   const activeRow = rowModels.find((row) => row.id === activeId) ?? null;
   const overlayModifiers = useMemo<Modifier[]>(
@@ -193,10 +230,10 @@ export function MerchandisingEditor({
             <div className="px-2" role="columnheader">
               {t('rankHeaderName')}
             </div>
-            <div className="px-2" role="columnheader">
+            <div className="px-2 text-center" role="columnheader">
               {t('rankHeaderType')}
             </div>
-            <div className="px-2" role="columnheader">
+            <div className="px-2 text-center" role="columnheader">
               {t('rankHeaderPrice')}
             </div>
           </div>
@@ -228,8 +265,10 @@ export function MerchandisingEditor({
                   id={row.id}
                   index={row.index}
                   key={row.id}
+                  kindIcon={row.kindIcon}
                   kindLabel={row.kindLabel}
                   label={row.label}
+                  priceChangeDirection={row.priceChangeDirection}
                   priceText={row.priceText}
                   suppressedHandle={suppressedHandleId === row.id}
                   onHandleReset={() => {
@@ -247,9 +286,11 @@ export function MerchandisingEditor({
                     <RankingRowCard
                       handle={<StaticGripHandle />}
                       index={activeRow.index}
+                      kindIcon={activeRow.kindIcon}
                       kindLabel={activeRow.kindLabel}
                       label={activeRow.label}
                       overlay
+                      priceChangeDirection={activeRow.priceChangeDirection}
                       priceText={activeRow.priceText}
                       style={activeWidth ? { width: activeWidth } : undefined}
                     />
@@ -267,8 +308,10 @@ export function MerchandisingEditor({
 function SortableRankingRow({
   id,
   index,
+  kindIcon,
   label,
   kindLabel,
+  priceChangeDirection,
   priceText,
   suppressedHandle,
   onHandleReset,
@@ -305,8 +348,10 @@ function SortableRankingRow({
         </button>
       }
       index={index}
+      kindIcon={kindIcon}
       kindLabel={kindLabel}
       label={label}
+      priceChangeDirection={priceChangeDirection}
       priceText={priceText}
       ref={setNodeRef}
       style={{
@@ -321,14 +366,29 @@ type RankingRowCardProps = HTMLAttributes<HTMLDivElement> & {
   dragging?: boolean;
   handle: ReactNode;
   index: number;
+  kindIcon: LucideIcon;
   kindLabel: string;
   label: string;
   overlay?: boolean;
+  priceChangeDirection: 'up' | 'down' | null;
   priceText: string;
 };
 
 const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function RankingRowCard(
-  { className, dragging = false, handle, index, kindLabel, label, overlay = false, priceText, style, ...props },
+  {
+    className,
+    dragging = false,
+    handle,
+    index,
+    kindIcon: KindIcon,
+    kindLabel,
+    label,
+    overlay = false,
+    priceChangeDirection,
+    priceText,
+    style,
+    ...props
+  },
   ref,
 ) {
   return (
@@ -361,11 +421,30 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
       <div className="min-w-0 px-2" role="cell">
         <p className="truncate text-[1.05rem] font-medium tracking-tight text-foreground">{label}</p>
       </div>
-      <div className="px-2" role="cell">
-        <p className="text-sm text-muted-foreground">{kindLabel}</p>
+      <div className="px-2 text-center" role="cell">
+        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="inline-flex size-8 items-center justify-center rounded-full border border-border/70 bg-background text-primary">
+            <KindIcon aria-hidden="true" className="size-3.5" />
+          </span>
+          <span>{kindLabel}</span>
+        </div>
       </div>
       <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums" role="cell">
-        {priceText}
+        <div className="grid grid-cols-[0.75rem_auto_0.75rem] items-center">
+          <span aria-hidden="true" />
+          <span className="text-center">{priceText}</span>
+          <span className="flex justify-end">
+            {priceChangeDirection ? (
+              <Triangle
+                aria-hidden="true"
+                className={cn(
+                  '!size-3 fill-current',
+                  priceChangeDirection === 'up' ? 'text-emerald-600' : 'rotate-180 text-red-600',
+                )}
+              />
+            ) : null}
+          </span>
+        </div>
       </div>
     </div>
   );

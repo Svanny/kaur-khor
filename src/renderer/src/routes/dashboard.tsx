@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, ArrowUp, BrainCog, NotepadText, PackagePlus, Play, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, BrainCircuit, ClipboardPen, PackagePlus, Play, Search } from 'lucide-react';
 import type { InventorySnapshot, SkuRecord, StockReport } from '@shared/inventory';
 import { NewServiceIcon } from '@/components/system/new-service-icon';
 import { WorkspacePage, WorkspacePageTitle, WorkspacePanel } from '@/components/system/workspace';
@@ -195,6 +195,22 @@ function overviewStatusLabel(status: OverviewQueueStatus | null) {
 
 function queueBadgeVariant(status: OverviewQueueStatus | null) {
   return status === 'out-of-stock' ? 'destructive' : 'outline';
+}
+
+function queueBadgeClassName(status: OverviewQueueStatus | null) {
+  if (status === 'out-of-stock') {
+    return 'border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:text-red-800';
+  }
+  if (status === 'low-stock') {
+    return 'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:text-amber-900';
+  }
+  if (status === 'needs-check') {
+    return 'border-sky-200 bg-sky-50 text-sky-700 hover:border-sky-300 hover:text-sky-800';
+  }
+  if (status === 'not-updated') {
+    return 'border-stone-200 bg-stone-100 text-stone-700 hover:border-stone-300 hover:text-stone-800';
+  }
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800';
 }
 
 function queueActionHref(row: OverviewQueueRow) {
@@ -550,7 +566,10 @@ function QueueTable({
                 </TableCell>
                 <TableCell className="w-[12%]">
                   <Link className="inline-flex" to={skuDetailHref(row.sku.skuId)}>
-                    <Badge className="rounded-full hover:border-primary hover:text-primary" variant={queueBadgeVariant(row.status)}>
+                    <Badge
+                      className={cn('rounded-full transition-colors', queueBadgeClassName(row.status))}
+                      variant={queueBadgeVariant(row.status)}
+                    >
                       {overviewStatusLabel(row.status)}
                     </Badge>
                   </Link>
@@ -597,7 +616,10 @@ function QueueTable({
             </div>
             <div className="flex items-center justify-between gap-3">
               <Link className="inline-flex" to={skuDetailHref(row.sku.skuId)}>
-                <Badge className="rounded-full hover:border-primary hover:text-primary" variant={queueBadgeVariant(row.status)}>
+                <Badge
+                  className={cn('rounded-full transition-colors', queueBadgeClassName(row.status))}
+                  variant={queueBadgeVariant(row.status)}
+                >
                   {overviewStatusLabel(row.status)}
                 </Badge>
               </Link>
@@ -739,7 +761,7 @@ export function DashboardRoute() {
             <div className="flex flex-wrap gap-2">
               <Button asChild>
                 <Link to="/operations/session">
-                  <NotepadText data-icon="inline-start" />
+                  <ClipboardPen data-icon="inline-start" />
                   {copy.startUpdate}
                 </Link>
               </Button>
@@ -754,12 +776,48 @@ export function DashboardRoute() {
             </div>
           }
           title={<WorkspacePageTitle>{copy.title}</WorkspacePageTitle>}
-        />
+        >
+          <div className="grid gap-4">
+            <InputGroup className="h-12 rounded-full">
+              <InputGroupAddon className="pl-4 text-muted-foreground" align="inline-start">
+                <InputGroupText>
+                  <Search />
+                </InputGroupText>
+              </InputGroupAddon>
+              <InputGroupInput
+                aria-label={copy.searchLabel}
+                placeholder={copy.searchPlaceholder}
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+            </InputGroup>
+            <ToggleGroup
+              aria-label={copy.filtersLabel}
+              className="inline-flex max-w-full justify-start overflow-x-auto"
+              spacing={1}
+              type="single"
+              value={activeQueueFilter}
+              onValueChange={(nextValue) => {
+                if (nextValue) {
+                  setActiveQueueFilter(nextValue as OverviewQueueFilter);
+                }
+              }}
+            >
+              {filterOptions.map((option) => (
+                <ToggleGroupItem key={option.value} value={option.value}>
+                  {option.value === 'all'
+                    ? option.label
+                    : `${option.label} (${formatNumber(option.count, language)})`}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+        </WorkspacePanel>
 
         <Card className="border-white/70">
           <CardContent className="p-0">
             <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
-            <section className="min-w-0 px-4 py-4 sm:px-6 sm:py-5">
+            <section className="min-w-0 px-4 pb-4 pt-0 sm:px-6 sm:pb-5 sm:pt-0">
               <div className="flex flex-col gap-4 border-b border-border/60 pb-4">
                 <div>
                   <h2 className="text-lg font-semibold tracking-[-0.03em] text-foreground">
@@ -767,37 +825,6 @@ export function DashboardRoute() {
                   </h2>
                   <p className="text-sm text-muted-foreground">{copy.worklistBody}</p>
                 </div>
-                <InputGroup className="h-12 rounded-full">
-                  <InputGroupAddon className="pl-4 text-muted-foreground" align="inline-start">
-                    <InputGroupText>
-                      <Search />
-                    </InputGroupText>
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    aria-label={copy.searchLabel}
-                    placeholder={copy.searchPlaceholder}
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                  />
-                </InputGroup>
-                <ToggleGroup
-                  aria-label={copy.filtersLabel}
-                  className="flex w-full justify-start overflow-x-auto"
-                  spacing={1}
-                  type="single"
-                  value={activeQueueFilter}
-                  onValueChange={(nextValue) => {
-                    if (nextValue) {
-                      setActiveQueueFilter(nextValue as OverviewQueueFilter);
-                    }
-                  }}
-                >
-                  {filterOptions.map((option) => (
-                    <ToggleGroupItem key={option.value} value={option.value}>
-                      {`${option.label} ${formatNumber(option.count, language)}`}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
               </div>
 
               <div className="pt-4">
@@ -811,7 +838,7 @@ export function DashboardRoute() {
               </div>
             </section>
 
-            <aside className="border-t border-border/60 px-4 py-4 sm:px-6 sm:py-5 lg:border-t-0 lg:border-l">
+            <aside className="border-t border-border/60 px-4 pb-4 pt-0 sm:px-6 sm:pb-5 sm:pt-0 lg:border-t-0 lg:border-l">
               <div className="grid gap-8">
                 <section>
                   <div className="border-b border-border/60 pb-3">
@@ -864,7 +891,7 @@ export function DashboardRoute() {
                     <div className="pt-2">
                       <Button asChild className="w-full justify-center" size="sm" variant="outline">
                         <Link to="/sist">
-                          <BrainCog data-icon="inline-start" />
+                          <BrainCircuit data-icon="inline-start" />
                           {copy.openAnalysis}
                         </Link>
                       </Button>

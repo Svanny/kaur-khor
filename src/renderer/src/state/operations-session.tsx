@@ -24,6 +24,7 @@ export type OperationsSessionRowFilter = 'all' | 'changed';
 export interface OperationsSessionRowDraft {
   unitsInStock: string;
   costPerUnit: string;
+  productPrice: string;
   restockIncluded: boolean;
   retailStockout: boolean;
   notes: string;
@@ -32,6 +33,7 @@ export interface OperationsSessionRowDraft {
 export interface OperationsSessionServiceDraft {
   price: string;
   stockout: boolean;
+  notes: string;
 }
 
 export interface OperationsSessionDraft {
@@ -40,6 +42,7 @@ export interface OperationsSessionDraft {
   reportNotes: string;
   preset: OperationsSessionPreset;
   rowFilter: OperationsSessionRowFilter;
+  serviceFilter: OperationsSessionRowFilter;
   rows: Record<string, OperationsSessionRowDraft>;
   serviceDrafts: Record<string, OperationsSessionServiceDraft>;
   rankingDraft: RankingEntry[];
@@ -75,12 +78,14 @@ export function createOperationsSessionDraft(
     reportNotes: '',
     preset: 'small',
     rowFilter: 'all',
+    serviceFilter: 'all',
     rows: Object.fromEntries(
       snapshot.skus.map((sku) => [
         sku.skuId,
         {
           unitsInStock: String(sku.unitsInStock),
           costPerUnit: String(sku.costPerUnit),
+          productPrice: sku.productPrice == null ? '' : String(sku.productPrice),
           restockIncluded: false,
           retailStockout: false,
           notes: '',
@@ -93,17 +98,19 @@ export function createOperationsSessionDraft(
         {
           price: String(service.price),
           stockout: false,
+          notes: '',
         },
       ]),
     ),
     rankingDraft: buildDefaultReportRanking(snapshot),
-    lastStep: 'details',
+    lastStep: 'observations',
   };
 }
 
 export function hasMeaningfulOperationsSessionChanges(
   snapshot: InventorySnapshot,
   draft: OperationsSessionDraft,
+  rankingBaseline: RankingEntry[] = buildDefaultReportRanking(snapshot),
 ) {
   if (draft.reportedAt !== draft.seededReportedAt) {
     return true;
@@ -124,6 +131,7 @@ export function hasMeaningfulOperationsSessionChanges(
     return (
       Number(row.unitsInStock) !== sku.unitsInStock ||
       Number(row.costPerUnit) !== sku.costPerUnit ||
+      (row.productPrice.trim() === '' ? null : Number(row.productPrice)) !== sku.productPrice ||
       row.restockIncluded ||
       row.retailStockout ||
       row.notes.trim().length > 0
@@ -140,14 +148,18 @@ export function hasMeaningfulOperationsSessionChanges(
       return false;
     }
 
-    return serviceDraft.stockout || Number(serviceDraft.price) !== service.price;
+    return (
+      serviceDraft.stockout ||
+      Number(serviceDraft.price) !== service.price ||
+      serviceDraft.notes.trim().length > 0
+    );
   });
 
   if (hasServiceChanges) {
     return true;
   }
 
-  return hasRankingChanged(buildDefaultReportRanking(snapshot), draft.rankingDraft);
+  return hasRankingChanged(rankingBaseline, draft.rankingDraft);
 }
 
 export function OperationsSessionProvider({ children }: { children: ReactNode }) {

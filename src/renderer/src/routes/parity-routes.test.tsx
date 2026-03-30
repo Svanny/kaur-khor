@@ -784,10 +784,14 @@ describe('renderer workspaces', () => {
           inventoryColumnStatus: 'Status',
           inventoryColumnSellable: 'Sellable units',
           inventoryColumnLinkedSkus: 'Linked SKUs',
-          inventoryColumnValue: 'Stock value',
+          inventoryColumnValue: 'Inventory value',
           inventoryPotentialRevenue: 'Potential revenue',
+          inventoryPotentialGrossMargin: 'Potential gross margin',
           inventorySoldAsProduct: 'Sellable',
           inventoryNotSoldAsProduct: 'Internal only',
+          catalogSkuMetricToggle: 'SKU value metric',
+          catalogSkuMetricRevenue: 'Revenue',
+          catalogSkuMetricGrossMargin: 'Gross margin',
           inventoryNoResultsDescription: 'Try another query or add a new SKU.',
           catalogNoResultsTitle: 'No matching catalog items',
           catalogNoResultsDescription: 'Try clearing the current filters or create a new item that fits this search.',
@@ -1029,7 +1033,7 @@ describe('renderer workspaces', () => {
           operationsInspectAction: 'Inspect',
           operationsInspectHide: 'Hide',
           stockUpdateHint: 'Only rows you edit become part of the report.',
-          stockTableTitle: 'Report observations',
+          stockTableTitle: 'SKU observations',
           stockHistoryTitle: 'Recent activity',
           stockHistoryDescription: 'Saved update history.',
           stockHistoryEmptyTitle: 'No saved updates yet',
@@ -1098,7 +1102,7 @@ describe('renderer workspaces', () => {
             'Skip this section when there are no service stockouts or service price changes to capture.',
           stockSalesSignalPanelTitle: 'Recent selling order',
           stockSalesSignalSupportCopy:
-            'Rank services and sellable SKUs by recent observed demand, not by what you want to push next.',
+            'Rank services and sellable SKUs by recent observed demand/popularity. Noisy estimates are okay!',
           stockSalesSignalExplainerTitle: 'Why this signal matters',
           stockSalesSignalExplainerBody:
             'Use recent selling order to help Banji interpret demand. This is not a priority list or push list. Rank what sold first or most often recently so Banji can read current demand patterns.',
@@ -1118,7 +1122,7 @@ describe('renderer workspaces', () => {
           stockServiceReviewAction: 'Review service updates',
           stockServiceClearAction: 'Clear service changes',
           stockServiceDoneAction: 'Done reviewing',
-          stockServiceFilterChanged: 'Changed only',
+          stockServiceFilterChanged: 'Changed rows',
           stockServiceFilterAll: 'All services',
           stockServiceCurrentPriceColumn: 'Current price',
           stockServiceStockoutColumn: 'Stockout',
@@ -1167,6 +1171,10 @@ describe('renderer workspaces', () => {
           stockObservationRowNotesPlaceholder: 'Capture any row-specific exception or context.',
           stockObservationShowNotes: 'Show SKU notes',
           stockObservationHideNotes: 'Hide SKU notes',
+          stockObservationAddNoteTooltip: 'Add note',
+          stockObservationResetRow: 'Reset SKU row',
+          stockObservationResetTooltip: 'Reset',
+          stockObservationsClearAction: 'Clear SKU changes',
           stockRestockIncluded: 'Restock included',
           stockRetailStockout: 'Retail stockout',
           stockServiceSignalsTitle: 'Service stockout flags',
@@ -1254,10 +1262,10 @@ describe('renderer workspaces', () => {
     expect(screen.queryByRole('tab', { name: 'SKU levels' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Recent activity' })).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search item, SKU, or service')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'All 2' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Need update 2' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Low stock 1' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Out 0' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Need update (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Low stock (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Out (0)' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sort: Urgency' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Item/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Stock/i })).toBeInTheDocument();
@@ -1349,13 +1357,13 @@ describe('renderer workspaces', () => {
       expect(within(desktopTable).getByText('sorted descending')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Low stock 1' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Low stock (1)' }));
     await waitFor(() => {
       expect(within(worklist as HTMLElement).getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
       expect(within(worklist as HTMLElement).queryByText('Osaka Pleat Midi')).not.toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Updated today 1' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Updated today (1)' }));
     await waitFor(() => {
       expect(within(worklist as HTMLElement).getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
       expect(within(worklist as HTMLElement).queryByText('Osaka Pleat Midi')).not.toBeInTheDocument();
@@ -1444,7 +1452,6 @@ describe('renderer workspaces', () => {
   test('catalog all view shows preview sections without expand or collapse controls', () => {
     renderRoute('/catalog', <InventoryRoute />);
 
-    expect(screen.getByText('2 SKUs and 2 services')).toBeInTheDocument();
     expect(screen.queryByText('Preview the first SKU matches here, then switch into the dedicated SKU comparison table.')).not.toBeInTheDocument();
     expect(screen.queryByText('Preview the first service matches here, then switch into the dedicated service comparison table.')).not.toBeInTheDocument();
     expect(screen.getByText('Direct sell status')).toBeInTheDocument();
@@ -1455,10 +1462,11 @@ describe('renderer workspaces', () => {
     expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument();
   });
 
-  test('catalog controls show live result context for the current query and view', () => {
+  test('catalog controls preserve the current query and selected view', () => {
     renderInventory('/catalog?q=sku&view=skus');
 
-    expect(screen.getByText('2 SKUs matching for "sku"')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search and segment' })).toHaveValue('sku');
+    expect(screen.getByRole('radio', { name: 'SKUs' })).toHaveAttribute('data-state', 'on');
   });
 
   test('catalog dedicated SKU and service views render the correct comparison tables', () => {
@@ -1467,6 +1475,14 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('Status')).toBeInTheDocument();
     expect(screen.getByText('Cost per unit')).toBeInTheDocument();
     expect(screen.getByText('Product price')).toBeInTheDocument();
+    expect(screen.getByText('Inventory value')).toBeInTheDocument();
+    expect(screen.getByText('Potential revenue')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'SKU value metric' })).toBeInTheDocument();
+    expect(screen.getByText('$60.00')).toBeInTheDocument();
+    expect(screen.getByText('$108.00')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Gross margin' }));
+    expect(screen.getByText('Potential gross margin')).toBeInTheDocument();
+    expect(screen.getByText('$48.00')).toBeInTheDocument();
     expect(screen.queryByText('Days of cover')).not.toBeInTheDocument();
     expect(screen.queryByText('Stockout risk')).not.toBeInTheDocument();
     expect(screen.queryByText('Lead time')).not.toBeInTheDocument();
@@ -1477,7 +1493,7 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('Service bundle copy')).not.toBeInTheDocument();
     expect(screen.getAllByText('Status').length).toBeGreaterThan(0);
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
-    expect(screen.getByText('Potential revenue')).toBeInTheDocument();
+    expect(screen.getAllByText('Potential revenue').length).toBeGreaterThan(0);
   });
 
   test('sist renders the new diagnostics workspace with summary strip and analyst tabs', async () => {
@@ -2391,7 +2407,6 @@ describe('renderer workspaces', () => {
     expect(await screen.findByText('Operations')).toBeInTheDocument();
     expect(screen.getByText('Recent activity')).toBeInTheDocument();
     expect(screen.getByTestId('operations-history-ledger')).toBeInTheDocument();
-    expect(await screen.findByText('Manual update')).toBeInTheDocument();
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
     expect(screen.getAllByText('1 changed row').length).toBeGreaterThan(0);
     expect(screen.getByText('Includes Bangkok Market Tee')).toBeInTheDocument();
@@ -2409,7 +2424,6 @@ describe('renderer workspaces', () => {
 
     const headerRow = (await screen.findByText('Reported At')).closest('tr');
     expect(headerRow).not.toBeNull();
-    expect(within(headerRow as HTMLElement).getByText('Source')).toBeInTheDocument();
     expect(within(headerRow as HTMLElement).getByText('Changed Rows')).toBeInTheDocument();
     expect(within(headerRow as HTMLElement).getByText('Service Flags')).toBeInTheDocument();
     expect(within(headerRow as HTMLElement).getByText('Price Edits')).toBeInTheDocument();
@@ -2494,14 +2508,6 @@ describe('renderer workspaces', () => {
     expect(screen.getByTestId('operations-history-focused-service')).toHaveTextContent('After-Hours Satin Edit');
     expect(scrollIntoViewSpy).toHaveBeenCalled();
     expect(screen.getByTestId('location-search').textContent).toBe('');
-  });
-
-  test('operations history stays newest-first in the ledger', async () => {
-    renderRoute('/operations', <StockUpdateRoute />);
-
-    const sourceCells = await screen.findAllByText(/update$|import$/);
-    expect(sourceCells[0]).toHaveTextContent('Manual update');
-    expect(sourceCells[1]).toHaveTextContent('Baseline import');
   });
 
   test('operations history search and activity filters narrow visible rows', async () => {
@@ -2694,7 +2700,6 @@ describe('renderer workspaces', () => {
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
 
     expect(screen.getByText('Changed rows are ready for review and submit.')).toBeInTheDocument();
-    expect(screen.getByText('Changed')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Changed rows' }));
     expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
@@ -2721,6 +2726,40 @@ describe('renderer workspaces', () => {
     fireEvent.click(within(sku1Row as HTMLTableRowElement).getAllByRole('button', { name: '+' })[0]);
 
     expect(within(sku1Row as HTMLTableRowElement).getAllByRole('checkbox')[0]).toBeChecked();
+  });
+
+  test('returning units in stock to baseline clears auto-set restock included and row selection', async () => {
+    renderRoute('/operations/session?step=observations', <StockUpdateSessionRoute />);
+
+    const sku1Row = (await screen.findByText('Bangkok Market Tee')).closest('tr');
+    expect(sku1Row).not.toBeNull();
+
+    fireEvent.click(within(sku1Row as HTMLTableRowElement).getAllByRole('button', { name: '+' })[0]);
+    expect(within(sku1Row as HTMLTableRowElement).getAllByRole('checkbox')[0]).toBeChecked();
+    expect(sku1Row).toHaveAttribute('data-state', 'selected');
+
+    fireEvent.click(within(sku1Row as HTMLTableRowElement).getAllByRole('button', { name: '−' })[0]);
+
+    expect(within(sku1Row as HTMLTableRowElement).getAllByRole('checkbox')[0]).not.toBeChecked();
+    expect(sku1Row).not.toHaveAttribute('data-state', 'selected');
+  });
+
+  test('changed rows expose a reset action that restores the baseline row state', async () => {
+    renderRoute('/operations/session?step=observations', <StockUpdateSessionRoute />);
+
+    const sku1Row = (await screen.findByText('Bangkok Market Tee')).closest('tr');
+    expect(sku1Row).not.toBeNull();
+
+    fireEvent.click(within(sku1Row as HTMLTableRowElement).getAllByRole('button', { name: '+' })[0]);
+    expect(sku1Row).toHaveAttribute('data-state', 'selected');
+
+    fireEvent.click(screen.getByRole('button', { name: /Reset SKU row: Bangkok Market Tee/i }));
+
+    expect(within(sku1Row as HTMLTableRowElement).getByDisplayValue('12')).toBeInTheDocument();
+    expect(within(sku1Row as HTMLTableRowElement).getByDisplayValue('5.00')).toBeInTheDocument();
+    expect(within(sku1Row as HTMLTableRowElement).getAllByRole('checkbox')[0]).not.toBeChecked();
+    expect(within(sku1Row as HTMLTableRowElement).getAllByRole('checkbox')[1]).not.toBeChecked();
+    expect(sku1Row).not.toHaveAttribute('data-state', 'selected');
   });
 
   test('observations preset dropdown shows increment sizes and changes button step sizes', async () => {
@@ -2826,7 +2865,7 @@ describe('renderer workspaces', () => {
 
     expect(screen.getByText('1 service flag')).toBeInTheDocument();
     expect(screen.getByText('1 price edit')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Changed only' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Changed rows' })).toBeInTheDocument();
   });
 
   test('focused service handoff opens editing mode and highlights the requested service without creating changes', async () => {
@@ -3149,8 +3188,8 @@ describe('renderer workspaces', () => {
     expect(await screen.findByText('Workspace preferences')).toBeInTheDocument();
     expect(screen.getByText('Advanced settings')).toBeInTheDocument();
     expect(screen.queryByText('Local data')).not.toBeInTheDocument();
+    expect(screen.queryByText('SIST defaults')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Particle count')).not.toBeInTheDocument();
   });
 
   test('settings local data section loads raw file paths and copies the data directory', async () => {
@@ -3204,46 +3243,19 @@ describe('renderer workspaces', () => {
     renderRoute('/settings', <SettingsRoute />);
 
     expect(await screen.findByTestId('settings-dirty-summary')).toHaveTextContent('(changed)');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
-    fireEvent.change(screen.getByLabelText('Particle count'), {
-      target: { value: '768' },
-    });
-
     expect(screen.getByTestId('settings-dirty-summary')).toHaveTextContent('(changed)');
   });
 
-  test('settings expands advanced settings and preserves SIST tooltip behavior', async () => {
+  test('settings expands advanced settings and shows only local data content', async () => {
     renderRoute('/settings', <SettingsRoute />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
-    expect(screen.queryByTestId('settings-advanced-summary')).not.toBeInTheDocument();
-
-    const helpButton = screen.getByRole('button', { name: 'Particle count help' });
-    const tooltipText =
-      'Sets how many particle samples SIST uses during inference. Higher counts are steadier but take longer to compute.';
-
-    fireEvent.pointerEnter(helpButton);
-    await waitFor(() => {
-      expect(helpButton).toHaveAttribute('aria-expanded', 'true');
-    });
-    expect(
-      await screen.findByRole('tooltip', { name: tooltipText }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(helpButton);
-    await waitFor(() => {
-      expect(helpButton).toHaveAttribute('aria-expanded', 'false');
-    });
-
-    fireEvent.pointerLeave(helpButton);
-    fireEvent.click(helpButton);
-    await waitFor(() => {
-      expect(helpButton).toHaveAttribute('aria-expanded', 'true');
-    });
+    expect(await screen.findByText('Local data')).toBeInTheDocument();
+    expect(screen.queryByText('SIST defaults')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Particle count')).not.toBeInTheDocument();
   });
 
-  test('settings save flow persists dirty advanced settings before preferences', async () => {
+  test('settings save flow persists workspace preferences', async () => {
     preferencesHook.mockReturnValue({
       ...preferencesHook.mock.results.at(-1)?.value,
       currency: 'KHR',
@@ -3255,20 +3267,8 @@ describe('renderer workspaces', () => {
 
     renderRoute('/settings', <SettingsRoute />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
-    fireEvent.change(screen.getByLabelText('Particle count'), {
-      target: { value: '768' },
-    });
     fireEvent.click(screen.getByText('Save changes'));
 
-    await waitFor(() => {
-      expect(saveSistSettings).toHaveBeenCalledWith({
-        targetServiceLevel: 0.95,
-        forecastHorizonDays: 14,
-        particleCount: 768,
-        smoothingWindowReports: 90,
-      });
-    });
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledTimes(1);
     });
@@ -3285,47 +3285,9 @@ describe('renderer workspaces', () => {
 
     renderRoute('/settings', <SettingsRoute />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
-    fireEvent.change(screen.getByLabelText('Particle count'), {
-      target: { value: '768' },
-    });
     fireEvent.click(screen.getByRole('button', { name: 'Reset changes' }));
 
     expect(resetPreferences).toHaveBeenCalledTimes(1);
-    expect(screen.queryByLabelText('Particle count')).not.toBeInTheDocument();
-  });
-
-  test('settings validation blocks save and focuses the first invalid advanced field', async () => {
-    renderRoute('/settings', <SettingsRoute />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
-    fireEvent.change(screen.getByLabelText('Target service level'), {
-      target: { value: '' },
-    });
-    fireEvent.click(screen.getByText('Save changes'));
-
-    expect(
-      await screen.findByText((content) =>
-        content === 'Enter a non-negative number.' || content === 'validationNonNegative',
-      ),
-    ).toBeInTheDocument();
-    expect(document.activeElement).toBe(screen.getByLabelText('Target service level'));
-    expect(saveSistSettings).not.toHaveBeenCalled();
-  });
-
-  test('dirty advanced settings can collapse while keeping an unsaved badge in the header', async () => {
-    renderRoute('/settings', <SettingsRoute />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
-    fireEvent.change(screen.getByLabelText('Particle count'), {
-      target: { value: '768' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
-
-    expect(screen.getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Particle count')).not.toBeInTheDocument();
-    expect(screen.getByTestId('settings-advanced-status-badge')).toHaveTextContent('Unsaved');
-    expect(screen.getByTestId('settings-dirty-summary')).toHaveTextContent('(changed)');
   });
 
   test('settings blocks route navigation with unsaved changes and discards drafts on confirmed leave', async () => {
@@ -3369,7 +3331,7 @@ describe('renderer workspaces', () => {
     confirmSpy.mockRestore();
   });
 
-  test('settings keeps failed preference saves dirty while preserving successful advanced saves', async () => {
+  test('settings keeps failed preference saves dirty', async () => {
     savePreferences.mockRejectedValueOnce(new Error('preferences failed'));
     preferencesHook.mockReturnValue({
       ...preferencesHook.mock.results.at(-1)?.value,
@@ -3380,15 +3342,8 @@ describe('renderer workspaces', () => {
 
     renderRoute('/settings', <SettingsRoute />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
-    fireEvent.change(screen.getByLabelText('Particle count'), {
-      target: { value: '768' },
-    });
     fireEvent.click(screen.getByText('Save changes'));
 
-    await waitFor(() => {
-      expect(saveSistSettings).toHaveBeenCalledTimes(1);
-    });
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledTimes(1);
     });

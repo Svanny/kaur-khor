@@ -1,10 +1,15 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp, NotepadText, Play } from 'lucide-react';
+import { ChevronDown, ChevronUp, ClipboardPen, Eye, Flag, Play, Radio, Search, Triangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from '@/components/ui/input-group';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Table,
@@ -20,6 +25,7 @@ import {
   WorkspacePageTitle,
   WorkspacePanel,
 } from '@/components/system/workspace';
+import { computeServiceSellableUnits } from '@/lib/catalog';
 import { formatCurrency, localeFor } from '@/lib/format';
 import {
   matchesRecentActivityFilter,
@@ -27,7 +33,6 @@ import {
 } from '@/lib/recent-activity';
 import {
   rankingSignalCount,
-  stockReportSourceKey,
   summarizeCount,
   summarizeNotes,
 } from '@/lib/stock-report-summary';
@@ -68,8 +73,113 @@ function formatIncludesHint(name: string | null, t: ReturnType<typeof usePrefere
   return name ? `${t('operationsHistoryIncludes')} ${name}` : null;
 }
 
+function changedSkuPreviewName(
+  report: StockReport,
+  skusById: Map<string, InventorySnapshot['skus'][number]>,
+  skuNames: Map<string, string>,
+) {
+  if (report.skuObservations.length === 0) {
+    return null;
+  }
+
+  const topChangedSku = report.skuObservations.reduce((currentMax, observation) => {
+    const currentSku = skusById.get(observation.skuId);
+    const currentInventoryValue = currentSku ? currentSku.unitsInStock * currentSku.costPerUnit : 0;
+    const observedInventoryValue = observation.unitsInStock * observation.costPerUnit;
+    const absoluteDelta = Math.abs(observedInventoryValue - currentInventoryValue);
+
+    if (!currentMax || absoluteDelta > currentMax.absoluteDelta) {
+      return {
+        absoluteDelta,
+        skuId: observation.skuId,
+      };
+    }
+
+    return currentMax;
+  }, null as { absoluteDelta: number; skuId: string } | null);
+
+  return topChangedSku ? (skuNames.get(topChangedSku.skuId) ?? topChangedSku.skuId) : null;
+}
+
+function serviceFlagPreviewName(
+  report: StockReport,
+  snapshot: InventorySnapshot,
+  serviceNames: Map<string, string>,
+) {
+  const topFlaggedService = report.serviceSignals
+    .filter((signal) => signal.stockout !== false)
+    .reduce((currentMax, signal) => {
+      const service = snapshot.services.find((entry) => entry.serviceId === signal.serviceId);
+      if (!service) {
+        return currentMax;
+      }
+
+      const potentialRevenueChange = Math.abs(service.price * computeServiceSellableUnits(service, snapshot));
+      if (!currentMax || potentialRevenueChange > currentMax.potentialRevenueChange) {
+        return {
+          potentialRevenueChange,
+          serviceId: signal.serviceId,
+        };
+      }
+
+      return currentMax;
+    }, null as { potentialRevenueChange: number; serviceId: string } | null);
+
+  return topFlaggedService
+    ? (serviceNames.get(topFlaggedService.serviceId) ?? topFlaggedService.serviceId)
+    : null;
+}
+
+function priceEditPreviewName(
+  report: StockReport,
+  servicesById: Map<string, InventorySnapshot['services'][number]>,
+  serviceNames: Map<string, string>,
+) {
+  const topPriceEditedService = report.servicePriceAdjustments.reduce((currentMax, adjustment) => {
+    const service = servicesById.get(adjustment.serviceId);
+    if (!service) {
+      return currentMax;
+    }
+
+    const absolutePriceChange = Math.abs(adjustment.price - service.price);
+    if (!currentMax || absolutePriceChange > currentMax.absolutePriceChange) {
+      return {
+        absolutePriceChange,
+        serviceId: adjustment.serviceId,
+      };
+    }
+
+    return currentMax;
+  }, null as { absolutePriceChange: number; serviceId: string } | null);
+
+  return topPriceEditedService
+    ? (serviceNames.get(topPriceEditedService.serviceId) ?? topPriceEditedService.serviceId)
+    : null;
+}
+
 function formatReportCount(count: number, t: ReturnType<typeof usePreferences>['t']) {
   return summarizeCount(count, t('operationsReportSingular'), t('operationsReportPlural'));
+}
+
+function observationBadgeClass(
+  state: 'restock' | 'stockout' | 'units-up' | 'units-down' | 'price-up' | 'price-down',
+) {
+  switch (state) {
+    case 'restock':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+    case 'stockout':
+      return 'border-rose-200 bg-rose-50 text-rose-800';
+    case 'units-up':
+      return 'border-sky-200 bg-sky-50 text-sky-800';
+    case 'units-down':
+      return 'border-amber-200 bg-amber-50 text-amber-800';
+    case 'price-up':
+      return 'border-violet-200 bg-violet-50 text-violet-800';
+    case 'price-down':
+      return 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800';
+    default:
+      return '';
+  }
 }
 
 function titleCaseLabel(label: string) {
@@ -187,7 +297,7 @@ function OperationsSessionButtonLabel({
 
   return (
     <>
-      <NotepadText data-icon="inline-start" />
+      <ClipboardPen data-icon="inline-start" />
       {t('operationsStartSession')}
     </>
   );
@@ -234,15 +344,18 @@ function OperationsLedgerSummaryCell({
 }
 
 function OperationsDetailSection({
+  icon: Icon,
   title,
   children,
 }: {
+  icon: typeof Eye;
   title: string;
   children: ReactNode;
 }) {
   return (
     <section className="space-y-3">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+      <p className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        <Icon className="size-3.5" />
         {title}
       </p>
       {children}
@@ -334,8 +447,6 @@ export function StockUpdateRoute() {
     });
   }, [activityFilter, reports, searchQuery, serviceNames, skuNames]);
 
-  const latestReport = reports[0] ?? null;
-  const latestChangedRowCount = latestReport?.skuObservations.length ?? 0;
   const normalizedSearchQuery = searchQuery.trim();
   const draftChangedRowCount = snapshot && draft ? countDraftChangedRows(snapshot, draft) : 0;
   const draftChangedServiceCount = snapshot && draft ? countDraftServiceChanges(snapshot, draft) : 0;
@@ -415,59 +526,21 @@ export function StockUpdateRoute() {
         description={t('operationsBody')}
         title={<WorkspacePageTitle>{t('operationsTitle')}</WorkspacePageTitle>}
       >
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('operationsSummaryLatestReport')}
-            </p>
-            <p className="mt-2 text-sm text-foreground">
-              {latestReport
-                ? new Intl.DateTimeFormat(localeFor(language), {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  }).format(new Date(latestReport.reportedAt))
-                : t('operationsSummaryNone')}
-            </p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('operationsSummarySavedUpdates')}
-            </p>
-            <p className="mt-2 text-sm text-foreground">{reports.length}</p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('operationsSummaryLatestChangeCount')}
-            </p>
-            <p className="mt-2 text-sm text-foreground">
-              {latestReport
-                ? summarizeCount(
-                    latestChangedRowCount,
-                    t('stockHistoryChangedRowSingular'),
-                    t('stockHistoryChangedRowPlural'),
-                  )
-                : t('operationsSummaryNone')}
-            </p>
-          </div>
-        </div>
-      </WorkspacePanel>
-
-      <WorkspacePanel
-        description={t('operationsHistoryDescription')}
-        title={t('operationsHistoryTitle')}
-      >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="flex-1">
-            <label className="sr-only" htmlFor="operations-history-search">
-              {t('operationsSearchLabel')}
-            </label>
-            <Input
+        <div className="grid gap-4">
+          <InputGroup className="h-12 rounded-full">
+            <InputGroupAddon className="pl-4 text-muted-foreground" align="inline-start">
+              <InputGroupText>
+                <Search />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label={t('operationsSearchLabel')}
               id="operations-history-search"
               placeholder={t('operationsSearchPlaceholder')}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
-          </div>
+          </InputGroup>
           <ToggleGroup
             aria-label={t('operationsFiltersLabel')}
             onValueChange={(nextValue) => {
@@ -485,6 +558,12 @@ export function StockUpdateRoute() {
             <ToggleGroupItem value="price-changes">{t('operationsFilterPriceChanges')}</ToggleGroupItem>
           </ToggleGroup>
         </div>
+      </WorkspacePanel>
+
+      <WorkspacePanel
+        description={t('operationsHistoryDescription')}
+        title={t('operationsHistoryTitle')}
+      >
         <p className="text-sm text-muted-foreground" data-testid="operations-history-results-summary">
           {historyResultsSummary}
         </p>
@@ -535,7 +614,6 @@ export function StockUpdateRoute() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{titleCaseLabel(t('stockReportedAt'))}</TableHead>
-                  <TableHead>{titleCaseLabel(t('operationsHistorySourceColumn'))}</TableHead>
                   <TableHead>{titleCaseLabel(t('stockHistoryChangedRowPlural'))}</TableHead>
                   <TableHead>{titleCaseLabel(t('stockHistoryServiceFlagPlural'))}</TableHead>
                   <TableHead>{titleCaseLabel(t('stockHistoryPriceEditPlural'))}</TableHead>
@@ -551,31 +629,18 @@ export function StockUpdateRoute() {
                     (signal) => signal.stockout !== false,
                   ).length;
                   const merchandisingCount = rankingSignalCount(report);
-                  const notesSnippet = summarizeNotes(report.notes) ?? t('stockHistoryNoNotes');
-                  const firstChangedSkuName =
-                    report.skuObservations.length > 0
-                      ? (skuNames.get(report.skuObservations[0]?.skuId) ?? report.skuObservations[0]?.skuId)
-                      : null;
-                  const firstFlaggedServiceName =
-                    serviceFlagCount > 0
-                      ? (() => {
-                          const firstFlaggedService = report.serviceSignals.find(
-                            (signal) => signal.stockout !== false,
-                          );
-                          return firstFlaggedService
-                            ? (serviceNames.get(firstFlaggedService.serviceId) ?? firstFlaggedService.serviceId)
-                            : null;
-                        })()
-                      : null;
-                  const firstPriceEditedServiceName =
-                    report.servicePriceAdjustments.length > 0
-                      ? (serviceNames.get(report.servicePriceAdjustments[0]?.serviceId) ??
-                        report.servicePriceAdjustments[0]?.serviceId)
-                      : null;
+                  const notesSnippet = summarizeNotes(report.notes) ?? '-';
+                  const firstChangedSkuName = changedSkuPreviewName(report, skusById, skuNames);
+                  const firstFlaggedServiceName = serviceFlagPreviewName(report, snapshot, serviceNames);
+                  const firstPriceEditedServiceName = priceEditPreviewName(report, servicesById, serviceNames);
 
                   return (
                     <Fragment key={report.reportId}>
-                      <TableRow data-state={isExpanded ? 'selected' : undefined} key={report.reportId}>
+                      <TableRow
+                        className={isExpanded ? 'hover:bg-muted' : undefined}
+                        data-state={isExpanded ? 'selected' : undefined}
+                        key={report.reportId}
+                      >
                         <TableCell className="align-top">
                           <div className="min-w-36">
                             <p className="font-medium text-foreground">
@@ -586,41 +651,58 @@ export function StockUpdateRoute() {
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell className="align-top">
-                          <Badge className="w-fit" variant="secondary">
-                            {t(stockReportSourceKey(report.reportSource))}
-                          </Badge>
-                        </TableCell>
                         <OperationsLedgerSummaryCell
-                          preview={formatIncludesHint(firstChangedSkuName, t)}
-                          summary={summarizeCount(
-                            report.skuObservations.length,
-                            t('stockHistoryChangedRowSingular'),
-                            t('stockHistoryChangedRowPlural'),
-                          )}
+                          preview={
+                            report.skuObservations.length > 0
+                              ? formatIncludesHint(firstChangedSkuName, t)
+                              : null
+                          }
+                          summary={
+                            report.skuObservations.length > 0
+                              ? summarizeCount(
+                                  report.skuObservations.length,
+                                  t('stockHistoryChangedRowSingular'),
+                                  t('stockHistoryChangedRowPlural'),
+                                )
+                              : '-'
+                          }
                         />
                         <OperationsLedgerSummaryCell
-                          preview={formatIncludesHint(firstFlaggedServiceName, t)}
-                          summary={summarizeCount(
-                            serviceFlagCount,
-                            t('stockHistoryServiceFlagSingular'),
-                            t('stockHistoryServiceFlagPlural'),
-                          )}
+                          preview={serviceFlagCount > 0 ? formatIncludesHint(firstFlaggedServiceName, t) : null}
+                          summary={
+                            serviceFlagCount > 0
+                              ? summarizeCount(
+                                  serviceFlagCount,
+                                  t('stockHistoryServiceFlagSingular'),
+                                  t('stockHistoryServiceFlagPlural'),
+                                )
+                              : '-'
+                          }
                         />
                         <OperationsLedgerSummaryCell
-                          preview={formatIncludesHint(firstPriceEditedServiceName, t)}
-                          summary={summarizeCount(
-                            report.servicePriceAdjustments.length,
-                            t('stockHistoryPriceEditSingular'),
-                            t('stockHistoryPriceEditPlural'),
-                          )}
+                          preview={
+                            report.servicePriceAdjustments.length > 0
+                              ? formatIncludesHint(firstPriceEditedServiceName, t)
+                              : null
+                          }
+                          summary={
+                            report.servicePriceAdjustments.length > 0
+                              ? summarizeCount(
+                                  report.servicePriceAdjustments.length,
+                                  t('stockHistoryPriceEditSingular'),
+                                  t('stockHistoryPriceEditPlural'),
+                                )
+                              : '-'
+                          }
                         />
                         <TableCell className="align-top text-sm text-muted-foreground">
-                          {summarizeCount(
-                            merchandisingCount,
-                            t('stockHistoryRankingSignalSingular'),
-                            t('stockHistoryRankingSignalPlural'),
-                          )}
+                          {merchandisingCount > 0
+                            ? summarizeCount(
+                                merchandisingCount,
+                                t('stockHistoryRankingSignalSingular'),
+                                t('stockHistoryRankingSignalPlural'),
+                              )
+                            : '-'}
                         </TableCell>
                         <TableCell className="max-w-72 align-top text-sm text-muted-foreground">
                           <span className="block truncate">{notesSnippet}</span>
@@ -644,10 +726,10 @@ export function StockUpdateRoute() {
                       </TableRow>
 
                       {isExpanded ? (
-                        <TableRow data-testid="operations-history-detail">
-                          <TableCell className="bg-background/40 py-4" colSpan={8}>
+                        <TableRow className="hover:bg-transparent" data-testid="operations-history-detail">
+                          <TableCell className="bg-background/40 py-4" colSpan={7}>
                             <div className="space-y-5">
-                              <OperationsDetailSection title={t('stockServiceSignalsTitle')}>
+                              <OperationsDetailSection icon={Flag} title={t('stockServiceSignalsTitle')}>
                                 {serviceFlagCount > 0 || report.servicePriceAdjustments.length > 0 ? (
                                   <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
                                     {report.serviceSignals
@@ -710,7 +792,7 @@ export function StockUpdateRoute() {
                                 )}
                               </OperationsDetailSection>
 
-                              <OperationsDetailSection title={t('stockRankingTitle')}>
+                              <OperationsDetailSection icon={Radio} title={t('stockRankingTitle')}>
                                 {report.topServiceRanking.length > 0 || report.topRetailRanking.length > 0 ? (
                                   <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
                                     <div className="space-y-2 px-4 py-3">
@@ -747,13 +829,29 @@ export function StockUpdateRoute() {
                                 )}
                               </OperationsDetailSection>
 
-                              <OperationsDetailSection title={t('stockTableTitle')}>
+                              <OperationsDetailSection icon={Eye} title={t('stockTableTitle')}>
                                 {report.skuObservations.length > 0 ? (
                                   <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
                                     {report.skuObservations.map((entry) => {
                                       const sku = skusById.get(entry.skuId);
                                       const isFocusedObservation =
                                         focusedObservationKey === `${report.reportId}:sku:${entry.skuId}`;
+                                      const unitsDirection =
+                                        sku == null
+                                          ? null
+                                          : entry.unitsInStock > sku.unitsInStock
+                                            ? 'up'
+                                            : entry.unitsInStock < sku.unitsInStock
+                                              ? 'down'
+                                              : null;
+                                      const priceDirection =
+                                        sku == null
+                                          ? null
+                                          : entry.costPerUnit > sku.costPerUnit
+                                            ? 'up'
+                                            : entry.costPerUnit < sku.costPerUnit
+                                              ? 'down'
+                                              : null;
 
                                       return (
                                         <div
@@ -774,10 +872,38 @@ export function StockUpdateRoute() {
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2">
                                               {entry.restockIncluded ? (
-                                                <Badge variant="outline">{t('stockRestockIncluded')}</Badge>
+                                                <Badge className={observationBadgeClass('restock')} variant="outline">
+                                                  {t('stockRestockIncluded')}
+                                                </Badge>
                                               ) : null}
                                               {entry.retailStockout ? (
-                                                <Badge variant="outline">{t('stockRetailStockout')}</Badge>
+                                                <Badge className={observationBadgeClass('stockout')} variant="outline">
+                                                  {t('stockRetailStockout')}
+                                                </Badge>
+                                              ) : null}
+                                              {unitsDirection === 'up' ? (
+                                                <Badge className={observationBadgeClass('units-up')} variant="outline">
+                                                  Units
+                                                  <Triangle className="!size-2 fill-current" />
+                                                </Badge>
+                                              ) : null}
+                                              {unitsDirection === 'down' ? (
+                                                <Badge className={observationBadgeClass('units-down')} variant="outline">
+                                                  Units
+                                                  <Triangle className="!size-2 fill-current rotate-180" />
+                                                </Badge>
+                                              ) : null}
+                                              {priceDirection === 'up' ? (
+                                                <Badge className={observationBadgeClass('price-up')} variant="outline">
+                                                  Prices
+                                                  <Triangle className="!size-2 fill-current" />
+                                                </Badge>
+                                              ) : null}
+                                              {priceDirection === 'down' ? (
+                                                <Badge className={observationBadgeClass('price-down')} variant="outline">
+                                                  Prices
+                                                  <Triangle className="!size-2 fill-current rotate-180" />
+                                                </Badge>
                                               ) : null}
                                             </div>
                                           </div>

@@ -4,21 +4,18 @@ import {
   BriefcaseBusiness,
   ChevronDown,
   ChevronUp,
-  CircleHelp,
   Copy,
   FileSpreadsheet,
   FolderOpen,
+  Heart,
   Package,
 } from 'lucide-react';
 import type { DesktopLocalDataInfo } from '@shared/ipc';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
-import { HoverTooltip } from '@/components/system/hover-tooltip';
 import { DescriptionText } from '@/components/system/description-text';
 import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -32,61 +29,24 @@ import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
-type SettingsForm = {
-  targetServiceLevel: string;
-  forecastHorizonDays: string;
-  particleCount: string;
-  smoothingWindowReports: string;
-};
-
-type SettingsErrors = Partial<Record<keyof SettingsForm, string>>;
-
-function TooltipFieldLabel({
+function SettingsFieldLabel({
   htmlFor,
   label,
-  tooltip,
 }: {
   htmlFor: string;
   label: string;
-  tooltip?: string;
 }) {
   return (
     <div className="flex items-center gap-2 md:basis-56 md:shrink-0">
       <FieldLabel className="w-auto" htmlFor={htmlFor}>
         {label}
       </FieldLabel>
-      {tooltip ? (
-        <HoverTooltip
-          ariaLabel={`${label} help`}
-          className="group rounded-full p-1 text-muted-foreground"
-          content={tooltip}
-        >
-          {({ open }) => (
-            <CircleHelp
-              aria-hidden="true"
-              className={cn(
-                'size-4 transition-colors group-hover:text-foreground group-focus-visible:text-foreground',
-                open ? 'text-foreground' : 'text-muted-foreground',
-              )}
-            />
-          )}
-        </HoverTooltip>
-      ) : null}
     </div>
   );
 }
 
-function createSettingsForm(snapshot: ReturnType<typeof useInventory>['snapshot']): SettingsForm {
-  return {
-    targetServiceLevel: snapshot?.sist.settings.targetServiceLevel?.toString() ?? '0.95',
-    forecastHorizonDays: snapshot?.sist.settings.forecastHorizonDays?.toString() ?? '14',
-    particleCount: snapshot?.sist.settings.particleCount?.toString() ?? '512',
-    smoothingWindowReports: snapshot?.sist.settings.smoothingWindowReports?.toString() ?? '90',
-  };
-}
-
 export function SettingsRoute() {
-  const { snapshot, saveSistSettings, isSaving } = useInventory();
+  const { isSaving } = useInventory();
   const {
     currency,
     currencyLabel,
@@ -99,13 +59,10 @@ export function SettingsRoute() {
     t,
   } = usePreferences();
 
-  const [settingsForm, setSettingsForm] = useState<SettingsForm>(() => createSettingsForm(snapshot));
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [advancedErrors, setAdvancedErrors] = useState<SettingsErrors>({});
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
-  const [advancedError, setAdvancedError] = useState<string | null>(null);
   const [preferencesSaved, setPreferencesSaved] = useState(false);
-  const [advancedSaved, setAdvancedSaved] = useState(false);
   const [localDataInfo, setLocalDataInfo] = useState<DesktopLocalDataInfo | null>(null);
   const [localDataError, setLocalDataError] = useState<string | null>(null);
   const [localDataStatus, setLocalDataStatus] = useState<string | null>(null);
@@ -115,46 +72,8 @@ export function SettingsRoute() {
     top: number;
     width: number;
   } | null>(null);
-  const fieldRefs = useRef<Record<keyof SettingsForm, HTMLInputElement | null>>({
-    targetServiceLevel: null,
-    forecastHorizonDays: null,
-    particleCount: null,
-    smoothingWindowReports: null,
-  });
   const exportMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!snapshot) {
-      return;
-    }
-    setSettingsForm(createSettingsForm(snapshot));
-    setAdvancedErrors({});
-    setAdvancedError(null);
-  }, [snapshot]);
-
-  const advancedDirty = useMemo(() => {
-    if (!snapshot) {
-      return false;
-    }
-    const baseline = createSettingsForm(snapshot);
-    return (
-      settingsForm.targetServiceLevel !== baseline.targetServiceLevel ||
-      settingsForm.forecastHorizonDays !== baseline.forecastHorizonDays ||
-      settingsForm.particleCount !== baseline.particleCount ||
-      settingsForm.smoothingWindowReports !== baseline.smoothingWindowReports
-    );
-  }, [settingsForm, snapshot]);
-  const advancedHasErrors = useMemo(
-    () => Object.values(advancedErrors).some((value) => Boolean(value)),
-    [advancedErrors],
-  );
-
-  useEffect(() => {
-    if (advancedSaved && !advancedDirty && !advancedHasErrors && !advancedError) {
-      setAdvancedOpen(false);
-    }
-  }, [advancedDirty, advancedError, advancedHasErrors, advancedSaved]);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,9 +104,9 @@ export function SettingsRoute() {
       return;
     }
 
-    const MENU_WIDTH = 320;
-    const VIEWPORT_MARGIN = 12;
-    const MENU_GAP = 8;
+    const menuWidth = 320;
+    const viewportMargin = 12;
+    const menuGap = 8;
 
     function positionExportMenu() {
       const button = exportMenuButtonRef.current;
@@ -200,24 +119,21 @@ export function SettingsRoute() {
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       const fitsBelow =
-        buttonRect.bottom + MENU_GAP + measuredHeight <= viewportHeight - VIEWPORT_MARGIN;
+        buttonRect.bottom + menuGap + measuredHeight <= viewportHeight - viewportMargin;
       const fitsAbove =
-        buttonRect.top - MENU_GAP - measuredHeight >= VIEWPORT_MARGIN;
-
-      const width = Math.min(
-        MENU_WIDTH,
-        Math.max(240, viewportWidth - VIEWPORT_MARGIN * 2),
-      );
+        buttonRect.top - menuGap - measuredHeight >= viewportMargin;
+      const width = Math.min(menuWidth, Math.max(240, viewportWidth - viewportMargin * 2));
       const left = Math.min(
-        Math.max(VIEWPORT_MARGIN, buttonRect.right - width),
-        viewportWidth - width - VIEWPORT_MARGIN,
+        Math.max(viewportMargin, buttonRect.right - width),
+        viewportWidth - width - viewportMargin,
       );
-      const top = fitsBelow || !fitsAbove
-        ? Math.min(
-            buttonRect.bottom + MENU_GAP,
-            viewportHeight - measuredHeight - VIEWPORT_MARGIN,
-          )
-        : Math.max(VIEWPORT_MARGIN, buttonRect.top - measuredHeight - MENU_GAP);
+      const top =
+        fitsBelow || !fitsAbove
+          ? Math.min(
+              buttonRect.bottom + menuGap,
+              viewportHeight - measuredHeight - viewportMargin,
+            )
+          : Math.max(viewportMargin, buttonRect.top - measuredHeight - menuGap);
 
       setExportMenuPosition({ left, top, width });
     }
@@ -254,151 +170,46 @@ export function SettingsRoute() {
     };
   }, [exportMenuOpen]);
 
-  const advancedHeaderBadge = useMemo(() => {
-    if (advancedError || advancedHasErrors) {
-      return { label: t('settingsAdvancedNeedsAttention'), variant: 'secondary' as const };
-    }
-    if (advancedDirty) {
-      return { label: t('settingsAdvancedUnsaved'), variant: 'outline' as const };
-    }
-    return null;
-  }, [advancedDirty, advancedError, advancedHasErrors, t]);
-
-  const hasPendingSettingsChanges = hasPendingChanges || advancedDirty;
   const pageStatus = useMemo(() => {
-    if (advancedError) {
-      return { tone: 'destructive' as const, message: advancedError };
-    }
     if (preferencesError) {
       return { tone: 'destructive' as const, message: preferencesError };
     }
-    if (preferencesSaved || advancedSaved) {
+    if (preferencesSaved) {
       return { tone: 'muted' as const, message: t('settingsSaveSuccess') };
     }
     return null;
-  }, [
-    advancedError,
-    advancedSaved,
-    preferencesError,
-    preferencesSaved,
-    t,
-  ]);
-  const dirtySummary = useMemo(() => {
-    if (hasPendingChanges && advancedDirty) {
-      return t('settingsDirtySummaryBoth');
-    }
-    if (hasPendingChanges) {
-      return t('settingsDirtySummaryPreferences');
-    }
-    if (advancedDirty) {
-      return t('settingsDirtySummaryAdvanced');
-    }
-    return null;
-  }, [advancedDirty, hasPendingChanges, t]);
+  }, [preferencesError, preferencesSaved, t]);
 
   useRouteLeaveConfirm({
-    enabled: hasPendingSettingsChanges,
+    enabled: hasPendingChanges,
     message: t('settingsUnsavedLeavePrompt'),
     onDiscard: () => {
       resetPreferences();
-      if (snapshot) {
-        setSettingsForm(createSettingsForm(snapshot));
-      }
-      setAdvancedErrors({});
       setPreferencesError(null);
-      setAdvancedError(null);
       setPreferencesSaved(false);
-      setAdvancedSaved(false);
     },
   });
 
-  const sistFieldTooltips = {
-    targetServiceLevel: t('settingsTargetServiceLevelTooltip'),
-    forecastHorizonDays: t('settingsForecastHorizonTooltip'),
-    particleCount: t('settingsParticleCountTooltip'),
-    smoothingWindowReports: t('settingsSmoothingWindowTooltip'),
-  };
-
-  function validateAdvancedSettings() {
-    const nextErrors: SettingsErrors = {};
-    const orderedFields: Array<keyof SettingsForm> = [
-      'targetServiceLevel',
-      'forecastHorizonDays',
-      'particleCount',
-      'smoothingWindowReports',
-    ];
-
-    for (const field of orderedFields) {
-      const value = settingsForm[field].trim();
-      const parsed = Number(value);
-      if (!value || Number.isNaN(parsed) || !Number.isFinite(parsed) || parsed < 0) {
-        nextErrors[field] = t('validationNonNegative');
-      }
-    }
-
-    setAdvancedErrors(nextErrors);
-    const firstInvalidField = orderedFields.find((field) => nextErrors[field]);
-    if (firstInvalidField) {
-      fieldRefs.current[firstInvalidField]?.focus();
-    }
-    return nextErrors;
-  }
-
   async function handleSave() {
     setPreferencesSaved(false);
-    setAdvancedSaved(false);
     setPreferencesError(null);
-    setAdvancedError(null);
 
-    if (advancedDirty) {
-      const validationErrors = validateAdvancedSettings();
-      if (Object.keys(validationErrors).length > 0) {
-        setAdvancedOpen(true);
-        return;
-      }
+    if (!hasPendingChanges) {
+      return;
     }
 
-    if (advancedDirty) {
-      try {
-        await saveSistSettings({
-          targetServiceLevel: Number(settingsForm.targetServiceLevel),
-          forecastHorizonDays: Number(settingsForm.forecastHorizonDays),
-          particleCount: Number(settingsForm.particleCount),
-          smoothingWindowReports: Number(settingsForm.smoothingWindowReports),
-        });
-        setAdvancedSaved(true);
-      } catch (error) {
-        setAdvancedError(error instanceof Error ? error.message : t('apiUnavailable'));
-        setAdvancedOpen(true);
-        return;
-      }
-    }
-
-    if (hasPendingChanges) {
-      try {
-        await savePreferences();
-        setPreferencesSaved(true);
-      } catch (error) {
-        setPreferencesError(error instanceof Error ? error.message : t('apiUnavailable'));
-      }
-    }
-
-    if (!advancedError && !advancedHasErrors && !advancedDirty) {
-      setAdvancedOpen(false);
+    try {
+      await savePreferences();
+      setPreferencesSaved(true);
+    } catch (error) {
+      setPreferencesError(error instanceof Error ? error.message : t('apiUnavailable'));
     }
   }
 
   function handleReset() {
     resetPreferences();
-    if (snapshot) {
-      setSettingsForm(createSettingsForm(snapshot));
-    }
-    setAdvancedErrors({});
     setPreferencesError(null);
-    setAdvancedError(null);
     setPreferencesSaved(false);
-    setAdvancedSaved(false);
-    setAdvancedOpen(false);
   }
 
   async function handleOpenLocalDataFolder() {
@@ -466,7 +277,7 @@ export function SettingsRoute() {
                 <h3 className="font-heading text-base font-medium tracking-[-0.02em]">
                   {t('settingsWorkspacePreferencesTitle')}
                 </h3>
-                {dirtySummary ? (
+                {hasPendingChanges ? (
                   <span
                     className="text-sm text-muted-foreground"
                     data-testid="settings-dirty-summary"
@@ -481,7 +292,7 @@ export function SettingsRoute() {
             </div>
             <div className="flex flex-wrap items-center gap-3 lg:shrink-0">
               <Button
-                disabled={!hasPendingSettingsChanges || isSaving}
+                disabled={!hasPendingChanges || isSaving}
                 type="button"
                 variant="outline"
                 onClick={handleReset}
@@ -489,7 +300,7 @@ export function SettingsRoute() {
                 {t('settingsResetAction')}
               </Button>
               <Button
-                disabled={!hasPendingSettingsChanges || isSaving}
+                disabled={!hasPendingChanges || isSaving}
                 type="button"
                 onClick={() => void handleSave()}
               >
@@ -499,7 +310,7 @@ export function SettingsRoute() {
           </div>
           <FieldGroup>
             <Field orientation="responsive">
-              <TooltipFieldLabel htmlFor="language-select" label={t('settingsLanguage')} />
+              <SettingsFieldLabel htmlFor="language-select" label={t('settingsLanguage')} />
               <FieldContent className="md:max-w-md">
                 <Select
                   value={language}
@@ -523,7 +334,7 @@ export function SettingsRoute() {
             </Field>
 
             <Field orientation="responsive">
-              <TooltipFieldLabel htmlFor="currency-select" label={t('settingsCurrency')} />
+              <SettingsFieldLabel htmlFor="currency-select" label={t('settingsCurrency')} />
               <FieldContent className="md:max-w-md">
                 <Select
                   value={currency}
@@ -551,16 +362,9 @@ export function SettingsRoute() {
         <section className="space-y-4">
           <div className="rounded-3xl border border-border/70 bg-card/55 p-5">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-heading text-base font-medium tracking-[-0.02em]">{t('settingsAdvancedTitle')}</h3>
-                  {advancedHeaderBadge ? (
-                    <Badge data-testid="settings-advanced-status-badge" variant={advancedHeaderBadge.variant}>
-                      {advancedHeaderBadge.label}
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
+              <h3 className="font-heading text-base font-medium tracking-[-0.02em]">
+                {t('settingsAdvancedTitle')}
+              </h3>
               <Button
                 type="button"
                 variant="ghost"
@@ -575,142 +379,8 @@ export function SettingsRoute() {
             </div>
 
             {advancedOpen ? (
-              <div className="mt-5 space-y-4 border-t border-border/50 pt-4">
-                <div className="space-y-2">
-                  <h4 className="font-heading text-sm font-medium tracking-[-0.02em]">
-                    {t('preferencesSistTitle')}
-                  </h4>
-                  <DescriptionText
-                    className="max-w-2xl text-sm leading-6 text-muted-foreground"
-                    data-testid="settings-advanced-summary"
-                  >
-                    {t('preferencesSistDescription')}
-                  </DescriptionText>
-                </div>
-
-                <FieldGroup className="gap-5">
-                  <Field orientation="responsive">
-                    <TooltipFieldLabel
-                      htmlFor="target-service-level"
-                      label={t('settingsTargetServiceLevel')}
-                      tooltip={sistFieldTooltips.targetServiceLevel}
-                    />
-                    <FieldContent className="md:max-w-md">
-                      <Input
-                        className="w-full rounded-2xl bg-background/50"
-                        id="target-service-level"
-                        inputMode="decimal"
-                        ref={(node) => {
-                          fieldRefs.current.targetServiceLevel = node;
-                        }}
-                        value={settingsForm.targetServiceLevel}
-                        onChange={(event) => {
-                          setAdvancedSaved(false);
-                          setAdvancedErrors((current) => ({ ...current, targetServiceLevel: undefined }));
-                          setSettingsForm((current) => ({
-                            ...current,
-                            targetServiceLevel: event.target.value,
-                          }));
-                        }}
-                      />
-                      {advancedErrors.targetServiceLevel ? (
-                        <p className="mt-2 text-sm text-destructive">{advancedErrors.targetServiceLevel}</p>
-                      ) : null}
-                    </FieldContent>
-                  </Field>
-
-                  <Field orientation="responsive">
-                    <TooltipFieldLabel
-                      htmlFor="forecast-horizon"
-                      label={t('settingsForecastHorizon')}
-                      tooltip={sistFieldTooltips.forecastHorizonDays}
-                    />
-                    <FieldContent className="md:max-w-md">
-                      <Input
-                        className="w-full rounded-2xl bg-background/50"
-                        id="forecast-horizon"
-                        inputMode="numeric"
-                        ref={(node) => {
-                          fieldRefs.current.forecastHorizonDays = node;
-                        }}
-                        value={settingsForm.forecastHorizonDays}
-                        onChange={(event) => {
-                          setAdvancedSaved(false);
-                          setAdvancedErrors((current) => ({ ...current, forecastHorizonDays: undefined }));
-                          setSettingsForm((current) => ({
-                            ...current,
-                            forecastHorizonDays: event.target.value,
-                          }));
-                        }}
-                      />
-                      {advancedErrors.forecastHorizonDays ? (
-                        <p className="mt-2 text-sm text-destructive">{advancedErrors.forecastHorizonDays}</p>
-                      ) : null}
-                    </FieldContent>
-                  </Field>
-
-                  <Field orientation="responsive">
-                    <TooltipFieldLabel
-                      htmlFor="particle-count"
-                      label={t('settingsParticleCount')}
-                      tooltip={sistFieldTooltips.particleCount}
-                    />
-                    <FieldContent className="md:max-w-md">
-                      <Input
-                        className="w-full rounded-2xl bg-background/50"
-                        id="particle-count"
-                        inputMode="numeric"
-                        ref={(node) => {
-                          fieldRefs.current.particleCount = node;
-                        }}
-                        value={settingsForm.particleCount}
-                        onChange={(event) => {
-                          setAdvancedSaved(false);
-                          setAdvancedErrors((current) => ({ ...current, particleCount: undefined }));
-                          setSettingsForm((current) => ({
-                            ...current,
-                            particleCount: event.target.value,
-                          }));
-                        }}
-                      />
-                      {advancedErrors.particleCount ? (
-                        <p className="mt-2 text-sm text-destructive">{advancedErrors.particleCount}</p>
-                      ) : null}
-                    </FieldContent>
-                  </Field>
-
-                  <Field orientation="responsive">
-                    <TooltipFieldLabel
-                      htmlFor="smoothing-window"
-                      label={t('settingsSmoothingWindow')}
-                      tooltip={sistFieldTooltips.smoothingWindowReports}
-                    />
-                    <FieldContent className="md:max-w-md">
-                      <Input
-                        className="w-full rounded-2xl bg-background/50"
-                        id="smoothing-window"
-                        inputMode="numeric"
-                        ref={(node) => {
-                          fieldRefs.current.smoothingWindowReports = node;
-                        }}
-                        value={settingsForm.smoothingWindowReports}
-                        onChange={(event) => {
-                          setAdvancedSaved(false);
-                          setAdvancedErrors((current) => ({ ...current, smoothingWindowReports: undefined }));
-                          setSettingsForm((current) => ({
-                            ...current,
-                            smoothingWindowReports: event.target.value,
-                          }));
-                        }}
-                      />
-                      {advancedErrors.smoothingWindowReports ? (
-                        <p className="mt-2 text-sm text-destructive">{advancedErrors.smoothingWindowReports}</p>
-                      ) : null}
-                    </FieldContent>
-                  </Field>
-                </FieldGroup>
-
-                <section className="space-y-4 border-t border-border/50 pt-5">
+              <div className="mt-5 border-t border-border/50 pt-4">
+                <section className="space-y-4">
                   <div className="space-y-2">
                     <h4 className="font-heading text-sm font-medium tracking-[-0.02em]">
                       {t('settingsLocalDataTitle')}
@@ -778,9 +448,9 @@ export function SettingsRoute() {
                         onClick={() => setExportMenuOpen((current) => !current)}
                       >
                         <FileSpreadsheet />
-                      {t('settingsExportData')}
-                      <ChevronDown />
-                    </Button>
+                        {t('settingsExportData')}
+                        <ChevronDown />
+                      </Button>
                     </div>
                   </div>
                 </section>
@@ -789,6 +459,33 @@ export function SettingsRoute() {
           </div>
         </section>
 
+        <section className="space-y-4">
+          <div className="rounded-3xl border border-border/70 bg-card/55 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h3 className="font-heading text-base font-medium tracking-[-0.02em]">
+                Credits
+              </h3>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setCreditsOpen((current) => !current)}
+              >
+                {creditsOpen ? 'Hide credits' : 'Show credits'}
+                {creditsOpen ? <ChevronUp /> : <ChevronDown />}
+              </Button>
+            </div>
+
+            {creditsOpen ? (
+              <div className="mt-5 border-t border-border/50 pt-4">
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Made with</span>
+                  <Heart aria-hidden="true" className="size-4 fill-current text-rose-500" />
+                  <span>by Monysovann Ly.</span>
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </section>
       </WorkspacePanel>
       {exportMenuOpen && exportMenuPosition
         ? createPortal(
