@@ -779,11 +779,11 @@ export function DashboardRoute() {
                       <TableRow>
                         <TableHead>{t('servicesHeading')}</TableHead>
                         <TableHead>{t('inventoryColumnStatus')}</TableHead>
-                        <TableHead className="text-right">{t('inventoryColumnSellable')}</TableHead>
+                        <TableHead className="text-center">{t('inventoryColumnSellable')}</TableHead>
                         <TableHead>{copy.sellableHealth.bottleneck}</TableHead>
-                        <TableHead className="text-right">{t('inventoryColumnLinkedSkus')}</TableHead>
+                        <TableHead className="text-center">{t('inventoryColumnLinkedSkus')}</TableHead>
                         <TableHead>{copy.sellableHealth.lastRelevantUpdate}</TableHead>
-                        <TableHead className="text-right">{copy.sellableHealth.action}</TableHead>
+                        <TableHead className="text-center">{copy.sellableHealth.action}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -802,11 +802,11 @@ export function DashboardRoute() {
                               {serviceStatusLabel(row.status)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">{formatNumber(row.sellableUnits, language)}</TableCell>
+                          <TableCell className="text-center">{formatNumber(row.sellableUnits, language)}</TableCell>
                           <TableCell>{row.bottleneck}</TableCell>
-                          <TableCell className="text-right">{formatNumber(row.linkedSkuCount, language)}</TableCell>
+                          <TableCell className="text-center">{formatNumber(row.linkedSkuCount, language)}</TableCell>
                           <TableCell>{row.lastRelevantUpdate}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-center">
                             <Button asChild size="sm" variant="outline">
                               <Link to={`/catalog/services/${row.service.serviceId}`}>{copy.actions.reviewService}</Link>
                             </Button>
@@ -821,11 +821,11 @@ export function DashboardRoute() {
                       <TableRow>
                         <TableHead>{t('skuLabel')}</TableHead>
                         <TableHead>{t('inventoryColumnStatus')}</TableHead>
-                        <TableHead className="text-right">{t('fieldUnitsInStock')}</TableHead>
+                        <TableHead className="text-center">{t('fieldUnitsInStock')}</TableHead>
                         <TableHead>{t('catalogSkuDirectSellStatus')}</TableHead>
-                        <TableHead className="text-right">{copy.sellableHealth.affectedServices}</TableHead>
+                        <TableHead className="text-center">{copy.sellableHealth.affectedServices}</TableHead>
                         <TableHead>{copy.sellableHealth.lastRelevantUpdate}</TableHead>
-                        <TableHead className="text-right">{copy.sellableHealth.action}</TableHead>
+                        <TableHead className="text-center">{copy.sellableHealth.action}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -844,15 +844,15 @@ export function DashboardRoute() {
                               {serviceStatusLabel(row.status)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">{formatNumber(row.sku.unitsInStock, language)}</TableCell>
+                          <TableCell className="text-center">{formatNumber(row.sku.unitsInStock, language)}</TableCell>
                           <TableCell>
                             <Badge className="rounded-full" variant={row.sku.soldAsProduct ? 'secondary' : 'outline'}>
                               {row.sku.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct')}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">{formatNumber(row.linkedServiceCount, language)}</TableCell>
+                          <TableCell className="text-center">{formatNumber(row.linkedServiceCount, language)}</TableCell>
                           <TableCell>{row.lastRelevantUpdate}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-center">
                             <Button asChild size="sm" variant="outline">
                               <Link to={`/catalog/skus/${row.sku.skuId}`}>{copy.actions.reviewSku}</Link>
                             </Button>
@@ -966,12 +966,12 @@ export function DashboardRoute() {
                 <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background">
                   <TableRow>
                     <TableHead>{t('skuLabel')}</TableHead>
-                    <TableHead className="text-right">{t('fieldUnitsInStock')}</TableHead>
+                    <TableHead className="text-center">{t('fieldUnitsInStock')}</TableHead>
                     <TableHead>{t('inventoryColumnStatus')}</TableHead>
-                    <TableHead className="text-right">{t('catalogLinkedServicesTitle')}</TableHead>
-                    <TableHead className="text-right">{t('dashboardTotalValue')}</TableHead>
+                    <TableHead className="text-center">{t('catalogLinkedServicesTitle')}</TableHead>
+                    <TableHead className="text-center">{t('dashboardTotalValue')}</TableHead>
                     <TableHead>{copy.skuLevels.lastUpdated}</TableHead>
-                    <TableHead className="text-right">{copy.skuLevels.action}</TableHead>
+                    <TableHead className="text-center">{copy.skuLevels.action}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -985,18 +985,18 @@ export function DashboardRoute() {
                           <span className="truncate text-sm text-muted-foreground">{row.sku.skuId}</span>
                         </Link>
                       </TableCell>
-                      <TableCell className="text-right">{formatNumber(row.sku.unitsInStock, language)}</TableCell>
+                      <TableCell className="text-center">{formatNumber(row.sku.unitsInStock, language)}</TableCell>
                       <TableCell>
                         <Badge className="rounded-full" variant={badgeVariant(row.status)}>
                           {skuStatusLabel(row.status)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">{formatNumber(row.linkedServiceCount, language)}</TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-center">{formatNumber(row.linkedServiceCount, language)}</TableCell>
+                      <TableCell className="text-center font-medium">
                         {formatCurrency(row.inventoryValue, currency, language)}
                       </TableCell>
                       <TableCell>{row.lastUpdated}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <Button asChild size="sm" variant="outline">
                           <Link to={`/catalog/skus/${row.sku.skuId}`}>{copy.actions.reviewSku}</Link>
                         </Button>
