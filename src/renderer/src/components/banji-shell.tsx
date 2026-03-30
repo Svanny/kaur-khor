@@ -1,8 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
+  BrainCog,
   Boxes,
   ClipboardPen,
-  ChartNoAxesCombined,
   LayoutDashboard,
   PanelRightClose,
   PanelRightOpen,
@@ -67,7 +67,7 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     id: 'sist',
     destination: '/sist',
     labelKey: 'navSist',
-    icon: ChartNoAxesCombined,
+    icon: BrainCog,
     matches: (pathname) => matchesSection(pathname, '/sist'),
   },
 ];

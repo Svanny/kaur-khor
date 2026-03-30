@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Circle, CircleDot, CircleHelp, Search } from 'lucide-react';
+import { CheckCircle2, Circle, CircleDot, CircleHelp, NotebookPen, Search } from 'lucide-react';
 import type { InventorySnapshot, RankingEntry } from '@shared/inventory';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -188,6 +188,7 @@ export function StockUpdateSessionRoute() {
   const [servicePanelMode, setServicePanelMode] = useState<'summary' | 'editing'>('summary');
   const [serviceFilter, setServiceFilter] = useState<'all' | 'changed'>('all');
   const [observationsQuery, setObservationsQuery] = useState('');
+  const [expandedSkuNotes, setExpandedSkuNotes] = useState<Record<string, boolean>>({});
   const [focusedCostSkuId, setFocusedCostSkuId] = useState<string | null>(null);
   const focusedSkuRowRef = useRef<HTMLTableRowElement | null>(null);
   const focusedServiceRowRef = useRef<HTMLTableRowElement | null>(null);
@@ -534,34 +535,53 @@ export function StockUpdateSessionRoute() {
     navigate('/operations');
   }
 
+  function updateSkuRowDraft(
+    current: NonNullable<typeof sessionDraft>,
+    skuId: string,
+    updater: (row: (typeof current.rows)[string]) => (typeof current.rows)[string],
+  ) {
+    const currentRow = current.rows[skuId];
+    if (!currentRow) {
+      return current;
+    }
+
+    const nextRow = updater(currentRow);
+    const sku = snapshot?.skus.find((entry) => entry.skuId === skuId);
+    const shouldAutoIncludeRestock =
+      sku !== undefined && Number(nextRow.unitsInStock) > sku.unitsInStock;
+
+    return {
+      ...current,
+      rows: {
+        ...current.rows,
+        [skuId]: {
+          ...nextRow,
+          restockIncluded: shouldAutoIncludeRestock ? true : nextRow.restockIncluded,
+        },
+      },
+    };
+  }
+
   function setField(
     skuId: string,
     key: 'unitsInStock' | 'costPerUnit' | 'notes',
     value: string,
   ) {
-    updateDraft((current) => ({
-      ...current,
-      rows: {
-        ...current.rows,
-        [skuId]: {
-          ...current.rows[skuId],
-          [key]: value,
-        },
-      },
-    }));
+    updateDraft((current) =>
+      updateSkuRowDraft(current, skuId, (row) => ({
+        ...row,
+        [key]: value,
+      })),
+    );
   }
 
   function toggleField(skuId: string, key: 'restockIncluded' | 'retailStockout', value: boolean) {
-    updateDraft((current) => ({
-      ...current,
-      rows: {
-        ...current.rows,
-        [skuId]: {
-          ...current.rows[skuId],
-          [key]: value,
-        },
-      },
-    }));
+    updateDraft((current) =>
+      updateSkuRowDraft(current, skuId, (row) => ({
+        ...row,
+        [key]: value,
+      })),
+    );
   }
 
   function adjustValue(
@@ -594,6 +614,13 @@ export function StockUpdateSessionRoute() {
         ? nextValue.toFixed(fractionDigits).replace(/\.?0+$/, '')
         : String(nextValue),
     );
+  }
+
+  function toggleSkuNotes(skuId: string) {
+    setExpandedSkuNotes((current) => ({
+      ...current,
+      [skuId]: !(current[skuId] ?? false),
+    }));
   }
 
   function handleSalesSignalChange(nextEntries: RankingEntry[]) {
@@ -944,132 +971,155 @@ export function StockUpdateSessionRoute() {
                     </TableHeader>
                     <TableBody>
                       {visibleSkus.map((sku) => (
-                        <TableRow
-                          className={cn(
-                            changedEntryIds.has(sku.skuId) ? 'bg-primary/5' : undefined,
-                            focusedSku?.skuId === sku.skuId ? 'ring-1 ring-primary/40' : undefined,
-                          )}
-                          data-state={
-                            changedEntryIds.has(sku.skuId) || focusedSku?.skuId === sku.skuId
-                              ? 'selected'
-                              : undefined
-                          }
-                          key={sku.skuId}
-                          ref={focusedSku?.skuId === sku.skuId ? focusedSkuRowRef : null}
-                        >
-                          <TableCell className="min-w-0">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="truncate font-medium text-foreground">{sku.name}</p>
-                                {focusedSku?.skuId === sku.skuId ? (
-                                  <Badge variant="secondary">{t('stockFocusedBadge')}</Badge>
-                                ) : null}
-                                {changedEntryIds.has(sku.skuId) ? (
-                                  <Badge variant="outline">{t('stockObservationsChangedBadge')}</Badge>
-                                ) : null}
-                              </div>
-                              {focusedSku?.skuId === sku.skuId ? (
-                                <p className="truncate text-xs text-muted-foreground">{t('stockFocusSkuHint')}</p>
-                              ) : null}
-                              <p className="truncate text-sm text-muted-foreground">{sku.skuId}</p>
-                              <div className="mt-3 space-y-2">
-                                <label
-                                  className="text-xs font-medium text-muted-foreground"
-                                  htmlFor={`sku-note-${sku.skuId}`}
-                                >
-                                  {t('stockObservationRowNotesLabel')}
-                                </label>
-                                <Textarea
-                                  className="min-h-20 rounded-2xl bg-background/70 text-sm"
-                                  id={`sku-note-${sku.skuId}`}
-                                  placeholder={t('stockObservationRowNotesPlaceholder')}
-                                  value={rows[sku.skuId]?.notes ?? ''}
-                                  onChange={(event) => setField(sku.skuId, 'notes', event.target.value)}
+                        (() => {
+                          const skuNotes = rows[sku.skuId]?.notes ?? '';
+                          const isNotesExpanded =
+                            expandedSkuNotes[sku.skuId] ??
+                            (focusedSku?.skuId === sku.skuId || skuNotes.trim().length > 0);
+
+                          return (
+                            <TableRow
+                              className={cn(
+                                changedEntryIds.has(sku.skuId) ? 'bg-primary/5' : undefined,
+                                focusedSku?.skuId === sku.skuId ? 'ring-1 ring-primary/40' : undefined,
+                              )}
+                              data-state={
+                                changedEntryIds.has(sku.skuId) || focusedSku?.skuId === sku.skuId
+                                  ? 'selected'
+                                  : undefined
+                              }
+                              key={sku.skuId}
+                              ref={focusedSku?.skuId === sku.skuId ? focusedSkuRowRef : null}
+                            >
+                              <TableCell className="min-w-0">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="truncate font-medium text-foreground">{sku.name}</p>
+                                    {focusedSku?.skuId === sku.skuId ? (
+                                      <Badge variant="secondary">{t('stockFocusedBadge')}</Badge>
+                                    ) : null}
+                                    {changedEntryIds.has(sku.skuId) ? (
+                                      <Badge variant="outline">{t('stockObservationsChangedBadge')}</Badge>
+                                    ) : null}
+                                  </div>
+                                  {focusedSku?.skuId === sku.skuId ? (
+                                    <p className="truncate text-xs text-muted-foreground">{t('stockFocusSkuHint')}</p>
+                                  ) : null}
+                                  <div className="mt-1 flex flex-wrap items-center gap-3">
+                                    <p className="truncate text-sm text-muted-foreground">{sku.skuId}</p>
+                                    <Button
+                                      aria-expanded={isNotesExpanded}
+                                      aria-label={`${isNotesExpanded ? t('stockObservationHideNotes') : t('stockObservationShowNotes')}: ${sku.name}`}
+                                      size="icon-sm"
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={() => toggleSkuNotes(sku.skuId)}
+                                    >
+                                      <NotebookPen aria-hidden="true" className="size-4" />
+                                    </Button>
+                                  </div>
+                                  {isNotesExpanded ? (
+                                    <div className="mt-3 space-y-2">
+                                      <label
+                                        className="text-xs font-medium text-muted-foreground"
+                                        htmlFor={`sku-note-${sku.skuId}`}
+                                      >
+                                        {t('stockObservationRowNotesLabel')}
+                                      </label>
+                                      <Textarea
+                                        className="min-h-20 rounded-2xl bg-background/70 text-sm"
+                                        id={`sku-note-${sku.skuId}`}
+                                        placeholder={t('stockObservationRowNotesPlaceholder')}
+                                        value={skuNotes}
+                                        onChange={(event) => setField(sku.skuId, 'notes', event.target.value)}
+                                      />
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => adjustValue(sku.skuId, 'unitsInStock', -1)}
+                                  >
+                                    −
+                                  </Button>
+                                  <Input
+                                    className="min-w-24 rounded-full text-center"
+                                    inputMode="decimal"
+                                    value={rows[sku.skuId]?.unitsInStock ?? ''}
+                                    onChange={(event) => setField(sku.skuId, 'unitsInStock', event.target.value)}
+                                  />
+                                  <Button
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => adjustValue(sku.skuId, 'unitsInStock', 1)}
+                                  >
+                                    +
+                                  </Button>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => adjustValue(sku.skuId, 'costPerUnit', -1)}
+                                  >
+                                    −
+                                  </Button>
+                                  <Input
+                                    className="min-w-24 rounded-full text-center"
+                                    inputMode="decimal"
+                                    value={
+                                      focusedCostSkuId === sku.skuId
+                                        ? rows[sku.skuId]?.costPerUnit ?? ''
+                                        : formatDisplayedCostDraftValue(
+                                            rows[sku.skuId]?.costPerUnit,
+                                            language,
+                                            currency,
+                                          )
+                                    }
+                                    onBlur={() => setFocusedCostSkuId(null)}
+                                    onChange={(event) => setField(sku.skuId, 'costPerUnit', event.target.value)}
+                                    onFocus={() => setFocusedCostSkuId(sku.skuId)}
+                                  />
+                                  <Button
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => adjustValue(sku.skuId, 'costPerUnit', 1)}
+                                  >
+                                    +
+                                  </Button>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  className="mx-auto"
+                                  checked={rows[sku.skuId]?.restockIncluded ?? false}
+                                  onCheckedChange={(checked) =>
+                                    toggleField(sku.skuId, 'restockIncluded', checked === true)
+                                  }
                                 />
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                size="icon-sm"
-                                type="button"
-                                variant="outline"
-                                onClick={() => adjustValue(sku.skuId, 'unitsInStock', -1)}
-                              >
-                                −
-                              </Button>
-                              <Input
-                                className="min-w-24 rounded-full text-center"
-                                inputMode="decimal"
-                                value={rows[sku.skuId]?.unitsInStock ?? ''}
-                                onChange={(event) => setField(sku.skuId, 'unitsInStock', event.target.value)}
-                              />
-                              <Button
-                                size="icon-sm"
-                                type="button"
-                                variant="outline"
-                                onClick={() => adjustValue(sku.skuId, 'unitsInStock', 1)}
-                              >
-                                +
-                              </Button>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                size="icon-sm"
-                                type="button"
-                                variant="outline"
-                                onClick={() => adjustValue(sku.skuId, 'costPerUnit', -1)}
-                              >
-                                −
-                              </Button>
-                              <Input
-                                className="min-w-24 rounded-full text-center"
-                                inputMode="decimal"
-                                value={
-                                  focusedCostSkuId === sku.skuId
-                                    ? rows[sku.skuId]?.costPerUnit ?? ''
-                                    : formatDisplayedCostDraftValue(
-                                        rows[sku.skuId]?.costPerUnit,
-                                        language,
-                                        currency,
-                                      )
-                                }
-                                onBlur={() => setFocusedCostSkuId(null)}
-                                onChange={(event) => setField(sku.skuId, 'costPerUnit', event.target.value)}
-                                onFocus={() => setFocusedCostSkuId(sku.skuId)}
-                              />
-                              <Button
-                                size="icon-sm"
-                                type="button"
-                                variant="outline"
-                                onClick={() => adjustValue(sku.skuId, 'costPerUnit', 1)}
-                              >
-                                +
-                              </Button>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Checkbox
-                              className="mx-auto"
-                              checked={rows[sku.skuId]?.restockIncluded ?? false}
-                              onCheckedChange={(checked) =>
-                                toggleField(sku.skuId, 'restockIncluded', checked === true)
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Checkbox
-                              className="mx-auto"
-                              checked={rows[sku.skuId]?.retailStockout ?? false}
-                              onCheckedChange={(checked) =>
-                                toggleField(sku.skuId, 'retailStockout', checked === true)
-                              }
-                            />
-                          </TableCell>
-                        </TableRow>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  className="mx-auto"
+                                  checked={rows[sku.skuId]?.retailStockout ?? false}
+                                  onCheckedChange={(checked) =>
+                                    toggleField(sku.skuId, 'retailStockout', checked === true)
+                                  }
+                                />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })()
                       ))}
                     </TableBody>
                   </Table>

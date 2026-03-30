@@ -1,7 +1,8 @@
 import { startTransition, useDeferredValue, useMemo, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Boxes, PackagePlus, PanelsTopLeft, Search } from 'lucide-react';
+import { HandCoins, Package, PackagePlus, Search, type LucideIcon } from 'lucide-react';
 import type { InventorySnapshot, ServiceRecord, SkuRecord } from '@shared/inventory';
+import { NewServiceIcon } from '@/components/system/new-service-icon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +23,7 @@ import {
 import {
   WorkspaceEmpty,
   WorkspacePage,
+  WorkspacePageTitle,
   WorkspacePanel,
 } from '@/components/system/workspace';
 import { DescriptionText } from '@/components/system/description-text';
@@ -119,6 +121,14 @@ function SkuCatalogColGroup() {
   );
 }
 
+function CatalogRowIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <div className="flex size-12 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background text-primary">
+      <Icon className="size-4" />
+    </div>
+  );
+}
+
 function ServiceCatalogTable({
   currency,
   language,
@@ -157,16 +167,14 @@ function ServiceCatalogTable({
                     className="group inline-flex max-w-full items-start gap-3"
                     to={`/catalog/services/${service.serviceId}`}
                   >
-                    <div className="rounded-2xl border border-border/70 bg-accent/35 p-2 text-primary">
-                      <Boxes className="size-4" />
-                    </div>
+                    <CatalogRowIcon icon={HandCoins} />
                     <div className="min-w-0">
                       <p className="truncate font-medium text-foreground group-hover:text-primary">
                         {service.name}
                       </p>
-                      <DescriptionText className="truncate text-sm text-muted-foreground">
+                      <p className="truncate text-sm text-muted-foreground">
                         {service.description}
-                      </DescriptionText>
+                      </p>
                     </div>
                   </Link>
                 </TableCell>
@@ -233,11 +241,14 @@ function ServiceCatalogPreviewTable({
             return (
               <TableRow key={service.serviceId}>
                 <TableCell className="min-w-0">
-                  <Link className="group inline-flex max-w-full min-w-0 flex-col" to={`/catalog/services/${service.serviceId}`}>
-                    <span className="truncate font-medium text-foreground group-hover:text-primary">
-                      {service.name}
+                  <Link className="group inline-flex max-w-full min-w-0 items-start gap-3" to={`/catalog/services/${service.serviceId}`}>
+                    <CatalogRowIcon icon={HandCoins} />
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-foreground group-hover:text-primary">
+                        {service.name}
+                      </span>
+                      <span className="block truncate text-sm text-muted-foreground">{service.serviceId}</span>
                     </span>
-                    <span className="truncate text-sm text-muted-foreground">{service.serviceId}</span>
                   </Link>
                 </TableCell>
                 <TableCell>
@@ -301,9 +312,7 @@ function SkuCatalogTable({
                     className="group inline-flex max-w-full items-start gap-3"
                     to={`/catalog/skus/${sku.skuId}`}
                   >
-                    <div className="rounded-2xl border border-border/70 bg-background p-2 text-primary">
-                      <PackagePlus className="size-4" />
-                    </div>
+                    <CatalogRowIcon icon={Package} />
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate font-medium text-foreground group-hover:text-primary">
@@ -370,11 +379,14 @@ function SkuCatalogPreviewTable({
           {rows.map((sku) => (
             <TableRow key={sku.skuId}>
               <TableCell className="min-w-0">
-                <Link className="group inline-flex max-w-full min-w-0 flex-col" to={`/catalog/skus/${sku.skuId}`}>
-                  <span className="truncate font-medium text-foreground group-hover:text-primary">
-                    {sku.name}
+                <Link className="group inline-flex max-w-full min-w-0 items-start gap-3" to={`/catalog/skus/${sku.skuId}`}>
+                  <CatalogRowIcon icon={Package} />
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-foreground group-hover:text-primary">
+                      {sku.name}
+                    </span>
+                    <span className="block truncate text-sm text-muted-foreground">{sku.skuId}</span>
                   </span>
-                  <span className="truncate text-sm text-muted-foreground">{sku.skuId}</span>
                 </Link>
               </TableCell>
               <TableCell>
@@ -536,14 +548,14 @@ export function InventoryRoute() {
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link to="/catalog/services/new">
-                <PanelsTopLeft data-icon="inline-start" />
+                <NewServiceIcon className="relative inline-flex size-4 shrink-0" />
                 {t('createServiceAction')}
               </Link>
             </Button>
           </div>
         }
         description={t('inventoryBody')}
-        title={t('allItemsTitle')}
+        title={<WorkspacePageTitle>{t('allItemsTitle')}</WorkspacePageTitle>}
       >
         <div className="grid gap-3">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

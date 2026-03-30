@@ -1165,6 +1165,8 @@ describe('renderer workspaces', () => {
           stockReportNotes: 'Report notes',
           stockObservationRowNotesLabel: 'SKU notes',
           stockObservationRowNotesPlaceholder: 'Capture any row-specific exception or context.',
+          stockObservationShowNotes: 'Show SKU notes',
+          stockObservationHideNotes: 'Hide SKU notes',
           stockRestockIncluded: 'Restock included',
           stockRetailStockout: 'Retail stockout',
           stockServiceSignalsTitle: 'Service stockout flags',
@@ -1237,133 +1239,195 @@ describe('renderer workspaces', () => {
     expect(screen.getByTestId('location-pathname').textContent).toBe(expectedPath);
   });
 
-  test('overview renders the monitoring header, flat summary strip, and internal tabs', async () => {
+  test('overview renders the today desk header and queue-first surface', async () => {
     renderRoute('/', <DashboardRoute />);
 
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Record stock update' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Start new update' })).toHaveAttribute(
       'href',
       '/operations/session',
     );
-    expect(
-      screen
-        .getAllByRole('link', { name: 'Open catalog' })
-        .some((link) => link.getAttribute('href') === '/catalog'),
-    ).toBe(true);
-    expect(screen.getByText('Sellable SKUs ready')).toBeInTheDocument();
-    expect(screen.getByText('Services available')).toBeInTheDocument();
-    expect(screen.getByText('Blocked services')).toBeInTheDocument();
-    expect(screen.getByText('Low-stock SKUs')).toBeInTheDocument();
-    expect(screen.getByText('Latest stock update')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Summary' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Sellable health' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'SKU levels' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Recent activity' })).toBeInTheDocument();
-    expect(screen.queryByText('Planning queue')).not.toBeInTheDocument();
-    expect(screen.queryByText('Support metrics')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Resume draft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open catalog' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Summary' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Sellable health' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'SKU levels' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Recent activity' })).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search item, SKU, or service')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'All 2' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Need update 2' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Low stock 1' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Out 0' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sort: Urgency' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Item/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Stock/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Status/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Last update/i })).toBeInTheDocument();
+    expect(screen.getByText('SKU worklist')).toBeInTheDocument();
+    expect(screen.getByText('Recent changes')).toBeInTheDocument();
+    expect(screen.getByText('Insights')).toBeInTheDocument();
     expect(await screen.findByText('Morning floor update.')).toBeInTheDocument();
   });
 
-  test('overview summary tab shows current state, watchlist rows, and latest update block', async () => {
+  test('overview filters queue rows by search across sku and linked service names', async () => {
     renderRoute('/', <DashboardRoute />);
+    const worklist = screen.getByText('SKU worklist').closest('section');
+    expect(worklist).not.toBeNull();
 
-    expect(screen.getByText('Current state')).toBeInTheDocument();
-    expect(screen.getByText('No blocked service')).toBeInTheDocument();
-    expect(screen.getByText('Market Day Outfit Set')).toBeInTheDocument();
-    expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
-    expect(screen.getByText('Service availability')).toBeInTheDocument();
-    expect(screen.getByText('Latest update')).toBeInTheDocument();
-    expect(
-      (await screen.findAllByText('1 changed row · 1 service flag · 1 price edit · 3 ranking signals')).length,
-    ).toBeGreaterThan(0);
+    expect(within(worklist as HTMLElement).getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
+    expect(within(worklist as HTMLElement).getAllByText('Osaka Pleat Midi').length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByLabelText('Search queue'), {
+      target: { value: 'market day' },
+    });
+    await waitFor(() => {
+      expect(within(worklist as HTMLElement).getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
+      expect(within(worklist as HTMLElement).queryByText('Osaka Pleat Midi')).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Search queue'), {
+      target: { value: 'sku-2' },
+    });
+    await waitFor(() => {
+      expect(within(worklist as HTMLElement).getAllByText('Osaka Pleat Midi').length).toBeGreaterThan(0);
+      expect(within(worklist as HTMLElement).queryByText('Bangkok Market Tee')).not.toBeInTheDocument();
+    });
   });
 
-  test('overview sellable health defaults to services and switches to sellable skus', async () => {
+  test('overview derives queue statuses, filters, and action routes from snapshot and reports', async () => {
     renderRoute('/', <DashboardRoute />);
+    const worklist = screen.getByText('SKU worklist').closest('section');
+    expect(worklist).not.toBeNull();
+    const desktopTable = within(worklist as HTMLElement).getByRole('table');
 
-    const sellableHealthTab = screen.getByRole('tab', { name: 'Sellable health' });
-    fireEvent.pointerDown(sellableHealthTab);
-    fireEvent.click(sellableHealthTab);
-    await waitFor(() => expect(sellableHealthTab).toHaveAttribute('data-state', 'active'));
+    expect(screen.getAllByText('Low stock').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Not updated').length).toBeGreaterThan(0);
+    expect(
+      screen
+        .getAllByRole('link', { name: 'Update' })
+        .some((link) => link.getAttribute('href') === '/operations/session?step=observations&focusSku=sku-1'),
+    ).toBe(true);
+    expect(
+      screen
+        .getAllByRole('link', { name: 'Review' })
+        .some((link) => link.getAttribute('href') === '/catalog/skus/sku-2'),
+    ).toBe(true);
+    expect(
+      within(worklist as HTMLElement)
+        .getAllByRole('link', { name: /Bangkok Market Tee/i })
+        .some((link) => link.getAttribute('href') === '/catalog/skus/sku-1'),
+    ).toBe(true);
+    expect(
+      within(worklist as HTMLElement)
+        .getAllByRole('link', { name: '12' })
+        .some((link) => link.getAttribute('href') === '/catalog/skus/sku-1'),
+    ).toBe(true);
+    expect(
+      within(worklist as HTMLElement)
+        .getAllByRole('link', { name: 'Low stock' })
+        .some((link) => link.getAttribute('href') === '/catalog/skus/sku-1'),
+    ).toBe(true);
+    expect(
+      within(worklist as HTMLElement)
+        .getAllByRole('link', { name: '—' })
+        .some((link) => link.getAttribute('href') === '/operations'),
+    ).toBe(true);
 
-    expect(screen.getByText('Distribution summary')).toBeInTheDocument();
-    expect(screen.getAllByText('Market Day Outfit Set').length).toBeGreaterThan(0);
-    expect(screen.getByText('Top blockers')).toBeInTheDocument();
+    fireEvent.click(within(desktopTable).getByRole('button', { name: /Item/i }));
+    await waitFor(() => {
+      const rows = within(desktopTable).getAllByRole('row');
+      expect(rows[1]).toHaveTextContent('Bangkok Market Tee');
+      expect(rows[2]).toHaveTextContent('Osaka Pleat Midi');
+      expect(within(desktopTable).getByText('sorted ascending')).toBeInTheDocument();
+    });
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Sellable SKUs' }));
+    fireEvent.click(within(desktopTable).getByRole('button', { name: /Item/i }));
+    await waitFor(() => {
+      const rows = within(desktopTable).getAllByRole('row');
+      expect(rows[1]).toHaveTextContent('Osaka Pleat Midi');
+      expect(rows[2]).toHaveTextContent('Bangkok Market Tee');
+      expect(within(desktopTable).getByText('sorted descending')).toBeInTheDocument();
+    });
 
-    expect(screen.getByText('Affected services')).toBeInTheDocument();
-    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Review SKU' })).toHaveAttribute(
+    fireEvent.click(screen.getByRole('radio', { name: 'Low stock 1' }));
+    await waitFor(() => {
+      expect(within(worklist as HTMLElement).getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
+      expect(within(worklist as HTMLElement).queryByText('Osaka Pleat Midi')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Updated today 1' }));
+    await waitFor(() => {
+      expect(within(worklist as HTMLElement).getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
+      expect(within(worklist as HTMLElement).queryByText('Osaka Pleat Midi')).not.toBeInTheDocument();
+    });
+  });
+
+  test('overview rail shows three recent changes, three insights, and the analysis handoff', async () => {
+    renderRoute('/', <DashboardRoute />);
+    const recentChanges = screen.getByText('Recent changes').closest('section');
+    const insights = screen.getByText('Insights').closest('section');
+    expect(recentChanges).not.toBeNull();
+    expect(insights).not.toBeNull();
+
+    expect(await screen.findByText('Morning floor update.')).toBeInTheDocument();
+    expect(
+      within(recentChanges as HTMLElement).getByRole('link', { name: 'Bangkok Market Tee' }),
+    ).toHaveAttribute('href', '/catalog/skus/sku-1');
+    expect(
+      within(recentChanges as HTMLElement)
+        .getAllByRole('link')
+        .some((link) => link.getAttribute('href') === '/operations?reportId=report-0009&focusSku=sku-1'),
+    ).toBe(true);
+    expect(
+      within(recentChanges as HTMLElement).getByRole('link', { name: 'Market Day Outfit Set' }),
+    ).toHaveAttribute('href', '/catalog/services/service-1');
+    expect(
+      within(recentChanges as HTMLElement).getByRole('link', { name: 'After-Hours Satin Edit' }),
+    ).toHaveAttribute('href', '/catalog/services/service-2');
+    expect(
+      within(recentChanges as HTMLElement)
+        .getAllByRole('link')
+        .some((link) => link.getAttribute('href') === '/operations?reportId=report-0009&focusService=service-2'),
+    ).toBe(true);
+    expect(within(insights as HTMLElement).getByText(/1 items need reorder soon/)).toBeInTheDocument();
+    expect(within(insights as HTMLElement).getByText(/2 services flagged as fragile/)).toBeInTheDocument();
+    expect(within(insights as HTMLElement).getByText(/Demand ranking shifted/)).toBeInTheDocument();
+    expect(within(insights as HTMLElement).getByRole('link', { name: 'Open analysis' })).toHaveAttribute('href', '/sist');
+    expect(screen.getByRole('link', { name: 'New SKU' })).toHaveAttribute('href', '/catalog/skus/new');
+    expect(screen.getByRole('link', { name: 'New Service' })).toHaveAttribute('href', '/catalog/services/new');
+  });
+
+  test('overview shows resume draft only when an operations draft exists', async () => {
+    render(
+      <OperationsSessionProvider>
+        <MemoryRouter initialEntries={['/operations/session?step=services']}>
+          <Link to="/">Go to today</Link>
+          <Routes>
+            <Route element={<DashboardRoute />} path="/" />
+            <Route element={<StockUpdateSessionRoute />} path="/operations/session" />
+          </Routes>
+        </MemoryRouter>
+      </OperationsSessionProvider>,
+    );
+
+    expect(await screen.findByRole('button', { name: /Step 3.*Service updates/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Go to today' }));
+
+    expect(await screen.findByRole('link', { name: 'Resume draft' })).toHaveAttribute(
       'href',
-      '/catalog/skus/sku-1',
+      '/operations/session?step=services',
     );
   });
 
-  test('overview sku levels tab filters and searches the dense inventory table', async () => {
-    renderRoute('/', <DashboardRoute />);
-
-    const skuLevelsTab = screen.getByRole('tab', { name: 'SKU levels' });
-    fireEvent.pointerDown(skuLevelsTab);
-    fireEvent.click(skuLevelsTab);
-    await waitFor(() => expect(skuLevelsTab).toHaveAttribute('data-state', 'active'));
-
-    expect(screen.getByLabelText('Search SKU levels')).toBeInTheDocument();
-    expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Low stock' }));
-    expect(screen.getByText('Bangkok Market Tee')).toBeInTheDocument();
-    expect(screen.queryByText('Osaka Pleat Midi')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Everything' }));
-    fireEvent.change(screen.getByLabelText('Search SKU levels'), {
-      target: { value: 'osaka' },
-    });
-    expect(screen.getByText('Osaka Pleat Midi')).toBeInTheDocument();
-    expect(screen.queryByText('Bangkok Market Tee')).not.toBeInTheDocument();
-  });
-
-  test('overview recent activity tab reuses report loading and applies local filters', async () => {
-    renderRoute('/', <DashboardRoute />);
-
-    const recentActivityTab = screen.getByRole('tab', { name: 'Recent activity' });
-    fireEvent.pointerDown(recentActivityTab);
-    fireEvent.click(recentActivityTab);
-    await waitFor(() => expect(recentActivityTab).toHaveAttribute('data-state', 'active'));
-
-    expect(
-      (await screen.findAllByText('1 changed row · 1 service flag · 1 price edit · 3 ranking signals')).length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Price changes' }));
-    expect(
-      screen.getAllByText('1 changed row · 1 service flag · 1 price edit · 3 ranking signals').length,
-    ).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Service updates' }));
-    expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
-  });
-
-  test('overview keeps report failures scoped to recent-update areas', async () => {
+  test('overview keeps report failures scoped to rail content', async () => {
     listStockReports.mockRejectedValueOnce(new Error('boom'));
-
     renderRoute('/', <DashboardRoute />);
 
-    expect(
-      await screen.findByText(
-        'Recent activity could not be loaded right now. The rest of Overview is still available.',
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Recent changes are unavailable right now.')).toBeInTheDocument();
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Sellable SKUs ready')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Recent activity' }));
-    expect(
-      screen.getByText(
-        'Recent activity could not be loaded right now. The rest of Overview is still available.',
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText('SKU worklist')).toBeInTheDocument();
+    expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
+    expect(screen.getByText('Insight history is limited right now.')).toBeInTheDocument();
   });
 
   test('catalog keeps q and view in the URL', () => {
@@ -2371,6 +2435,67 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('Front shelf was restocked.')).not.toBeInTheDocument();
   });
 
+  test('operations history deep link expands the report and focuses the requested sku observation', async () => {
+    const scrollIntoViewSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+
+    render(
+      <OperationsSessionProvider>
+        <MemoryRouter initialEntries={['/operations?reportId=report-0009&focusSku=sku-1']}>
+          <Routes>
+            <Route
+              element={
+                <>
+                  <StockUpdateRoute />
+                  <LocationProbe />
+                </>
+              }
+              path="/operations"
+            />
+          </Routes>
+        </MemoryRouter>
+      </OperationsSessionProvider>,
+    );
+
+    expect(await screen.findByTestId('operations-history-detail')).toBeInTheDocument();
+    expect(screen.getByText('Front shelf was restocked.')).toBeInTheDocument();
+    expect(screen.getByTestId('operations-history-focused-observation')).toHaveTextContent('Bangkok Market Tee');
+    expect(scrollIntoViewSpy).toHaveBeenCalled();
+    expect(screen.getByTestId('location-search').textContent).toBe('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
+    expect(screen.queryByText('Front shelf was restocked.')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Inspect' })[0]);
+    expect(await screen.findByText('Ranking of Items Sold')).toBeInTheDocument();
+  });
+
+  test('operations history deep link can focus a service entry from recent changes', async () => {
+    const scrollIntoViewSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+
+    render(
+      <OperationsSessionProvider>
+        <MemoryRouter initialEntries={['/operations?reportId=report-0009&focusService=service-2']}>
+          <Routes>
+            <Route
+              element={
+                <>
+                  <StockUpdateRoute />
+                  <LocationProbe />
+                </>
+              }
+              path="/operations"
+            />
+          </Routes>
+        </MemoryRouter>
+      </OperationsSessionProvider>,
+    );
+
+    expect(await screen.findByTestId('operations-history-detail')).toBeInTheDocument();
+    expect(screen.getByTestId('operations-history-focused-service')).toHaveTextContent('After-Hours Satin Edit');
+    expect(scrollIntoViewSpy).toHaveBeenCalled();
+    expect(screen.getByTestId('location-search').textContent).toBe('');
+  });
+
   test('operations history stays newest-first in the ledger', async () => {
     renderRoute('/operations', <StockUpdateRoute />);
 
@@ -2402,7 +2527,7 @@ describe('renderer workspaces', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Price changes' }));
     expect(screen.getByText('Morning floor update.')).toBeInTheDocument();
     expect(screen.getByTestId('operations-history-results-summary')).toHaveTextContent(
-      'Showing 1 report includes price changes',
+      'Showing 1 report that include price changes',
     );
   });
 
@@ -2473,6 +2598,7 @@ describe('renderer workspaces', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Step 2.*SKU observations/i }));
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Show SKU notes: Bangkok Market Tee/i }));
     fireEvent.change(screen.getByLabelText('SKU notes', { selector: '#sku-note-sku-1' }), {
       target: { value: 'Front shelf was restocked.' },
     });
@@ -2492,6 +2618,10 @@ describe('renderer workspaces', () => {
     fireEvent.click(screen.getByRole('button', { name: /Step 2.*SKU observations/i }));
     expect(screen.getByRole('radio', { name: 'Changed rows' })).toHaveAttribute('data-state', 'on');
     expect(screen.getByDisplayValue('13')).toBeInTheDocument();
+    const skuNotesToggle = screen.getByRole('button', { name: /(Show|Hide) SKU notes: Bangkok Market Tee/i });
+    if (skuNotesToggle.getAttribute('aria-expanded') !== 'true') {
+      fireEvent.click(skuNotesToggle);
+    }
     expect(screen.getByLabelText('SKU notes', { selector: '#sku-note-sku-1' })).toHaveValue(
       'Front shelf was restocked.',
     );
@@ -2580,6 +2710,17 @@ describe('renderer workspaces', () => {
 
     fireEvent.change(screen.getByLabelText('Search SKU rows'), { target: { value: 'missing' } });
     expect(screen.getByText('No SKU rows match the current search.')).toBeInTheDocument();
+  });
+
+  test('increasing units in stock auto-checks restock included', async () => {
+    renderRoute('/operations/session?step=observations', <StockUpdateSessionRoute />);
+
+    const sku1Row = (await screen.findByText('Bangkok Market Tee')).closest('tr');
+    expect(sku1Row).not.toBeNull();
+
+    fireEvent.click(within(sku1Row as HTMLTableRowElement).getAllByRole('button', { name: '+' })[0]);
+
+    expect(within(sku1Row as HTMLTableRowElement).getAllByRole('checkbox')[0]).toBeChecked();
   });
 
   test('observations preset dropdown shows increment sizes and changes button step sizes', async () => {
@@ -2731,6 +2872,7 @@ describe('renderer workspaces', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Step 2.*SKU observations/i }));
     fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Show SKU notes: Bangkok Market Tee/i }));
     fireEvent.change(screen.getByLabelText('SKU notes', { selector: '#sku-note-sku-1' }), {
       target: { value: 'Front shelf was restocked.' },
     });

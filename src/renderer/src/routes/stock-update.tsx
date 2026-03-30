@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronUp, NotepadText, Play } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import {
 import {
   WorkspaceEmpty,
   WorkspacePage,
+  WorkspacePageTitle,
   WorkspacePanel,
 } from '@/components/system/workspace';
 import { formatCurrency, localeFor } from '@/lib/format';
@@ -30,6 +31,7 @@ import {
   summarizeCount,
   summarizeNotes,
 } from '@/lib/stock-report-summary';
+import { cn } from '@/lib/utils';
 import { traceRenderer } from '@/lib/trace';
 import { useInventory } from '@/state/inventory';
 import {
@@ -108,10 +110,7 @@ function countDraftChangedRows(snapshot: InventorySnapshot, draft: OperationsSes
   }).length;
 }
 
-function countDraftServiceChanges(
-  snapshot: InventorySnapshot,
-  draft: OperationsSessionDraft,
-) {
+function countDraftServiceChanges(snapshot: InventorySnapshot, draft: OperationsSessionDraft) {
   return snapshot.services.filter((service) => {
     const serviceDraft = draft.serviceDrafts[service.serviceId];
     if (!serviceDraft) {
@@ -170,6 +169,30 @@ function buildOperationsDraftSummary(
   return `${parts.join(' • ')} ${t('operationsResumeSummaryQueued')}`;
 }
 
+function OperationsSessionButtonLabel({
+  isResume,
+  t,
+}: {
+  isResume: boolean;
+  t: ReturnType<typeof usePreferences>['t'];
+}) {
+  if (isResume) {
+    return (
+      <>
+        <Play data-icon="inline-start" />
+        {t('operationsResumeSession')}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <NotepadText data-icon="inline-start" />
+      {t('operationsStartSession')}
+    </>
+  );
+}
+
 function OperationsSessionAction({
   hasDraft,
   statusLine,
@@ -183,7 +206,7 @@ function OperationsSessionAction({
     <div className="flex flex-col items-start gap-2">
       <Button asChild>
         <Link to="/operations/session">
-          {hasDraft ? t('operationsResumeSession') : t('operationsStartSession')}
+          <OperationsSessionButtonLabel isResume={hasDraft} t={t} />
         </Link>
       </Button>
       {hasDraft && statusLine ? (
@@ -237,6 +260,15 @@ export function StockUpdateRoute() {
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activityFilter, setActivityFilter] = useState<RecentActivityFilter>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [pendingHistoryFocus] = useState(() => ({
+    reportId: searchParams.get('reportId'),
+    focusSku: searchParams.get('focusSku'),
+    focusService: searchParams.get('focusService'),
+  }));
+  const focusedObservationRef = useRef<HTMLDivElement | null>(null);
+  const appliedHistoryFocusRef = useRef(false);
+  const [focusedObservationKey, setFocusedObservationKey] = useState<string | null>(null);
 
   const servicesById = useMemo(
     () => new Map(snapshot?.services.map((service) => [service.serviceId, service]) ?? []),
@@ -321,7 +353,52 @@ export function StockUpdateRoute() {
       ? `${t('operationsResultsNoneMatch')} "${normalizedSearchQuery}"`
       : activityFilter === 'all'
           ? `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)}`
-          : `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)} ${t('operationsHistoryIncludes').toLowerCase()} ${activeActivityFilterLabel}`;
+          : `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)} that include ${activeActivityFilterLabel}`;
+
+  useEffect(() => {
+    if (!pendingHistoryFocus.reportId && !pendingHistoryFocus.focusSku && !pendingHistoryFocus.focusService) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('reportId');
+    nextParams.delete('focusSku');
+    nextParams.delete('focusService');
+    setSearchParams(nextParams, { replace: true });
+  }, [pendingHistoryFocus, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!pendingHistoryFocus.reportId || appliedHistoryFocusRef.current) {
+      return;
+    }
+
+    const reportExists = reports.some((report) => report.reportId === pendingHistoryFocus.reportId);
+    if (!reportExists) {
+      return;
+    }
+
+    setExpandedReportId(pendingHistoryFocus.reportId);
+    setFocusedObservationKey(
+      pendingHistoryFocus.focusSku
+        ? `${pendingHistoryFocus.reportId}:sku:${pendingHistoryFocus.focusSku}`
+        : pendingHistoryFocus.focusService
+          ? `${pendingHistoryFocus.reportId}:service:${pendingHistoryFocus.focusService}`
+          : null,
+    );
+    appliedHistoryFocusRef.current = true;
+  }, [pendingHistoryFocus, reports]);
+
+  useEffect(() => {
+    if (!focusedObservationKey) {
+      return;
+    }
+    const [focusedReportId] = focusedObservationKey.split(':');
+    if (expandedReportId !== focusedReportId) {
+      return;
+    }
+
+    focusedObservationRef.current?.scrollIntoView({ block: 'center' });
+  }, [expandedReportId, focusedObservationKey]);
 
   if (!snapshot) {
     return (
@@ -336,7 +413,7 @@ export function StockUpdateRoute() {
       <WorkspacePanel
         action={<OperationsSessionAction hasDraft={hasDraft} statusLine={draftStatusLine} t={t} />}
         description={t('operationsBody')}
-        title={t('operationsTitle')}
+        title={<WorkspacePageTitle>{t('operationsTitle')}</WorkspacePageTitle>}
       >
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
@@ -398,6 +475,7 @@ export function StockUpdateRoute() {
                 setActivityFilter(nextValue as RecentActivityFilter);
               }
             }}
+            spacing={1}
             type="single"
             value={activityFilter}
           >
@@ -418,7 +496,7 @@ export function StockUpdateRoute() {
             <p className="text-sm text-destructive">{historyError}</p>
             <Button asChild>
               <Link to="/operations/session">
-                {hasDraft ? t('operationsResumeSession') : t('operationsStartSession')}
+                <OperationsSessionButtonLabel isResume={hasDraft} t={t} />
               </Link>
             </Button>
           </div>
@@ -427,7 +505,7 @@ export function StockUpdateRoute() {
             action={
               <Button asChild>
                 <Link to="/operations/session">
-                  {hasDraft ? t('operationsResumeSession') : t('operationsStartSession')}
+                  <OperationsSessionButtonLabel isResume={hasDraft} t={t} />
                 </Link>
               </Button>
             }
@@ -554,9 +632,10 @@ export function StockUpdateRoute() {
                             type="button"
                             variant="ghost"
                             onClick={() =>
-                              setExpandedReportId((current) =>
-                                current === report.reportId ? null : report.reportId,
-                              )
+                              setExpandedReportId((current) => {
+                                setFocusedObservationKey(null);
+                                return current === report.reportId ? null : report.reportId;
+                              })
                             }
                           >
                             {isExpanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
@@ -568,88 +647,63 @@ export function StockUpdateRoute() {
                         <TableRow data-testid="operations-history-detail">
                           <TableCell className="bg-background/40 py-4" colSpan={8}>
                             <div className="space-y-5">
-                              <OperationsDetailSection title={t('stockTableTitle')}>
-                                {report.skuObservations.length > 0 ? (
-                                  <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
-                                    {report.skuObservations.map((entry) => {
-                                      const sku = skusById.get(entry.skuId);
-
-                                      return (
-                                        <div
-                                          className="space-y-2 px-4 py-3"
-                                          key={`${report.reportId}-${entry.skuId}`}
-                                        >
-                                          <div className="flex flex-wrap items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                              <p className="font-medium text-foreground">
-                                                {sku?.name ?? entry.skuId}
-                                              </p>
-                                              <p className="text-sm text-muted-foreground">{entry.skuId}</p>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              {entry.restockIncluded ? (
-                                                <Badge variant="outline">{t('stockRestockIncluded')}</Badge>
-                                              ) : null}
-                                              {entry.retailStockout ? (
-                                                <Badge variant="outline">{t('stockRetailStockout')}</Badge>
-                                              ) : null}
-                                            </div>
-                                          </div>
-                                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-                                            <span>{t('fieldUnitsInStock')}: {entry.unitsInStock}</span>
-                                            <span>
-                                              {t('fieldCostPerUnit')}: {formatCurrency(entry.costPerUnit, currency, language)}
-                                            </span>
-                                          </div>
-                                          {entry.notes ? (
-                                            <p className="text-sm leading-6 text-muted-foreground">{entry.notes}</p>
-                                          ) : null}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-muted-foreground">{t('stockHistoryNoObservations')}</p>
-                                )}
-                              </OperationsDetailSection>
-
                               <OperationsDetailSection title={t('stockServiceSignalsTitle')}>
                                 {serviceFlagCount > 0 || report.servicePriceAdjustments.length > 0 ? (
                                   <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
                                     {report.serviceSignals
                                       .filter((signal) => signal.stockout !== false)
-                                      .map((signal) => (
+                                      .map((signal) => {
+                                        const isFocusedService =
+                                          focusedObservationKey === `${report.reportId}:service:${signal.serviceId}`;
+
+                                        return (
+                                          <div
+                                            className={cn(
+                                              'flex flex-wrap items-center justify-between gap-3 px-4 py-3',
+                                              isFocusedService && 'bg-amber-50/80 ring-1 ring-amber-300',
+                                            )}
+                                            data-testid={isFocusedService ? 'operations-history-focused-service' : undefined}
+                                            key={`${report.reportId}-${signal.serviceId}-flag`}
+                                            ref={isFocusedService ? focusedObservationRef : null}
+                                          >
+                                            <div>
+                                              <p className="font-medium text-foreground">
+                                                {servicesById.get(signal.serviceId)?.name ?? signal.serviceId}
+                                              </p>
+                                              <p className="text-sm text-muted-foreground">{t('stockServiceStockoutToggle')}</p>
+                                            </div>
+                                            <Badge variant="outline">{t('stockRetailStockout')}</Badge>
+                                          </div>
+                                        );
+                                      })}
+                                    {report.servicePriceAdjustments.map((adjustment) => {
+                                      const isFocusedService =
+                                        focusedObservationKey === `${report.reportId}:service:${adjustment.serviceId}`;
+
+                                      return (
                                         <div
-                                          className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                                          key={`${report.reportId}-${signal.serviceId}-flag`}
+                                          className={cn(
+                                            'flex flex-wrap items-center justify-between gap-3 px-4 py-3',
+                                            isFocusedService && 'bg-amber-50/80 ring-1 ring-amber-300',
+                                          )}
+                                          data-testid={isFocusedService ? 'operations-history-focused-service' : undefined}
+                                          key={`${report.reportId}-${adjustment.serviceId}-price`}
+                                          ref={isFocusedService ? focusedObservationRef : null}
                                         >
                                           <div>
                                             <p className="font-medium text-foreground">
-                                              {servicesById.get(signal.serviceId)?.name ?? signal.serviceId}
+                                              {servicesById.get(adjustment.serviceId)?.name ?? adjustment.serviceId}
                                             </p>
-                                            <p className="text-sm text-muted-foreground">{t('stockServiceStockoutToggle')}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                              {t('stockServicePriceAdjustmentsTitle')}
+                                            </p>
                                           </div>
-                                          <Badge variant="outline">{t('stockRetailStockout')}</Badge>
-                                        </div>
-                                      ))}
-                                    {report.servicePriceAdjustments.map((adjustment) => (
-                                      <div
-                                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                                        key={`${report.reportId}-${adjustment.serviceId}-price`}
-                                      >
-                                        <div>
-                                          <p className="font-medium text-foreground">
-                                            {servicesById.get(adjustment.serviceId)?.name ?? adjustment.serviceId}
-                                          </p>
                                           <p className="text-sm text-muted-foreground">
-                                            {t('stockServicePriceAdjustmentsTitle')}
+                                            {formatCurrency(adjustment.price, currency, language)}
                                           </p>
                                         </div>
-                                        <p className="text-sm text-muted-foreground">
-                                          {formatCurrency(adjustment.price, currency, language)}
-                                        </p>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">{t('stockNoServiceSignals')}</p>
@@ -690,6 +744,58 @@ export function StockUpdateRoute() {
                                   </div>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">{t('stockHistoryNoRanking')}</p>
+                                )}
+                              </OperationsDetailSection>
+
+                              <OperationsDetailSection title={t('stockTableTitle')}>
+                                {report.skuObservations.length > 0 ? (
+                                  <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
+                                    {report.skuObservations.map((entry) => {
+                                      const sku = skusById.get(entry.skuId);
+                                      const isFocusedObservation =
+                                        focusedObservationKey === `${report.reportId}:sku:${entry.skuId}`;
+
+                                      return (
+                                        <div
+                                          className={cn(
+                                            'space-y-2 px-4 py-3',
+                                            isFocusedObservation && 'bg-amber-50/80 ring-1 ring-amber-300',
+                                          )}
+                                          data-testid={isFocusedObservation ? 'operations-history-focused-observation' : undefined}
+                                          key={`${report.reportId}-${entry.skuId}`}
+                                          ref={isFocusedObservation ? focusedObservationRef : null}
+                                        >
+                                          <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                              <p className="font-medium text-foreground">
+                                                {sku?.name ?? entry.skuId}
+                                              </p>
+                                              <p className="text-sm text-muted-foreground">{entry.skuId}</p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              {entry.restockIncluded ? (
+                                                <Badge variant="outline">{t('stockRestockIncluded')}</Badge>
+                                              ) : null}
+                                              {entry.retailStockout ? (
+                                                <Badge variant="outline">{t('stockRetailStockout')}</Badge>
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                                            <span>{t('fieldUnitsInStock')}: {entry.unitsInStock}</span>
+                                            <span>
+                                              {t('fieldCostPerUnit')}: {formatCurrency(entry.costPerUnit, currency, language)}
+                                            </span>
+                                          </div>
+                                          {entry.notes ? (
+                                            <p className="text-sm leading-6 text-muted-foreground">{entry.notes}</p>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">{t('stockHistoryNoObservations')}</p>
                                 )}
                               </OperationsDetailSection>
                             </div>
