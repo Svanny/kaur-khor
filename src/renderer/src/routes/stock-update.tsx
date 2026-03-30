@@ -36,6 +36,7 @@ import {
   summarizeCount,
   summarizeNotes,
 } from '@/lib/stock-report-summary';
+import { statusPillClassName } from '@/lib/status-pill';
 import { cn } from '@/lib/utils';
 import { traceRenderer } from '@/lib/trace';
 import { useInventory } from '@/state/inventory';
@@ -157,6 +158,84 @@ function priceEditPreviewName(
     : null;
 }
 
+function previousSkuObservation(
+  reports: StockReport[],
+  reportId: string,
+  skuId: string,
+) {
+  const reportIndex = reports.findIndex((report) => report.reportId === reportId);
+  if (reportIndex === -1) {
+    return null;
+  }
+
+  for (const olderReport of reports.slice(reportIndex + 1)) {
+    const observation = olderReport.skuObservations.find((entry) => entry.skuId === skuId);
+    if (observation) {
+      return observation;
+    }
+  }
+
+  return null;
+}
+
+function skuUnitsDirection(
+  entry: StockReport['skuObservations'][number],
+  previousObservation: StockReport['skuObservations'][number] | null,
+  currentSku: InventorySnapshot['skus'][number] | undefined,
+) {
+  if (previousObservation) {
+    if (entry.unitsInStock > previousObservation.unitsInStock) {
+      return 'up';
+    }
+    if (entry.unitsInStock < previousObservation.unitsInStock) {
+      return 'down';
+    }
+  }
+
+  if (entry.restockIncluded) {
+    return 'up';
+  }
+  if (entry.retailStockout) {
+    return 'down';
+  }
+  if (currentSku) {
+    if (entry.unitsInStock > currentSku.unitsInStock) {
+      return 'up';
+    }
+    if (entry.unitsInStock < currentSku.unitsInStock) {
+      return 'down';
+    }
+  }
+
+  return null;
+}
+
+function skuPriceDirection(
+  entry: StockReport['skuObservations'][number],
+  previousObservation: StockReport['skuObservations'][number] | null,
+  currentSku: InventorySnapshot['skus'][number] | undefined,
+) {
+  if (previousObservation) {
+    if (entry.costPerUnit > previousObservation.costPerUnit) {
+      return 'up';
+    }
+    if (entry.costPerUnit < previousObservation.costPerUnit) {
+      return 'down';
+    }
+  }
+
+  if (currentSku) {
+    if (entry.costPerUnit > currentSku.costPerUnit) {
+      return 'up';
+    }
+    if (entry.costPerUnit < currentSku.costPerUnit) {
+      return 'down';
+    }
+  }
+
+  return null;
+}
+
 function formatReportCount(count: number, t: ReturnType<typeof usePreferences>['t']) {
   return summarizeCount(count, t('operationsReportSingular'), t('operationsReportPlural'));
 }
@@ -166,17 +245,17 @@ function observationBadgeClass(
 ) {
   switch (state) {
     case 'restock':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+      return statusPillClassName('success');
     case 'stockout':
-      return 'border-rose-200 bg-rose-50 text-rose-800';
+      return statusPillClassName('danger');
     case 'units-up':
-      return 'border-sky-200 bg-sky-50 text-sky-800';
+      return statusPillClassName('info');
     case 'units-down':
-      return 'border-amber-200 bg-amber-50 text-amber-800';
+      return statusPillClassName('warning');
     case 'price-up':
-      return 'border-violet-200 bg-violet-50 text-violet-800';
+      return statusPillClassName('price-up');
     case 'price-down':
-      return 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800';
+      return statusPillClassName('price-down');
     default:
       return '';
   }
@@ -313,14 +392,14 @@ function OperationsSessionAction({
   t: ReturnType<typeof usePreferences>['t'];
 }) {
   return (
-    <div className="flex flex-col items-start gap-2">
-      <Button asChild>
+    <div className="flex flex-col items-end gap-2 text-right">
+      <Button asChild variant={hasDraft ? 'outline' : 'default'}>
         <Link to="/operations/session">
           <OperationsSessionButtonLabel isResume={hasDraft} t={t} />
         </Link>
       </Button>
       {hasDraft && statusLine ? (
-        <p className="max-w-56 text-xs leading-5 text-muted-foreground" data-testid="operations-draft-status">
+        <p className="max-w-full truncate text-xs leading-5 whitespace-nowrap text-muted-foreground" data-testid="operations-draft-status">
           {statusLine}
         </p>
       ) : null}
@@ -834,24 +913,11 @@ export function StockUpdateRoute() {
                                   <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
                                     {report.skuObservations.map((entry) => {
                                       const sku = skusById.get(entry.skuId);
+                                      const priorObservation = previousSkuObservation(reports, report.reportId, entry.skuId);
                                       const isFocusedObservation =
                                         focusedObservationKey === `${report.reportId}:sku:${entry.skuId}`;
-                                      const unitsDirection =
-                                        sku == null
-                                          ? null
-                                          : entry.unitsInStock > sku.unitsInStock
-                                            ? 'up'
-                                            : entry.unitsInStock < sku.unitsInStock
-                                              ? 'down'
-                                              : null;
-                                      const priceDirection =
-                                        sku == null
-                                          ? null
-                                          : entry.costPerUnit > sku.costPerUnit
-                                            ? 'up'
-                                            : entry.costPerUnit < sku.costPerUnit
-                                              ? 'down'
-                                              : null;
+                                      const unitsDirection = skuUnitsDirection(entry, priorObservation, sku);
+                                      const priceDirection = skuPriceDirection(entry, priorObservation, sku);
 
                                       return (
                                         <div

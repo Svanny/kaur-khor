@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Circle, CircleDot, NotebookPen, RotateCcw, Search } from 'lucide-react';
 import type { InventorySnapshot, RankingEntry, StockReport } from '@shared/inventory';
@@ -6,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import {
   Select,
   SelectContent,
@@ -420,18 +421,25 @@ export function StockUpdateSessionRoute() {
     () => Boolean(snapshot && hasRankingChanged(salesSignalBaseline, rankingDraft)),
     [rankingDraft, salesSignalBaseline, snapshot],
   );
-  const salesSignalTopPreview = useMemo(
-    () =>
-      rankingDraft
-        .slice(0, 3)
-        .map((entry) =>
-          entry.entryType === 'service'
-            ? snapshot?.services.find((service) => service.serviceId === entry.entryId)?.name
-            : snapshot?.skus.find((sku) => sku.skuId === entry.entryId)?.name,
-        )
-        .filter((name): name is string => Boolean(name)),
-    [rankingDraft, snapshot],
-  );
+  const salesSignalTopPreview = useMemo(() => {
+    if (!snapshot || !salesSignalChanged) {
+      return [];
+    }
+
+    const baselinePositionByKey = new Map(
+      salesSignalBaseline.map((entry, index) => [`${entry.entryType}:${entry.entryId}`, index]),
+    );
+
+    return rankingDraft
+      .filter((entry, index) => baselinePositionByKey.get(`${entry.entryType}:${entry.entryId}`) !== index)
+      .slice(0, 3)
+      .map((entry) =>
+        entry.entryType === 'service'
+          ? snapshot.services.find((service) => service.serviceId === entry.entryId)?.name
+          : snapshot.skus.find((sku) => sku.skuId === entry.entryId)?.name,
+      )
+      .filter((name): name is string => Boolean(name));
+  }, [rankingDraft, salesSignalBaseline, salesSignalChanged, snapshot]);
   const salesSignalPriceByEntryKey = useMemo(() => {
     if (!snapshot) {
       return {};
@@ -551,16 +559,38 @@ export function StockUpdateSessionRoute() {
   );
 
   function getStepStatus(stepId: SessionStepId): StepStatus {
+    const viewedSteps = sessionDraft?.viewedSteps ?? [];
+    const hasViewedStep = viewedSteps.includes(stepId);
+    const hasMovedPastStep = hasViewedStep && activeStep !== stepId;
+
     if (stepId === 'details') {
+      if (activeStep === stepId && !detailsComplete) {
+        return 'needs-attention';
+      }
+      if (!hasMovedPastStep) {
+        return 'optional';
+      }
       return detailsComplete ? 'complete' : 'needs-attention';
     }
     if (stepId === 'observations') {
+      if (activeStep === stepId && !observationsComplete) {
+        return 'needs-attention';
+      }
+      if (!hasMovedPastStep) {
+        return 'optional';
+      }
       return observationsComplete ? 'complete' : 'needs-attention';
     }
     if (stepId === 'services') {
+      if (!hasMovedPastStep) {
+        return 'optional';
+      }
       return serviceChanges.length > 0 ? 'complete' : 'skipped';
     }
     if (stepId === 'sales-signal') {
+      if (!hasMovedPastStep) {
+        return 'optional';
+      }
       if (salesSignalScopeCount === 0) {
         return 'skipped';
       }
@@ -569,7 +599,7 @@ export function StockUpdateSessionRoute() {
     if (reviewReady) {
       return 'complete';
     }
-    return 'required';
+    return 'needs-attention';
   }
 
   const steps = [
@@ -632,7 +662,15 @@ export function StockUpdateSessionRoute() {
 
   useEffect(() => {
     updateDraft((current) =>
-      current.lastStep === activeStep ? current : { ...current, lastStep: activeStep },
+      current.lastStep === activeStep && (current.viewedSteps ?? []).includes(activeStep)
+        ? current
+        : {
+            ...current,
+            lastStep: activeStep,
+            viewedSteps: (current.viewedSteps ?? []).includes(activeStep)
+              ? (current.viewedSteps ?? [])
+              : [...(current.viewedSteps ?? []), activeStep],
+          },
     );
   }, [activeStep, updateDraft]);
 
@@ -687,7 +725,9 @@ export function StockUpdateSessionRoute() {
       return;
     }
 
-    clearDraft();
+    flushSync(() => {
+      clearDraft();
+    });
     navigate('/operations');
   }
 
@@ -993,7 +1033,9 @@ export function StockUpdateSessionRoute() {
 
     await submitReport(nextSubmission);
 
-    clearDraft();
+    flushSync(() => {
+      clearDraft();
+    });
     navigate('/operations');
   }
 
@@ -1094,51 +1136,49 @@ export function StockUpdateSessionRoute() {
                 description={t('stockSessionStepDetailsDescription')}
                 title={t('stockSessionStepDetails')}
               >
-                <div className="rounded-3xl border border-border/70 bg-card/55 p-4 lg:p-5">
-                  <div className="space-y-6">
-                    <div>
-                      <label className="text-sm font-medium text-foreground" htmlFor="reported-at">
-                        {t('stockReportedAt')}
-                      </label>
-                      <Input
-                        className="mt-2 rounded-2xl"
-                        id="reported-at"
-                        type="datetime-local"
-                        value={reportedAt}
-                        onBlur={() => setTimestampTouched(true)}
-                        onChange={(event) =>
-                          updateDraft((current) => ({
-                            ...current,
-                            reportedAt: event.target.value,
-                          }))
-                        }
-                      />
-                      {timestampError ? (
-                        <p className="mt-2 text-sm text-destructive">{timestampError}</p>
-                      ) : null}
-                    </div>
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-sm font-medium text-foreground" htmlFor="reported-at">
+                      {t('stockReportedAt')}
+                    </label>
+                    <Input
+                      className="mt-2 rounded-2xl"
+                      id="reported-at"
+                      type="datetime-local"
+                      value={reportedAt}
+                      onBlur={() => setTimestampTouched(true)}
+                      onChange={(event) =>
+                        updateDraft((current) => ({
+                          ...current,
+                          reportedAt: event.target.value,
+                        }))
+                      }
+                    />
+                    {timestampError ? (
+                      <p className="mt-2 text-sm text-destructive">{timestampError}</p>
+                    ) : null}
+                  </div>
 
-                    <div aria-hidden="true" className="h-px w-full bg-border/70" />
+                  <div aria-hidden="true" className="h-px w-full bg-border/70" />
 
-                    <div>
-                      <label className="text-sm font-medium text-foreground" htmlFor="report-notes">
-                        {t('stockReportNotes')}
-                      </label>
-                      <Textarea
-                        className="mt-2 min-h-24 rounded-2xl"
-                        id="report-notes"
-                        value={reportNotes}
-                        onChange={(event) =>
-                          updateDraft((current) => ({
-                            ...current,
-                            reportNotes: event.target.value,
-                          }))
-                        }
-                      />
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {t('stockSessionNotesOptional')}
-                      </p>
-                    </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground" htmlFor="report-notes">
+                      {t('stockReportNotes')}
+                    </label>
+                    <Textarea
+                      className="mt-2 min-h-24 rounded-2xl"
+                      id="report-notes"
+                      value={reportNotes}
+                      onChange={(event) =>
+                        updateDraft((current) => ({
+                          ...current,
+                          reportNotes: event.target.value,
+                        }))
+                      }
+                    />
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {t('stockSessionNotesOptional')}
+                    </p>
                   </div>
                 </div>
               </WorkspacePanel>
@@ -1356,131 +1396,77 @@ export function StockUpdateSessionRoute() {
                                 </div>
                               </TableCell>
                               <TableCell className="text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <Button
-                                    size="icon-sm"
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => adjustValue(sku.skuId, 'unitsInStock', -1)}
-                                  >
-                                    −
-                                  </Button>
-                                  <Input
-                                    className="min-w-24 rounded-full border-border/70 bg-background/95 text-center"
-                                    inputMode="decimal"
-                                    value={rows[sku.skuId]?.unitsInStock ?? ''}
-                                    onChange={(event) => setField(sku.skuId, 'unitsInStock', event.target.value)}
-                                  />
-                                  <Button
-                                    size="icon-sm"
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => adjustValue(sku.skuId, 'unitsInStock', 1)}
-                                  >
-                                    +
-                                  </Button>
-                                </div>
+                                <InlineStepperInput
+                                  value={rows[sku.skuId]?.unitsInStock ?? ''}
+                                  onChange={(value) => setField(sku.skuId, 'unitsInStock', value)}
+                                  onDecrement={() => adjustValue(sku.skuId, 'unitsInStock', -1)}
+                                  onIncrement={() => adjustValue(sku.skuId, 'unitsInStock', 1)}
+                                />
                               </TableCell>
                               <TableCell className="text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <Button
-                                    size="icon-sm"
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => adjustValue(sku.skuId, 'costPerUnit', -1)}
-                                  >
-                                    −
-                                  </Button>
-                                  <Input
-                                    className="min-w-24 rounded-full border-border/70 bg-background/95 text-center"
-                                    inputMode="decimal"
+                                <InlineStepperInput
+                                  value={
+                                    focusedCostSkuId === sku.skuId
+                                      ? editingSkuCostValues[sku.skuId] ??
+                                        formatDisplayedCostDraftValue(
+                                          rows[sku.skuId]?.costPerUnit,
+                                          language,
+                                          currency,
+                                        )
+                                      : formatDisplayedCostDraftValue(
+                                          rows[sku.skuId]?.costPerUnit,
+                                          language,
+                                          currency,
+                                        )
+                                  }
+                                  onBlur={() => stopEditingSkuCost(sku.skuId)}
+                                  onChange={(value) => {
+                                    setEditingSkuCostValues((current) => ({
+                                      ...current,
+                                      [sku.skuId]: value,
+                                    }));
+                                    setField(sku.skuId, 'costPerUnit', value);
+                                  }}
+                                  onDecrement={() => adjustValue(sku.skuId, 'costPerUnit', -1)}
+                                  onFocus={() => startEditingSkuCost(sku.skuId)}
+                                  onIncrement={() => adjustValue(sku.skuId, 'costPerUnit', 1)}
+                                />
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {sku.soldAsProduct ? (
+                                  <InlineStepperInput
                                     value={
-                                      focusedCostSkuId === sku.skuId
-                                        ? editingSkuCostValues[sku.skuId] ??
+                                      focusedProductPriceSkuId === sku.skuId
+                                        ? editingSkuProductPriceValues[sku.skuId] ??
                                           formatDisplayedCostDraftValue(
-                                            rows[sku.skuId]?.costPerUnit,
+                                            getSkuProductPriceDraftValue(
+                                              rows[sku.skuId]?.productPrice,
+                                              sku.productPrice,
+                                            ),
                                             language,
                                             currency,
                                           )
                                         : formatDisplayedCostDraftValue(
-                                            rows[sku.skuId]?.costPerUnit,
+                                            getSkuProductPriceDraftValue(
+                                              rows[sku.skuId]?.productPrice,
+                                              sku.productPrice,
+                                            ),
                                             language,
                                             currency,
                                           )
                                     }
-                                    onBlur={() => stopEditingSkuCost(sku.skuId)}
-                                    onChange={(event) => {
-                                      setEditingSkuCostValues((current) => ({
+                                    onBlur={() => stopEditingSkuProductPrice(sku.skuId)}
+                                    onChange={(value) => {
+                                      setEditingSkuProductPriceValues((current) => ({
                                         ...current,
-                                        [sku.skuId]: event.target.value,
+                                        [sku.skuId]: value,
                                       }));
-                                      setField(sku.skuId, 'costPerUnit', event.target.value);
+                                      setField(sku.skuId, 'productPrice', value);
                                     }}
-                                    onFocus={() => startEditingSkuCost(sku.skuId)}
+                                    onDecrement={() => adjustValue(sku.skuId, 'productPrice', -1)}
+                                    onFocus={() => startEditingSkuProductPrice(sku.skuId)}
+                                    onIncrement={() => adjustValue(sku.skuId, 'productPrice', 1)}
                                   />
-                                  <Button
-                                    size="icon-sm"
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => adjustValue(sku.skuId, 'costPerUnit', 1)}
-                                  >
-                                    +
-                                  </Button>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {sku.soldAsProduct ? (
-                                  <div className="flex items-center justify-center gap-2">
-                                    <Button
-                                      size="icon-sm"
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => adjustValue(sku.skuId, 'productPrice', -1)}
-                                    >
-                                      −
-                                    </Button>
-                                    <Input
-                                      className="min-w-24 rounded-full border-border/70 bg-background/95 text-center"
-                                      inputMode="decimal"
-                                      value={
-                                        focusedProductPriceSkuId === sku.skuId
-                                          ? editingSkuProductPriceValues[sku.skuId] ??
-                                            formatDisplayedCostDraftValue(
-                                              getSkuProductPriceDraftValue(
-                                                rows[sku.skuId]?.productPrice,
-                                                sku.productPrice,
-                                              ),
-                                              language,
-                                              currency,
-                                            )
-                                          : formatDisplayedCostDraftValue(
-                                              getSkuProductPriceDraftValue(
-                                                rows[sku.skuId]?.productPrice,
-                                                sku.productPrice,
-                                              ),
-                                              language,
-                                              currency,
-                                            )
-                                      }
-                                      onBlur={() => stopEditingSkuProductPrice(sku.skuId)}
-                                      onChange={(event) => {
-                                        setEditingSkuProductPriceValues((current) => ({
-                                          ...current,
-                                          [sku.skuId]: event.target.value,
-                                        }));
-                                        setField(sku.skuId, 'productPrice', event.target.value);
-                                      }}
-                                      onFocus={() => startEditingSkuProductPrice(sku.skuId)}
-                                    />
-                                    <Button
-                                      size="icon-sm"
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => adjustValue(sku.skuId, 'productPrice', 1)}
-                                    >
-                                      +
-                                    </Button>
-                                  </div>
                                 ) : (
                                   <span className="text-sm text-muted-foreground">-</span>
                                 )}
@@ -1810,6 +1796,7 @@ export function StockUpdateSessionRoute() {
                       {salesSignalChanged ? (
                         <Badge variant="secondary">{t('stockSalesSignalUnsavedBadge')}</Badge>
                       ) : null}
+                      <Badge variant="outline">{t('stockOptionalBadge')}</Badge>
                       <Badge variant="outline">
                         {summarizeCount(
                           salesSignalScopeCount,
@@ -1817,7 +1804,6 @@ export function StockUpdateSessionRoute() {
                           t('stockSalesSignalEntryPlural'),
                         )}
                       </Badge>
-                      <Badge variant="outline">{t('stockOptionalBadge')}</Badge>
                     </div>
                     <Button
                       disabled={!salesSignalChanged}
@@ -1866,8 +1852,118 @@ export function StockUpdateSessionRoute() {
                   description={t('stockReviewDescription')}
                   title={t('stockReviewTitle')}
                 >
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
+                  <div className="space-y-6">
+                    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] lg:items-start">
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium text-foreground">{t('stockTableTitle')}</p>
+                          <Button size="sm" type="button" variant="ghost" onClick={() => setActiveStep('observations')}>
+                            {t('stockEditAction')}
+                          </Button>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {observationsComplete
+                            ? summarizeCount(
+                                changedEntries.length,
+                                t('stockHistoryChangedRowSingular'),
+                                t('stockHistoryChangedRowPlural'),
+                              )
+                            : t('validationStockChanges')}
+                        </p>
+                        {changedEntries.length > 0 ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {changedEntries.slice(0, 6).map((entry) => (
+                              <Badge key={entry.sku.skuId} variant="outline">
+                                {entry.sku.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div aria-hidden="true" className="hidden h-full w-px bg-border/70 lg:block" />
+
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-foreground">{t('stockSessionStepServices')}</p>
+                            <DescriptionText className="mt-1 text-sm text-muted-foreground">
+                              {t('stockSessionServicesOptionalDescription')}
+                            </DescriptionText>
+                          </div>
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setActiveStep('services')}
+                          >
+                            {t('stockEditAction')}
+                          </Button>
+                        </div>
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          {serviceChanges.length > 0
+                            ? summarizeServiceReviewDetail(
+                                stockoutServiceCount,
+                                servicePriceChangeCount,
+                                t('stockServiceSummaryFlagSingular'),
+                                t('stockServiceSummaryFlagPlural'),
+                                t('stockServiceSummaryPriceSingular'),
+                                t('stockServiceSummaryPricePlural'),
+                              )
+                            : t('stockReviewNoServiceChanges')}
+                        </p>
+                        {serviceChanges.length > 0 ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {serviceChanges.slice(0, 3).map((entry) => (
+                              <Badge key={entry.service.serviceId} variant="outline">
+                                {entry.service.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div aria-hidden="true" className="h-px w-full bg-border/70" />
+
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-foreground">{t('stockSessionStepSalesSignal')}</p>
+                          <DescriptionText className="mt-1 text-sm text-muted-foreground">
+                            {t('stockSessionStepSalesSignalDescription')}
+                          </DescriptionText>
+                        </div>
+                        <Button size="sm" type="button" variant="ghost" onClick={() => setActiveStep('sales-signal')}>
+                          {t('stockEditAction')}
+                        </Button>
+                      </div>
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        {salesSignalChanged
+                          ? t('stockReviewSalesSignalChanged')
+                          : t('stockReviewSalesSignalUnchanged')}
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {summarizeCount(
+                          salesSignalScopeCount,
+                          t('stockSalesSignalEntrySingular'),
+                          t('stockSalesSignalEntryPlural'),
+                        )}
+                      </p>
+                      {salesSignalTopPreview.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {salesSignalTopPreview.map((name) => (
+                            <Badge key={name} variant="outline">
+                              {name}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div aria-hidden="true" className="h-px w-full bg-border/70" />
+
+                    <div>
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium text-foreground">{t('stockReportedAt')}</p>
                         <Button size="sm" type="button" variant="ghost" onClick={() => setActiveStep('details')}>
@@ -1888,108 +1984,6 @@ export function StockUpdateSessionRoute() {
                         <p className="mt-3 text-sm text-muted-foreground">{t('stockReviewNoNotes')}</p>
                       )}
                     </div>
-
-                    <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-medium text-foreground">{t('stockTableTitle')}</p>
-                        <Button size="sm" type="button" variant="ghost" onClick={() => setActiveStep('observations')}>
-                          {t('stockEditAction')}
-                        </Button>
-                      </div>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {observationsComplete
-                          ? summarizeCount(
-                              changedEntries.length,
-                              t('stockHistoryChangedRowSingular'),
-                              t('stockHistoryChangedRowPlural'),
-                            )
-                          : t('validationStockChanges')}
-                      </p>
-                      {changedEntries.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {changedEntries.slice(0, 6).map((entry) => (
-                            <Badge key={entry.sku.skuId} variant="outline">
-                              {entry.sku.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-foreground">{t('stockSessionStepServices')}</p>
-                        <DescriptionText className="mt-1 text-sm text-muted-foreground">
-                          {t('stockSessionServicesOptionalDescription')}
-                        </DescriptionText>
-                      </div>
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setActiveStep('services')}
-                      >
-                        {t('stockEditAction')}
-                      </Button>
-                    </div>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {serviceChanges.length > 0
-                        ? summarizeServiceReviewDetail(
-                            stockoutServiceCount,
-                            servicePriceChangeCount,
-                            t('stockServiceSummaryFlagSingular'),
-                            t('stockServiceSummaryFlagPlural'),
-                            t('stockServiceSummaryPriceSingular'),
-                            t('stockServiceSummaryPricePlural'),
-                          )
-                        : t('stockReviewNoServiceChanges')}
-                    </p>
-                    {serviceChanges.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {serviceChanges.slice(0, 3).map((entry) => (
-                          <Badge key={entry.service.serviceId} variant="outline">
-                            {entry.service.name}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-foreground">{t('stockSessionStepSalesSignal')}</p>
-                        <DescriptionText className="mt-1 text-sm text-muted-foreground">
-                          {t('stockSessionStepSalesSignalDescription')}
-                        </DescriptionText>
-                      </div>
-                      <Button size="sm" type="button" variant="ghost" onClick={() => setActiveStep('sales-signal')}>
-                        {t('stockEditAction')}
-                      </Button>
-                    </div>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {salesSignalChanged
-                        ? t('stockReviewSalesSignalChanged')
-                        : t('stockReviewSalesSignalUnchanged')}
-                    </p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {summarizeCount(
-                        salesSignalScopeCount,
-                        t('stockSalesSignalEntrySingular'),
-                        t('stockSalesSignalEntryPlural'),
-                      )}
-                    </p>
-                    {salesSignalTopPreview.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {salesSignalTopPreview.map((name) => (
-                          <Badge key={name} variant="outline">
-                            {name}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
                 </WorkspacePanel>
               </div>
@@ -2042,6 +2036,59 @@ function summarizeServiceReviewDetail(
     summarizeServiceChanges(stockouts, stockoutSingular, stockoutPlural),
     summarizeServiceChanges(priceEdits, priceSingular, pricePlural),
   ].join(' · ');
+}
+
+function InlineStepperInput({
+  value,
+  onChange,
+  onDecrement,
+  onIncrement,
+  onFocus,
+  onBlur,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onDecrement: () => void;
+  onIncrement: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}) {
+  return (
+    <InputGroup className="inline-flex h-11 w-fit min-w-0 rounded-full border-border/70 bg-background/95">
+      <InputGroupAddon align="inline-start" className="pl-1 pr-0">
+        <InputGroupButton
+          aria-label="Decrease value"
+          className="size-7 rounded-full text-base hover:bg-transparent"
+          size="icon-xs"
+          type="button"
+          variant="ghost"
+          onClick={onDecrement}
+        >
+          −
+        </InputGroupButton>
+      </InputGroupAddon>
+      <InputGroupInput
+        className="h-full w-[4.6rem] min-w-0 flex-none px-0 text-center text-base"
+        inputMode="decimal"
+        value={value}
+        onBlur={onBlur}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={onFocus}
+      />
+      <InputGroupAddon align="inline-end" className="pl-0 pr-1">
+        <InputGroupButton
+          aria-label="Increase value"
+          className="size-7 rounded-full text-base hover:bg-transparent"
+          size="icon-xs"
+          type="button"
+          variant="ghost"
+          onClick={onIncrement}
+        >
+          +
+        </InputGroupButton>
+      </InputGroupAddon>
+    </InputGroup>
+  );
 }
 
 function stepStatusKey(status: StepStatus) {

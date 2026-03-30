@@ -1255,7 +1255,7 @@ describe('renderer workspaces', () => {
       'href',
       '/operations/session',
     );
-    expect(screen.queryByRole('link', { name: 'Resume draft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Resume update session' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open catalog' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Summary' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Sellable health' })).not.toBeInTheDocument();
@@ -1421,7 +1421,7 @@ describe('renderer workspaces', () => {
     expect(await screen.findByRole('button', { name: /Step 3.*Service updates/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Go to today' }));
 
-    expect(await screen.findByRole('link', { name: 'Resume draft' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Resume update session' })).toHaveAttribute(
       'href',
       '/operations/session?step=services',
     );
@@ -1469,6 +1469,21 @@ describe('renderer workspaces', () => {
     expect(screen.getByRole('radio', { name: 'SKUs' })).toHaveAttribute('data-state', 'on');
   });
 
+  test('catalog preview tables support overview-style column sorting', () => {
+    renderInventory('/catalog');
+
+    const [skuPreviewTable, servicePreviewTable] = screen.getAllByRole('table');
+
+    fireEvent.click(within(skuPreviewTable).getByText('Units in stock'));
+    fireEvent.click(within(skuPreviewTable).getByText('Units in stock'));
+    expect(within(skuPreviewTable).getAllByRole('row')[1]).toHaveTextContent('Osaka Pleat Midi');
+
+    fireEvent.click(within(servicePreviewTable).getByText('Sellable units'));
+    expect(within(servicePreviewTable).getAllByRole('row')[1]).toHaveTextContent(
+      'Market Day Outfit Set',
+    );
+  });
+
   test('catalog dedicated SKU and service views render the correct comparison tables', () => {
     renderInventory('/catalog?view=skus');
     expect(screen.queryByText('SKU copy')).not.toBeInTheDocument();
@@ -1494,6 +1509,24 @@ describe('renderer workspaces', () => {
     expect(screen.getAllByText('Status').length).toBeGreaterThan(0);
     expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Potential revenue').length).toBeGreaterThan(0);
+  });
+
+  test('catalog dedicated SKU and service tables support overview-style column sorting', () => {
+    renderInventory('/catalog?view=skus');
+
+    const skuTable = screen.getByRole('table');
+    fireEvent.click(within(skuTable).getByText('Units in stock'));
+    fireEvent.click(within(skuTable).getByText('Units in stock'));
+    expect(within(skuTable).getAllByRole('row')[1]).toHaveTextContent('Osaka Pleat Midi');
+
+    renderInventory('/catalog?view=services');
+
+    const serviceTable = screen.getAllByRole('table')[1];
+    fireEvent.click(within(serviceTable).getByText('Price'));
+    fireEvent.click(within(serviceTable).getByText('Price'));
+    expect(within(serviceTable).getAllByRole('row')[1]).toHaveTextContent(
+      'Market Day Outfit Set',
+    );
   });
 
   test('sist renders the new diagnostics workspace with summary strip and analyst tabs', async () => {
@@ -3190,6 +3223,8 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('Local data')).not.toBeInTheDocument();
     expect(screen.queryByText('SIST defaults')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset changes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument();
   });
 
   test('settings local data section loads raw file paths and copies the data directory', async () => {
@@ -3244,6 +3279,8 @@ describe('renderer workspaces', () => {
 
     expect(await screen.findByTestId('settings-dirty-summary')).toHaveTextContent('(changed)');
     expect(screen.getByTestId('settings-dirty-summary')).toHaveTextContent('(changed)');
+    expect(screen.getByRole('button', { name: 'Reset changes' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
   });
 
   test('settings expands advanced settings and shows only local data content', async () => {

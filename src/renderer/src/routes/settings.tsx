@@ -290,23 +290,25 @@ export function SettingsRoute() {
                 {t('settingsWorkspacePreferencesDescription')}
               </DescriptionText>
             </div>
-            <div className="flex flex-wrap items-center gap-3 lg:shrink-0">
-              <Button
-                disabled={!hasPendingChanges || isSaving}
-                type="button"
-                variant="outline"
-                onClick={handleReset}
-              >
-                {t('settingsResetAction')}
-              </Button>
-              <Button
-                disabled={!hasPendingChanges || isSaving}
-                type="button"
-                onClick={() => void handleSave()}
-              >
-                {t('saveDraft')}
-              </Button>
-            </div>
+            {hasPendingChanges ? (
+              <div className="flex flex-wrap items-center gap-3 lg:shrink-0">
+                <Button
+                  disabled={isSaving}
+                  type="button"
+                  variant="outline"
+                  onClick={handleReset}
+                >
+                  {t('settingsResetAction')}
+                </Button>
+                <Button
+                  disabled={isSaving}
+                  type="button"
+                  onClick={() => void handleSave()}
+                >
+                  {t('saveDraft')}
+                </Button>
+              </div>
+            ) : null}
           </div>
           <FieldGroup>
             <Field orientation="responsive">

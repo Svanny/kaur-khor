@@ -47,6 +47,7 @@ export interface OperationsSessionDraft {
   serviceDrafts: Record<string, OperationsSessionServiceDraft>;
   rankingDraft: RankingEntry[];
   lastStep: OperationsSessionStepId;
+  viewedSteps: OperationsSessionStepId[];
 }
 
 interface OperationsSessionContextValue {
@@ -104,6 +105,7 @@ export function createOperationsSessionDraft(
     ),
     rankingDraft: buildDefaultReportRanking(snapshot),
     lastStep: 'observations',
+    viewedSteps: ['observations'],
   };
 }
 

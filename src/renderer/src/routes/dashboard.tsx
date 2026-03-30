@@ -24,6 +24,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { linkedServicesForSku, sortByName } from '@/lib/catalog';
 import { formatNumber, localeFor } from '@/lib/format';
+import { statusPillClassName, type StatusPillTone } from '@/lib/status-pill';
 import { summarizeNotes } from '@/lib/stock-report-summary';
 import { cn } from '@/lib/utils';
 import { traceRenderer } from '@/lib/trace';
@@ -76,7 +77,7 @@ const copy = {
   searchLabel: 'Search queue',
   searchPlaceholder: 'Search item, SKU, or service',
   startUpdate: 'Start new update',
-  resumeDraft: 'Resume draft',
+  resumeDraft: 'Resume update session',
   filtersLabel: 'Today filters',
   filters: {
     all: 'All',
@@ -193,24 +194,20 @@ function overviewStatusLabel(status: OverviewQueueStatus | null) {
   return copy.status.updatedToday;
 }
 
-function queueBadgeVariant(status: OverviewQueueStatus | null) {
-  return status === 'out-of-stock' ? 'destructive' : 'outline';
-}
-
-function queueBadgeClassName(status: OverviewQueueStatus | null) {
+function queueBadgeTone(status: OverviewQueueStatus | null): StatusPillTone {
   if (status === 'out-of-stock') {
-    return 'border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:text-red-800';
+    return 'danger';
   }
   if (status === 'low-stock') {
-    return 'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:text-amber-900';
+    return 'warning';
   }
   if (status === 'needs-check') {
-    return 'border-sky-200 bg-sky-50 text-sky-700 hover:border-sky-300 hover:text-sky-800';
+    return 'info';
   }
   if (status === 'not-updated') {
-    return 'border-stone-200 bg-stone-100 text-stone-700 hover:border-stone-300 hover:text-stone-800';
+    return 'neutral';
   }
-  return 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800';
+  return 'success';
 }
 
 function queueActionHref(row: OverviewQueueRow) {
@@ -567,8 +564,11 @@ function QueueTable({
                 <TableCell className="w-[12%]">
                   <Link className="inline-flex" to={skuDetailHref(row.sku.skuId)}>
                     <Badge
-                      className={cn('rounded-full transition-colors', queueBadgeClassName(row.status))}
-                      variant={queueBadgeVariant(row.status)}
+                      className={cn(
+                        'rounded-full transition-colors',
+                        statusPillClassName(queueBadgeTone(row.status)),
+                      )}
+                      variant="outline"
                     >
                       {overviewStatusLabel(row.status)}
                     </Badge>
@@ -617,8 +617,11 @@ function QueueTable({
             <div className="flex items-center justify-between gap-3">
               <Link className="inline-flex" to={skuDetailHref(row.sku.skuId)}>
                 <Badge
-                  className={cn('rounded-full transition-colors', queueBadgeClassName(row.status))}
-                  variant={queueBadgeVariant(row.status)}
+                  className={cn(
+                    'rounded-full transition-colors',
+                    statusPillClassName(queueBadgeTone(row.status)),
+                  )}
+                  variant="outline"
                 >
                   {overviewStatusLabel(row.status)}
                 </Badge>
