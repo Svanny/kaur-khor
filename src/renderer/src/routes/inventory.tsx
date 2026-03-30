@@ -1,7 +1,8 @@
-import { startTransition, useDeferredValue, useMemo, type ReactNode } from 'react';
+import { startTransition, useDeferredValue, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Boxes, PackagePlus, PanelsTopLeft, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, HandCoins, Package, PackagePlus, Search, type LucideIcon } from 'lucide-react';
 import type { InventorySnapshot, ServiceRecord, SkuRecord } from '@shared/inventory';
+import { NewServiceIcon } from '@/components/system/new-service-icon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +23,7 @@ import {
 import {
   WorkspaceEmpty,
   WorkspacePage,
+  WorkspacePageTitle,
   WorkspacePanel,
 } from '@/components/system/workspace';
 import { DescriptionText } from '@/components/system/description-text';
@@ -34,23 +36,146 @@ import {
   type CatalogView,
 } from '@/lib/catalog';
 import { formatCurrency, formatNumber } from '@/lib/format';
+import { statusPillClassName, type StatusPillTone } from '@/lib/status-pill';
+import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
 const CATALOG_PREVIEW_LIMIT = 4;
+type SkuRevenueMetric = 'revenue' | 'gross-margin';
+type CatalogSortDirection = 'asc' | 'desc';
+type CatalogSortMode<TColumn extends string> = {
+  column: TColumn;
+  direction: CatalogSortDirection;
+};
+type SkuPreviewSortColumn = 'item' | 'status' | 'units';
+type ServicePreviewSortColumn = 'item' | 'status' | 'sellable';
+type SkuSortColumn = 'item' | 'status' | 'units' | 'cost' | 'value' | 'price' | 'outcome';
+type ServiceSortColumn = 'item' | 'status' | 'sellable' | 'linked' | 'price' | 'revenue';
 
-function catalogCountLabel({
-  count,
-  language,
-  singular,
-  plural,
+function compareStrings(left: string, right: string, direction: CatalogSortDirection) {
+  const delta = left.localeCompare(right);
+  return direction === 'asc' ? delta : -delta;
+}
+
+function compareNumbers(left: number, right: number, direction: CatalogSortDirection) {
+  const delta = left - right;
+  return direction === 'asc' ? delta : -delta;
+}
+
+function compareOptionalNumbers(
+  left: number | null,
+  right: number | null,
+  direction: CatalogSortDirection,
+) {
+  if (left == null && right == null) {
+    return 0;
+  }
+  if (left == null) {
+    return 1;
+  }
+  if (right == null) {
+    return -1;
+  }
+  return compareNumbers(left, right, direction);
+}
+
+function toggleSortMode<TColumn extends string>(
+  current: CatalogSortMode<TColumn>,
+  column: TColumn,
+): CatalogSortMode<TColumn> {
+  if (current.column === column) {
+    return {
+      column,
+      direction: current.direction === 'asc' ? 'desc' : 'asc',
+    };
+  }
+
+  return {
+    column,
+    direction: 'asc',
+  };
+}
+
+function inventoryValueForSku(sku: SkuRecord) {
+  return sku.unitsInStock * sku.costPerUnit;
+}
+
+function potentialRevenueForSku(sku: SkuRecord) {
+  if (!sku.soldAsProduct || sku.productPrice === null) {
+    return null;
+  }
+
+  return sku.unitsInStock * sku.productPrice;
+}
+
+function skuStatusKey(sku: SkuRecord, highRiskSkuIds: Set<string>) {
+  if (highRiskSkuIds.has(sku.skuId)) {
+    return 'catalogServiceAtRiskState';
+  }
+
+  return sku.soldAsProduct ? 'inventorySoldAsProduct' : 'inventoryNotSoldAsProduct';
+}
+
+function skuStatusTone(statusKey: string): StatusPillTone {
+  if (statusKey === 'catalogServiceAtRiskState') {
+    return 'warning';
+  }
+
+  return statusKey === 'inventorySoldAsProduct' ? 'success' : 'neutral';
+}
+
+function serviceStatusTone(statusKey: string): StatusPillTone {
+  if (statusKey === 'catalogServiceAtRiskState') {
+    return 'warning';
+  }
+  if (statusKey === 'catalogServiceAvailabilityStockout') {
+    return 'danger';
+  }
+  if (statusKey === 'catalogServiceAvailabilityUnlinked') {
+    return 'neutral';
+  }
+
+  return 'success';
+}
+
+function SortableTableHeader({
+  align = 'left',
+  direction,
+  isActive,
+  label,
+  onClick,
 }: {
-  count: number;
-  language: 'en' | 'km';
-  singular: string;
-  plural: string;
+  align?: 'left' | 'center';
+  direction: CatalogSortDirection;
+  isActive: boolean;
+  label: string;
+  onClick: () => void;
 }) {
-  return `${formatNumber(count, language)} ${count === 1 ? singular : plural}`;
+  const icon = direction === 'asc' ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />;
+
+  return (
+    <button
+      className={cn(
+        'inline-flex items-center gap-1 text-left font-medium text-foreground transition-colors hover:text-foreground/80',
+        align === 'center' && 'justify-center',
+      )}
+      type="button"
+      onClick={onClick}
+    >
+      <span>{label}</span>
+      {isActive ? (
+        <span aria-hidden="true" className="text-muted-foreground">
+          {icon}
+        </span>
+      ) : null}
+      {isActive ? (
+        <span className="sr-only">
+          {direction === 'asc' ? 'sorted ascending' : 'sorted descending'}
+        </span>
+      ) : null}
+    </button>
+  );
 }
 
 function patchCatalogSearchParams({
@@ -107,15 +232,11 @@ function CatalogPreviewColGroup() {
   );
 }
 
-function SkuCatalogColGroup() {
+function CatalogRowIcon({ icon: Icon }: { icon: LucideIcon }) {
   return (
-    <colgroup>
-      <col className="w-[46%]" />
-      <col className="w-[20%]" />
-      <col className="w-[12%]" />
-      <col className="w-[11%]" />
-      <col className="w-[11%]" />
-    </colgroup>
+    <div className="flex size-12 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background text-primary">
+      <Icon className="size-4" />
+    </div>
   );
 }
 
@@ -132,21 +253,105 @@ function ServiceCatalogTable({
   snapshot: InventorySnapshot;
   t: (key: string) => string;
 }) {
+  const [sortMode, setSortMode] = useState<CatalogSortMode<ServiceSortColumn>>({
+    column: 'item',
+    direction: 'asc',
+  });
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((left, right) => {
+      const leftSellable = computeServiceSellableUnits(left, snapshot);
+      const rightSellable = computeServiceSellableUnits(right, snapshot);
+      const leftRevenue = leftSellable * left.price;
+      const rightRevenue = rightSellable * right.price;
+      const leftStatus = t(serviceCoverageStateKey(left, snapshot));
+      const rightStatus = t(serviceCoverageStateKey(right, snapshot));
+
+      if (sortMode.column === 'status') {
+        const delta = compareStrings(leftStatus, rightStatus, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'sellable') {
+        const delta = compareNumbers(leftSellable, rightSellable, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'linked') {
+        const delta = compareNumbers(left.skuIds.length, right.skuIds.length, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'price') {
+        const delta = compareNumbers(left.price, right.price, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'revenue') {
+        const delta = compareNumbers(leftRevenue, rightRevenue, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+
+      return compareStrings(left.name, right.name, sortMode.direction);
+    });
+  }, [rows, snapshot, sortMode, t]);
+
   return (
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('inventoryColumnItem')}</TableHead>
-            <TableHead>{t('inventoryColumnStatus')}</TableHead>
-            <TableHead>{t('inventoryColumnSellable')}</TableHead>
-            <TableHead>{t('inventoryColumnLinkedSkus')}</TableHead>
-            <TableHead>{t('rankHeaderPrice')}</TableHead>
-            <TableHead className="text-right">{t('inventoryPotentialRevenue')}</TableHead>
+            <TableHead>
+              <SortableTableHeader
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'item'}
+                label={t('inventoryColumnItem')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'item'))}
+              />
+            </TableHead>
+            <TableHead>
+              <SortableTableHeader
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'status'}
+                label={t('inventoryColumnStatus')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'status'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'sellable'}
+                label={t('inventoryColumnSellable')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'sellable'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'linked'}
+                label={t('inventoryColumnLinkedSkus')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'linked'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'price'}
+                label={t('rankHeaderPrice')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'price'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'revenue'}
+                label={t('inventoryPotentialRevenue')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'revenue'))}
+              />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((service) => {
+          {sortedRows.map((service) => {
             const sellableUnits = computeServiceSellableUnits(service, snapshot);
             const statusKey = serviceCoverageStateKey(service, snapshot);
 
@@ -157,31 +362,32 @@ function ServiceCatalogTable({
                     className="group inline-flex max-w-full items-start gap-3"
                     to={`/catalog/services/${service.serviceId}`}
                   >
-                    <div className="rounded-2xl border border-border/70 bg-accent/35 p-2 text-primary">
-                      <Boxes className="size-4" />
-                    </div>
+                    <CatalogRowIcon icon={HandCoins} />
                     <div className="min-w-0">
                       <p className="truncate font-medium text-foreground group-hover:text-primary">
                         {service.name}
                       </p>
-                      <DescriptionText className="truncate text-sm text-muted-foreground">
+                      <p className="truncate text-sm text-muted-foreground">{service.serviceId}</p>
+                      <p className="truncate text-sm text-muted-foreground">
                         {service.description}
-                      </DescriptionText>
+                      </p>
                     </div>
                   </Link>
                 </TableCell>
                 <TableCell>
                   <Badge
-                    className="rounded-full"
-                    variant={statusKey === 'catalogServiceAvailabilityAvailable' ? 'secondary' : 'outline'}
+                    className={cn('rounded-full', statusPillClassName(serviceStatusTone(statusKey)))}
+                    variant="outline"
                   >
                     {t(statusKey)}
                   </Badge>
                 </TableCell>
-                <TableCell>{formatNumber(sellableUnits, language)}</TableCell>
-                <TableCell>{formatNumber(service.skuIds.length, language)}</TableCell>
-                <TableCell>{formatCurrency(service.price, currency, language)}</TableCell>
-                <TableCell className="text-right font-medium">
+                <TableCell className="text-center">{formatNumber(sellableUnits, language)}</TableCell>
+                <TableCell className="text-center">{formatNumber(service.skuIds.length, language)}</TableCell>
+                <TableCell className="text-center">
+                  {formatCurrency(service.price, currency, language)}
+                </TableCell>
+                <TableCell className="text-center font-medium">
                   {formatCurrency(sellableUnits * service.price, currency, language)}
                 </TableCell>
               </TableRow>
@@ -214,36 +420,85 @@ function ServiceCatalogPreviewTable({
   snapshot: InventorySnapshot;
   t: (key: string) => string;
 }) {
+  const [sortMode, setSortMode] = useState<CatalogSortMode<ServicePreviewSortColumn>>({
+    column: 'item',
+    direction: 'asc',
+  });
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((left, right) => {
+      const leftSellable = computeServiceSellableUnits(left, snapshot);
+      const rightSellable = computeServiceSellableUnits(right, snapshot);
+      const leftStatus = t(servicePreviewStatus({ service: left, snapshot }));
+      const rightStatus = t(servicePreviewStatus({ service: right, snapshot }));
+
+      if (sortMode.column === 'status') {
+        const delta = compareStrings(leftStatus, rightStatus, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'sellable') {
+        const delta = compareNumbers(leftSellable, rightSellable, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+
+      return compareStrings(left.name, right.name, sortMode.direction);
+    });
+  }, [rows, snapshot, sortMode, t]);
+
   return (
     <div className="overflow-x-auto">
       <Table className="table-fixed">
         <CatalogPreviewColGroup />
         <TableHeader>
           <TableRow>
-            <TableHead>{t('inventoryColumnItem')}</TableHead>
-            <TableHead>{t('inventoryColumnStatus')}</TableHead>
-            <TableHead className="text-right">{t('inventoryColumnSellable')}</TableHead>
+            <TableHead>
+              <SortableTableHeader
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'item'}
+                label={t('inventoryColumnItem')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'item'))}
+              />
+            </TableHead>
+            <TableHead>
+              <SortableTableHeader
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'status'}
+                label={t('inventoryColumnStatus')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'status'))}
+              />
+            </TableHead>
+            <TableHead className="text-right">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'sellable'}
+                label={t('inventoryColumnSellable')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'sellable'))}
+              />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((service) => {
+          {sortedRows.map((service) => {
             const sellableUnits = computeServiceSellableUnits(service, snapshot);
             const statusKey = servicePreviewStatus({ service, snapshot });
 
             return (
               <TableRow key={service.serviceId}>
                 <TableCell className="min-w-0">
-                  <Link className="group inline-flex max-w-full min-w-0 flex-col" to={`/catalog/services/${service.serviceId}`}>
-                    <span className="truncate font-medium text-foreground group-hover:text-primary">
-                      {service.name}
+                  <Link className="group inline-flex max-w-full min-w-0 items-start gap-3" to={`/catalog/services/${service.serviceId}`}>
+                    <CatalogRowIcon icon={HandCoins} />
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-foreground group-hover:text-primary">
+                        {service.name}
+                      </span>
+                      <span className="block truncate text-sm text-muted-foreground">{service.serviceId}</span>
                     </span>
-                    <span className="truncate text-sm text-muted-foreground">{service.serviceId}</span>
                   </Link>
                 </TableCell>
                 <TableCell>
                   <Badge
-                    className="rounded-full"
-                    variant={statusKey === 'catalogServiceAvailabilityAvailable' ? 'secondary' : 'outline'}
+                    className={cn('rounded-full', statusPillClassName(serviceStatusTone(statusKey)))}
+                    variant="outline"
                   >
                     {t(statusKey)}
                   </Badge>
@@ -261,38 +516,152 @@ function ServiceCatalogPreviewTable({
 function SkuCatalogTable({
   currency,
   language,
+  metric,
   rows,
   snapshot,
   t,
 }: {
   currency: 'USD' | 'KHR';
   language: 'en' | 'km';
+  metric: SkuRevenueMetric;
   rows: SkuRecord[];
   snapshot: InventorySnapshot;
   t: (key: string) => string;
 }) {
   const highRiskSkuIds = new Set(snapshot.sist.highRiskSkuIds);
+  const [sortMode, setSortMode] = useState<CatalogSortMode<SkuSortColumn>>({
+    column: 'item',
+    direction: 'asc',
+  });
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((left, right) => {
+      const leftStatus = t(skuStatusKey(left, highRiskSkuIds));
+      const rightStatus = t(skuStatusKey(right, highRiskSkuIds));
+      const leftValue = inventoryValueForSku(left);
+      const rightValue = inventoryValueForSku(right);
+      const leftRevenue = potentialRevenueForSku(left);
+      const rightRevenue = potentialRevenueForSku(right);
+      const leftOutcome =
+        metric === 'gross-margin'
+          ? leftRevenue === null
+            ? null
+            : leftRevenue - leftValue
+          : leftRevenue;
+      const rightOutcome =
+        metric === 'gross-margin'
+          ? rightRevenue === null
+            ? null
+            : rightRevenue - rightValue
+          : rightRevenue;
+
+      if (sortMode.column === 'status') {
+        const delta = compareStrings(leftStatus, rightStatus, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'units') {
+        const delta = compareNumbers(left.unitsInStock, right.unitsInStock, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'cost') {
+        const delta = compareNumbers(left.costPerUnit, right.costPerUnit, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'value') {
+        const delta = compareNumbers(leftValue, rightValue, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'price') {
+        const delta = compareOptionalNumbers(left.productPrice, right.productPrice, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'outcome') {
+        const delta = compareOptionalNumbers(leftOutcome, rightOutcome, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+
+      return compareStrings(left.name, right.name, sortMode.direction);
+    });
+  }, [highRiskSkuIds, metric, rows, sortMode, t]);
 
   return (
     <div className="overflow-x-auto">
-      <Table className="table-fixed">
-        <SkuCatalogColGroup />
+      <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('inventoryColumnItem')}</TableHead>
-            <TableHead>{t('inventoryColumnStatus')}</TableHead>
-            <TableHead>{t('fieldUnitsInStock')}</TableHead>
-            <TableHead>{t('fieldCostPerUnit')}</TableHead>
-            <TableHead>{t('fieldProductPrice')}</TableHead>
+            <TableHead>
+              <SortableTableHeader
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'item'}
+                label={t('inventoryColumnItem')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'item'))}
+              />
+            </TableHead>
+            <TableHead>
+              <SortableTableHeader
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'status'}
+                label={t('inventoryColumnStatus')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'status'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'units'}
+                label={t('fieldUnitsInStock')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'units'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'cost'}
+                label={t('fieldCostPerUnit')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'cost'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'value'}
+                label={t('inventoryColumnValue')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'value'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'price'}
+                label={t('fieldProductPrice')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'price'))}
+              />
+            </TableHead>
+            <TableHead className="text-center">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'outcome'}
+                label={
+                  metric === 'gross-margin'
+                    ? t('inventoryPotentialGrossMargin')
+                    : t('inventoryPotentialRevenue')
+                }
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'outcome'))}
+              />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((sku) => {
-            const statusKey = highRiskSkuIds.has(sku.skuId)
-              ? 'catalogServiceAtRiskState'
-              : sku.soldAsProduct
-                ? 'inventorySoldAsProduct'
-                : 'inventoryNotSoldAsProduct';
+          {sortedRows.map((sku) => {
+            const statusKey = skuStatusKey(sku, highRiskSkuIds);
+            const inventoryValue = inventoryValueForSku(sku);
+            const potentialRevenue = potentialRevenueForSku(sku);
+            const potentialGrossMargin =
+              potentialRevenue === null ? null : potentialRevenue - inventoryValue;
 
             return (
               <TableRow key={sku.skuId}>
@@ -301,41 +670,44 @@ function SkuCatalogTable({
                     className="group inline-flex max-w-full items-start gap-3"
                     to={`/catalog/skus/${sku.skuId}`}
                   >
-                    <div className="rounded-2xl border border-border/70 bg-background p-2 text-primary">
-                      <PackagePlus className="size-4" />
-                    </div>
+                    <CatalogRowIcon icon={Package} />
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate font-medium text-foreground group-hover:text-primary">
-                          {sku.name}
-                        </p>
-                        <Badge
-                          className="rounded-full"
-                          variant={sku.soldAsProduct ? 'secondary' : 'outline'}
-                        >
-                          {sku.soldAsProduct
-                            ? t('inventorySoldAsProduct')
-                            : t('inventoryNotSoldAsProduct')}
-                        </Badge>
-                      </div>
+                      <p className="truncate font-medium text-foreground group-hover:text-primary">
+                        {sku.name}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">{sku.skuId}</p>
                       <p className="truncate text-sm text-muted-foreground">{sku.description}</p>
                     </div>
                   </Link>
                 </TableCell>
                 <TableCell>
                   <Badge
-                    className="rounded-full"
-                    variant={statusKey === 'inventorySoldAsProduct' ? 'secondary' : 'outline'}
+                    className={cn('rounded-full', statusPillClassName(skuStatusTone(statusKey)))}
+                    variant="outline"
                   >
                     {t(statusKey)}
                   </Badge>
                 </TableCell>
-                <TableCell>{formatNumber(sku.unitsInStock, language)}</TableCell>
-                <TableCell>{formatCurrency(sku.costPerUnit, currency, language)}</TableCell>
-                <TableCell>
+                <TableCell className="text-center">{formatNumber(sku.unitsInStock, language)}</TableCell>
+                <TableCell className="text-center">
+                  {formatCurrency(sku.costPerUnit, currency, language)}
+                </TableCell>
+                <TableCell className="text-center">
+                  {formatCurrency(inventoryValue, currency, language)}
+                </TableCell>
+                <TableCell className="text-center">
                   {sku.soldAsProduct && sku.productPrice !== null
                     ? formatCurrency(sku.productPrice, currency, language)
                     : '—'}
+                </TableCell>
+                <TableCell className="text-center">
+                  {metric === 'gross-margin'
+                    ? potentialGrossMargin === null
+                      ? '—'
+                      : formatCurrency(potentialGrossMargin, currency, language)
+                    : potentialRevenue === null
+                      ? '—'
+                      : formatCurrency(potentialRevenue, currency, language)}
                 </TableCell>
               </TableRow>
             );
@@ -355,37 +727,89 @@ function SkuCatalogPreviewTable({
   rows: SkuRecord[];
   t: (key: string) => string;
 }) {
+  const [sortMode, setSortMode] = useState<CatalogSortMode<SkuPreviewSortColumn>>({
+    column: 'item',
+    direction: 'asc',
+  });
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((left, right) => {
+      const leftStatus = left.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct');
+      const rightStatus = right.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct');
+
+      if (sortMode.column === 'status') {
+        const delta = compareStrings(leftStatus, rightStatus, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+      if (sortMode.column === 'units') {
+        const delta = compareNumbers(left.unitsInStock, right.unitsInStock, sortMode.direction);
+        return delta !== 0 ? delta : compareStrings(left.name, right.name, 'asc');
+      }
+
+      return compareStrings(left.name, right.name, sortMode.direction);
+    });
+  }, [rows, sortMode, t]);
+
   return (
     <div className="overflow-x-auto">
       <Table className="table-fixed">
         <CatalogPreviewColGroup />
         <TableHeader>
           <TableRow>
-            <TableHead>{t('inventoryColumnItem')}</TableHead>
-            <TableHead>{t('catalogSkuDirectSellStatus')}</TableHead>
-            <TableHead>{t('fieldUnitsInStock')}</TableHead>
+            <TableHead>
+              <SortableTableHeader
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'item'}
+                label={t('inventoryColumnItem')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'item'))}
+              />
+            </TableHead>
+            <TableHead>
+              <SortableTableHeader
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'status'}
+                label={t('catalogSkuDirectSellStatus')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'status'))}
+              />
+            </TableHead>
+            <TableHead className="text-right">
+              <SortableTableHeader
+                align="center"
+                direction={sortMode.direction}
+                isActive={sortMode.column === 'units'}
+                label={t('fieldUnitsInStock')}
+                onClick={() => setSortMode((current) => toggleSortMode(current, 'units'))}
+              />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((sku) => (
+          {sortedRows.map((sku) => (
             <TableRow key={sku.skuId}>
               <TableCell className="min-w-0">
-                <Link className="group inline-flex max-w-full min-w-0 flex-col" to={`/catalog/skus/${sku.skuId}`}>
-                  <span className="truncate font-medium text-foreground group-hover:text-primary">
-                    {sku.name}
+                <Link className="group inline-flex max-w-full min-w-0 items-start gap-3" to={`/catalog/skus/${sku.skuId}`}>
+                  <CatalogRowIcon icon={Package} />
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-foreground group-hover:text-primary">
+                      {sku.name}
+                    </span>
+                    <span className="block truncate text-sm text-muted-foreground">{sku.skuId}</span>
                   </span>
-                  <span className="truncate text-sm text-muted-foreground">{sku.skuId}</span>
                 </Link>
               </TableCell>
               <TableCell>
                 <Badge
-                  className="rounded-full"
-                  variant={sku.soldAsProduct ? 'secondary' : 'outline'}
+                  className={cn(
+                    'rounded-full',
+                    statusPillClassName(
+                      sku.soldAsProduct ? 'success' : 'neutral',
+                    ),
+                  )}
+                  variant="outline"
                 >
                   {sku.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct')}
                 </Badge>
               </TableCell>
-              <TableCell>{formatNumber(sku.unitsInStock, language)}</TableCell>
+              <TableCell className="text-right">{formatNumber(sku.unitsInStock, language)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -427,6 +851,7 @@ export function InventoryRoute() {
   const view = catalogViewFromSearchParams(searchParams);
   const query = searchParams.get('q') ?? '';
   const deferredQuery = useDeferredValue(query.trim());
+  const [skuRevenueMetric, setSkuRevenueMetric] = useState<SkuRevenueMetric>('revenue');
 
   const rows = useMemo(() => {
     if (!snapshot) {
@@ -452,35 +877,6 @@ export function InventoryRoute() {
 
   const hasCatalog = Boolean(snapshot && (snapshot.skus.length > 0 || snapshot.services.length > 0));
   const hasMatches = rows.skus.length > 0 || rows.services.length > 0;
-  const resultSummary = (() => {
-    const skuSummary = catalogCountLabel({
-      count: rows.skus.length,
-      language,
-      singular: t('catalogResultSkuSingular'),
-      plural: t('catalogResultSkuPlural'),
-    });
-    const serviceSummary = catalogCountLabel({
-      count: rows.services.length,
-      language,
-      singular: t('catalogResultServiceSingular'),
-      plural: t('catalogResultServicePlural'),
-    });
-
-    if (view === 'skus') {
-      return query.trim()
-        ? `${skuSummary} ${t('catalogResultsMatchingFor')} "${query.trim()}"`
-        : skuSummary;
-    }
-
-    if (view === 'services') {
-      return query.trim()
-        ? `${serviceSummary} ${t('catalogResultsMatchingFor')} "${query.trim()}"`
-        : serviceSummary;
-    }
-
-    const combined = `${skuSummary} ${t('catalogResultsJoiner')} ${serviceSummary}`;
-    return query.trim() ? `${combined} ${t('catalogResultsMatchingFor')} "${query.trim()}"` : combined;
-  })();
 
   function updateCatalog(queryValue: string, nextView: CatalogView) {
     patchCatalogSearchParams({
@@ -536,33 +932,34 @@ export function InventoryRoute() {
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link to="/catalog/services/new">
-                <PanelsTopLeft data-icon="inline-start" />
+                <NewServiceIcon className="relative inline-flex size-4 shrink-0" />
                 {t('createServiceAction')}
               </Link>
             </Button>
           </div>
         }
         description={t('inventoryBody')}
-        title={t('allItemsTitle')}
+        title={<WorkspacePageTitle>{t('allItemsTitle')}</WorkspacePageTitle>}
       >
-        <div className="grid gap-3">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <InputGroup className="lg:max-w-xl">
-              <InputGroupAddon align="inline-start">
-                <InputGroupText>
-                  <Search />
-                </InputGroupText>
-              </InputGroupAddon>
-              <InputGroupInput
-                aria-label={t('searchItems')}
-                placeholder={t('searchPlaceholder')}
-                value={query}
-                onChange={(event) => updateCatalog(event.target.value, view)}
-              />
-            </InputGroup>
+        <div className="grid gap-4">
+          <InputGroup className="h-12 w-full rounded-full">
+            <InputGroupAddon align="inline-start">
+              <InputGroupText>
+                <Search />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label={t('searchItems')}
+              placeholder={t('searchPlaceholder')}
+              value={query}
+              onChange={(event) => updateCatalog(event.target.value, view)}
+            />
+          </InputGroup>
 
+          <div>
             <ToggleGroup
               aria-label={t('searchItems')}
+              className="inline-flex max-w-full justify-start overflow-x-auto"
               spacing={1}
               type="single"
               value={view}
@@ -578,7 +975,6 @@ export function InventoryRoute() {
               <ToggleGroupItem value="services">{t('filterService')}</ToggleGroupItem>
             </ToggleGroup>
           </div>
-          <p className="text-sm text-muted-foreground">{resultSummary}</p>
         </div>
       </WorkspacePanel>
 
@@ -634,6 +1030,24 @@ export function InventoryRoute() {
       ) : view === 'skus' ? (
         <WorkspacePanel>
           <CatalogSectionHeader
+            action={
+              <ToggleGroup
+                aria-label={t('catalogSkuMetricToggle')}
+                spacing={1}
+                type="single"
+                value={skuRevenueMetric}
+                onValueChange={(nextValue) => {
+                  if (nextValue) {
+                    setSkuRevenueMetric(nextValue as SkuRevenueMetric);
+                  }
+                }}
+              >
+                <ToggleGroupItem value="revenue">{t('catalogSkuMetricRevenue')}</ToggleGroupItem>
+                <ToggleGroupItem value="gross-margin">
+                  {t('catalogSkuMetricGrossMargin')}
+                </ToggleGroupItem>
+              </ToggleGroup>
+            }
             count={rows.skus.length}
             description={t('catalogSkusDescription')}
             title={t('skusHeading')}
@@ -641,6 +1055,7 @@ export function InventoryRoute() {
           <SkuCatalogTable
             currency={currency}
             language={language}
+            metric={skuRevenueMetric}
             rows={rows.skus}
             snapshot={snapshot!}
             t={t}

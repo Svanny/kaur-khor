@@ -1,11 +1,10 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
+  BrainCircuit,
   Boxes,
-  ClipboardPen,
-  ChartNoAxesCombined,
   LayoutDashboard,
-  PanelRightClose,
-  PanelRightOpen,
+  NotebookTabs,
+  PanelRight,
   Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,6 +23,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { WorkspaceBanner } from '@/components/system/workspace';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -60,14 +60,14 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     id: 'operations',
     destination: '/operations',
     labelKey: 'navOperations',
-    icon: ClipboardPen,
+    icon: NotebookTabs,
     matches: (pathname) => matchesSection(pathname, '/operations'),
   },
   {
     id: 'sist',
     destination: '/sist',
     labelKey: 'navSist',
-    icon: ChartNoAxesCombined,
+    icon: BrainCircuit,
     matches: (pathname) => matchesSection(pathname, '/sist'),
   },
 ];
@@ -119,38 +119,48 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
       <Sidebar className="border-r border-sidebar-border/60" collapsible="icon" variant="sidebar">
         <SidebarHeader className="px-3 pt-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
           {showSidebarText ? (
-            <button
-              aria-label={t('collapseNavigation')}
-              className="group/brand flex h-10 w-full min-w-0 items-center gap-3 rounded-xl px-1 text-left text-foreground ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent/55 focus-visible:ring-2"
-              data-testid="sidebar-collapse-toggle"
-              type="button"
-              onClick={toggleSidebar}
-            >
-                <span className="relative flex size-10 shrink-0 items-center justify-center">
-                  <img
-                    alt=""
-                    aria-hidden="true"
-                    className="size-5 transition-opacity duration-150 ease-out group-hover/brand:opacity-0 motion-reduce:transition-none"
-                    src={brandLogo}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 ease-out group-hover/brand:opacity-100 motion-reduce:transition-none">
-                    <PanelRightOpen aria-hidden="true" className="size-4.5" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={t('collapseNavigation')}
+                  className="group/brand flex h-10 w-full min-w-0 items-center gap-3 rounded-xl px-1 text-left text-foreground ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent/55 focus-visible:ring-2"
+                  data-testid="sidebar-collapse-toggle"
+                  type="button"
+                  onClick={toggleSidebar}
+                >
+                  <span className="relative flex size-10 shrink-0 items-center justify-center">
+                    <img
+                      alt=""
+                      aria-hidden="true"
+                      className="size-5 transition-opacity duration-150 ease-out group-hover/brand:opacity-0 motion-reduce:transition-none"
+                      src={brandLogo}
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 ease-out group-hover/brand:opacity-100 motion-reduce:transition-none">
+                      <PanelRight aria-hidden="true" className="size-4.5" />
+                    </span>
                   </span>
-                </span>
-                <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-foreground">
-                  {t('appBrand')}
-                </span>
-            </button>
+                  <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-foreground">
+                    {t('appBrand')}
+                  </span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10}>Close sidebar</TooltipContent>
+            </Tooltip>
           ) : (
-            <button
-              aria-label={t('openNavigation')}
-              className="flex size-10 items-center justify-center rounded-[1.25rem] text-foreground ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2"
-              data-testid="sidebar-collapse-toggle"
-              type="button"
-              onClick={toggleSidebar}
-            >
-              <PanelRightClose aria-hidden="true" className="size-4.5" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={t('openNavigation')}
+                  className="flex size-10 items-center justify-center rounded-[1.25rem] text-foreground ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2"
+                  data-testid="sidebar-collapse-toggle"
+                  type="button"
+                  onClick={toggleSidebar}
+                >
+                  <PanelRight aria-hidden="true" className="size-4.5 -scale-x-100" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10}>Open sidebar</TooltipContent>
+            </Tooltip>
           )}
         </SidebarHeader>
 

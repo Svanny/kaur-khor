@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Textarea } from '@/components/ui/textarea';
 import { EditorHeader } from '@/components/system/editor';
 import {
-  TextAreaField,
   TextInputField,
 } from '@/components/system/form-fields';
 import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
@@ -300,19 +301,24 @@ export function SkuFormRoute() {
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
             />
-            <TextAreaField
-              id="sku-description"
-              error={errors.description}
-              inputRef={(node) => {
-                fieldRefs.current.description = node ?? undefined;
-              }}
-              label={t('fieldDescription')}
-              rows={6}
-              value={form.description}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, description: event.target.value }))
-              }
-            />
+            <Field data-invalid={!!errors.description}>
+              <FieldLabel htmlFor="sku-description">{t('fieldDescription')}</FieldLabel>
+              <FieldContent>
+                <Textarea
+                  aria-invalid={!!errors.description}
+                  id="sku-description"
+                  ref={(node) => {
+                    fieldRefs.current.description = node ?? undefined;
+                  }}
+                  rows={6}
+                  value={form.description}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, description: event.target.value }))
+                  }
+                />
+                <FieldError>{errors.description}</FieldError>
+              </FieldContent>
+            </Field>
           </FieldGroup>
         </WorkspacePanel>
 
@@ -386,8 +392,10 @@ export function SkuFormRoute() {
             <Button
               type="button"
               variant="ghost"
+              className="inline-flex items-center gap-2 self-center"
               onClick={() => setPlanningExpanded((current) => !current)}
             >
+              {planningExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
               {planningExpanded
                 ? t('catalogSkuPlanningInputsHide')
                 : t('catalogSkuPlanningInputsShow')}

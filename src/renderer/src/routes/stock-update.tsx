@@ -1,10 +1,15 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronUp, ClipboardPen, Eye, Flag, Play, Radio, Search, Triangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from '@/components/ui/input-group';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Table,
@@ -17,8 +22,10 @@ import {
 import {
   WorkspaceEmpty,
   WorkspacePage,
+  WorkspacePageTitle,
   WorkspacePanel,
 } from '@/components/system/workspace';
+import { computeServiceSellableUnits } from '@/lib/catalog';
 import { formatCurrency, localeFor } from '@/lib/format';
 import {
   matchesRecentActivityFilter,
@@ -26,10 +33,11 @@ import {
 } from '@/lib/recent-activity';
 import {
   rankingSignalCount,
-  stockReportSourceKey,
   summarizeCount,
   summarizeNotes,
 } from '@/lib/stock-report-summary';
+import { statusPillClassName } from '@/lib/status-pill';
+import { cn } from '@/lib/utils';
 import { traceRenderer } from '@/lib/trace';
 import { useInventory } from '@/state/inventory';
 import {
@@ -66,8 +74,191 @@ function formatIncludesHint(name: string | null, t: ReturnType<typeof usePrefere
   return name ? `${t('operationsHistoryIncludes')} ${name}` : null;
 }
 
+function changedSkuPreviewName(
+  report: StockReport,
+  skusById: Map<string, InventorySnapshot['skus'][number]>,
+  skuNames: Map<string, string>,
+) {
+  if (report.skuObservations.length === 0) {
+    return null;
+  }
+
+  const topChangedSku = report.skuObservations.reduce((currentMax, observation) => {
+    const currentSku = skusById.get(observation.skuId);
+    const currentInventoryValue = currentSku ? currentSku.unitsInStock * currentSku.costPerUnit : 0;
+    const observedInventoryValue = observation.unitsInStock * observation.costPerUnit;
+    const absoluteDelta = Math.abs(observedInventoryValue - currentInventoryValue);
+
+    if (!currentMax || absoluteDelta > currentMax.absoluteDelta) {
+      return {
+        absoluteDelta,
+        skuId: observation.skuId,
+      };
+    }
+
+    return currentMax;
+  }, null as { absoluteDelta: number; skuId: string } | null);
+
+  return topChangedSku ? (skuNames.get(topChangedSku.skuId) ?? topChangedSku.skuId) : null;
+}
+
+function serviceFlagPreviewName(
+  report: StockReport,
+  snapshot: InventorySnapshot,
+  serviceNames: Map<string, string>,
+) {
+  const topFlaggedService = report.serviceSignals
+    .filter((signal) => signal.stockout !== false)
+    .reduce((currentMax, signal) => {
+      const service = snapshot.services.find((entry) => entry.serviceId === signal.serviceId);
+      if (!service) {
+        return currentMax;
+      }
+
+      const potentialRevenueChange = Math.abs(service.price * computeServiceSellableUnits(service, snapshot));
+      if (!currentMax || potentialRevenueChange > currentMax.potentialRevenueChange) {
+        return {
+          potentialRevenueChange,
+          serviceId: signal.serviceId,
+        };
+      }
+
+      return currentMax;
+    }, null as { potentialRevenueChange: number; serviceId: string } | null);
+
+  return topFlaggedService
+    ? (serviceNames.get(topFlaggedService.serviceId) ?? topFlaggedService.serviceId)
+    : null;
+}
+
+function priceEditPreviewName(
+  report: StockReport,
+  servicesById: Map<string, InventorySnapshot['services'][number]>,
+  serviceNames: Map<string, string>,
+) {
+  const topPriceEditedService = report.servicePriceAdjustments.reduce((currentMax, adjustment) => {
+    const service = servicesById.get(adjustment.serviceId);
+    if (!service) {
+      return currentMax;
+    }
+
+    const absolutePriceChange = Math.abs(adjustment.price - service.price);
+    if (!currentMax || absolutePriceChange > currentMax.absolutePriceChange) {
+      return {
+        absolutePriceChange,
+        serviceId: adjustment.serviceId,
+      };
+    }
+
+    return currentMax;
+  }, null as { absolutePriceChange: number; serviceId: string } | null);
+
+  return topPriceEditedService
+    ? (serviceNames.get(topPriceEditedService.serviceId) ?? topPriceEditedService.serviceId)
+    : null;
+}
+
+function previousSkuObservation(
+  reports: StockReport[],
+  reportId: string,
+  skuId: string,
+) {
+  const reportIndex = reports.findIndex((report) => report.reportId === reportId);
+  if (reportIndex === -1) {
+    return null;
+  }
+
+  for (const olderReport of reports.slice(reportIndex + 1)) {
+    const observation = olderReport.skuObservations.find((entry) => entry.skuId === skuId);
+    if (observation) {
+      return observation;
+    }
+  }
+
+  return null;
+}
+
+function skuUnitsDirection(
+  entry: StockReport['skuObservations'][number],
+  previousObservation: StockReport['skuObservations'][number] | null,
+  currentSku: InventorySnapshot['skus'][number] | undefined,
+) {
+  if (previousObservation) {
+    if (entry.unitsInStock > previousObservation.unitsInStock) {
+      return 'up';
+    }
+    if (entry.unitsInStock < previousObservation.unitsInStock) {
+      return 'down';
+    }
+  }
+
+  if (entry.restockIncluded) {
+    return 'up';
+  }
+  if (entry.retailStockout) {
+    return 'down';
+  }
+  if (currentSku) {
+    if (entry.unitsInStock > currentSku.unitsInStock) {
+      return 'up';
+    }
+    if (entry.unitsInStock < currentSku.unitsInStock) {
+      return 'down';
+    }
+  }
+
+  return null;
+}
+
+function skuPriceDirection(
+  entry: StockReport['skuObservations'][number],
+  previousObservation: StockReport['skuObservations'][number] | null,
+  currentSku: InventorySnapshot['skus'][number] | undefined,
+) {
+  if (previousObservation) {
+    if (entry.costPerUnit > previousObservation.costPerUnit) {
+      return 'up';
+    }
+    if (entry.costPerUnit < previousObservation.costPerUnit) {
+      return 'down';
+    }
+  }
+
+  if (currentSku) {
+    if (entry.costPerUnit > currentSku.costPerUnit) {
+      return 'up';
+    }
+    if (entry.costPerUnit < currentSku.costPerUnit) {
+      return 'down';
+    }
+  }
+
+  return null;
+}
+
 function formatReportCount(count: number, t: ReturnType<typeof usePreferences>['t']) {
   return summarizeCount(count, t('operationsReportSingular'), t('operationsReportPlural'));
+}
+
+function observationBadgeClass(
+  state: 'restock' | 'stockout' | 'units-up' | 'units-down' | 'price-up' | 'price-down',
+) {
+  switch (state) {
+    case 'restock':
+      return statusPillClassName('success');
+    case 'stockout':
+      return statusPillClassName('danger');
+    case 'units-up':
+      return statusPillClassName('info');
+    case 'units-down':
+      return statusPillClassName('warning');
+    case 'price-up':
+      return statusPillClassName('price-up');
+    case 'price-down':
+      return statusPillClassName('price-down');
+    default:
+      return '';
+  }
 }
 
 function titleCaseLabel(label: string) {
@@ -108,10 +299,7 @@ function countDraftChangedRows(snapshot: InventorySnapshot, draft: OperationsSes
   }).length;
 }
 
-function countDraftServiceChanges(
-  snapshot: InventorySnapshot,
-  draft: OperationsSessionDraft,
-) {
+function countDraftServiceChanges(snapshot: InventorySnapshot, draft: OperationsSessionDraft) {
   return snapshot.services.filter((service) => {
     const serviceDraft = draft.serviceDrafts[service.serviceId];
     if (!serviceDraft) {
@@ -170,6 +358,30 @@ function buildOperationsDraftSummary(
   return `${parts.join(' • ')} ${t('operationsResumeSummaryQueued')}`;
 }
 
+function OperationsSessionButtonLabel({
+  isResume,
+  t,
+}: {
+  isResume: boolean;
+  t: ReturnType<typeof usePreferences>['t'];
+}) {
+  if (isResume) {
+    return (
+      <>
+        <Play data-icon="inline-start" />
+        {t('operationsResumeSession')}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <ClipboardPen data-icon="inline-start" />
+      {t('operationsStartSession')}
+    </>
+  );
+}
+
 function OperationsSessionAction({
   hasDraft,
   statusLine,
@@ -180,14 +392,14 @@ function OperationsSessionAction({
   t: ReturnType<typeof usePreferences>['t'];
 }) {
   return (
-    <div className="flex flex-col items-start gap-2">
-      <Button asChild>
+    <div className="flex flex-col items-end gap-2 text-right">
+      <Button asChild variant={hasDraft ? 'outline' : 'default'}>
         <Link to="/operations/session">
-          {hasDraft ? t('operationsResumeSession') : t('operationsStartSession')}
+          <OperationsSessionButtonLabel isResume={hasDraft} t={t} />
         </Link>
       </Button>
       {hasDraft && statusLine ? (
-        <p className="max-w-56 text-xs leading-5 text-muted-foreground" data-testid="operations-draft-status">
+        <p className="max-w-full truncate text-xs leading-5 whitespace-nowrap text-muted-foreground" data-testid="operations-draft-status">
           {statusLine}
         </p>
       ) : null}
@@ -211,15 +423,18 @@ function OperationsLedgerSummaryCell({
 }
 
 function OperationsDetailSection({
+  icon: Icon,
   title,
   children,
 }: {
+  icon: typeof Eye;
   title: string;
   children: ReactNode;
 }) {
   return (
     <section className="space-y-3">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+      <p className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        <Icon className="size-3.5" />
         {title}
       </p>
       {children}
@@ -237,6 +452,15 @@ export function StockUpdateRoute() {
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activityFilter, setActivityFilter] = useState<RecentActivityFilter>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [pendingHistoryFocus] = useState(() => ({
+    reportId: searchParams.get('reportId'),
+    focusSku: searchParams.get('focusSku'),
+    focusService: searchParams.get('focusService'),
+  }));
+  const focusedObservationRef = useRef<HTMLDivElement | null>(null);
+  const appliedHistoryFocusRef = useRef(false);
+  const [focusedObservationKey, setFocusedObservationKey] = useState<string | null>(null);
 
   const servicesById = useMemo(
     () => new Map(snapshot?.services.map((service) => [service.serviceId, service]) ?? []),
@@ -302,8 +526,6 @@ export function StockUpdateRoute() {
     });
   }, [activityFilter, reports, searchQuery, serviceNames, skuNames]);
 
-  const latestReport = reports[0] ?? null;
-  const latestChangedRowCount = latestReport?.skuObservations.length ?? 0;
   const normalizedSearchQuery = searchQuery.trim();
   const draftChangedRowCount = snapshot && draft ? countDraftChangedRows(snapshot, draft) : 0;
   const draftChangedServiceCount = snapshot && draft ? countDraftServiceChanges(snapshot, draft) : 0;
@@ -321,7 +543,52 @@ export function StockUpdateRoute() {
       ? `${t('operationsResultsNoneMatch')} "${normalizedSearchQuery}"`
       : activityFilter === 'all'
           ? `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)}`
-          : `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)} ${t('operationsHistoryIncludes').toLowerCase()} ${activeActivityFilterLabel}`;
+          : `${t('operationsResultsShowing')} ${formatReportCount(filteredReports.length, t)} that include ${activeActivityFilterLabel}`;
+
+  useEffect(() => {
+    if (!pendingHistoryFocus.reportId && !pendingHistoryFocus.focusSku && !pendingHistoryFocus.focusService) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('reportId');
+    nextParams.delete('focusSku');
+    nextParams.delete('focusService');
+    setSearchParams(nextParams, { replace: true });
+  }, [pendingHistoryFocus, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!pendingHistoryFocus.reportId || appliedHistoryFocusRef.current) {
+      return;
+    }
+
+    const reportExists = reports.some((report) => report.reportId === pendingHistoryFocus.reportId);
+    if (!reportExists) {
+      return;
+    }
+
+    setExpandedReportId(pendingHistoryFocus.reportId);
+    setFocusedObservationKey(
+      pendingHistoryFocus.focusSku
+        ? `${pendingHistoryFocus.reportId}:sku:${pendingHistoryFocus.focusSku}`
+        : pendingHistoryFocus.focusService
+          ? `${pendingHistoryFocus.reportId}:service:${pendingHistoryFocus.focusService}`
+          : null,
+    );
+    appliedHistoryFocusRef.current = true;
+  }, [pendingHistoryFocus, reports]);
+
+  useEffect(() => {
+    if (!focusedObservationKey) {
+      return;
+    }
+    const [focusedReportId] = focusedObservationKey.split(':');
+    if (expandedReportId !== focusedReportId) {
+      return;
+    }
+
+    focusedObservationRef.current?.scrollIntoView({ block: 'center' });
+  }, [expandedReportId, focusedObservationKey]);
 
   if (!snapshot) {
     return (
@@ -336,61 +603,23 @@ export function StockUpdateRoute() {
       <WorkspacePanel
         action={<OperationsSessionAction hasDraft={hasDraft} statusLine={draftStatusLine} t={t} />}
         description={t('operationsBody')}
-        title={t('operationsTitle')}
+        title={<WorkspacePageTitle>{t('operationsTitle')}</WorkspacePageTitle>}
       >
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('operationsSummaryLatestReport')}
-            </p>
-            <p className="mt-2 text-sm text-foreground">
-              {latestReport
-                ? new Intl.DateTimeFormat(localeFor(language), {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  }).format(new Date(latestReport.reportedAt))
-                : t('operationsSummaryNone')}
-            </p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('operationsSummarySavedUpdates')}
-            </p>
-            <p className="mt-2 text-sm text-foreground">{reports.length}</p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-card/55 p-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              {t('operationsSummaryLatestChangeCount')}
-            </p>
-            <p className="mt-2 text-sm text-foreground">
-              {latestReport
-                ? summarizeCount(
-                    latestChangedRowCount,
-                    t('stockHistoryChangedRowSingular'),
-                    t('stockHistoryChangedRowPlural'),
-                  )
-                : t('operationsSummaryNone')}
-            </p>
-          </div>
-        </div>
-      </WorkspacePanel>
-
-      <WorkspacePanel
-        description={t('operationsHistoryDescription')}
-        title={t('operationsHistoryTitle')}
-      >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="flex-1">
-            <label className="sr-only" htmlFor="operations-history-search">
-              {t('operationsSearchLabel')}
-            </label>
-            <Input
+        <div className="grid gap-4">
+          <InputGroup className="h-12 rounded-full">
+            <InputGroupAddon className="pl-4 text-muted-foreground" align="inline-start">
+              <InputGroupText>
+                <Search />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label={t('operationsSearchLabel')}
               id="operations-history-search"
               placeholder={t('operationsSearchPlaceholder')}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
-          </div>
+          </InputGroup>
           <ToggleGroup
             aria-label={t('operationsFiltersLabel')}
             onValueChange={(nextValue) => {
@@ -398,6 +627,7 @@ export function StockUpdateRoute() {
                 setActivityFilter(nextValue as RecentActivityFilter);
               }
             }}
+            spacing={1}
             type="single"
             value={activityFilter}
           >
@@ -407,6 +637,12 @@ export function StockUpdateRoute() {
             <ToggleGroupItem value="price-changes">{t('operationsFilterPriceChanges')}</ToggleGroupItem>
           </ToggleGroup>
         </div>
+      </WorkspacePanel>
+
+      <WorkspacePanel
+        description={t('operationsHistoryDescription')}
+        title={t('operationsHistoryTitle')}
+      >
         <p className="text-sm text-muted-foreground" data-testid="operations-history-results-summary">
           {historyResultsSummary}
         </p>
@@ -418,7 +654,7 @@ export function StockUpdateRoute() {
             <p className="text-sm text-destructive">{historyError}</p>
             <Button asChild>
               <Link to="/operations/session">
-                {hasDraft ? t('operationsResumeSession') : t('operationsStartSession')}
+                <OperationsSessionButtonLabel isResume={hasDraft} t={t} />
               </Link>
             </Button>
           </div>
@@ -427,7 +663,7 @@ export function StockUpdateRoute() {
             action={
               <Button asChild>
                 <Link to="/operations/session">
-                  {hasDraft ? t('operationsResumeSession') : t('operationsStartSession')}
+                  <OperationsSessionButtonLabel isResume={hasDraft} t={t} />
                 </Link>
               </Button>
             }
@@ -457,7 +693,6 @@ export function StockUpdateRoute() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{titleCaseLabel(t('stockReportedAt'))}</TableHead>
-                  <TableHead>{titleCaseLabel(t('operationsHistorySourceColumn'))}</TableHead>
                   <TableHead>{titleCaseLabel(t('stockHistoryChangedRowPlural'))}</TableHead>
                   <TableHead>{titleCaseLabel(t('stockHistoryServiceFlagPlural'))}</TableHead>
                   <TableHead>{titleCaseLabel(t('stockHistoryPriceEditPlural'))}</TableHead>
@@ -473,31 +708,18 @@ export function StockUpdateRoute() {
                     (signal) => signal.stockout !== false,
                   ).length;
                   const merchandisingCount = rankingSignalCount(report);
-                  const notesSnippet = summarizeNotes(report.notes) ?? t('stockHistoryNoNotes');
-                  const firstChangedSkuName =
-                    report.skuObservations.length > 0
-                      ? (skuNames.get(report.skuObservations[0]?.skuId) ?? report.skuObservations[0]?.skuId)
-                      : null;
-                  const firstFlaggedServiceName =
-                    serviceFlagCount > 0
-                      ? (() => {
-                          const firstFlaggedService = report.serviceSignals.find(
-                            (signal) => signal.stockout !== false,
-                          );
-                          return firstFlaggedService
-                            ? (serviceNames.get(firstFlaggedService.serviceId) ?? firstFlaggedService.serviceId)
-                            : null;
-                        })()
-                      : null;
-                  const firstPriceEditedServiceName =
-                    report.servicePriceAdjustments.length > 0
-                      ? (serviceNames.get(report.servicePriceAdjustments[0]?.serviceId) ??
-                        report.servicePriceAdjustments[0]?.serviceId)
-                      : null;
+                  const notesSnippet = summarizeNotes(report.notes) ?? '-';
+                  const firstChangedSkuName = changedSkuPreviewName(report, skusById, skuNames);
+                  const firstFlaggedServiceName = serviceFlagPreviewName(report, snapshot, serviceNames);
+                  const firstPriceEditedServiceName = priceEditPreviewName(report, servicesById, serviceNames);
 
                   return (
                     <Fragment key={report.reportId}>
-                      <TableRow data-state={isExpanded ? 'selected' : undefined} key={report.reportId}>
+                      <TableRow
+                        className={isExpanded ? 'hover:bg-muted' : undefined}
+                        data-state={isExpanded ? 'selected' : undefined}
+                        key={report.reportId}
+                      >
                         <TableCell className="align-top">
                           <div className="min-w-36">
                             <p className="font-medium text-foreground">
@@ -508,41 +730,58 @@ export function StockUpdateRoute() {
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell className="align-top">
-                          <Badge className="w-fit" variant="secondary">
-                            {t(stockReportSourceKey(report.reportSource))}
-                          </Badge>
-                        </TableCell>
                         <OperationsLedgerSummaryCell
-                          preview={formatIncludesHint(firstChangedSkuName, t)}
-                          summary={summarizeCount(
-                            report.skuObservations.length,
-                            t('stockHistoryChangedRowSingular'),
-                            t('stockHistoryChangedRowPlural'),
-                          )}
+                          preview={
+                            report.skuObservations.length > 0
+                              ? formatIncludesHint(firstChangedSkuName, t)
+                              : null
+                          }
+                          summary={
+                            report.skuObservations.length > 0
+                              ? summarizeCount(
+                                  report.skuObservations.length,
+                                  t('stockHistoryChangedRowSingular'),
+                                  t('stockHistoryChangedRowPlural'),
+                                )
+                              : '-'
+                          }
                         />
                         <OperationsLedgerSummaryCell
-                          preview={formatIncludesHint(firstFlaggedServiceName, t)}
-                          summary={summarizeCount(
-                            serviceFlagCount,
-                            t('stockHistoryServiceFlagSingular'),
-                            t('stockHistoryServiceFlagPlural'),
-                          )}
+                          preview={serviceFlagCount > 0 ? formatIncludesHint(firstFlaggedServiceName, t) : null}
+                          summary={
+                            serviceFlagCount > 0
+                              ? summarizeCount(
+                                  serviceFlagCount,
+                                  t('stockHistoryServiceFlagSingular'),
+                                  t('stockHistoryServiceFlagPlural'),
+                                )
+                              : '-'
+                          }
                         />
                         <OperationsLedgerSummaryCell
-                          preview={formatIncludesHint(firstPriceEditedServiceName, t)}
-                          summary={summarizeCount(
-                            report.servicePriceAdjustments.length,
-                            t('stockHistoryPriceEditSingular'),
-                            t('stockHistoryPriceEditPlural'),
-                          )}
+                          preview={
+                            report.servicePriceAdjustments.length > 0
+                              ? formatIncludesHint(firstPriceEditedServiceName, t)
+                              : null
+                          }
+                          summary={
+                            report.servicePriceAdjustments.length > 0
+                              ? summarizeCount(
+                                  report.servicePriceAdjustments.length,
+                                  t('stockHistoryPriceEditSingular'),
+                                  t('stockHistoryPriceEditPlural'),
+                                )
+                              : '-'
+                          }
                         />
                         <TableCell className="align-top text-sm text-muted-foreground">
-                          {summarizeCount(
-                            merchandisingCount,
-                            t('stockHistoryRankingSignalSingular'),
-                            t('stockHistoryRankingSignalPlural'),
-                          )}
+                          {merchandisingCount > 0
+                            ? summarizeCount(
+                                merchandisingCount,
+                                t('stockHistoryRankingSignalSingular'),
+                                t('stockHistoryRankingSignalPlural'),
+                              )
+                            : '-'}
                         </TableCell>
                         <TableCell className="max-w-72 align-top text-sm text-muted-foreground">
                           <span className="block truncate">{notesSnippet}</span>
@@ -554,9 +793,10 @@ export function StockUpdateRoute() {
                             type="button"
                             variant="ghost"
                             onClick={() =>
-                              setExpandedReportId((current) =>
-                                current === report.reportId ? null : report.reportId,
-                              )
+                              setExpandedReportId((current) => {
+                                setFocusedObservationKey(null);
+                                return current === report.reportId ? null : report.reportId;
+                              })
                             }
                           >
                             {isExpanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
@@ -565,98 +805,73 @@ export function StockUpdateRoute() {
                       </TableRow>
 
                       {isExpanded ? (
-                        <TableRow data-testid="operations-history-detail">
-                          <TableCell className="bg-background/40 py-4" colSpan={8}>
+                        <TableRow className="hover:bg-transparent" data-testid="operations-history-detail">
+                          <TableCell className="bg-background/40 py-4" colSpan={7}>
                             <div className="space-y-5">
-                              <OperationsDetailSection title={t('stockTableTitle')}>
-                                {report.skuObservations.length > 0 ? (
-                                  <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
-                                    {report.skuObservations.map((entry) => {
-                                      const sku = skusById.get(entry.skuId);
-
-                                      return (
-                                        <div
-                                          className="space-y-2 px-4 py-3"
-                                          key={`${report.reportId}-${entry.skuId}`}
-                                        >
-                                          <div className="flex flex-wrap items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                              <p className="font-medium text-foreground">
-                                                {sku?.name ?? entry.skuId}
-                                              </p>
-                                              <p className="text-sm text-muted-foreground">{entry.skuId}</p>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              {entry.restockIncluded ? (
-                                                <Badge variant="outline">{t('stockRestockIncluded')}</Badge>
-                                              ) : null}
-                                              {entry.retailStockout ? (
-                                                <Badge variant="outline">{t('stockRetailStockout')}</Badge>
-                                              ) : null}
-                                            </div>
-                                          </div>
-                                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-                                            <span>{t('fieldUnitsInStock')}: {entry.unitsInStock}</span>
-                                            <span>
-                                              {t('fieldCostPerUnit')}: {formatCurrency(entry.costPerUnit, currency, language)}
-                                            </span>
-                                          </div>
-                                          {entry.notes ? (
-                                            <p className="text-sm leading-6 text-muted-foreground">{entry.notes}</p>
-                                          ) : null}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-muted-foreground">{t('stockHistoryNoObservations')}</p>
-                                )}
-                              </OperationsDetailSection>
-
-                              <OperationsDetailSection title={t('stockServiceSignalsTitle')}>
+                              <OperationsDetailSection icon={Flag} title={t('stockServiceSignalsTitle')}>
                                 {serviceFlagCount > 0 || report.servicePriceAdjustments.length > 0 ? (
                                   <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
                                     {report.serviceSignals
                                       .filter((signal) => signal.stockout !== false)
-                                      .map((signal) => (
+                                      .map((signal) => {
+                                        const isFocusedService =
+                                          focusedObservationKey === `${report.reportId}:service:${signal.serviceId}`;
+
+                                        return (
+                                          <div
+                                            className={cn(
+                                              'flex flex-wrap items-center justify-between gap-3 px-4 py-3',
+                                              isFocusedService && 'bg-amber-50/80 ring-1 ring-amber-300',
+                                            )}
+                                            data-testid={isFocusedService ? 'operations-history-focused-service' : undefined}
+                                            key={`${report.reportId}-${signal.serviceId}-flag`}
+                                            ref={isFocusedService ? focusedObservationRef : null}
+                                          >
+                                            <div>
+                                              <p className="font-medium text-foreground">
+                                                {servicesById.get(signal.serviceId)?.name ?? signal.serviceId}
+                                              </p>
+                                              <p className="text-sm text-muted-foreground">{t('stockServiceStockoutToggle')}</p>
+                                            </div>
+                                            <Badge variant="outline">{t('stockRetailStockout')}</Badge>
+                                          </div>
+                                        );
+                                      })}
+                                    {report.servicePriceAdjustments.map((adjustment) => {
+                                      const isFocusedService =
+                                        focusedObservationKey === `${report.reportId}:service:${adjustment.serviceId}`;
+
+                                      return (
                                         <div
-                                          className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                                          key={`${report.reportId}-${signal.serviceId}-flag`}
+                                          className={cn(
+                                            'flex flex-wrap items-center justify-between gap-3 px-4 py-3',
+                                            isFocusedService && 'bg-amber-50/80 ring-1 ring-amber-300',
+                                          )}
+                                          data-testid={isFocusedService ? 'operations-history-focused-service' : undefined}
+                                          key={`${report.reportId}-${adjustment.serviceId}-price`}
+                                          ref={isFocusedService ? focusedObservationRef : null}
                                         >
                                           <div>
                                             <p className="font-medium text-foreground">
-                                              {servicesById.get(signal.serviceId)?.name ?? signal.serviceId}
+                                              {servicesById.get(adjustment.serviceId)?.name ?? adjustment.serviceId}
                                             </p>
-                                            <p className="text-sm text-muted-foreground">{t('stockServiceStockoutToggle')}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                              {t('stockServicePriceAdjustmentsTitle')}
+                                            </p>
                                           </div>
-                                          <Badge variant="outline">{t('stockRetailStockout')}</Badge>
-                                        </div>
-                                      ))}
-                                    {report.servicePriceAdjustments.map((adjustment) => (
-                                      <div
-                                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                                        key={`${report.reportId}-${adjustment.serviceId}-price`}
-                                      >
-                                        <div>
-                                          <p className="font-medium text-foreground">
-                                            {servicesById.get(adjustment.serviceId)?.name ?? adjustment.serviceId}
-                                          </p>
                                           <p className="text-sm text-muted-foreground">
-                                            {t('stockServicePriceAdjustmentsTitle')}
+                                            {formatCurrency(adjustment.price, currency, language)}
                                           </p>
                                         </div>
-                                        <p className="text-sm text-muted-foreground">
-                                          {formatCurrency(adjustment.price, currency, language)}
-                                        </p>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">{t('stockNoServiceSignals')}</p>
                                 )}
                               </OperationsDetailSection>
 
-                              <OperationsDetailSection title={t('stockRankingTitle')}>
+                              <OperationsDetailSection icon={Radio} title={t('stockRankingTitle')}>
                                 {report.topServiceRanking.length > 0 || report.topRetailRanking.length > 0 ? (
                                   <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
                                     <div className="space-y-2 px-4 py-3">
@@ -690,6 +905,89 @@ export function StockUpdateRoute() {
                                   </div>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">{t('stockHistoryNoRanking')}</p>
+                                )}
+                              </OperationsDetailSection>
+
+                              <OperationsDetailSection icon={Eye} title={t('stockTableTitle')}>
+                                {report.skuObservations.length > 0 ? (
+                                  <div className="divide-y divide-border/60 rounded-2xl border border-border/60 bg-background/55">
+                                    {report.skuObservations.map((entry) => {
+                                      const sku = skusById.get(entry.skuId);
+                                      const priorObservation = previousSkuObservation(reports, report.reportId, entry.skuId);
+                                      const isFocusedObservation =
+                                        focusedObservationKey === `${report.reportId}:sku:${entry.skuId}`;
+                                      const unitsDirection = skuUnitsDirection(entry, priorObservation, sku);
+                                      const priceDirection = skuPriceDirection(entry, priorObservation, sku);
+
+                                      return (
+                                        <div
+                                          className={cn(
+                                            'space-y-2 px-4 py-3',
+                                            isFocusedObservation && 'bg-amber-50/80 ring-1 ring-amber-300',
+                                          )}
+                                          data-testid={isFocusedObservation ? 'operations-history-focused-observation' : undefined}
+                                          key={`${report.reportId}-${entry.skuId}`}
+                                          ref={isFocusedObservation ? focusedObservationRef : null}
+                                        >
+                                          <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                              <p className="font-medium text-foreground">
+                                                {sku?.name ?? entry.skuId}
+                                              </p>
+                                              <p className="text-sm text-muted-foreground">{entry.skuId}</p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              {entry.restockIncluded ? (
+                                                <Badge className={observationBadgeClass('restock')} variant="outline">
+                                                  {t('stockRestockIncluded')}
+                                                </Badge>
+                                              ) : null}
+                                              {entry.retailStockout ? (
+                                                <Badge className={observationBadgeClass('stockout')} variant="outline">
+                                                  {t('stockRetailStockout')}
+                                                </Badge>
+                                              ) : null}
+                                              {unitsDirection === 'up' ? (
+                                                <Badge className={observationBadgeClass('units-up')} variant="outline">
+                                                  Units
+                                                  <Triangle className="!size-2 fill-current" />
+                                                </Badge>
+                                              ) : null}
+                                              {unitsDirection === 'down' ? (
+                                                <Badge className={observationBadgeClass('units-down')} variant="outline">
+                                                  Units
+                                                  <Triangle className="!size-2 fill-current rotate-180" />
+                                                </Badge>
+                                              ) : null}
+                                              {priceDirection === 'up' ? (
+                                                <Badge className={observationBadgeClass('price-up')} variant="outline">
+                                                  Prices
+                                                  <Triangle className="!size-2 fill-current" />
+                                                </Badge>
+                                              ) : null}
+                                              {priceDirection === 'down' ? (
+                                                <Badge className={observationBadgeClass('price-down')} variant="outline">
+                                                  Prices
+                                                  <Triangle className="!size-2 fill-current rotate-180" />
+                                                </Badge>
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                                            <span>{t('fieldUnitsInStock')}: {entry.unitsInStock}</span>
+                                            <span>
+                                              {t('fieldCostPerUnit')}: {formatCurrency(entry.costPerUnit, currency, language)}
+                                            </span>
+                                          </div>
+                                          {entry.notes ? (
+                                            <p className="text-sm leading-6 text-muted-foreground">{entry.notes}</p>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">{t('stockHistoryNoObservations')}</p>
                                 )}
                               </OperationsDetailSection>
                             </div>

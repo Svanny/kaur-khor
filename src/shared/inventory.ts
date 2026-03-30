@@ -42,6 +42,7 @@ export interface StockReportSkuObservation {
   skuId: string;
   unitsInStock: number;
   costPerUnit: number;
+  productPrice?: number | null;
   restockIncluded?: boolean;
   retailStockout?: boolean;
   notes?: string | null;
@@ -50,11 +51,13 @@ export interface StockReportSkuObservation {
 export interface StockReportServiceSignal {
   serviceId: string;
   stockout?: boolean;
+  notes?: string | null;
 }
 
 export interface StockReportServicePriceAdjustment {
   serviceId: string;
   price: number;
+  notes?: string | null;
 }
 
 export interface StockReport {
