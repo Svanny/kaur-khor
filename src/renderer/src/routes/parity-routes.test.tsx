@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, RankingEntry, StockReport } from '@shared/inventory';
@@ -145,6 +146,8 @@ const preferencesHook = vi.fn();
 const saveSistSettings = vi.fn();
 const listStockReports = vi.fn();
 const submitReport = vi.fn();
+const updateReport = vi.fn();
+const deleteReport = vi.fn();
 const saveSku = vi.fn();
 const saveService = vi.fn();
 const loadSistServiceDetail = vi.fn();
@@ -239,6 +242,7 @@ const stockReports: StockReport[] = [
         skuId: 'sku-1',
         unitsInStock: 10,
         costPerUnit: 5.5,
+        productPrice: 10,
         restockIncluded: true,
         retailStockout: false,
         notes: 'Front shelf was restocked.',
@@ -382,6 +386,8 @@ function setInventoryState(nextSnapshot: InventorySnapshot | null) {
     saveService,
     saveStock: vi.fn(),
     submitReport,
+    updateReport,
+    deleteReport,
     persistRanking,
     saveSistSettings,
     loadSistSystemDetail,
@@ -436,6 +442,7 @@ function renderRoute(path: string, element: React.ReactNode) {
 
 describe('renderer workspaces', () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     rankingEntries = [
       { entryType: 'service', entryId: 'service-1', position: 0 },
       { entryType: 'service', entryId: 'service-2', position: 1 },
@@ -444,6 +451,8 @@ describe('renderer workspaces', () => {
     saveSistSettings.mockReset();
     listStockReports.mockReset();
     submitReport.mockReset();
+    updateReport.mockReset();
+    deleteReport.mockReset();
     saveSku.mockReset();
     saveService.mockReset();
     loadSistServiceDetail.mockReset();
@@ -472,6 +481,23 @@ describe('renderer workspaces', () => {
         { at: '2026-03-28T09:00:00Z', mean: 9, low: 6, high: 12 },
         { at: '2026-03-29T09:00:00Z', mean: 7, low: 4, high: 10 },
       ],
+      intervalDemand: [
+        { intervalIndex: 0, startAt: '2026-02-01T09:00:00Z', endAt: '2026-02-08T09:00:00Z', durationDays: 7, serviceDemandMean: 1.1, retailDemandMean: 1.2, totalDemandMean: 2.3, restockMean: 0, correctionMean: 0, observedUnits: 12, posteriorUnitsMean: 12.2 },
+        { intervalIndex: 1, startAt: '2026-02-08T09:00:00Z', endAt: '2026-02-15T09:00:00Z', durationDays: 7, serviceDemandMean: 1.0, retailDemandMean: 1.3, totalDemandMean: 2.4, restockMean: 0, correctionMean: 0, observedUnits: 11, posteriorUnitsMean: 11.8 },
+        { intervalIndex: 2, startAt: '2026-02-15T09:00:00Z', endAt: '2026-02-22T09:00:00Z', durationDays: 7, serviceDemandMean: 1.2, retailDemandMean: 1.5, totalDemandMean: 2.7, restockMean: 0, correctionMean: 0, observedUnits: 10, posteriorUnitsMean: 10.9 },
+        { intervalIndex: 3, startAt: '2026-02-22T09:00:00Z', endAt: '2026-03-01T09:00:00Z', durationDays: 7, serviceDemandMean: 1.3, retailDemandMean: 1.4, totalDemandMean: 2.8, restockMean: 0, correctionMean: 0, observedUnits: 10, posteriorUnitsMean: 10.5 },
+        { intervalIndex: 4, startAt: '2026-03-01T09:00:00Z', endAt: '2026-03-08T09:00:00Z', durationDays: 7, serviceDemandMean: 1.4, retailDemandMean: 1.1, totalDemandMean: 2.5, restockMean: 0, correctionMean: 0, observedUnits: 9, posteriorUnitsMean: 9.7 },
+        { intervalIndex: 5, startAt: '2026-03-08T09:00:00Z', endAt: '2026-03-15T09:00:00Z', durationDays: 7, serviceDemandMean: 1.5, retailDemandMean: 1.4, totalDemandMean: 2.9, restockMean: 0, correctionMean: 0, observedUnits: 8, posteriorUnitsMean: 8.9 },
+      ],
+      reorderPolicy: {
+        targetServiceLevel: 0.95,
+        leadTimeDaysMean: 5,
+        leadTimeDaysStd: 1.5,
+        expectedLeadTimeDemand: 13,
+        reorderPoint: 15,
+        safetyStock: 5,
+        reorderTriggerProbability: 0.72,
+      },
       evidenceSummary: sampleSistServiceDetail.evidenceTimeline,
     });
     loadSistSystemDetail.mockResolvedValue(sampleSistSystemDetail);
@@ -535,6 +561,7 @@ describe('renderer workspaces', () => {
           catalogSkuRecentReportsNoSkuChanges: 'No SKU-specific changes recorded',
           catalogSkuEditorTitleNew: 'New SKU',
           catalogSkuEditorTitleEdit: 'Edit SKU',
+          catalogSkuEditorDetailsTitleEdit: 'Edit SKU details',
           catalogSkuEditorDescriptionNew:
             'Create a new SKU record, then land on its detail page for follow-up planning and stock work.',
           catalogSkuEditorDescriptionEdit:
@@ -883,6 +910,19 @@ describe('renderer workspaces', () => {
           catalogSkuDetailReports: 'Supporting reports',
           catalogSkuDetailPosteriorUnits: 'Posterior units',
           catalogSkuDetailDemandPerDay: 'Expected demand/day',
+          catalogSkuParametersLeadTimeAverage: 'Average lead time',
+          catalogSkuParametersDemandAnalysis: 'Demand analysis',
+          catalogSkuParametersDemandInterval: 'Demand interval',
+          catalogSkuParametersConfidenceInterval: '95% confidence interval',
+          catalogSkuParametersCurrentThreshold: 'Current reorder threshold',
+          catalogSkuParametersObservedIntervals: 'Observed intervals',
+          catalogSkuParametersFittedRange: 'Fitted range',
+          catalogSkuParametersExpectedDemand: 'Expected demand/day',
+          catalogSkuParametersNoInventoryRemaining: 'No inventory remaining',
+          catalogSkuParametersCriticalCoverRemaining: 'Critical cover remaining',
+          catalogSkuParametersCoverageThin: 'Coverage is thin',
+          catalogSkuParametersCoverageStable: 'Coverage is stable',
+          catalogReorderPoint: 'Reorder point',
           catalogServiceLinkedSkusTitle: 'Dependency contributors',
           catalogServiceLinkedSkusDescription:
             'These SKUs determine how many units of this service can be sold.',
@@ -1022,6 +1062,9 @@ describe('renderer workspaces', () => {
           operationsHistoryEmptyDescription: 'Start the first update session.',
           operationsHistoryNoResultsTitle: 'No matching updates',
           operationsHistoryNoResultsDescription: 'Try clearing the current search or source filter.',
+          operationsHistoryEditAction: 'Edit report',
+          operationsHistoryDeleteAction: 'Delete report',
+          operationsHistoryDeletePrompt: 'Type this exactly to permanently delete the report:',
           operationsSearchLabel: 'Search history',
           operationsSearchPlaceholder: 'Search notes, SKU ids, service names, or item ids…',
           operationsSearchClear: 'Clear filters',
@@ -1196,7 +1239,7 @@ describe('renderer workspaces', () => {
           apiUnavailable: 'API unavailable',
           fieldUnitsInStock: 'Units in stock',
           fieldCostPerUnit: 'Cost per unit',
-          fieldProductPrice: 'Product price',
+          fieldProductPrice: 'Selling price',
           fieldPrice: 'Service price',
           serviceLabel: 'Service',
           skuLabel: 'SKU',
@@ -1489,7 +1532,7 @@ describe('renderer workspaces', () => {
     expect(screen.queryByText('SKU copy')).not.toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
     expect(screen.getByText('Cost per unit')).toBeInTheDocument();
-    expect(screen.getByText('Product price')).toBeInTheDocument();
+    expect(screen.getByText('Selling price')).toBeInTheDocument();
     expect(screen.getByText('Inventory value')).toBeInTheDocument();
     expect(screen.getByText('Potential revenue')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'SKU value metric' })).toBeInTheDocument();
@@ -1774,6 +1817,66 @@ describe('renderer workspaces', () => {
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'History' })).toBeInTheDocument();
     expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
+  });
+
+  test('sku detail parameters tab renders the composed analysis board', async () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+        <Routes>
+          <Route element={<SkuDetailRoute />} path="/catalog/skus/:skuId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const parametersTab = screen.getByRole('tab', { name: 'Statistics' });
+    fireEvent.mouseDown(parametersTab, { button: 0, ctrlKey: false });
+    fireEvent.click(parametersTab);
+    await waitFor(() => {
+      expect(parametersTab).toHaveAttribute('data-state', 'active');
+    });
+
+    expect(await screen.findByText('Demand analysis')).toBeInTheDocument();
+    expect(screen.getByText('Average lead time')).toBeInTheDocument();
+    expect(screen.getByText('Current reorder threshold')).toBeInTheDocument();
+    expect(screen.getByText('Supporting stats')).toBeInTheDocument();
+    expect(screen.getAllByText('Posterior units').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Reorder point').length).toBeGreaterThan(0);
+    expect(screen.getByText('Observed intervals')).toBeInTheDocument();
+    expect(screen.getAllByText('95% confidence interval').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Demand interval: 1.8–3.3/day').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Demand analysis chart')).toBeInTheDocument();
+  });
+
+  test('sku detail parameters tab falls back to fitted demand distribution when interval detail is sparse', async () => {
+    loadSistSkuDetail.mockResolvedValueOnce({
+      insight: snapshot.sist.skuInsights[0],
+      reports: stockReports,
+      intervalDemand: [
+        { intervalIndex: 0, startAt: '2026-03-01T09:00:00Z', endAt: '2026-03-08T09:00:00Z', durationDays: 7, serviceDemandMean: 1, retailDemandMean: 1, totalDemandMean: 2, restockMean: 0, correctionMean: 0, observedUnits: 12, posteriorUnitsMean: 12 },
+        { intervalIndex: 1, startAt: '2026-03-08T09:00:00Z', endAt: '2026-03-15T09:00:00Z', durationDays: 7, serviceDemandMean: 1.2, retailDemandMean: 1.1, totalDemandMean: 2.3, restockMean: 0, correctionMean: 0, observedUnits: 11, posteriorUnitsMean: 11.5 },
+      ],
+      reorderPolicy: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+        <Routes>
+          <Route element={<SkuDetailRoute />} path="/catalog/skus/:skuId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const parametersTab = screen.getByRole('tab', { name: 'Parameters' });
+    fireEvent.mouseDown(parametersTab, { button: 0, ctrlKey: false });
+    fireEvent.click(parametersTab);
+    await waitFor(() => {
+      expect(parametersTab).toHaveAttribute('data-state', 'active');
+    });
+
+    expect(await screen.findByText('Demand analysis')).toBeInTheDocument();
+    expect(screen.getByLabelText('Demand analysis chart')).toBeInTheDocument();
+    expect(screen.getByText('Fitted range')).toBeInTheDocument();
+    expect(screen.getAllByText('Demand interval: 1.8–3.3/day').length).toBeGreaterThan(0);
   });
 
   test('unknown SKU id shows a not-found state with a catalog CTA', () => {
@@ -2133,14 +2236,39 @@ describe('renderer workspaces', () => {
 
     expect(screen.getByDisplayValue('Bangkok Market Tee')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Bestselling imported cotton tee')).toBeInTheDocument();
-    expect(screen.getByText('SKU details')).toBeInTheDocument();
-    expect(screen.getByText('Stock and selling')).toBeInTheDocument();
+    expect(screen.getByText('Edit SKU details')).toBeInTheDocument();
+    expect(screen.getByText('Description')).toBeInTheDocument();
+    expect(screen.queryByText('Stock and selling')).not.toBeInTheDocument();
     expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
-    expect(screen.getByText('Identifier')).toBeInTheDocument();
-    expect(screen.getByText('sku-1')).toBeInTheDocument();
+    expect(screen.getByLabelText('Identifier')).toHaveValue('sku-1');
     expect(screen.getByText('Planning inputs')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show inputs' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Lead time mean (days)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Units in stock')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Cost per unit')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sell as product')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Product price')).not.toBeInTheDocument();
+    expect((document.getElementById('sku-lead-time-mean') as HTMLInputElement | null)?.value).toBe(
+      '5',
+    );
+    expect((document.getElementById('sku-lead-time-std') as HTMLInputElement | null)?.value).toBe(
+      '1.5',
+    );
+  });
+
+  test('sku edit route falls back to SIST lead-time values when manual fields are empty', async () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog/skus/sku-2/edit']}>
+        <Routes>
+          <Route element={<SkuFormRoute />} path="/catalog/skus/:skuId/edit" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect((document.getElementById('sku-lead-time-mean') as HTMLInputElement | null)?.value).toBe(
+      '7',
+    );
+    expect((document.getElementById('sku-lead-time-std') as HTMLInputElement | null)?.value).toBe(
+      '3',
+    );
   });
 
   test('saving a new SKU lands on the new detail page and cancel returns to catalog', async () => {
@@ -2289,6 +2417,13 @@ describe('renderer workspaces', () => {
 
     await waitFor(() => {
       expect(saveService).toHaveBeenCalledTimes(1);
+      expect(saveService).toHaveBeenCalledWith({
+        serviceId: 'service-1',
+        name: 'Market Day Outfit Set updated',
+        description: 'Front-rack outfit bundle',
+        price: 1200,
+        skuIds: ['sku-1'],
+      });
       expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog/services/service-1');
     });
     editView.unmount();
@@ -2318,7 +2453,7 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Cancel')).toBeDisabled();
+    expect(screen.getByText('Cancel')).toBeEnabled();
     expect(screen.getByText('Create entry')).toBeDisabled();
     expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog/services/new');
   });
@@ -2334,12 +2469,13 @@ describe('renderer workspaces', () => {
 
     expect(screen.getByDisplayValue('Market Day Outfit Set')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Front-rack outfit bundle')).toBeInTheDocument();
-    expect(screen.getByText('Service details')).toBeInTheDocument();
+    expect(screen.getByText('Edit Service details')).toBeInTheDocument();
     expect(screen.queryByText('Commercial setup')).not.toBeInTheDocument();
     expect(screen.getByText('Identifier: service-1')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Service price')).not.toBeInTheDocument();
     expect(screen.queryByText('The identifier is fixed for this service.')).not.toBeInTheDocument();
     expect(screen.queryByText('No changes yet')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
     expect(screen.getByText('1 linked SKUs selected')).toBeInTheDocument();
     expect(screen.getByText('Current sellable coverage')).toBeInTheDocument();
@@ -2414,17 +2550,10 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText('Service price'), { target: { value: '' } });
+    expect(screen.queryByLabelText('Service price')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Changed service' } });
     expect(screen.getByText('Cancel')).toBeEnabled();
     expect(screen.getByText('Save changes')).toBeEnabled();
-    fireEvent.click(screen.getByText('Save changes'));
-    expect(
-      screen.getByText((content) =>
-        content === 'Enter a non-negative number.' || content === 'validationNonNegative',
-      ),
-    ).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Changed service' } });
     fireEvent.click(screen.getByText('Cancel'));
     expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog/services/service-1/edit');
 
@@ -2445,7 +2574,7 @@ describe('renderer workspaces', () => {
     expect(screen.getByText('Includes Bangkok Market Tee')).toBeInTheDocument();
     expect(screen.getByText('1 service flag')).toBeInTheDocument();
     expect(screen.getByText('Includes Market Day Outfit Set')).toBeInTheDocument();
-    expect(screen.getByText('1 price edit')).toBeInTheDocument();
+    expect(screen.getByText('2 price edits')).toBeInTheDocument();
     expect(screen.getByText('Includes After-Hours Satin Edit')).toBeInTheDocument();
     expect(screen.getByText('3 ranking signals')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: 'Start update session' })[0]).toBeInTheDocument();
@@ -2473,6 +2602,7 @@ describe('renderer workspaces', () => {
     expect(await screen.findByText('Ranking of Items Sold')).toBeInTheDocument();
     expect(screen.getByText('Service price changes')).toBeInTheDocument();
     expect(screen.getByText('Front shelf was restocked.')).toBeInTheDocument();
+    expect(screen.getByText('Selling price: $10.00')).toBeInTheDocument();
     expect(screen.getAllByText('Market Day Outfit Set').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('operations-history-detail')).toHaveLength(1);
@@ -2594,6 +2724,65 @@ describe('renderer workspaces', () => {
 
     expect(await screen.findByText('Review and submit one operations update')).toBeInTheDocument();
     expect(screen.getByTestId('location-pathname').textContent).toBe('/operations/session');
+  });
+
+  test('edit report opens the session route with the report state injected', async () => {
+    render(
+      <OperationsSessionProvider>
+        <MemoryRouter initialEntries={['/operations']}>
+          <Routes>
+            <Route
+              element={
+                <>
+                  <StockUpdateRoute />
+                  <LocationProbe />
+                </>
+              }
+              path="/operations"
+            />
+            <Route
+              element={
+                <>
+                  <StockUpdateSessionRoute />
+                  <LocationProbe />
+                </>
+              }
+              path="/operations/session"
+            />
+          </Routes>
+        </MemoryRouter>
+      </OperationsSessionProvider>,
+    );
+
+    fireEvent.click((await screen.findByRole('link', { name: 'Edit report' })));
+
+    expect(await screen.findByText('Review and submit one operations update')).toBeInTheDocument();
+    expect(screen.getByTestId('location-pathname').textContent).toBe('/operations/session');
+    expect(screen.getByTestId('location-search').textContent).toContain('editReportId=report-0009');
+
+    fireEvent.click(screen.getByRole('button', { name: /Step 4.*Details/i }));
+    expect(screen.getByLabelText('Report notes')).toHaveValue('Morning floor update.');
+  });
+
+  test('delete report requires the typed confirmation token', async () => {
+    renderRoute('/operations', <StockUpdateRoute />);
+
+    fireEvent.click((await screen.findByRole('button', { name: 'Delete report' })));
+    expect(
+      screen.getByText((_, element) => element?.textContent === 'Type DELETE report-0009 exactly to permanently delete this report.'),
+    ).toBeInTheDocument();
+    const confirmationInput = screen.getByLabelText('Deletion confirmation token');
+    fireEvent.change(confirmationInput, {
+      target: { value: 'DELETE report-0009' },
+    });
+    await waitFor(() => {
+      expect(confirmationInput).toHaveValue('DELETE report-0009');
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete report' })[1]);
+
+    await waitFor(() => {
+      expect(deleteReport).toHaveBeenCalledWith({ reportId: 'report-0009' });
+    });
   });
 
   test('operations draft survives leaving the session and resume restores the last session step', async () => {
@@ -2995,6 +3184,25 @@ describe('renderer workspaces', () => {
       'href',
       '/operations/session',
     );
+  });
+
+  test('editing an existing report submits through updateReport instead of creating a new report', async () => {
+    renderRoute('/operations/session?editReportId=report-0009&step=review', <StockUpdateSessionRoute />);
+
+    expect(await screen.findByText('Review and submit one operations update')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Step 4.*Details/i }));
+    expect(screen.getByLabelText('Report notes')).toHaveValue('Morning floor update.');
+    fireEvent.click(screen.getByRole('button', { name: /Step 5.*Review & submit/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit update' }));
+
+    await waitFor(() => {
+      expect(updateReport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reportId: 'report-0009',
+        }),
+      );
+    });
+    expect(submitReport).not.toHaveBeenCalled();
   });
 
   test('operations review uses baseline sales-signal scope when saved ranking is empty', async () => {

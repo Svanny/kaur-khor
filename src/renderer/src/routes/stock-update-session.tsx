@@ -35,12 +35,23 @@ import {
 } from '@/components/system/merchandising-editor';
 import { DescriptionText } from '@/components/system/description-text';
 import { HoverTooltip } from '@/components/system/hover-tooltip';
-import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
-import { currencyFractionDigits, formatCurrency, formatDecimal } from '@/lib/format';
+import { RouteBackButton } from '@/components/system/page-navigation';
+import { WorkspacePage, WorkspacePageTitle, WorkspacePanel } from '@/components/system/workspace';
+import {
+  currencyFractionDigits,
+  formatCurrency,
+  formatDecimal,
+  formatEditableWholeNumber,
+  sanitizeEditableWholeNumber,
+  sanitizeWholeNumberForDisplay,
+} from '@/lib/format';
 import { summarizeCount } from '@/lib/stock-report-summary';
+import { rendererTraceEnabled, traceRenderer } from '@/lib/trace';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
+import { useNavigationHistory } from '@/state/navigation-history';
 import {
+  createOperationsSessionDraftFromReport,
   createOperationsSessionDraft,
   hasMeaningfulOperationsSessionChanges,
   useOperationsSession,
@@ -59,6 +70,10 @@ const presetSteps: Record<Preset, { units: number; cost: number }> = {
 };
 
 const stepOrder: SessionStepId[] = ['observations', 'services', 'sales-signal', 'details', 'review'];
+
+function tracePriceEditDiagnostics(message: string, details?: Record<string, unknown>) {
+  traceRenderer('price-edits', message, details);
+}
 
 function getLatestReport(reports: StockReport[]) {
   return [...reports].sort(
@@ -229,11 +244,13 @@ function currencySymbol(
 export function StockUpdateSessionRoute() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { snapshot, submitReport, isSaving, listStockReports } = useInventory();
-  const { draft, ensureDraft, updateDraft, clearDraft, hasDraft } = useOperationsSession();
+  const { snapshot, submitReport, updateReport, isSaving, listStockReports } = useInventory();
+  const { canGoBack, goBack } = useNavigationHistory();
+  const { draft, ensureDraft, replaceDraft, updateDraft, clearDraft, hasDraft } = useOperationsSession();
   const { currency, language, t } = usePreferences();
   const [error, setError] = useState<string | null>(null);
   const [reports, setReports] = useState<StockReport[]>([]);
+  const [reportsLoaded, setReportsLoaded] = useState(false);
   const [timestampTouched, setTimestampTouched] = useState(false);
   const [observationsQuery, setObservationsQuery] = useState('');
   const [serviceQuery, setServiceQuery] = useState('');
@@ -249,6 +266,7 @@ export function StockUpdateSessionRoute() {
   const focusedServiceRowRef = useRef<HTMLTableRowElement | null>(null);
   const focusedSkuScrollKeyRef = useRef<string | null>(null);
   const focusedServiceScrollKeyRef = useRef<string | null>(null);
+  const seededEditReportIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!snapshot) {
@@ -263,15 +281,18 @@ export function StockUpdateSessionRoute() {
     }
 
     let cancelled = false;
+    setReportsLoaded(false);
     void listStockReports()
       .then((nextReports) => {
         if (!cancelled) {
           setReports(nextReports);
+          setReportsLoaded(true);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setReports([]);
+          setReportsLoaded(true);
         }
       });
 
@@ -281,7 +302,20 @@ export function StockUpdateSessionRoute() {
   }, [listStockReports, snapshot]);
 
   const sessionDraft = snapshot ? (draft ?? createOperationsSessionDraft(snapshot)) : null;
+  const editReportId = searchParams.get('editReportId');
+  const editingReport = useMemo(
+    () => (editReportId ? reports.find((report) => report.reportId === editReportId) ?? null : null),
+    [editReportId, reports],
+  );
+  const editingBaselineDraft = useMemo(
+    () =>
+      snapshot && editingReport
+        ? createOperationsSessionDraftFromReport(snapshot, editingReport)
+        : null,
+    [editingReport, snapshot],
+  );
   const rows = sessionDraft?.rows ?? {};
+  const includedSkuIds = sessionDraft?.includedSkuIds ?? [];
   const serviceDrafts = sessionDraft?.serviceDrafts ?? {};
   const rankingDraft = sessionDraft?.rankingDraft ?? [];
   const preset = sessionDraft?.preset ?? 'small';
@@ -297,12 +331,29 @@ export function StockUpdateSessionRoute() {
     searchParams.get('step') ?? (hasDraft ? sessionDraft?.lastStep ?? null : null),
   );
 
+  useEffect(() => {
+    if (!editingBaselineDraft || !editReportId) {
+      seededEditReportIdRef.current = null;
+      return;
+    }
+    if (sessionDraft?.editReportId === editReportId) {
+      seededEditReportIdRef.current = editReportId;
+      return;
+    }
+    if (seededEditReportIdRef.current === editReportId) {
+      return;
+    }
+
+    replaceDraft(editingBaselineDraft);
+    seededEditReportIdRef.current = editReportId;
+  }, [editReportId, editingBaselineDraft, replaceDraft, sessionDraft?.editReportId]);
+
   const changedEntries = useMemo(
     () =>
       snapshot?.skus
         .map((sku) => ({
           sku,
-          unitsInStock: Number(rows[sku.skuId]?.unitsInStock ?? sku.unitsInStock),
+          unitsInStock: sanitizeWholeNumberForDisplay(Number(rows[sku.skuId]?.unitsInStock ?? sku.unitsInStock)),
           costPerUnit: Number(rows[sku.skuId]?.costPerUnit ?? sku.costPerUnit),
           productPrice:
             rows[sku.skuId]?.productPrice?.trim() === ''
@@ -313,15 +364,30 @@ export function StockUpdateSessionRoute() {
           notes: rows[sku.skuId]?.notes?.trim() ?? '',
         }))
         .filter(
-          (entry) =>
-            entry.unitsInStock !== entry.sku.unitsInStock ||
-            entry.costPerUnit !== entry.sku.costPerUnit ||
-            entry.productPrice !== entry.sku.productPrice ||
-            entry.restockIncluded ||
-            entry.retailStockout ||
-            entry.notes.length > 0,
+          (entry) => {
+            if (includedSkuIds.includes(entry.sku.skuId)) {
+              return true;
+            }
+            const baselineRow = editingBaselineDraft?.rows[entry.sku.skuId];
+            return (
+              entry.unitsInStock !==
+                sanitizeWholeNumberForDisplay(
+                  Number(baselineRow?.unitsInStock ?? formatEditableWholeNumber(entry.sku.unitsInStock)),
+                ) ||
+              entry.costPerUnit !== Number(baselineRow?.costPerUnit ?? entry.sku.costPerUnit) ||
+              entry.productPrice !==
+                (baselineRow
+                  ? baselineRow.productPrice.trim() === ''
+                    ? null
+                    : Number(baselineRow.productPrice)
+                  : entry.sku.productPrice) ||
+              entry.restockIncluded !== (baselineRow?.restockIncluded ?? false) ||
+              entry.retailStockout !== (baselineRow?.retailStockout ?? false) ||
+              entry.notes !== (baselineRow?.notes.trim() ?? '')
+            );
+          },
         ) ?? [],
-    [rows, snapshot],
+    [editingBaselineDraft, includedSkuIds, rows, snapshot],
   );
 
   const serviceChanges = useMemo(
@@ -331,16 +397,24 @@ export function StockUpdateSessionRoute() {
           const draft = serviceDrafts[service.serviceId];
           const nextPrice = Number(draft?.price ?? service.price);
           const notes = draft?.notes?.trim() ?? '';
+          const baselineDraft = editingBaselineDraft?.serviceDrafts[service.serviceId];
           return {
             service,
             stockout: draft?.stockout ?? false,
             price: nextPrice,
-            priceChanged: nextPrice !== service.price,
+            priceChanged: nextPrice !== Number(baselineDraft?.price ?? service.price),
             notes,
+            baselineNotes: baselineDraft?.notes.trim() ?? '',
+            baselineStockout: baselineDraft?.stockout ?? false,
           };
         })
-        .filter((entry) => entry.stockout || entry.priceChanged || entry.notes.length > 0) ?? [],
-    [serviceDrafts, snapshot],
+        .filter(
+          (entry) =>
+            entry.stockout !== entry.baselineStockout ||
+            entry.priceChanged ||
+            entry.notes !== entry.baselineNotes,
+        ) ?? [],
+    [editingBaselineDraft, serviceDrafts, snapshot],
   );
 
   const stockoutServiceCount = useMemo(
@@ -414,8 +488,9 @@ export function StockUpdateSessionRoute() {
     [snapshot],
   );
   const salesSignalBaseline = useMemo(
-    () => (snapshot ? getSalesSignalBaseline(snapshot, reports) : []),
-    [reports, snapshot],
+    () =>
+      editingBaselineDraft?.rankingDraft ?? (snapshot ? getSalesSignalBaseline(snapshot, reports) : []),
+    [editingBaselineDraft, reports, snapshot],
   );
   const salesSignalChanged = useMemo(
     () => Boolean(snapshot && hasRankingChanged(salesSignalBaseline, rankingDraft)),
@@ -440,6 +515,53 @@ export function StockUpdateSessionRoute() {
       )
       .filter((name): name is string => Boolean(name));
   }, [rankingDraft, salesSignalBaseline, salesSignalChanged, snapshot]);
+  const salesSignalMovedByEntryKey = useMemo(() => {
+    if (!salesSignalChanged) {
+      return {};
+    }
+
+    const baselinePositionByKey = new Map(
+      salesSignalBaseline.map((entry, index) => [`${entry.entryType}:${entry.entryId}`, index]),
+    );
+
+    return Object.fromEntries(
+      rankingDraft.map((entry, index) => [
+        `${entry.entryType}:${entry.entryId}`,
+        baselinePositionByKey.get(`${entry.entryType}:${entry.entryId}`) !== index,
+      ]),
+    );
+  }, [rankingDraft, salesSignalBaseline, salesSignalChanged]);
+  const salesSignalBaselinePriceByEntryKey = useMemo(() => {
+    if (!snapshot) {
+      return {};
+    }
+
+    const skuObservationById = new Map(
+      editingReport?.skuObservations.map((entry) => [entry.skuId, entry]) ?? [],
+    );
+    const serviceAdjustmentById = new Map(
+      editingReport?.servicePriceAdjustments.map((entry) => [entry.serviceId, entry]) ?? [],
+    );
+
+    return Object.fromEntries([
+      ...snapshot.services.map((service) => {
+        const savedAdjustment = serviceAdjustmentById.get(service.serviceId);
+        return [
+          `service:${service.serviceId}`,
+          savedAdjustment?.previousPrice ?? service.price,
+        ];
+      }),
+      ...snapshot.skus
+        .filter((sku) => sku.soldAsProduct && sku.productPrice !== null)
+        .map((sku) => {
+          const savedObservation = skuObservationById.get(sku.skuId);
+          return [
+            `sku:${sku.skuId}`,
+            savedObservation?.previousProductPrice ?? sku.productPrice ?? 0,
+          ];
+        }),
+    ]);
+  }, [editingReport, snapshot]);
   const salesSignalPriceByEntryKey = useMemo(() => {
     if (!snapshot) {
       return {};
@@ -467,9 +589,10 @@ export function StockUpdateSessionRoute() {
       ...snapshot.services.map((service) => {
         const nextPrice = Number(serviceDrafts[service.serviceId]?.price);
         const currentPrice = Number.isFinite(nextPrice) ? nextPrice : service.price;
+        const baselinePrice = salesSignalBaselinePriceByEntryKey[`service:${service.serviceId}`] ?? service.price;
         return [
           `service:${service.serviceId}`,
-          currentPrice > service.price ? 'up' : currentPrice < service.price ? 'down' : null,
+          currentPrice > baselinePrice ? 'up' : currentPrice < baselinePrice ? 'down' : null,
         ];
       }),
       ...snapshot.skus
@@ -477,27 +600,53 @@ export function StockUpdateSessionRoute() {
         .map((sku) => {
           const nextPrice = Number(rows[sku.skuId]?.productPrice);
           const currentPrice = Number.isFinite(nextPrice) ? nextPrice : sku.productPrice ?? 0;
+          const baselinePrice = salesSignalBaselinePriceByEntryKey[`sku:${sku.skuId}`] ?? sku.productPrice ?? 0;
           return [
             `sku:${sku.skuId}`,
-            currentPrice > (sku.productPrice ?? 0)
+            currentPrice > baselinePrice
               ? 'up'
-              : currentPrice < (sku.productPrice ?? 0)
+              : currentPrice < baselinePrice
                 ? 'down'
                 : null,
           ];
         }),
     ]);
-  }, [rows, serviceDrafts, snapshot]);
+  }, [rows, salesSignalBaselinePriceByEntryKey, serviceDrafts, snapshot]);
   const hasMeaningfulDraftChanges = Boolean(
     snapshot &&
       sessionDraft &&
-      hasMeaningfulOperationsSessionChanges(snapshot, sessionDraft, salesSignalBaseline),
+      hasMeaningfulOperationsSessionChanges(
+        snapshot,
+        sessionDraft,
+        salesSignalBaseline,
+        editingBaselineDraft,
+      ),
   );
   const detailsComplete = Boolean(toIsoTimestamp(reportedAt));
   const observationsComplete = changedEntries.length > 0;
   const servicesComplete = serviceChanges.length > 0;
   const salesSignalComplete = salesSignalChanged;
-  const reviewReady = detailsComplete && observationsComplete;
+  const editReportHasContent = Boolean(
+    editingReport &&
+      (editingReport.skuObservations.length > 0 ||
+        editingReport.serviceSignals.length > 0 ||
+        editingReport.servicePriceAdjustments.length > 0 ||
+        editingReport.topServiceRanking.length > 0 ||
+        editingReport.topRetailRanking.length > 0 ||
+        Boolean(editingReport.notes?.trim())),
+  );
+  const editReportHasObservations = includedSkuIds.length > 0;
+  const editReportHasServices = Boolean(
+    serviceChanges.length > 0 ||
+      (editingReport &&
+        (editingReport.serviceSignals.length > 0 || editingReport.servicePriceAdjustments.length > 0)),
+  );
+  const editReportHasSalesSignal = Boolean(
+    salesSignalChanged ||
+      (editingReport &&
+        (editingReport.topServiceRanking.length > 0 || editingReport.topRetailRanking.length > 0)),
+  );
+  const reviewReady = detailsComplete && (editReportId ? editReportHasContent : observationsComplete);
   const timestampError = timestampTouched && !detailsComplete ? t('validationTimestamp') : null;
   const completedCount = [
     detailsComplete,
@@ -559,6 +708,22 @@ export function StockUpdateSessionRoute() {
   );
 
   function getStepStatus(stepId: SessionStepId): StepStatus {
+    if (editReportId) {
+      if (stepId === 'details') {
+        return detailsComplete ? 'complete' : 'needs-attention';
+      }
+      if (stepId === 'observations') {
+        return editReportHasObservations ? 'complete' : 'needs-attention';
+      }
+      if (stepId === 'services') {
+        return editReportHasServices ? 'complete' : 'skipped';
+      }
+      if (stepId === 'sales-signal') {
+        return editReportHasSalesSignal ? 'complete' : 'skipped';
+      }
+      return reviewReady ? 'complete' : 'needs-attention';
+    }
+
     const viewedSteps = sessionDraft?.viewedSteps ?? [];
     const hasViewedStep = viewedSteps.includes(stepId);
     const hasMovedPastStep = hasViewedStep && activeStep !== stepId;
@@ -728,6 +893,10 @@ export function StockUpdateSessionRoute() {
     flushSync(() => {
       clearDraft();
     });
+    if (canGoBack) {
+      goBack();
+      return;
+    }
     navigate('/operations');
   }
 
@@ -758,27 +927,50 @@ export function StockUpdateSessionRoute() {
     value: string,
   ) {
     const baselineUnitsInStock = snapshot?.skus.find((entry) => entry.skuId === skuId)?.unitsInStock;
+    const sanitizedBaselineUnitsInStock =
+      baselineUnitsInStock === undefined ? undefined : sanitizeWholeNumberForDisplay(baselineUnitsInStock);
+    const nextValue = key === 'unitsInStock' ? sanitizeEditableWholeNumber(value) : value;
+
+    if (key === 'productPrice') {
+      const currentSku = snapshot?.skus.find((sku) => sku.skuId === skuId) ?? null;
+      tracePriceEditDiagnostics('sku-product-price-field-change', {
+        skuId,
+        nextValue,
+        previousDraftValue: rows[skuId]?.productPrice ?? null,
+        snapshotProductPrice: currentSku?.productPrice ?? null,
+      });
+    }
 
     updateDraft((current) =>
-      updateSkuRowDraft(current, skuId, (row) => ({
-        ...row,
-        [key]: value,
-        ...(key === 'unitsInStock' && baselineUnitsInStock !== undefined
-          ? {
-              restockIncluded: Number(value) > baselineUnitsInStock,
-              retailStockout: Number(value) === 0,
-            }
-          : {}),
-      })),
+      ({
+        ...updateSkuRowDraft(current, skuId, (row) => ({
+          ...row,
+          [key]: nextValue,
+          ...(key === 'unitsInStock' && sanitizedBaselineUnitsInStock !== undefined
+            ? {
+                restockIncluded: Number(nextValue) > sanitizedBaselineUnitsInStock,
+                retailStockout: Number(nextValue) === 0,
+              }
+            : {}),
+        })),
+        includedSkuIds: current.includedSkuIds.includes(skuId)
+          ? current.includedSkuIds
+          : [...current.includedSkuIds, skuId],
+      }),
     );
   }
 
   function toggleField(skuId: string, key: 'restockIncluded' | 'retailStockout', value: boolean) {
     updateDraft((current) =>
-      updateSkuRowDraft(current, skuId, (row) => ({
-        ...row,
-        [key]: value,
-      })),
+      ({
+        ...updateSkuRowDraft(current, skuId, (row) => ({
+          ...row,
+          [key]: value,
+        })),
+        includedSkuIds: current.includedSkuIds.includes(skuId)
+          ? current.includedSkuIds
+          : [...current.includedSkuIds, skuId],
+      }),
     );
   }
 
@@ -800,7 +992,9 @@ export function StockUpdateSessionRoute() {
     const rawCurrentValue =
       key === 'productPrice'
         ? getSkuProductPriceDraftValue(rows[skuId]?.productPrice, currentSku.productPrice)
-        : rows[skuId]?.[key] ?? String(currentSku[key]);
+        : key === 'unitsInStock'
+          ? rows[skuId]?.unitsInStock ?? formatEditableWholeNumber(currentSku.unitsInStock)
+          : rows[skuId]?.[key] ?? String(currentSku[key]);
     const currentValue = Number(rawCurrentValue);
     const nextValue = Math.max(0, currentValue + step * direction);
     const fractionDigits = Math.max(
@@ -811,7 +1005,9 @@ export function StockUpdateSessionRoute() {
     setField(
       skuId,
       key,
-      fractionDigits > 0
+      key === 'unitsInStock'
+        ? formatEditableWholeNumber(nextValue)
+        : fractionDigits > 0
         ? nextValue.toFixed(fractionDigits).replace(/\.?0+$/, '')
         : String(nextValue),
     );
@@ -832,10 +1028,11 @@ export function StockUpdateSessionRoute() {
 
     updateDraft((current) => ({
       ...current,
+      includedSkuIds: current.includedSkuIds.filter((id) => id !== skuId),
       rows: {
         ...current.rows,
         [skuId]: {
-          unitsInStock: String(sku.unitsInStock),
+          unitsInStock: formatEditableWholeNumber(sku.unitsInStock),
           costPerUnit: String(sku.costPerUnit),
           productPrice: sku.productPrice == null ? '' : String(sku.productPrice),
           restockIncluded: false,
@@ -853,11 +1050,12 @@ export function StockUpdateSessionRoute() {
 
     updateDraft((current) => ({
       ...current,
+      includedSkuIds: [],
       rows: Object.fromEntries(
         snapshot.skus.map((sku) => [
           sku.skuId,
           {
-            unitsInStock: String(sku.unitsInStock),
+            unitsInStock: formatEditableWholeNumber(sku.unitsInStock),
             costPerUnit: String(sku.costPerUnit),
             productPrice: sku.productPrice == null ? '' : String(sku.productPrice),
             restockIncluded: false,
@@ -984,7 +1182,7 @@ export function StockUpdateSessionRoute() {
       setActiveStep('details');
       return;
     }
-    if (!observationsComplete) {
+    if (!editReportId && !observationsComplete) {
       setError(t('validationStockChanges'));
       setActiveStep('observations');
       return;
@@ -993,54 +1191,178 @@ export function StockUpdateSessionRoute() {
     setError(null);
 
     const trimmedNotes = reportNotes.trim();
-    const rankingSubmission = salesSignalChanged ? splitRankingDraft(rankingDraft) : null;
-    const nextSubmission = {
-      reportedAt: isoReportedAt,
-      skuObservations: changedEntries.map((entry) => ({
-        skuId: entry.sku.skuId,
-        unitsInStock: entry.unitsInStock,
-        costPerUnit: entry.costPerUnit,
-        productPrice: entry.productPrice,
-        restockIncluded: entry.restockIncluded,
-        retailStockout: entry.retailStockout,
-        notes: entry.notes || null,
-      })),
-      ...(serviceChanges.some((entry) => entry.stockout)
-        ? {
-            serviceSignals: serviceChanges
-              .filter((entry) => entry.stockout)
-              .map((entry) => ({
-                serviceId: entry.service.serviceId,
-                stockout: true,
-                notes: entry.notes || null,
-              })),
-          }
-        : {}),
-      ...(serviceChanges.some((entry) => entry.priceChanged)
-        ? {
-            servicePriceAdjustments: serviceChanges
-              .filter((entry) => entry.priceChanged)
-              .map((entry) => ({
-                serviceId: entry.service.serviceId,
-                price: entry.price,
-                notes: entry.notes || null,
-              })),
-          }
-        : {}),
-      ...(trimmedNotes ? { notes: trimmedNotes } : {}),
-      ...(rankingSubmission ?? {}),
-    };
+    const rankingSubmission =
+      editReportId
+        ? editingReport &&
+          (editingReport.topServiceRanking.length > 0 ||
+            editingReport.topRetailRanking.length > 0 ||
+            salesSignalChanged)
+          ? splitRankingDraft(rankingDraft)
+          : null
+        : salesSignalChanged
+          ? splitRankingDraft(rankingDraft)
+          : null;
+    const nextSubmission = editReportId
+      ? {
+          reportedAt: isoReportedAt,
+          skuObservations: snapshot.skus
+            .filter(
+              (sku) =>
+                editingReport?.skuObservations.some((entry) => entry.skuId === sku.skuId) ||
+                sanitizeWholeNumberForDisplay(Number(rows[sku.skuId]?.unitsInStock ?? sku.unitsInStock)) !==
+                  sanitizeWholeNumberForDisplay(sku.unitsInStock) ||
+                Number(rows[sku.skuId]?.costPerUnit ?? sku.costPerUnit) !== sku.costPerUnit ||
+                ((rows[sku.skuId]?.productPrice?.trim() ?? '') === ''
+                  ? null
+                  : Number(rows[sku.skuId]?.productPrice)) !== sku.productPrice ||
+                (rows[sku.skuId]?.restockIncluded ?? false) ||
+                (rows[sku.skuId]?.retailStockout ?? false) ||
+                Boolean(rows[sku.skuId]?.notes?.trim()),
+            )
+            .map((sku) => ({
+              skuId: sku.skuId,
+              unitsInStock: sanitizeWholeNumberForDisplay(Number(rows[sku.skuId]?.unitsInStock ?? sku.unitsInStock)),
+              costPerUnit: Number(rows[sku.skuId]?.costPerUnit ?? sku.costPerUnit),
+              productPrice:
+                rows[sku.skuId]?.productPrice?.trim() === ''
+                  ? null
+                  : Number(rows[sku.skuId]?.productPrice ?? sku.productPrice ?? 0),
+              restockIncluded: rows[sku.skuId]?.restockIncluded ?? false,
+              retailStockout: rows[sku.skuId]?.retailStockout ?? false,
+              notes: rows[sku.skuId]?.notes?.trim() || null,
+            })),
+          serviceSignals: snapshot.services
+            .filter((service) => serviceDrafts[service.serviceId]?.stockout ?? false)
+            .map((service) => ({
+              serviceId: service.serviceId,
+              stockout: true,
+              notes: serviceDrafts[service.serviceId]?.notes?.trim() || null,
+            })),
+          servicePriceAdjustments: snapshot.services
+            .filter(
+              (service) =>
+                editingReport?.servicePriceAdjustments.some(
+                  (entry) => entry.serviceId === service.serviceId,
+                ) ||
+                Number(serviceDrafts[service.serviceId]?.price ?? service.price) !== service.price,
+            )
+            .map((service) => ({
+              serviceId: service.serviceId,
+              price: Number(serviceDrafts[service.serviceId]?.price ?? service.price),
+              notes: serviceDrafts[service.serviceId]?.notes?.trim() || null,
+            })),
+          ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+          ...(rankingSubmission ?? {}),
+        }
+      : {
+          reportedAt: isoReportedAt,
+          skuObservations: changedEntries.map((entry) => ({
+            skuId: entry.sku.skuId,
+            unitsInStock: entry.unitsInStock,
+            costPerUnit: entry.costPerUnit,
+            productPrice: entry.productPrice,
+            restockIncluded: entry.restockIncluded,
+            retailStockout: entry.retailStockout,
+            notes: entry.notes || null,
+          })),
+          ...(serviceChanges.some((entry) => entry.stockout)
+            ? {
+                serviceSignals: serviceChanges
+                  .filter((entry) => entry.stockout)
+                  .map((entry) => ({
+                    serviceId: entry.service.serviceId,
+                    stockout: true,
+                    notes: entry.notes || null,
+                  })),
+              }
+            : {}),
+          ...(serviceChanges.some((entry) => entry.priceChanged)
+            ? {
+                servicePriceAdjustments: serviceChanges
+                  .filter((entry) => entry.priceChanged)
+                  .map((entry) => ({
+                    serviceId: entry.service.serviceId,
+                    price: entry.price,
+                    notes: entry.notes || null,
+                  })),
+              }
+            : {}),
+          ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+          ...(rankingSubmission ?? {}),
+        };
 
-    await submitReport(nextSubmission);
+    tracePriceEditDiagnostics('submit-session-payload', {
+      editReportId: editReportId ?? null,
+      reportedAt: isoReportedAt,
+      skuPriceObservations: nextSubmission.skuObservations
+        .filter((entry) => entry.productPrice !== undefined)
+        .map((entry) => ({
+          skuId: entry.skuId,
+          productPrice: entry.productPrice ?? null,
+          unitsInStock: entry.unitsInStock,
+          costPerUnit: entry.costPerUnit,
+        })),
+    });
+
+    if (editReportId) {
+      await updateReport({
+        reportId: editReportId,
+        ...nextSubmission,
+      });
+    } else {
+      await submitReport(nextSubmission);
+    }
+
+    if (rendererTraceEnabled()) {
+      try {
+        const savedReports = await listStockReports();
+        const savedReport = editReportId
+          ? savedReports.find((report) => report.reportId === editReportId) ?? null
+          : [...savedReports].sort(
+              (left, right) =>
+                new Date(right.reportedAt).getTime() - new Date(left.reportedAt).getTime(),
+            )[0] ?? null;
+
+        tracePriceEditDiagnostics('post-submit-saved-report', {
+          reportId: savedReport?.reportId ?? null,
+          reportedAt: savedReport?.reportedAt ?? null,
+          skuPriceObservations:
+            savedReport?.skuObservations
+              .filter((entry) => entry.productPrice !== undefined)
+              .map((entry) => ({
+                skuId: entry.skuId,
+                productPrice: entry.productPrice ?? null,
+              })) ?? [],
+        });
+      } catch (error) {
+        tracePriceEditDiagnostics('post-submit-saved-report-error', {
+          error: error instanceof Error ? error.message : 'unknown',
+        });
+      }
+    }
 
     flushSync(() => {
       clearDraft();
     });
+    if (canGoBack) {
+      goBack();
+      return;
+    }
     navigate('/operations');
   }
 
   if (!snapshot) {
     return null;
+  }
+
+  if (editReportId && !reportsLoaded) {
+    return (
+      <WorkspacePage>
+        <WorkspacePanel contentClassName="pt-0">
+          <p className="text-sm text-muted-foreground">{t('operationsHistoryLoading')}</p>
+        </WorkspacePanel>
+      </WorkspacePage>
+    );
   }
 
   return (
@@ -1052,9 +1374,9 @@ export function StockUpdateSessionRoute() {
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-primary/85">
                 {t('stockSessionEyebrow')}
               </p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
+              <WorkspacePageTitle className="mt-3 text-2xl">
                 {t('stockSessionTitle')}
-              </h2>
+              </WorkspacePageTitle>
               <DescriptionText className="mt-2 text-sm leading-6 text-muted-foreground">
                 {t('stockSessionDescription')}
               </DescriptionText>
@@ -1120,6 +1442,7 @@ export function StockUpdateSessionRoute() {
 
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
+              <RouteBackButton />
               <Button
                 type="button"
                 variant="ghost"
@@ -1398,6 +1721,13 @@ export function StockUpdateSessionRoute() {
                               <TableCell className="text-center">
                                 <InlineStepperInput
                                   value={rows[sku.skuId]?.unitsInStock ?? ''}
+                                  onBlur={() =>
+                                    setField(
+                                      sku.skuId,
+                                      'unitsInStock',
+                                      sanitizeEditableWholeNumber(rows[sku.skuId]?.unitsInStock ?? ''),
+                                    )
+                                  }
                                   onChange={(value) => setField(sku.skuId, 'unitsInStock', value)}
                                   onDecrement={() => adjustValue(sku.skuId, 'unitsInStock', -1)}
                                   onIncrement={() => adjustValue(sku.skuId, 'unitsInStock', 1)}
@@ -1823,6 +2153,7 @@ export function StockUpdateSessionRoute() {
 
                       <MerchandisingEditor
                         entries={rankingDraft}
+                        movedByEntryKey={salesSignalMovedByEntryKey}
                         priceByEntryKey={salesSignalPriceByEntryKey}
                         priceChangeByEntryKey={salesSignalPriceChangeByEntryKey}
                         snapshot={snapshot}

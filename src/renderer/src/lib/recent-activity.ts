@@ -15,5 +15,8 @@ export function matchesRecentActivityFilter(
   if (filter === 'service-updates') {
     return report.serviceSignals.length > 0;
   }
-  return report.servicePriceAdjustments.length > 0;
+  return (
+    report.servicePriceAdjustments.length > 0 ||
+    report.skuObservations.some((observation) => observation.productPrice != null)
+  );
 }

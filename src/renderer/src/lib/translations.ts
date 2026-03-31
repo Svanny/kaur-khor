@@ -327,6 +327,18 @@ const en = {
   catalogSkuDetailReports: 'Supporting reports',
   catalogSkuDetailPosteriorUnits: 'Posterior units',
   catalogSkuDetailDemandPerDay: 'Expected demand/day',
+  catalogSkuParametersLeadTimeAverage: 'Average lead time',
+  catalogSkuParametersDemandAnalysis: 'Demand analysis',
+  catalogSkuParametersDemandInterval: 'Demand interval',
+  catalogSkuParametersConfidenceInterval: '95% confidence interval',
+  catalogSkuParametersCurrentThreshold: 'Current reorder threshold',
+  catalogSkuParametersObservedIntervals: 'Observed intervals',
+  catalogSkuParametersFittedRange: 'Fitted range',
+  catalogSkuParametersExpectedDemand: 'Expected demand/day',
+  catalogSkuParametersNoInventoryRemaining: 'No inventory remaining',
+  catalogSkuParametersCriticalCoverRemaining: 'Critical cover remaining',
+  catalogSkuParametersCoverageThin: 'Coverage is thin',
+  catalogSkuParametersCoverageStable: 'Coverage is stable',
   catalogSkuRecentReportsTitle: 'Recent reports',
   catalogSkuRecentReportsDescription:
     'Review the latest report evidence tied to this SKU before making stock or pricing changes.',
@@ -340,6 +352,7 @@ const en = {
   catalogSkuRecentReportsNoSkuChanges: 'No SKU-specific changes recorded',
   catalogSkuEditorTitleNew: 'New SKU',
   catalogSkuEditorTitleEdit: 'Edit SKU',
+  catalogSkuEditorDetailsTitleEdit: 'Edit SKU details',
   catalogSkuEditorDescriptionNew:
     'Create a new SKU record, then land on its detail page for follow-up planning and stock work.',
   catalogSkuEditorDescriptionEdit:
@@ -435,6 +448,9 @@ const en = {
   operationsHistoryNoResultsTitle: 'No matching updates',
   operationsHistoryNoResultsDescription:
     'Try clearing the current search or source filter to see more saved operational history.',
+  operationsHistoryEditAction: 'Edit report',
+  operationsHistoryDeleteAction: 'Delete report',
+  operationsHistoryDeletePrompt: 'Type this exactly to permanently delete the report:',
   operationsSearchLabel: 'Search history',
   operationsSearchPlaceholder: 'Search notes, SKU ids, service names, or item ids…',
   operationsSearchClear: 'Clear filters',
@@ -715,7 +731,7 @@ const en = {
   fieldUnitsInStock: 'Units in stock',
   fieldCostPerUnit: 'Cost per unit',
   fieldSoldAsProduct: 'Sell as product',
-  fieldProductPrice: 'Product price',
+  fieldProductPrice: 'Selling price',
   fieldLeadTimeMeanDays: 'Lead time mean (days)',
   fieldLeadTimeStdDays: 'Lead time std. dev. (days)',
   fieldPrice: 'Service price',
@@ -736,7 +752,7 @@ const en = {
   skuEditorImpactSellableDisabled:
     'Catalog and Planning will stop showing this SKU in sellable views after you save.',
   skuEditorImpactPrice:
-    'Direct-sale merchandising will use the updated product price after you save.',
+    'Direct-sale merchandising will use the updated selling price after you save.',
   skuEditorImpactPlanning:
     'Planning calculations will refresh lead-time assumptions after you save.',
   editorDetailsTitle: 'Core details',
@@ -770,7 +786,7 @@ const en = {
   validationNonNegative: 'Enter a non-negative number.',
   validationPositive: 'Enter a value greater than zero.',
   validationSelection: 'Select at least one linked SKU.',
-  validationProductPrice: 'Product price is required when the SKU is sold as a product.',
+  validationProductPrice: 'Selling price is required when the SKU is sold as a product.',
   validationTimestamp: 'Enter a valid report timestamp.',
   apiUnavailable: 'The desktop shell is running, but the local Rust API is not ready yet.',
   serviceLabel: 'Service',
@@ -957,6 +973,7 @@ const km: Partial<Record<TranslationKey, string>> = {
   fieldId: 'សម្គាល់',
   fieldName: 'ឈ្មោះ',
   fieldDescription: 'ការពិពណ៌នា',
+  catalogSkuEditorDetailsTitleEdit: 'កែព័ត៌មានលម្អិត SKU',
   stockIncrementSize: 'ទំហំបន្ថែម',
   fieldUnitsInStock: 'ចំនួនក្នុងស្តុក',
   fieldCostPerUnit: 'ថ្លៃដើមក្នុងមួយឯកតា',

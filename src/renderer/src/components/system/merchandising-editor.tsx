@@ -35,6 +35,7 @@ type RankingRowModel = {
   label: string;
   kindIcon: LucideIcon;
   kindLabel: string;
+  movedFromBaseline: boolean;
   priceChangeDirection: 'up' | 'down' | null;
   priceText: string;
 };
@@ -124,6 +125,7 @@ export function MerchandisingEditor({
   helperText,
   priceByEntryKey,
   priceChangeByEntryKey,
+  movedByEntryKey,
 }: {
   entries: RankingEntry[];
   snapshot: InventorySnapshot;
@@ -132,6 +134,7 @@ export function MerchandisingEditor({
   helperText?: string;
   priceByEntryKey?: Record<string, number>;
   priceChangeByEntryKey?: Record<string, 'up' | 'down' | null>;
+  movedByEntryKey?: Record<string, boolean>;
 }) {
   const { currency, language, t } = usePreferences();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -166,11 +169,12 @@ export function MerchandisingEditor({
         label,
         kindIcon: entry.entryType === 'service' ? HandCoins : Package,
         kindLabel: entry.entryType === 'service' ? t('serviceLabel') : t('skuLabel'),
+        movedFromBaseline: Boolean(movedByEntryKey?.[entryKey]),
         priceChangeDirection: priceChangeByEntryKey?.[entryKey] ?? null,
         priceText: formatCurrency(price, currency, language),
       };
     });
-  }, [currency, entries, language, priceByEntryKey, priceChangeByEntryKey, snapshot.services, snapshot.skus, t]);
+  }, [currency, entries, language, movedByEntryKey, priceByEntryKey, priceChangeByEntryKey, snapshot.services, snapshot.skus, t]);
 
   const activeRow = rowModels.find((row) => row.id === activeId) ?? null;
   const overlayModifiers = useMemo<Modifier[]>(
@@ -268,6 +272,7 @@ export function MerchandisingEditor({
                   kindIcon={row.kindIcon}
                   kindLabel={row.kindLabel}
                   label={row.label}
+                  movedFromBaseline={row.movedFromBaseline}
                   priceChangeDirection={row.priceChangeDirection}
                   priceText={row.priceText}
                   suppressedHandle={suppressedHandleId === row.id}
@@ -289,6 +294,7 @@ export function MerchandisingEditor({
                       kindIcon={activeRow.kindIcon}
                       kindLabel={activeRow.kindLabel}
                       label={activeRow.label}
+                      movedFromBaseline={activeRow.movedFromBaseline}
                       overlay
                       priceChangeDirection={activeRow.priceChangeDirection}
                       priceText={activeRow.priceText}
@@ -311,6 +317,7 @@ function SortableRankingRow({
   kindIcon,
   label,
   kindLabel,
+  movedFromBaseline,
   priceChangeDirection,
   priceText,
   suppressedHandle,
@@ -351,6 +358,7 @@ function SortableRankingRow({
       kindIcon={kindIcon}
       kindLabel={kindLabel}
       label={label}
+      movedFromBaseline={movedFromBaseline}
       priceChangeDirection={priceChangeDirection}
       priceText={priceText}
       ref={setNodeRef}
@@ -369,6 +377,7 @@ type RankingRowCardProps = HTMLAttributes<HTMLDivElement> & {
   kindIcon: LucideIcon;
   kindLabel: string;
   label: string;
+  movedFromBaseline: boolean;
   overlay?: boolean;
   priceChangeDirection: 'up' | 'down' | null;
   priceText: string;
@@ -383,6 +392,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
     kindIcon: KindIcon,
     kindLabel,
     label,
+    movedFromBaseline,
     overlay = false,
     priceChangeDirection,
     priceText,
@@ -399,7 +409,9 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
         'group/row px-3 py-4 transition-[background-color,box-shadow,opacity] duration-150 ease-out motion-reduce:transition-none md:px-4',
         overlay
           ? 'pointer-events-none rounded-2xl border border-border/70 bg-background/95 shadow-[0_24px_80px_-28px_rgba(39,27,18,0.35)] backdrop-blur-[2px]'
-          : 'bg-transparent hover:bg-white/45',
+          : movedFromBaseline
+            ? 'bg-muted/60 hover:bg-muted/70'
+            : 'bg-transparent hover:bg-white/45',
         dragging && 'opacity-0',
         className,
       )}

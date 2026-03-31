@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUp, BrainCircuit, ClipboardPen, PackagePlus, Play, Search } from 'lucide-react';
 import type { InventorySnapshot, SkuRecord, StockReport } from '@shared/inventory';
 import { NewServiceIcon } from '@/components/system/new-service-icon';
-import { WorkspacePage, WorkspacePageTitle, WorkspacePanel } from '@/components/system/workspace';
+import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,8 +22,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { PageTitleWithBack } from '@/components/system/page-navigation';
 import { linkedServicesForSku, sortByName } from '@/lib/catalog';
-import { formatNumber, localeFor } from '@/lib/format';
+import { formatNumber, formatWholeNumber, localeFor } from '@/lib/format';
+import {
+  previousSkuPriceObservation,
+  reportedSkuProductPrice,
+  skuPriceBaseline,
+} from '@/lib/sku-price-history';
 import { statusPillClassName, type StatusPillTone } from '@/lib/status-pill';
 import { summarizeNotes } from '@/lib/stock-report-summary';
 import { cn } from '@/lib/utils';
@@ -273,7 +279,7 @@ function buildQueueRows(
         sku,
         linkedServiceNames,
         linkedServiceCount: linkedServiceNames.length,
-        stockDisplay: formatNumber(sku.unitsInStock, language),
+        stockDisplay: formatWholeNumber(sku.unitsInStock, language),
         status,
         lastUpdated: latestRelevantLabel(latestReport, language),
         lastUpdatedAt: latestReportAt,
@@ -393,12 +399,38 @@ function buildRecentChanges(
         href: `/catalog/skus/${entry.skuId}`,
         reportHref: `/operations?reportId=${encodeURIComponent(report.reportId)}&focusSku=${encodeURIComponent(entry.skuId)}`,
         detail: previous
-          ? `${formatNumber(previous.unitsInStock, language)} -> ${formatNumber(entry.unitsInStock, language)}`
-          : `Stock checked · ${formatNumber(entry.unitsInStock, language)}`,
+          ? `${formatWholeNumber(previous.unitsInStock, language)} -> ${formatWholeNumber(entry.unitsInStock, language)}`
+          : `Stock checked · ${formatWholeNumber(entry.unitsInStock, language)}`,
         timestamp: timeLabel(report.reportedAt, language),
         reportedAt: report.reportedAt,
       };
     });
+
+    const skuPriceChanges = report.skuObservations
+      .filter((entry) => {
+        const currentObservedPrice = reportedSkuProductPrice(entry);
+        const previousObservation = previousSkuPriceObservation(reports, report.reportId, entry.skuId);
+        const baselinePrice = skuPriceBaseline(entry, previousObservation);
+
+        if (currentObservedPrice === null) {
+          return false;
+        }
+
+        if (baselinePrice === null) {
+          return entry.previousProductPrice !== undefined;
+        }
+
+        return currentObservedPrice !== baselinePrice;
+      })
+      .map((entry) => ({
+        key: `${report.reportId}-sku-price-${entry.skuId}`,
+        itemName: skuNames.get(entry.skuId) ?? entry.skuId,
+        href: `/catalog/skus/${entry.skuId}`,
+        reportHref: `/operations?reportId=${encodeURIComponent(report.reportId)}&focusSku=${encodeURIComponent(entry.skuId)}`,
+        detail: 'Price edited',
+        timestamp: timeLabel(report.reportedAt, language),
+        reportedAt: report.reportedAt,
+      }));
 
     const serviceSignals = report.serviceSignals
       .filter((entry) => entry.stockout !== false)
@@ -422,7 +454,7 @@ function buildRecentChanges(
       reportedAt: report.reportedAt,
     }));
 
-    return [...skuChanges, ...serviceSignals, ...priceChanges];
+    return [...skuChanges, ...serviceSignals, ...priceChanges, ...skuPriceChanges];
   });
 
   return changes
@@ -778,7 +810,7 @@ export function DashboardRoute() {
               ) : null}
             </div>
           }
-          title={<WorkspacePageTitle>{copy.title}</WorkspacePageTitle>}
+          title={<PageTitleWithBack>{copy.title}</PageTitleWithBack>}
         >
           <div className="grid gap-4">
             <InputGroup className="h-12 rounded-full">
@@ -810,7 +842,7 @@ export function DashboardRoute() {
                 <ToggleGroupItem key={option.value} value={option.value}>
                   {option.value === 'all'
                     ? option.label
-                    : `${option.label} (${formatNumber(option.count, language)})`}
+                    : `${option.label} (${formatWholeNumber(option.count, language)})`}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>

@@ -6,11 +6,13 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { InventorySnapshot, RankingEntry } from '@shared/inventory';
+import type { InventorySnapshot, RankingEntry, StockReport } from '@shared/inventory';
 import {
   buildDefaultReportRanking,
   hasRankingChanged,
+  normalizeReportRanking,
 } from '@/components/system/merchandising-editor';
+import { formatEditableWholeNumber, sanitizeWholeNumberForDisplay } from '@/lib/format';
 
 export type OperationsSessionPreset = 'small' | 'medium' | 'big';
 export type OperationsSessionStepId =
@@ -37,6 +39,8 @@ export interface OperationsSessionServiceDraft {
 }
 
 export interface OperationsSessionDraft {
+  editReportId: string | null;
+  includedSkuIds: string[];
   seededReportedAt: string;
   reportedAt: string;
   reportNotes: string;
@@ -54,6 +58,7 @@ interface OperationsSessionContextValue {
   draft: OperationsSessionDraft | null;
   hasDraft: boolean;
   ensureDraft: (snapshot: InventorySnapshot) => OperationsSessionDraft;
+  replaceDraft: (nextDraft: OperationsSessionDraft) => void;
   updateDraft: (
     updater: (current: OperationsSessionDraft) => OperationsSessionDraft,
   ) => OperationsSessionDraft | null;
@@ -74,6 +79,8 @@ export function createOperationsSessionDraft(
 ): OperationsSessionDraft {
   const seededReportedAt = toLocalDateTimeValue();
   return {
+    editReportId: null,
+    includedSkuIds: [],
     seededReportedAt,
     reportedAt: seededReportedAt,
     reportNotes: '',
@@ -84,7 +91,7 @@ export function createOperationsSessionDraft(
       snapshot.skus.map((sku) => [
         sku.skuId,
         {
-          unitsInStock: String(sku.unitsInStock),
+          unitsInStock: formatEditableWholeNumber(sku.unitsInStock),
           costPerUnit: String(sku.costPerUnit),
           productPrice: sku.productPrice == null ? '' : String(sku.productPrice),
           restockIncluded: false,
@@ -109,34 +116,126 @@ export function createOperationsSessionDraft(
   };
 }
 
+export function createOperationsSessionDraftFromReport(
+  snapshot: InventorySnapshot,
+  report: StockReport,
+): OperationsSessionDraft {
+  const seededReportedAt = toLocalDateTimeValue(report.reportedAt);
+  const draft = createOperationsSessionDraft(snapshot);
+  const serviceSignalIds = new Set(
+    report.serviceSignals.filter((signal) => signal.stockout !== false).map((signal) => signal.serviceId),
+  );
+  const priceAdjustmentById = new Map(
+    report.servicePriceAdjustments.map((adjustment) => [adjustment.serviceId, adjustment.price]),
+  );
+  const preferredRankingEntries = [
+    ...report.topServiceRanking.map((serviceId, index) => ({
+      entryType: 'service' as const,
+      entryId: serviceId,
+      position: index,
+    })),
+    ...report.topRetailRanking.map((skuId, index) => ({
+      entryType: 'sku' as const,
+      entryId: skuId,
+      position: report.topServiceRanking.length + index,
+    })),
+  ];
+
+  return {
+    ...draft,
+    editReportId: report.reportId,
+    includedSkuIds: report.skuObservations.map((entry) => entry.skuId),
+    seededReportedAt,
+    reportedAt: seededReportedAt,
+    reportNotes: report.notes ?? '',
+    rows: Object.fromEntries(
+      snapshot.skus.map((sku) => {
+        const observation = report.skuObservations.find((entry) => entry.skuId === sku.skuId);
+        return [
+          sku.skuId,
+          {
+            unitsInStock: formatEditableWholeNumber(observation?.unitsInStock ?? sku.unitsInStock),
+            costPerUnit: String(observation?.costPerUnit ?? sku.costPerUnit),
+            productPrice:
+              observation?.productPrice !== undefined
+                ? observation.productPrice == null
+                  ? ''
+                  : String(observation.productPrice)
+                : sku.productPrice == null
+                  ? ''
+                  : String(sku.productPrice),
+            restockIncluded: observation?.restockIncluded ?? false,
+            retailStockout: observation?.retailStockout ?? false,
+            notes: observation?.notes ?? '',
+          },
+        ];
+      }),
+    ),
+    serviceDrafts: Object.fromEntries(
+      snapshot.services.map((service) => [
+        service.serviceId,
+        {
+          price: String(priceAdjustmentById.get(service.serviceId) ?? service.price),
+          stockout: serviceSignalIds.has(service.serviceId),
+          notes: '',
+        },
+      ]),
+    ),
+    rankingDraft:
+      preferredRankingEntries.length > 0
+        ? normalizeReportRanking(snapshot, preferredRankingEntries)
+        : buildDefaultReportRanking(snapshot),
+  };
+}
+
 export function hasMeaningfulOperationsSessionChanges(
   snapshot: InventorySnapshot,
   draft: OperationsSessionDraft,
   rankingBaseline: RankingEntry[] = buildDefaultReportRanking(snapshot),
+  baselineDraft?: OperationsSessionDraft | null,
 ) {
-  if (draft.reportedAt !== draft.seededReportedAt) {
+  const baseline = baselineDraft ?? {
+    ...createOperationsSessionDraft(snapshot),
+    seededReportedAt: draft.seededReportedAt,
+    reportedAt: draft.seededReportedAt,
+  };
+
+  if (draft.reportedAt !== baseline.reportedAt) {
     return true;
   }
-  if (draft.reportNotes.trim().length > 0) {
+  if (draft.reportNotes.trim() !== baseline.reportNotes.trim()) {
     return true;
   }
-  if (draft.preset !== 'small' || draft.rowFilter !== 'all') {
+  if (
+    draft.preset !== baseline.preset ||
+    draft.rowFilter !== baseline.rowFilter ||
+    draft.serviceFilter !== baseline.serviceFilter
+  ) {
     return true;
   }
 
   const hasSkuChanges = snapshot.skus.some((sku) => {
     const row = draft.rows[sku.skuId];
+    const baselineRow = baseline.rows[sku.skuId];
     if (!row) {
       return false;
     }
 
     return (
-      Number(row.unitsInStock) !== sku.unitsInStock ||
-      Number(row.costPerUnit) !== sku.costPerUnit ||
-      (row.productPrice.trim() === '' ? null : Number(row.productPrice)) !== sku.productPrice ||
-      row.restockIncluded ||
-      row.retailStockout ||
-      row.notes.trim().length > 0
+      Number(row.unitsInStock) !==
+        sanitizeWholeNumberForDisplay(
+          Number(baselineRow?.unitsInStock ?? formatEditableWholeNumber(sku.unitsInStock)),
+        ) ||
+      Number(row.costPerUnit) !== Number(baselineRow?.costPerUnit ?? sku.costPerUnit) ||
+      (row.productPrice.trim() === '' ? null : Number(row.productPrice)) !==
+        (baselineRow
+          ? baselineRow.productPrice.trim() === ''
+            ? null
+            : Number(baselineRow.productPrice)
+          : sku.productPrice) ||
+      row.restockIncluded !== (baselineRow?.restockIncluded ?? false) ||
+      row.retailStockout !== (baselineRow?.retailStockout ?? false) ||
+      row.notes.trim() !== (baselineRow?.notes.trim() ?? '')
     );
   });
 
@@ -146,14 +245,15 @@ export function hasMeaningfulOperationsSessionChanges(
 
   const hasServiceChanges = snapshot.services.some((service) => {
     const serviceDraft = draft.serviceDrafts[service.serviceId];
+    const baselineServiceDraft = baseline.serviceDrafts[service.serviceId];
     if (!serviceDraft) {
       return false;
     }
 
     return (
-      serviceDraft.stockout ||
-      Number(serviceDraft.price) !== service.price ||
-      serviceDraft.notes.trim().length > 0
+      serviceDraft.stockout !== (baselineServiceDraft?.stockout ?? false) ||
+      Number(serviceDraft.price) !== Number(baselineServiceDraft?.price ?? service.price) ||
+      serviceDraft.notes.trim() !== (baselineServiceDraft?.notes.trim() ?? '')
     );
   });
 
@@ -201,15 +301,20 @@ export function OperationsSessionProvider({ children }: { children: ReactNode })
     setDraft(null);
   }, []);
 
+  const replaceDraft = useCallback((nextDraft: OperationsSessionDraft) => {
+    setDraft(nextDraft);
+  }, []);
+
   const value = useMemo<OperationsSessionContextValue>(
     () => ({
       draft,
       hasDraft: draft !== null,
       ensureDraft,
+      replaceDraft,
       updateDraft,
       clearDraft,
     }),
-    [clearDraft, draft, ensureDraft, updateDraft],
+    [clearDraft, draft, ensureDraft, replaceDraft, updateDraft],
   );
 
   return (

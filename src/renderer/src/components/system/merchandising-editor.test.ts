@@ -29,7 +29,7 @@ describe('buildDefaultReportRanking', () => {
         {
           skuId: 'sku-2',
           name: 'Osaka Pleat Midi',
-          description: 'Missing product price',
+          description: 'Missing selling price',
           unitsInStock: 8,
           costPerUnit: 4,
           soldAsProduct: true,
