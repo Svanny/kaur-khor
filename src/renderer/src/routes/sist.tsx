@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   TrendingUp,
 } from 'lucide-react';
+import { PageTitleWithBack } from '@/components/system/page-navigation';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatNumber, localeFor } from '@/lib/format';
+import { formatDurationAuto, formatNumber, formatQuantityForDisplay, formatWholeNumber, localeFor } from '@/lib/format';
 import { traceRenderer } from '@/lib/trace';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -239,12 +240,12 @@ function summaryMetrics({
   return [
     {
       label: 'High-risk SKUs',
-      value: formatNumber(highRiskSkuCount, language),
+      value: formatWholeNumber(highRiskSkuCount, language),
       caption: 'Posterior stockout pressure exceeds the analyst threshold.',
     },
     {
       label: 'Pending reorders',
-      value: formatNumber(pendingReorders, language),
+      value: formatWholeNumber(pendingReorders, language),
       caption: 'Entities already leaning through the current reorder policy.',
     },
     {
@@ -254,12 +255,12 @@ function summaryMetrics({
     },
     {
       label: 'Forecast horizon',
-      value: `${formatNumber(forecastHorizon, language)}d`,
+      value: formatDurationAuto(forecastHorizon, 'day', language, 'short'),
       caption: 'Forward window used for the active trajectory and disruption views.',
     },
     {
       label: 'Particle budget',
-      value: formatNumber(particleCount, language),
+      value: formatWholeNumber(particleCount, language),
       caption: 'Approximate inference budget currently shaping posterior stability.',
     },
     {
@@ -1073,14 +1074,14 @@ export function SistRoute() {
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-4">
             <div className="space-y-2">
-              <h1 className="text-4xl font-semibold tracking-[-0.05em] text-foreground">SIST</h1>
+              <PageTitleWithBack titleClassName="text-4xl">SIST</PageTitleWithBack>
               <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
                 Sparse Inventory Service Twin diagnostics, forecasts, and demand evidence.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <StatusPill label="State" value={snapshot.sist.status.state} />
-              <StatusPill label="Reports" value={formatNumber(snapshot.sist.status.reportCount, language)} />
+              <StatusPill label="Reports" value={formatWholeNumber(snapshot.sist.status.reportCount, language)} />
               <StatusPill label="Regime" value={regimeLabel(snapshot.sist.topRegime)} />
               <StatusPill
                 label="Confidence"
@@ -1217,7 +1218,7 @@ export function SistRoute() {
                           {confidenceLabel(confidence)}
                         </p>
                         <p className="mt-2 text-3xl font-semibold tracking-[-0.04em]">
-                          {formatNumber(count, language)}
+                          {formatWholeNumber(count, language)}
                         </p>
                         <p className="mt-2 text-sm text-muted-foreground">SKU diagnostics in this band.</p>
                       </div>
@@ -1232,7 +1233,7 @@ export function SistRoute() {
                 <p className="text-sm leading-6 text-foreground">
                   {snapshot.sist.topRegime === 'spike'
                     ? 'Spike pressure is concentrated in the latest demand window, with the highest-risk SKUs already leaning against reorder policy.'
-                    : `The dominant regime is ${regimeLabel(snapshot.sist.topRegime)} and the current posterior still marks ${formatNumber(snapshot.sist.highRiskSkuIds.length, language)} SKUs as elevated risk.`}
+                    : `The dominant regime is ${regimeLabel(snapshot.sist.topRegime)} and the current posterior still marks ${formatWholeNumber(snapshot.sist.highRiskSkuIds.length, language)} SKUs as elevated risk.`}
                 </p>
               </SectionBlock>
               <SectionBlock title="Signal intake">
@@ -1303,7 +1304,7 @@ export function SistRoute() {
                   ))}
                 </select>
                 <div className="flex h-10 items-center rounded-xl border border-border bg-background px-3 text-sm text-muted-foreground">
-                  Horizon {snapshot.sist.settings.forecastHorizonDays}d
+                  Horizon {formatDurationAuto(snapshot.sist.settings.forecastHorizonDays, 'day', language, 'short')}
                 </div>
               </div>
             </SectionBlock>
@@ -1366,15 +1367,15 @@ export function SistRoute() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Expected demand/day</span>
-                        <span>{formatNumber(selectedSkuDetail.insight.expectedDemandPerDay, language)}</span>
+                        <span>{formatQuantityForDisplay(selectedSkuDetail.insight.expectedDemandPerDay, language)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Reorder point</span>
-                        <span>{formatNumber(selectedSkuDetail.insight.reorderPoint, language)}</span>
+                        <span>{formatQuantityForDisplay(selectedSkuDetail.insight.reorderPoint, language)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Safety stock</span>
-                        <span>{formatNumber(selectedSkuDetail.insight.safetyStock, language)}</span>
+                        <span>{formatQuantityForDisplay(selectedSkuDetail.insight.safetyStock, language)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Confidence</span>
@@ -1401,7 +1402,7 @@ export function SistRoute() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Expected activity</span>
-                      <span>{formatNumber(selectedServiceDetail.estimatedActivityPerInterval, language)}</span>
+                      <span>{formatWholeNumber(selectedServiceDetail.estimatedActivityPerInterval, language)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Collapse window</span>
@@ -1513,7 +1514,7 @@ export function SistRoute() {
                               #{index + 1} {service.label}
                             </span>
                             <span className="text-sm text-muted-foreground">
-                              {formatNumber(service.value, language)}
+                              {formatWholeNumber(service.value, language)}
                             </span>
                           </div>
                         ))}
@@ -1540,7 +1541,7 @@ export function SistRoute() {
                               #{index + 1} {sku.label}
                             </span>
                             <span className="text-sm text-muted-foreground">
-                              {formatNumber(sku.value, language)}/day
+                              {formatWholeNumber(sku.value, language)}/day
                             </span>
                           </div>
                         ))}
@@ -1702,15 +1703,15 @@ export function SistRoute() {
                       onClick={() => setSelectedSkuId(row.insight.skuId)}
                     >
                       <TableCell>{row.sku?.name ?? row.insight.skuId}</TableCell>
-                      <TableCell>{formatNumber(row.insight.latestPosteriorUnits, language)}</TableCell>
+                      <TableCell>{formatWholeNumber(row.insight.latestPosteriorUnits, language)}</TableCell>
                       <TableCell>
                         {row.insight.daysOfCover == null
                           ? '—'
-                          : formatNumber(row.insight.daysOfCover, language)}
+                          : formatDurationAuto(row.insight.daysOfCover, 'day', language, 'short')}
                       </TableCell>
                       <TableCell>{formatPercent(row.insight.stockoutRisk, language)}</TableCell>
-                      <TableCell>{formatNumber(row.insight.reorderPoint, language)}</TableCell>
-                      <TableCell>{formatNumber(row.insight.expectedDemandPerDay, language)}</TableCell>
+                      <TableCell>{formatQuantityForDisplay(row.insight.reorderPoint, language)}</TableCell>
+                      <TableCell>{formatQuantityForDisplay(row.insight.expectedDemandPerDay, language)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1737,13 +1738,13 @@ export function SistRoute() {
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Expected demand/day</span>
-                          <span>{formatNumber(selectedSkuDetail.insight.expectedDemandPerDay, language)}</span>
+                          <span>{formatQuantityForDisplay(selectedSkuDetail.insight.expectedDemandPerDay, language)}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Interval bounds</span>
                           <span>
-                            {formatNumber(selectedSkuDetail.insight.demandIntervalLow, language)} to{' '}
-                            {formatNumber(selectedSkuDetail.insight.demandIntervalHigh, language)}
+                            {formatQuantityForDisplay(selectedSkuDetail.insight.demandIntervalLow, language)} to{' '}
+                            {formatQuantityForDisplay(selectedSkuDetail.insight.demandIntervalHigh, language)}
                           </span>
                         </div>
                       </div>
@@ -1752,11 +1753,11 @@ export function SistRoute() {
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Reorder point</span>
-                          <span>{formatNumber(selectedSkuDetail.insight.reorderPoint, language)}</span>
+                          <span>{formatQuantityForDisplay(selectedSkuDetail.insight.reorderPoint, language)}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Safety stock</span>
-                          <span>{formatNumber(selectedSkuDetail.insight.safetyStock, language)}</span>
+                          <span>{formatQuantityForDisplay(selectedSkuDetail.insight.safetyStock, language)}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Trigger probability</span>
@@ -1813,7 +1814,7 @@ export function SistRoute() {
                   onChange={(event) => setEvidenceEntityQuery(event.target.value)}
                 />
                 <div className="flex items-center rounded-xl border border-border bg-background px-3 text-sm text-muted-foreground">
-                  {formatNumber(filteredEvidence.length, language)} ledger rows in scope
+                  {formatWholeNumber(filteredEvidence.length, language)} ledger rows in scope
                 </div>
               </div>
             </SectionBlock>

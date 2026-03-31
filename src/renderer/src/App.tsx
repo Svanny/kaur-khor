@@ -14,6 +14,7 @@ import { StockUpdateRoute } from '@/routes/stock-update';
 import { StockUpdateSessionRoute } from '@/routes/stock-update-session';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider } from '@/state/inventory';
+import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { OperationsSessionProvider } from '@/state/operations-session';
 
 function LegacyInventoryRedirect({ to }: { to: string }) {
@@ -74,9 +75,11 @@ export function AppRoutes() {
 
 function AppFrame() {
   return (
-    <BanjiShell>
-      <AppRoutes />
-    </BanjiShell>
+    <NavigationHistoryProvider>
+      <BanjiShell>
+        <AppRoutes />
+      </BanjiShell>
+    </NavigationHistoryProvider>
   );
 }
 

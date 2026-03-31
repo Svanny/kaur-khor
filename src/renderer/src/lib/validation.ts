@@ -28,6 +28,20 @@ export function validateRequiredText(value: string, maxLength: number): string |
   return null;
 }
 
+export function validateEntryId(value: string): string | null {
+  const normalized = value.trim();
+  if (!normalized) {
+    return 'required';
+  }
+  if (normalized.length < 3 || normalized.length > 64) {
+    return 'invalid';
+  }
+  if (!/^[a-z0-9_-]+$/.test(normalized)) {
+    return 'invalid';
+  }
+  return null;
+}
+
 export function validateNonNegativeDecimal(value: string, maxValue: number): string | null {
   const raw = value.trim();
   if (!raw) {

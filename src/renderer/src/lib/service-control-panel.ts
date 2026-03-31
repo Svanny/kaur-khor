@@ -7,7 +7,7 @@ import type {
   SkuRecord,
   StockReport,
 } from '@shared/inventory';
-import { formatCurrency, formatNumber } from '@/lib/format';
+import { formatCurrency, formatNumber, formatWholeNumber } from '@/lib/format';
 import { computeServiceSellableUnits, serviceCoverageState, serviceLinkedSkus } from '@/lib/catalog';
 
 export type ServiceHeartbeatState = 'available' | 'at-risk' | 'blocked' | 'unlinked';
@@ -201,7 +201,7 @@ export function serviceHeartbeatSummary({
   const limiterText = bottleneck ? bottleneck.sku.name : 'no active limiter';
   return {
     state: serviceCoverageState(service, snapshot) as ServiceHeartbeatState,
-    summary: `${formatNumber(sellableUnits, language)} sellable units across ${formatNumber(
+    summary: `${formatWholeNumber(sellableUnits, language)} sellable units across ${formatWholeNumber(
       contributors.length,
       language,
     )} linked SKUs · ${limiterText}`,

@@ -13,6 +13,7 @@ import {
 import type { DesktopLocalDataInfo } from '@shared/ipc';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { DescriptionText } from '@/components/system/description-text';
+import { PageTitleWithBack } from '@/components/system/page-navigation';
 import { WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -258,6 +259,13 @@ export function SettingsRoute() {
   return (
     <WorkspacePage>
       <WorkspacePanel>
+        <div className="space-y-2">
+          <PageTitleWithBack>{t('navSettings')}</PageTitleWithBack>
+          <DescriptionText className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            {t('settingsWorkspacePreferencesDescription')}
+          </DescriptionText>
+        </div>
+
         {pageStatus ? (
           <p
             className={cn(
@@ -286,9 +294,6 @@ export function SettingsRoute() {
                   </span>
                 ) : null}
               </div>
-              <DescriptionText className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                {t('settingsWorkspacePreferencesDescription')}
-              </DescriptionText>
             </div>
             {hasPendingChanges ? (
               <div className="flex flex-wrap items-center gap-3 lg:shrink-0">

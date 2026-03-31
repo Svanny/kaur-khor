@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { DescriptionText, hasDescriptionText } from '@/components/system/description-text';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -48,16 +49,7 @@ export function EditorHeader({
         <div className={cn('flex min-w-0 flex-1 flex-col gap-3', !showDescription && 'gap-2')}>
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             {onBack && backLabel ? (
-              <Button
-                aria-label={backLabel}
-                className="size-10 rounded-full p-0"
-                title={backLabel}
-                type="button"
-                variant="ghost"
-                onClick={onBack}
-              >
-                <ArrowLeft />
-              </Button>
+              <RouteBackButton onClick={onBack} />
             ) : null}
             {title ? (
               <div className="min-w-0 font-heading text-base font-medium tracking-[-0.02em] text-foreground">

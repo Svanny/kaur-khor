@@ -162,11 +162,13 @@ export function MetricStripItem({
   value,
   detail,
   className,
+  valueClassName,
 }: {
   label: string;
   value: ReactNode;
   detail?: ReactNode;
   className?: string;
+  valueClassName?: string;
 }) {
   return (
     <div
@@ -179,7 +181,12 @@ export function MetricStripItem({
       <p className="text-[0.72rem] font-medium tracking-[0.08em] text-muted-foreground/80">
         {label}
       </p>
-      <p className="text-3xl font-semibold tracking-[-0.04em] text-foreground [font-variant-numeric:tabular-nums]">
+      <p
+        className={cn(
+          'min-w-0 max-w-full text-3xl font-semibold leading-none tracking-[-0.04em] text-foreground [font-variant-numeric:tabular-nums]',
+          valueClassName,
+        )}
+      >
         {value}
       </p>
       {detail ? (
@@ -199,6 +206,7 @@ export function WorkspacePanel({
   className,
   contentClassName,
   footer,
+  forceDescription = false,
 }: {
   title?: ReactNode;
   description?: ReactNode;
@@ -207,8 +215,11 @@ export function WorkspacePanel({
   className?: string;
   contentClassName?: string;
   footer?: ReactNode;
+  forceDescription?: boolean;
 }) {
-  const showDescription = hasDescriptionText(description);
+  const showDescription = forceDescription
+    ? description != null && description !== false && (typeof description !== 'string' || description.trim().length > 0)
+    : hasDescriptionText(description);
   const hasHeader = Boolean(title || showDescription || action);
   const hasContent = children != null;
 
@@ -219,7 +230,7 @@ export function WorkspacePanel({
           {title ? <CardTitle>{title}</CardTitle> : null}
           {showDescription ? (
             <CardDescription>
-              <DescriptionText as="div">{description}</DescriptionText>
+              {forceDescription ? description : <DescriptionText as="div">{description}</DescriptionText>}
             </CardDescription>
           ) : null}
           {action ? <CardAction>{action}</CardAction> : null}

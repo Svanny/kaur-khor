@@ -30,4 +30,18 @@ describe('WorkspacePanel', () => {
     expect(screen.getByText('Panel body')).toBeInTheDocument();
     expect(container.querySelector('[data-slot="card-header"]')).toBeNull();
   });
+
+  test('renders description content when forceDescription is enabled', () => {
+    render(
+      <WorkspacePanel
+        description={<div>Visible helper copy</div>}
+        forceDescription
+        title="Panel title"
+      >
+        <div>Panel body</div>
+      </WorkspacePanel>,
+    );
+
+    expect(screen.getByText('Visible helper copy')).toBeInTheDocument();
+  });
 });

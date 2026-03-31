@@ -23,10 +23,10 @@ import {
 import {
   WorkspaceEmpty,
   WorkspacePage,
-  WorkspacePageTitle,
   WorkspacePanel,
 } from '@/components/system/workspace';
 import { DescriptionText } from '@/components/system/description-text';
+import { PageTitleWithBack } from '@/components/system/page-navigation';
 import {
   catalogViewFromSearchParams,
   computeServiceSellableUnits,
@@ -35,7 +35,7 @@ import {
   sortByName,
   type CatalogView,
 } from '@/lib/catalog';
-import { formatCurrency, formatNumber } from '@/lib/format';
+import { formatCurrency, formatNumber, formatWholeNumber } from '@/lib/format';
 import { statusPillClassName, type StatusPillTone } from '@/lib/status-pill';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -382,8 +382,8 @@ function ServiceCatalogTable({
                     {t(statusKey)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-center">{formatNumber(sellableUnits, language)}</TableCell>
-                <TableCell className="text-center">{formatNumber(service.skuIds.length, language)}</TableCell>
+                <TableCell className="text-center">{formatWholeNumber(sellableUnits, language)}</TableCell>
+                <TableCell className="text-center">{formatWholeNumber(service.skuIds.length, language)}</TableCell>
                 <TableCell className="text-center">
                   {formatCurrency(service.price, currency, language)}
                 </TableCell>
@@ -503,7 +503,7 @@ function ServiceCatalogPreviewTable({
                     {t(statusKey)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">{formatNumber(sellableUnits, language)}</TableCell>
+                <TableCell className="text-right">{formatWholeNumber(sellableUnits, language)}</TableCell>
               </TableRow>
             );
           })}
@@ -688,7 +688,7 @@ function SkuCatalogTable({
                     {t(statusKey)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-center">{formatNumber(sku.unitsInStock, language)}</TableCell>
+                <TableCell className="text-center">{formatWholeNumber(sku.unitsInStock, language)}</TableCell>
                 <TableCell className="text-center">
                   {formatCurrency(sku.costPerUnit, currency, language)}
                 </TableCell>
@@ -809,7 +809,7 @@ function SkuCatalogPreviewTable({
                   {sku.soldAsProduct ? t('inventorySoldAsProduct') : t('inventoryNotSoldAsProduct')}
                 </Badge>
               </TableCell>
-              <TableCell className="text-right">{formatNumber(sku.unitsInStock, language)}</TableCell>
+              <TableCell className="text-right">{formatWholeNumber(sku.unitsInStock, language)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -939,7 +939,7 @@ export function InventoryRoute() {
           </div>
         }
         description={t('inventoryBody')}
-        title={<WorkspacePageTitle>{t('allItemsTitle')}</WorkspacePageTitle>}
+        title={<PageTitleWithBack>{t('allItemsTitle')}</PageTitleWithBack>}
       >
         <div className="grid gap-4">
           <InputGroup className="h-12 w-full rounded-full">

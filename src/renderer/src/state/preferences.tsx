@@ -25,6 +25,7 @@ interface PreferencesContextValue {
   resetPreferences: () => void;
   hasPendingChanges: boolean;
   t: (key: TranslationKey) => string;
+  rawT: (key: TranslationKey) => string;
   currencyLabel: (value: AppCurrency) => string;
 }
 
@@ -91,6 +92,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
         return getTranslation(language, key);
       },
+      rawT: (key) => getTranslation(language, key),
       currencyLabel: (next) => currencyLabel(language, next),
     }),
     [currency, language, persistedCurrency, persistedLanguage],

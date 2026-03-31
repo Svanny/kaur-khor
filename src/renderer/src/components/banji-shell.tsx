@@ -26,6 +26,7 @@ import { WorkspaceBanner } from '@/components/system/workspace';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
+import { SIDEBAR_NAVIGATION_SOURCE } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import brandLogo from '@/assets/banji-logo.svg';
 
@@ -184,6 +185,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                           <NavLink
                             aria-label={label}
                             className="group-data-[collapsible=icon]:justify-center"
+                            state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
                             to={section.destination}
                             onClick={handleSidebarNavigation}
                           >
@@ -212,6 +214,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                     <NavLink
                       aria-label={t(SETTINGS_SECTION.labelKey)}
                       className="group-data-[collapsible=icon]:justify-center"
+                      state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
                       to={SETTINGS_SECTION.destination}
                       onClick={handleSidebarNavigation}
                     >
