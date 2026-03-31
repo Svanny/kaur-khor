@@ -328,7 +328,7 @@ async fn desktop_inventory_endpoints_support_local_crud_and_ranking() {
             "name": "New bundled service",
             "description": "Appended after the saved ranking order",
             "price": 0.0,
-            "skuIds": ["sku-001"]
+            "skuIds": ["sku-200"]
         }))
         .send()
         .await
@@ -379,6 +379,71 @@ async fn desktop_inventory_endpoints_support_local_crud_and_ranking() {
         "position": expected_ranking.len()
     }));
     assert_eq!(persisted_body["ranking"], json!(expected_ranking));
+
+    let rename_sku = client
+        .put(format!("http://{addr}/v1/desktop/skus/sku-200"))
+        .json(&json!({
+            "skuId": "sku-202",
+            "name": "New retail sku",
+            "description": "Fresh local desktop inventory item",
+            "unitsInStock": 18.0,
+            "costPerUnit": 4.75,
+            "soldAsProduct": true,
+            "productPrice": 9.75
+        }))
+        .send()
+        .await
+        .expect("rename sku should succeed");
+    assert_eq!(rename_sku.status(), StatusCode::OK);
+
+    let rename_service = client
+        .put(format!("http://{addr}/v1/desktop/services/service-200"))
+        .json(&json!({
+            "serviceId": "service-202",
+            "name": "New bundled service",
+            "description": "Appended after the saved ranking order",
+            "price": 0.0,
+            "skuIds": ["sku-202"]
+        }))
+        .send()
+        .await
+        .expect("rename service should succeed");
+    assert_eq!(rename_service.status(), StatusCode::OK);
+
+    let renamed_inventory = client
+        .get(format!("http://{addr}/v1/desktop/inventory"))
+        .send()
+        .await
+        .expect("renamed inventory request should succeed");
+    assert_eq!(renamed_inventory.status(), StatusCode::OK);
+    let renamed_body: serde_json::Value = renamed_inventory
+        .json()
+        .await
+        .expect("renamed inventory body should parse");
+    assert!(renamed_body["skus"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|sku| sku["skuId"] == "sku-202"));
+    assert!(!renamed_body["skus"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|sku| sku["skuId"] == "sku-200"));
+    assert!(renamed_body["services"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|service| service["serviceId"] == "service-202" && service["skuIds"] == json!(["sku-202"])));
+    assert_eq!(
+        renamed_body["ranking"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|entry| entry["entryId"] == "sku-202" || entry["entryId"] == "service-202")
+            .count(),
+        2
+    );
 
     let invalid_ranking = client
         .put(format!("http://{addr}/v1/desktop/ranking"))

@@ -43,6 +43,7 @@ export interface StockReportSkuObservation {
   unitsInStock: number;
   costPerUnit: number;
   productPrice?: number | null;
+  previousProductPrice?: number | null;
   restockIncluded?: boolean;
   retailStockout?: boolean;
   notes?: string | null;
@@ -57,6 +58,7 @@ export interface StockReportServiceSignal {
 export interface StockReportServicePriceAdjustment {
   serviceId: string;
   price: number;
+  previousPrice?: number | null;
   notes?: string | null;
 }
 
@@ -80,6 +82,14 @@ export interface StockReportSubmission {
   topServiceRanking?: string[];
   topRetailRanking?: string[];
   notes?: string | null;
+}
+
+export interface StockReportUpdatePayload extends StockReportSubmission {
+  reportId: string;
+}
+
+export interface StockReportDeletePayload {
+  reportId: string;
 }
 
 export interface LeadTimeSummary {

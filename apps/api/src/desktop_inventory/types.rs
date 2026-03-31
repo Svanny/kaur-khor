@@ -90,6 +90,9 @@ pub struct StockReportSkuObservation {
     pub sku_id: String,
     pub units_in_stock: f64,
     pub cost_per_unit: f64,
+    pub product_price: Option<f64>,
+    #[serde(default)]
+    pub previous_product_price: Option<f64>,
     #[serde(default)]
     pub restock_included: bool,
     #[serde(default)]
@@ -110,6 +113,8 @@ pub struct StockReportServiceSignal {
 pub struct StockReportServicePriceAdjustment {
     pub service_id: String,
     pub price: f64,
+    #[serde(default)]
+    pub previous_price: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -471,6 +476,20 @@ pub struct SubmitStockReportRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct UpdateStockReportRequest {
+    pub report_id: String,
+    #[serde(flatten)]
+    pub report: SubmitStockReportRequest,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteStockReportRequest {
+    pub report_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateSistSettingsRequest {
     pub target_service_level: f64,
     pub forecast_horizon_days: usize,
@@ -572,6 +591,9 @@ impl SubmitStockReportRequest {
             validate_entry_id("skuId", &observation.sku_id)?;
             validate_non_negative("unitsInStock", observation.units_in_stock, INVENTORY_UNITS_MAX)?;
             validate_non_negative("costPerUnit", observation.cost_per_unit, MONETARY_AMOUNT_MAX)?;
+            if let Some(product_price) = observation.product_price {
+                validate_non_negative("productPrice", product_price, MONETARY_AMOUNT_MAX)?;
+            }
             if let Some(notes) = observation.notes.as_mut() {
                 *notes = normalize_text(notes, REPORT_NOTES_MAX_LENGTH)?;
             }
@@ -618,6 +640,19 @@ impl SubmitStockReportRequest {
             ));
         }
         Ok(())
+    }
+}
+
+impl UpdateStockReportRequest {
+    pub fn validate(&mut self) -> Result<()> {
+        validate_entry_id("reportId", &self.report_id)?;
+        self.report.validate()
+    }
+}
+
+impl DeleteStockReportRequest {
+    pub fn validate(&self) -> Result<()> {
+        validate_entry_id("reportId", &self.report_id)
     }
 }
 

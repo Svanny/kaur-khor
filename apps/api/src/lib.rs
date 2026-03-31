@@ -692,11 +692,6 @@ async fn update_desktop_sku(
     Path(sku_id): Path<String>,
     Json(mut body): Json<desktop_inventory::types::UpsertDesktopSkuRequest>,
 ) -> axum::response::Response {
-    if sku_id != body.sku_id {
-        return desktop_inventory_validation_error(anyhow::anyhow!(
-            "path skuId must match request body skuId"
-        ));
-    }
     if let Err(err) = body.validate() {
         return desktop_inventory_validation_error(err);
     }
@@ -732,11 +727,6 @@ async fn update_desktop_service(
     Path(service_id): Path<String>,
     Json(mut body): Json<desktop_inventory::types::UpsertDesktopServiceRequest>,
 ) -> axum::response::Response {
-    if service_id != body.service_id {
-        return desktop_inventory_validation_error(anyhow::anyhow!(
-            "path serviceId must match request body serviceId"
-        ));
-    }
     if let Err(err) = body.validate() {
         return desktop_inventory_validation_error(err);
     }

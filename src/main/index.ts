@@ -25,7 +25,9 @@ import type {
   SkuRecord,
   SistSettings,
   StockReport,
+  StockReportDeletePayload,
   StockReportSubmission,
+  StockReportUpdatePayload,
   StockUpdatePayload,
 } from '@shared/inventory';
 
@@ -351,6 +353,16 @@ ipcMain.handle(
   IPC_CHANNELS.inventorySubmitStockReport,
   async (_event, payload: StockReportSubmission) =>
     managedCore.invoke<InventorySnapshot>('inventory.submitStockReport', payload),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryUpdateStockReport,
+  async (_event, payload: StockReportUpdatePayload) =>
+    managedCore.invoke<InventorySnapshot>('inventory.updateStockReport', payload),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryDeleteStockReport,
+  async (_event, payload: StockReportDeletePayload) =>
+    managedCore.invoke<InventorySnapshot>('inventory.deleteStockReport', payload),
 );
 ipcMain.handle(
   IPC_CHANNELS.inventorySaveRanking,

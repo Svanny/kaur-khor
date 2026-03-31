@@ -217,6 +217,8 @@ describe('inventory state', () => {
   const saveService = vi.fn();
   const applyStockUpdates = vi.fn();
   const submitStockReport = vi.fn();
+  const updateStockReport = vi.fn();
+  const deleteStockReport = vi.fn();
   const saveRanking = vi.fn();
 
   beforeEach(() => {
@@ -230,6 +232,8 @@ describe('inventory state', () => {
     saveService.mockReset();
     applyStockUpdates.mockReset();
     submitStockReport.mockReset();
+    updateStockReport.mockReset();
+    deleteStockReport.mockReset();
     saveRanking.mockReset();
 
     getSnapshot.mockResolvedValue(createSnapshot());
@@ -263,6 +267,8 @@ describe('inventory state', () => {
         saveService,
         applyStockUpdates,
         submitStockReport,
+        updateStockReport,
+        deleteStockReport,
         saveRanking,
       },
     } as typeof window.banjiDesktop;

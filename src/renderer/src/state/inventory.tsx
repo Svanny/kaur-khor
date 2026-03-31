@@ -17,7 +17,9 @@ import type {
   SistSkuDetail,
   SistSystemDetail,
   StockReport,
+  StockReportDeletePayload,
   StockReportSubmission,
+  StockReportUpdatePayload,
   UpsertServicePayload,
   UpsertSkuPayload,
 } from '@shared/inventory';
@@ -41,6 +43,8 @@ interface InventoryContextValue extends InventoryState {
     updates: Array<{ skuId: string; unitsInStock: number; costPerUnit: number }>,
   ) => Promise<void>;
   submitReport: (payload: StockReportSubmission) => Promise<void>;
+  updateReport: (payload: StockReportUpdatePayload) => Promise<void>;
+  deleteReport: (payload: StockReportDeletePayload) => Promise<void>;
   persistRanking: (entries: RankingEntry[]) => Promise<void>;
   saveSistSettings: (payload: SistSettings) => Promise<void>;
   loadSistSystemDetail: () => Promise<SistSystemDetail>;
@@ -231,6 +235,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       },
       submitReport: async (payload) => {
         await mutate(() => window.banjiDesktop.inventory.submitStockReport(payload));
+      },
+      updateReport: async (payload) => {
+        await mutate(() => window.banjiDesktop.inventory.updateStockReport(payload));
+      },
+      deleteReport: async (payload) => {
+        await mutate(() => window.banjiDesktop.inventory.deleteStockReport(payload));
       },
       persistRanking: async (entries) => {
         await mutate(() => window.banjiDesktop.inventory.saveRanking({ entries }));

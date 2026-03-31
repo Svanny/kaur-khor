@@ -2,7 +2,8 @@ use banji_desktop_core::{
     store,
     types::{
         SaveDesktopRankingRequest, StockReportServicePriceAdjustment, StockReportSkuObservation,
-        SubmitStockReportRequest, UpdateSistSettingsRequest, UpsertDesktopSkuRequest,
+        SubmitStockReportRequest, UpdateSistSettingsRequest, UpdateStockReportRequest,
+        UpsertDesktopSkuRequest,
     },
 };
 use serde_json::{json, Value};
@@ -134,6 +135,8 @@ fn desktop_core_lists_reports_newest_first() {
                 sku_id: sku.sku_id.clone(),
                 units_in_stock: sku.units_in_stock + 1.0,
                 cost_per_unit: sku.cost_per_unit,
+                product_price: sku.product_price,
+                previous_product_price: sku.product_price,
                 restock_included: false,
                 retail_stockout: false,
                 notes: Some("Early update".to_string()),
@@ -156,6 +159,7 @@ fn desktop_core_lists_reports_newest_first() {
             service_price_adjustments: vec![StockReportServicePriceAdjustment {
                 service_id: snapshot.services[0].service_id.clone(),
                 price: snapshot.services[0].price + 50.0,
+                previous_price: Some(snapshot.services[0].price),
             }],
             top_service_ranking: snapshot
                 .services
@@ -183,6 +187,10 @@ fn desktop_core_lists_reports_newest_first() {
         .expect("later report should be present");
     assert_eq!(later_report.top_service_ranking.len(), 1);
     assert_eq!(later_report.service_price_adjustments.len(), 1);
+    assert_eq!(
+        later_report.service_price_adjustments[0].previous_price,
+        Some(snapshot.services[0].price)
+    );
     assert_eq!(later_report.sku_observations.len(), 0);
     assert!(reports
         .iter()
@@ -232,6 +240,7 @@ fn desktop_core_ignores_backfilled_service_price_when_newer_adjustment_exists() 
             service_price_adjustments: vec![StockReportServicePriceAdjustment {
                 service_id: service.service_id.clone(),
                 price: service.price + 50.0,
+                previous_price: Some(service.price),
             }],
             top_service_ranking: Vec::new(),
             top_retail_ranking: Vec::new(),
@@ -249,6 +258,7 @@ fn desktop_core_ignores_backfilled_service_price_when_newer_adjustment_exists() 
             service_price_adjustments: vec![StockReportServicePriceAdjustment {
                 service_id: service.service_id.clone(),
                 price: service.price + 10.0,
+                previous_price: Some(service.price),
             }],
             top_service_ranking: Vec::new(),
             top_retail_ranking: Vec::new(),
@@ -260,6 +270,107 @@ fn desktop_core_ignores_backfilled_service_price_when_newer_adjustment_exists() 
     let updated_snapshot =
         store::load_inventory(owner).expect("inventory should keep the newest service price");
     assert_eq!(updated_snapshot.services[0].price, service.price + 50.0);
+
+    let _ = fs::remove_file(store_path);
+    env::remove_var("BANJI_DESKTOP_DATA_PATH");
+}
+
+#[test]
+fn desktop_core_round_trips_sku_product_price_edits_in_reports() {
+    let _guard = STORE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let store_path = temp_store_path("sku-product-price-report");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    let owner = "desktop-owner";
+    let snapshot = store::load_inventory(owner).expect("seeded inventory should load");
+    let sku = snapshot
+        .skus
+        .iter()
+        .find(|entry| entry.sold_as_product && entry.product_price.is_some())
+        .expect("seeded inventory should include a sellable sku");
+    let edited_price = sku.product_price.expect("sellable sku should have a product price") + 1.25;
+
+    store::submit_stock_report(
+        owner,
+        SubmitStockReportRequest {
+            reported_at: "2026-03-31T09:00:00Z".to_string(),
+            sku_observations: vec![StockReportSkuObservation {
+                sku_id: sku.sku_id.clone(),
+                units_in_stock: sku.units_in_stock,
+                cost_per_unit: sku.cost_per_unit,
+                product_price: Some(edited_price),
+                previous_product_price: sku.product_price,
+                restock_included: false,
+                retail_stockout: false,
+                notes: Some("Observed higher selling price".to_string()),
+            }],
+            service_signals: Vec::new(),
+            service_price_adjustments: Vec::new(),
+            top_service_ranking: Vec::new(),
+            top_retail_ranking: Vec::new(),
+            notes: Some("SKU price edit".to_string()),
+        },
+    )
+    .expect("sku price edit report should save");
+
+    let reports = store::list_stock_reports(owner).expect("report history should load");
+    let saved_report = reports
+        .iter()
+        .find(|report| report.reported_at == "2026-03-31T09:00:00Z")
+        .expect("saved report should be present");
+    let saved_observation = saved_report
+        .sku_observations
+        .iter()
+        .find(|entry| entry.sku_id == sku.sku_id)
+        .expect("saved observation should be present");
+
+    assert_eq!(saved_observation.product_price, Some(edited_price));
+    assert_eq!(saved_observation.previous_product_price, sku.product_price);
+
+    let updated_snapshot = store::load_inventory(owner).expect("updated inventory should load");
+    let updated_sku = updated_snapshot
+        .skus
+        .iter()
+        .find(|entry| entry.sku_id == sku.sku_id)
+        .expect("updated sku should be present");
+
+    assert_eq!(updated_sku.product_price, Some(edited_price));
+
+    let updated_again_price = edited_price + 2.0;
+    let updated_report = store::update_stock_report(
+        owner,
+        UpdateStockReportRequest {
+            report_id: saved_report.report_id.clone(),
+            report: SubmitStockReportRequest {
+                reported_at: saved_report.reported_at.clone(),
+                sku_observations: vec![StockReportSkuObservation {
+                    sku_id: sku.sku_id.clone(),
+                    units_in_stock: sku.units_in_stock,
+                    cost_per_unit: sku.cost_per_unit,
+                    product_price: Some(updated_again_price),
+                    previous_product_price: None,
+                    restock_included: false,
+                    retail_stockout: false,
+                    notes: Some("Adjusted selling price again".to_string()),
+                }],
+                service_signals: Vec::new(),
+                service_price_adjustments: Vec::new(),
+                top_service_ranking: Vec::new(),
+                top_retail_ranking: Vec::new(),
+                notes: Some("SKU price edit update".to_string()),
+            },
+        },
+    )
+    .expect("sku price edit report update should save");
+    let updated_again_observation = updated_report
+        .sku_observations
+        .iter()
+        .find(|entry| entry.sku_id == sku.sku_id)
+        .expect("updated report observation should be present");
+    assert_eq!(updated_again_observation.product_price, Some(updated_again_price));
+    assert_eq!(updated_again_observation.previous_product_price, Some(edited_price));
 
     let _ = fs::remove_file(store_path);
     env::remove_var("BANJI_DESKTOP_DATA_PATH");

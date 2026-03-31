@@ -3,7 +3,8 @@ use banji_desktop_core::{
     store,
     types::{
         ApplyDesktopStockUpdatesRequest, DesktopInventoryResponse, SaveDesktopRankingRequest,
-        StockReportRecord, SubmitStockReportRequest, UpdateSistSettingsRequest, UpsertDesktopServiceRequest,
+        DeleteStockReportRequest, StockReportRecord, SubmitStockReportRequest,
+        UpdateSistSettingsRequest, UpdateStockReportRequest, UpsertDesktopServiceRequest,
         UpsertDesktopSkuRequest,
     },
 };
@@ -215,6 +216,20 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
                 serde_json::from_value(payload).context("invalid submitStockReport payload")?;
             request.validate()?;
             store::submit_stock_report(DEFAULT_OWNER_SUB, request)?;
+            inventory_snapshot()
+        }
+        "inventory.updateStockReport" => {
+            let mut request: UpdateStockReportRequest =
+                serde_json::from_value(payload).context("invalid updateStockReport payload")?;
+            request.validate()?;
+            store::update_stock_report(DEFAULT_OWNER_SUB, request)?;
+            inventory_snapshot()
+        }
+        "inventory.deleteStockReport" => {
+            let request: DeleteStockReportRequest =
+                serde_json::from_value(payload).context("invalid deleteStockReport payload")?;
+            request.validate()?;
+            store::delete_stock_report(DEFAULT_OWNER_SUB, request)?;
             inventory_snapshot()
         }
         "inventory.saveRanking" => {

@@ -3,12 +3,13 @@ mod analysis;
 
 use super::types::{
     ApplyDesktopStockUpdatesRequest, DesktopInventoryResponse, DesktopRankingEntry,
-    DesktopRankingEntryType, DesktopServiceRecord, DesktopSkuRecord, LeadTimeSummary,
-    MONETARY_AMOUNT_MAX, SaveDesktopRankingRequest, SistAnalysisState, SistAnalysisStatus,
-    SistConfidence, SistOverview, SistRegime, SistServiceDetailResponse, SistSettings,
-    SistSkuDetailResponse, SistSkuInsight, SistSystemDetailResponse, StockReportRecord,
-    StockReportSkuObservation, SubmitStockReportRequest, UpdateSistSettingsRequest,
-    UpsertDesktopServiceRequest, UpsertDesktopSkuRequest,
+    DeleteStockReportRequest, DesktopRankingEntryType, DesktopServiceRecord, DesktopSkuRecord,
+    LeadTimeSummary, MONETARY_AMOUNT_MAX, SaveDesktopRankingRequest, SistAnalysisState,
+    SistAnalysisStatus, SistConfidence, SistOverview, SistRegime, SistServiceDetailResponse,
+    SistSettings, SistSkuDetailResponse, SistSkuInsight, SistSystemDetailResponse,
+    StockReportRecord, StockReportServicePriceAdjustment, StockReportSkuObservation, SubmitStockReportRequest,
+    UpdateSistSettingsRequest, UpdateStockReportRequest, UpsertDesktopServiceRequest,
+    UpsertDesktopSkuRequest,
 };
 use anyhow::{anyhow, Context, Result};
 use once_cell::sync::Lazy;
@@ -441,6 +442,8 @@ fn build_seeded_stock_reports(
                 sku_id: sku.sku_id.clone(),
                 units_in_stock: next_units,
                 cost_per_unit: next_cost,
+                product_price: sku.product_price,
+                previous_product_price: sku.product_price,
                 restock_included,
                 retail_stockout,
                 notes: if restock_included {
@@ -460,6 +463,7 @@ fn build_seeded_stock_reports(
             service_price_adjustments.push(super::types::StockReportServicePriceAdjustment {
                 service_id: services[service_index].service_id.clone(),
                 price: service_prices[service_index],
+                previous_price: Some(services[service_index].price),
             });
         }
 
@@ -546,8 +550,20 @@ fn sync_catalog_with_latest_history(
     for report in reports {
         for observation in &report.sku_observations {
             if let Some(sku) = skus.iter_mut().find(|sku| sku.sku_id == observation.sku_id) {
+                let previous_product_price = sku.product_price;
                 sku.units_in_stock = observation.units_in_stock;
                 sku.cost_per_unit = observation.cost_per_unit;
+                if sku.sold_as_product {
+                    sku.product_price = observation.product_price;
+                }
+                trace_store(format!(
+                    "sync_catalog_with_latest_history report_id={} sku_id={} observed_product_price={:?} previous_catalog_product_price={:?} next_catalog_product_price={:?}",
+                    report.report_id,
+                    observation.sku_id,
+                    observation.product_price,
+                    previous_product_price,
+                    sku.product_price
+                ));
             }
         }
         for adjustment in &report.service_price_adjustments {
@@ -624,8 +640,18 @@ pub fn update_sku(
             .iter()
             .position(|sku| sku.sku_id == sku_id)
             .ok_or_else(|| anyhow!("sku not found"))?;
+        if request.sku_id != sku_id
+            && owner
+                .catalog
+                .skus
+                .iter()
+                .any(|sku| sku.sku_id == request.sku_id)
+        {
+            return Err(anyhow!("sku already exists"));
+        }
+        let next_sku_id = request.sku_id.clone();
         owner.catalog.skus[existing_index] = DesktopSkuRecord {
-            sku_id: sku_id.to_string(),
+            sku_id: next_sku_id.clone(),
             name: request.name,
             description: request.description,
             units_in_stock: request.units_in_stock,
@@ -635,6 +661,9 @@ pub fn update_sku(
             lead_time_mean_days: request.lead_time_mean_days,
             lead_time_std_days: request.lead_time_std_days,
         };
+        if next_sku_id != sku_id {
+            rewrite_sku_references(owner, sku_id, &next_sku_id);
+        }
 
         let valid_sku_ids = owner
             .catalog
@@ -698,13 +727,26 @@ pub fn update_service(
             .iter()
             .position(|service| service.service_id == service_id)
             .ok_or_else(|| anyhow!("service not found"))?;
+        if request.service_id != service_id
+            && owner
+                .catalog
+                .services
+                .iter()
+                .any(|service| service.service_id == request.service_id)
+        {
+            return Err(anyhow!("service already exists"));
+        }
+        let next_service_id = request.service_id.clone();
         owner.catalog.services[existing_index] = DesktopServiceRecord {
-            service_id: service_id.to_string(),
+            service_id: next_service_id.clone(),
             name: request.name,
             description: request.description,
             price: request.price,
             sku_ids: request.sku_ids,
         };
+        if next_service_id != service_id {
+            rewrite_service_references(owner, service_id, &next_service_id);
+        }
         owner.merchandising.ranking =
             normalize_ranking(&owner.merchandising.ranking, &owner.catalog.skus, &owner.catalog.services);
         recompute_analysis(owner_sub, owner);
@@ -726,6 +768,8 @@ pub fn apply_stock_updates(
                 sku_id: update.sku_id,
                 units_in_stock: update.units_in_stock,
                 cost_per_unit: update.cost_per_unit,
+                product_price: None,
+                previous_product_price: None,
                 restock_included: false,
                 retail_stockout: false,
                 notes: None,
@@ -748,59 +792,123 @@ pub fn submit_stock_report(
     with_store_mut(|store| {
         let owner = ensure_owner(store, owner_sub);
         validate_report_against_catalog(owner, &request)?;
+        let sku_observations = enrich_sku_price_baselines(&owner.catalog.skus, None, request.sku_observations);
+        let service_price_adjustments =
+            enrich_service_price_baselines(&owner.catalog.services, None, request.service_price_adjustments);
 
-        let next_id = owner.sist.stock_reports.len() + 1;
+        trace_store(format!(
+            "submit_stock_report owner={} reported_at={} sku_price_observations={}",
+            owner_sub,
+            request.reported_at,
+            sku_observations
+                .iter()
+                .filter(|entry| entry.product_price.is_some())
+                .map(|entry| format!("{}:{:?}", entry.sku_id, entry.product_price))
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+
         let report_source = if owner.sist.stock_reports.is_empty() {
             "legacy-baseline".to_string()
         } else {
             "manual".to_string()
         };
         let record = StockReportRecord {
-            report_id: format!("report-{next_id:04}"),
+            report_id: next_report_id(&owner.sist.stock_reports),
             report_source,
             reported_at: request.reported_at,
-            sku_observations: request.sku_observations,
+            sku_observations,
             service_signals: request.service_signals,
-            service_price_adjustments: request.service_price_adjustments,
+            service_price_adjustments,
             top_service_ranking: request.top_service_ranking,
             top_retail_ranking: request.top_retail_ranking,
             notes: request.notes,
         };
 
-        for observation in &record.sku_observations {
-            if let Some(sku) = owner
-                .catalog
-                .skus
-                .iter_mut()
-                .find(|sku| sku.sku_id == observation.sku_id)
-            {
-                sku.units_in_stock = observation.units_in_stock;
-                sku.cost_per_unit = observation.cost_per_unit;
-            }
-        }
-
-        for adjustment in &record.service_price_adjustments {
-            let should_apply_price = !has_later_service_price_adjustment(
-                owner,
-                &adjustment.service_id,
-                &record.reported_at,
-            );
-            if should_apply_price {
-                if let Some(service) = owner
-                    .catalog
-                    .services
-                    .iter_mut()
-                    .find(|service| service.service_id == adjustment.service_id)
-                {
-                    service.price = adjustment.price;
-                }
-            }
-        }
-
         owner.sist.stock_reports.push(record.clone());
         owner.sist.stock_reports.sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
+        rebuild_catalog_from_report_history(owner);
         recompute_analysis(owner_sub, owner);
         Ok(record)
+    })
+}
+
+pub fn update_stock_report(
+    owner_sub: &str,
+    request: UpdateStockReportRequest,
+) -> Result<StockReportRecord> {
+    with_store_mut(|store| {
+        let owner = ensure_owner(store, owner_sub);
+        let existing_index = owner
+            .sist
+            .stock_reports
+            .iter()
+            .position(|report| report.report_id == request.report_id)
+            .ok_or_else(|| anyhow!("report not found"))?;
+        let existing_report = owner.sist.stock_reports[existing_index].clone();
+        validate_report_against_catalog(owner, &request.report)?;
+        let sku_observations = enrich_sku_price_baselines(
+            &owner.catalog.skus,
+            Some(&existing_report),
+            request.report.sku_observations,
+        );
+        let service_price_adjustments = enrich_service_price_baselines(
+            &owner.catalog.services,
+            Some(&existing_report),
+            request.report.service_price_adjustments,
+        );
+
+        trace_store(format!(
+            "update_stock_report owner={} report_id={} reported_at={} sku_price_observations={}",
+            owner_sub,
+            request.report_id,
+            request.report.reported_at,
+            sku_observations
+                .iter()
+                .filter(|entry| entry.product_price.is_some())
+                .map(|entry| format!("{}:{:?}", entry.sku_id, entry.product_price))
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+
+        let record = StockReportRecord {
+            report_id: existing_report.report_id,
+            report_source: existing_report.report_source,
+            reported_at: request.report.reported_at,
+            sku_observations,
+            service_signals: request.report.service_signals,
+            service_price_adjustments,
+            top_service_ranking: request.report.top_service_ranking,
+            top_retail_ranking: request.report.top_retail_ranking,
+            notes: request.report.notes,
+        };
+
+        owner.sist.stock_reports[existing_index] = record.clone();
+        owner.sist.stock_reports.sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
+        rebuild_catalog_from_report_history(owner);
+        recompute_analysis(owner_sub, owner);
+        Ok(record)
+    })
+}
+
+pub fn delete_stock_report(owner_sub: &str, request: DeleteStockReportRequest) -> Result<()> {
+    with_store_mut(|store| {
+        let owner = ensure_owner(store, owner_sub);
+        let existing_index = owner
+            .sist
+            .stock_reports
+            .iter()
+            .position(|report| report.report_id == request.report_id)
+            .ok_or_else(|| anyhow!("report not found"))?;
+        if owner.sist.stock_reports[existing_index].report_source == "legacy-baseline" {
+            return Err(anyhow!("legacy baseline reports cannot be deleted"));
+        }
+
+        owner.sist.stock_reports.remove(existing_index);
+        owner.sist.stock_reports.sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
+        rebuild_catalog_from_report_history(owner);
+        recompute_analysis(owner_sub, owner);
+        Ok(())
     })
 }
 
@@ -1017,6 +1125,8 @@ fn ensure_baseline_report(owner: &mut OwnerInventory, source: &str) {
                 sku_id: sku.sku_id.clone(),
                 units_in_stock: sku.units_in_stock,
                 cost_per_unit: sku.cost_per_unit,
+                product_price: sku.product_price,
+                previous_product_price: sku.product_price,
                 restock_included: false,
                 retail_stockout: false,
                 notes: None,
@@ -1037,6 +1147,71 @@ fn validate_service_links(owner: &OwnerInventory, sku_ids: &[String]) -> Result<
         }
     }
     Ok(())
+}
+
+fn rewrite_sku_references(owner: &mut OwnerInventory, previous_sku_id: &str, next_sku_id: &str) {
+    for service in &mut owner.catalog.services {
+        for linked_sku_id in &mut service.sku_ids {
+            if linked_sku_id == previous_sku_id {
+                *linked_sku_id = next_sku_id.to_string();
+            }
+        }
+        service.sku_ids.sort();
+        service.sku_ids.dedup();
+    }
+
+    for ranking_entry in &mut owner.merchandising.ranking {
+        if ranking_entry.entry_type == DesktopRankingEntryType::Sku
+            && ranking_entry.entry_id == previous_sku_id
+        {
+            ranking_entry.entry_id = next_sku_id.to_string();
+        }
+    }
+
+    for report in &mut owner.sist.stock_reports {
+        for observation in &mut report.sku_observations {
+            if observation.sku_id == previous_sku_id {
+                observation.sku_id = next_sku_id.to_string();
+            }
+        }
+        for ranked_sku_id in &mut report.top_retail_ranking {
+            if ranked_sku_id == previous_sku_id {
+                *ranked_sku_id = next_sku_id.to_string();
+            }
+        }
+    }
+}
+
+fn rewrite_service_references(
+    owner: &mut OwnerInventory,
+    previous_service_id: &str,
+    next_service_id: &str,
+) {
+    for ranking_entry in &mut owner.merchandising.ranking {
+        if ranking_entry.entry_type == DesktopRankingEntryType::Service
+            && ranking_entry.entry_id == previous_service_id
+        {
+            ranking_entry.entry_id = next_service_id.to_string();
+        }
+    }
+
+    for report in &mut owner.sist.stock_reports {
+        for signal in &mut report.service_signals {
+            if signal.service_id == previous_service_id {
+                signal.service_id = next_service_id.to_string();
+            }
+        }
+        for adjustment in &mut report.service_price_adjustments {
+            if adjustment.service_id == previous_service_id {
+                adjustment.service_id = next_service_id.to_string();
+            }
+        }
+        for ranked_service_id in &mut report.top_service_ranking {
+            if ranked_service_id == previous_service_id {
+                *ranked_service_id = next_service_id.to_string();
+            }
+        }
+    }
 }
 
 fn validate_report_against_catalog(owner: &OwnerInventory, request: &SubmitStockReportRequest) -> Result<()> {
@@ -1096,19 +1271,119 @@ fn validate_report_against_catalog(owner: &OwnerInventory, request: &SubmitStock
     Ok(())
 }
 
-fn has_later_service_price_adjustment(
-    owner: &OwnerInventory,
-    service_id: &str,
-    reported_at: &str,
-) -> bool {
-    let reported_at = parse_report_time(reported_at);
-    owner.sist.stock_reports.iter().any(|report| {
-        parse_report_time(&report.reported_at) > reported_at
-            && report
-                .service_price_adjustments
+fn next_report_id(reports: &[StockReportRecord]) -> String {
+    let next_id = reports
+        .iter()
+        .filter_map(|report| report.report_id.strip_prefix("report-"))
+        .filter_map(|suffix| suffix.parse::<usize>().ok())
+        .max()
+        .map_or(1, |max_id| max_id + 1);
+    format!("report-{next_id:04}")
+}
+
+fn enrich_sku_price_baselines(
+    catalog_skus: &[DesktopSkuRecord],
+    existing_report: Option<&StockReportRecord>,
+    sku_observations: Vec<StockReportSkuObservation>,
+) -> Vec<StockReportSkuObservation> {
+    sku_observations
+        .into_iter()
+        .map(|mut observation| {
+            let existing_entry = existing_report.and_then(|report| {
+                report
+                    .sku_observations
+                    .iter()
+                    .find(|entry| entry.sku_id == observation.sku_id)
+            });
+            let catalog_price = catalog_skus
                 .iter()
-                .any(|adjustment| adjustment.service_id == service_id)
-    })
+                .find(|sku| sku.sku_id == observation.sku_id)
+                .and_then(|sku| sku.product_price);
+
+            observation.previous_product_price = existing_entry
+                .and_then(|entry| entry.product_price)
+                .or(catalog_price);
+            observation
+        })
+        .collect()
+}
+
+fn enrich_service_price_baselines(
+    catalog_services: &[DesktopServiceRecord],
+    existing_report: Option<&StockReportRecord>,
+    service_price_adjustments: Vec<StockReportServicePriceAdjustment>,
+) -> Vec<StockReportServicePriceAdjustment> {
+    service_price_adjustments
+        .into_iter()
+        .map(|mut adjustment| {
+            let existing_entry = existing_report.and_then(|report| {
+                report
+                    .service_price_adjustments
+                    .iter()
+                    .find(|entry| entry.service_id == adjustment.service_id)
+            });
+            let catalog_price = catalog_services
+                .iter()
+                .find(|service| service.service_id == adjustment.service_id)
+                .map(|service| service.price);
+
+            adjustment.previous_price = existing_entry
+                .and_then(|entry| entry.price.is_finite().then_some(entry.price))
+                .or(catalog_price);
+            adjustment
+        })
+        .collect()
+}
+
+fn rebuild_catalog_from_report_history(owner: &mut OwnerInventory) {
+    let mut reports = owner.sist.stock_reports.clone();
+    reports.sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
+
+    let mut rebuilt_skus = owner.catalog.skus.clone();
+    let mut rebuilt_services = owner.catalog.services.clone();
+    if let Some(first_report) = reports.first() {
+        for observation in &first_report.sku_observations {
+            if let Some(sku) = rebuilt_skus
+                .iter_mut()
+                .find(|sku| sku.sku_id == observation.sku_id)
+            {
+                sku.units_in_stock = observation.units_in_stock;
+                sku.cost_per_unit = observation.cost_per_unit;
+                if sku.sold_as_product {
+                    sku.product_price = observation.product_price;
+                }
+            }
+        }
+        for adjustment in &first_report.service_price_adjustments {
+            if let Some(service) = rebuilt_services
+                .iter_mut()
+                .find(|service| service.service_id == adjustment.service_id)
+            {
+                service.price = adjustment.price;
+            }
+        }
+    }
+
+    sync_catalog_with_latest_history(&mut rebuilt_skus, &mut rebuilt_services, &reports);
+
+    for sku in &mut owner.catalog.skus {
+        if let Some(rebuilt_sku) = rebuilt_skus.iter().find(|entry| entry.sku_id == sku.sku_id) {
+            sku.units_in_stock = rebuilt_sku.units_in_stock;
+            sku.cost_per_unit = rebuilt_sku.cost_per_unit;
+            if sku.sold_as_product {
+                sku.product_price = rebuilt_sku.product_price;
+            }
+        }
+    }
+
+    for service in &mut owner.catalog.services {
+        if let Some(rebuilt_service) = rebuilt_services
+            .iter()
+            .find(|entry| entry.service_id == service.service_id)
+        {
+            service.price = rebuilt_service.price;
+        }
+    }
 }
 
 fn validate_ranking_entries(owner: &OwnerInventory, entries: &[DesktopRankingEntry]) -> Result<()> {
