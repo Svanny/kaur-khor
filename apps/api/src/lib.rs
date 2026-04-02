@@ -4,6 +4,7 @@ pub mod build_metadata;
 pub mod cache;
 pub mod config;
 pub mod db;
+pub mod desktop_inventory;
 pub mod edge;
 pub mod events;
 pub mod idempotency;
@@ -12,6 +13,7 @@ pub mod jobs;
 pub mod logging;
 pub mod observability;
 pub mod projections;
+pub mod sena;
 pub mod storage;
 
 use auth::{AuthPrincipal, JwtVerifier};
@@ -23,12 +25,14 @@ use axum::{
     routing::{get, post, put},
     Extension, Json, Router,
 };
-use banji_sena_core::{service as sena_service, types as sena_types};
 use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient, RedisRuntime};
 use config::AppConfig;
 use idempotency::{IdempotencyResult, PersistedResponse};
 use items::types::{CreateItemRequest, ItemRecord};
 use logging::redaction::redact_message;
+use banji_sena_core::{
+    SenaCatalog, SenaObservationInput,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgPool;
@@ -191,19 +195,16 @@ pub fn app_with_state(state: AppState) -> Router {
         .route("/v1/write-demo", post(write_demo))
         .route("/v1/items", post(create_item))
         .route("/v1/items/:item_id", get(get_item))
-        .route("/v1/sena/workspace", get(get_sena_workspace))
-        .route("/v1/sena/catalog/skus", post(upsert_sena_sku))
-        .route("/v1/sena/catalog/services", post(upsert_sena_service))
-        .route(
-            "/v1/sena/catalog/services/:service_id/mask",
-            put(update_sena_service_mask),
-        )
-        .route("/v1/sena/observations", post(create_sena_observation))
-        .route("/v1/sena/analysis-runs", post(trigger_sena_analysis))
-        .route("/v1/sena/analysis-runs/:run_id", get(get_sena_run))
-        .route("/v1/sena/sku/:sku_id", get(get_sena_sku))
-        .route("/v1/sena/service/:service_id", get(get_sena_service))
+        .route("/v1/sena/catalog", put(upsert_sena_catalog))
+        .route("/v1/sena/observations", post(ingest_sena_observation))
+        .route("/v1/sena/runs", post(trigger_sena_run))
+        .route("/v1/sena/runs/:run_id/retry", post(retry_sena_run))
+        .route("/v1/sena/summary", get(get_sena_summary))
+        .route("/v1/sena/skus/:sku_id", get(get_sena_sku_detail))
+        .route("/v1/sena/services/:service_id", get(get_sena_service_detail))
         .route("/v1/sena/diagnostics", get(get_sena_diagnostics))
+        .route("/v1/sena/runs/:run_id", get(get_sena_run_status))
+        .route("/v1/sena/artifacts/:artifact_key", get(get_sena_artifact))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             edge::rate_limit::rate_limit_middleware,
@@ -643,150 +644,341 @@ async fn get_item(
     }
 }
 
-async fn get_sena_workspace(
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SenaTriggerRunRequest {
+    #[serde(default = "default_sena_algorithm_version")]
+    algorithm_version: String,
+}
+
+fn default_sena_algorithm_version() -> String {
+    "sena-analysis-v1".to_string()
+}
+
+async fn upsert_sena_catalog(
+    State(state): State<AppState>,
     Extension(principal): Extension<AuthPrincipal>,
+    Json(body): Json<SenaCatalog>,
 ) -> axum::response::Response {
-    match sena_service::load_workspace(&principal.sub) {
-        Ok(workspace) => (StatusCode::OK, Json(serde_json::json!(workspace))).into_response(),
-        Err(err) => sena_error(
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
+    }
+    let mut tx = match db.begin().await {
+        Ok(tx) => tx,
+        Err(err) => {
+            return desktop_inventory_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to begin SENA catalog transaction",
+                err.into(),
+            )
+        }
+    };
+    let result = sena::repository::upsert_catalog_tx(&mut tx, &principal.sub, &body).await;
+    if let Err(err) = tx.commit().await {
+        return desktop_inventory_error(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "failed to load SENA workspace",
+            "failed to commit SENA catalog transaction",
+            err.into(),
+        );
+    }
+    match result {
+        Ok(()) => (StatusCode::OK, Json(serde_json::json!({"catalog": body}))).into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to upsert SENA catalog",
             err,
         ),
     }
 }
 
-async fn upsert_sena_sku(
+async fn ingest_sena_observation(
+    State(state): State<AppState>,
     Extension(principal): Extension<AuthPrincipal>,
-    Json(body): Json<sena_types::SenaUpsertSkuRequest>,
+    Json(body): Json<SenaObservationInput>,
 ) -> axum::response::Response {
-    match sena_service::upsert_sku(&principal.sub, body) {
-        Ok(sku) => (StatusCode::CREATED, Json(serde_json::json!({ "sku": sku }))).into_response(),
-        Err(err) => sena_error(StatusCode::BAD_REQUEST, "failed to upsert SENA sku", err),
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    if let Err(err) = body.validate() {
+        return desktop_inventory_validation_error(err);
     }
-}
-
-async fn upsert_sena_service(
-    Extension(principal): Extension<AuthPrincipal>,
-    Json(body): Json<sena_types::SenaUpsertServiceRequest>,
-) -> axum::response::Response {
-    match sena_service::upsert_service(&principal.sub, body) {
-        Ok(service) => (
+    let mut tx = match db.begin().await {
+        Ok(tx) => tx,
+        Err(err) => {
+            return desktop_inventory_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to begin SENA observation transaction",
+                err.into(),
+            )
+        }
+    };
+    let result = sena::repository::insert_observation_tx(&mut tx, &principal.sub, &body).await;
+    if let Err(err) = tx.commit().await {
+        return desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to commit SENA observation transaction",
+            err.into(),
+        );
+    }
+    match result {
+        Ok(record) => (
             StatusCode::CREATED,
-            Json(serde_json::json!({ "service": service })),
+            Json(serde_json::json!({"observation": record})),
         )
             .into_response(),
-        Err(err) => sena_error(
-            StatusCode::BAD_REQUEST,
-            "failed to upsert SENA service",
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to ingest SENA observation",
             err,
         ),
     }
 }
 
-async fn update_sena_service_mask(
+async fn trigger_sena_run(
+    State(state): State<AppState>,
     Extension(principal): Extension<AuthPrincipal>,
-    Path(service_id): Path<String>,
-    Json(mut body): Json<sena_types::SenaServiceMaskUpdateRequest>,
+    Json(body): Json<SenaTriggerRunRequest>,
 ) -> axum::response::Response {
-    body.service_id = service_id;
-    match sena_service::update_service_mask(&principal.sub, body) {
-        Ok(service) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "service": service })),
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
         )
-            .into_response(),
-        Err(err) => sena_error(
-            StatusCode::BAD_REQUEST,
-            "failed to update SENA service mask",
+            .into_response();
+    };
+    match sena::repository::run_analysis_now(db, &principal.sub, &body.algorithm_version).await {
+        Ok(completed) => (StatusCode::CREATED, Json(serde_json::json!({"run": completed}))).into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to execute SENA run",
             err,
         ),
     }
 }
 
-async fn create_sena_observation(
-    Extension(principal): Extension<AuthPrincipal>,
-    Json(body): Json<sena_types::SenaObservationIngestRequest>,
-) -> axum::response::Response {
-    match sena_service::record_observation(&principal.sub, body) {
-        Ok(observation) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({ "observation": observation })),
-        )
-            .into_response(),
-        Err(err) => sena_error(
-            StatusCode::BAD_REQUEST,
-            "failed to record SENA observation",
-            err,
-        ),
-    }
-}
-
-async fn trigger_sena_analysis(
-    Extension(principal): Extension<AuthPrincipal>,
-) -> axum::response::Response {
-    match sena_service::trigger_analysis(&principal.sub) {
-        Ok(run) => (StatusCode::CREATED, Json(serde_json::json!({ "run": run }))).into_response(),
-        Err(err) => sena_error(
-            StatusCode::BAD_REQUEST,
-            "failed to trigger SENA analysis",
-            err,
-        ),
-    }
-}
-
-async fn get_sena_run(
-    Extension(principal): Extension<AuthPrincipal>,
+async fn retry_sena_run(
+    State(state): State<AppState>,
     Path(run_id): Path<String>,
 ) -> axum::response::Response {
-    match sena_service::load_run(&principal.sub, &run_id) {
-        Ok(run) => (StatusCode::OK, Json(serde_json::json!(run))).into_response(),
-        Err(err) => sena_error(StatusCode::BAD_REQUEST, "failed to load SENA run", err),
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    let existing = match sena::repository::get_run(db, &run_id).await {
+        Ok(Some(run)) => run,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"SENA run not found"})),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            return desktop_inventory_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to load SENA run",
+                err,
+            )
+        }
+    };
+    match sena::repository::run_analysis_now(db, &existing.owner_sub, &existing.algorithm_version).await {
+        Ok(completed) => (StatusCode::OK, Json(serde_json::json!({"run": completed}))).into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to retry SENA run",
+            err,
+        ),
     }
 }
 
-async fn get_sena_sku(
+async fn get_sena_summary(
+    State(state): State<AppState>,
+    Extension(principal): Extension<AuthPrincipal>,
+) -> axum::response::Response {
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    match sena::repository::load_workspace_summary(db, &principal.sub).await {
+        Ok(Some(summary)) => (StatusCode::OK, Json(serde_json::json!(summary))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"SENA summary not found"})),
+        )
+            .into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load SENA summary",
+            err,
+        ),
+    }
+}
+
+async fn get_sena_sku_detail(
+    State(state): State<AppState>,
     Extension(principal): Extension<AuthPrincipal>,
     Path(sku_id): Path<String>,
 ) -> axum::response::Response {
-    match sena_service::load_sku_posterior(&principal.sub, &sku_id) {
-        Ok(detail) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
-        Err(err) => sena_error(
-            StatusCode::BAD_REQUEST,
-            "failed to load SENA sku posterior",
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    match sena::repository::load_sku_detail(db, &principal.sub, &sku_id).await {
+        Ok(Some(detail)) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"SENA sku detail not found"})),
+        )
+            .into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load SENA sku detail",
             err,
         ),
     }
 }
 
-async fn get_sena_service(
+async fn get_sena_service_detail(
+    State(state): State<AppState>,
     Extension(principal): Extension<AuthPrincipal>,
     Path(service_id): Path<String>,
 ) -> axum::response::Response {
-    match sena_service::load_service_posterior(&principal.sub, &service_id) {
-        Ok(detail) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
-        Err(err) => sena_error(
-            StatusCode::BAD_REQUEST,
-            "failed to load SENA service posterior",
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    match sena::repository::load_service_detail(db, &principal.sub, &service_id).await {
+        Ok(Some(detail)) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"SENA service detail not found"})),
+        )
+            .into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load SENA service detail",
             err,
         ),
     }
 }
 
 async fn get_sena_diagnostics(
+    State(state): State<AppState>,
     Extension(principal): Extension<AuthPrincipal>,
 ) -> axum::response::Response {
-    match sena_service::load_diagnostics(&principal.sub) {
-        Ok(diagnostics) => (StatusCode::OK, Json(serde_json::json!(diagnostics))).into_response(),
-        Err(err) => sena_error(
-            StatusCode::BAD_REQUEST,
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    match sena::repository::load_diagnostics(db, &principal.sub).await {
+        Ok(Some(detail)) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"SENA diagnostics not found"})),
+        )
+            .into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
             "failed to load SENA diagnostics",
             err,
         ),
     }
 }
 
-fn sena_error(status: StatusCode, message: &str, err: anyhow::Error) -> axum::response::Response {
+async fn get_sena_run_status(
+    State(state): State<AppState>,
+    Path(run_id): Path<String>,
+) -> axum::response::Response {
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    match sena::repository::get_run(db, &run_id).await {
+        Ok(Some(run)) => (StatusCode::OK, Json(serde_json::json!(run))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"SENA run not found"})),
+        )
+            .into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load SENA run",
+            err,
+        ),
+    }
+}
+
+async fn get_sena_artifact(
+    State(state): State<AppState>,
+    Path(artifact_key): Path<String>,
+) -> axum::response::Response {
+    let Some(db) = state.db.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error":"database is not configured"})),
+        )
+            .into_response();
+    };
+    match sena::repository::load_artifact_metadata(db, &artifact_key).await {
+        Ok(Some(artifact)) => (StatusCode::OK, Json(artifact)).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"SENA artifact not found"})),
+        )
+            .into_response(),
+        Err(err) => desktop_inventory_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load SENA artifact",
+            err,
+        ),
+    }
+}
+
+fn desktop_inventory_validation_error(err: anyhow::Error) -> axum::response::Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({
+            "error_code":"REQUEST_VALIDATION_FAILED",
+            "error": err.to_string()
+        })),
+    )
+        .into_response()
+}
+
+fn desktop_inventory_error(
+    status: StatusCode,
+    message: &str,
+    err: anyhow::Error,
+) -> axum::response::Response {
     (
         status,
         Json(serde_json::json!({

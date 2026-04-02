@@ -16,6 +16,14 @@ const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
 const loadSistSkuDetail = vi.fn();
 const listStockReports = vi.fn();
+const loadSenaCatalog = vi.fn();
+const upsertSenaCatalog = vi.fn();
+const triggerSenaRun = vi.fn();
+const loadSenaWorkspaceSummary = vi.fn();
+const loadSenaSkuDetail = vi.fn();
+const loadSenaDiagnostics = vi.fn();
+const loadSenaObservations = vi.fn();
+const loadSenaServiceDetail = vi.fn();
 
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -175,6 +183,14 @@ describe('navigation and detail tabs', () => {
     window.sessionStorage.clear();
     loadSistSkuDetail.mockReset();
     listStockReports.mockReset();
+    loadSenaCatalog.mockReset();
+    upsertSenaCatalog.mockReset();
+    triggerSenaRun.mockReset();
+    loadSenaWorkspaceSummary.mockReset();
+    loadSenaSkuDetail.mockReset();
+    loadSenaDiagnostics.mockReset();
+    loadSenaObservations.mockReset();
+    loadSenaServiceDetail.mockReset();
 
     loadSistSkuDetail.mockResolvedValue({
       insight: snapshot.sist.skuInsights[0],
@@ -215,6 +231,117 @@ describe('navigation and detail tabs', () => {
     });
 
     listStockReports.mockResolvedValue(stockReports);
+    loadSenaCatalog.mockResolvedValue(null);
+    upsertSenaCatalog.mockResolvedValue({
+      schemaVersion: 1,
+      skus: [],
+      services: [],
+      bundles: [],
+      sharingMask: [{ serviceId: 'service-1', skuId: 'sku-1', enabled: true, usageProbability: null }],
+    });
+    triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
+    loadSenaWorkspaceSummary.mockResolvedValue({
+      ownerSub: 'desktop-owner',
+      runId: 'run-1',
+      latestObservedAt: '2026-03-27T09:00:00Z',
+      skuCount: 1,
+      serviceCount: 1,
+      intervalCount: 1,
+      pendingReorderCount: 1,
+      topRegime: 'spike',
+      highRiskSkuIds: ['sku-1'],
+      skuSummaries: [],
+    });
+    loadSenaSkuDetail.mockResolvedValue({
+      summary: {
+        skuId: 'sku-1',
+        latestPosteriorUnits: 11,
+        credibleIntervalLow: 8,
+        credibleIntervalHigh: 14,
+        demandPerDayMean: 2.6,
+        stockoutRisk: 0.47,
+        daysOfCover: 4.2,
+        expectedLeadTimeDemand: 13,
+        safetyStock: 5,
+        reorderPoint: 15,
+        reorderTriggerProbability: 0.72,
+        leadTimeMeanDays: 5,
+        leadTimeStdDays: 1.5,
+        regimeProbabilities: { spike: 0.5, normal: 0.3, lull: 0.2 },
+      },
+      inventoryPosterior: [{ at: '2026-03-27T09:00:00Z', mean: 11, low: 8, high: 14 }],
+      demandPosterior: [
+        {
+          intervalIndex: 0,
+          startAt: '2026-03-26T09:00:00Z',
+          endAt: '2026-03-27T09:00:00Z',
+          deltaDays: 1,
+          serviceDemandMean: 1.1,
+          retailDemandMean: 1.2,
+          unconstrainedDemandMean: 2.6,
+          realizedConsumptionMean: 2.3,
+          adjustmentsMean: 0,
+          receiptsMean: 0.2,
+        },
+      ],
+      pipelinePosterior: [
+        {
+          intervalIndex: 0,
+          inTransitMean: 3,
+          orderProbability: 0.6,
+          orderQuantityMean: 5,
+          receiptQuantityMean: 4,
+          ageDaysMean: 2,
+        },
+      ],
+      leadTimePosterior: [
+        {
+          intervalIndex: 0,
+          logMeanDays: 1,
+          logStdDays: 0.2,
+          meanDays: 5,
+          stdDays: 1.5,
+        },
+      ],
+    });
+    loadSenaDiagnostics.mockResolvedValue({
+      effectiveSampleSizeMean: 82,
+      resamplingCount: 2,
+      smoothingEnabled: true,
+      changePointProbability: 0.22,
+      seasonalityActive: false,
+      posteriorPredictiveErrorMean: 0.14,
+      coverageEstimate: 0.93,
+      regimeHistory: [],
+    });
+    loadSenaObservations.mockResolvedValue([
+      {
+        observationId: 'obs-1',
+        ownerSub: 'desktop-owner',
+        input: {
+          observedAt: '2026-03-27T09:00:00Z',
+          stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 12, costPerUnit: 5, productPrice: 9 }],
+          serviceRankings: [],
+          retailRankings: ['sku-1'],
+          serviceStockouts: [],
+          retailStockouts: [],
+          orderSignals: [],
+          servicePrices: [],
+          retailPrices: [{ skuId: 'sku-1', price: 10 }],
+          leadTimeHints: [],
+          notes: 'Observed in store.',
+        },
+      },
+    ]);
+    loadSenaServiceDetail.mockResolvedValue({
+      serviceId: 'service-1',
+      activityMean: 4.2,
+      activityIntervalLow: 3.8,
+      activityIntervalHigh: 4.8,
+      bottleneckProbability: 0.4,
+      contributors: [{ skuId: 'sku-1', usageProbability: 1, bottleneckProbability: 0.4 }],
+      regimeTimeline: [],
+    });
 
     inventoryHook.mockReturnValue({
       snapshot,
@@ -223,6 +350,14 @@ describe('navigation and detail tabs', () => {
       isSaving: false,
       loadSistSkuDetail,
       listStockReports,
+      loadSenaCatalog,
+      upsertSenaCatalog,
+      triggerSenaRun,
+      loadSenaWorkspaceSummary,
+      loadSenaSkuDetail,
+      loadSenaDiagnostics,
+      loadSenaObservations,
+      loadSenaServiceDetail,
     });
 
     preferencesHook.mockReturnValue({
@@ -293,7 +428,7 @@ describe('navigation and detail tabs', () => {
     });
   });
 
-  test('back navigation returns to the actual previous catalog location and sku tabs stay selectable', async () => {
+  test('back navigation returns to the actual previous catalog location from the SENA SKU page', async () => {
     const user = userEvent.setup();
 
     render(
@@ -329,12 +464,7 @@ describe('navigation and detail tabs', () => {
       expect(screen.getByTestId('location-pathname').textContent).toBe('/catalog/skus/sku-1');
     });
 
-    const statisticsTab = screen.getByRole('tab', { name: 'Statistics' });
-    await user.click(statisticsTab);
-
-    await waitFor(() => {
-      expect(statisticsTab).toHaveAttribute('data-state', 'active');
-    });
+    expect(await screen.findByText('SENA heartbeat')).toBeInTheDocument();
 
     const backButton = screen.getByRole('button', { name: 'Back' });
     expect(backButton).not.toBeDisabled();

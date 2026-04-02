@@ -12,6 +12,8 @@ import {
   type DesktopExportResult,
   type DesktopLocalDataInfo,
   type DesktopPreferences,
+  type GetSenaServiceDetailPayload,
+  type GetSenaSkuDetailPayload,
   type GetSistServiceDetailPayload,
   type GetSistSkuDetailPayload,
   type SaveRankingPayload,
@@ -30,6 +32,15 @@ import type {
   StockReportUpdatePayload,
   StockUpdatePayload,
 } from '@shared/inventory';
+import type {
+  SenaAnalysisRunRecord,
+  SenaCatalog,
+  SenaDiagnostics,
+  SenaObservationRecord,
+  SenaServiceDetail,
+  SenaSkuDetail,
+  SenaWorkspaceSummary,
+} from '@shared/sena';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
@@ -390,6 +401,40 @@ ipcMain.handle(
   IPC_CHANNELS.inventoryUpdateSistSettings,
   async (_event, payload: SistSettings) =>
     managedCore.invoke<InventorySnapshot>('inventory.updateSistSettings', payload),
+);
+ipcMain.handle(IPC_CHANNELS.inventoryGetSenaCatalog, async () =>
+  managedCore.invoke<SenaCatalog | null>('sena.getCatalog'),
+);
+ipcMain.handle(IPC_CHANNELS.inventoryListSenaObservations, async () =>
+  managedCore.invoke<SenaObservationRecord[]>('sena.listObservations'),
+);
+ipcMain.handle(IPC_CHANNELS.inventoryUpsertSenaCatalog, async (_event, payload: SenaCatalog) =>
+  managedCore.invoke<SenaCatalog>('sena.upsertCatalog', payload),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryTriggerSenaRun,
+  async (_event, payload?: { algorithmVersion?: string }) =>
+    managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload),
+);
+ipcMain.handle(IPC_CHANNELS.inventoryGetSenaWorkspaceSummary, async () =>
+  managedCore.invoke<SenaWorkspaceSummary | null>('sena.getWorkspaceSummary'),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryGetSenaSkuDetail,
+  async (_event, payload: GetSenaSkuDetailPayload) =>
+    managedCore.invoke<SenaSkuDetail | null>('sena.getSkuDetail', {
+      skuId: payload.skuId,
+    }),
+);
+ipcMain.handle(IPC_CHANNELS.inventoryGetSenaDiagnostics, async () =>
+  managedCore.invoke<SenaDiagnostics | null>('sena.getDiagnostics'),
+);
+ipcMain.handle(
+  IPC_CHANNELS.inventoryGetSenaServiceDetail,
+  async (_event, payload: GetSenaServiceDetailPayload) =>
+    managedCore.invoke<SenaServiceDetail | null>('sena.getServiceDetail', {
+      serviceId: payload.serviceId,
+    }),
 );
 ipcMain.handle(IPC_CHANNELS.preferencesGet, async () =>
   loadDesktopPreferences(desktopDataPath),

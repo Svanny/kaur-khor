@@ -1,8 +1,8 @@
 use super::{
     rollout::JobAlgorithmDecisionSource,
     schema::{
-        build_item_created_result_v1, build_write_demo_result_v2, validate_job_result,
-        JobSchemaError,
+        build_item_created_result_v1, build_sena_analysis_result_v1,
+        build_write_demo_result_v2, validate_job_result, JobSchemaError,
     },
     schema_types::{JobArtifactOutput, JobExecutionOutput, KnownJob},
 };
@@ -75,6 +75,39 @@ pub async fn handle_job(
                 ctx.algorithm_version
             )),
         },
+        KnownJob::SenaAnalysisV1(payload) => {
+            if !matches!(
+                ctx.algorithm_version.as_str(),
+                "sena-analysis-v1" | "sena-analysis-v2"
+            ) {
+                return Err(anyhow!(
+                    "unsupported_rollout_version: sena-analysis algorithm version {} is not implemented",
+                    ctx.algorithm_version
+                ));
+            }
+            let completed = crate::sena::repository::execute_existing_run_now(
+                pool,
+                &payload.run_id,
+                &ctx.algorithm_version,
+            )
+            .await?;
+            let summary = completed
+                .summary
+                .ok_or_else(|| anyhow!("missing required ref: sena workspace summary not found"))?;
+            let mut result = build_sena_analysis_result_v1(
+                payload.owner_sub.clone(),
+                payload.run_id.clone(),
+                &ctx.algorithm_version,
+                &summary,
+            )
+            .map_err(anyhow::Error::new)?;
+            result.job_key = ctx.job_key.clone();
+            Ok(JobExecutionOutput {
+                result,
+                artifacts: Vec::new(),
+                cleanup_paths: Vec::new(),
+            })
+        }
     }
 }
 

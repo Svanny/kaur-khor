@@ -4,7 +4,8 @@ use super::{
     schema_types::{
         EventSchemaManifestEntry, InvalidEventAction, InvalidEventPolicy,
         InventoryItemCreatedV1Payload, InventoryWriteDemoCompletedV1Payload, KnownEvent,
-        SchemaErrorCode,
+        SchemaErrorCode, SenaAnalysisCompletedV1Payload, SenaCatalogUpsertedV1Payload,
+        SenaObservationIngestedV1Payload,
     },
     streams,
 };
@@ -16,12 +17,15 @@ use serde_json::{json, Value};
 use std::fmt;
 
 const INVENTORY_ITEM_CREATED: &str = "inventory.item.created";
+const SENA_ANALYSIS_COMPLETED: &str = "sena.analysis.completed";
+const SENA_CATALOG_UPSERTED: &str = "sena.catalog.upserted";
+const SENA_OBSERVATION_INGESTED: &str = "sena.observation.ingested";
 const INVENTORY_WRITE_DEMO_COMPLETED: &str = "inventory.write-demo.completed";
 
 const V1: [i32; 1] = [1];
 const PRODUCER_API_ONLY: [&str; 1] = ["api"];
 
-const EVENT_SCHEMA_MANIFEST: [EventSchemaManifestEntry; 2] = [
+const EVENT_SCHEMA_MANIFEST: [EventSchemaManifestEntry; 5] = [
     EventSchemaManifestEntry {
         event_type: INVENTORY_ITEM_CREATED,
         latest_version: 1,
@@ -34,6 +38,27 @@ const EVENT_SCHEMA_MANIFEST: [EventSchemaManifestEntry; 2] = [
         latest_version: 1,
         supported_versions: &V1,
         aggregate_type: "write-demo",
+        allowed_producer_services: &PRODUCER_API_ONLY,
+    },
+    EventSchemaManifestEntry {
+        event_type: SENA_CATALOG_UPSERTED,
+        latest_version: 1,
+        supported_versions: &V1,
+        aggregate_type: "sena-owner",
+        allowed_producer_services: &PRODUCER_API_ONLY,
+    },
+    EventSchemaManifestEntry {
+        event_type: SENA_OBSERVATION_INGESTED,
+        latest_version: 1,
+        supported_versions: &V1,
+        aggregate_type: "sena-owner",
+        allowed_producer_services: &PRODUCER_API_ONLY,
+    },
+    EventSchemaManifestEntry {
+        event_type: SENA_ANALYSIS_COMPLETED,
+        latest_version: 1,
+        supported_versions: &V1,
+        aggregate_type: "sena-run",
         allowed_producer_services: &PRODUCER_API_ONLY,
     },
 ];
@@ -179,6 +204,90 @@ pub fn build_inventory_write_demo_completed_v1(
     Ok(record)
 }
 
+pub fn build_sena_catalog_upserted_v1(
+    system: &str,
+    env: &str,
+    producer_service: String,
+    owner_sub: String,
+    causation_id: String,
+    correlation_id: Option<String>,
+    metadata: Value,
+) -> Result<EventRecord, SchemaError> {
+    let record = EventRecord::new(
+        streams::sena_updated_stream(system, env),
+        SENA_CATALOG_UPSERTED.to_string(),
+        1,
+        "sena-owner".to_string(),
+        owner_sub.clone(),
+        producer_service,
+        Some(causation_id.clone()),
+        correlation_id,
+        causation_id,
+        json!({ "owner_sub": owner_sub }),
+        metadata,
+    );
+    validate_event_record(&record)?;
+    Ok(record)
+}
+
+pub fn build_sena_observation_ingested_v1(
+    system: &str,
+    env: &str,
+    producer_service: String,
+    owner_sub: String,
+    observation_id: String,
+    causation_id: String,
+    correlation_id: Option<String>,
+    metadata: Value,
+) -> Result<EventRecord, SchemaError> {
+    let record = EventRecord::new(
+        streams::sena_updated_stream(system, env),
+        SENA_OBSERVATION_INGESTED.to_string(),
+        1,
+        "sena-owner".to_string(),
+        owner_sub.clone(),
+        producer_service,
+        Some(causation_id.clone()),
+        correlation_id,
+        causation_id,
+        json!({ "owner_sub": owner_sub, "observation_id": observation_id }),
+        metadata,
+    );
+    validate_event_record(&record)?;
+    Ok(record)
+}
+
+pub fn build_sena_analysis_completed_v1(
+    system: &str,
+    env: &str,
+    producer_service: String,
+    payload: &SenaAnalysisCompletedV1Payload,
+    causation_id: String,
+    correlation_id: Option<String>,
+    metadata: Value,
+) -> Result<EventRecord, SchemaError> {
+    let record = EventRecord::new(
+        streams::sena_analysis_completed_stream(system, env),
+        SENA_ANALYSIS_COMPLETED.to_string(),
+        1,
+        "sena-run".to_string(),
+        payload.run_id.clone(),
+        producer_service,
+        Some(causation_id.clone()),
+        correlation_id,
+        causation_id,
+        serde_json::to_value(payload).map_err(|err| {
+            SchemaError::new(
+                SchemaErrorCode::PayloadValidationFailed,
+                format!("sena.analysis.completed v1 encode failed: {err}"),
+            )
+        })?,
+        metadata,
+    );
+    validate_event_record(&record)?;
+    Ok(record)
+}
+
 fn decode_record(record: &EventRecord) -> Result<KnownEvent, SchemaError> {
     let schema = schema_for_type(&record.event_type).ok_or_else(|| {
         SchemaError::new(
@@ -210,6 +319,36 @@ fn decode_record(record: &EventRecord) -> Result<KnownEvent, SchemaError> {
                 })?;
             validate_write_demo_completed_v1(record, &payload)?;
             Ok(KnownEvent::InventoryWriteDemoCompletedV1(payload))
+        }
+        (SENA_CATALOG_UPSERTED, 1) => {
+            let payload: SenaCatalogUpsertedV1Payload =
+                serde_json::from_value(record.payload.clone()).map_err(|err| {
+                    SchemaError::new(
+                        SchemaErrorCode::PayloadValidationFailed,
+                        format!("sena.catalog.upserted v1 decode failed: {err}"),
+                    )
+                })?;
+            Ok(KnownEvent::SenaCatalogUpsertedV1(payload))
+        }
+        (SENA_OBSERVATION_INGESTED, 1) => {
+            let payload: SenaObservationIngestedV1Payload =
+                serde_json::from_value(record.payload.clone()).map_err(|err| {
+                    SchemaError::new(
+                        SchemaErrorCode::PayloadValidationFailed,
+                        format!("sena.observation.ingested v1 decode failed: {err}"),
+                    )
+                })?;
+            Ok(KnownEvent::SenaObservationIngestedV1(payload))
+        }
+        (SENA_ANALYSIS_COMPLETED, 1) => {
+            let payload: SenaAnalysisCompletedV1Payload =
+                serde_json::from_value(record.payload.clone()).map_err(|err| {
+                    SchemaError::new(
+                        SchemaErrorCode::PayloadValidationFailed,
+                        format!("sena.analysis.completed v1 decode failed: {err}"),
+                    )
+                })?;
+            Ok(KnownEvent::SenaAnalysisCompletedV1(payload))
         }
         (event_type, version) => Err(SchemaError::new(
             SchemaErrorCode::UnsupportedEventVersion,

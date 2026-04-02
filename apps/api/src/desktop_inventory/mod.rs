@@ -1,2 +1,2 @@
-pub use banji_desktop_core::store;
-pub use banji_desktop_core::types;
+// Legacy module retained temporarily so older source paths still resolve while the
+// mounted backend surface has moved to `/v1/sena/*`.

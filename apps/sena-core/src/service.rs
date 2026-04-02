@@ -1,152 +1,95 @@
-use crate::store::{build_store, recompute_analysis, SenaRepository};
-use crate::types::{
-    SenaAnalysisRunSummary, SenaObservationIngestRequest, SenaObservationRecord, SenaService,
-    SenaServiceMaskUpdateRequest, SenaServicePosterior, SenaSku, SenaSkuPosterior,
-    SenaUpsertServiceRequest, SenaUpsertSkuRequest, SenaWorkspaceSummary,
-};
-use crate::validation::{
-    validate_observation_request, validate_service_mask_request, validate_service_request,
-    validate_sku_request,
+use crate::{
+    inference::{run_analysis, AnalysisArtifacts},
+    types::{
+        SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaObservationInput,
+        SenaObservationRecord,
+    },
 };
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
-pub fn load_workspace(owner_sub: &str) -> Result<SenaWorkspaceSummary> {
-    let store = build_store()?;
-    let latest = store.load_latest_analysis(owner_sub)?;
-    if let Some(outputs) = latest {
-        return Ok(outputs.workspace);
+#[async_trait(?Send)]
+pub trait SenaRepository {
+    async fn upsert_catalog(&self, owner_sub: &str, catalog: &SenaCatalog) -> Result<()>;
+    async fn get_catalog(&self, owner_sub: &str) -> Result<Option<SenaCatalog>>;
+    async fn insert_observation(
+        &self,
+        owner_sub: &str,
+        observation: &SenaObservationInput,
+    ) -> Result<SenaObservationRecord>;
+    async fn list_observations(&self, owner_sub: &str) -> Result<Vec<SenaObservationRecord>>;
+    async fn create_run(
+        &self,
+        owner_sub: &str,
+        algorithm_version: &str,
+    ) -> Result<SenaAnalysisRunRecord>;
+    async fn get_run(&self, run_id: &str) -> Result<Option<SenaAnalysisRunRecord>>;
+    async fn get_latest_run(&self, owner_sub: &str) -> Result<Option<SenaAnalysisRunRecord>>;
+    async fn persist_completed_run(
+        &self,
+        run_id: &str,
+        result: &SenaAnalysisResult,
+        artifact_key: Option<&str>,
+    ) -> Result<()>;
+    async fn mark_run_failed(&self, run_id: &str, error: &str) -> Result<()>;
+    async fn load_workspace_summary(
+        &self,
+        owner_sub: &str,
+    ) -> Result<Option<crate::types::SenaWorkspaceSummary>>;
+    async fn load_sku_detail(
+        &self,
+        owner_sub: &str,
+        sku_id: &str,
+    ) -> Result<Option<crate::types::SenaSkuDetail>>;
+    async fn load_service_detail(
+        &self,
+        owner_sub: &str,
+        service_id: &str,
+    ) -> Result<Option<crate::types::SenaServiceDetail>>;
+    async fn load_diagnostics(
+        &self,
+        owner_sub: &str,
+    ) -> Result<Option<crate::types::SenaDiagnostics>>;
+}
+
+pub async fn trigger_analysis_run<R: SenaRepository>(
+    repo: &R,
+    owner_sub: &str,
+    algorithm_version: &str,
+) -> Result<SenaAnalysisRunRecord> {
+    repo.create_run(owner_sub, algorithm_version).await
+}
+
+pub async fn execute_analysis_run<R: SenaRepository>(
+    repo: &R,
+    run_id: &str,
+    algorithm_version: &str,
+) -> Result<(SenaAnalysisRunRecord, AnalysisArtifacts)> {
+    let Some(run) = repo.get_run(run_id).await? else {
+        return Err(anyhow!("run not found"));
+    };
+    let Some(catalog) = repo.get_catalog(&run.owner_sub).await? else {
+        repo.mark_run_failed(run_id, "catalog not found").await?;
+        return Err(anyhow!("catalog not found"));
+    };
+    let observations = repo.list_observations(&run.owner_sub).await?;
+    if observations.is_empty() {
+        repo.mark_run_failed(run_id, "no observations").await?;
+        return Err(anyhow!("no observations"));
     }
-    let workspace = store.load_workspace_data(owner_sub)?;
-    Ok(SenaWorkspaceSummary {
-        skus: workspace.skus,
-        services: workspace.services,
-        observations: workspace.observations,
-        latest_run: None,
-        diagnostics: crate::types::SenaDiagnosticsSummary {
-            observation_count: 0,
-            interval_count: 0,
-            effective_sample_size_hint: 0.0,
-            ranking_signal_count: 0,
-            stockout_signal_count: 0,
-            order_signal_count: 0,
-            top_regime: None,
-            intervals: Vec::new(),
-        },
-        high_risk_sku_ids: Vec::new(),
-        pending_reorder_count: 0,
-    })
+    let (result, artifacts) = run_analysis(&run.owner_sub, &catalog, &observations, algorithm_version)?;
+    repo.persist_completed_run(run_id, &result, Some(&artifacts.primary_artifact_key))
+        .await?;
+    let completed = repo
+        .get_run(run_id)
+        .await?
+        .ok_or_else(|| anyhow!("completed run disappeared"))?;
+    Ok((completed, artifacts))
 }
 
-pub fn upsert_sku(owner_sub: &str, request: SenaUpsertSkuRequest) -> Result<SenaSku> {
-    validate_sku_request(&request)?;
-    let store = build_store()?;
-    let sku = SenaSku {
-        sku_id: request.sku_id,
-        name: request.name,
-        description: request.description,
-        sold_as_product: request.sold_as_product,
-        units_per_retail_sale: request.units_per_retail_sale,
-        current_stock_units: request.current_stock_units,
-        reorder_target_service_level: request.reorder_target_service_level,
-        default_lead_time_days: request.default_lead_time_days,
-        default_lead_time_variability: request.default_lead_time_variability,
-    };
-    let saved = store.upsert_sku(owner_sub, sku)?;
-    let _ = recompute_analysis(&store, owner_sub)?;
-    Ok(saved)
-}
-
-pub fn upsert_service(owner_sub: &str, request: SenaUpsertServiceRequest) -> Result<SenaService> {
-    validate_service_request(&request)?;
-    let store = build_store()?;
-    let service = SenaService {
-        service_id: request.service_id,
-        name: request.name,
-        description: request.description,
-        base_price: request.base_price,
-        recipe_links: request.recipe_links,
-        is_bundle: request.is_bundle,
-    };
-    let saved = store.upsert_service(owner_sub, service)?;
-    let _ = recompute_analysis(&store, owner_sub)?;
-    Ok(saved)
-}
-
-pub fn update_service_mask(
-    owner_sub: &str,
-    request: SenaServiceMaskUpdateRequest,
-) -> Result<SenaService> {
-    validate_service_mask_request(&request)?;
-    let store = build_store()?;
-    let workspace = store.load_workspace_data(owner_sub)?;
-    let Some(existing) = workspace
-        .services
-        .into_iter()
-        .find(|service| service.service_id == request.service_id)
-    else {
-        return Err(anyhow!("service not found"));
-    };
-    let updated = SenaService {
-        recipe_links: request.recipe_links,
-        ..existing
-    };
-    let saved = store.upsert_service(owner_sub, updated)?;
-    let _ = recompute_analysis(&store, owner_sub)?;
-    Ok(saved)
-}
-
-pub fn record_observation(
-    owner_sub: &str,
-    request: SenaObservationIngestRequest,
-) -> Result<SenaObservationRecord> {
-    validate_observation_request(&request)?;
-    let store = build_store()?;
-    let saved = store.append_observation(owner_sub, request)?;
-    let _ = recompute_analysis(&store, owner_sub)?;
-    Ok(saved)
-}
-
-pub fn trigger_analysis(owner_sub: &str) -> Result<SenaAnalysisRunSummary> {
-    let store = build_store()?;
-    let outputs = recompute_analysis(&store, owner_sub)?;
-    Ok(outputs.run)
-}
-
-pub fn load_run(owner_sub: &str, run_id: &str) -> Result<SenaAnalysisRunSummary> {
-    let store = build_store()?;
-    store
-        .load_run(owner_sub, run_id)?
-        .ok_or_else(|| anyhow!("analysis run not found"))
-}
-
-pub fn load_sku_posterior(owner_sub: &str, sku_id: &str) -> Result<SenaSkuPosterior> {
-    let store = build_store()?;
-    let Some(outputs) = store.load_latest_analysis(owner_sub)? else {
-        return Err(anyhow!("analysis has not run yet"));
-    };
-    outputs
-        .sku_posteriors
-        .get(sku_id)
-        .cloned()
-        .ok_or_else(|| anyhow!("sku posterior not found"))
-}
-
-pub fn load_service_posterior(owner_sub: &str, service_id: &str) -> Result<SenaServicePosterior> {
-    let store = build_store()?;
-    let Some(outputs) = store.load_latest_analysis(owner_sub)? else {
-        return Err(anyhow!("analysis has not run yet"));
-    };
-    outputs
-        .service_posteriors
-        .get(service_id)
-        .cloned()
-        .ok_or_else(|| anyhow!("service posterior not found"))
-}
-
-pub fn load_diagnostics(owner_sub: &str) -> Result<crate::types::SenaDiagnosticsSummary> {
-    let store = build_store()?;
-    let Some(outputs) = store.load_latest_analysis(owner_sub)? else {
-        return Err(anyhow!("analysis has not run yet"));
-    };
-    Ok(outputs.diagnostics)
+pub fn now_rfc3339() -> String {
+    OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
 }

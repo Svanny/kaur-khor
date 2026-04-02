@@ -153,6 +153,14 @@ const saveService = vi.fn();
 const loadSistServiceDetail = vi.fn();
 const loadSistSkuDetail = vi.fn();
 const loadSistSystemDetail = vi.fn();
+const loadSenaCatalog = vi.fn();
+const upsertSenaCatalog = vi.fn();
+const triggerSenaRun = vi.fn();
+const loadSenaWorkspaceSummary = vi.fn();
+const loadSenaSkuDetail = vi.fn();
+const loadSenaDiagnostics = vi.fn();
+const loadSenaObservations = vi.fn();
+const loadSenaServiceDetail = vi.fn();
 const savePreferences = vi.fn();
 const resetPreferences = vi.fn();
 const persistRanking = vi.fn();
@@ -366,6 +374,159 @@ const sampleSistServiceDetail = {
   metadata: sampleSistSystemDetail.metadata,
 };
 
+const sampleSenaCatalog = {
+  schemaVersion: 1,
+  skus: [
+    {
+      skuId: 'sku-1',
+      name: 'Bangkok Market Tee',
+      description: 'Bestselling imported cotton tee',
+      costPerUnit: 5,
+      soldAsProduct: true,
+      productPrice: 9,
+      leadTimeMeanDaysHint: 5,
+      leadTimeStdDaysHint: 1.5,
+    },
+  ],
+  services: [
+    {
+      serviceId: 'service-1',
+      name: 'Market Day Outfit Set',
+      description: 'Front-rack outfit bundle',
+      price: 1200,
+      bundle: false,
+    },
+  ],
+  bundles: [],
+  sharingMask: [{ serviceId: 'service-1', skuId: 'sku-1', enabled: true, usageProbability: null }],
+};
+
+const sampleSenaWorkspaceSummary = {
+  ownerSub: 'desktop-owner',
+  runId: 'run-1',
+  latestObservedAt: '2026-03-27T09:00:00Z',
+  skuCount: 1,
+  serviceCount: 1,
+  intervalCount: 1,
+  pendingReorderCount: 1,
+  topRegime: 'spike',
+  highRiskSkuIds: ['sku-1'],
+  skuSummaries: [],
+};
+
+const sampleSenaSkuDetail = {
+  summary: {
+    skuId: 'sku-1',
+    latestPosteriorUnits: 11,
+    credibleIntervalLow: 8,
+    credibleIntervalHigh: 14,
+    demandPerDayMean: 2.6,
+    stockoutRisk: 0.47,
+    daysOfCover: 4.2,
+    expectedLeadTimeDemand: 13,
+    safetyStock: 5,
+    reorderPoint: 15,
+    reorderTriggerProbability: 0.72,
+    leadTimeMeanDays: 5,
+    leadTimeStdDays: 1.5,
+    regimeProbabilities: {
+      normal: 0.3,
+      spike: 0.5,
+      lull: 0.2,
+    },
+  },
+  inventoryPosterior: [
+    { at: '2026-03-26T09:00:00Z', mean: 12, low: 9, high: 14 },
+    { at: '2026-03-27T09:00:00Z', mean: 11, low: 8, high: 14 },
+  ],
+  demandPosterior: [
+    {
+      intervalIndex: 0,
+      startAt: '2026-03-26T09:00:00Z',
+      endAt: '2026-03-27T09:00:00Z',
+      deltaDays: 1,
+      serviceDemandMean: 1.1,
+      retailDemandMean: 1.2,
+      unconstrainedDemandMean: 2.6,
+      realizedConsumptionMean: 2.3,
+      adjustmentsMean: 0,
+      receiptsMean: 0.2,
+    },
+  ],
+  pipelinePosterior: [
+    {
+      intervalIndex: 0,
+      inTransitMean: 3,
+      orderProbability: 0.6,
+      orderQuantityMean: 5,
+      receiptQuantityMean: 4,
+      ageDaysMean: 2,
+    },
+  ],
+  leadTimePosterior: [
+    {
+      intervalIndex: 0,
+      logMeanDays: 1,
+      logStdDays: 0.2,
+      meanDays: 5,
+      stdDays: 1.5,
+    },
+  ],
+};
+
+const sampleSenaDiagnostics = {
+  effectiveSampleSizeMean: 82,
+  resamplingCount: 2,
+  smoothingEnabled: true,
+  changePointProbability: 0.22,
+  seasonalityActive: false,
+  posteriorPredictiveErrorMean: 0.14,
+  coverageEstimate: 0.93,
+  regimeHistory: [
+    {
+      intervalIndex: 0,
+      startAt: '2026-03-26T09:00:00Z',
+      endAt: '2026-03-27T09:00:00Z',
+      dominantRegime: 'spike',
+      regimeProbabilities: {
+        normal: 0.3,
+        spike: 0.5,
+        lull: 0.2,
+      },
+    },
+  ],
+};
+
+const sampleSenaObservations = [
+  {
+    observationId: 'obs-1',
+    ownerSub: 'desktop-owner',
+    input: {
+      observedAt: '2026-03-27T09:00:00Z',
+      stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 12, costPerUnit: 5, productPrice: 9 }],
+      serviceRankings: [],
+      retailRankings: ['sku-1'],
+      serviceStockouts: [],
+      retailStockouts: ['sku-1'],
+      orderSignals: [{ skuId: 'sku-1', orderPlaced: true, receiptArrived: false, approximateOrderQuantity: 6, approximateReceiptQuantity: null }],
+      servicePrices: [],
+      retailPrices: [{ skuId: 'sku-1', price: 10 }],
+      leadTimeHints: [{ skuId: 'sku-1', typicalDays: 5, lowDays: 4, highDays: 7, variabilityClass: 'medium' }],
+      notes: 'Morning floor update.',
+    },
+  },
+];
+
+const sampleSenaServiceDetail = {
+  serviceId: 'service-1',
+  activityMean: 5.6,
+  activityIntervalLow: 4.8,
+  activityIntervalHigh: 6.4,
+  bottleneckProbability: 0.52,
+  contributors: [{ skuId: 'sku-1', usageProbability: 1, bottleneckProbability: 0.52 }],
+  regimeTimeline: sampleSenaDiagnostics.regimeHistory,
+};
+
 function createSnapshot(overrides: Partial<InventorySnapshot> = {}): InventorySnapshot {
   return {
     ...snapshot,
@@ -394,6 +555,14 @@ function setInventoryState(nextSnapshot: InventorySnapshot | null) {
     loadSistServiceDetail,
     loadSistSkuDetail,
     listStockReports,
+    loadSenaCatalog,
+    upsertSenaCatalog,
+    triggerSenaRun,
+    loadSenaWorkspaceSummary,
+    loadSenaSkuDetail,
+    loadSenaDiagnostics,
+    loadSenaObservations,
+    loadSenaServiceDetail,
   });
 }
 
@@ -458,6 +627,14 @@ describe('renderer workspaces', () => {
     loadSistServiceDetail.mockReset();
     loadSistSkuDetail.mockReset();
     loadSistSystemDetail.mockReset();
+    loadSenaCatalog.mockReset();
+    upsertSenaCatalog.mockReset();
+    triggerSenaRun.mockReset();
+    loadSenaWorkspaceSummary.mockReset();
+    loadSenaSkuDetail.mockReset();
+    loadSenaDiagnostics.mockReset();
+    loadSenaObservations.mockReset();
+    loadSenaServiceDetail.mockReset();
     savePreferences.mockReset();
     resetPreferences.mockReset();
     persistRanking.mockReset();
@@ -501,6 +678,14 @@ describe('renderer workspaces', () => {
       evidenceSummary: sampleSistServiceDetail.evidenceTimeline,
     });
     loadSistSystemDetail.mockResolvedValue(sampleSistSystemDetail);
+    loadSenaCatalog.mockResolvedValue(sampleSenaCatalog);
+    upsertSenaCatalog.mockResolvedValue(sampleSenaCatalog);
+    triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
+    loadSenaWorkspaceSummary.mockResolvedValue(sampleSenaWorkspaceSummary);
+    loadSenaSkuDetail.mockResolvedValue(sampleSenaSkuDetail);
+    loadSenaDiagnostics.mockResolvedValue(sampleSenaDiagnostics);
+    loadSenaObservations.mockResolvedValue(sampleSenaObservations);
+    loadSenaServiceDetail.mockResolvedValue(sampleSenaServiceDetail);
     setInventoryState(createSnapshot());
     preferencesHook.mockReturnValue({
       currency: 'USD',
@@ -1756,7 +1941,7 @@ describe('renderer workspaces', () => {
     });
   });
 
-  test('sku detail shows linked services and planning data', async () => {
+  test('sku detail renders the SENA heartbeat, ribbon, ledger, and linked exposure', async () => {
     render(
       <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
         <Routes>
@@ -1765,35 +1950,23 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    expect(loadSistSkuDetail).toHaveBeenCalledTimes(1);
-    expect(loadSistSkuDetail).toHaveBeenCalledWith('sku-1');
+    await screen.findByText('SENA heartbeat');
+    expect(loadSenaCatalog).toHaveBeenCalledTimes(1);
+    expect(loadSenaWorkspaceSummary).toHaveBeenCalledTimes(1);
+    expect(loadSenaSkuDetail).toHaveBeenCalledWith('sku-1');
+    expect(loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
     expect(screen.getByText('Identifier: sku-1')).toBeInTheDocument();
-    expect(screen.getByText('Likely stockout in 4.2 days')).toBeInTheDocument();
-    expect(screen.getAllByText('At risk').length).toBeGreaterThan(0);
-    expect(
-      screen.getByText('12 on hand · 47% stockout risk · Medium confidence · 1 affected service'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('SKU overview')).not.toBeInTheDocument();
-    expect(screen.getByText('Stock rail')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('data-state', 'active');
-    const forecastTab = screen.getByRole('tab', { name: 'Forecast' });
-    expect(forecastTab).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
-    expect(screen.queryByText('Recommended action')).not.toBeInTheDocument();
-    expect(screen.getByText('Next move')).toBeInTheDocument();
-    expect(screen.getByText('Order now')).toBeInTheDocument();
-    expect(screen.queryByText('Supporting metrics')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Record stock update' })).toHaveAttribute(
+    expect(screen.getByText('11 posterior units on hand')).toBeInTheDocument();
+    expect(screen.getByTestId('sku-detail-ribbon')).toBeInTheDocument();
+    expect(screen.getByTestId('sku-detail-ledger')).toBeInTheDocument();
+    expect(screen.getByText('Pipeline state')).toBeInTheDocument();
+    expect(screen.getByText('Dependency impact')).toBeInTheDocument();
+    expect(screen.getByTestId('sku-detail-exposure')).toBeInTheDocument();
+    expect(screen.getByTestId('sku-detail-evidence')).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Record stock' })).toHaveAttribute(
       'href',
       '/operations/session?step=observations&focusSku=sku-1',
-    );
-    expect(screen.getByRole('link', { name: 'Back to catalog' })).toHaveAttribute(
-      'data-variant',
-      'ghost',
-    );
-    expect(screen.getByRole('link', { name: 'Record stock update' })).toHaveAttribute(
-      'data-variant',
-      'default',
     );
     expect(screen.getByRole('link', { name: 'Edit SKU' })).toHaveAttribute(
       'data-variant',
@@ -1801,8 +1974,8 @@ describe('renderer workspaces', () => {
     );
   });
 
-  test('sku detail keeps the page usable when detail loading fails', async () => {
-    loadSistSkuDetail.mockRejectedValueOnce(new Error('boom'));
+  test('sku detail keeps the page usable when SENA reads fail', async () => {
+    loadSenaSkuDetail.mockRejectedValueOnce(new Error('boom'));
 
     render(
       <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
@@ -1812,14 +1985,15 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('Detailed planning context could not be loaded. Showing the latest snapshot values instead.')).toBeInTheDocument();
-    expect(screen.getByText('Likely stockout in 4.2 days')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'History' })).toBeInTheDocument();
+    expect(await screen.findByText(/SENA detail is not ready yet/)).toBeInTheDocument();
+    expect(screen.getByText('SENA heartbeat')).toBeInTheDocument();
     expect(screen.getAllByText('Bangkok Market Tee').length).toBeGreaterThan(0);
   });
 
-  test('sku detail parameters tab renders the composed analysis board', async () => {
+  test('sku detail triggers a SENA run when no detail exists yet', async () => {
+    loadSenaWorkspaceSummary.mockResolvedValueOnce(null);
+    loadSenaSkuDetail.mockResolvedValueOnce(null);
+
     render(
       <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
         <Routes>
@@ -1828,35 +2002,15 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    const parametersTab = screen.getByRole('tab', { name: 'Statistics' });
-    fireEvent.mouseDown(parametersTab, { button: 0, ctrlKey: false });
-    fireEvent.click(parametersTab);
     await waitFor(() => {
-      expect(parametersTab).toHaveAttribute('data-state', 'active');
+      expect(triggerSenaRun).toHaveBeenCalledTimes(1);
     });
 
-    expect(await screen.findByText('Demand analysis')).toBeInTheDocument();
-    expect(screen.getByText('Average lead time')).toBeInTheDocument();
-    expect(screen.getByText('Current reorder threshold')).toBeInTheDocument();
-    expect(screen.getByText('Supporting stats')).toBeInTheDocument();
-    expect(screen.getAllByText('Posterior units').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Reorder point').length).toBeGreaterThan(0);
-    expect(screen.getByText('Observed intervals')).toBeInTheDocument();
-    expect(screen.getAllByText('95% confidence interval').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Demand interval: 1.8–3.3/day').length).toBeGreaterThan(0);
-    expect(screen.getByLabelText('Demand analysis chart')).toBeInTheDocument();
+    expect(await screen.findByText('SENA heartbeat')).toBeInTheDocument();
   });
 
-  test('sku detail parameters tab falls back to fitted demand distribution when interval detail is sparse', async () => {
-    loadSistSkuDetail.mockResolvedValueOnce({
-      insight: snapshot.sist.skuInsights[0],
-      reports: stockReports,
-      intervalDemand: [
-        { intervalIndex: 0, startAt: '2026-03-01T09:00:00Z', endAt: '2026-03-08T09:00:00Z', durationDays: 7, serviceDemandMean: 1, retailDemandMean: 1, totalDemandMean: 2, restockMean: 0, correctionMean: 0, observedUnits: 12, posteriorUnitsMean: 12 },
-        { intervalIndex: 1, startAt: '2026-03-08T09:00:00Z', endAt: '2026-03-15T09:00:00Z', durationDays: 7, serviceDemandMean: 1.2, retailDemandMean: 1.1, totalDemandMean: 2.3, restockMean: 0, correctionMean: 0, observedUnits: 11, posteriorUnitsMean: 11.5 },
-      ],
-      reorderPolicy: null,
-    });
+  test('sku detail seeds the SENA catalog when missing', async () => {
+    loadSenaCatalog.mockResolvedValueOnce(null);
 
     render(
       <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
@@ -1866,17 +2020,11 @@ describe('renderer workspaces', () => {
       </MemoryRouter>,
     );
 
-    const parametersTab = screen.getByRole('tab', { name: 'Parameters' });
-    fireEvent.mouseDown(parametersTab, { button: 0, ctrlKey: false });
-    fireEvent.click(parametersTab);
     await waitFor(() => {
-      expect(parametersTab).toHaveAttribute('data-state', 'active');
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
     });
 
-    expect(await screen.findByText('Demand analysis')).toBeInTheDocument();
-    expect(screen.getByLabelText('Demand analysis chart')).toBeInTheDocument();
-    expect(screen.getByText('Fitted range')).toBeInTheDocument();
-    expect(screen.getAllByText('Demand interval: 1.8–3.3/day').length).toBeGreaterThan(0);
+    expect(await screen.findByText('SENA heartbeat')).toBeInTheDocument();
   });
 
   test('unknown SKU id shows a not-found state with a catalog CTA', () => {
@@ -1889,7 +2037,7 @@ describe('renderer workspaces', () => {
     );
 
     expect(screen.getByText('SKU not found')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to catalog' })).toHaveAttribute('href', '/catalog');
+    expect(screen.getByRole('link', { name: 'Back to catalog' })).toHaveAttribute('href', '/catalog?view=skus');
   });
 
   test('service detail matches the SKU cockpit shell with overview default and service-native hero', async () => {

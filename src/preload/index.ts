@@ -3,6 +3,8 @@ import {
   IPC_CHANNELS,
   type DesktopBridge,
   type DesktopPreferences,
+  type GetSenaServiceDetailPayload,
+  type GetSenaSkuDetailPayload,
   type GetSistServiceDetailPayload,
   type GetSistSkuDetailPayload,
   type SaveRankingPayload,
@@ -21,6 +23,15 @@ import type {
   StockReportUpdatePayload,
   StockUpdatePayload,
 } from '@shared/inventory';
+import type {
+  SenaAnalysisRunRecord,
+  SenaCatalog,
+  SenaDiagnostics,
+  SenaObservationRecord,
+  SenaServiceDetail as SharedSenaServiceDetail,
+  SenaSkuDetail as SharedSenaSkuDetail,
+  SenaWorkspaceSummary,
+} from '@shared/sena';
 
 const desktopBridge: DesktopBridge = {
   system: {
@@ -60,6 +71,24 @@ const desktopBridge: DesktopBridge = {
       ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSistSystemDetail),
     updateSistSettings: (payload: SistSettings): Promise<InventorySnapshot> =>
       ipcRenderer.invoke(IPC_CHANNELS.inventoryUpdateSistSettings, payload),
+    getSenaCatalog: (): Promise<SenaCatalog | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaCatalog),
+    listSenaObservations: (): Promise<SenaObservationRecord[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryListSenaObservations),
+    upsertSenaCatalog: (payload: SenaCatalog): Promise<SenaCatalog> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryUpsertSenaCatalog, payload),
+    triggerSenaRun: (payload?: { algorithmVersion?: string }): Promise<SenaAnalysisRunRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryTriggerSenaRun, payload),
+    getSenaWorkspaceSummary: (): Promise<SenaWorkspaceSummary | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaWorkspaceSummary),
+    getSenaSkuDetail: (payload: GetSenaSkuDetailPayload): Promise<SharedSenaSkuDetail | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaSkuDetail, payload),
+    getSenaDiagnostics: (): Promise<SenaDiagnostics | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaDiagnostics),
+    getSenaServiceDetail: (
+      payload: GetSenaServiceDetailPayload,
+    ): Promise<SharedSenaServiceDetail | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaServiceDetail, payload),
   },
   preferences: {
     get: (): Promise<DesktopPreferences> => ipcRenderer.invoke(IPC_CHANNELS.preferencesGet),

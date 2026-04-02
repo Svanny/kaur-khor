@@ -1,17 +1,10 @@
 use anyhow::{Context, Result};
-use banji_desktop_core::{
-    service,
-    types::{
-        SenaObservationIngestRequest, SenaServiceMaskUpdateRequest, SenaUpsertServiceRequest,
-        SenaUpsertSkuRequest,
-    },
-};
-use serde::{Deserialize, Serialize};
+use banji_desktop_core::store;
+use banji_sena_core::{SenaCatalog, SenaObservationInput};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
-use std::time::Instant;
-
-const DEFAULT_OWNER_SUB: &str = "desktop-owner";
 
 #[derive(Debug, Deserialize)]
 struct CommandEnvelope {
@@ -33,60 +26,31 @@ struct ResponseEnvelope {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct SaveSkuPayload {
-    sku: SenaUpsertSkuRequest,
+struct TriggerRunPayload {
+    #[serde(default = "default_algorithm_version")]
+    algorithm_version: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct SaveServicePayload {
-    service: SenaUpsertServiceRequest,
+struct RunLookupPayload {
+    run_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct UpdateServiceMaskPayload {
-    mask: SenaServiceMaskUpdateRequest,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RecordObservationPayload {
-    observation: SenaObservationIngestRequest,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GetSkuPayload {
+struct SkuLookupPayload {
     sku_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GetServicePayload {
+struct ServiceLookupPayload {
     service_id: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GetRunPayload {
-    run_id: String,
-}
-
-fn core_trace_enabled() -> bool {
-    match std::env::var("BANJI_DESKTOP_TRACE_STORE") {
-        Ok(value) => matches!(
-            value.to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        ),
-        Err(_) => false,
-    }
-}
-
-fn trace_core(message: &str) {
-    if core_trace_enabled() {
-        eprintln!("[banji-desktop-core] {message}");
-    }
+fn default_algorithm_version() -> String {
+    "sena-analysis-v1".to_string()
 }
 
 fn main() -> Result<()> {
@@ -132,115 +96,75 @@ fn main() -> Result<()> {
 fn handle_line(line: &str) -> Result<ResponseEnvelope> {
     let envelope: CommandEnvelope =
         serde_json::from_str(line).context("failed to decode desktop core command")?;
-    let started_at = Instant::now();
-    trace_core(&format!(
-        "command-start id={} command={} payload_kind={}",
-        envelope.id,
-        envelope.command,
-        payload_kind(&envelope.payload)
-    ));
-    let result = handle_command(&envelope.command, envelope.payload)
-        .map(|payload| ResponseEnvelope {
-            id: envelope.id,
-            ok: true,
-            payload,
-            error: None,
-        })
-        .unwrap_or_else(|error| ResponseEnvelope {
-            id: envelope.id,
-            ok: false,
-            payload: None,
-            error: Some(error.to_string()),
-        });
-    trace_core(&format!(
-        "command-end id={} command={} ok={} elapsed_ms={}",
-        result.id,
-        envelope.command,
-        result.ok,
-        started_at.elapsed().as_millis()
-    ));
-    Ok(result)
-}
-
-fn payload_kind(payload: &Value) -> &'static str {
-    match payload {
-        Value::Null => "null",
-        Value::Bool(_) => "bool",
-        Value::Number(_) => "number",
-        Value::String(_) => "string",
-        Value::Array(_) => "array",
-        Value::Object(_) => "object",
-    }
+    let payload = handle_command(&envelope.command, envelope.payload)?;
+    Ok(ResponseEnvelope {
+        id: envelope.id,
+        ok: true,
+        payload,
+        error: None,
+    })
 }
 
 fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
+    let owner = store::default_owner();
     match command {
         "system.ping" => Ok(None),
-        "sena.getWorkspace" => Ok(Some(serde_json::to_value(service::load_workspace(
-            DEFAULT_OWNER_SUB,
-        )?)?)),
-        "sena.upsertSku" => {
-            let request: SaveSkuPayload =
-                serde_json::from_value(payload).context("invalid sena.upsertSku payload")?;
-            Ok(Some(serde_json::to_value(service::upsert_sku(
-                DEFAULT_OWNER_SUB,
-                request.sku,
+        "sena.upsertCatalog" => {
+            let catalog: SenaCatalog =
+                serde_json::from_value(payload).context("invalid sena.upsertCatalog payload")?;
+            catalog.validate()?;
+            store::upsert_catalog(owner, &catalog)?;
+            Ok(Some(serde_json::to_value(catalog)?))
+        }
+        "sena.ingestObservation" => {
+            let observation: SenaObservationInput =
+                serde_json::from_value(payload).context("invalid sena.ingestObservation payload")?;
+            observation.validate()?;
+            Ok(Some(serde_json::to_value(store::ingest_observation(owner, &observation)?)?))
+        }
+        "sena.getCatalog" => Ok(Some(serde_json::to_value(store::get_catalog(owner)?)?)),
+        "sena.listObservations" => Ok(Some(serde_json::to_value(
+            store::list_observations(owner)?,
+        )?)),
+        "sena.triggerRun" => {
+            let request: TriggerRunPayload =
+                serde_json::from_value(payload).context("invalid sena.triggerRun payload")?;
+            Ok(Some(serde_json::to_value(store::trigger_run(
+                owner,
+                &request.algorithm_version,
             )?)?))
         }
-        "sena.upsertService" => {
-            let request: SaveServicePayload =
-                serde_json::from_value(payload).context("invalid sena.upsertService payload")?;
-            Ok(Some(serde_json::to_value(service::upsert_service(
-                DEFAULT_OWNER_SUB,
-                request.service,
-            )?)?))
-        }
-        "sena.updateServiceMask" => {
-            let request: UpdateServiceMaskPayload = serde_json::from_value(payload)
-                .context("invalid sena.updateServiceMask payload")?;
-            Ok(Some(serde_json::to_value(service::update_service_mask(
-                DEFAULT_OWNER_SUB,
-                request.mask,
-            )?)?))
-        }
-        "sena.recordObservation" => {
-            let request: RecordObservationPayload = serde_json::from_value(payload)
-                .context("invalid sena.recordObservation payload")?;
-            Ok(Some(serde_json::to_value(service::record_observation(
-                DEFAULT_OWNER_SUB,
-                request.observation,
-            )?)?))
-        }
-        "sena.triggerAnalysis" => Ok(Some(serde_json::to_value(service::trigger_analysis(
-            DEFAULT_OWNER_SUB,
-        )?)?)),
-        "sena.getSkuPosterior" => {
-            let request: GetSkuPayload =
-                serde_json::from_value(payload).context("invalid sena.getSkuPosterior payload")?;
-            Ok(Some(serde_json::to_value(service::load_sku_posterior(
-                DEFAULT_OWNER_SUB,
-                &request.sku_id,
-            )?)?))
-        }
-        "sena.getServicePosterior" => {
-            let request: GetServicePayload = serde_json::from_value(payload)
-                .context("invalid sena.getServicePosterior payload")?;
-            Ok(Some(serde_json::to_value(
-                service::load_service_posterior(DEFAULT_OWNER_SUB, &request.service_id)?,
-            )?))
-        }
-        "sena.getDiagnostics" => Ok(Some(serde_json::to_value(service::load_diagnostics(
-            DEFAULT_OWNER_SUB,
-        )?)?)),
-        "sena.getRun" => {
-            let request: GetRunPayload =
-                serde_json::from_value(payload).context("invalid sena.getRun payload")?;
-            Ok(Some(serde_json::to_value(service::load_run(
-                DEFAULT_OWNER_SUB,
+        "sena.retryRun" => {
+            let request: RunLookupPayload =
+                serde_json::from_value(payload).context("invalid sena.retryRun payload")?;
+            Ok(Some(serde_json::to_value(store::retry_run(
                 &request.run_id,
+                "sena-analysis-v2",
             )?)?))
         }
-        other => anyhow::bail!("unsupported command: {other}"),
+        "sena.getWorkspaceSummary" => Ok(Some(serde_json::to_value(
+            store::get_workspace_summary(owner)?,
+        )?)),
+        "sena.getSkuDetail" => {
+            let request: SkuLookupPayload =
+                serde_json::from_value(payload).context("invalid sena.getSkuDetail payload")?;
+            Ok(Some(serde_json::to_value(store::get_sku_detail(owner, &request.sku_id)?)?))
+        }
+        "sena.getServiceDetail" => {
+            let request: ServiceLookupPayload =
+                serde_json::from_value(payload).context("invalid sena.getServiceDetail payload")?;
+            Ok(Some(serde_json::to_value(store::get_service_detail(
+                owner,
+                &request.service_id,
+            )?)?))
+        }
+        "sena.getDiagnostics" => Ok(Some(serde_json::to_value(store::get_diagnostics(owner)?)?)),
+        "sena.getRunStatus" => {
+            let request: RunLookupPayload =
+                serde_json::from_value(payload).context("invalid sena.getRunStatus payload")?;
+            Ok(Some(serde_json::to_value(store::get_run(&request.run_id)?)?))
+        }
+        other => anyhow::bail!("unknown desktop core command '{other}'"),
     }
 }
 

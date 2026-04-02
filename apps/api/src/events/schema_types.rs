@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use banji_sena_core::{SenaDiagnostics, SenaServiceDetail, SenaSkuDetail, SenaWorkspaceSummary};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -20,10 +21,38 @@ pub struct InventoryWriteDemoCompletedV1Payload {
     pub result: Value,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SenaCatalogUpsertedV1Payload {
+    pub owner_sub: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SenaObservationIngestedV1Payload {
+    pub owner_sub: String,
+    pub observation_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SenaAnalysisCompletedV1Payload {
+    pub owner_sub: String,
+    pub run_id: String,
+    pub algorithm_version: String,
+    pub workspace_summary: SenaWorkspaceSummary,
+    pub diagnostics: SenaDiagnostics,
+    pub sku_details: Vec<SenaSkuDetail>,
+    pub service_details: Vec<SenaServiceDetail>,
+}
+
 #[derive(Debug, Clone)]
 pub enum KnownEvent {
     InventoryItemCreatedV1(InventoryItemCreatedV1Payload),
     InventoryWriteDemoCompletedV1(InventoryWriteDemoCompletedV1Payload),
+    SenaCatalogUpsertedV1(SenaCatalogUpsertedV1Payload),
+    SenaObservationIngestedV1(SenaObservationIngestedV1Payload),
+    SenaAnalysisCompletedV1(SenaAnalysisCompletedV1Payload),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

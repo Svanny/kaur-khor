@@ -1,129 +1,149 @@
-use banji_desktop_core::{
-    service,
-    types::{
-        SenaObservationIngestRequest, SenaServiceMaskUpdateRequest, SenaUpsertServiceRequest,
-        SenaUpsertSkuRequest,
-    },
-};
-use std::{env, fs, path::PathBuf, sync::Mutex};
+use banji_desktop_core::store;
+use banji_sena_core::{SenaCatalog, SenaObservationInput};
+use serde_json::json;
+use std::{env, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
 
-static STORE_TEST_LOCK: Mutex<()> = Mutex::new(());
+fn temp_store_path(label: &str) -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be after epoch")
+        .as_nanos();
+    env::temp_dir().join(format!("banji-sena-{label}-{nonce}.sqlite3"))
+}
 
-fn temp_store_path(test_name: &str) -> PathBuf {
-    let unique = format!(
-        "banji-sena-core-{test_name}-{}-{}.sqlite3",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time should be valid")
-            .as_nanos()
-    );
-    env::temp_dir().join(unique)
+fn sample_catalog() -> SenaCatalog {
+    serde_json::from_value(json!({
+        "schemaVersion": 1,
+        "skus": [
+            {
+                "skuId": "sku-001",
+                "name": "Bangkok Tee",
+                "description": "Core retail tee",
+                "costPerUnit": 4.2,
+                "soldAsProduct": true,
+                "productPrice": 11.0,
+                "leadTimeMeanDaysHint": 7.0,
+                "leadTimeStdDaysHint": 2.0
+            },
+            {
+                "skuId": "sku-002",
+                "name": "Linen Pants",
+                "description": "Core pants",
+                "costPerUnit": 6.5,
+                "soldAsProduct": false,
+                "productPrice": null,
+                "leadTimeMeanDaysHint": 9.0,
+                "leadTimeStdDaysHint": 3.0
+            }
+        ],
+        "services": [
+            {
+                "serviceId": "service-001",
+                "name": "Weekend Set",
+                "description": "Promo set",
+                "price": 24.0,
+                "bundle": true
+            }
+        ],
+        "bundles": [
+            {
+                "bundleId": "bundle-001",
+                "serviceId": "service-001",
+                "name": "Weekend Set"
+            }
+        ],
+        "sharingMask": [
+            {
+                "serviceId": "service-001",
+                "skuId": "sku-001",
+                "enabled": true,
+                "usageProbability": 0.95
+            },
+            {
+                "serviceId": "service-001",
+                "skuId": "sku-002",
+                "enabled": true,
+                "usageProbability": 0.70
+            }
+        ]
+    }))
+    .expect("sample catalog should parse")
+}
+
+fn observation(at: &str, sku1: f64, sku2: f64) -> SenaObservationInput {
+    serde_json::from_value(json!({
+        "observedAt": at,
+        "stockSnapshot": [
+            {"skuId": "sku-001", "unitsInStock": sku1, "costPerUnit": 4.2, "productPrice": 11.0},
+            {"skuId": "sku-002", "unitsInStock": sku2, "costPerUnit": 6.5, "productPrice": null}
+        ],
+        "serviceRankings": ["service-001"],
+        "retailRankings": ["sku-001"],
+        "serviceStockouts": [],
+        "retailStockouts": [],
+        "orderSignals": [],
+        "servicePrices": [{"serviceId": "service-001", "price": 24.0}],
+        "retailPrices": [{"skuId": "sku-001", "price": 11.0}],
+        "leadTimeHints": [{"skuId": "sku-001", "typicalDays": 7.0, "lowDays": 5.0, "highDays": 9.0}]
+    }))
+    .expect("observation should parse")
 }
 
 #[test]
-fn desktop_core_supports_sena_catalog_and_analysis_flow() {
-    let _guard = STORE_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let store_path = temp_store_path("smoke");
-    env::set_var("BANJI_SENA_DATA_PATH", &store_path);
+fn desktop_core_runs_sena_analysis_and_reads_summary() {
+    let store_path = temp_store_path("summary");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
-    let owner = "desktop-owner";
-    let sku = service::upsert_sku(
-        owner,
-        SenaUpsertSkuRequest {
-            sku_id: "sku-777".to_string(),
-            name: "SKU #777".to_string(),
-            description: "New SENA sku".to_string(),
-            sold_as_product: true,
-            units_per_retail_sale: 1.0,
-            current_stock_units: 22.0,
-            reorder_target_service_level: 0.96,
-            default_lead_time_days: Some(6.0),
-            default_lead_time_variability: Some(1.0),
-        },
-    )
-    .expect("sku should upsert");
-    assert_eq!(sku.sku_id, "sku-777");
+    store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
+    store::ingest_observation(store::default_owner(), &observation("2026-04-01T00:00:00Z", 24.0, 18.0))
+        .expect("first observation should save");
+    store::ingest_observation(store::default_owner(), &observation("2026-04-08T00:00:00Z", 15.0, 11.0))
+        .expect("second observation should save");
+    let run = store::trigger_run(store::default_owner(), "sena-analysis-v1")
+        .expect("run should complete");
+    assert_eq!(run.algorithm_version, "sena-analysis-v1");
 
-    let service_record = service::upsert_service(
-        owner,
-        SenaUpsertServiceRequest {
-            service_id: "service-777".to_string(),
-            name: "Bundle 777".to_string(),
-            description: "SENA service".to_string(),
-            base_price: 18.0,
-            recipe_links: vec![],
-            is_bundle: true,
-        },
-    )
-    .expect("service should upsert");
-    assert_eq!(service_record.service_id, "service-777");
+    let summary = store::get_workspace_summary(store::default_owner())
+        .expect("summary load should succeed")
+        .expect("summary should exist");
+    assert_eq!(summary.sku_count, 2);
+    assert_eq!(summary.service_count, 1);
+    assert_eq!(summary.interval_count, 1);
+    assert_eq!(summary.sku_summaries.len(), 2);
+}
 
-    let service_record = service::update_service_mask(
-        owner,
-        SenaServiceMaskUpdateRequest {
-            service_id: "service-777".to_string(),
-            recipe_links: vec![banji_desktop_core::types::SenaServiceRecipeLink {
-                sku_id: "sku-777".to_string(),
-                usage_probability: 0.9,
-            }],
-        },
-    )
-    .expect("service mask should update");
-    assert_eq!(service_record.recipe_links.len(), 1);
+#[test]
+fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
+    let store_path = temp_store_path("details");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
-    service::record_observation(
-        owner,
-        SenaObservationIngestRequest {
-            observation_id: "obs-777".to_string(),
-            reported_at: "2026-04-02T12:00:00Z".to_string(),
-            sku_snapshots: vec![banji_desktop_core::types::SenaSkuSnapshot {
-                sku_id: "sku-777".to_string(),
-                units_in_stock: 8.0,
-            }],
-            top_service_ranking: vec!["service-777".to_string()],
-            top_retail_ranking: vec!["sku-777".to_string()],
-            service_stockouts: vec!["service-777".to_string()],
-            retail_stockouts: vec!["sku-777".to_string()],
-            order_events: vec![banji_desktop_core::types::SenaOrderEventInput {
-                sku_id: "sku-777".to_string(),
-                order_placed: true,
-                order_received: false,
-                placed_quantity: Some(6.0),
-                received_quantity: None,
-            }],
-            service_prices: vec![],
-            retail_prices: vec![],
-            lead_time_hints: vec![banji_desktop_core::types::SenaLeadTimeHint {
-                sku_id: "sku-777".to_string(),
-                typical_days: Some(5.0),
-                low_days: Some(4.0),
-                high_days: Some(8.0),
-            }],
-            notes: Some("desktop-core SENA report".to_string()),
-        },
-    )
-    .expect("observation should save");
+    store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
+    store::ingest_observation(store::default_owner(), &observation("2026-04-01T00:00:00Z", 30.0, 22.0))
+        .expect("first observation should save");
+    store::ingest_observation(store::default_owner(), &observation("2026-04-10T00:00:00Z", 9.0, 7.0))
+        .expect("second observation should save");
+    let run = store::trigger_run(store::default_owner(), "sena-analysis-v2")
+        .expect("run should complete");
 
-    let run = service::trigger_analysis(owner).expect("analysis should run");
-    assert_eq!(run.observation_count, 1);
+    let sku_detail = store::get_sku_detail(store::default_owner(), "sku-001")
+        .expect("sku detail should load")
+        .expect("sku detail should exist");
+    assert!(!sku_detail.inventory_posterior.is_empty());
+    assert!(!sku_detail.pipeline_posterior.is_empty());
 
-    let workspace = service::load_workspace(owner).expect("workspace should load");
-    assert_eq!(workspace.skus.len(), 1);
-    assert_eq!(workspace.services.len(), 1);
-    assert_eq!(workspace.observations.len(), 1);
-    assert_eq!(workspace.pending_reorder_count, 1);
+    let service_detail = store::get_service_detail(store::default_owner(), "service-001")
+        .expect("service detail should load")
+        .expect("service detail should exist");
+    assert!(!service_detail.contributors.is_empty());
 
-    let sku_posterior =
-        service::load_sku_posterior(owner, "sku-777").expect("sku posterior should load");
-    assert_eq!(sku_posterior.sku_id, "sku-777");
-    assert!(sku_posterior.reorder_policy.reorder_point > 0.0);
+    let diagnostics = store::get_diagnostics(store::default_owner())
+        .expect("diagnostics should load")
+        .expect("diagnostics should exist");
+    assert!(diagnostics.effective_sample_size_mean > 0.0);
+    assert!(diagnostics.smoothing_enabled);
 
-    let diagnostics = service::load_diagnostics(owner).expect("diagnostics should load");
-    assert_eq!(diagnostics.observation_count, 1);
-
-    let _ = fs::remove_file(store_path);
-    env::remove_var("BANJI_SENA_DATA_PATH");
+    let run_status = store::get_run(&run.run_id)
+        .expect("run status should load")
+        .expect("run should exist");
+    assert_eq!(run_status.primary_artifact_key.as_deref(), Some("sena-analysis/desktop-owner/sena-analysis-v2/posterior-draws"));
 }

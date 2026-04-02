@@ -1,4 +1,5 @@
 use super::types::{JobDeliveryMode, WorkloadClass};
+use banji_sena_core::SenaWorkspaceSummary;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -55,10 +56,28 @@ pub struct WriteDemoJobV2Result {
     pub primary_artifact_bytes: i64,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SenaAnalysisJobV1Payload {
+    pub owner_sub: String,
+    pub run_id: String,
+    pub idempotency_key: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SenaAnalysisJobV1Result {
+    pub owner_sub: String,
+    pub run_id: String,
+    pub algorithm_version: String,
+    pub workspace_summary: SenaWorkspaceSummary,
+}
+
 #[derive(Debug, Clone)]
 pub enum KnownJob {
     ItemCreatedV1(ItemCreatedJobV1Payload),
     WriteDemoV1(WriteDemoJobV1Payload),
+    SenaAnalysisV1(SenaAnalysisJobV1Payload),
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +85,7 @@ pub enum KnownJobResult {
     ItemCreatedV1(ItemCreatedJobV1Result),
     WriteDemoV1(WriteDemoJobV1Result),
     WriteDemoV2(WriteDemoJobV2Result),
+    SenaAnalysisV1(SenaAnalysisJobV1Result),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

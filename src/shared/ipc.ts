@@ -15,6 +15,15 @@ import type {
   UpsertServicePayload,
   UpsertSkuPayload,
 } from './inventory';
+import type {
+  SenaAnalysisRunRecord,
+  SenaCatalog,
+  SenaDiagnostics,
+  SenaObservationRecord,
+  SenaServiceDetail,
+  SenaSkuDetail,
+  SenaWorkspaceSummary,
+} from './sena';
 
 export interface DesktopAppContext {
   appVersion: string;
@@ -53,6 +62,14 @@ export interface GetSistServiceDetailPayload {
   serviceId: string;
 }
 
+export interface GetSenaSkuDetailPayload {
+  skuId: string;
+}
+
+export interface GetSenaServiceDetailPayload {
+  serviceId: string;
+}
+
 export interface DesktopInventoryBridge {
   getSnapshot: () => Promise<InventorySnapshot>;
   listStockReports: () => Promise<StockReport[]>;
@@ -67,6 +84,14 @@ export interface DesktopInventoryBridge {
   getSistServiceDetail: (payload: GetSistServiceDetailPayload) => Promise<SistServiceDetail>;
   getSistSystemDetail: () => Promise<SistSystemDetail>;
   updateSistSettings: (payload: SistSettings) => Promise<InventorySnapshot>;
+  getSenaCatalog: () => Promise<SenaCatalog | null>;
+  listSenaObservations: () => Promise<SenaObservationRecord[]>;
+  upsertSenaCatalog: (payload: SenaCatalog) => Promise<SenaCatalog>;
+  triggerSenaRun: (payload?: { algorithmVersion?: string }) => Promise<SenaAnalysisRunRecord>;
+  getSenaWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
+  getSenaSkuDetail: (payload: GetSenaSkuDetailPayload) => Promise<SenaSkuDetail | null>;
+  getSenaDiagnostics: () => Promise<SenaDiagnostics | null>;
+  getSenaServiceDetail: (payload: GetSenaServiceDetailPayload) => Promise<SenaServiceDetail | null>;
 }
 
 export interface DesktopPreferencesBridge {
@@ -109,6 +134,14 @@ export const IPC_CHANNELS = {
   inventoryGetSistServiceDetail: 'banji:inventory:get-sist-service-detail',
   inventoryGetSistSystemDetail: 'banji:inventory:get-sist-system-detail',
   inventoryUpdateSistSettings: 'banji:inventory:update-sist-settings',
+  inventoryGetSenaCatalog: 'banji:inventory:get-sena-catalog',
+  inventoryListSenaObservations: 'banji:inventory:list-sena-observations',
+  inventoryUpsertSenaCatalog: 'banji:inventory:upsert-sena-catalog',
+  inventoryTriggerSenaRun: 'banji:inventory:trigger-sena-run',
+  inventoryGetSenaWorkspaceSummary: 'banji:inventory:get-sena-workspace-summary',
+  inventoryGetSenaSkuDetail: 'banji:inventory:get-sena-sku-detail',
+  inventoryGetSenaDiagnostics: 'banji:inventory:get-sena-diagnostics',
+  inventoryGetSenaServiceDetail: 'banji:inventory:get-sena-service-detail',
   preferencesGet: 'banji:preferences:get',
   preferencesSave: 'banji:preferences:save',
 } as const;

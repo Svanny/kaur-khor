@@ -3,7 +3,8 @@ use super::{
     schema_types::{
         ItemCreatedJobV1Payload, ItemCreatedJobV1Result, JobRecord, JobResultRecord,
         JobSchemaErrorCode, JobSchemaManifestEntry, KnownJob, KnownJobResult,
-        WriteDemoJobV1Payload, WriteDemoJobV1Result, WriteDemoJobV2Result,
+        SenaAnalysisJobV1Payload, SenaAnalysisJobV1Result, WriteDemoJobV1Payload,
+        WriteDemoJobV1Result, WriteDemoJobV2Result,
     },
     types::{JobDeliveryMode, JobEnvelope, WorkloadClass},
 };
@@ -15,13 +16,14 @@ use std::{
 };
 
 const ITEM_CREATED: &str = "item-created";
+const SENA_ANALYSIS: &str = "sena-analysis";
 const WRITE_DEMO: &str = "write-demo";
 
 const V1: [i32; 1] = [1];
 const V1_V2: [i32; 2] = [1, 2];
 const PRODUCER_API_ONLY: [&str; 1] = ["api"];
 
-const JOB_SCHEMA_MANIFEST: [JobSchemaManifestEntry; 2] = [
+const JOB_SCHEMA_MANIFEST: [JobSchemaManifestEntry; 3] = [
     JobSchemaManifestEntry {
         job_type: ITEM_CREATED,
         latest_payload_version: 1,
@@ -42,6 +44,17 @@ const JOB_SCHEMA_MANIFEST: [JobSchemaManifestEntry; 2] = [
         workload_class: WorkloadClass::Fast,
         aggregate_type: "write-demo",
         routing_key: "job.fast",
+        allowed_producer_services: &PRODUCER_API_ONLY,
+    },
+    JobSchemaManifestEntry {
+        job_type: SENA_ANALYSIS,
+        latest_payload_version: 1,
+        supported_payload_versions: &V1,
+        latest_result_version: 1,
+        supported_result_versions: &V1,
+        workload_class: WorkloadClass::Heavy,
+        aggregate_type: "sena-run",
+        routing_key: "job.heavy",
         allowed_producer_services: &PRODUCER_API_ONLY,
     },
 ];
@@ -106,6 +119,16 @@ pub fn validate_job_envelope(envelope: &JobEnvelope) -> Result<KnownJob, JobSche
             validate_write_demo_payload(envelope, &payload)?;
             Ok(KnownJob::WriteDemoV1(payload))
         }
+        (SENA_ANALYSIS, 1) => {
+            let payload: SenaAnalysisJobV1Payload =
+                serde_json::from_value(envelope.payload.clone()).map_err(|err| {
+                    JobSchemaError::new(
+                        JobSchemaErrorCode::PayloadValidationFailed,
+                        format!("sena-analysis v1 decode failed: {err}"),
+                    )
+                })?;
+            Ok(KnownJob::SenaAnalysisV1(payload))
+        }
         (job_type, version) => Err(JobSchemaError::new(
             JobSchemaErrorCode::UnsupportedPayloadVersion,
             format!("unsupported payload version {version} for job_type '{job_type}'"),
@@ -164,6 +187,16 @@ pub fn validate_job_result(
                 })?;
             validate_write_demo_result_v2(&result)?;
             Ok(KnownJobResult::WriteDemoV2(result))
+        }
+        (SENA_ANALYSIS, 1) => {
+            let result: SenaAnalysisJobV1Result =
+                serde_json::from_value(payload.clone()).map_err(|err| {
+                    JobSchemaError::new(
+                        JobSchemaErrorCode::ResultValidationFailed,
+                        format!("sena-analysis result v1 decode failed: {err}"),
+                    )
+                })?;
+            Ok(KnownJobResult::SenaAnalysisV1(result))
         }
         (_, version) => Err(JobSchemaError::new(
             JobSchemaErrorCode::UnsupportedResultVersion,
@@ -268,6 +301,51 @@ pub fn build_write_demo_job_v1(
     Ok(record)
 }
 
+pub fn build_sena_analysis_job_v1(
+    producer_service: String,
+    owner_sub: String,
+    run_id: String,
+    idempotency_key: String,
+    correlation_id: String,
+    max_attempts: u8,
+) -> Result<JobRecord, JobSchemaError> {
+    let payload = json!({
+        "owner_sub": owner_sub,
+        "run_id": run_id,
+        "idempotency_key": idempotency_key
+    });
+    let record = JobRecord {
+        job_key: derive_job_key(
+            &producer_service,
+            SENA_ANALYSIS,
+            "sena-run",
+            payload["run_id"].as_str().unwrap_or_default(),
+            payload["idempotency_key"].as_str().unwrap_or_default(),
+        ),
+        job_type: SENA_ANALYSIS.to_string(),
+        payload_version: 1,
+        workload_class: WorkloadClass::Heavy,
+        producer_service,
+        aggregate_type: "sena-run".to_string(),
+        aggregate_id: payload["run_id"].as_str().unwrap_or_default().to_string(),
+        causation_id: payload["idempotency_key"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        correlation_id,
+        routing_key: WorkloadClass::Heavy.primary_routing_key().to_string(),
+        payload,
+        metadata: json!({}),
+        delivery_mode: JobDeliveryMode::Primary,
+        backfill_run_id: None,
+        source_event_id: None,
+        max_attempts: i32::from(max_attempts),
+    };
+    let envelope = record_to_envelope(&record, 1);
+    validate_job_envelope(&envelope)?;
+    Ok(record)
+}
+
 pub fn build_item_created_result_v1(
     owner_sub: String,
     item_id: String,
@@ -354,6 +432,31 @@ pub fn build_write_demo_result_v2(
         job_type: WRITE_DEMO.to_string(),
         result_version: 2,
         payload,
+    })
+}
+
+pub fn build_sena_analysis_result_v1(
+    owner_sub: String,
+    run_id: String,
+    algorithm_version: &str,
+    workspace_summary: &banji_sena_core::SenaWorkspaceSummary,
+) -> Result<JobResultRecord, JobSchemaError> {
+    let result = SenaAnalysisJobV1Result {
+        owner_sub,
+        run_id,
+        algorithm_version: algorithm_version.to_string(),
+        workspace_summary: workspace_summary.clone(),
+    };
+    Ok(JobResultRecord {
+        job_key: String::new(),
+        job_type: SENA_ANALYSIS.to_string(),
+        result_version: 1,
+        payload: serde_json::to_value(result).map_err(|err| {
+            JobSchemaError::new(
+                JobSchemaErrorCode::ResultValidationFailed,
+                format!("sena-analysis result encode failed: {err}"),
+            )
+        })?,
     })
 }
 

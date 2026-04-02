@@ -16,11 +16,14 @@ use serde_json::json;
 use uuid::Uuid;
 
 const ITEM_CREATED_JOB_TYPE: &str = "item-created";
+const SENA_ANALYSIS_JOB_TYPE: &str = "sena-analysis";
 const WRITE_DEMO_JOB_TYPE: &str = "write-demo";
 
 pub fn job_types_for_stream(stream_name: &str) -> &'static [&'static str] {
     if stream_name.ends_with(&format!(".{}", streams::inventory_updated_topic())) {
         &[ITEM_CREATED_JOB_TYPE]
+    } else if stream_name.ends_with(&format!(".{}", streams::sena_updated_topic())) {
+        &[SENA_ANALYSIS_JOB_TYPE]
     } else if stream_name.ends_with(&format!(".{}", streams::write_demo_completed_topic())) {
         &[WRITE_DEMO_JOB_TYPE]
     } else {
@@ -75,21 +78,39 @@ pub fn build_replay_job(
         .clone()
         .unwrap_or_else(|| row.causation_id.clone());
 
-    let mut record = match event {
-        KnownEvent::InventoryItemCreatedV1(payload) => build_item_created_replay_job(
+    let maybe_record = match event {
+        KnownEvent::InventoryItemCreatedV1(payload) => Some(build_item_created_replay_job(
             row,
             payload,
             &replay_idempotency_key,
             &correlation_id,
             max_attempts,
-        )?,
-        KnownEvent::InventoryWriteDemoCompletedV1(payload) => build_write_demo_replay_job(
+        )?),
+        KnownEvent::InventoryWriteDemoCompletedV1(payload) => Some(build_write_demo_replay_job(
             row,
             payload,
             &replay_idempotency_key,
             &correlation_id,
             max_attempts,
+        )?),
+        KnownEvent::SenaCatalogUpsertedV1(payload) => build_sena_analysis_replay_job(
+            row,
+            &payload.owner_sub,
+            &replay_idempotency_key,
+            &correlation_id,
+            max_attempts,
         )?,
+        KnownEvent::SenaObservationIngestedV1(payload) => build_sena_analysis_replay_job(
+            row,
+            &payload.owner_sub,
+            &replay_idempotency_key,
+            &correlation_id,
+            max_attempts,
+        )?,
+        KnownEvent::SenaAnalysisCompletedV1(_) => None,
+    };
+    let Some(mut record) = maybe_record else {
+        return Ok(None);
     };
 
     record.metadata = json!({
@@ -184,6 +205,43 @@ fn build_write_demo_replay_job(
         source_event_id: Some(row.id),
         max_attempts: i32::from(max_attempts),
     })
+}
+
+fn build_sena_analysis_replay_job(
+    row: &EventRow,
+    owner_sub: &str,
+    replay_idempotency_key: &str,
+    correlation_id: &str,
+    max_attempts: u8,
+) -> Result<Option<JobRecord>> {
+    Ok(Some(JobRecord {
+        job_key: derive_job_key(
+            &row.producer_service,
+            SENA_ANALYSIS_JOB_TYPE,
+            "sena-run",
+            owner_sub,
+            replay_idempotency_key,
+        ),
+        job_type: SENA_ANALYSIS_JOB_TYPE.to_string(),
+        payload_version: 1,
+        workload_class: WorkloadClass::Heavy,
+        producer_service: row.producer_service.clone(),
+        aggregate_type: "sena-run".to_string(),
+        aggregate_id: owner_sub.to_string(),
+        causation_id: replay_idempotency_key.to_string(),
+        correlation_id: correlation_id.to_string(),
+        routing_key: WorkloadClass::Heavy.replay_routing_key().to_string(),
+        payload: json!({
+            "owner_sub": owner_sub,
+            "run_id": Uuid::new_v4().to_string(),
+            "idempotency_key": replay_idempotency_key,
+        }),
+        metadata: json!({}),
+        delivery_mode: JobDeliveryMode::Replay,
+        backfill_run_id: None,
+        source_event_id: Some(row.id),
+        max_attempts: i32::from(max_attempts),
+    }))
 }
 
 #[cfg(test)]

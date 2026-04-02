@@ -1,6 +1,9 @@
 use super::{
     outbox, repository,
-    schema::{build_item_created_job_v1, build_write_demo_job_v1, JobSchemaError},
+    schema::{
+        build_item_created_job_v1, build_sena_analysis_job_v1, build_write_demo_job_v1,
+        JobSchemaError,
+    },
     schema_types::JobRecord,
     types::JobDeliveryMode,
 };
@@ -72,6 +75,36 @@ pub async fn schedule_write_demo_tx(
         producer_service,
         operation,
         caller_id,
+        idempotency_key,
+        correlation_id,
+        max_attempts,
+    )
+    .map_err(anyhow::Error::new)?;
+    schedule_job_with_options_tx(
+        tx,
+        &job,
+        &ScheduleJobOptions {
+            metadata,
+            ..ScheduleJobOptions::default()
+        },
+    )
+    .await
+}
+
+pub async fn schedule_sena_analysis_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    producer_service: String,
+    owner_sub: String,
+    run_id: String,
+    idempotency_key: String,
+    correlation_id: String,
+    metadata: serde_json::Value,
+    max_attempts: u8,
+) -> Result<i64> {
+    let job = build_sena_analysis_job_v1(
+        producer_service,
+        owner_sub,
+        run_id,
         idempotency_key,
         correlation_id,
         max_attempts,

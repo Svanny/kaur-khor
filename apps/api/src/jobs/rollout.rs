@@ -57,12 +57,18 @@ const ITEM_CREATED_ENTRY: JobAlgorithmRegistryEntry = JobAlgorithmRegistryEntry 
     supported_versions: &["item-created-v1"],
 };
 
+const SENA_ANALYSIS_ENTRY: JobAlgorithmRegistryEntry = JobAlgorithmRegistryEntry {
+    job_type: "sena-analysis",
+    supported_versions: &["sena-analysis-v1", "sena-analysis-v2"],
+};
+
 const WRITE_DEMO_ENTRY: JobAlgorithmRegistryEntry = JobAlgorithmRegistryEntry {
     job_type: "write-demo",
     supported_versions: &["write-demo-v2", "write-demo-v3"],
 };
 
-const REGISTRY: &[JobAlgorithmRegistryEntry] = &[ITEM_CREATED_ENTRY, WRITE_DEMO_ENTRY];
+const REGISTRY: &[JobAlgorithmRegistryEntry] =
+    &[ITEM_CREATED_ENTRY, SENA_ANALYSIS_ENTRY, WRITE_DEMO_ENTRY];
 
 impl<'a> RolloutResolver<'a> {
     pub fn new(hash_salt: &'a str, hash_salt_version: &'a str) -> Self {
