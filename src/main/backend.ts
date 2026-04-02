@@ -109,7 +109,7 @@ export async function startManagedCore(
   options: StartManagedCoreOptions,
 ): Promise<ManagedCoreProcess> {
   const env = resolveManagedCoreEnv({
-    dataFilePath: join(options.userDataPath, 'desktop-inventory-store.json'),
+    dataFilePath: join(options.userDataPath, 'desktop-sena-store.sqlite3'),
   });
   const { command, args } = resolveCoreLaunchCommand(
     options.projectRoot,

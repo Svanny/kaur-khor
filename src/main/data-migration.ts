@@ -2,7 +2,7 @@ import { access, copyFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const DESKTOP_DATA_FILES = [
-  'desktop-inventory-store.json',
+  'desktop-sena-store.sqlite3',
   'desktop-preferences.json',
 ] as const;
 

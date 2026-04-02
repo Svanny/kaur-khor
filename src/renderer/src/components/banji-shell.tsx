@@ -1,6 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  BrainCircuit,
   Boxes,
   LayoutDashboard,
   NotebookTabs,
@@ -33,8 +32,8 @@ import brandLogo from '@/assets/banji-logo.svg';
 type ShellSectionConfig = {
   destination: string;
   icon: typeof LayoutDashboard;
-  id: 'overview' | 'catalog' | 'operations' | 'sist' | 'settings';
-  labelKey: 'navOverview' | 'navCatalog' | 'navOperations' | 'navSist' | 'navSettings';
+  id: 'overview' | 'catalog' | 'operations' | 'settings';
+  labelKey: 'navOverview' | 'navCatalog' | 'navOperations' | 'navSettings';
   matches: (pathname: string) => boolean;
 };
 
@@ -63,13 +62,6 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     labelKey: 'navOperations',
     icon: NotebookTabs,
     matches: (pathname) => matchesSection(pathname, '/operations'),
-  },
-  {
-    id: 'sist',
-    destination: '/sist',
-    labelKey: 'navSist',
-    icon: BrainCircuit,
-    matches: (pathname) => matchesSection(pathname, '/sist'),
   },
 ];
 
@@ -259,14 +251,14 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                     </Button>
                   }
                   description={error}
-                  title={t('apiUnavailable')}
+                  title={t('workspaceUnavailable')}
                   tone="destructive"
                 />
               ) : null}
               {isLoading ? (
                 <WorkspaceBanner
-                  description={t('dashboardHealthStarting')}
-                  title={t('backendStarting')}
+                  description={t('workspaceStarting')}
+                  title={t('workspaceLoadingTitle')}
                 />
               ) : null}
               {children}

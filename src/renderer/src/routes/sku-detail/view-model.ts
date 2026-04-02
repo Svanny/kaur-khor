@@ -1,0 +1,461 @@
+import type { AppCurrency, AppLanguage, InventorySnapshot } from '@shared/inventory';
+import type {
+  SenaDiagnostics,
+  SenaObservationRecord,
+  SenaPipelinePosteriorPoint,
+  SenaRegimePosteriorPoint,
+  SenaServiceDetail,
+  SenaSkuDetail,
+  SenaWorkspaceSummary,
+} from '@shared/sena';
+import { formatSenaCurrency, formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity, formatSenaUnits } from './format';
+
+export type SkuStatusTone = 'neutral' | 'success' | 'warning' | 'danger';
+
+export interface SenaSkuDetailViewModel {
+  identity: {
+    skuId: string;
+    name: string;
+    description: string;
+    soldAsProduct: boolean;
+    statusLabel: string;
+    statusTone: SkuStatusTone;
+    topRegime: string;
+    legacyFallbackAvailable: boolean;
+  };
+  heartbeat: {
+    headlineUnits: string;
+    credibleBandLabel: string;
+    coverLabel: string;
+    reorderLabel: string;
+    pipelineLabel: string;
+    receiptWindowLabel: string;
+    heroSentence: string;
+  };
+  ribbon: Array<{ key: string; label: string; value: string }>;
+  selectedInterval: {
+    index: number | null;
+    label: string;
+  };
+  lanes: {
+    regimePriceLane: {
+      intervals: SenaRegimePosteriorPoint[];
+      priceMarkers: Array<{ observedAt: string; price: number }>;
+      summary: string;
+    };
+    inventoryLane: {
+      summary: string;
+      points: SenaSkuDetail['inventoryPosterior'];
+    };
+    flowLane: {
+      summary: string;
+      intervals: SenaSkuDetail['demandPosterior'];
+    };
+    pipelineLane: {
+      summary: string;
+      intervals: SenaSkuDetail['pipelinePosterior'];
+    };
+  };
+  rail: {
+    selectedIntervalSummary: {
+      label: string;
+      dominantRegime: string;
+      serviceDemand: string;
+      retailDemand: string;
+      receipts: string;
+      adjustments: string;
+    };
+    actNow: {
+      headline: string;
+      quantityBand: string;
+      rationale: [string, string, string];
+    };
+    openPipeline: {
+      summary: [string, string, string, string];
+      events: Array<{ key: string; timestamp: string; state: string; quantity: string }>;
+    };
+    exposure: Array<{
+      serviceId: string;
+      serviceName: string;
+      usageProbability: string;
+      bottleneckProbability: string;
+      severity: 'limiting_now' | 'at_risk' | 'linked';
+    }>;
+    nextTouch: {
+      dateLabel: string;
+      reason: string;
+    };
+  };
+  dependencyImpact: Array<{
+    serviceId: string;
+    name: string;
+    severity: 'limiting_now' | 'at_risk' | 'linked';
+    usageProbability: string;
+    bottleneckProbability: string;
+  }>;
+  evidence: Array<{
+    id: string;
+    observedAt: string;
+    title: string;
+    detail: string;
+    type: 'stock_reported' | 'order_placed' | 'receipt_logged' | 'price_changed' | 'retail_stockout' | 'lead_time_hint' | 'notes';
+  }>;
+  actionContext: {
+    currentStock: number;
+    costPerUnit: number;
+    productPrice: number | null;
+    latestObservationAt: string | null;
+    soldAsProduct: boolean;
+  };
+  uiState: 'ready' | 'bootstrapping' | 'running' | 'needs_observations' | 'degraded';
+}
+
+function topRegime(summary: SenaSkuDetail['summary'] | null, diagnostics: SenaDiagnostics | null) {
+  const summaryWinner = summary
+    ? Object.entries(summary.regimeProbabilities).sort((left, right) => right[1] - left[1])[0]?.[0]
+    : null;
+  return summaryWinner ?? diagnostics?.regimeHistory.at(-1)?.dominantRegime ?? 'unknown';
+}
+
+function receiptWindow(point: SenaPipelinePosteriorPoint | null, leadTime: SenaSkuDetail['leadTimePosterior'][number] | null) {
+  if (!point || !leadTime || point.inTransitMean <= 0.5) {
+    return { label: 'No active receipt window', midpointDays: null, overdue: false };
+  }
+  if (point.ageDaysMean > leadTime.meanDays + leadTime.stdDays) {
+    return { label: 'Overdue', midpointDays: 0, overdue: true };
+  }
+  const daysUntilEtaMidpoint = Math.max(0, leadTime.meanDays - point.ageDaysMean);
+  const windowLow = Math.max(0, daysUntilEtaMidpoint - leadTime.stdDays);
+  const windowHigh = daysUntilEtaMidpoint + leadTime.stdDays;
+  return {
+    label: `${Math.round(windowLow)}-${Math.round(windowHigh)} days`,
+    midpointDays: daysUntilEtaMidpoint,
+    overdue: false,
+  };
+}
+
+export function deriveRecommendedOrderBand(detail: SenaSkuDetail | null) {
+  if (!detail) {
+    return { low: 0, high: 0 };
+  }
+  const latestPipeline = detail.pipelinePosterior.at(-1) ?? null;
+  const latestInTransit = latestPipeline?.inTransitMean ?? 0;
+  const lowGap = detail.summary.reorderPoint - detail.summary.credibleIntervalHigh - latestInTransit;
+  const highGap = detail.summary.reorderPoint + detail.summary.safetyStock - detail.summary.credibleIntervalLow - latestInTransit;
+  const low = Math.ceil(Math.max(0, lowGap));
+  const high = Math.ceil(Math.max(low, highGap));
+  return { low, high };
+}
+
+function deriveStatus(detail: SenaSkuDetail | null) {
+  const summary = detail?.summary;
+  const latestPipeline = detail?.pipelinePosterior.at(-1) ?? null;
+  if (!summary) {
+    return { label: 'Degraded', tone: 'neutral' as SkuStatusTone };
+  }
+  if (summary.reorderTriggerProbability >= 0.5) {
+    return { label: 'Reorder', tone: 'danger' as SkuStatusTone };
+  }
+  if ((latestPipeline?.inTransitMean ?? 0) > 0.5) {
+    return { label: 'Awaiting receipt', tone: 'warning' as SkuStatusTone };
+  }
+  if (summary.stockoutRisk < 0.15) {
+    return { label: 'Healthy', tone: 'success' as SkuStatusTone };
+  }
+  return { label: 'Watch', tone: 'warning' as SkuStatusTone };
+}
+
+export function extractEvidence(observations: SenaObservationRecord[], skuId: string) {
+  return observations
+    .flatMap((observation) => {
+      const rows: SenaSkuDetailViewModel['evidence'] = [];
+      const observedAt = observation.input.observedAt;
+      const snapshot = observation.input.stockSnapshot.find((entry) => entry.skuId === skuId);
+      if (snapshot) {
+        rows.push({
+          id: `${observation.observationId}:stock`,
+          observedAt,
+          title: 'Stock reported',
+          detail: `${snapshot.unitsInStock} units`,
+          type: 'stock_reported',
+        });
+      }
+      for (const signal of observation.input.orderSignals.filter((entry) => entry.skuId === skuId)) {
+        if (signal.orderPlaced) {
+          rows.push({
+            id: `${observation.observationId}:order`,
+            observedAt,
+            title: 'Order placed',
+            detail: signal.approximateOrderQuantity != null ? `${signal.approximateOrderQuantity} units` : 'Order signal recorded',
+            type: 'order_placed',
+          });
+        }
+        if (signal.receiptArrived) {
+          rows.push({
+            id: `${observation.observationId}:receipt`,
+            observedAt,
+            title: 'Receipt logged',
+            detail: signal.approximateReceiptQuantity != null ? `${signal.approximateReceiptQuantity} units` : 'Receipt signal recorded',
+            type: 'receipt_logged',
+          });
+        }
+      }
+      for (const price of observation.input.retailPrices.filter((entry) => entry.skuId === skuId)) {
+        rows.push({
+          id: `${observation.observationId}:price:${price.price}`,
+          observedAt,
+          title: 'Price changed',
+          detail: `${price.price}`,
+          type: 'price_changed',
+        });
+      }
+      if (observation.input.retailStockouts.includes(skuId)) {
+        rows.push({
+          id: `${observation.observationId}:stockout`,
+          observedAt,
+          title: 'Retail stockout',
+          detail: 'SKU marked out of stock at retail.',
+          type: 'retail_stockout',
+        });
+      }
+      if (observation.input.leadTimeHints.some((entry) => entry.skuId === skuId)) {
+        rows.push({
+          id: `${observation.observationId}:lead-time`,
+          observedAt,
+          title: 'Lead-time hint',
+          detail: 'Lead-time hint captured.',
+          type: 'lead_time_hint',
+        });
+      }
+      if (observation.input.notes?.trim()) {
+        rows.push({
+          id: `${observation.observationId}:notes`,
+          observedAt,
+          title: 'Notes',
+          detail: observation.input.notes.trim(),
+          type: 'notes',
+        });
+      }
+      return rows;
+    })
+    .sort((left, right) => right.observedAt.localeCompare(left.observedAt));
+}
+
+export function deriveSenaSkuDetailViewModel({
+  currency,
+  diagnostics,
+  observations,
+  linkedServiceDetails,
+  selectedIntervalIndex,
+  skuId,
+  snapshot,
+  detail,
+  uiState,
+  workspaceSummary,
+  language,
+}: {
+  currency: AppCurrency;
+  diagnostics: SenaDiagnostics | null;
+  observations: SenaObservationRecord[];
+  linkedServiceDetails: SenaServiceDetail[];
+  selectedIntervalIndex: number | null;
+  skuId: string;
+  snapshot: InventorySnapshot;
+  detail: SenaSkuDetail | null;
+  uiState: SenaSkuDetailViewModel['uiState'];
+  workspaceSummary: SenaWorkspaceSummary | null;
+  language: AppLanguage;
+}): SenaSkuDetailViewModel {
+  const sku = snapshot.skus.find((entry) => entry.skuId === skuId);
+  if (!sku) {
+    throw new Error(`Unknown sku ${skuId}`);
+  }
+
+  const summary = detail?.summary ?? null;
+  const latestPipeline = detail?.pipelinePosterior.at(-1) ?? null;
+  const latestLeadTime = detail?.leadTimePosterior.at(-1) ?? null;
+  const latestObservationAt = observations.at(-1)?.input.observedAt ?? null;
+  const currentStock = summary?.latestPosteriorUnits ?? sku.unitsInStock;
+  const status = deriveStatus(detail);
+  const receipt = receiptWindow(latestPipeline, latestLeadTime);
+  const orderBand = deriveRecommendedOrderBand(detail);
+  const effectiveSelectedIndex =
+    selectedIntervalIndex ?? detail?.demandPosterior.at(-1)?.intervalIndex ?? diagnostics?.regimeHistory.at(-1)?.intervalIndex ?? null;
+  const interval =
+    detail?.demandPosterior.find((entry) => entry.intervalIndex === effectiveSelectedIndex) ?? null;
+  const intervalRegime =
+    diagnostics?.regimeHistory.find((entry) => entry.intervalIndex === effectiveSelectedIndex) ?? null;
+  const intervalPipeline =
+    detail?.pipelinePosterior.find((entry) => entry.intervalIndex === effectiveSelectedIndex) ?? null;
+
+  const actNowHeadline =
+    observations.length < 2
+      ? 'Capture one more observation'
+      : (summary?.reorderTriggerProbability ?? 0) >= 0.5
+        ? 'Reorder now'
+        : (latestPipeline?.inTransitMean ?? 0) > 0.5
+          ? 'Await incoming stock'
+          : 'Monitor';
+
+  let nextTouchDate = latestObservationAt;
+  let nextTouchReason = 'Keep monitoring this SKU.';
+  if (observations.length < 2) {
+    nextTouchDate = new Date().toISOString();
+    nextTouchReason = 'Capture a second observation.';
+  } else if ((summary?.reorderTriggerProbability ?? 0) >= 0.5) {
+    nextTouchDate = new Date().toISOString();
+    nextTouchReason = 'Reorder threshold crossed.';
+  } else if (receipt.midpointDays != null && latestObservationAt) {
+    nextTouchDate = new Date(Date.parse(latestObservationAt) + receipt.midpointDays * 24 * 60 * 60 * 1000).toISOString();
+    nextTouchReason = receipt.overdue ? 'Receipt window is overdue.' : 'Expected receipt window.';
+  } else if (latestObservationAt && Date.now() - Date.parse(latestObservationAt) > 7 * 24 * 60 * 60 * 1000) {
+    nextTouchDate = new Date().toISOString();
+    nextTouchReason = 'Latest observation is stale.';
+  } else if (latestObservationAt) {
+    const days = Math.max(1, Math.min(7, Math.ceil(((summary?.daysOfCover ?? 4) as number) / 2)));
+    nextTouchDate = new Date(Date.parse(latestObservationAt) + days * 24 * 60 * 60 * 1000).toISOString();
+    nextTouchReason = 'Schedule the next routine check.';
+  }
+
+  const dependencyImpact = snapshot.services
+    .filter((service) => service.skuIds.includes(skuId))
+    .map((service) => {
+      const detailEntry = linkedServiceDetails.find((entry) => entry.serviceId === service.serviceId);
+      const usageProbability = null;
+      const bottleneck = detailEntry?.bottleneckProbability ?? 0;
+      const severity =
+        bottleneck >= 0.6 ? 'limiting_now' : bottleneck >= 0.3 ? 'at_risk' : 'linked';
+      return {
+        serviceId: service.serviceId,
+        name: service.name,
+        severity,
+        usageProbability: usageProbability == null ? '—' : formatSenaPercent(usageProbability, language),
+        bottleneckProbability: formatSenaPercent(bottleneck, language),
+      };
+    });
+
+  const pipelineEvents = observations
+    .flatMap((observation) =>
+      observation.input.orderSignals
+        .filter((entry) => entry.skuId === skuId && (entry.orderPlaced || entry.receiptArrived))
+        .map((entry, index) => ({
+          key: `${observation.observationId}:${index}`,
+          timestamp: formatSenaDateTime(observation.input.observedAt, language),
+          state: entry.receiptArrived ? 'Received' : 'Placed',
+          quantity:
+            entry.approximateReceiptQuantity != null
+              ? formatSenaUnits(entry.approximateReceiptQuantity, language)
+              : entry.approximateOrderQuantity != null
+                ? formatSenaUnits(entry.approximateOrderQuantity, language)
+                : '—',
+        })),
+    )
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+    .slice(0, 5);
+
+  return {
+    identity: {
+      skuId: sku.skuId,
+      name: sku.name,
+      description: sku.description,
+      soldAsProduct: sku.soldAsProduct,
+      statusLabel: status.label,
+      statusTone: status.tone,
+      topRegime: topRegime(summary, diagnostics),
+      legacyFallbackAvailable: true,
+    },
+    heartbeat: {
+      headlineUnits: `${formatSenaUnits(summary?.latestPosteriorUnits ?? sku.unitsInStock, language)} units likely on hand`,
+      credibleBandLabel: `${formatSenaUnits(summary?.credibleIntervalLow ?? sku.unitsInStock, language)}-${formatSenaUnits(summary?.credibleIntervalHigh ?? sku.unitsInStock, language)}`,
+      coverLabel: summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—',
+      reorderLabel: formatSenaPercent(summary?.reorderTriggerProbability ?? null, language),
+      pipelineLabel: formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language),
+      receiptWindowLabel: receipt.label,
+      heroSentence: `Credible band ${formatSenaUnits(summary?.credibleIntervalLow ?? sku.unitsInStock, language)}-${formatSenaUnits(summary?.credibleIntervalHigh ?? sku.unitsInStock, language)}. Days of cover ${summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—'}. Reorder trigger ${formatSenaPercent(summary?.reorderTriggerProbability ?? null, language)}. In transit ${formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language)}. Receipt window ${receipt.label}.`,
+    },
+    ribbon: [
+      { key: 'onHand', label: 'On hand', value: formatSenaUnits(currentStock, language) },
+      { key: 'inTransit', label: 'In transit', value: formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language) },
+      { key: 'demandPerDay', label: 'Demand / day', value: formatSenaQuantity(summary?.demandPerDayMean ?? null, language) },
+      { key: 'nextReceipt', label: 'Next receipt', value: receipt.label },
+      { key: 'priceNow', label: 'Price now', value: formatSenaCurrency(sku.productPrice, currency, language) },
+      { key: 'serviceExposure', label: 'Service exposure', value: `${dependencyImpact.length}` },
+    ],
+    selectedInterval: {
+      index: effectiveSelectedIndex,
+      label: interval ? `${formatSenaDate(interval.startAt, language)}-${formatSenaDate(interval.endAt, language)}` : 'Latest interval',
+    },
+    lanes: {
+      regimePriceLane: {
+        intervals: diagnostics?.regimeHistory ?? [],
+        priceMarkers: observations.flatMap((observation) =>
+          observation.input.retailPrices
+            .filter((entry) => entry.skuId === skuId)
+            .map((entry) => ({ observedAt: observation.input.observedAt, price: entry.price })),
+        ),
+        summary: `Regime history has ${(diagnostics?.regimeHistory ?? []).length} intervals and ${observations.flatMap((observation) => observation.input.retailPrices.filter((entry) => entry.skuId === skuId)).length} retail price markers.`,
+      },
+      inventoryLane: {
+        summary: `Inventory posterior latest mean ${formatSenaUnits(summary?.latestPosteriorUnits ?? sku.unitsInStock, language)}, reorder point ${formatSenaUnits(summary?.reorderPoint ?? null, language)}, safety stock ${formatSenaUnits(summary?.safetyStock ?? null, language)}.`,
+        points: detail?.inventoryPosterior ?? [],
+      },
+      flowLane: {
+        summary: `Flow lane shows ${(detail?.demandPosterior ?? []).length} intervals of service demand, retail demand, receipts, and adjustments.`,
+        intervals: detail?.demandPosterior ?? [],
+      },
+      pipelineLane: {
+        summary: `Pipeline lane shows ${(detail?.pipelinePosterior ?? []).length} aggregate intervals of in-transit inventory and order signal volume.`,
+        intervals: detail?.pipelinePosterior ?? [],
+      },
+    },
+    rail: {
+      selectedIntervalSummary: {
+        label: interval ? `${formatSenaDate(interval.startAt, language)}-${formatSenaDate(interval.endAt, language)}` : 'No interval selected',
+        dominantRegime: intervalRegime?.dominantRegime ?? '—',
+        serviceDemand: formatSenaQuantity(interval?.serviceDemandMean ?? null, language),
+        retailDemand: formatSenaQuantity(interval?.retailDemandMean ?? null, language),
+        receipts: formatSenaQuantity(interval?.receiptsMean ?? null, language),
+        adjustments: formatSenaQuantity(interval?.adjustmentsMean ?? null, language),
+      },
+      actNow: {
+        headline: actNowHeadline,
+        quantityBand: `${formatSenaUnits(orderBand.low, language)}-${formatSenaUnits(orderBand.high, language)} units`,
+        rationale: [
+          `Cover ${summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—'} and stockout risk ${formatSenaPercent(summary?.stockoutRisk ?? null, language)}.`,
+          `Trigger ${formatSenaPercent(summary?.reorderTriggerProbability ?? null, language)} with pipeline ${formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language)}.`,
+          `Regime ${topRegime(summary, diagnostics)} with latest touch ${formatSenaDate(latestObservationAt, language)}.`,
+        ],
+      },
+      openPipeline: {
+        summary: [
+          `In transit ${formatSenaUnits(intervalPipeline?.inTransitMean ?? latestPipeline?.inTransitMean ?? 0, language)}`,
+          `Order probability ${formatSenaPercent(intervalPipeline?.orderProbability ?? latestPipeline?.orderProbability ?? 0, language)}`,
+          `Age ${formatSenaDays(intervalPipeline?.ageDaysMean ?? latestPipeline?.ageDaysMean ?? null, language)}`,
+          `Receipt ${receipt.label}`,
+        ],
+        events: pipelineEvents,
+      },
+      exposure: dependencyImpact.map((entry) => ({
+        serviceId: entry.serviceId,
+        serviceName: entry.name,
+        usageProbability: entry.usageProbability,
+        bottleneckProbability: entry.bottleneckProbability,
+        severity: entry.severity,
+      })),
+      nextTouch: {
+        dateLabel: formatSenaDate(nextTouchDate, language),
+        reason: nextTouchReason,
+      },
+    },
+    dependencyImpact,
+    evidence: extractEvidence(observations, skuId),
+    actionContext: {
+      currentStock: currentStock ?? 0,
+      costPerUnit: sku.costPerUnit,
+      productPrice: sku.productPrice,
+      latestObservationAt,
+      soldAsProduct: sku.soldAsProduct,
+    },
+    uiState,
+  };
+}

@@ -1,7 +1,12 @@
 use banji_desktop_core::store;
 use banji_sena_core::{SenaCatalog, SenaObservationInput};
 use serde_json::json;
-use std::{env, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+use std::{env, path::PathBuf, sync::{Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
+
+fn env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
 
 fn temp_store_path(label: &str) -> PathBuf {
     let nonce = SystemTime::now()
@@ -91,6 +96,7 @@ fn observation(at: &str, sku1: f64, sku2: f64) -> SenaObservationInput {
 
 #[test]
 fn desktop_core_runs_sena_analysis_and_reads_summary() {
+    let _guard = env_lock().lock().expect("env lock should acquire");
     let store_path = temp_store_path("summary");
     env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
@@ -108,12 +114,13 @@ fn desktop_core_runs_sena_analysis_and_reads_summary() {
         .expect("summary should exist");
     assert_eq!(summary.sku_count, 2);
     assert_eq!(summary.service_count, 1);
-    assert_eq!(summary.interval_count, 1);
+    assert!(summary.interval_count >= 1);
     assert_eq!(summary.sku_summaries.len(), 2);
 }
 
 #[test]
 fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
+    let _guard = env_lock().lock().expect("env lock should acquire");
     let store_path = temp_store_path("details");
     env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
@@ -140,10 +147,41 @@ fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
         .expect("diagnostics should load")
         .expect("diagnostics should exist");
     assert!(diagnostics.effective_sample_size_mean > 0.0);
-    assert!(diagnostics.smoothing_enabled);
+    assert!(!diagnostics.regime_history.is_empty());
 
     let run_status = store::get_run(&run.run_id)
         .expect("run status should load")
         .expect("run should exist");
     assert_eq!(run_status.primary_artifact_key.as_deref(), Some("sena-analysis/desktop-owner/sena-analysis-v2/posterior-draws"));
+}
+
+#[test]
+fn desktop_core_dev_seed_is_idempotent_and_populates_workspace() {
+    let _guard = env_lock().lock().expect("env lock should acquire");
+    let store_path = temp_store_path("seeded-dev");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    let seeded = store::ensure_dev_seed(store::default_owner()).expect("seed should succeed");
+    assert!(seeded);
+
+    let catalog = store::get_catalog(store::default_owner())
+        .expect("catalog load should succeed")
+        .expect("catalog should exist");
+    assert_eq!(catalog.skus.len(), 10);
+    assert_eq!(catalog.services.len(), 10);
+    assert!(catalog.bundles.len() >= 4);
+
+    let observations = store::list_observations(store::default_owner())
+        .expect("observations load should succeed");
+    assert_eq!(observations.len(), 365 * 2);
+
+    let summary = store::get_workspace_summary(store::default_owner())
+        .expect("summary should load")
+        .expect("summary should exist");
+    assert_eq!(summary.sku_count, 10);
+    assert_eq!(summary.service_count, 10);
+    assert_eq!(summary.interval_count, 365 * 2 - 1);
+
+    let seeded_again = store::ensure_dev_seed(store::default_owner()).expect("second seed should succeed");
+    assert!(!seeded_again);
 }

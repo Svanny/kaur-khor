@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use banji_desktop_core::legacy_inventory::types::SubmitStockReportRequest;
 use banji_desktop_core::store;
 use banji_sena_core::{SenaCatalog, SenaObservationInput};
 use serde::Deserialize;
@@ -50,7 +51,7 @@ struct ServiceLookupPayload {
 }
 
 fn default_algorithm_version() -> String {
-    "sena-analysis-v1".to_string()
+    "sena-analysis-v2".to_string()
 }
 
 fn main() -> Result<()> {
@@ -109,6 +110,7 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
     let owner = store::default_owner();
     match command {
         "system.ping" => Ok(None),
+        "sena.seedDevWorkspace" => Ok(Some(serde_json::to_value(store::ensure_dev_seed(owner)?)?)),
         "sena.upsertCatalog" => {
             let catalog: SenaCatalog =
                 serde_json::from_value(payload).context("invalid sena.upsertCatalog payload")?;
@@ -163,6 +165,18 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
             let request: RunLookupPayload =
                 serde_json::from_value(payload).context("invalid sena.getRunStatus payload")?;
             Ok(Some(serde_json::to_value(store::get_run(&request.run_id)?)?))
+        }
+        "inventory.loadSnapshot" => Ok(Some(serde_json::to_value(
+            store::load_inventory_snapshot(owner)?,
+        )?)),
+        "inventory.listReports" => Ok(Some(serde_json::to_value(
+            store::list_stock_reports(owner)?,
+        )?)),
+        "inventory.submitReport" => {
+            let mut request: SubmitStockReportRequest =
+                serde_json::from_value(payload).context("invalid inventory.submitReport payload")?;
+            request.validate()?;
+            Ok(Some(serde_json::to_value(store::submit_stock_report(owner, request)?)?))
         }
         other => anyhow::bail!("unknown desktop core command '{other}'"),
     }

@@ -32,8 +32,8 @@ describe('managed core controller', () => {
       start,
     );
 
-    await expect(controller.invoke('inventory.saveSku')).rejects.toThrow('validation failed');
-    await expect(controller.invoke('inventory.getSnapshot')).resolves.toEqual({ ok: true });
+    await expect(controller.invoke('sena.upsertCatalog')).rejects.toThrow('validation failed');
+    await expect(controller.invoke('sena.getCatalog')).resolves.toEqual({ ok: true });
 
     expect(start).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledTimes(2);
@@ -60,8 +60,8 @@ describe('managed core controller', () => {
       start,
     );
 
-    await expect(controller.invoke('inventory.getSnapshot')).rejects.toThrow('core exited');
-    await expect(controller.invoke('inventory.getSnapshot')).resolves.toEqual({ ok: true });
+    await expect(controller.invoke('sena.getCatalog')).rejects.toThrow('core exited');
+    await expect(controller.invoke('sena.getCatalog')).resolves.toEqual({ ok: true });
 
     expect(start).toHaveBeenCalledTimes(2);
   });
@@ -86,8 +86,8 @@ describe('managed core controller', () => {
       start,
     );
 
-    const firstInvoke = controller.invoke('inventory.getSnapshot');
-    const secondInvoke = controller.invoke('inventory.listStockReports');
+    const firstInvoke = controller.invoke('sena.getCatalog');
+    const secondInvoke = controller.invoke('sena.getWorkspaceSummary');
 
     expect(start).toHaveBeenCalledTimes(1);
 

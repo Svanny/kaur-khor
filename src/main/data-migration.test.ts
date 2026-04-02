@@ -7,15 +7,15 @@ import { describe, expect, it } from 'vitest';
 import { migrateLegacyDesktopData } from './data-migration';
 
 describe('legacy desktop data migration', () => {
-  it('copies legacy inventory and preferences into the repo-local dev path', async () => {
+  it('copies the SENA workspace store and preferences into the repo-local dev path', async () => {
     const root = await mkdtemp(join(tmpdir(), 'banji-data-migration-'));
     const legacyPath = join(root, 'legacy');
     const currentPath = join(root, 'current');
 
     await mkdir(legacyPath, { recursive: true });
     await writeFile(
-      join(legacyPath, 'desktop-inventory-store.json'),
-      '{"skus":[]}',
+      join(legacyPath, 'desktop-sena-store.sqlite3'),
+      'sqlite-fixture',
       'utf8',
     );
     await writeFile(
@@ -25,12 +25,12 @@ describe('legacy desktop data migration', () => {
     );
 
     await expect(migrateLegacyDesktopData(currentPath, legacyPath)).resolves.toEqual([
-      'desktop-inventory-store.json',
+      'desktop-sena-store.sqlite3',
       'desktop-preferences.json',
     ]);
     await expect(
-      readFile(join(currentPath, 'desktop-inventory-store.json'), 'utf8'),
-    ).resolves.toBe('{"skus":[]}');
+      readFile(join(currentPath, 'desktop-sena-store.sqlite3'), 'utf8'),
+    ).resolves.toBe('sqlite-fixture');
     await expect(
       readFile(join(currentPath, 'desktop-preferences.json'), 'utf8'),
     ).resolves.toBe('{"language":"km","currency":"KHR"}');

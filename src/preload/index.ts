@@ -3,33 +3,20 @@ import {
   IPC_CHANNELS,
   type DesktopBridge,
   type DesktopPreferences,
-  type GetSenaServiceDetailPayload,
-  type GetSenaSkuDetailPayload,
-  type GetSistServiceDetailPayload,
-  type GetSistSkuDetailPayload,
-  type SaveRankingPayload,
-  type SaveServicePayload,
-  type SaveSkuPayload,
+  type SenaRunLookupPayload,
+  type SenaServiceLookupPayload,
+  type SenaSkuLookupPayload,
+  type SenaTriggerRunPayload,
 } from '@shared/ipc';
-import type {
-  InventorySnapshot,
-  SistSettings,
-  SistServiceDetail,
-  SistSkuDetail,
-  SistSystemDetail,
-  StockReport,
-  StockReportDeletePayload,
-  StockReportSubmission,
-  StockReportUpdatePayload,
-  StockUpdatePayload,
-} from '@shared/inventory';
+import type { InventorySnapshot, StockReport, StockReportSubmission } from '@shared/inventory';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
   SenaDiagnostics,
+  SenaObservationInput,
   SenaObservationRecord,
-  SenaServiceDetail as SharedSenaServiceDetail,
-  SenaSkuDetail as SharedSenaSkuDetail,
+  SenaServiceDetail,
+  SenaSkuDetail,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 
@@ -38,57 +25,35 @@ const desktopBridge: DesktopBridge = {
     getAppContext: () => ipcRenderer.invoke(IPC_CHANNELS.systemGetAppContext),
     getLocalDataInfo: () => ipcRenderer.invoke(IPC_CHANNELS.systemGetLocalDataInfo),
     openLocalDataFolder: () => ipcRenderer.invoke(IPC_CHANNELS.systemOpenLocalDataFolder),
-    exportSkusCsv: () => ipcRenderer.invoke(IPC_CHANNELS.systemExportSkusCsv),
-    exportServicesCsv: () => ipcRenderer.invoke(IPC_CHANNELS.systemExportServicesCsv),
-    exportStockReportsCsv: () => ipcRenderer.invoke(IPC_CHANNELS.systemExportStockReportsCsv),
   },
   inventory: {
-    getSnapshot: (): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSnapshot),
-    listStockReports: (): Promise<StockReport[]> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryListStockReports),
-    saveSku: (payload: SaveSkuPayload): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventorySaveSku, payload),
-    saveService: (payload: SaveServicePayload): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventorySaveService, payload),
-    applyStockUpdates: (payload: StockUpdatePayload): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryApplyStockUpdates, payload),
-    submitStockReport: (payload: StockReportSubmission): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventorySubmitStockReport, payload),
-    updateStockReport: (payload: StockReportUpdatePayload): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryUpdateStockReport, payload),
-    deleteStockReport: (payload: StockReportDeletePayload): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryDeleteStockReport, payload),
-    saveRanking: (payload: SaveRankingPayload): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventorySaveRanking, payload),
-    getSistSkuDetail: (payload: GetSistSkuDetailPayload): Promise<SistSkuDetail> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSistSkuDetail, payload),
-    getSistServiceDetail: (
-      payload: GetSistServiceDetailPayload,
-    ): Promise<SistServiceDetail> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSistServiceDetail, payload),
-    getSistSystemDetail: (): Promise<SistSystemDetail> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSistSystemDetail),
-    updateSistSettings: (payload: SistSettings): Promise<InventorySnapshot> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryUpdateSistSettings, payload),
-    getSenaCatalog: (): Promise<SenaCatalog | null> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaCatalog),
-    listSenaObservations: (): Promise<SenaObservationRecord[]> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryListSenaObservations),
-    upsertSenaCatalog: (payload: SenaCatalog): Promise<SenaCatalog> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryUpsertSenaCatalog, payload),
-    triggerSenaRun: (payload?: { algorithmVersion?: string }): Promise<SenaAnalysisRunRecord> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryTriggerSenaRun, payload),
-    getSenaWorkspaceSummary: (): Promise<SenaWorkspaceSummary | null> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaWorkspaceSummary),
-    getSenaSkuDetail: (payload: GetSenaSkuDetailPayload): Promise<SharedSenaSkuDetail | null> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaSkuDetail, payload),
-    getSenaDiagnostics: (): Promise<SenaDiagnostics | null> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaDiagnostics),
-    getSenaServiceDetail: (
-      payload: GetSenaServiceDetailPayload,
-    ): Promise<SharedSenaServiceDetail | null> =>
-      ipcRenderer.invoke(IPC_CHANNELS.inventoryGetSenaServiceDetail, payload),
+    loadSnapshot: (): Promise<InventorySnapshot> => ipcRenderer.invoke(IPC_CHANNELS.inventoryLoadSnapshot),
+    listReports: (): Promise<StockReport[]> => ipcRenderer.invoke(IPC_CHANNELS.inventoryListReports),
+    submitReport: (payload: StockReportSubmission): Promise<StockReport> =>
+      ipcRenderer.invoke(IPC_CHANNELS.inventorySubmitReport, payload),
+  },
+  sena: {
+    getCatalog: (): Promise<SenaCatalog | null> => ipcRenderer.invoke(IPC_CHANNELS.senaGetCatalog),
+    listObservations: (): Promise<SenaObservationRecord[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaListObservations),
+    upsertCatalog: (payload: SenaCatalog): Promise<SenaCatalog> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaUpsertCatalog, payload),
+    ingestObservation: (payload: SenaObservationInput): Promise<SenaObservationRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaIngestObservation, payload),
+    triggerRun: (payload?: SenaTriggerRunPayload): Promise<SenaAnalysisRunRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaTriggerRun, payload),
+    retryRun: (payload: SenaRunLookupPayload): Promise<SenaAnalysisRunRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaRetryRun, payload),
+    getWorkspaceSummary: (): Promise<SenaWorkspaceSummary | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaGetWorkspaceSummary),
+    getSkuDetail: (payload: SenaSkuLookupPayload): Promise<SenaSkuDetail | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaGetSkuDetail, payload),
+    getDiagnostics: (): Promise<SenaDiagnostics | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaGetDiagnostics),
+    getServiceDetail: (payload: SenaServiceLookupPayload): Promise<SenaServiceDetail | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaGetServiceDetail, payload),
+    getRunStatus: (payload: SenaRunLookupPayload): Promise<SenaAnalysisRunRecord | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaGetRunStatus, payload),
   },
   preferences: {
     get: (): Promise<DesktopPreferences> => ipcRenderer.invoke(IPC_CHANNELS.preferencesGet),

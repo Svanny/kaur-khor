@@ -6,479 +6,365 @@ import {
   useMemo,
   useRef,
   useState,
-  type MutableRefObject,
   type ReactNode,
 } from 'react';
-import type {
-  InventorySnapshot,
-  InventoryState,
-  RankingEntry,
-  SistSettings,
-  SistServiceDetail,
-  SistSkuDetail,
-  SistSystemDetail,
-  StockReport,
-  StockReportDeletePayload,
-  StockReportSubmission,
-  StockReportUpdatePayload,
-  UpsertServicePayload,
-  UpsertSkuPayload,
-} from '@shared/inventory';
+import type { InventorySnapshot, StockReport, StockReportSubmission } from '@shared/inventory';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
   SenaDiagnostics,
+  SenaObservationInput,
   SenaObservationRecord,
   SenaServiceDetail,
   SenaSkuDetail,
   SenaWorkspaceSummary,
 } from '@shared/sena';
-import { traceRenderer } from '@/lib/trace';
 
-type LegacyReadCacheKey = `sku:${string}` | `service:${string}` | 'reports' | 'snapshot' | 'system';
-type SenaReadCacheKey =
-  | 'catalog'
-  | 'workspace-summary'
-  | 'diagnostics'
-  | 'observations'
-  | `sku-detail:${string}`
-  | `service-detail:${string}`;
+type ReadCacheValue =
+  | InventorySnapshot
+  | StockReport[]
+  | SenaCatalog
+  | SenaObservationRecord[]
+  | SenaWorkspaceSummary
+  | SenaSkuDetail
+  | SenaServiceDetail
+  | SenaDiagnostics
+  | SenaAnalysisRunRecord
+  | null;
 
-type LegacyReadResultMap = {
+type SenaMetaCache = {
+  catalogHash: string | null;
+  lastBootstrapSkuId: string | null;
+  lastCompletedRunId: string | null;
+};
+
+export interface InventoryContextValue {
+  snapshot: InventorySnapshot | null;
   reports: StockReport[];
-  snapshot: InventorySnapshot;
-  system: SistSystemDetail;
-  [key: `sku:${string}`]: SistSkuDetail;
-  [key: `service:${string}`]: SistServiceDetail;
-};
-
-type SenaReadResultMap = {
   catalog: SenaCatalog | null;
-  'workspace-summary': SenaWorkspaceSummary | null;
   diagnostics: SenaDiagnostics | null;
+  error: string | null;
+  isLoading: boolean;
+  isSaving: boolean;
+  latestRun: SenaAnalysisRunRecord | null;
   observations: SenaObservationRecord[];
-  [key: `sku-detail:${string}`]: SenaSkuDetail | null;
-  [key: `service-detail:${string}`]: SenaServiceDetail | null;
-};
-
-interface InventoryContextValue extends InventoryState {
+  senaMeta: SenaMetaCache;
+  workspaceSummary: SenaWorkspaceSummary | null;
   reload: () => Promise<void>;
-  saveSku: (payload: UpsertSkuPayload) => Promise<void>;
-  saveService: (payload: UpsertServicePayload) => Promise<void>;
-  saveStock: (
-    updates: Array<{ skuId: string; unitsInStock: number; costPerUnit: number }>,
-  ) => Promise<void>;
-  submitReport: (payload: StockReportSubmission) => Promise<void>;
-  updateReport: (payload: StockReportUpdatePayload) => Promise<void>;
-  deleteReport: (payload: StockReportDeletePayload) => Promise<void>;
-  persistRanking: (entries: RankingEntry[]) => Promise<void>;
-  saveSistSettings: (payload: SistSettings) => Promise<void>;
-  loadSistSystemDetail: () => Promise<SistSystemDetail>;
-  loadSistServiceDetail: (serviceId: string) => Promise<SistServiceDetail>;
-  loadSistSkuDetail: (skuId: string) => Promise<SistSkuDetail>;
+  loadInventorySnapshot: () => Promise<InventorySnapshot>;
   listStockReports: () => Promise<StockReport[]>;
-  loadSenaCatalog: () => Promise<SenaCatalog | null>;
-  loadSenaObservations: () => Promise<SenaObservationRecord[]>;
+  submitLegacyReport: (payload: StockReportSubmission) => Promise<StockReport>;
   upsertSenaCatalog: (payload: SenaCatalog) => Promise<SenaCatalog>;
+  loadSenaCatalog: () => Promise<SenaCatalog | null>;
+  ingestSenaObservation: (payload: SenaObservationInput) => Promise<SenaObservationRecord>;
+  listSenaObservations: () => Promise<SenaObservationRecord[]>;
+  loadSenaObservations: () => Promise<SenaObservationRecord[]>;
   triggerSenaRun: (payload?: { algorithmVersion?: string }) => Promise<SenaAnalysisRunRecord>;
+  retrySenaRun: (payload: { runId: string }) => Promise<SenaAnalysisRunRecord>;
   loadSenaWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
   loadSenaSkuDetail: (skuId: string) => Promise<SenaSkuDetail | null>;
-  loadSenaDiagnostics: () => Promise<SenaDiagnostics | null>;
   loadSenaServiceDetail: (serviceId: string) => Promise<SenaServiceDetail | null>;
+  loadSenaDiagnostics: () => Promise<SenaDiagnostics | null>;
+  loadSenaRunStatus: (runId: string) => Promise<SenaAnalysisRunRecord | null>;
+  updateSenaMeta: (next: Partial<SenaMetaCache>) => void;
 }
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
 
-function emptyState(): InventoryState {
+function emptyState() {
   return {
-    snapshot: null,
+    snapshot: null as InventorySnapshot | null,
+    reports: [] as StockReport[],
+    catalog: null as SenaCatalog | null,
+    diagnostics: null as SenaDiagnostics | null,
+    error: null as string | null,
     isLoading: true,
     isSaving: false,
-    error: null,
+    latestRun: null as SenaAnalysisRunRecord | null,
+    observations: [] as SenaObservationRecord[],
+    workspaceSummary: null as SenaWorkspaceSummary | null,
   };
 }
 
-function primeCache<K extends string, M extends Record<K, unknown>>(
-  cacheRef: MutableRefObject<Partial<M>>,
-  key: K,
-  value: M[K],
-  scope: 'inventory' | 'inventory-sena',
-) {
-  cacheRef.current[key] = value;
-  traceRenderer(scope, 'cache-store', { key });
-}
-
-function invalidateCaches<M extends Record<string, unknown>>(
-  cacheRef: MutableRefObject<Partial<M>>,
-  inflightRef: MutableRefObject<Partial<Record<keyof M & string, Promise<unknown>>>>,
-  reason: string,
-  scope: 'inventory' | 'inventory-sena',
-) {
-  cacheRef.current = {};
-  inflightRef.current = {};
-  traceRenderer(scope, 'cache-invalidate', { reason });
-}
-
-async function readThroughCache<K extends string, M extends Record<K, unknown>>({
-  key,
-  command,
-  scope,
-  cacheRef,
-  inflightRef,
-  traceRequest,
-  run,
-}: {
-  key: K;
-  command: string;
-  scope: 'inventory' | 'inventory-sena';
-  cacheRef: MutableRefObject<Partial<M>>;
-  inflightRef: MutableRefObject<Partial<Record<K, Promise<unknown>>>>;
-  traceRequest: <T>(commandName: string, task: () => Promise<T>) => Promise<T>;
-  run: () => Promise<M[K]>;
-}) {
-  const cached = cacheRef.current[key];
-  if (cached !== undefined) {
-    traceRenderer(scope, 'cache-hit', { key, command });
-    return cached as M[K];
-  }
-
-  const inflight = inflightRef.current[key];
-  if (inflight) {
-    traceRenderer(scope, 'cache-await-inflight', { key, command });
-    return (await inflight) as M[K];
-  }
-
-  traceRenderer(scope, 'cache-miss', { key, command });
-  const request = traceRequest(command, run)
-    .then((result) => {
-      primeCache(cacheRef, key, result, scope);
-      delete inflightRef.current[key];
-      return result;
-    })
-    .catch((error) => {
-      delete inflightRef.current[key];
-      throw error;
-    });
-  inflightRef.current[key] = request;
-  return request;
+function isSenaCacheKey(key: string) {
+  return key.startsWith('sena:');
 }
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<InventoryState>(() => emptyState());
-  const requestCounterRef = useRef(0);
-  const stateRef = useRef(state);
-  const legacyReadCacheRef = useRef<Partial<LegacyReadResultMap>>({});
-  const legacyInflightReadsRef = useRef<Partial<Record<LegacyReadCacheKey, Promise<unknown>>>>({});
-  const senaReadCacheRef = useRef<Partial<SenaReadResultMap>>({});
-  const senaInflightReadsRef = useRef<Partial<Record<SenaReadCacheKey, Promise<unknown>>>>({});
+  const [state, setState] = useState(() => emptyState());
+  const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
+  const inflightRef = useRef<Map<string, Promise<ReadCacheValue>>>(new Map());
+  const senaMetaRef = useRef<SenaMetaCache>({
+    catalogHash: null,
+    lastBootstrapSkuId: null,
+    lastCompletedRunId: null,
+  });
+  const [, bumpMetaVersion] = useState(0);
 
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  const updateSenaMeta = useCallback((next: Partial<SenaMetaCache>) => {
+    senaMetaRef.current = { ...senaMetaRef.current, ...next };
+    bumpMetaVersion((value) => value + 1);
+  }, []);
 
-  function nextRequestId() {
-    requestCounterRef.current += 1;
-    return requestCounterRef.current;
-  }
+  const setStatePartial = useCallback((patch: Partial<typeof state>) => {
+    setState((current) => ({ ...current, ...patch }));
+  }, []);
 
-  async function traceRequest<T>(
-    command: string,
-    run: () => Promise<T>,
-  ): Promise<T> {
-    const requestId = nextRequestId();
-    const startedAt = performance.now();
-    const currentState = stateRef.current;
-    traceRenderer('inventory', 'request-start', {
-      command,
-      requestId,
-      snapshotLoaded: currentState.snapshot !== null,
-      isLoading: currentState.isLoading,
-      isSaving: currentState.isSaving,
-    });
-    try {
-      const result = await run();
-      traceRenderer('inventory', 'request-success', {
-        command,
-        requestId,
-        elapsedMs: Math.round(performance.now() - startedAt),
-      });
-      return result;
-    } catch (error) {
-      traceRenderer('inventory', 'request-error', {
-        command,
-        requestId,
-        elapsedMs: Math.round(performance.now() - startedAt),
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
+  const invalidateSenaReads = useCallback(() => {
+    for (const key of readCacheRef.current.keys()) {
+      if (isSenaCacheKey(key)) {
+        readCacheRef.current.delete(key);
+      }
     }
-  }
-
-  const invalidateLegacyReadCaches = useCallback((reason: string) => {
-    invalidateCaches(legacyReadCacheRef, legacyInflightReadsRef, reason, 'inventory');
+    for (const key of inflightRef.current.keys()) {
+      if (isSenaCacheKey(key)) {
+        inflightRef.current.delete(key);
+      }
+    }
   }, []);
 
-  const invalidateSenaReadCaches = useCallback((reason: string) => {
-    invalidateCaches(senaReadCacheRef, senaInflightReadsRef, reason, 'inventory-sena');
+  const loadWithCache = useCallback(async <T extends ReadCacheValue>(key: string, loader: () => Promise<T>) => {
+    if (readCacheRef.current.has(key)) {
+      return readCacheRef.current.get(key) as T;
+    }
+    const inflight = inflightRef.current.get(key);
+    if (inflight) {
+      return (await inflight) as T;
+    }
+    const request = loader()
+      .then((value) => {
+        readCacheRef.current.set(key, value);
+        inflightRef.current.delete(key);
+        return value;
+      })
+      .catch((error) => {
+        inflightRef.current.delete(key);
+        throw error;
+      });
+    inflightRef.current.set(key, request);
+    return (await request) as T;
   }, []);
+
+  const loadLatestRun = useCallback(
+    async (runId: string | null) => {
+      if (!runId) {
+        return null;
+      }
+      const run = await loadWithCache(`sena:run:${runId}`, () => window.banjiDesktop.sena.getRunStatus({ runId }));
+      if (run?.status === 'succeeded') {
+        updateSenaMeta({ lastCompletedRunId: run.runId });
+      }
+      return run;
+    },
+    [loadWithCache, updateSenaMeta],
+  );
 
   const reload = useCallback(async () => {
-    invalidateLegacyReadCaches('reload');
-    setState((current) => ({ ...current, isLoading: true, error: null }));
+    setState((current) => ({ ...current, error: null, isLoading: true }));
     try {
-      const snapshot = await readThroughCache({
-        key: 'snapshot',
-        command: 'inventory.getSnapshot',
-        scope: 'inventory',
-        cacheRef: legacyReadCacheRef,
-        inflightRef: legacyInflightReadsRef,
-        traceRequest,
-        run: () => window.banjiDesktop.inventory.getSnapshot(),
-      });
+      readCacheRef.current.clear();
+      inflightRef.current.clear();
+      const [snapshot, reports, catalog, workspaceSummary, diagnostics, observations] = await Promise.all([
+        window.banjiDesktop.inventory.loadSnapshot(),
+        window.banjiDesktop.inventory.listReports(),
+        window.banjiDesktop.sena.getCatalog(),
+        window.banjiDesktop.sena.getWorkspaceSummary(),
+        window.banjiDesktop.sena.getDiagnostics(),
+        window.banjiDesktop.sena.listObservations(),
+      ]);
+      readCacheRef.current.set('legacy:snapshot', snapshot);
+      readCacheRef.current.set('legacy:reports', reports);
+      readCacheRef.current.set('sena:catalog', catalog);
+      readCacheRef.current.set('sena:summary', workspaceSummary);
+      readCacheRef.current.set('sena:diagnostics', diagnostics);
+      readCacheRef.current.set('sena:observations', observations);
+      const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
       setState({
         snapshot,
+        reports,
+        catalog,
+        diagnostics,
+        error: null,
         isLoading: false,
         isSaving: false,
-        error: null,
+        latestRun,
+        observations,
+        workspaceSummary,
       });
     } catch (error) {
       setState((current) => ({
         ...current,
+        error: error instanceof Error ? error.message : 'Failed to load inventory workspace.',
         isLoading: false,
-        error: error instanceof Error ? error.message : 'failed to load inventory',
       }));
     }
-  }, [invalidateLegacyReadCaches]);
+  }, [loadLatestRun]);
 
   useEffect(() => {
-    traceRenderer('inventory', 'provider-mount', { source: 'InventoryProvider.useEffect' });
     void reload();
   }, [reload]);
 
-  const mutateInventory = useCallback(async (task: () => Promise<InventorySnapshot>) => {
-    invalidateLegacyReadCaches('mutation-start');
-    invalidateSenaReadCaches('inventory-mutation-start');
-    setState((current) => ({ ...current, isSaving: true, error: null }));
+  const withSaving = useCallback(async <T,>(task: () => Promise<T>) => {
+    setState((current) => ({ ...current, error: null, isSaving: true }));
     try {
-      const snapshot = await task();
-      primeCache(legacyReadCacheRef, 'snapshot', snapshot, 'inventory');
-      setState({
-        snapshot,
-        isLoading: false,
-        isSaving: false,
-        error: null,
-      });
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error('save failed');
-      setState((current) => ({
-        ...current,
-        isSaving: false,
-        error: normalizedError.message,
-      }));
-      throw normalizedError;
-    }
-  }, [invalidateLegacyReadCaches, invalidateSenaReadCaches]);
-
-  const mutateSena = useCallback(async <T,>({
-    command,
-    task,
-    reason,
-    prime,
-  }: {
-    command: string;
-    task: () => Promise<T>;
-    reason: string;
-    prime?: (result: T) => void;
-  }) => {
-    invalidateSenaReadCaches(reason);
-    setState((current) => ({ ...current, isSaving: true, error: null }));
-    try {
-      const result = await traceRequest(command, task);
-      prime?.(result);
-      setState((current) => ({ ...current, isSaving: false, error: null }));
+      const result = await task();
+      setState((current) => ({ ...current, isSaving: false }));
       return result;
     } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error('SENA mutation failed');
       setState((current) => ({
         ...current,
+        error: error instanceof Error ? error.message : 'Workspace mutation failed.',
         isSaving: false,
-        error: normalizedError.message,
       }));
-      throw normalizedError;
+      throw error;
     }
-  }, [invalidateSenaReadCaches]);
+  }, []);
 
   const value = useMemo<InventoryContextValue>(
     () => ({
       ...state,
+      senaMeta: senaMetaRef.current,
       reload,
-      saveSku: async (payload) => {
-        await mutateInventory(() =>
-          window.banjiDesktop.inventory.saveSku({
-            sku: payload,
-          }),
-        );
+      updateSenaMeta,
+      loadInventorySnapshot: async () => {
+        const snapshot = await loadWithCache('legacy:snapshot', () => window.banjiDesktop.inventory.loadSnapshot());
+        setStatePartial({ snapshot });
+        return snapshot;
       },
-      saveService: async (payload) => {
-        await mutateInventory(() =>
-          window.banjiDesktop.inventory.saveService({
-            service: payload,
-          }),
-        );
+      listStockReports: async () => {
+        const reports = await loadWithCache('legacy:reports', () => window.banjiDesktop.inventory.listReports());
+        setStatePartial({ reports });
+        return reports;
       },
-      saveStock: async (updates) => {
-        await mutateInventory(() =>
-          window.banjiDesktop.inventory.applyStockUpdates({ updates }),
-        );
-      },
-      submitReport: async (payload) => {
-        await mutateInventory(() => window.banjiDesktop.inventory.submitStockReport(payload));
-      },
-      updateReport: async (payload) => {
-        await mutateInventory(() => window.banjiDesktop.inventory.updateStockReport(payload));
-      },
-      deleteReport: async (payload) => {
-        await mutateInventory(() => window.banjiDesktop.inventory.deleteStockReport(payload));
-      },
-      persistRanking: async (entries) => {
-        await mutateInventory(() => window.banjiDesktop.inventory.saveRanking({ entries }));
-      },
-      saveSistSettings: async (payload) => {
-        await mutateInventory(() => window.banjiDesktop.inventory.updateSistSettings(payload));
-      },
-      loadSistSystemDetail: async () =>
-        readThroughCache({
-          key: 'system',
-          command: 'inventory.getSistSystemDetail',
-          scope: 'inventory',
-          cacheRef: legacyReadCacheRef,
-          inflightRef: legacyInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.getSistSystemDetail(),
-        }),
-      loadSistServiceDetail: async (serviceId) =>
-        readThroughCache({
-          key: `service:${serviceId}`,
-          command: 'inventory.getSistServiceDetail',
-          scope: 'inventory',
-          cacheRef: legacyReadCacheRef,
-          inflightRef: legacyInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.getSistServiceDetail({ serviceId }),
-        }),
-      loadSistSkuDetail: async (skuId) =>
-        readThroughCache({
-          key: `sku:${skuId}`,
-          command: 'inventory.getSistSkuDetail',
-          scope: 'inventory',
-          cacheRef: legacyReadCacheRef,
-          inflightRef: legacyInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.getSistSkuDetail({ skuId }),
-        }),
-      listStockReports: async () =>
-        readThroughCache({
-          key: 'reports',
-          command: 'inventory.listStockReports',
-          scope: 'inventory',
-          cacheRef: legacyReadCacheRef,
-          inflightRef: legacyInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.listStockReports(),
-        }),
-      loadSenaCatalog: async () =>
-        readThroughCache({
-          key: 'catalog',
-          command: 'sena.getCatalog',
-          scope: 'inventory-sena',
-          cacheRef: senaReadCacheRef,
-          inflightRef: senaInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.getSenaCatalog(),
-        }),
-      loadSenaObservations: async () =>
-        readThroughCache({
-          key: 'observations',
-          command: 'sena.listObservations',
-          scope: 'inventory-sena',
-          cacheRef: senaReadCacheRef,
-          inflightRef: senaInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.listSenaObservations(),
+      submitLegacyReport: async (payload) =>
+        withSaving(async () => {
+          const report = await window.banjiDesktop.inventory.submitReport(payload);
+          readCacheRef.current.delete('legacy:snapshot');
+          readCacheRef.current.delete('legacy:reports');
+          const [snapshot, reports] = await Promise.all([
+            window.banjiDesktop.inventory.loadSnapshot(),
+            window.banjiDesktop.inventory.listReports(),
+          ]);
+          readCacheRef.current.set('legacy:snapshot', snapshot);
+          readCacheRef.current.set('legacy:reports', reports);
+          setStatePartial({ reports, snapshot });
+          return report;
         }),
       upsertSenaCatalog: async (payload) =>
-        mutateSena({
-          command: 'sena.upsertCatalog',
-          reason: 'sena-upsert-catalog',
-          task: () => window.banjiDesktop.inventory.upsertSenaCatalog(payload),
-          prime: (catalog) => {
-            primeCache(senaReadCacheRef, 'catalog', catalog, 'inventory-sena');
-          },
+        withSaving(async () => {
+          const catalog = await window.banjiDesktop.sena.upsertCatalog(payload);
+          invalidateSenaReads();
+          readCacheRef.current.set('sena:catalog', catalog);
+          setStatePartial({ catalog });
+          return catalog;
         }),
+      loadSenaCatalog: async () => {
+        const catalog = await loadWithCache('sena:catalog', () => window.banjiDesktop.sena.getCatalog());
+        setStatePartial({ catalog });
+        return catalog;
+      },
+      ingestSenaObservation: async (payload) =>
+        withSaving(async () => {
+          const observation = await window.banjiDesktop.sena.ingestObservation(payload);
+          invalidateSenaReads();
+          const observations = await window.banjiDesktop.sena.listObservations();
+          readCacheRef.current.set('sena:observations', observations);
+          setStatePartial({ observations });
+          return observation;
+        }),
+      listSenaObservations: async () => {
+        const observations = await loadWithCache('sena:observations', () => window.banjiDesktop.sena.listObservations());
+        setStatePartial({ observations });
+        return observations;
+      },
+      loadSenaObservations: async () => {
+        const observations = await loadWithCache('sena:observations', () => window.banjiDesktop.sena.listObservations());
+        setStatePartial({ observations });
+        return observations;
+      },
       triggerSenaRun: async (payload) =>
-        mutateSena({
-          command: 'sena.triggerRun',
-          reason: 'sena-trigger-run',
-          task: () => window.banjiDesktop.inventory.triggerSenaRun(payload),
+        withSaving(async () => {
+          const run = await window.banjiDesktop.sena.triggerRun(payload);
+          invalidateSenaReads();
+          readCacheRef.current.set(`sena:run:${run.runId}`, run);
+          if (run.status === 'succeeded') {
+            updateSenaMeta({ lastCompletedRunId: run.runId });
+          }
+          const [workspaceSummary, diagnostics, observations] = await Promise.all([
+            window.banjiDesktop.sena.getWorkspaceSummary(),
+            window.banjiDesktop.sena.getDiagnostics(),
+            window.banjiDesktop.sena.listObservations(),
+          ]);
+          readCacheRef.current.set('sena:summary', workspaceSummary);
+          readCacheRef.current.set('sena:diagnostics', diagnostics);
+          readCacheRef.current.set('sena:observations', observations);
+          setStatePartial({
+            diagnostics,
+            latestRun: run,
+            observations,
+            workspaceSummary,
+          });
+          return run;
         }),
-      loadSenaWorkspaceSummary: async () =>
-        readThroughCache({
-          key: 'workspace-summary',
-          command: 'sena.getWorkspaceSummary',
-          scope: 'inventory-sena',
-          cacheRef: senaReadCacheRef,
-          inflightRef: senaInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.getSenaWorkspaceSummary(),
+      retrySenaRun: async (payload) =>
+        withSaving(async () => {
+          const run = await window.banjiDesktop.sena.retryRun(payload);
+          invalidateSenaReads();
+          readCacheRef.current.set(`sena:run:${run.runId}`, run);
+          if (run.status === 'succeeded') {
+            updateSenaMeta({ lastCompletedRunId: run.runId });
+          }
+          const [workspaceSummary, diagnostics, observations] = await Promise.all([
+            window.banjiDesktop.sena.getWorkspaceSummary(),
+            window.banjiDesktop.sena.getDiagnostics(),
+            window.banjiDesktop.sena.listObservations(),
+          ]);
+          readCacheRef.current.set('sena:summary', workspaceSummary);
+          readCacheRef.current.set('sena:diagnostics', diagnostics);
+          readCacheRef.current.set('sena:observations', observations);
+          setStatePartial({
+            diagnostics,
+            latestRun: run,
+            observations,
+            workspaceSummary,
+          });
+          return run;
         }),
-      loadSenaSkuDetail: async (skuId) =>
-        readThroughCache({
-          key: `sku-detail:${skuId}`,
-          command: 'sena.getSkuDetail',
-          scope: 'inventory-sena',
-          cacheRef: senaReadCacheRef,
-          inflightRef: senaInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.getSenaSkuDetail({ skuId }),
-        }),
-      loadSenaDiagnostics: async () =>
-        readThroughCache({
-          key: 'diagnostics',
-          command: 'sena.getDiagnostics',
-          scope: 'inventory-sena',
-          cacheRef: senaReadCacheRef,
-          inflightRef: senaInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.getSenaDiagnostics(),
-        }),
+      loadSenaWorkspaceSummary: async () => {
+        const workspaceSummary = await loadWithCache('sena:summary', () => window.banjiDesktop.sena.getWorkspaceSummary());
+        const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
+        setStatePartial({ latestRun, workspaceSummary });
+        return workspaceSummary;
+      },
+      loadSenaSkuDetail: async (skuId) => loadWithCache(`sena:sku:${skuId}`, () => window.banjiDesktop.sena.getSkuDetail({ skuId })),
       loadSenaServiceDetail: async (serviceId) =>
-        readThroughCache({
-          key: `service-detail:${serviceId}`,
-          command: 'sena.getServiceDetail',
-          scope: 'inventory-sena',
-          cacheRef: senaReadCacheRef,
-          inflightRef: senaInflightReadsRef,
-          traceRequest,
-          run: () => window.banjiDesktop.inventory.getSenaServiceDetail({ serviceId }),
-        }),
+        loadWithCache(`sena:service:${serviceId}`, () => window.banjiDesktop.sena.getServiceDetail({ serviceId })),
+      loadSenaDiagnostics: async () => {
+        const diagnostics = await loadWithCache('sena:diagnostics', () => window.banjiDesktop.sena.getDiagnostics());
+        setStatePartial({ diagnostics });
+        return diagnostics;
+      },
+      loadSenaRunStatus: async (runId) => {
+        const run = await loadWithCache(`sena:run:${runId}`, () => window.banjiDesktop.sena.getRunStatus({ runId }));
+        if (run?.status === 'succeeded') {
+          updateSenaMeta({ lastCompletedRunId: run.runId });
+        }
+        if (state.latestRun?.runId === runId || !state.latestRun) {
+          setStatePartial({ latestRun: run });
+        }
+        return run;
+      },
     }),
-    [mutateInventory, mutateSena, reload, state],
+    [invalidateSenaReads, loadLatestRun, loadWithCache, reload, setStatePartial, state, updateSenaMeta, withSaving],
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 }
 
 export function useInventory() {
-  const value = useContext(InventoryContext);
-  if (!value) {
+  const context = useContext(InventoryContext);
+  if (!context) {
     throw new Error('InventoryProvider is missing');
   }
-  return value;
-}
-
-export function requireSnapshot(snapshot: InventorySnapshot | null): InventorySnapshot {
-  if (!snapshot) {
-    throw new Error('inventory snapshot is not loaded');
-  }
-  return snapshot;
+  return context;
 }
