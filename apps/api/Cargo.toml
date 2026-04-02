@@ -10,7 +10,7 @@ aws-credential-types = "1"
 aws-sdk-s3 = "1"
 axum = { version = "0.7", features = ["json"] }
 async-trait = "0.1"
-banji-desktop-core = { path = "../desktop-core" }
+banji-sena-core = { path = "../sena-core" }
 base64 = "0.22"
 futures-util = "0.3"
 lapin = "2.5"

@@ -4,7 +4,6 @@ pub mod build_metadata;
 pub mod cache;
 pub mod config;
 pub mod db;
-pub mod desktop_inventory;
 pub mod edge;
 pub mod events;
 pub mod idempotency;
@@ -24,6 +23,7 @@ use axum::{
     routing::{get, post, put},
     Extension, Json, Router,
 };
+use banji_sena_core::{service as sena_service, types as sena_types};
 use cache::{CacheClient, KeyBuilder, NoopCacheClient, RedisCacheClient, RedisRuntime};
 use config::AppConfig;
 use idempotency::{IdempotencyResult, PersistedResponse};
@@ -191,36 +191,19 @@ pub fn app_with_state(state: AppState) -> Router {
         .route("/v1/write-demo", post(write_demo))
         .route("/v1/items", post(create_item))
         .route("/v1/items/:item_id", get(get_item))
-        .route("/v1/desktop/inventory", get(get_desktop_inventory))
-        .route("/v1/desktop/skus", post(create_desktop_sku))
-        .route("/v1/desktop/skus/:sku_id", put(update_desktop_sku))
-        .route("/v1/desktop/services", post(create_desktop_service))
+        .route("/v1/sena/workspace", get(get_sena_workspace))
+        .route("/v1/sena/catalog/skus", post(upsert_sena_sku))
+        .route("/v1/sena/catalog/services", post(upsert_sena_service))
         .route(
-            "/v1/desktop/services/:service_id",
-            put(update_desktop_service),
+            "/v1/sena/catalog/services/:service_id/mask",
+            put(update_sena_service_mask),
         )
-        .route(
-            "/v1/desktop/stock-reports",
-            post(create_desktop_stock_report),
-        )
-        .route(
-            "/v1/desktop/stock-updates",
-            post(apply_desktop_stock_updates),
-        )
-        .route(
-            "/v1/desktop/ranking",
-            get(get_desktop_ranking).put(save_desktop_ranking),
-        )
-        .route("/v1/desktop/sist/sku/:sku_id", get(get_desktop_sist_sku))
-        .route(
-            "/v1/desktop/sist/service/:service_id",
-            get(get_desktop_sist_service),
-        )
-        .route("/v1/desktop/sist/system", get(get_desktop_sist_system))
-        .route(
-            "/v1/desktop/sist/settings",
-            put(update_desktop_sist_settings),
-        )
+        .route("/v1/sena/observations", post(create_sena_observation))
+        .route("/v1/sena/analysis-runs", post(trigger_sena_analysis))
+        .route("/v1/sena/analysis-runs/:run_id", get(get_sena_run))
+        .route("/v1/sena/sku/:sku_id", get(get_sena_sku))
+        .route("/v1/sena/service/:service_id", get(get_sena_service))
+        .route("/v1/sena/diagnostics", get(get_sena_diagnostics))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             edge::rate_limit::rate_limit_middleware,
@@ -660,245 +643,150 @@ async fn get_item(
     }
 }
 
-async fn get_desktop_inventory(
+async fn get_sena_workspace(
     Extension(principal): Extension<AuthPrincipal>,
 ) -> axum::response::Response {
-    match desktop_inventory::store::load_inventory(&principal.sub) {
-        Ok(inventory) => (StatusCode::OK, Json(serde_json::json!(inventory))).into_response(),
-        Err(err) => desktop_inventory_error(
+    match sena_service::load_workspace(&principal.sub) {
+        Ok(workspace) => (StatusCode::OK, Json(serde_json::json!(workspace))).into_response(),
+        Err(err) => sena_error(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "failed to load desktop inventory",
+            "failed to load SENA workspace",
             err,
         ),
     }
 }
 
-async fn create_desktop_sku(
+async fn upsert_sena_sku(
     Extension(principal): Extension<AuthPrincipal>,
-    Json(mut body): Json<desktop_inventory::types::UpsertDesktopSkuRequest>,
+    Json(body): Json<sena_types::SenaUpsertSkuRequest>,
 ) -> axum::response::Response {
-    if let Err(err) = body.validate() {
-        return desktop_inventory_validation_error(err);
-    }
-
-    match desktop_inventory::store::create_sku(&principal.sub, body) {
+    match sena_service::upsert_sku(&principal.sub, body) {
         Ok(sku) => (StatusCode::CREATED, Json(serde_json::json!({ "sku": sku }))).into_response(),
-        Err(err) => desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to create sku", err),
+        Err(err) => sena_error(StatusCode::BAD_REQUEST, "failed to upsert SENA sku", err),
     }
 }
 
-async fn update_desktop_sku(
+async fn upsert_sena_service(
     Extension(principal): Extension<AuthPrincipal>,
-    Path(sku_id): Path<String>,
-    Json(mut body): Json<desktop_inventory::types::UpsertDesktopSkuRequest>,
+    Json(body): Json<sena_types::SenaUpsertServiceRequest>,
 ) -> axum::response::Response {
-    if let Err(err) = body.validate() {
-        return desktop_inventory_validation_error(err);
-    }
-
-    match desktop_inventory::store::update_sku(&principal.sub, &sku_id, body) {
-        Ok(sku) => (StatusCode::OK, Json(serde_json::json!({ "sku": sku }))).into_response(),
-        Err(err) => desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to update sku", err),
-    }
-}
-
-async fn create_desktop_service(
-    Extension(principal): Extension<AuthPrincipal>,
-    Json(mut body): Json<desktop_inventory::types::UpsertDesktopServiceRequest>,
-) -> axum::response::Response {
-    if let Err(err) = body.validate() {
-        return desktop_inventory_validation_error(err);
-    }
-
-    match desktop_inventory::store::create_service(&principal.sub, body) {
+    match sena_service::upsert_service(&principal.sub, body) {
         Ok(service) => (
             StatusCode::CREATED,
             Json(serde_json::json!({ "service": service })),
         )
             .into_response(),
-        Err(err) => {
-            desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to create service", err)
-        }
+        Err(err) => sena_error(
+            StatusCode::BAD_REQUEST,
+            "failed to upsert SENA service",
+            err,
+        ),
     }
 }
 
-async fn update_desktop_service(
+async fn update_sena_service_mask(
     Extension(principal): Extension<AuthPrincipal>,
     Path(service_id): Path<String>,
-    Json(mut body): Json<desktop_inventory::types::UpsertDesktopServiceRequest>,
+    Json(mut body): Json<sena_types::SenaServiceMaskUpdateRequest>,
 ) -> axum::response::Response {
-    if let Err(err) = body.validate() {
-        return desktop_inventory_validation_error(err);
-    }
-
-    match desktop_inventory::store::update_service(&principal.sub, &service_id, body) {
+    body.service_id = service_id;
+    match sena_service::update_service_mask(&principal.sub, body) {
         Ok(service) => (
             StatusCode::OK,
             Json(serde_json::json!({ "service": service })),
         )
             .into_response(),
-        Err(err) => {
-            desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to update service", err)
-        }
-    }
-}
-
-async fn apply_desktop_stock_updates(
-    Extension(principal): Extension<AuthPrincipal>,
-    Json(body): Json<desktop_inventory::types::ApplyDesktopStockUpdatesRequest>,
-) -> axum::response::Response {
-    if let Err(err) = body.validate() {
-        return desktop_inventory_validation_error(err);
-    }
-
-    match desktop_inventory::store::apply_stock_updates(&principal.sub, body) {
-        Ok(updated) => {
-            (StatusCode::OK, Json(serde_json::json!({ "skus": updated }))).into_response()
-        }
-        Err(err) => desktop_inventory_error(
+        Err(err) => sena_error(
             StatusCode::BAD_REQUEST,
-            "failed to apply stock updates",
+            "failed to update SENA service mask",
             err,
         ),
     }
 }
 
-async fn create_desktop_stock_report(
+async fn create_sena_observation(
     Extension(principal): Extension<AuthPrincipal>,
-    Json(mut body): Json<desktop_inventory::types::SubmitStockReportRequest>,
+    Json(body): Json<sena_types::SenaObservationIngestRequest>,
 ) -> axum::response::Response {
-    if let Err(err) = body.validate() {
-        return desktop_inventory_validation_error(err);
-    }
-
-    match desktop_inventory::store::submit_stock_report(&principal.sub, body) {
-        Ok(report) => (
+    match sena_service::record_observation(&principal.sub, body) {
+        Ok(observation) => (
             StatusCode::CREATED,
-            Json(serde_json::json!({ "report": report })),
+            Json(serde_json::json!({ "observation": observation })),
         )
             .into_response(),
-        Err(err) => desktop_inventory_error(
+        Err(err) => sena_error(
             StatusCode::BAD_REQUEST,
-            "failed to submit stock report",
+            "failed to record SENA observation",
             err,
         ),
     }
 }
 
-async fn get_desktop_sist_sku(
+async fn trigger_sena_analysis(
+    Extension(principal): Extension<AuthPrincipal>,
+) -> axum::response::Response {
+    match sena_service::trigger_analysis(&principal.sub) {
+        Ok(run) => (StatusCode::CREATED, Json(serde_json::json!({ "run": run }))).into_response(),
+        Err(err) => sena_error(
+            StatusCode::BAD_REQUEST,
+            "failed to trigger SENA analysis",
+            err,
+        ),
+    }
+}
+
+async fn get_sena_run(
+    Extension(principal): Extension<AuthPrincipal>,
+    Path(run_id): Path<String>,
+) -> axum::response::Response {
+    match sena_service::load_run(&principal.sub, &run_id) {
+        Ok(run) => (StatusCode::OK, Json(serde_json::json!(run))).into_response(),
+        Err(err) => sena_error(StatusCode::BAD_REQUEST, "failed to load SENA run", err),
+    }
+}
+
+async fn get_sena_sku(
     Extension(principal): Extension<AuthPrincipal>,
     Path(sku_id): Path<String>,
 ) -> axum::response::Response {
-    match desktop_inventory::store::load_sku_detail(&principal.sub, &sku_id) {
+    match sena_service::load_sku_posterior(&principal.sub, &sku_id) {
         Ok(detail) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
-        Err(err) => desktop_inventory_error(
+        Err(err) => sena_error(
             StatusCode::BAD_REQUEST,
-            "failed to load sist sku detail",
+            "failed to load SENA sku posterior",
             err,
         ),
     }
 }
 
-async fn get_desktop_sist_service(
+async fn get_sena_service(
     Extension(principal): Extension<AuthPrincipal>,
     Path(service_id): Path<String>,
 ) -> axum::response::Response {
-    match desktop_inventory::store::load_service_detail(&principal.sub, &service_id) {
+    match sena_service::load_service_posterior(&principal.sub, &service_id) {
         Ok(detail) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
-        Err(err) => desktop_inventory_error(
+        Err(err) => sena_error(
             StatusCode::BAD_REQUEST,
-            "failed to load sist service detail",
+            "failed to load SENA service posterior",
             err,
         ),
     }
 }
 
-async fn get_desktop_sist_system(
+async fn get_sena_diagnostics(
     Extension(principal): Extension<AuthPrincipal>,
 ) -> axum::response::Response {
-    match desktop_inventory::store::load_system_detail(&principal.sub) {
-        Ok(detail) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
-        Err(err) => desktop_inventory_error(
+    match sena_service::load_diagnostics(&principal.sub) {
+        Ok(diagnostics) => (StatusCode::OK, Json(serde_json::json!(diagnostics))).into_response(),
+        Err(err) => sena_error(
             StatusCode::BAD_REQUEST,
-            "failed to load sist system detail",
+            "failed to load SENA diagnostics",
             err,
         ),
     }
 }
 
-async fn update_desktop_sist_settings(
-    Extension(principal): Extension<AuthPrincipal>,
-    Json(body): Json<desktop_inventory::types::UpdateSistSettingsRequest>,
-) -> axum::response::Response {
-    if let Err(err) = body.validate() {
-        return desktop_inventory_validation_error(err);
-    }
-
-    match desktop_inventory::store::update_sist_settings(&principal.sub, body) {
-        Ok(settings) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "settings": settings })),
-        )
-            .into_response(),
-        Err(err) => desktop_inventory_error(
-            StatusCode::BAD_REQUEST,
-            "failed to update sist settings",
-            err,
-        ),
-    }
-}
-
-async fn get_desktop_ranking(
-    Extension(principal): Extension<AuthPrincipal>,
-) -> axum::response::Response {
-    match desktop_inventory::store::load_ranking(&principal.sub) {
-        Ok(entries) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "entries": entries })),
-        )
-            .into_response(),
-        Err(err) => desktop_inventory_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "failed to load ranking",
-            err,
-        ),
-    }
-}
-
-async fn save_desktop_ranking(
-    Extension(principal): Extension<AuthPrincipal>,
-    Json(body): Json<desktop_inventory::types::SaveDesktopRankingRequest>,
-) -> axum::response::Response {
-    if let Err(err) = body.validate() {
-        return desktop_inventory_validation_error(err);
-    }
-
-    match desktop_inventory::store::save_ranking(&principal.sub, body) {
-        Ok(entries) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "entries": entries })),
-        )
-            .into_response(),
-        Err(err) => desktop_inventory_error(StatusCode::BAD_REQUEST, "failed to save ranking", err),
-    }
-}
-
-fn desktop_inventory_validation_error(err: anyhow::Error) -> axum::response::Response {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(serde_json::json!({
-            "error_code":"REQUEST_VALIDATION_FAILED",
-            "error": err.to_string()
-        })),
-    )
-        .into_response()
-}
-
-fn desktop_inventory_error(
-    status: StatusCode,
-    message: &str,
-    err: anyhow::Error,
-) -> axum::response::Response {
+fn sena_error(status: StatusCode, message: &str, err: anyhow::Error) -> axum::response::Response {
     (
         status,
         Json(serde_json::json!({

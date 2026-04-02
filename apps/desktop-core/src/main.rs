@@ -1,11 +1,9 @@
 use anyhow::{Context, Result};
 use banji_desktop_core::{
-    store,
+    service,
     types::{
-        ApplyDesktopStockUpdatesRequest, DesktopInventoryResponse, SaveDesktopRankingRequest,
-        DeleteStockReportRequest, StockReportRecord, SubmitStockReportRequest,
-        UpdateSistSettingsRequest, UpdateStockReportRequest, UpsertDesktopServiceRequest,
-        UpsertDesktopSkuRequest,
+        SenaObservationIngestRequest, SenaServiceMaskUpdateRequest, SenaUpsertServiceRequest,
+        SenaUpsertSkuRequest,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -36,25 +34,43 @@ struct ResponseEnvelope {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SaveSkuPayload {
-    sku: UpsertDesktopSkuRequest,
+    sku: SenaUpsertSkuRequest,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SaveServicePayload {
-    service: UpsertDesktopServiceRequest,
+    service: SenaUpsertServiceRequest,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GetSistSkuDetailPayload {
+struct UpdateServiceMaskPayload {
+    mask: SenaServiceMaskUpdateRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordObservationPayload {
+    observation: SenaObservationIngestRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetSkuPayload {
     sku_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GetSistServiceDetailPayload {
+struct GetServicePayload {
     service_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetRunPayload {
+    run_id: String,
 }
 
 fn core_trace_enabled() -> bool {
@@ -160,119 +176,72 @@ fn payload_kind(payload: &Value) -> &'static str {
 fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
     match command {
         "system.ping" => Ok(None),
-        "inventory.getSnapshot" => {
-            Ok(Some(serde_json::to_value(store::load_inventory(DEFAULT_OWNER_SUB)?)?))
+        "sena.getWorkspace" => Ok(Some(serde_json::to_value(service::load_workspace(
+            DEFAULT_OWNER_SUB,
+        )?)?)),
+        "sena.upsertSku" => {
+            let request: SaveSkuPayload =
+                serde_json::from_value(payload).context("invalid sena.upsertSku payload")?;
+            Ok(Some(serde_json::to_value(service::upsert_sku(
+                DEFAULT_OWNER_SUB,
+                request.sku,
+            )?)?))
         }
-        "inventory.listStockReports" => Ok(Some(serde_json::to_value(
-            store::list_stock_reports(DEFAULT_OWNER_SUB)?,
-        )?)),
-        "inventory.saveSku" => {
-            let mut request: SaveSkuPayload =
-                serde_json::from_value(payload).context("invalid saveSku payload")?;
-            request.sku.validate()?;
-
-            let snapshot = store::load_inventory(DEFAULT_OWNER_SUB)?;
-            if snapshot.skus.iter().any(|sku| sku.sku_id == request.sku.sku_id) {
-                let sku_id = request.sku.sku_id.clone();
-                store::update_sku(DEFAULT_OWNER_SUB, &sku_id, request.sku)?;
-            } else {
-                store::create_sku(DEFAULT_OWNER_SUB, request.sku)?;
-            }
-
-            inventory_snapshot()
+        "sena.upsertService" => {
+            let request: SaveServicePayload =
+                serde_json::from_value(payload).context("invalid sena.upsertService payload")?;
+            Ok(Some(serde_json::to_value(service::upsert_service(
+                DEFAULT_OWNER_SUB,
+                request.service,
+            )?)?))
         }
-        "inventory.saveService" => {
-            let mut request: SaveServicePayload =
-                serde_json::from_value(payload).context("invalid saveService payload")?;
-            request.service.validate()?;
-
-            let snapshot = store::load_inventory(DEFAULT_OWNER_SUB)?;
-            if snapshot
-                .services
-                .iter()
-                .any(|service| service.service_id == request.service.service_id)
-            {
-                let service_id = request.service.service_id.clone();
-                store::update_service(
-                    DEFAULT_OWNER_SUB,
-                    &service_id,
-                    request.service,
-                )?;
-            } else {
-                store::create_service(DEFAULT_OWNER_SUB, request.service)?;
-            }
-
-            inventory_snapshot()
+        "sena.updateServiceMask" => {
+            let request: UpdateServiceMaskPayload = serde_json::from_value(payload)
+                .context("invalid sena.updateServiceMask payload")?;
+            Ok(Some(serde_json::to_value(service::update_service_mask(
+                DEFAULT_OWNER_SUB,
+                request.mask,
+            )?)?))
         }
-        "inventory.applyStockUpdates" => {
-            let request: ApplyDesktopStockUpdatesRequest =
-                serde_json::from_value(payload).context("invalid applyStockUpdates payload")?;
-            request.validate()?;
-            store::apply_stock_updates(DEFAULT_OWNER_SUB, request)?;
-            inventory_snapshot()
+        "sena.recordObservation" => {
+            let request: RecordObservationPayload = serde_json::from_value(payload)
+                .context("invalid sena.recordObservation payload")?;
+            Ok(Some(serde_json::to_value(service::record_observation(
+                DEFAULT_OWNER_SUB,
+                request.observation,
+            )?)?))
         }
-        "inventory.submitStockReport" => {
-            let mut request: SubmitStockReportRequest =
-                serde_json::from_value(payload).context("invalid submitStockReport payload")?;
-            request.validate()?;
-            store::submit_stock_report(DEFAULT_OWNER_SUB, request)?;
-            inventory_snapshot()
-        }
-        "inventory.updateStockReport" => {
-            let mut request: UpdateStockReportRequest =
-                serde_json::from_value(payload).context("invalid updateStockReport payload")?;
-            request.validate()?;
-            store::update_stock_report(DEFAULT_OWNER_SUB, request)?;
-            inventory_snapshot()
-        }
-        "inventory.deleteStockReport" => {
-            let request: DeleteStockReportRequest =
-                serde_json::from_value(payload).context("invalid deleteStockReport payload")?;
-            request.validate()?;
-            store::delete_stock_report(DEFAULT_OWNER_SUB, request)?;
-            inventory_snapshot()
-        }
-        "inventory.saveRanking" => {
-            let request: SaveDesktopRankingRequest =
-                serde_json::from_value(payload).context("invalid saveRanking payload")?;
-            request.validate()?;
-            store::save_ranking(DEFAULT_OWNER_SUB, request)?;
-            inventory_snapshot()
-        }
-        "inventory.getSistSkuDetail" => {
-            let request: GetSistSkuDetailPayload =
-                serde_json::from_value(payload).context("invalid getSistSkuDetail payload")?;
-            Ok(Some(serde_json::to_value(store::load_sku_detail(
+        "sena.triggerAnalysis" => Ok(Some(serde_json::to_value(service::trigger_analysis(
+            DEFAULT_OWNER_SUB,
+        )?)?)),
+        "sena.getSkuPosterior" => {
+            let request: GetSkuPayload =
+                serde_json::from_value(payload).context("invalid sena.getSkuPosterior payload")?;
+            Ok(Some(serde_json::to_value(service::load_sku_posterior(
                 DEFAULT_OWNER_SUB,
                 &request.sku_id,
             )?)?))
         }
-        "inventory.getSistServiceDetail" => {
-            let request: GetSistServiceDetailPayload =
-                serde_json::from_value(payload).context("invalid getSistServiceDetail payload")?;
-            Ok(Some(serde_json::to_value(store::load_service_detail(
+        "sena.getServicePosterior" => {
+            let request: GetServicePayload = serde_json::from_value(payload)
+                .context("invalid sena.getServicePosterior payload")?;
+            Ok(Some(serde_json::to_value(
+                service::load_service_posterior(DEFAULT_OWNER_SUB, &request.service_id)?,
+            )?))
+        }
+        "sena.getDiagnostics" => Ok(Some(serde_json::to_value(service::load_diagnostics(
+            DEFAULT_OWNER_SUB,
+        )?)?)),
+        "sena.getRun" => {
+            let request: GetRunPayload =
+                serde_json::from_value(payload).context("invalid sena.getRun payload")?;
+            Ok(Some(serde_json::to_value(service::load_run(
                 DEFAULT_OWNER_SUB,
-                &request.service_id,
+                &request.run_id,
             )?)?))
         }
-        "inventory.getSistSystemDetail" => Ok(Some(serde_json::to_value(
-            store::load_system_detail(DEFAULT_OWNER_SUB)?,
-        )?)),
-        "inventory.updateSistSettings" => {
-            let request: UpdateSistSettingsRequest =
-                serde_json::from_value(payload).context("invalid updateSistSettings payload")?;
-            request.validate()?;
-            store::update_sist_settings(DEFAULT_OWNER_SUB, request)?;
-            inventory_snapshot()
-        }
-        other => anyhow::bail!("unknown desktop core command '{other}'"),
+        other => anyhow::bail!("unsupported command: {other}"),
     }
-}
-
-fn inventory_snapshot() -> Result<Option<Value>> {
-    Ok(Some(serde_json::to_value(
-        store::load_inventory(DEFAULT_OWNER_SUB)?,
-    )?))
 }
 
 fn write_response(stdout: &mut impl Write, response: ResponseEnvelope) -> Result<()> {
@@ -280,14 +249,4 @@ fn write_response(stdout: &mut impl Write, response: ResponseEnvelope) -> Result
     stdout.write_all(b"\n")?;
     stdout.flush()?;
     Ok(())
-}
-
-#[allow(dead_code)]
-fn _assert_snapshot_serializable(snapshot: &DesktopInventoryResponse) -> Result<Value> {
-    Ok(serde_json::to_value(snapshot)?)
-}
-
-#[allow(dead_code)]
-fn _assert_stock_reports_serializable(reports: &[StockReportRecord]) -> Result<Value> {
-    Ok(serde_json::to_value(reports)?)
 }
