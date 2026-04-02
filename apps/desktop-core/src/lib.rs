@@ -1,5 +1,2 @@
-#[path = "../../api/src/desktop_inventory/store.rs"]
-pub mod store;
-
-#[path = "../../api/src/desktop_inventory/types.rs"]
-pub mod types;
+pub use banji_sena_core::service;
+pub use banji_sena_core::types;
