@@ -83,9 +83,24 @@ describe('ServiceFormRoute', () => {
   beforeEach(() => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      isLoading: false,
       isSaving: false,
       upsertSenaCatalog: vi.fn(async (payload) => payload),
     });
+  });
+
+  test('renders a loading wireframe while the service editor catalog is still loading', () => {
+    inventoryHook.mockReturnValue({
+      catalog: null,
+      isLoading: true,
+      isSaving: false,
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    expect(screen.queryByRole('heading', { level: 1, name: 'Edit service' })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
   });
 
   test('renders the edit page with SKU-style hero chrome and stacked panels', () => {
@@ -129,6 +144,7 @@ describe('ServiceFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      isLoading: false,
       isSaving: false,
       upsertSenaCatalog,
     });

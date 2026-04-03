@@ -5,6 +5,7 @@ import type { SenaService } from '@shared/sena';
 import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService } from '@/lib/sena-catalog';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -162,10 +163,63 @@ function ServiceSkuGridTile({
   );
 }
 
+function ServiceFormLoadingState() {
+  return (
+    <WorkspacePage>
+      <section className="editorial-panel overflow-hidden rounded-[2rem] border border-border/70 bg-white shadow-[0_16px_40px_rgba(48,31,20,0.08)]">
+        <div className="border-b border-border/60 px-6 py-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <Skeleton className="h-9 w-9 rounded-full" />
+              <Skeleton className="h-7 w-44 rounded-full" />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-10 w-36 rounded-full" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-6">
+        <WorkspacePanel
+          className={editorPanelClassName}
+          title={<Skeleton className="h-7 w-36 rounded-full" />}
+        >
+          <div className="grid items-start gap-4 md:grid-cols-2">
+            <Skeleton className="h-14 rounded-xl" />
+            <Skeleton className="h-14 rounded-xl" />
+          </div>
+          <Skeleton className="h-32 rounded-2xl" />
+        </WorkspacePanel>
+
+        <WorkspacePanel
+          className={editorPanelClassName}
+          title={<Skeleton className="h-7 w-40 rounded-full" />}
+        >
+          <Skeleton className="h-14 rounded-xl md:max-w-[24rem]" />
+        </WorkspacePanel>
+
+        <WorkspacePanel
+          className={editorPanelClassName}
+          title={<Skeleton className="h-7 w-32 rounded-full" />}
+        >
+          <Skeleton className="h-12 rounded-full" />
+          <Skeleton className="h-9 w-48 rounded-full" />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }, (_, index) => (
+              <Skeleton key={`service-form-sku-loading-${index}`} className="h-20 rounded-[1.25rem]" />
+            ))}
+          </div>
+        </WorkspacePanel>
+      </div>
+    </WorkspacePage>
+  );
+}
+
 export function ServiceFormRoute() {
   const navigate = useNavigate();
   const { serviceId } = useParams();
-  const { catalog, isSaving, upsertSenaCatalog } = useInventory();
+  const { catalog, isLoading, isSaving, upsertSenaCatalog } = useInventory();
   const { t } = usePreferences();
   const [form, setForm] = useState<SenaService>(() => emptyService(serviceId));
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
@@ -256,6 +310,10 @@ export function ServiceFormRoute() {
     updateColumns();
     return () => observer.disconnect();
   }, [filteredSkus]);
+
+  if (isLoading && !catalog) {
+    return <ServiceFormLoadingState />;
+  }
 
   return (
     <WorkspacePage>
