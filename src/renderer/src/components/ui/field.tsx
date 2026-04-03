@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { useDescriptionTextVisible } from '@/components/system/description-text';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { hasDescriptionText } from '@/components/system/description-text';
@@ -122,7 +123,9 @@ function FieldTitle({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
-  if (!hasDescriptionText(props.children)) {
+  const descriptionVisible = useDescriptionTextVisible();
+
+  if (!hasDescriptionText(props.children, descriptionVisible)) {
     return null;
   }
 

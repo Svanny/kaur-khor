@@ -43,7 +43,7 @@ generate_from_globals_css() {
   BAR_BG="$(read_css_var secondary)"
   SHADOW="0 10px 30px rgba(27, 15, 7, 0.06)"
 
-  FONT_FAMILY="'Helvetica Neue', 'Noto Sans Khmer', 'Noto Sans Oriya', 'Segoe UI', sans-serif"
+  FONT_FAMILY="'Noto Sans Oriya', 'Helvetica Neue', 'Noto Sans Khmer', 'Segoe UI', sans-serif"
   FS_HEADLINE="42px"
   FS_TITLE_LARGE="30px"
   FS_TITLE_MEDIUM="22px"

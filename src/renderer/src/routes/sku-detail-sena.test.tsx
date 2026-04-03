@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
@@ -7,6 +7,18 @@ import type { SenaDiagnostics, SenaObservationRecord, SenaSkuDetail, SenaWorkspa
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { SkuDetailRoute } from './sku-detail';
+import { SkuDetailEvidence } from './sku-detail/evidence';
+import { SkuDetailExposure } from './sku-detail/exposure';
+import { formatSenaCompactIntervalDate } from './sku-detail/format';
+import {
+  classifyWheelIntent,
+  deriveAnchoredZoomScrollLeft,
+  deriveVisibleWindow,
+  intervalLabelForWidth,
+  intervalTooltipLabel,
+  regimeCompactLabel,
+  responsivePillLabel,
+} from './sku-detail/ledger';
 import { backfillLegacyReportsIntoSenaIfEmpty, mapLegacyReportToSenaObservation, shouldTriggerBootstrapRun } from './sku-detail/bootstrap';
 import { hashSenaCatalog, seedSenaCatalogFromSnapshot } from './sku-detail/catalog-seed';
 import { deriveRecommendedOrderBand, deriveSenaSkuDetailViewModel, extractEvidence } from './sku-detail/view-model';
@@ -263,6 +275,65 @@ describe('SKU detail SENA helpers', () => {
     ).toBe(true);
   });
 
+  test('falls back from full pill labels to compact labels without ellipsis', () => {
+    expect(formatSenaCompactIntervalDate('2026-02-14T09:00:00Z')).toBe('F-14');
+    expect(formatSenaCompactIntervalDate('2026-01-01T09:00:00Z')).toBe('J-1');
+
+    expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 120)).toBe('F-14');
+    expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 20)).toBe('');
+    expect(intervalLabelForWidth(null, 11, 42)).toBe('12');
+    expect(intervalTooltipLabel('2026-02-14T09:00:00Z', 11, 'en')).toBe('Feb 14');
+    expect(intervalTooltipLabel(null, 11, 'en')).toBe('Interval 12');
+
+    expect(responsivePillLabel('stockout-constrained', '12', 42)).toBe('12');
+    expect(responsivePillLabel('stockout-constrained', '120', 20)).toBe('');
+  });
+
+  test('derives the visible interval window from the strip viewport', () => {
+    expect(deriveVisibleWindow(30, 0, 480, 48, 8)).toEqual({ start: 0, end: 8 });
+    expect(deriveVisibleWindow(30, 560, 480, 48, 8)).toEqual({ start: 10, end: 18 });
+    expect(deriveVisibleWindow(30, 1120, 480, 48, 8)).toEqual({ start: 20, end: 28 });
+  });
+
+  test('classifies wheel gestures into pan vs zoom', () => {
+    expect(classifyWheelIntent(40, 10)).toBe('pan');
+    expect(classifyWheelIntent(10, 40)).toBe('zoom');
+    expect(classifyWheelIntent(16, 16)).toBe('pan');
+  });
+
+  test('anchors zoom to the hovered interval and clamps at the viewport bounds', () => {
+    expect(
+      deriveAnchoredZoomScrollLeft({
+        contentWidth: 2400,
+        hoveredPointerX: 180,
+        intervalCount: 30,
+        nextSlotWidth: 80,
+        previousScrollLeft: 320,
+        previousSlotWidth: 60,
+        viewportWidth: 480,
+      }),
+    ).toBe(500);
+
+    expect(
+      deriveAnchoredZoomScrollLeft({
+        contentWidth: 2400,
+        hoveredPointerX: 440,
+        intervalCount: 30,
+        nextSlotWidth: 80,
+        previousScrollLeft: 1320,
+        previousSlotWidth: 60,
+        viewportWidth: 480,
+      }),
+    ).toBe(1920);
+  });
+
+  test('compresses regime labels into short pill initials', () => {
+    expect(regimeCompactLabel('promo')).toBe('P');
+    expect(regimeCompactLabel('spike')).toBe('S');
+    expect(regimeCompactLabel('normal')).toBe('N');
+    expect(regimeCompactLabel('stockout-constrained')).toBe('SC');
+  });
+
   test('derives hero and order-band data from the SENA detail payload', () => {
     const model = deriveSenaSkuDetailViewModel({
       currency: 'USD',
@@ -307,6 +378,84 @@ describe('SKU detail SENA helpers', () => {
       'retail_stockout',
       'notes',
     ]);
+  });
+
+  test('pages evidence timeline rows in groups of five', () => {
+    const evidence = Array.from({ length: 11 }, (_, index) => ({
+      id: `evidence-${index}`,
+      observedAt: `2026-03-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
+      title: `Evidence ${index + 1}`,
+      detail: `Detail ${index + 1}`,
+      type: 'notes' as const,
+    }));
+
+    render(<SkuDetailEvidence evidence={evidence} />);
+
+    expect(screen.getByText('Evidence 1')).toBeInTheDocument();
+    expect(screen.getByText('Evidence 5')).toBeInTheDocument();
+    expect(screen.queryByText('Evidence 6')).not.toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Next evidence page'));
+
+    expect(screen.getByText('Evidence 6')).toBeInTheDocument();
+    expect(screen.getByText('Evidence 10')).toBeInTheDocument();
+    expect(screen.queryByText('Evidence 1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Last'));
+
+    expect(screen.getByText('Evidence 11')).toBeInTheDocument();
+    expect(screen.getByText('Page 3 of 3')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('First'));
+
+    expect(screen.getByText('Evidence 1')).toBeInTheDocument();
+    expect(screen.queryByText('Evidence 11')).not.toBeInTheDocument();
+  });
+
+  test('pages dependency impact only when rows overflow the default panel height', () => {
+    const rows = Array.from({ length: 5 }, (_, index) => ({
+      serviceId: `service-${index}`,
+      name: `Service ${index + 1}`,
+      severity: 'linked',
+      usageProbability: '0.4',
+      bottleneckProbability: '12%',
+    }));
+
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function mockDependencyRect() {
+      if ((this as HTMLElement).closest('[data-testid="dependency-impact-list"]')) {
+        return {
+          bottom: 120,
+          height: 120,
+          left: 0,
+          right: 0,
+          top: 0,
+          width: 800,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    try {
+      render(<SkuDetailExposure rows={rows} />);
+      const visibleList = within(screen.getByTestId('dependency-impact-list'));
+
+      expect(visibleList.getByText('Service 1')).toBeInTheDocument();
+      expect(visibleList.getByText('Service 3')).toBeInTheDocument();
+      expect(visibleList.queryByText('Service 4')).not.toBeInTheDocument();
+      expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByLabelText('Next evidence page'));
+
+      expect(visibleList.getByText('Service 4')).toBeInTheDocument();
+      expect(visibleList.getByText('Service 5')).toBeInTheDocument();
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
   });
 });
 

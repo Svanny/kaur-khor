@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Save } from 'lucide-react';
-import { DescriptionText, hasDescriptionText } from '@/components/system/description-text';
+import { DescriptionText, hasDescriptionText, useDescriptionTextVisible } from '@/components/system/description-text';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,7 +41,8 @@ export function EditorHeader({
   onCancel: () => void;
   onSave?: () => void;
 }) {
-  const showDescription = hasDescriptionText(description);
+  const descriptionVisible = useDescriptionTextVisible();
+  const showDescription = hasDescriptionText(description, descriptionVisible);
 
   return (
     <div className="px-4 py-4">
@@ -101,11 +102,12 @@ export function EditorRail({
   description?: string;
   children: ReactNode;
 }) {
+  const descriptionVisible = useDescriptionTextVisible();
   return (
     <Card className="border-white/70">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        {hasDescriptionText(description) ? (
+        {hasDescriptionText(description, descriptionVisible) ? (
           <DescriptionText className="text-sm text-muted-foreground">{description}</DescriptionText>
         ) : null}
       </CardHeader>

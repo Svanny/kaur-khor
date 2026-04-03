@@ -119,7 +119,7 @@ export function SkuDetailRoute() {
         />
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="grid gap-6">
+          <div className="grid min-w-0 gap-6">
             <SkuDetailLedger model={model} selectedIntervalIndex={selectedIntervalIndex} setSelectedIntervalIndex={setSelectedIntervalIndex} />
             <div className="grid gap-6 xl:grid-cols-2">
               <SkuDetailExposure rows={model.dependencyImpact} />

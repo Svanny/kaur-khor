@@ -9,10 +9,13 @@ function PreferencesProbe() {
     language,
     persistedCurrency,
     persistedLanguage,
+    persistedShowExplanatoryTooltips,
     resetPreferences,
     savePreferences,
     setCurrency,
     setLanguage,
+    setShowExplanatoryTooltips,
+    showExplanatoryTooltips,
     t,
   } = usePreferences();
 
@@ -22,13 +25,19 @@ function PreferencesProbe() {
       <div data-testid="currency">{currency}</div>
       <div data-testid="persisted-language">{persistedLanguage}</div>
       <div data-testid="persisted-currency">{persistedCurrency}</div>
+      <div data-testid="show-explanatory-tooltips">{String(showExplanatoryTooltips)}</div>
+      <div data-testid="persisted-show-explanatory-tooltips">{String(persistedShowExplanatoryTooltips)}</div>
       <div data-testid="pending">{String(hasPendingChanges)}</div>
       <div data-testid="translation">{t('settingsTitle')}</div>
+      <div data-testid="description-translation">{t('settingsBody')}</div>
       <button type="button" onClick={() => setLanguage('km')}>
         preview-language
       </button>
       <button type="button" onClick={() => setCurrency('KHR')}>
         preview-currency
+      </button>
+      <button type="button" onClick={() => setShowExplanatoryTooltips(false)}>
+        hide-explanatory-tooltips
       </button>
       <button type="button" onClick={() => void savePreferences()}>
         save
@@ -47,8 +56,8 @@ describe('preferences state', () => {
   beforeEach(() => {
     getPreferences.mockReset();
     savePreferences.mockReset();
-    getPreferences.mockResolvedValue({ language: 'en', currency: 'USD' });
-    savePreferences.mockResolvedValue({ language: 'km', currency: 'KHR' });
+    getPreferences.mockResolvedValue({ language: 'en', currency: 'USD', showExplanatoryTooltips: true });
+    savePreferences.mockResolvedValue({ language: 'km', currency: 'KHR', showExplanatoryTooltips: false });
     window.banjiDesktop = {
       ...window.banjiDesktop,
       preferences: {
@@ -69,31 +78,40 @@ describe('preferences state', () => {
       expect(screen.getByTestId('language').textContent).toBe('en');
     });
     expect(screen.getByTestId('translation').textContent).toBe('Settings');
+    expect(screen.getByTestId('description-translation').textContent).toBe(
+      'Preview workspace preferences live, keep advanced model tuning tucked away until needed, and save everything from one page action row.',
+    );
 
     fireEvent.click(screen.getByText('preview-language'));
     fireEvent.click(screen.getByText('preview-currency'));
+    fireEvent.click(screen.getByText('hide-explanatory-tooltips'));
 
     await waitFor(() => {
       expect(screen.getByTestId('language').textContent).toBe('km');
     });
     expect(screen.getByTestId('currency').textContent).toBe('KHR');
+    expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('pending').textContent).toBe('true');
     expect(screen.getByTestId('translation').textContent).toBe('ការកំណត់');
+    expect(screen.getByTestId('description-translation').textContent).toBe('');
     expect(savePreferences).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText('reset'));
     expect(screen.getByTestId('language').textContent).toBe('en');
     expect(screen.getByTestId('currency').textContent).toBe('USD');
+    expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('true');
 
     fireEvent.click(screen.getByText('preview-language'));
     fireEvent.click(screen.getByText('preview-currency'));
+    fireEvent.click(screen.getByText('hide-explanatory-tooltips'));
     fireEvent.click(screen.getByText('save'));
 
     await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith({ language: 'km', currency: 'KHR' });
+      expect(savePreferences).toHaveBeenCalledWith({ language: 'km', currency: 'KHR', showExplanatoryTooltips: false });
     });
     expect(screen.getByTestId('persisted-language').textContent).toBe('km');
     expect(screen.getByTestId('persisted-currency').textContent).toBe('KHR');
+    expect(screen.getByTestId('persisted-show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('pending').textContent).toBe('false');
   });
 });

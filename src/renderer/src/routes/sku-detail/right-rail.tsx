@@ -1,18 +1,23 @@
 import type { ReactNode } from 'react';
 import { usePreferences } from '@/state/preferences';
+import { SectionLabel } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
 
 function RailBlock({
   children,
   title,
+  tooltip,
 }: {
   children: ReactNode;
   title: string;
+  tooltip: string;
 }) {
   return (
     <section className="overflow-hidden rounded-[1.4rem] border border-border/60 bg-background/92">
       <div className="border-b border-border/60 px-4 py-3">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
+        </h3>
       </div>
       <div className="px-4 py-3">{children}</div>
     </section>
@@ -24,7 +29,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
 
   return (
     <aside className="grid gap-4 lg:sticky lg:top-6 lg:self-start">
-      <RailBlock title={t('catalogSenaSkuSelectedInterval')}>
+      <RailBlock title={t('catalogSenaSkuSelectedInterval')} tooltip={t('catalogSenaSkuSelectedIntervalTooltip')}>
         <p className="font-medium text-foreground">{model.rail.selectedIntervalSummary.label}</p>
         <div className="mt-3 grid gap-1">
           <p className="text-sm text-muted-foreground">Regime {model.rail.selectedIntervalSummary.dominantRegime}</p>
@@ -35,7 +40,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         </div>
       </RailBlock>
 
-      <RailBlock title={t('catalogSenaSkuActNow')}>
+      <RailBlock title={t('catalogSenaSkuActNow')} tooltip={t('catalogSenaSkuActNowTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.actNow.headline}</p>
         <p className="mt-2 text-lg font-medium text-foreground">{model.rail.actNow.quantityBand}</p>
         <div className="mt-4 space-y-2">
@@ -47,7 +52,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         </div>
       </RailBlock>
 
-      <RailBlock title={t('catalogSenaSkuOpenPipeline')}>
+      <RailBlock title={t('catalogSenaSkuOpenPipeline')} tooltip={t('catalogSenaSkuOpenPipelineTooltip')}>
         <div className="grid gap-1">
           {model.rail.openPipeline.summary.map((line) => (
             <p key={line} className="text-sm text-muted-foreground">{line}</p>
@@ -67,7 +72,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         </div>
       </RailBlock>
 
-      <RailBlock title={t('catalogSenaSkuExposure')}>
+      <RailBlock title={t('catalogSenaSkuExposure')} tooltip={t('catalogSenaSkuRailExposureTooltip')}>
         <div className="divide-y divide-border/60">
           {model.rail.exposure.map((item) => (
             <div key={item.serviceId} className="py-3 first:pt-0 last:pb-0">
@@ -80,7 +85,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         </div>
       </RailBlock>
 
-      <RailBlock title={t('catalogSenaSkuNextTouch')}>
+      <RailBlock title={t('catalogSenaSkuNextTouch')} tooltip={t('catalogSenaSkuNextTouchTooltip')}>
         <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{model.rail.nextTouch.dateLabel}</p>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{model.rail.nextTouch.reason}</p>
       </RailBlock>

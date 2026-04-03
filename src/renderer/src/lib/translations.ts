@@ -245,18 +245,39 @@ const en = {
   catalogLeadTime: 'Lead time',
   catalogSkuDetailTitle: 'SKU detail',
   catalogSenaSkuHeroTitle: 'SENA heartbeat',
+  catalogSenaSkuHeroTooltip:
+    'SENA treats inventory as a latent state reconstructed from sparse stock snapshots plus optional signals such as prices, lead-time hints, order logs, rankings, sharing masks, and stockout flags. This heartbeat summarizes the current posterior on-hand state, its uncertainty, days of cover, reorder pressure, and active receipt exposure in one operational sentence.',
+  catalogSenaSkuOperationalRibbon: 'Operational ribbon',
+  catalogSenaSkuRibbonTooltip:
+    'This ribbon surfaces the six SENA outputs that matter most for immediate control decisions: posterior on-hand stock, in-transit pipeline inventory, inferred demand rate, current receipt window, observed retail price, and linked service exposure. It is intentionally a single strip so the page stays one operational surface rather than a stack of disconnected cards.',
   catalogSenaSkuRecordStock: 'Record stock',
   catalogSenaSkuLogOrder: 'Log order',
   catalogSenaSkuLogReceipt: 'Log receipt',
   catalogSenaSkuUpdatePrice: 'Update price',
   catalogSenaSkuLedgerTitle: 'SENA ledger',
+  catalogSenaSkuLedgerTooltip:
+    'In SENA, the ledger is a posterior view of the latent inventory process across reporting intervals. It links regime state, demand-side activity, realized inventory movement, order placement, receipt arrival, and corrections so you can inspect one synchronized causal chain instead of separate forecast, statistics, and history tabs.',
   catalogSenaSkuDependencyImpact: 'Dependency impact',
+  catalogSenaSkuDependencyImpactTooltip:
+    'SENA uses the service-to-SKU sharing mask to constrain which services can consume this SKU. This section shows the downstream blast radius of the current posterior inventory state by ranking linked services according to usage probability and bottleneck risk.',
   catalogSenaSkuEvidenceTimeline: 'Evidence timeline',
+  catalogSenaSkuEvidenceTimelineTooltip:
+    'SENA is anchored by sparse observations, not direct full-fidelity transaction logs. This timeline shows the observation channels and event signals that informed the posterior, including stock snapshots, price entries, order or receipt signals, stockout cues, lead-time hints, and operator notes.',
   catalogSenaSkuSelectedInterval: 'Selected interval',
+  catalogSenaSkuSelectedIntervalTooltip:
+    'This block summarizes the currently selected reporting interval from the ledger. It combines the dominant regime label with interval-level service demand, retail demand, receipts, and adjustments so the right rail always reflects the same slice of time shown in the ledger.',
   catalogSenaSkuActNow: 'Act now',
+  catalogSenaSkuActNowTooltip:
+    'SENA maps posterior demand, lead-time uncertainty, stockout risk, and reorder-policy outputs into an action recommendation. This block explains whether the current posterior favors immediate reorder, waiting for in-transit stock, or continued monitoring, along with the quantity band implied by reorder point and safety stock logic.',
   catalogSenaSkuOpenPipeline: 'Open pipeline',
+  catalogSenaSkuOpenPipelineTooltip:
+    'SENA explicitly separates order placement from receipt arrival. This block therefore focuses on inferred in-transit exposure, order probability, receipt timing, and the recent observation-derived order or receipt signals that constrain the latent pipeline state, without fabricating purchase-order objects the backend does not expose.',
   catalogSenaSkuExposure: 'Exposure',
+  catalogSenaSkuRailExposureTooltip:
+    'Exposure is the service-side view of this SKU. It uses the sharing mask and service detail posteriors to show where this SKU is currently limiting service output, where it is becoming risky, and where it is simply linked but not yet binding.',
   catalogSenaSkuNextTouch: 'Next touch',
+  catalogSenaSkuNextTouchTooltip:
+    'Next touch converts the current posterior into a follow-up checkpoint. The suggested date and reason are derived from reorder pressure, active receipt windows, observation recency, and estimated days of cover so the page can tell you when this SKU should be reviewed again.',
   catalogSenaSkuPreparing: 'Preparing SENA view',
   catalogSenaSkuNeedsObservations: 'SENA needs at least two observations',
   catalogSenaSkuRefreshing: 'Refreshing SENA analysis',
@@ -278,11 +299,24 @@ const en = {
   catalogSenaSkuSaveAndRefresh: 'Save and refresh',
   catalogSenaSkuOpenPipelineEmpty: 'No recent order or receipt signals.',
   catalogSenaSkuRegimePriceLane: 'Regime + price lane',
+  catalogSenaSkuRegimePriceLaneTooltip:
+    'SENA uses a discrete regime state to explain intervals such as normal, spike, lull, promo, stockout-constrained, or correction. This lane aligns those regime intervals with observed price markers so you can see when inventory behavior is more plausibly explained by promotions, drift, censored demand, or bookkeeping corrections instead of a generic trend line.',
   catalogSenaSkuInventoryLane: 'Inventory posterior lane',
+  catalogSenaSkuInventoryLaneTooltip:
+    'This lane shows the posterior on-hand inventory trajectory for the visible interval window, including central tendency and uncertainty. The reorder point and safety stock overlays come from SENA’s planning layer, which turns latent demand and latent lead-time states into stockout-risk and replenishment thresholds under an explicit service-level target.',
   catalogSenaSkuReorderPoint: 'Reorder point',
   catalogSenaSkuSafetyStock: 'Safety stock',
   catalogSenaSkuFlowLane: 'Flow decomposition lane',
+  catalogSenaSkuFlowLaneTooltip:
+    'SENA decomposes interval inventory movement into service-driven latent demand, retail-driven latent demand, receipts, and signed adjustments. This lane answers where inventory likely went in each interval, while preserving the distinction between demand-side activity and the realized inventory transition used in the state update.',
   catalogSenaSkuPipelineLane: 'Order pipeline lane',
+  catalogSenaSkuPipelineLaneTooltip:
+    'The pipeline lane visualizes SENA’s explicit replenishment model, where order placement, in-transit exposure, and receipt arrival are separate latent quantities. Lead-time uncertainty affects the inventory transition through received quantity and remaining pipeline stock, so this lane is the operational view of what has been ordered but not yet received.',
+  catalogSenaSkuEvidencePrevious: 'Previous evidence page',
+  catalogSenaSkuEvidenceNext: 'Next evidence page',
+  catalogSenaSkuEvidenceFirst: 'First',
+  catalogSenaSkuEvidenceLast: 'Last',
+  catalogSenaSkuEvidencePageLabel: 'Page {current} of {total}',
   catalogSkuDetailNotFoundTitle: 'SKU not found',
   catalogSkuDetailNotFoundDescription:
     'This SKU is no longer in the current snapshot. Return to the catalog to choose another record.',
@@ -948,6 +982,40 @@ const km: Partial<Record<TranslationKey, string>> = {
   overviewQueueReasonServiceImpact: 'ប៉ះពាល់ {count} {noun}',
   overviewQueueReasonServiceSingular: 'សេវាកម្ម',
   overviewQueueReasonServicePlural: 'សេវាកម្ម',
+  catalogSenaSkuHeroTooltip:
+    'SENA treats inventory as a latent state reconstructed from sparse stock snapshots plus optional signals such as prices, lead-time hints, order logs, rankings, sharing masks, and stockout flags. This heartbeat summarizes the current posterior on-hand state, its uncertainty, days of cover, reorder pressure, and active receipt exposure in one operational sentence.',
+  catalogSenaSkuOperationalRibbon: 'Operational ribbon',
+  catalogSenaSkuRibbonTooltip:
+    'This ribbon surfaces the six SENA outputs that matter most for immediate control decisions: posterior on-hand stock, in-transit pipeline inventory, inferred demand rate, current receipt window, observed retail price, and linked service exposure. It is intentionally a single strip so the page stays one operational surface rather than a stack of disconnected cards.',
+  catalogSenaSkuLedgerTooltip:
+    'In SENA, the ledger is a posterior view of the latent inventory process across reporting intervals. It links regime state, demand-side activity, realized inventory movement, order placement, receipt arrival, and corrections so you can inspect one synchronized causal chain instead of separate forecast, statistics, and history tabs.',
+  catalogSenaSkuDependencyImpactTooltip:
+    'SENA uses the service-to-SKU sharing mask to constrain which services can consume this SKU. This section shows the downstream blast radius of the current posterior inventory state by ranking linked services according to usage probability and bottleneck risk.',
+  catalogSenaSkuEvidenceTimelineTooltip:
+    'SENA is anchored by sparse observations, not direct full-fidelity transaction logs. This timeline shows the observation channels and event signals that informed the posterior, including stock snapshots, price entries, order or receipt signals, stockout cues, lead-time hints, and operator notes.',
+  catalogSenaSkuSelectedIntervalTooltip:
+    'This block summarizes the currently selected reporting interval from the ledger. It combines the dominant regime label with interval-level service demand, retail demand, receipts, and adjustments so the right rail always reflects the same slice of time shown in the ledger.',
+  catalogSenaSkuActNowTooltip:
+    'SENA maps posterior demand, lead-time uncertainty, stockout risk, and reorder-policy outputs into an action recommendation. This block explains whether the current posterior favors immediate reorder, waiting for in-transit stock, or continued monitoring, along with the quantity band implied by reorder point and safety stock logic.',
+  catalogSenaSkuOpenPipelineTooltip:
+    'SENA explicitly separates order placement from receipt arrival. This block therefore focuses on inferred in-transit exposure, order probability, receipt timing, and the recent observation-derived order or receipt signals that constrain the latent pipeline state, without fabricating purchase-order objects the backend does not expose.',
+  catalogSenaSkuRailExposureTooltip:
+    'Exposure is the service-side view of this SKU. It uses the sharing mask and service detail posteriors to show where this SKU is currently limiting service output, where it is becoming risky, and where it is simply linked but not yet binding.',
+  catalogSenaSkuNextTouchTooltip:
+    'Next touch converts the current posterior into a follow-up checkpoint. The suggested date and reason are derived from reorder pressure, active receipt windows, observation recency, and estimated days of cover so the page can tell you when this SKU should be reviewed again.',
+  catalogSenaSkuRegimePriceLaneTooltip:
+    'SENA uses a discrete regime state to explain intervals such as normal, spike, lull, promo, stockout-constrained, or correction. This lane aligns those regime intervals with observed price markers so you can see when inventory behavior is more plausibly explained by promotions, drift, censored demand, or bookkeeping corrections instead of a generic trend line.',
+  catalogSenaSkuInventoryLaneTooltip:
+    'This lane shows the posterior on-hand inventory trajectory for the visible interval window, including central tendency and uncertainty. The reorder point and safety stock overlays come from SENA’s planning layer, which turns latent demand and latent lead-time states into stockout-risk and replenishment thresholds under an explicit service-level target.',
+  catalogSenaSkuFlowLaneTooltip:
+    'SENA decomposes interval inventory movement into service-driven latent demand, retail-driven latent demand, receipts, and signed adjustments. This lane answers where inventory likely went in each interval, while preserving the distinction between demand-side activity and the realized inventory transition used in the state update.',
+  catalogSenaSkuPipelineLaneTooltip:
+    'The pipeline lane visualizes SENA’s explicit replenishment model, where order placement, in-transit exposure, and receipt arrival are separate latent quantities. Lead-time uncertainty affects the inventory transition through received quantity and remaining pipeline stock, so this lane is the operational view of what has been ordered but not yet received.',
+  catalogSenaSkuEvidencePrevious: 'ទំព័រភស្តុតាងមុន',
+  catalogSenaSkuEvidenceNext: 'ទំព័រភស្តុតាងបន្ទាប់',
+  catalogSenaSkuEvidenceFirst: 'ដំបូង',
+  catalogSenaSkuEvidenceLast: 'ចុងក្រោយ',
+  catalogSenaSkuEvidencePageLabel: 'ទំព័រ {current} នៃ {total}',
   overviewQueueReasonLowConfidence: 'ទំនុកចិត្តទាប',
   overviewReviewSku: 'ពិនិត្យ SKU',
   overviewQueueNoFilterMatchesTitle: 'មិនមានធាតុត្រូវនឹងតម្រងនេះ',

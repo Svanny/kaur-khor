@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
-import { SHOW_DESCRIPTION_TEXT } from '@/components/system/description-text';
+import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { currencyLabel, getTranslation, type TranslationKey } from '../lib/translations';
 
 function isDescriptionTranslationKey(key: TranslationKey) {
@@ -17,10 +17,13 @@ function isDescriptionTranslationKey(key: TranslationKey) {
 interface PreferencesContextValue {
   language: AppLanguage;
   currency: AppCurrency;
+  showExplanatoryTooltips: boolean;
   persistedLanguage: AppLanguage;
   persistedCurrency: AppCurrency;
+  persistedShowExplanatoryTooltips: boolean;
   setLanguage: (value: AppLanguage) => void;
   setCurrency: (value: AppCurrency) => void;
+  setShowExplanatoryTooltips: (value: boolean) => void;
   savePreferences: () => Promise<void>;
   resetPreferences: () => void;
   hasPendingChanges: boolean;
@@ -34,8 +37,10 @@ const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>('en');
   const [currency, setCurrencyState] = useState<AppCurrency>('USD');
+  const [showExplanatoryTooltips, setShowExplanatoryTooltipsState] = useState(true);
   const [persistedLanguage, setPersistedLanguage] = useState<AppLanguage>('en');
   const [persistedCurrency, setPersistedCurrency] = useState<AppCurrency>('USD');
+  const [persistedShowExplanatoryTooltips, setPersistedShowExplanatoryTooltips] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -49,8 +54,10 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
         setLanguageState(preferences.language);
         setCurrencyState(preferences.currency);
+        setShowExplanatoryTooltipsState(preferences.showExplanatoryTooltips);
         setPersistedLanguage(preferences.language);
         setPersistedCurrency(preferences.currency);
+        setPersistedShowExplanatoryTooltips(preferences.showExplanatoryTooltips);
       })
       .catch((error) => {
         console.error('failed to load desktop preferences', error);
@@ -65,28 +72,37 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     () => ({
       language,
       currency,
+      showExplanatoryTooltips,
       persistedLanguage,
       persistedCurrency,
+      persistedShowExplanatoryTooltips,
       setLanguage: setLanguageState,
       setCurrency: setCurrencyState,
+      setShowExplanatoryTooltips: setShowExplanatoryTooltipsState,
       savePreferences: async () => {
         const nextPreferences = await window.banjiDesktop.preferences.save({
           language,
           currency,
+          showExplanatoryTooltips,
         });
         setLanguageState(nextPreferences.language);
         setCurrencyState(nextPreferences.currency);
+        setShowExplanatoryTooltipsState(nextPreferences.showExplanatoryTooltips);
         setPersistedLanguage(nextPreferences.language);
         setPersistedCurrency(nextPreferences.currency);
+        setPersistedShowExplanatoryTooltips(nextPreferences.showExplanatoryTooltips);
       },
       resetPreferences: () => {
         setLanguageState(persistedLanguage);
         setCurrencyState(persistedCurrency);
+        setShowExplanatoryTooltipsState(persistedShowExplanatoryTooltips);
       },
       hasPendingChanges:
-        language !== persistedLanguage || currency !== persistedCurrency,
+        language !== persistedLanguage ||
+        currency !== persistedCurrency ||
+        showExplanatoryTooltips !== persistedShowExplanatoryTooltips,
       t: (key) => {
-        if (!SHOW_DESCRIPTION_TEXT && isDescriptionTranslationKey(key)) {
+        if (!showExplanatoryTooltips && isDescriptionTranslationKey(key)) {
           return '';
         }
 
@@ -95,10 +111,23 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       rawT: (key) => getTranslation(language, key),
       currencyLabel: (next) => currencyLabel(language, next),
     }),
-    [currency, language, persistedCurrency, persistedLanguage],
+    [
+      currency,
+      language,
+      persistedCurrency,
+      persistedLanguage,
+      persistedShowExplanatoryTooltips,
+      showExplanatoryTooltips,
+    ],
   );
 
-  return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
+  return (
+    <PreferencesContext.Provider value={value}>
+      <DescriptionTextVisibilityProvider visible={showExplanatoryTooltips}>
+        {children}
+      </DescriptionTextVisibilityProvider>
+    </PreferencesContext.Provider>
+  );
 }
 
 export function usePreferences() {

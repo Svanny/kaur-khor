@@ -82,3 +82,17 @@ export function formatSenaDateTime(value: string | null, language: AppLanguage) 
     minute: '2-digit',
   }).format(date);
 }
+
+const ENGLISH_MONTH_INITIALS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'] as const;
+
+export function formatSenaCompactIntervalDate(value: string | null) {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return '—';
+  }
+  const monthInitial = ENGLISH_MONTH_INITIALS[date.getUTCMonth()] ?? '—';
+  return `${monthInitial}-${date.getUTCDate()}`;
+}

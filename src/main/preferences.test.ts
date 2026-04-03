@@ -24,6 +24,7 @@ describe('desktop preferences store', () => {
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'en',
       currency: 'USD',
+      showExplanatoryTooltips: true,
     });
   });
 
@@ -38,26 +39,31 @@ describe('desktop preferences store', () => {
     ).resolves.toEqual({
       language: 'km',
       currency: 'USD',
+      showExplanatoryTooltips: true,
     });
 
     await expect(
       saveDesktopPreferences(userDataPath, {
         currency: 'KHR',
+        showExplanatoryTooltips: false,
       }),
     ).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
+      showExplanatoryTooltips: false,
     });
 
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
+      showExplanatoryTooltips: false,
     });
 
     const raw = await readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8');
     expect(JSON.parse(raw)).toEqual({
       language: 'km',
       currency: 'KHR',
+      showExplanatoryTooltips: false,
     });
   });
 
@@ -108,14 +114,17 @@ describe('desktop preferences store', () => {
     await expect(firstSave).resolves.toEqual({
       language: 'km',
       currency: 'USD',
+      showExplanatoryTooltips: true,
     });
     await expect(secondSave).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
+      showExplanatoryTooltips: true,
     });
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
+      showExplanatoryTooltips: true,
     });
   });
 });

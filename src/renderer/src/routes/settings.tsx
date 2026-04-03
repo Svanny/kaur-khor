@@ -13,6 +13,8 @@ export function SettingsRoute() {
     savePreferences,
     setCurrency,
     setLanguage,
+    setShowExplanatoryTooltips,
+    showExplanatoryTooltips,
   } = usePreferences();
   const [localDataInfo, setLocalDataInfo] = useState<DesktopLocalDataInfo | null>(null);
   const [localDataError, setLocalDataError] = useState<string | null>(null);
@@ -66,6 +68,20 @@ export function SettingsRoute() {
             </select>
           </label>
         </div>
+        <label className="mt-4 flex items-start gap-3 rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm">
+          <input
+            checked={showExplanatoryTooltips}
+            className="mt-0.5"
+            type="checkbox"
+            onChange={(event) => setShowExplanatoryTooltips(event.target.checked)}
+          />
+          <span className="grid gap-1">
+            <span className="font-medium text-foreground">Show explanatory tooltips</span>
+            <span className="text-muted-foreground">
+              Hide helper tooltips and explanatory guidance across the desktop UI.
+            </span>
+          </span>
+        </label>
         <WorkspaceActionRow className="mt-4">
           <Button disabled={!hasPendingChanges} type="button" onClick={() => void savePreferences()}>
             Save preferences

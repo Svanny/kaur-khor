@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { usePreferences } from '@/state/preferences';
+import { SectionLabel } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
 
 export function SkuDetailHero({
@@ -43,7 +44,9 @@ export function SkuDetailHero({
 
         <div className="mt-7 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            {t('catalogSenaSkuHeroTitle')}
+            <SectionLabel tooltip={t('catalogSenaSkuHeroTooltip')}>
+              {t('catalogSenaSkuHeroTitle')}
+            </SectionLabel>
           </p>
           <h2 className="mt-4 text-5xl font-semibold tracking-[-0.06em] text-foreground sm:text-6xl">
             {model.heartbeat.headlineUnits}
@@ -54,6 +57,13 @@ export function SkuDetailHero({
         </div>
 
         <div className="mt-6 overflow-hidden rounded-[1rem] border border-border/70 bg-muted/25">
+          <div className="border-b border-border/60 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              <SectionLabel tooltip={t('catalogSenaSkuRibbonTooltip')}>
+                {t('catalogSenaSkuOperationalRibbon')}
+              </SectionLabel>
+            </p>
+          </div>
           <div className="grid divide-y divide-border/60 bg-border/40 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-6">
             {model.ribbon.map((metric) => (
               <div key={metric.key} className="bg-background/70 px-4 py-3">

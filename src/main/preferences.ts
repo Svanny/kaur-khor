@@ -5,6 +5,7 @@ import type { DesktopPreferences } from '@shared/ipc';
 const DEFAULT_PREFERENCES: DesktopPreferences = {
   language: 'en',
   currency: 'USD',
+  showExplanatoryTooltips: true,
 };
 let preferencesWriteQueue: Promise<void> = Promise.resolve();
 
@@ -16,6 +17,7 @@ function normalizePreferences(value: Partial<DesktopPreferences> | null | undefi
   return {
     language: value?.language === 'km' ? 'km' : 'en',
     currency: value?.currency === 'KHR' ? 'KHR' : 'USD',
+    showExplanatoryTooltips: value?.showExplanatoryTooltips ?? true,
   };
 }
 

@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/empty';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { DescriptionText, hasDescriptionText } from '@/components/system/description-text';
+import { DescriptionText, hasDescriptionText, useDescriptionTextVisible } from '@/components/system/description-text';
 
 export function WorkspacePage({
   className,
@@ -59,7 +59,8 @@ export function WorkspaceHero({
   children?: ReactNode;
   className?: string;
 }) {
-  const showDescription = hasDescriptionText(description);
+  const descriptionVisible = useDescriptionTextVisible();
+  const showDescription = hasDescriptionText(description, descriptionVisible);
 
   return (
     <Card className={cn('hero-mesh relative overflow-hidden border-white/70', !showDescription && 'gap-4', className)}>
@@ -217,9 +218,10 @@ export function WorkspacePanel({
   footer?: ReactNode;
   forceDescription?: boolean;
 }) {
+  const descriptionVisible = useDescriptionTextVisible();
   const showDescription = forceDescription
     ? description != null && description !== false && (typeof description !== 'string' || description.trim().length > 0)
-    : hasDescriptionText(description);
+    : hasDescriptionText(description, descriptionVisible);
   const hasHeader = Boolean(title || showDescription || action);
   const hasContent = children != null;
 
@@ -259,11 +261,12 @@ export function WorkspaceBanner({
   icon?: ReactNode;
   action?: ReactNode;
 }) {
+  const descriptionVisible = useDescriptionTextVisible();
   return (
     <Alert variant={tone}>
       {icon}
       <AlertTitle>{title}</AlertTitle>
-      {hasDescriptionText(description) ? (
+      {hasDescriptionText(description, descriptionVisible) ? (
         <AlertDescription>
           <DescriptionText as="div">{description}</DescriptionText>
         </AlertDescription>
@@ -282,7 +285,8 @@ export function WorkspaceEmpty({
   description: string;
   action?: ReactNode;
 }) {
-  const showDescription = hasDescriptionText(description);
+  const descriptionVisible = useDescriptionTextVisible();
+  const showDescription = hasDescriptionText(description, descriptionVisible);
 
   return (
     <Empty className={cn('border-border/80 bg-card/45', !showDescription && 'gap-3 p-10')}>

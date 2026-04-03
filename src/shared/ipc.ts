@@ -31,6 +31,7 @@ export interface DesktopLocalDataInfo {
 export interface DesktopPreferences {
   language: AppLanguage;
   currency: AppCurrency;
+  showExplanatoryTooltips: boolean;
 }
 
 export interface SenaSkuLookupPayload {
