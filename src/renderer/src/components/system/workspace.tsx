@@ -44,21 +44,23 @@ export function WorkspacePageTitle({
   );
 }
 
-export function WorkspaceHero({
-  eyebrow,
-  title,
-  description,
-  actions,
-  children,
-  className,
-}: {
+interface WorkspaceTitleCardProps {
   eyebrow?: string;
   title: string;
   description?: string;
   actions?: ReactNode;
   children?: ReactNode;
   className?: string;
-}) {
+}
+
+export function WorkspaceTitleCard({
+  eyebrow,
+  title,
+  description,
+  actions,
+  children,
+  className,
+}: WorkspaceTitleCardProps) {
   const descriptionVisible = useDescriptionTextVisible();
   const showDescription = hasDescriptionText(description, descriptionVisible);
 
@@ -90,6 +92,10 @@ export function WorkspaceHero({
       {children ? <CardContent className="relative">{children}</CardContent> : null}
     </Card>
   );
+}
+
+export function WorkspaceHero(props: WorkspaceTitleCardProps) {
+  return <WorkspaceTitleCard {...props} />;
 }
 
 export function WorkspaceActionRow({

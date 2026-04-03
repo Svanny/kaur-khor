@@ -53,6 +53,9 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
+    expect(await screen.findByText('Settings')).toBeInTheDocument();
+    expect(screen.getByText('Desktop preferences')).toBeInTheDocument();
+
     const checkbox = await screen.findByRole('checkbox', { name: /show explanatory tooltips/i });
     expect(checkbox).toBeChecked();
 

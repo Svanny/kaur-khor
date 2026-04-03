@@ -238,8 +238,28 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
     expect(screen.getByText('SENA catalog')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Everything' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Services' })).toBeInTheDocument();
     expect(screen.getByText('SKU 1')).toBeInTheDocument();
     expect(screen.getByText('Service 1')).toBeInTheDocument();
+  });
+
+  test('filters the catalog route from the title-card search and toggle pill', () => {
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    fireEvent.change(screen.getByPlaceholderText('Search name, description, or id…'), {
+      target: { value: 'service-1' },
+    });
+
+    expect(screen.queryByText('SKU 1')).not.toBeInTheDocument();
+    expect(screen.getByText('Service 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'SKUs' }));
+
+    expect(screen.queryByText('Service 1')).not.toBeInTheDocument();
+    expect(screen.getByText('No matching catalog items')).toBeInTheDocument();
   });
 
   test('loads SENA SKU detail without snapshot bootstrap', async () => {

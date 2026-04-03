@@ -16,16 +16,14 @@ export function NewServiceIcon({ className }: { className?: string }) {
       <defs>
         <mask id="new-service-icon-plus-cutout">
           <rect fill="white" height="24" width="24" />
-          <circle cx="19" cy="17" fill="black" r="6" />
+          <circle cx="19" cy="17" fill="black" r="5" />
         </mask>
       </defs>
 
       <g mask="url(#new-service-icon-plus-cutout)">
-        <path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17" />
-        <path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9" />
-        <path d="m2 16 6 6" />
-        <circle cx="16" cy="9" r="2.9" />
-        <circle cx="6" cy="5" r="3" />
+        <path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5" />
+        <path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244" />
+        <path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05" />
       </g>
 
       <path d="M19 14v6" />

@@ -1,5 +1,12 @@
 import { Link } from 'react-router-dom';
-import { WorkspaceActionRow, WorkspaceHero, WorkspacePage, WorkspacePanel, MetricGrid, MetricCard } from '@/components/system/workspace';
+import {
+  MetricCard,
+  MetricGrid,
+  WorkspaceActionRow,
+  WorkspacePage,
+  WorkspacePanel,
+  WorkspaceTitleCard,
+} from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { formatNumber } from '@/lib/format';
 import { useInventory } from '@/state/inventory';
@@ -14,7 +21,7 @@ export function DashboardRoute() {
 
   return (
     <WorkspacePage>
-      <WorkspaceHero
+      <WorkspaceTitleCard
         eyebrow="SENA workspace"
         title="Local decision surface"
         description="Banji now boots directly into the local SENA workspace. Catalog structure, interval evidence, and analysis runs all come from the same local core."

@@ -511,6 +511,14 @@ const en = {
     'Update the service name, price, description, and linked SKUs.',
   catalogServiceEditorIdentifierDescription:
     'The identifier is fixed for this service.',
+  catalogServiceEditorDetailsTooltip:
+    'Edit the canonical service identity fields here. The identifier stays fixed once the service already exists.',
+  catalogServiceEditorPricingTooltip:
+    'Use this section for the customer-facing service price that Catalog and service detail surfaces will show.',
+  catalogServiceEditorLinkedSkusTooltip:
+    'Choose which SKUs are consumed whenever this service is sold so availability and bottlenecks are calculated correctly.',
+  catalogServiceEditorPriceTooltip:
+    'Service price is the amount charged when this service is sold.',
   stockChangesTitle: 'Operations',
   stockUpdateBody:
     'Capture timestamped stock reports, optional service updates, and the ranking context the desktop workflow uses for the next planning pass.',
@@ -865,6 +873,9 @@ const en = {
   serviceEditorCoverageEmpty: 'No linked SKU coverage yet',
   serviceEditorLimitingSkuTitle: 'Limiting SKU',
   serviceEditorLimitingSkuNone: 'None',
+  serviceEditorLinkedSkusSearchPlaceholder: 'Search linked SKUs by name or id…',
+  serviceEditorLinkedSkusDetected: 'Linked SKUs detected',
+  serviceEditorLinkedSkusNoMatches: 'No linked SKUs match this search yet.',
   editorNoChangesYet: 'No changes yet',
   editorUnsavedChanges: 'Unsaved changes',
   skuEditorDetailsChanged: 'Details updated',
@@ -1112,6 +1123,19 @@ const km: Partial<Record<TranslationKey, string>> = {
   catalogServiceRecentActivityTitle: 'សកម្មភាពថ្មីៗ',
   catalogServiceEditorTitleNew: 'សេវាកម្មថ្មី',
   catalogServiceEditorTitleEdit: 'កែសេវាកម្ម',
+  catalogServiceEditorDescriptionNew:
+    'បង្កើតកំណត់ត្រាសេវាកម្មថ្មី ហើយបន្ទាប់មកបើកទំព័រព័ត៌មានសេវាកម្មសម្រាប់ពិនិត្យការបំពេញការងារ និងប្រតិបត្តិការ។',
+  catalogServiceEditorDescriptionEdit:
+    'កែឈ្មោះសេវាកម្ម តម្លៃ ការពិពណ៌នា និង SKU ដែលភ្ជាប់។',
+  catalogServiceEditorIdentifierDescription: 'សម្គាល់នេះត្រូវបានចាក់សោសម្រាប់សេវាកម្មនេះ។',
+  catalogServiceEditorDetailsTooltip:
+    'កែព័ត៌មានសម្គាល់សំខាន់របស់សេវាកម្មនៅទីនេះ។ សម្គាល់នឹងត្រូវបានចាក់សោនៅពេលសេវាកម្មមានរួចហើយ។',
+  catalogServiceEditorPricingTooltip:
+    'ប្រើផ្នែកនេះសម្រាប់តម្លៃសេវាកម្មដែលអតិថិជនឃើញនៅក្នុង Catalog និងទំព័រព័ត៌មានសេវាកម្ម។',
+  catalogServiceEditorLinkedSkusTooltip:
+    'ជ្រើស SKU ដែលត្រូវបានប្រើរាល់ពេលសេវាកម្មនេះត្រូវបានលក់ ដើម្បីឲ្យការគណនាអំពីភាពមានស្រាប់ និង bottleneck ត្រឹមត្រូវ។',
+  catalogServiceEditorPriceTooltip:
+    'តម្លៃសេវាកម្មគឺជាចំនួនដែលត្រូវគិតពេលសេវាកម្មនេះត្រូវបានលក់។',
   settingsTitle: 'ការកំណត់',
   settingsLocalDataTitle: 'ទិន្នន័យក្នុងម៉ាស៊ីន',
   settingsLocalDataDescription:
@@ -1155,6 +1179,9 @@ const km: Partial<Record<TranslationKey, string>> = {
   editorPricingTitle: 'ការកំណត់តម្លៃ',
   editorSelectionTitle: 'SKU ដែលភ្ជាប់',
   editorSelectionCount: 'បានជ្រើស',
+  serviceEditorLinkedSkusSearchPlaceholder: 'ស្វែងរក SKU ដែលភ្ជាប់តាមឈ្មោះ ឬ សម្គាល់…',
+  serviceEditorLinkedSkusDetected: 'SKU ដែលភ្ជាប់ត្រូវបានរកឃើញ',
+  serviceEditorLinkedSkusNoMatches: 'មិនមាន SKU ដែលភ្ជាប់ណាត្រូវនឹងការស្វែងរកនេះទេ។',
   createEntry: 'បង្កើត',
   saveDraft: 'រក្សាទុក',
   cancel: 'បោះបង់',

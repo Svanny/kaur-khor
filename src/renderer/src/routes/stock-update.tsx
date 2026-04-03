@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
-import { PageTitleWithBack } from '@/components/system/page-navigation';
-import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
+import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { useInventory } from '@/state/inventory';
 
@@ -24,11 +23,11 @@ export function StockUpdateRoute() {
 
   return (
     <WorkspacePage>
-      <PageTitleWithBack>Operations</PageTitleWithBack>
-      <WorkspacePanel
+      <WorkspaceTitleCard
+        eyebrow="Operations"
         title="Interval evidence"
         description="Operations now records SENA observation packages instead of stock snapshot mutations."
-        action={
+        actions={
           <WorkspaceActionRow>
             <Button asChild>
               <Link to="/operations/session">New observation</Link>
@@ -38,6 +37,10 @@ export function StockUpdateRoute() {
             </Button>
           </WorkspaceActionRow>
         }
+      />
+      <WorkspacePanel
+        title="Captured observations"
+        description="Review the observation packages currently available to the local SENA run."
       >
         {observations.length > 0 ? (
           <div className="grid gap-3">

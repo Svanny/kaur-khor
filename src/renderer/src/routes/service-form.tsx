@@ -1,11 +1,18 @@
-import { useEffect, useState } from 'react';
+import { Check, Save } from 'lucide-react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SenaService } from '@shared/sena';
-import { PageTitleWithBack } from '@/components/system/page-navigation';
+import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService } from '@/lib/sena-catalog';
+import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
+import { usePreferences } from '@/state/preferences';
+import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
+import { deriveMeasuredGridColumnCount, SERVICE_FORM_SKU_GRID_GAP } from './service-form-layout';
+import { SkuPageHero } from './sku-page-hero';
+import { SectionTitle } from './sku-detail/section-heading';
 
 function emptyService(serviceId = ''): SenaService {
   return {
@@ -17,13 +24,158 @@ function emptyService(serviceId = ''): SenaService {
   };
 }
 
+function normalizeSearchValue(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function getSkuSearchScore(sku: { skuId: string; name: string; description: string }, query: string) {
+  const normalizedQuery = normalizeSearchValue(query);
+  if (!normalizedQuery) {
+    return null;
+  }
+
+  const terms = normalizedQuery.split(' ');
+  const name = normalizeSearchValue(sku.name);
+  const skuId = normalizeSearchValue(sku.skuId);
+  const description = normalizeSearchValue(sku.description);
+
+  let score = 0;
+
+  for (const term of terms) {
+    if (skuId === term) {
+      score += 400;
+      continue;
+    }
+    if (name === term) {
+      score += 320;
+      continue;
+    }
+    if (skuId.startsWith(term)) {
+      score += 260;
+      continue;
+    }
+    if (name.startsWith(term)) {
+      score += 220;
+      continue;
+    }
+    if (skuId.includes(term)) {
+      score += 180;
+      continue;
+    }
+    if (name.includes(term)) {
+      score += 140;
+      continue;
+    }
+    if (description.startsWith(term)) {
+      score += 100;
+      continue;
+    }
+    if (description.includes(term)) {
+      score += 60;
+      continue;
+    }
+
+    return null;
+  }
+
+  if (skuId === normalizedQuery) {
+    score += 200;
+  } else if (name === normalizedQuery) {
+    score += 150;
+  } else if (name.startsWith(normalizedQuery) || skuId.startsWith(normalizedQuery)) {
+    score += 80;
+  }
+
+  return score;
+}
+
+function ServiceSkuGridTile({
+  checked,
+  className,
+  description,
+  label,
+  measure = false,
+  skuId,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  className?: string;
+  description?: string;
+  label: string;
+  measure?: boolean;
+  skuId: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 items-center gap-3 rounded-[1.25rem] border border-border/70 bg-muted/20 px-4 py-4 text-sm transition-colors',
+        !measure && 'cursor-pointer hover:border-border hover:bg-muted/45 focus-within:border-ring/70 focus-within:bg-muted/35',
+        className,
+      )}
+      aria-pressed={measure ? undefined : checked}
+      data-measure={measure ? 'true' : undefined}
+      data-sku-tile={measure ? undefined : 'true'}
+      data-skuid={skuId}
+      onClick={
+        measure
+          ? undefined
+          : (event) => {
+              if ((event.target as HTMLElement).closest('[data-slot="checkbox"]')) {
+                return;
+              }
+              onCheckedChange(!checked);
+            }
+      }
+    >
+      {measure ? (
+        <div className="size-5 shrink-0 rounded-[6px] border border-muted-foreground/45 bg-card" />
+      ) : (
+        <>
+          <input
+            aria-label={label}
+            checked={checked}
+            className="peer sr-only"
+            type="checkbox"
+            onChange={(event) => onCheckedChange(event.target.checked)}
+          />
+          <div
+            className={cn(
+              'flex size-5 shrink-0 items-center justify-center rounded-[6px] border transition-[border-color,background-color,box-shadow]',
+              checked
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-muted-foreground/45 bg-card text-transparent',
+              'peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50',
+            )}
+          >
+            <Check className="size-3.5" />
+          </div>
+        </>
+      )}
+      <div className="grid min-w-0 gap-1">
+        <div className="flex min-h-5 cursor-pointer items-center font-medium leading-5 text-foreground">
+          {label}
+        </div>
+        {description ? <div className="truncate text-muted-foreground">{description}</div> : null}
+      </div>
+    </div>
+  );
+}
+
 export function ServiceFormRoute() {
   const navigate = useNavigate();
   const { serviceId } = useParams();
   const { catalog, isSaving, upsertSenaCatalog } = useInventory();
+  const { t } = usePreferences();
   const [form, setForm] = useState<SenaService>(() => emptyService(serviceId));
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
+  const [skuSearch, setSkuSearch] = useState('');
+  const deferredSkuSearch = useDeferredValue(skuSearch);
+  const [gridColumnCount, setGridColumnCount] = useState(1);
   const editing = Boolean(serviceId);
+  const formId = 'service-editor-form';
+  const skuGridRef = useRef<HTMLDivElement | null>(null);
+  const skuMeasureRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const existing = catalog?.services.find((entry) => entry.serviceId === serviceId);
@@ -50,46 +202,125 @@ export function ServiceFormRoute() {
     await navigate(`/catalog/services/${normalized.serviceId}`);
   }
 
+  const filteredSkus = useMemo(() => {
+    const query = normalizeSearchValue(deferredSkuSearch);
+    const allSkus = [...(catalog?.skus ?? [])];
+    const sortedSkus = allSkus.sort((left, right) => left.name.localeCompare(right.name));
+
+    if (!query) {
+      return sortedSkus;
+    }
+
+    return sortedSkus
+      .map((sku) => ({ sku, score: getSkuSearchScore(sku, query) }))
+      .filter((entry): entry is { sku: (typeof sortedSkus)[number]; score: number } => entry.score != null)
+      .sort((left, right) => {
+        if (left.score !== right.score) {
+          return right.score - left.score;
+        }
+
+        return left.sku.name.localeCompare(right.sku.name);
+      })
+      .map(({ sku }) => sku);
+  }, [catalog?.skus, deferredSkuSearch]);
+
+  const detectedSkuCountLabel = useMemo(
+    () => `${filteredSkus.length} ${t('serviceEditorLinkedSkusDetected')}`,
+    [filteredSkus.length, t],
+  );
+
+  useEffect(() => {
+    const gridNode = skuGridRef.current;
+    const measureNode = skuMeasureRef.current;
+    if (!gridNode || !measureNode) {
+      setGridColumnCount(1);
+      return;
+    }
+
+    const updateColumns = () => {
+      const containerWidth = gridNode.clientWidth;
+      const measuredTiles = Array.from(measureNode.querySelectorAll<HTMLElement>('[data-measure="true"]'));
+      const maxItemWidth = measuredTiles.reduce((maxWidth, tile) => Math.max(maxWidth, tile.getBoundingClientRect().width), 0);
+
+      setGridColumnCount(
+        deriveMeasuredGridColumnCount({
+          containerWidth,
+          gap: SERVICE_FORM_SKU_GRID_GAP,
+          maxItemWidth,
+        }),
+      );
+    };
+
+    const observer = new ResizeObserver(() => updateColumns());
+    observer.observe(gridNode);
+    updateColumns();
+    return () => observer.disconnect();
+  }, [filteredSkus]);
+
   return (
     <WorkspacePage>
-      <PageTitleWithBack>{editing ? 'Edit service' : 'New service'}</PageTitleWithBack>
-      <WorkspacePanel description="Service editing now writes directly to the SENA catalog and sharing mask." title="Service">
-        <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
-          <label className="grid gap-2 text-sm">
-            <span>Service ID</span>
-            <input
-              className="rounded-xl border border-border bg-background px-3 py-2"
-              disabled={editing}
-              required
-              value={form.serviceId}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, serviceId: event.target.value }))
-              }
-            />
-          </label>
-          <label className="grid gap-2 text-sm">
-            <span>Name</span>
-            <input
-              className="rounded-xl border border-border bg-background px-3 py-2"
-              required
-              value={form.name}
-              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-            />
-          </label>
-          <label className="grid gap-2 text-sm">
-            <span>Description</span>
+      <SkuPageHero
+        actions={
+          <WorkspaceActionRow>
+            <Button disabled={isSaving} form={formId} type="submit">
+              <Save data-icon="inline-start" />
+              {editing ? t('saveDraft') : t('createEntry')}
+            </Button>
+          </WorkspaceActionRow>
+        }
+        title={editing ? t('catalogServiceEditorTitleEdit') : t('catalogServiceEditorTitleNew')}
+      />
+
+      <form
+        className="grid gap-6"
+        id={formId}
+        onSubmit={(event) => void handleSubmit(event)}
+      >
+        <WorkspacePanel
+          className={editorPanelClassName}
+          description={editing ? t('catalogServiceEditorIdentifierDescription') : t('catalogServiceEditorDescriptionNew')}
+          title={<SectionTitle title={t('editorDetailsTitle')} tooltip={t('catalogServiceEditorDetailsTooltip')} />}
+        >
+          <div className="grid items-start gap-4 md:grid-cols-2">
+            <EditorField
+              hint={editing ? t('catalogServiceEditorIdentifierDescription') : undefined}
+              label={t('fieldId')}
+              tooltip={t('catalogServiceEditorDetailsTooltip')}
+            >
+              <input
+                className={editorInputClassName}
+                disabled={editing}
+                required
+                value={form.serviceId}
+                onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))}
+              />
+            </EditorField>
+            <EditorField label={t('fieldName')} tooltip={t('catalogServiceEditorDetailsTooltip')}>
+              <input
+                className={editorInputClassName}
+                required
+                value={form.name}
+                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              />
+            </EditorField>
+          </div>
+
+          <EditorField label={t('fieldDescription')} tooltip={t('catalogServiceEditorDetailsTooltip')}>
             <textarea
-              className="min-h-24 rounded-xl border border-border bg-background px-3 py-2"
+              className={editorTextareaClassName}
               value={form.description}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, description: event.target.value }))
-              }
+              onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             />
-          </label>
-          <label className="grid gap-2 text-sm">
-            <span>Price</span>
+          </EditorField>
+        </WorkspacePanel>
+
+        <WorkspacePanel
+          className={editorPanelClassName}
+          title={<SectionTitle title={t('editorPricingTitle')} tooltip={t('catalogServiceEditorPricingTooltip')} />}
+        >
+          <EditorField label={t('fieldPrice')} tooltip={t('catalogServiceEditorPriceTooltip')}>
             <input
-              className="rounded-xl border border-border bg-background px-3 py-2"
+              className={editorInputClassName}
               min="0"
               required
               step="0.01"
@@ -97,38 +328,80 @@ export function ServiceFormRoute() {
               value={form.price}
               onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))}
             />
-          </label>
-          <div className="grid gap-2 text-sm">
-            <span>Linked SKUs</span>
-            <div className="grid gap-2 rounded-xl border border-border bg-background p-3">
-              {(catalog?.skus ?? []).map((sku) => (
-                <label key={sku.skuId} className="flex items-center gap-3">
-                  <input
-                    checked={selectedSkuIds.includes(sku.skuId)}
-                    type="checkbox"
-                    onChange={(event) =>
-                      setSelectedSkuIds((current) =>
-                        event.target.checked
-                          ? [...current, sku.skuId]
-                          : current.filter((entry) => entry !== sku.skuId),
-                      )
-                    }
-                  />
-                  <span>{sku.name}</span>
-                </label>
-              ))}
-              {catalog?.skus.length ? null : (
-                <p className="text-muted-foreground">Add at least one SKU before linking services.</p>
-              )}
-            </div>
+          </EditorField>
+        </WorkspacePanel>
+
+        <WorkspacePanel
+          className={editorPanelClassName}
+          description={t('fieldSkuSelectionHint')}
+          title={<SectionTitle title={t('editorSelectionTitle')} tooltip={t('catalogServiceEditorLinkedSkusTooltip')} />}
+        >
+          <SearchInput
+            aria-label={t('fieldLinkedSkus')}
+            className="h-12 rounded-full"
+            placeholder={t('serviceEditorLinkedSkusSearchPlaceholder')}
+            value={skuSearch}
+            onChange={(event) => setSkuSearch(event.target.value)}
+          />
+
+          <div className="inline-flex w-fit items-center rounded-full border border-border/60 bg-muted/15 px-4 py-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {detectedSkuCountLabel}
+            </p>
           </div>
-          <WorkspaceActionRow>
-            <Button disabled={isSaving} type="submit">
-              {editing ? 'Save service' : 'Create service'}
-            </Button>
-          </WorkspaceActionRow>
-        </form>
-      </WorkspacePanel>
+
+          <div
+            ref={skuGridRef}
+            className="grid gap-3"
+            data-testid="linked-sku-grid"
+            style={{
+              gridTemplateColumns: `repeat(${gridColumnCount}, minmax(0, 1fr))`,
+            }}
+          >
+            {filteredSkus.map((sku) => (
+              <ServiceSkuGridTile
+                key={sku.skuId}
+                checked={selectedSkuIds.includes(sku.skuId)}
+                description={sku.skuId}
+                label={sku.name}
+                skuId={sku.skuId}
+                onCheckedChange={(checked) =>
+                  setSelectedSkuIds((current) =>
+                    checked
+                      ? [...new Set([...current, sku.skuId])]
+                      : current.filter((entry) => entry !== sku.skuId),
+                  )
+                }
+              />
+            ))}
+            {catalog?.skus.length ? null : (
+              <p className="col-span-full rounded-[1.25rem] border border-dashed border-border/70 bg-muted/10 px-4 py-4 text-sm text-muted-foreground">
+                Add at least one SKU before linking services.
+              </p>
+            )}
+            {catalog?.skus.length && filteredSkus.length === 0 ? (
+              <p className="col-span-full rounded-[1.25rem] border border-dashed border-border/70 bg-muted/10 px-4 py-4 text-sm text-muted-foreground">
+                {t('serviceEditorLinkedSkusNoMatches')}
+              </p>
+            ) : null}
+          </div>
+
+          <div ref={skuMeasureRef} aria-hidden="true" className="invisible absolute left-0 top-0 -z-10 grid gap-3 opacity-0 pointer-events-none">
+            {filteredSkus.map((sku) => (
+              <ServiceSkuGridTile
+                key={`${sku.skuId}-measure`}
+                checked={selectedSkuIds.includes(sku.skuId)}
+                className="w-max max-w-none"
+                description={sku.skuId}
+                label={sku.name}
+                measure
+                skuId={sku.skuId}
+                onCheckedChange={() => {}}
+              />
+            ))}
+          </div>
+        </WorkspacePanel>
+      </form>
     </WorkspacePage>
   );
 }

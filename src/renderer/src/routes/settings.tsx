@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { ChevronDown, FolderOpen, Save } from 'lucide-react';
 import type { DesktopLocalDataInfo } from '@shared/ipc';
 import { CheckboxRow } from '@/components/system/checkbox-row';
-import { PageTitleWithBack } from '@/components/system/page-navigation';
-import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
+import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { usePreferences } from '@/state/preferences';
+
+const selectClassName =
+  'h-14 w-full appearance-none rounded-xl border border-border bg-background px-3 pr-12 text-base shadow-none outline-none';
 
 export function SettingsRoute() {
   const {
@@ -43,30 +46,46 @@ export function SettingsRoute() {
 
   return (
     <WorkspacePage>
-      <PageTitleWithBack>Settings</PageTitleWithBack>
-      <WorkspacePanel title="Desktop preferences" description="These preferences affect only the local desktop shell.">
+      <WorkspaceTitleCard
+        eyebrow="Settings"
+        title="Desktop preferences"
+        description="These controls tune the local Banji shell and its on-device SENA workspace storage."
+      />
+      <WorkspacePanel title="Preferences controls" description="These preferences affect only the local desktop shell.">
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm">
             <span>Language</span>
-            <select
-              className="rounded-xl border border-border bg-background px-3 py-2"
-              value={language}
-              onChange={(event) => setLanguage(event.target.value as 'en' | 'km')}
-            >
-              <option value="en">English</option>
-              <option value="km">Khmer</option>
-            </select>
+            <div className="relative">
+              <select
+                className={selectClassName}
+                value={language}
+                onChange={(event) => setLanguage(event.target.value as 'en' | 'km')}
+              >
+                <option value="en">English</option>
+                <option value="km">Khmer</option>
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+            </div>
           </label>
           <label className="grid gap-2 text-sm">
             <span>Currency</span>
-            <select
-              className="rounded-xl border border-border bg-background px-3 py-2"
-              value={currency}
-              onChange={(event) => setCurrency(event.target.value as 'USD' | 'KHR')}
-            >
-              <option value="USD">USD</option>
-              <option value="KHR">KHR</option>
-            </select>
+            <div className="relative">
+              <select
+                className={selectClassName}
+                value={currency}
+                onChange={(event) => setCurrency(event.target.value as 'USD' | 'KHR')}
+              >
+                <option value="USD">USD</option>
+                <option value="KHR">KHR</option>
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+            </div>
           </label>
         </div>
         <CheckboxRow
@@ -78,6 +97,7 @@ export function SettingsRoute() {
         />
         <WorkspaceActionRow className="mt-4">
           <Button disabled={!hasPendingChanges} type="button" onClick={() => void savePreferences()}>
+            <Save data-icon="inline-start" />
             Save preferences
           </Button>
         </WorkspaceActionRow>
@@ -100,6 +120,7 @@ export function SettingsRoute() {
             </div>
             <WorkspaceActionRow>
               <Button type="button" variant="outline" onClick={() => void window.banjiDesktop.system.openLocalDataFolder()}>
+                <FolderOpen data-icon="inline-start" />
                 Open local data folder
               </Button>
             </WorkspaceActionRow>
