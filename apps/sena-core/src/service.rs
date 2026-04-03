@@ -11,6 +11,7 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[async_trait(?Send)]
 pub trait SenaRepository {
+    async fn clear_owner(&self, owner_sub: &str) -> Result<()>;
     async fn upsert_catalog(&self, owner_sub: &str, catalog: &SenaCatalog) -> Result<()>;
     async fn get_catalog(&self, owner_sub: &str) -> Result<Option<SenaCatalog>>;
     async fn insert_observation(

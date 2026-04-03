@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaDiagnostics, SenaObservationRecord, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
+import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { SkuDetailRoute } from './sku-detail';
 import { backfillLegacyReportsIntoSenaIfEmpty, mapLegacyReportToSenaObservation, shouldTriggerBootstrapRun } from './sku-detail/bootstrap';
@@ -20,7 +21,7 @@ vi.mock('../state/preferences', () => ({
   usePreferences: () => ({
     currency: 'USD',
     language: 'en',
-    t: (key: string) => key,
+    t: (key: string) => getTranslation('en', key as never),
   }),
 }));
 
@@ -288,7 +289,7 @@ describe('SKU detail SENA helpers', () => {
     });
 
     expect(model.heartbeat.headlineUnits).toContain('11 units likely on hand');
-    expect(model.heartbeat.heroSentence).toContain('Reorder trigger');
+    expect(model.heartbeat.heroSentence).toContain('reorder trigger');
     expect(model.rail.selectedIntervalSummary.dominantRegime).toBe('spike');
     expect(deriveRecommendedOrderBand(detail)).toEqual({ low: 0, high: 0 });
   });

@@ -20,6 +20,36 @@ impl PgSenaRepository {
 
 #[async_trait(?Send)]
 impl SenaRepository for PgSenaRepository {
+    async fn clear_owner(&self, owner_sub: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM app.sena_workspace_summary WHERE owner_sub = $1")
+            .bind(owner_sub)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM app.sena_sku_summary WHERE owner_sub = $1")
+            .bind(owner_sub)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM app.sena_service_summary WHERE owner_sub = $1")
+            .bind(owner_sub)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM app.sena_analysis_run WHERE owner_sub = $1")
+            .bind(owner_sub)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM app.sena_observation WHERE owner_sub = $1")
+            .bind(owner_sub)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM app.sena_catalog WHERE owner_sub = $1")
+            .bind(owner_sub)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn upsert_catalog(&self, owner_sub: &str, catalog: &SenaCatalog) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         upsert_catalog_tx(&mut tx, owner_sub, catalog).await?;

@@ -34,6 +34,9 @@ describe('BanjiShell', () => {
           workspaceUnavailable: 'Workspace unavailable',
           workspaceLoadingTitle: 'Loading workspace',
           workspaceStarting: 'Starting workspace',
+          workspaceComputingTitle: 'SENA is computing your workspace',
+          workspaceComputingBody: 'Computing body',
+          workspaceComputingHint: 'Computing hint',
           retry: 'Retry',
           openNavigation: 'Open navigation',
           collapseNavigation: 'Collapse navigation',
@@ -112,6 +115,29 @@ describe('BanjiShell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  test('shows a dedicated SENA computing screen while the workspace is loading', () => {
+    inventoryHook.mockReturnValue({
+      error: null,
+      isLoading: true,
+      reload: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
+    expect(screen.getByText('SENA is computing your workspace')).toBeInTheDocument();
+    expect(screen.getByText('Computing hint')).toBeInTheDocument();
+    expect(screen.queryByText('Overview screen')).not.toBeInTheDocument();
   });
 });
 

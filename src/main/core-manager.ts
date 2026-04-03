@@ -5,7 +5,11 @@ import {
 } from './backend';
 
 export interface ManagedCoreController {
-  invoke: <T>(command: string, payload?: unknown) => Promise<T>;
+  invoke: <T>(
+    command: string,
+    payload?: unknown,
+    options?: { timeoutMs?: number },
+  ) => Promise<T>;
   stop: () => Promise<void>;
 }
 
@@ -36,11 +40,15 @@ export function createManagedCoreController(
   }
 
   return {
-    invoke: async <T>(command: string, payload?: unknown): Promise<T> => {
+    invoke: async <T>(
+      command: string,
+      payload?: unknown,
+      options?: { timeoutMs?: number },
+    ): Promise<T> => {
       const core = await ensureManagedCore();
 
       try {
-        return await core.invoke<T>(command, payload);
+        return await core.invoke<T>(command, payload, options);
       } catch (error) {
         if (core.isStopped()) {
           managedCore = null;

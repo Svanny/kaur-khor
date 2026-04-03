@@ -68,6 +68,22 @@ impl SqliteSenaRepository {
               updated_at TEXT NOT NULL,
               run_id TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS sena_sku_detail (
+              owner_sub TEXT NOT NULL,
+              sku_id TEXT NOT NULL,
+              payload_json TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              run_id TEXT NOT NULL,
+              PRIMARY KEY (owner_sub, sku_id)
+            );
+            CREATE TABLE IF NOT EXISTS sena_service_detail (
+              owner_sub TEXT NOT NULL,
+              service_id TEXT NOT NULL,
+              payload_json TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              run_id TEXT NOT NULL,
+              PRIMARY KEY (owner_sub, service_id)
+            );
             "#,
         )?;
         Ok(())
@@ -76,6 +92,17 @@ impl SqliteSenaRepository {
 
 #[async_trait(?Send)]
 impl SenaRepository for SqliteSenaRepository {
+    async fn clear_owner(&self, owner_sub: &str) -> Result<()> {
+        let connection = self.connection.lock().map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        connection.execute("DELETE FROM sena_service_detail WHERE owner_sub = ?1", params![owner_sub])?;
+        connection.execute("DELETE FROM sena_sku_detail WHERE owner_sub = ?1", params![owner_sub])?;
+        connection.execute("DELETE FROM sena_read_model WHERE owner_sub = ?1", params![owner_sub])?;
+        connection.execute("DELETE FROM sena_run WHERE owner_sub = ?1", params![owner_sub])?;
+        connection.execute("DELETE FROM sena_observation WHERE owner_sub = ?1", params![owner_sub])?;
+        connection.execute("DELETE FROM sena_catalog WHERE owner_sub = ?1", params![owner_sub])?;
+        Ok(())
+    }
+
     async fn upsert_catalog(&self, owner_sub: &str, catalog: &SenaCatalog) -> Result<()> {
         let connection = self.connection.lock().map_err(|_| anyhow!("sqlite lock poisoned"))?;
         connection.execute(
@@ -265,6 +292,7 @@ impl SenaRepository for SqliteSenaRepository {
         let owner_sub = result.workspace_summary.owner_sub.clone();
         let mut summary = result.workspace_summary.clone();
         summary.run_id = run_id.to_string();
+        let updated_at = now_rfc3339();
         connection.execute(
             r#"
             UPDATE sena_run
@@ -301,12 +329,50 @@ impl SenaRepository for SqliteSenaRepository {
                 owner_sub,
                 serde_json::to_string(&summary)?,
                 serde_json::to_string(&result.diagnostics)?,
-                serde_json::to_string(&result.sku_details)?,
-                serde_json::to_string(&result.service_details)?,
-                now_rfc3339(),
+                "[]",
+                "[]",
+                updated_at,
                 run_id,
             ],
         )?;
+        for detail in &result.sku_details {
+            connection.execute(
+                r#"
+                INSERT INTO sena_sku_detail (owner_sub, sku_id, payload_json, updated_at, run_id)
+                VALUES (?1, ?2, ?3, ?4, ?5)
+                ON CONFLICT(owner_sub, sku_id) DO UPDATE SET
+                  payload_json = excluded.payload_json,
+                  updated_at = excluded.updated_at,
+                  run_id = excluded.run_id
+                "#,
+                params![
+                    owner_sub,
+                    detail.summary.sku_id,
+                    serde_json::to_string(detail)?,
+                    updated_at,
+                    run_id,
+                ],
+            )?;
+        }
+        for detail in &result.service_details {
+            connection.execute(
+                r#"
+                INSERT INTO sena_service_detail (owner_sub, service_id, payload_json, updated_at, run_id)
+                VALUES (?1, ?2, ?3, ?4, ?5)
+                ON CONFLICT(owner_sub, service_id) DO UPDATE SET
+                  payload_json = excluded.payload_json,
+                  updated_at = excluded.updated_at,
+                  run_id = excluded.run_id
+                "#,
+                params![
+                    owner_sub,
+                    detail.service_id,
+                    serde_json::to_string(detail)?,
+                    updated_at,
+                    run_id,
+                ],
+            )?;
+        }
         Ok(())
     }
 
@@ -337,16 +403,14 @@ impl SenaRepository for SqliteSenaRepository {
         let connection = self.connection.lock().map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let value = connection
             .query_row(
-                "SELECT sku_details_json FROM sena_read_model WHERE owner_sub = ?1",
-                params![owner_sub],
+                "SELECT payload_json FROM sena_sku_detail WHERE owner_sub = ?1 AND sku_id = ?2",
+                params![owner_sub, sku_id],
                 |row| row.get::<_, String>(0),
             )
             .optional()?;
-        let Some(raw) = value else {
-            return Ok(None);
-        };
-        let details: Vec<SenaSkuDetail> = serde_json::from_str(&raw)?;
-        Ok(details.into_iter().find(|detail| detail.summary.sku_id == sku_id))
+        value
+            .map(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
+            .transpose()
     }
 
     async fn load_service_detail(
@@ -357,16 +421,14 @@ impl SenaRepository for SqliteSenaRepository {
         let connection = self.connection.lock().map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let value = connection
             .query_row(
-                "SELECT service_details_json FROM sena_read_model WHERE owner_sub = ?1",
-                params![owner_sub],
+                "SELECT payload_json FROM sena_service_detail WHERE owner_sub = ?1 AND service_id = ?2",
+                params![owner_sub, service_id],
                 |row| row.get::<_, String>(0),
             )
             .optional()?;
-        let Some(raw) = value else {
-            return Ok(None);
-        };
-        let details: Vec<SenaServiceDetail> = serde_json::from_str(&raw)?;
-        Ok(details.into_iter().find(|detail| detail.service_id == service_id))
+        value
+            .map(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
+            .transpose()
     }
 
     async fn load_diagnostics(&self, owner_sub: &str) -> Result<Option<SenaDiagnostics>> {

@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Boxes,
+  LoaderCircle,
   LayoutDashboard,
   NotebookTabs,
   PanelRight,
@@ -256,12 +257,34 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                 />
               ) : null}
               {isLoading ? (
-                <WorkspaceBanner
-                  description={t('workspaceStarting')}
-                  title={t('workspaceLoadingTitle')}
-                />
-              ) : null}
-              {children}
+                <div
+                  className="hero-mesh editorial-panel flex min-h-[68svh] w-full items-center justify-center rounded-[2rem] px-6 py-10"
+                  data-testid="workspace-computing-screen"
+                >
+                  <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
+                    <div className="flex size-16 items-center justify-center rounded-full border border-primary/20 bg-background/80 shadow-[var(--shadow-float)]">
+                      <LoaderCircle aria-hidden="true" className="size-7 animate-spin text-primary" />
+                    </div>
+                    <p className="mt-6 text-xs font-semibold uppercase tracking-[0.24em] text-primary/80">
+                      {t('workspaceLoadingTitle')}
+                    </p>
+                    <h1 className="mt-3 text-balance text-4xl font-semibold tracking-[-0.05em] text-foreground">
+                      {t('workspaceComputingTitle')}
+                    </h1>
+                    <p className="mt-4 max-w-xl text-pretty text-base leading-7 text-muted-foreground">
+                      {t('workspaceComputingBody')}
+                    </p>
+                    <p className="mt-6 max-w-lg rounded-[1.4rem] border border-border/70 bg-background/75 px-5 py-4 text-sm leading-6 text-muted-foreground shadow-[var(--shadow-soft)]">
+                      {t('workspaceComputingHint')}
+                    </p>
+                    <p className="mt-5 text-sm text-muted-foreground">
+                      {t('workspaceStarting')}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                children
+              )}
             </div>
           </main>
         </div>

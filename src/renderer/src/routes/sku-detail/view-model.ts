@@ -42,10 +42,13 @@ export interface SenaSkuDetailViewModel {
       intervals: SenaRegimePosteriorPoint[];
       priceMarkers: Array<{ observedAt: string; price: number }>;
       summary: string;
+      currentPriceLabel: string;
     };
     inventoryLane: {
       summary: string;
       points: SenaSkuDetail['inventoryPosterior'];
+      reorderPointLabel: string;
+      safetyStockLabel: string;
     };
     flowLane: {
       summary: string;
@@ -72,7 +75,7 @@ export interface SenaSkuDetailViewModel {
     };
     openPipeline: {
       summary: [string, string, string, string];
-      events: Array<{ key: string; timestamp: string; state: string; quantity: string }>;
+      events: Array<{ key: string; observedAt: string; timestamp: string; state: string; quantity: string }>;
     };
     exposure: Array<{
       serviceId: string;
@@ -119,16 +122,17 @@ function topRegime(summary: SenaSkuDetail['summary'] | null, diagnostics: SenaDi
 
 function receiptWindow(point: SenaPipelinePosteriorPoint | null, leadTime: SenaSkuDetail['leadTimePosterior'][number] | null) {
   if (!point || !leadTime || point.inTransitMean <= 0.5) {
-    return { label: 'No active receipt window', midpointDays: null, overdue: false };
+    return { label: 'No active receipt window', detailLabel: 'No active receipt window', midpointDays: null, overdue: false };
   }
   if (point.ageDaysMean > leadTime.meanDays + leadTime.stdDays) {
-    return { label: 'Overdue', midpointDays: 0, overdue: true };
+    return { label: 'Overdue', detailLabel: 'Overdue', midpointDays: 0, overdue: true };
   }
   const daysUntilEtaMidpoint = Math.max(0, leadTime.meanDays - point.ageDaysMean);
   const windowLow = Math.max(0, daysUntilEtaMidpoint - leadTime.stdDays);
   const windowHigh = daysUntilEtaMidpoint + leadTime.stdDays;
   return {
     label: `${Math.round(windowLow)}-${Math.round(windowHigh)} days`,
+    detailLabel: `${Math.round(daysUntilEtaMidpoint)}d midpoint ± ${Math.round(leadTime.stdDays)}d`,
     midpointDays: daysUntilEtaMidpoint,
     overdue: false,
   };
@@ -279,6 +283,7 @@ export function deriveSenaSkuDetailViewModel({
   const status = deriveStatus(detail);
   const receipt = receiptWindow(latestPipeline, latestLeadTime);
   const orderBand = deriveRecommendedOrderBand(detail);
+  const openPipelineCount = (latestPipeline?.inTransitMean ?? 0) > 0.5 ? 1 : 0;
   const effectiveSelectedIndex =
     selectedIntervalIndex ?? detail?.demandPosterior.at(-1)?.intervalIndex ?? diagnostics?.regimeHistory.at(-1)?.intervalIndex ?? null;
   const interval =
@@ -332,6 +337,10 @@ export function deriveSenaSkuDetailViewModel({
         usageProbability: usageProbability == null ? '—' : formatSenaPercent(usageProbability, language),
         bottleneckProbability: formatSenaPercent(bottleneck, language),
       };
+    })
+    .sort((left, right) => {
+      const rank = { limiting_now: 0, at_risk: 1, linked: 2 } as const;
+      return rank[left.severity] - rank[right.severity] || left.name.localeCompare(right.name);
     });
 
   const pipelineEvents = observations
@@ -340,6 +349,7 @@ export function deriveSenaSkuDetailViewModel({
         .filter((entry) => entry.skuId === skuId && (entry.orderPlaced || entry.receiptArrived))
         .map((entry, index) => ({
           key: `${observation.observationId}:${index}`,
+          observedAt: observation.input.observedAt,
           timestamp: formatSenaDateTime(observation.input.observedAt, language),
           state: entry.receiptArrived ? 'Received' : 'Placed',
           quantity:
@@ -350,8 +360,21 @@ export function deriveSenaSkuDetailViewModel({
                 : '—',
         })),
     )
-    .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+    .sort((left, right) => right.observedAt.localeCompare(left.observedAt))
     .slice(0, 5);
+
+  const currentPrice = observations
+    .flatMap((observation) =>
+      observation.input.retailPrices
+        .filter((entry) => entry.skuId === skuId)
+        .map((entry) => entry.price),
+    )
+    .at(-1) ?? sku.productPrice;
+
+  const receiptLabel =
+    receipt.midpointDays != null && latestObservationAt
+      ? `${formatSenaDate(new Date(Date.parse(latestObservationAt) + receipt.midpointDays * 24 * 60 * 60 * 1000).toISOString(), language)} ± ${Math.round(latestLeadTime?.stdDays ?? 0)}d`
+      : receipt.label;
 
   return {
     identity: {
@@ -369,16 +392,16 @@ export function deriveSenaSkuDetailViewModel({
       credibleBandLabel: `${formatSenaUnits(summary?.credibleIntervalLow ?? sku.unitsInStock, language)}-${formatSenaUnits(summary?.credibleIntervalHigh ?? sku.unitsInStock, language)}`,
       coverLabel: summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—',
       reorderLabel: formatSenaPercent(summary?.reorderTriggerProbability ?? null, language),
-      pipelineLabel: formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language),
-      receiptWindowLabel: receipt.label,
-      heroSentence: `Credible band ${formatSenaUnits(summary?.credibleIntervalLow ?? sku.unitsInStock, language)}-${formatSenaUnits(summary?.credibleIntervalHigh ?? sku.unitsInStock, language)}. Days of cover ${summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—'}. Reorder trigger ${formatSenaPercent(summary?.reorderTriggerProbability ?? null, language)}. In transit ${formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language)}. Receipt window ${receipt.label}.`,
+      pipelineLabel: `${openPipelineCount} open order${openPipelineCount === 1 ? '' : 's'}`,
+      receiptWindowLabel: receiptLabel,
+      heroSentence: `${formatSenaUnits(summary?.credibleIntervalLow ?? sku.unitsInStock, language)}-${formatSenaUnits(summary?.credibleIntervalHigh ?? sku.unitsInStock, language)} credible band · ${summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—'} cover · reorder trigger ${formatSenaPercent(summary?.reorderTriggerProbability ?? null, language)} · ${openPipelineCount} open order${openPipelineCount === 1 ? '' : 's'} · next receipt ${receiptLabel}`,
     },
     ribbon: [
       { key: 'onHand', label: 'On hand', value: formatSenaUnits(currentStock, language) },
       { key: 'inTransit', label: 'In transit', value: formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language) },
       { key: 'demandPerDay', label: 'Demand / day', value: formatSenaQuantity(summary?.demandPerDayMean ?? null, language) },
-      { key: 'nextReceipt', label: 'Next receipt', value: receipt.label },
-      { key: 'priceNow', label: 'Price now', value: formatSenaCurrency(sku.productPrice, currency, language) },
+      { key: 'nextReceipt', label: 'Next receipt', value: receiptLabel },
+      { key: 'priceNow', label: 'Price now', value: formatSenaCurrency(currentPrice, currency, language) },
       { key: 'serviceExposure', label: 'Service exposure', value: `${dependencyImpact.length}` },
     ],
     selectedInterval: {
@@ -394,10 +417,13 @@ export function deriveSenaSkuDetailViewModel({
             .map((entry) => ({ observedAt: observation.input.observedAt, price: entry.price })),
         ),
         summary: `Regime history has ${(diagnostics?.regimeHistory ?? []).length} intervals and ${observations.flatMap((observation) => observation.input.retailPrices.filter((entry) => entry.skuId === skuId)).length} retail price markers.`,
+        currentPriceLabel: formatSenaCurrency(currentPrice, currency, language),
       },
       inventoryLane: {
         summary: `Inventory posterior latest mean ${formatSenaUnits(summary?.latestPosteriorUnits ?? sku.unitsInStock, language)}, reorder point ${formatSenaUnits(summary?.reorderPoint ?? null, language)}, safety stock ${formatSenaUnits(summary?.safetyStock ?? null, language)}.`,
         points: detail?.inventoryPosterior ?? [],
+        reorderPointLabel: formatSenaUnits(summary?.reorderPoint ?? null, language),
+        safetyStockLabel: formatSenaUnits(summary?.safetyStock ?? null, language),
       },
       flowLane: {
         summary: `Flow lane shows ${(detail?.demandPosterior ?? []).length} intervals of service demand, retail demand, receipts, and adjustments.`,
@@ -422,7 +448,7 @@ export function deriveSenaSkuDetailViewModel({
         quantityBand: `${formatSenaUnits(orderBand.low, language)}-${formatSenaUnits(orderBand.high, language)} units`,
         rationale: [
           `Cover ${summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—'} and stockout risk ${formatSenaPercent(summary?.stockoutRisk ?? null, language)}.`,
-          `Trigger ${formatSenaPercent(summary?.reorderTriggerProbability ?? null, language)} with pipeline ${formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language)}.`,
+          `Trigger ${formatSenaPercent(summary?.reorderTriggerProbability ?? null, language)} with pipeline ${formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language)} in transit.`,
           `Regime ${topRegime(summary, diagnostics)} with latest touch ${formatSenaDate(latestObservationAt, language)}.`,
         ],
       },
@@ -431,7 +457,7 @@ export function deriveSenaSkuDetailViewModel({
           `In transit ${formatSenaUnits(intervalPipeline?.inTransitMean ?? latestPipeline?.inTransitMean ?? 0, language)}`,
           `Order probability ${formatSenaPercent(intervalPipeline?.orderProbability ?? latestPipeline?.orderProbability ?? 0, language)}`,
           `Age ${formatSenaDays(intervalPipeline?.ageDaysMean ?? latestPipeline?.ageDaysMean ?? null, language)}`,
-          `Receipt ${receipt.label}`,
+          `Receipt ${receiptLabel}`,
         ],
         events: pipelineEvents,
       },

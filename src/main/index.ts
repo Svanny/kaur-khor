@@ -51,6 +51,41 @@ const managedCore = createManagedCoreController({
   resourcesPath: process.resourcesPath,
 });
 
+const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
+const SENA_READ_TIMEOUT_MS = 60_000;
+const senaReadCache = new Map<string, unknown>();
+const senaInflightReads = new Map<string, Promise<unknown>>();
+
+function invalidateSenaReadCache() {
+  senaReadCache.clear();
+  senaInflightReads.clear();
+}
+
+async function loadCachedSenaRead<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  if (senaReadCache.has(key)) {
+    return senaReadCache.get(key) as T;
+  }
+
+  const inflight = senaInflightReads.get(key);
+  if (inflight) {
+    return (await inflight) as T;
+  }
+
+  const request = loader()
+    .then((value) => {
+      senaReadCache.set(key, value);
+      senaInflightReads.delete(key);
+      return value;
+    })
+    .catch((error) => {
+      senaInflightReads.delete(key);
+      throw error;
+    });
+
+  senaInflightReads.set(key, request);
+  return (await request) as T;
+}
+
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1420,
@@ -90,9 +125,16 @@ async function boot() {
         `[desktop-data] migrated ${migratedFiles.join(', ')} from legacy Electron userData`,
       );
     }
-    const seeded = await managedCore.invoke<boolean>('sena.seedDevWorkspace');
-    if (seeded) {
-      console.log('[desktop-data] seeded local dev SENA workspace');
+    try {
+      const seeded = await managedCore.invoke<boolean>('sena.seedDevWorkspace', undefined, {
+        timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+      });
+      if (seeded) {
+        invalidateSenaReadCache();
+        console.log('[desktop-data] seeded local dev SENA workspace');
+      }
+    } catch (error) {
+      console.error('[desktop-data] failed to seed local dev SENA workspace', error);
     }
   }
   if (process.platform === 'darwin' && hasMacDockIconPair(projectRoot)) {
@@ -129,41 +171,85 @@ ipcMain.handle(IPC_CHANNELS.inventorySubmitReport, async (_event, payload: Stock
   managedCore.invoke<StockReport>('inventory.submitReport', payload),
 );
 ipcMain.handle(IPC_CHANNELS.senaGetCatalog, async () =>
-  managedCore.invoke<SenaCatalog | null>('sena.getCatalog'),
+  loadCachedSenaRead('catalog', () =>
+    managedCore.invoke<SenaCatalog | null>('sena.getCatalog', undefined, {
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+  ),
 );
 ipcMain.handle(IPC_CHANNELS.senaListObservations, async () =>
-  managedCore.invoke<SenaObservationRecord[]>('sena.listObservations'),
+  loadCachedSenaRead('observations', () =>
+    managedCore.invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+  ),
 );
-ipcMain.handle(IPC_CHANNELS.senaUpsertCatalog, async (_event, payload: SenaCatalog) =>
-  managedCore.invoke<SenaCatalog>('sena.upsertCatalog', payload),
-);
-ipcMain.handle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaObservationInput) =>
-  managedCore.invoke<SenaObservationRecord>('sena.ingestObservation', payload),
-);
-ipcMain.handle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) =>
-  managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload),
-);
-ipcMain.handle(IPC_CHANNELS.senaRetryRun, async (_event, payload: SenaRunLookupPayload) =>
-  managedCore.invoke<SenaAnalysisRunRecord>('sena.retryRun', payload),
-);
+ipcMain.handle(IPC_CHANNELS.senaUpsertCatalog, async (_event, payload: SenaCatalog) => {
+  const result = await managedCore.invoke<SenaCatalog>('sena.upsertCatalog', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  invalidateSenaReadCache();
+  return result;
+});
+ipcMain.handle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaObservationInput) => {
+  const result = await managedCore.invoke<SenaObservationRecord>('sena.ingestObservation', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  invalidateSenaReadCache();
+  return result;
+});
+ipcMain.handle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) => {
+  const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  invalidateSenaReadCache();
+  return result;
+});
+ipcMain.handle(IPC_CHANNELS.senaRetryRun, async (_event, payload: SenaRunLookupPayload) => {
+  const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.retryRun', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  invalidateSenaReadCache();
+  return result;
+});
 ipcMain.handle(IPC_CHANNELS.senaGetWorkspaceSummary, async () =>
-  managedCore.invoke<SenaWorkspaceSummary | null>('sena.getWorkspaceSummary'),
+  loadCachedSenaRead('workspace-summary', () =>
+    managedCore.invoke<SenaWorkspaceSummary | null>('sena.getWorkspaceSummary', undefined, {
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+  ),
 );
 ipcMain.handle(IPC_CHANNELS.senaGetSkuDetail, async (_event, payload: SenaSkuLookupPayload) =>
-  managedCore.invoke<SenaSkuDetail | null>('sena.getSkuDetail', { skuId: payload.skuId }),
+  loadCachedSenaRead(`sku-detail:${payload.skuId}`, () =>
+    managedCore.invoke<SenaSkuDetail | null>('sena.getSkuDetail', { skuId: payload.skuId }, {
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+  ),
 );
 ipcMain.handle(IPC_CHANNELS.senaGetDiagnostics, async () =>
-  managedCore.invoke<SenaDiagnostics | null>('sena.getDiagnostics'),
+  loadCachedSenaRead('diagnostics', () =>
+    managedCore.invoke<SenaDiagnostics | null>('sena.getDiagnostics', undefined, {
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+  ),
 );
 ipcMain.handle(
   IPC_CHANNELS.senaGetServiceDetail,
   async (_event, payload: SenaServiceLookupPayload) =>
-    managedCore.invoke<SenaServiceDetail | null>('sena.getServiceDetail', {
-      serviceId: payload.serviceId,
-    }),
+    loadCachedSenaRead(`service-detail:${payload.serviceId}`, () =>
+      managedCore.invoke<SenaServiceDetail | null>('sena.getServiceDetail', {
+        serviceId: payload.serviceId,
+      }, {
+        timeoutMs: SENA_READ_TIMEOUT_MS,
+      }),
+    ),
 );
 ipcMain.handle(IPC_CHANNELS.senaGetRunStatus, async (_event, payload: SenaRunLookupPayload) =>
-  managedCore.invoke<SenaAnalysisRunRecord | null>('sena.getRunStatus', payload),
+  loadCachedSenaRead(`run-status:${payload.runId}`, () =>
+    managedCore.invoke<SenaAnalysisRunRecord | null>('sena.getRunStatus', payload, {
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+  ),
 );
 
 ipcMain.handle(IPC_CHANNELS.preferencesGet, async () =>

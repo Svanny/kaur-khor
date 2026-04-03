@@ -22,8 +22,14 @@ interface PendingRequest {
   timeout: ReturnType<typeof setTimeout>;
 }
 
+const DEFAULT_CORE_TIMEOUT_MS = 15_000;
+
 export interface ManagedCoreProcess {
-  invoke: <T>(command: string, payload?: unknown) => Promise<T>;
+  invoke: <T>(
+    command: string,
+    payload?: unknown,
+    options?: { timeoutMs?: number },
+  ) => Promise<T>;
   isStopped: () => boolean;
   stop: () => Promise<void>;
 }
@@ -188,12 +194,17 @@ export async function startManagedCore(
     );
   });
 
-  const invoke = async <T>(commandName: string, payload?: unknown): Promise<T> => {
+  const invoke = async <T>(
+    commandName: string,
+    payload?: unknown,
+    options?: { timeoutMs?: number },
+  ): Promise<T> => {
     if (stopped || child.killed) {
       throw new Error('desktop core is not running');
     }
 
     const id = nextId++;
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_CORE_TIMEOUT_MS;
     const envelope: CoreRequestEnvelope = {
       id,
       command: commandName,
@@ -208,7 +219,7 @@ export async function startManagedCore(
           `timeout id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size}`,
         );
         rejectPromise(new Error(`desktop core timed out while handling ${commandName}`));
-      }, 15_000);
+      }, timeoutMs);
 
       pending.set(id, {
         resolve: (payloadValue) => {

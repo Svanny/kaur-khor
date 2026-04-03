@@ -11,10 +11,13 @@ use banji_sena_core::{
     SenaSkuDetail, SenaStockSnapshot, SenaWorkspaceSummary, SqliteSenaRepository,
 };
 use futures::executor::block_on;
-use std::{env, path::PathBuf};
+use std::{env, fs, path::PathBuf};
 use time::{Date, Duration, Month, PrimitiveDateTime, Time};
 
 const DEFAULT_OWNER_SUB: &str = "desktop-owner";
+const DEV_SEED_VERSION: &str = "cambodian-clothing-v3";
+const DEV_SEED_OBSERVATION_COUNT: usize = 30;
+const LEGACY_DEV_SEED_NOTE: &str = "Seeded dev observation";
 
 fn db_path() -> PathBuf {
     env::var_os("BANJI_DESKTOP_DATA_PATH")
@@ -32,6 +35,13 @@ fn legacy_store_path() -> PathBuf {
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."))
         .join("desktop-inventory-store.json")
+}
+
+fn dev_seed_marker_path() -> PathBuf {
+    db_path()
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("desktop-sena-dev-seed.txt")
 }
 
 fn with_legacy_store_env<T>(task: impl FnOnce() -> Result<T>) -> Result<T> {
@@ -371,40 +381,84 @@ fn sample_catalog() -> SenaCatalog {
     }
 }
 
-fn demand_multiplier(day_index: usize, date: Date) -> f64 {
-    let weekly = match day_index % 7 {
-        5 => 1.18,
-        6 => 1.26,
-        _ => 1.0,
-    };
-    let payday = if date.day() >= 24 { 1.12 } else { 1.0 };
-    let month_factor = match date.month() {
-        Month::April => 1.22,
-        Month::September => 1.12,
-        Month::November => 1.16,
-        Month::December => 1.18,
-        _ => 1.0,
-    };
-    weekly * payday * month_factor
+fn read_dev_seed_version() -> Option<String> {
+    fs::read_to_string(dev_seed_marker_path())
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
-fn service_promo_multiplier(service_id: &str, date: Date) -> f64 {
+fn write_dev_seed_version() -> Result<()> {
+    let path = dev_seed_marker_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, format!("{DEV_SEED_VERSION}\n"))?;
+    Ok(())
+}
+
+fn workspace_matches_current_dev_seed(
+    catalog: &SenaCatalog,
+    observations: &[SenaObservationRecord],
+) -> bool {
+    catalog.skus.len() == SEED_SKUS.len()
+        && catalog.services.len() == SEED_SERVICES.len()
+        && observations.len() == DEV_SEED_OBSERVATION_COUNT
+        && observations.iter().all(|observation| {
+            observation
+                .input
+                .notes
+                .as_deref()
+                .is_some_and(|notes| notes.starts_with("Daily Phnom Penh storefront closeout"))
+        })
+}
+
+fn looks_like_legacy_dev_seed(
+    catalog: Option<&SenaCatalog>,
+    observations: &[SenaObservationRecord],
+) -> bool {
+    if catalog.is_none() {
+        return false;
+    }
+    !observations.is_empty()
+        && observations.len() <= 14
+        && observations.iter().all(|observation| {
+            observation.input.notes.as_deref() == Some(LEGACY_DEV_SEED_NOTE)
+        })
+}
+
+fn demand_multiplier(day_index: usize, date: Date) -> f64 {
+    let weekly = match day_index % 7 {
+        4 => 1.06,
+        5 => 1.12,
+        6 => 1.16,
+        _ => 0.97,
+    };
+    let payday = if date.day() >= 25 { 1.08 } else { 1.0 };
+    let hot_weather_bump = if matches!(date.month(), Month::March | Month::April) {
+        1.05
+    } else {
+        1.0
+    };
+    weekly * payday * hot_weather_bump
+}
+
+fn service_promo_multiplier(service_id: &str, day_index: usize) -> f64 {
     match service_id {
-        "service-006" if date.month() == Month::April && (10..=17).contains(&date.day()) => 1.9,
-        "service-010" if date.month() == Month::September && (25..=30).contains(&date.day()) => 1.65,
-        "service-009" if date.month() == Month::November && (12..=17).contains(&date.day()) => 1.72,
-        "service-008" if date.month() == Month::August && (1..=21).contains(&date.day()) => 1.45,
-        "service-007" if matches!(date.month(), Month::January | Month::February | Month::May) => 1.18,
+        "service-004" if (6..=8).contains(&day_index) => 1.22,
+        "service-006" if (12..=15).contains(&day_index) => 1.28,
+        "service-005" if (19..=21).contains(&day_index) => 1.18,
+        "service-007" if (24..=27).contains(&day_index) => 1.2,
         _ => 1.0,
     }
 }
 
-fn retail_promo_multiplier(sku_id: &str, date: Date) -> f64 {
+fn retail_promo_multiplier(sku_id: &str, day_index: usize) -> f64 {
     match sku_id {
-        "sku-007" if date.month() == Month::April && (10..=17).contains(&date.day()) => 1.65,
-        "sku-010" if matches!(date.month(), Month::January | Month::February | Month::May) => 1.3,
-        "sku-006" if date.month() == Month::November && (10..=18).contains(&date.day()) => 1.45,
-        "sku-008" if date.month() == Month::August && (1..=21).contains(&date.day()) => 1.38,
+        "sku-001" if (12..=15).contains(&day_index) => 1.1,
+        "sku-006" if (19..=21).contains(&day_index) => 1.14,
+        "sku-007" if (24..=27).contains(&day_index) => 1.16,
+        "sku-008" if (9..=11).contains(&day_index) => 1.12,
         _ => 1.0,
     }
 }
@@ -419,9 +473,9 @@ fn observation_timestamp(date: Date) -> String {
 fn maybe_discounted_price(base_price: Option<f64>, date: Date, sku_id: &str) -> Option<f64> {
     base_price.map(|price| {
         let discount = match sku_id {
-            "sku-001" if date.month() == Month::April && (10..=17).contains(&date.day()) => 0.92,
-            "sku-006" if date.month() == Month::November && (12..=17).contains(&date.day()) => 0.90,
-            "sku-008" if date.month() == Month::August && (1..=21).contains(&date.day()) => 0.93,
+            "sku-001" if date.day() >= 13 && date.day() <= 16 => 0.95,
+            "sku-006" if date.day() >= 20 && date.day() <= 22 => 0.93,
+            "sku-008" if date.day() >= 10 && date.day() <= 12 => 0.95,
             _ => 1.0,
         };
         (price * discount * 100.0).round() / 100.0
@@ -430,22 +484,22 @@ fn maybe_discounted_price(base_price: Option<f64>, date: Date, sku_id: &str) -> 
 
 fn maybe_discounted_service_price(base_price: f64, date: Date, service_id: &str) -> f64 {
     let discount = match service_id {
-        "service-006" if date.month() == Month::April && (10..=17).contains(&date.day()) => 0.90,
-        "service-009" if date.month() == Month::November && (12..=17).contains(&date.day()) => 0.92,
-        "service-008" if date.month() == Month::August && (1..=21).contains(&date.day()) => 0.94,
+        "service-006" if date.day() >= 13 && date.day() <= 16 => 0.92,
+        "service-005" if date.day() >= 20 && date.day() <= 22 => 0.95,
+        "service-007" if date.day() >= 25 && date.day() <= 28 => 0.94,
         _ => 1.0,
     };
     (base_price * discount * 100.0).round() / 100.0
 }
 
 fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
-    let start = Date::from_calendar_date(2024, Month::January, 1)
+    let start = Date::from_calendar_date(2026, Month::March, 1)
         .expect("seed start date should be valid");
     let mut on_hand: Vec<f64> = SEED_SKUS.iter().map(|profile| profile.opening_units).collect();
     let mut pipeline: Vec<Vec<(usize, f64)>> = vec![Vec::new(); SEED_SKUS.len()];
-    let mut observations = Vec::with_capacity(365 * 2);
+    let mut observations = Vec::with_capacity(DEV_SEED_OBSERVATION_COUNT);
 
-    for day_index in 0..(365 * 2) {
+    for day_index in 0..DEV_SEED_OBSERVATION_COUNT {
         let date = start + Duration::days(day_index as i64);
         let timestamp = observation_timestamp(date);
         let seasonal = demand_multiplier(day_index, date);
@@ -473,10 +527,10 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
         }
 
         for (sku_index, profile) in SEED_SKUS.iter().enumerate() {
-            let promo = retail_promo_multiplier(profile.sku_id, date);
-            let phase = ((day_index as f64 / 11.0) + sku_index as f64 * 0.7).sin() * 0.18;
+            let promo = retail_promo_multiplier(profile.sku_id, day_index);
+            let phase = ((day_index as f64 / 6.0) + sku_index as f64 * 0.45).sin() * 0.08;
             let retail_demand = if profile.sold_as_product {
-                (profile.base_daily_demand * seasonal * promo * (1.0 + phase)).max(0.05)
+                (profile.base_daily_demand * seasonal * promo * (1.0 + phase)).clamp(0.05, 4.0)
             } else {
                 0.0
             };
@@ -490,7 +544,9 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
             let pipeline_units: f64 = pipeline[sku_index].iter().map(|(_, qty)| *qty).sum();
             if on_hand[sku_index] + pipeline_units <= profile.reorder_target_units {
                 let expected_lead = profile.lead_time_mean_days_hint.round() as usize;
-                let arrival_day = (day_index + expected_lead.max(2)).min(365 * 2 + 30);
+                let jitter = (day_index + sku_index) % 3;
+                let arrival_day =
+                    (day_index + expected_lead.max(2) + jitter).min(DEV_SEED_OBSERVATION_COUNT + 14);
                 let quantity = profile.reorder_batch_units;
                 pipeline[sku_index].push((arrival_day, quantity));
                 order_signals.push(SenaOrderSignal {
@@ -516,8 +572,8 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
         }
 
         for service in &SEED_SERVICES {
-            let promo = service_promo_multiplier(service.service_id, date);
-            let mask_pressure = service
+            let promo = service_promo_multiplier(service.service_id, day_index);
+            let availability = service
                 .mask
                 .iter()
                 .map(|(sku_id, usage)| {
@@ -525,13 +581,18 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
                         .iter()
                         .position(|profile| profile.sku_id == *sku_id)
                         .expect("seed sku should exist");
-                    on_hand[idx].max(0.0) * usage
+                    let stock_ratio =
+                        (on_hand[idx] / (SEED_SKUS[idx].opening_units * usage.max(0.35))).clamp(0.25, 1.4);
+                    stock_ratio
                 })
-                .sum::<f64>();
-            let rank_score = promo
-                * (1.0 + ((day_index as f64 / 17.0) + service.name.len() as f64).cos() * 0.12)
-                * (if service.bundle { 1.08 } else { 0.96 })
-                * mask_pressure.max(1.0);
+                .sum::<f64>()
+                / service.mask.len().max(1) as f64;
+            let popularity = 1.0 + ((day_index as f64 / 7.0) + service.name.len() as f64).cos() * 0.08;
+            let rank_score = (promo
+                * popularity
+                * if service.bundle { 1.06 } else { 0.98 }
+                * availability)
+                .clamp(0.2, 2.5);
             service_rank_scores.push((service.service_id.to_string(), rank_score));
             if service.mask.iter().any(|(sku_id, _)| {
                 let idx = SEED_SKUS
@@ -598,6 +659,26 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
                     ),
                 })
                 .collect()
+        } else if day_index == 14 {
+            SEED_SKUS
+                .iter()
+                .map(|profile| SenaLeadTimeHint {
+                    sku_id: profile.sku_id.to_string(),
+                    typical_days: Some(profile.lead_time_mean_days_hint),
+                    low_days: Some((profile.lead_time_mean_days_hint - profile.lead_time_std_days_hint).max(1.0)),
+                    high_days: Some(profile.lead_time_mean_days_hint + profile.lead_time_std_days_hint + 1.0),
+                    variability_class: Some(
+                        if profile.lead_time_std_days_hint <= 1.2 {
+                            "tight"
+                        } else if profile.lead_time_std_days_hint <= 2.0 {
+                            "steady"
+                        } else {
+                            "variable"
+                        }
+                        .to_string(),
+                    ),
+                })
+                .collect()
         } else {
             Vec::new()
         };
@@ -621,6 +702,19 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
     }
 
     observations
+}
+
+fn seed_workspace(repo: &SqliteSenaRepository, owner_sub: &str) -> Result<()> {
+    let catalog = sample_catalog();
+    block_on(repo.upsert_catalog(owner_sub, &catalog))?;
+    for observation in generate_dev_seed_observations() {
+        block_on(repo.insert_observation(owner_sub, &observation))?;
+    }
+
+    let run = block_on(trigger_analysis_run(repo, owner_sub, "sena-analysis-v1"))?;
+    let _ = block_on(execute_analysis_run(repo, &run.run_id, "sena-analysis-v1"))?;
+    write_dev_seed_version()?;
+    Ok(())
 }
 
 pub fn upsert_catalog(owner_sub: &str, catalog: &SenaCatalog) -> Result<()> {
@@ -692,19 +786,37 @@ pub fn ensure_dev_seed(owner_sub: &str) -> Result<bool> {
 
     let existing_catalog = block_on(repo.get_catalog(owner_sub))?;
     let existing_observations = block_on(repo.list_observations(owner_sub))?;
+    let marker_version = read_dev_seed_version();
+    let workspace_empty = existing_catalog.is_none() && existing_observations.is_empty();
 
-    if existing_catalog.is_some() || !existing_observations.is_empty() {
+    if workspace_empty {
+        seed_workspace(&repo, owner_sub)?;
+        return Ok(true);
+    }
+
+    if existing_catalog
+        .as_ref()
+        .is_some_and(|catalog| workspace_matches_current_dev_seed(catalog, &existing_observations))
+    {
+        if marker_version.as_deref() == Some(DEV_SEED_VERSION) {
+            return Ok(false);
+        }
+
+        block_on(repo.clear_owner(owner_sub))?;
+        seed_workspace(&repo, owner_sub)?;
+        return Ok(true);
+    }
+
+    let should_upgrade = marker_version
+        .as_deref()
+        .is_some_and(|version| version != DEV_SEED_VERSION)
+        || looks_like_legacy_dev_seed(existing_catalog.as_ref(), &existing_observations);
+
+    if !should_upgrade {
         return Ok(false);
     }
 
-    let catalog = sample_catalog();
-    block_on(repo.upsert_catalog(owner_sub, &catalog))?;
-    for observation in generate_dev_seed_observations() {
-        block_on(repo.insert_observation(owner_sub, &observation))?;
-    }
-
-    let run = block_on(trigger_analysis_run(&repo, owner_sub, "sena-analysis-v1"))?;
-    let _ = block_on(execute_analysis_run(&repo, &run.run_id, "sena-analysis-v1"))?;
-
+    block_on(repo.clear_owner(owner_sub))?;
+    seed_workspace(&repo, owner_sub)?;
     Ok(true)
 }

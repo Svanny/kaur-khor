@@ -258,7 +258,8 @@ describe('InventoryProvider', () => {
     expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
     expect(screen.getByTestId('latest-run').textContent).toBe('run-1');
     expect(window.banjiDesktop.sena.getCatalog).toHaveBeenCalledTimes(1);
-    expect(window.banjiDesktop.inventory.loadSnapshot).toHaveBeenCalledTimes(1);
+    expect(window.banjiDesktop.inventory.loadSnapshot).not.toHaveBeenCalled();
+    expect(window.banjiDesktop.inventory.listReports).not.toHaveBeenCalled();
     expect(window.banjiDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
     expect(window.banjiDesktop.sena.getRunStatus).toHaveBeenCalledWith({ runId: 'run-1' });
   });

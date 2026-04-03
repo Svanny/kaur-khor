@@ -18,7 +18,7 @@ function emptyBootstrap(): BootstrapSkuDetailResult | null {
 }
 
 export function SkuDetailRoute() {
-  const { currency, language } = usePreferences();
+  const { currency, language, t } = usePreferences();
   const inventory = useInventory();
   const { skuId = '' } = useParams();
   const [bootstrap, setBootstrap] = useState<BootstrapSkuDetailResult | null>(() => emptyBootstrap());
@@ -68,7 +68,7 @@ export function SkuDetailRoute() {
     return (
       <WorkspacePage>
         <div className="rounded-[2rem] border border-border/70 bg-background/85 p-6 shadow-sm">
-          <p className="text-sm text-muted-foreground">Preparing SENA view</p>
+          <p className="text-sm text-muted-foreground">{t('catalogSenaSkuPreparing')}</p>
         </div>
       </WorkspacePage>
     );
@@ -78,11 +78,11 @@ export function SkuDetailRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="SKU not found"
-          description="This SKU is not present in the current snapshot."
+          title={t('catalogSkuDetailNotFoundTitle')}
+          description={t('catalogSkuDetailNotFoundDescription')}
           action={
-            <Button asChild variant="outline">
-              <Link to="/catalog">Return to catalog</Link>
+          <Button asChild variant="outline">
+              <Link to="/catalog">{t('backToCatalog')}</Link>
             </Button>
           }
         />
@@ -99,17 +99,17 @@ export function SkuDetailRoute() {
       <div className="grid gap-6">
         {bootstrap.uiState === 'running' || isRefreshing ? (
           <div className="rounded-[1.4rem] border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground">
-            Refreshing SENA analysis
+            {t('catalogSenaSkuRefreshing')}
           </div>
         ) : null}
         {bootstrap.uiState === 'needs_observations' ? (
           <div className="rounded-[1.4rem] border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground">
-            SENA needs at least two observations
+            {t('catalogSenaSkuNeedsObservations')}
           </div>
         ) : null}
         {bootstrap.uiState === 'degraded' ? (
           <div className="rounded-[1.4rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {bootstrap.error ?? 'SENA detail is degraded, but SKU controls remain available.'}
+            {bootstrap.error ?? t('catalogSenaSkuDegraded')}
           </div>
         ) : null}
 

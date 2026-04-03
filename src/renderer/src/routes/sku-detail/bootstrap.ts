@@ -9,7 +9,7 @@ import type {
 } from '@shared/sena';
 import type { AppLanguage } from '@shared/inventory';
 import type { InventoryContextValue } from '@/state/inventory';
-import { hashSenaCatalog, seedSenaCatalogFromSnapshot } from './catalog-seed';
+import { hashSenaCatalog, projectInventorySnapshotFromSena, seedSenaCatalogFromSnapshot } from './catalog-seed';
 
 export type SkuDetailUiState = 'ready' | 'bootstrapping' | 'running' | 'needs_observations' | 'degraded';
 
@@ -30,6 +30,7 @@ type BootstrapInventory = Pick<
   InventoryContextValue,
   | 'ingestSenaObservation'
   | 'listSenaObservations'
+  | 'loadSenaCatalog'
   | 'loadInventorySnapshot'
   | 'listStockReports'
   | 'loadSenaDiagnostics'
@@ -163,12 +164,15 @@ export async function bootstrapSkuDetail({
   skuId: string;
   language?: AppLanguage;
 }): Promise<BootstrapSkuDetailResult> {
-  const snapshot = await inventory.loadInventorySnapshot();
-  const reports = await inventory.listStockReports();
-  const seededCatalog = seedSenaCatalogFromSnapshot(snapshot);
-  const catalogHash = hashSenaCatalog(seededCatalog);
+  const existingCatalog = await inventory.loadSenaCatalog();
+  const legacySnapshot = existingCatalog ? null : await inventory.loadInventorySnapshot();
+  const reports = existingCatalog ? [] : await inventory.listStockReports();
+  const catalog = existingCatalog ?? seedSenaCatalogFromSnapshot(legacySnapshot);
+  const catalogHash = hashSenaCatalog(catalog);
   const cachedCatalogHash = inventory.senaMeta.catalogHash;
-  await inventory.upsertSenaCatalog(seededCatalog);
+  if (!existingCatalog) {
+    await inventory.upsertSenaCatalog(catalog);
+  }
   inventory.updateSenaMeta({ catalogHash, lastBootstrapSkuId: skuId });
 
   let observations = await backfillLegacyReportsIntoSenaIfEmpty({
@@ -183,6 +187,7 @@ export async function bootstrapSkuDetail({
   let linkedServiceDetails: SenaServiceDetail[] = [];
   let uiState: SkuDetailUiState = observations.length < 2 ? 'needs_observations' : 'bootstrapping';
   let error: string | null = null;
+  let projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
 
   try {
     workspaceSummary = await inventory.loadSenaWorkspaceSummary();
@@ -201,14 +206,16 @@ export async function bootstrapSkuDetail({
     ) {
       uiState = 'running';
       await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v2' });
-      const reloaded = await reloadSenaSkuData({ inventory, skuId, snapshot });
+      projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
+      const reloaded = await reloadSenaSkuData({ inventory, skuId, snapshot: projectedSnapshot });
       workspaceSummary = reloaded.workspaceSummary;
       detail = reloaded.detail;
       diagnostics = reloaded.diagnostics;
       observations = reloaded.observations;
+      projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
       linkedServiceDetails = reloaded.linkedServiceDetails;
     } else if (observations.length >= 2) {
-      linkedServiceDetails = await loadLinkedServiceDetails(inventory, snapshot, skuId);
+      linkedServiceDetails = await loadLinkedServiceDetails(inventory, projectedSnapshot, skuId);
     }
     uiState = observations.length < 2 ? 'needs_observations' : detail ? 'ready' : 'degraded';
   } catch (nextError) {
@@ -217,7 +224,7 @@ export async function bootstrapSkuDetail({
   }
 
   return {
-    snapshot,
+    snapshot: projectedSnapshot,
     reports,
     observations,
     workspaceSummary,

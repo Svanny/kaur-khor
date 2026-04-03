@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { getTranslation } from '@/lib/translations';
 import { InventoryRoute } from './inventory';
 import { ServiceDetailRoute } from './service-detail';
 import { SkuDetailRoute } from './sku-detail';
@@ -17,7 +18,7 @@ vi.mock('../state/preferences', () => ({
   usePreferences: () => ({
     currency: 'USD',
     language: 'en',
-    t: (key: string) => key,
+    t: (key: string) => getTranslation('en', key as never),
   }),
 }));
 
@@ -235,7 +236,36 @@ describe('SENA routes', () => {
     });
 
     expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1');
+    expect(inventoryHook().loadInventorySnapshot).not.toHaveBeenCalled();
     expect(screen.getAllByText('Dependency impact').length).toBeGreaterThan(0);
+  });
+
+  test('renders SENA SKU detail even when the legacy snapshot is stale', async () => {
+    inventoryHook.mockReturnValue({
+      ...inventoryHook(),
+      loadInventorySnapshot: vi.fn(async () => ({
+        skus: [],
+        services: [],
+        ranking: [],
+        sist: {
+          status: { state: 'empty', updatedAt: null, reportCount: 0, confidence: 'low', reason: null },
+          settings: { targetServiceLevel: 0.95, forecastHorizonDays: 14, particleCount: 512, smoothingWindowReports: 90 },
+          asOf: null,
+          topRegime: null,
+          pendingReorderCount: 0,
+          highRiskSkuIds: [],
+          skuInsights: [],
+        },
+      })),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
+
+    await waitFor(() => {
+      expect(screen.getByText('SENA ledger')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('SKU not found')).not.toBeInTheDocument();
   });
 
   test('renders SENA service detail', async () => {

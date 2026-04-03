@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useInventory } from '@/state/inventory';
+import { usePreferences } from '@/state/preferences';
 import type { SenaSkuDetailViewModel } from './view-model';
 
 type ActionMode = 'stock' | 'order' | 'receipt' | 'price' | null;
@@ -32,6 +33,7 @@ export function SkuDetailActions({
   onComplete: () => Promise<void>;
 }) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
+  const { t } = usePreferences();
   const [mode, setMode] = useState<ActionMode>(null);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actionContext.latestObservationAt));
   const [notes, setNotes] = useState('');
@@ -190,11 +192,11 @@ export function SkuDetailActions({
         await submitLegacyReport(legacyPayload);
       }
       await ingestSenaObservation(senaPayload);
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v2' });
-      await onComplete();
-      setMode(null);
+        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v2' });
+        await onComplete();
+        setMode(null);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Mutation failed.');
+      setError(nextError instanceof Error ? nextError.message : t('catalogSenaSkuMutationFailed'));
     }
   }
 
@@ -210,23 +212,23 @@ export function SkuDetailActions({
     <>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" type="button" onClick={() => resetForm('stock')}>
-          Record stock
+          {t('catalogSenaSkuRecordStock')}
         </Button>
         <Button size="sm" type="button" variant="outline" onClick={() => resetForm('order')}>
-          Log order
+          {t('catalogSenaSkuLogOrder')}
         </Button>
         <Button size="sm" type="button" variant="outline" onClick={() => resetForm('receipt')}>
-          Log receipt
+          {t('catalogSenaSkuLogReceipt')}
         </Button>
         <Button
           disabled={!actionContext.soldAsProduct}
           size="sm"
-          title={actionContext.soldAsProduct ? undefined : 'This SKU is not sold directly at retail.'}
+          title={actionContext.soldAsProduct ? undefined : t('catalogSenaSkuPriceDisabledHint')}
           type="button"
           variant="outline"
           onClick={() => resetForm('price')}
         >
-          Update price
+          {t('catalogSenaSkuUpdatePrice')}
         </Button>
       </div>
 
@@ -235,18 +237,18 @@ export function SkuDetailActions({
           <SheetHeader>
             <SheetTitle>
               {mode === 'stock'
-                ? 'Record stock'
+                ? t('catalogSenaSkuRecordStock')
                 : mode === 'order'
-                  ? 'Log order'
+                  ? t('catalogSenaSkuLogOrder')
                   : mode === 'receipt'
-                    ? 'Log receipt'
-                    : 'Update price'}
+                    ? t('catalogSenaSkuLogReceipt')
+                    : t('catalogSenaSkuUpdatePrice')}
             </SheetTitle>
-            <SheetDescription>Capture one SKU-local observation and refresh the SENA posterior.</SheetDescription>
+            <SheetDescription>{t('catalogSenaSkuDialogDescription')}</SheetDescription>
           </SheetHeader>
           <div className="grid gap-4 px-4 pb-6">
             <label className="grid gap-2 text-sm">
-              <span>Observed at</span>
+              <span>{t('catalogSenaSkuObservedAt')}</span>
               <input
                 className="rounded-xl border border-border bg-background px-3 py-2"
                 required
@@ -259,11 +261,11 @@ export function SkuDetailActions({
             {(mode === 'stock' || mode === 'receipt') ? (
               <>
                 <label className="grid gap-2 text-sm">
-                  <span>Units in stock</span>
+                  <span>{t('catalogSenaSkuUnitsInStock')}</span>
                   <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="1" type="number" value={unitsInStock} onChange={(event) => setUnitsInStock(event.target.value)} />
                 </label>
                 <label className="grid gap-2 text-sm">
-                  <span>Cost per unit</span>
+                  <span>{t('catalogSenaSkuCostPerUnit')}</span>
                   <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="0.01" type="number" value={costPerUnit} onChange={(event) => setCostPerUnit(event.target.value)} />
                 </label>
               </>
@@ -271,7 +273,7 @@ export function SkuDetailActions({
 
             {mode === 'stock' && actionContext.soldAsProduct ? (
               <label className="grid gap-2 text-sm">
-                <span>Product price</span>
+                <span>{t('catalogSenaSkuProductPrice')}</span>
                 <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="0.01" type="number" value={productPrice} onChange={(event) => setProductPrice(event.target.value)} />
               </label>
             ) : null}
@@ -279,19 +281,19 @@ export function SkuDetailActions({
             {mode === 'order' ? (
               <>
                 <label className="grid gap-2 text-sm">
-                  <span>Approximate order quantity</span>
+                  <span>{t('catalogSenaSkuApproximateOrderQuantity')}</span>
                   <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="1" type="number" value={approximateOrderQuantity} onChange={(event) => setApproximateOrderQuantity(event.target.value)} />
                 </label>
                 <label className="grid gap-2 text-sm">
-                  <span>Typical lead time days</span>
+                  <span>{t('catalogSenaSkuTypicalLeadTimeDays')}</span>
                   <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="0.1" type="number" value={typicalLeadTimeDays} onChange={(event) => setTypicalLeadTimeDays(event.target.value)} />
                 </label>
                 <label className="grid gap-2 text-sm">
-                  <span>Low lead time days</span>
+                  <span>{t('catalogSenaSkuLowLeadTimeDays')}</span>
                   <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="0.1" type="number" value={lowLeadTimeDays} onChange={(event) => setLowLeadTimeDays(event.target.value)} />
                 </label>
                 <label className="grid gap-2 text-sm">
-                  <span>High lead time days</span>
+                  <span>{t('catalogSenaSkuHighLeadTimeDays')}</span>
                   <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="0.1" type="number" value={highLeadTimeDays} onChange={(event) => setHighLeadTimeDays(event.target.value)} />
                 </label>
               </>
@@ -299,20 +301,20 @@ export function SkuDetailActions({
 
             {mode === 'receipt' ? (
               <label className="grid gap-2 text-sm">
-                <span>Approximate receipt quantity</span>
+                <span>{t('catalogSenaSkuApproximateReceiptQuantity')}</span>
                 <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="1" type="number" value={approximateReceiptQuantity} onChange={(event) => setApproximateReceiptQuantity(event.target.value)} />
               </label>
             ) : null}
 
             {mode === 'price' ? (
               <label className="grid gap-2 text-sm">
-                <span>Product price</span>
+                <span>{t('catalogSenaSkuProductPrice')}</span>
                 <input className="rounded-xl border border-border bg-background px-3 py-2" min="0" step="0.01" type="number" value={productPrice} onChange={(event) => setProductPrice(event.target.value)} />
               </label>
             ) : null}
 
             <label className="grid gap-2 text-sm">
-              <span>Notes</span>
+              <span>{t('catalogSenaSkuNotes')}</span>
               <textarea className="min-h-24 rounded-xl border border-border bg-background px-3 py-2" value={notes} onChange={(event) => setNotes(event.target.value)} />
             </label>
 
@@ -320,7 +322,7 @@ export function SkuDetailActions({
           </div>
           <SheetFooter>
             <Button disabled={submitDisabled} type="button" onClick={() => void submit(mode as Exclude<ActionMode, null>)}>
-              {isSaving ? 'Saving…' : 'Save and refresh'}
+              {isSaving ? t('catalogSenaSkuSaving') : t('catalogSenaSkuSaveAndRefresh')}
             </Button>
           </SheetFooter>
         </SheetContent>

@@ -164,24 +164,20 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     try {
       readCacheRef.current.clear();
       inflightRef.current.clear();
-      const [snapshot, reports, catalog, workspaceSummary, diagnostics, observations] = await Promise.all([
-        window.banjiDesktop.inventory.loadSnapshot(),
-        window.banjiDesktop.inventory.listReports(),
+      const [catalog, workspaceSummary, diagnostics, observations] = await Promise.all([
         window.banjiDesktop.sena.getCatalog(),
         window.banjiDesktop.sena.getWorkspaceSummary(),
         window.banjiDesktop.sena.getDiagnostics(),
         window.banjiDesktop.sena.listObservations(),
       ]);
-      readCacheRef.current.set('legacy:snapshot', snapshot);
-      readCacheRef.current.set('legacy:reports', reports);
       readCacheRef.current.set('sena:catalog', catalog);
       readCacheRef.current.set('sena:summary', workspaceSummary);
       readCacheRef.current.set('sena:diagnostics', diagnostics);
       readCacheRef.current.set('sena:observations', observations);
       const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
       setState({
-        snapshot,
-        reports,
+        snapshot: null,
+        reports: [],
         catalog,
         diagnostics,
         error: null,

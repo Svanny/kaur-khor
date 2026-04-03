@@ -81,12 +81,25 @@ pub fn run_analysis(
             usage_map[service_idx].push((sku_idx, entry.usage_probability.unwrap_or(0.85)));
         }
     }
+    let sku_capacity_hints = catalog
+        .skus
+        .iter()
+        .map(|sku| {
+            observations
+                .iter()
+                .flat_map(|observation| observation.input.stock_snapshot.iter())
+                .filter(|entry| entry.sku_id == sku.sku_id)
+                .map(|entry| entry.units_in_stock)
+                .fold(0.0_f64, f64::max)
+                .max(12.0)
+        })
+        .collect::<Vec<_>>();
 
     let mut particles = initialize_particles(catalog, observations, &sku_index, particle_count, owner_sub);
     let mut ess_values = Vec::new();
     let mut resampling_count = 0_usize;
     let mut regime_history = Vec::new();
-    let mut sku_inventory_traces = vec![Vec::<f64>::new(); sku_count];
+    let mut sku_inventory_traces = vec![Vec::<SenaTrajectoryPoint>::new(); sku_count];
     let mut sku_interval_traces = vec![Vec::<SenaIntervalPosterior>::new(); sku_count];
     let mut sku_pipeline_traces = vec![Vec::<SenaPipelinePosteriorPoint>::new(); sku_count];
     let mut sku_lead_time_traces = vec![Vec::<SenaLeadTimePosteriorPoint>::new(); sku_count];
@@ -103,12 +116,22 @@ pub fn run_analysis(
         for regime in ["normal", "spike", "lull", "stockout_constrained", "promo", "correction"] {
             regime_votes.insert(regime.to_string(), 0.0_f64);
         }
-        let mut interval_service_means = vec![0.0_f64; service_count];
+        let mut sku_service_demand_sum = vec![0.0_f64; sku_count];
+        let mut sku_retail_demand_sum = vec![0.0_f64; sku_count];
+        let mut sku_unconstrained_demand_sum = vec![0.0_f64; sku_count];
+        let mut sku_realized_consumption_sum = vec![0.0_f64; sku_count];
+        let mut sku_adjustments_sum = vec![0.0_f64; sku_count];
+        let mut sku_receipts_sum = vec![0.0_f64; sku_count];
+        let mut sku_order_probability_sum = vec![0.0_f64; sku_count];
+        let mut sku_order_quantity_sum = vec![0.0_f64; sku_count];
+        let mut sku_receipt_quantity_sum = vec![0.0_f64; sku_count];
+        let mut sku_age_days_sum = vec![0.0_f64; sku_count];
 
         for particle in &particles {
             let mut next = particle.clone();
             let mut log_weight = 0.0;
             let mut dominant_regime = "normal";
+            let mut particle_service_total = 0.0;
             let ranking_pressure = (interval.service_ranks.len() + interval.retail_ranks.len()) as f64;
             let stockout_pressure =
                 (interval.service_stockouts.len() + interval.retail_stockouts.len()) as f64;
@@ -141,10 +164,10 @@ pub fn run_analysis(
                 next.service_rate[service_idx] =
                     (next.service_rate[service_idx] + drift + rank_bonus + promo_bonus + seasonal
                         - stockout_penalty)
-                        .max(-6.0);
+                        .clamp(-6.0, 2.4);
                 let expected = next.service_rate[service_idx].exp() * interval.delta_days.max(0.5);
                 let realized = sample_positive(&mut rng, expected, 0.35);
-                interval_service_means[service_idx] += realized;
+                particle_service_total += realized;
                 service_activity_acc[service_idx].push(realized);
                 if realized > expected * 1.25 {
                     dominant_regime = "spike";
@@ -165,6 +188,7 @@ pub fn run_analysis(
             }
 
             for (sku_idx, sku) in catalog.skus.iter().enumerate() {
+                let capacity_hint = sku_capacity_hints[sku_idx];
                 let retail_rank_bonus = interval
                     .retail_ranks
                     .get(sku.sku_id.as_str())
@@ -172,9 +196,10 @@ pub fn run_analysis(
                     .unwrap_or(0.0);
                 let drift = sample_normal(&mut rng) * 0.10;
                 next.retail_rate[sku_idx] =
-                    (next.retail_rate[sku_idx] + drift + retail_rank_bonus).max(-7.0);
+                    (next.retail_rate[sku_idx] + drift + retail_rank_bonus).clamp(-7.0, 2.2);
                 let retail_demand = if sku.sold_as_product {
                     sample_positive(&mut rng, next.retail_rate[sku_idx].exp() * interval.delta_days, 0.25)
+                        .min(capacity_hint * 0.45)
                 } else {
                     0.0
                 };
@@ -183,8 +208,10 @@ pub fn run_analysis(
                     (next.service_rate.iter().map(|value| value.exp()).sum::<f64>() / service_count.max(1) as f64
                         + retail_demand)
                         * next.lead_time_mean[sku_idx].max(1.0);
+                let expected_lead_time_demand = expected_lead_time_demand.min(capacity_hint * 2.5);
                 let reorder_point = expected_lead_time_demand
                     + 1.64 * (expected_lead_time_demand.sqrt() + next.lead_time_std[sku_idx]);
+                let reorder_point = reorder_point.min(capacity_hint * 3.2);
 
                 let signal = interval.order_signal_by_sku.get(sku.sku_id.as_str());
                 let order_probability: f64 =
@@ -200,6 +227,7 @@ pub fn run_analysis(
                     signal
                         .and_then(|(_, approx, _)| if *approx > 0.0 { Some(*approx) } else { None })
                         .unwrap_or_else(|| sample_positive(&mut rng, reorder_point.max(1.0), 0.20))
+                        .min(capacity_hint * 1.8)
                 } else {
                     0.0
                 };
@@ -208,7 +236,7 @@ pub fn run_analysis(
                 } else {
                     next.age_days[sku_idx] + interval.delta_days
                 };
-                next.pipeline[sku_idx] += order_quantity;
+                next.pipeline[sku_idx] = (next.pipeline[sku_idx] + order_quantity).min(capacity_hint * 4.0);
 
                 if let Some(hint) = interval.lead_time_hint_by_sku.get(sku.sku_id.as_str()) {
                     if let Some(typical_days) = hint.typical_days {
@@ -226,6 +254,8 @@ pub fn run_analysis(
                     next.lead_time_std[sku_idx] =
                         (next.lead_time_std[sku_idx].ln() + sample_normal(&mut rng) * 0.03).exp();
                 }
+                next.lead_time_mean[sku_idx] = next.lead_time_mean[sku_idx].clamp(1.0, 21.0);
+                next.lead_time_std[sku_idx] = next.lead_time_std[sku_idx].clamp(0.3, 7.0);
 
                 let receipt_quantity = signal
                     .and_then(|(entry, _, approx_receipt)| {
@@ -272,34 +302,17 @@ pub fn run_analysis(
                     log_weight -= 0.4;
                 }
 
-                sku_inventory_traces[sku_idx].push(next.inventory[sku_idx]);
-                sku_interval_traces[sku_idx].push(SenaIntervalPosterior {
-                    interval_index: interval.index,
-                    start_at: interval.start_at.clone(),
-                    end_at: interval.end_at.clone(),
-                    delta_days: interval.delta_days,
-                    service_demand_mean: interval_service_means.iter().sum::<f64>() / service_count.max(1) as f64,
-                    retail_demand_mean: retail_demand,
-                    unconstrained_demand_mean: unconstrained,
-                    realized_consumption_mean: realized_consumption,
-                    adjustments_mean: adjustment,
-                    receipts_mean: receipt_quantity,
-                });
-                sku_pipeline_traces[sku_idx].push(SenaPipelinePosteriorPoint {
-                    interval_index: interval.index,
-                    in_transit_mean: next.pipeline[sku_idx],
-                    order_probability: order_probability.clamp(0.0, 1.0),
-                    order_quantity_mean: order_quantity,
-                    receipt_quantity_mean: receipt_quantity,
-                    age_days_mean: next.age_days[sku_idx],
-                });
-                sku_lead_time_traces[sku_idx].push(SenaLeadTimePosteriorPoint {
-                    interval_index: interval.index,
-                    log_mean_days: next.lead_time_mean[sku_idx].ln(),
-                    log_std_days: next.lead_time_std[sku_idx].ln(),
-                    mean_days: next.lead_time_mean[sku_idx],
-                    std_days: next.lead_time_std[sku_idx],
-                });
+                sku_service_demand_sum[sku_idx] +=
+                    particle_service_total / service_count.max(1) as f64;
+                sku_retail_demand_sum[sku_idx] += retail_demand;
+                sku_unconstrained_demand_sum[sku_idx] += unconstrained;
+                sku_realized_consumption_sum[sku_idx] += realized_consumption;
+                sku_adjustments_sum[sku_idx] += adjustment;
+                sku_receipts_sum[sku_idx] += receipt_quantity;
+                sku_order_probability_sum[sku_idx] += order_probability.clamp(0.0, 1.0);
+                sku_order_quantity_sum[sku_idx] += order_quantity;
+                sku_receipt_quantity_sum[sku_idx] += receipt_quantity;
+                sku_age_days_sum[sku_idx] += next.age_days[sku_idx];
             }
 
             *regime_votes.entry(dominant_regime.to_string()).or_default() += 1.0;
@@ -313,6 +326,69 @@ pub fn run_analysis(
         }
         ess_values.push(ess);
         particles = resampled;
+        for (sku_idx, _sku) in catalog.skus.iter().enumerate() {
+            let inventory_samples = particles
+                .iter()
+                .map(|particle| particle.inventory[sku_idx])
+                .collect::<Vec<_>>();
+            let pipeline_samples = particles
+                .iter()
+                .map(|particle| particle.pipeline[sku_idx])
+                .collect::<Vec<_>>();
+            let lead_time_mean_samples = particles
+                .iter()
+                .map(|particle| particle.lead_time_mean[sku_idx])
+                .collect::<Vec<_>>();
+            let lead_time_std_samples = particles
+                .iter()
+                .map(|particle| particle.lead_time_std[sku_idx])
+                .collect::<Vec<_>>();
+            let particle_denominator = particles.len().max(1) as f64;
+
+            sku_inventory_traces[sku_idx].push(SenaTrajectoryPoint {
+                at: interval.end_at.clone(),
+                mean: mean(&inventory_samples),
+                low: quantile(&inventory_samples, 0.1),
+                high: quantile(&inventory_samples, 0.9),
+            });
+            sku_interval_traces[sku_idx].push(SenaIntervalPosterior {
+                interval_index: interval.index,
+                start_at: interval.start_at.clone(),
+                end_at: interval.end_at.clone(),
+                delta_days: interval.delta_days,
+                service_demand_mean: sku_service_demand_sum[sku_idx] / particle_denominator,
+                retail_demand_mean: sku_retail_demand_sum[sku_idx] / particle_denominator,
+                unconstrained_demand_mean: sku_unconstrained_demand_sum[sku_idx] / particle_denominator,
+                realized_consumption_mean: sku_realized_consumption_sum[sku_idx] / particle_denominator,
+                adjustments_mean: sku_adjustments_sum[sku_idx] / particle_denominator,
+                receipts_mean: sku_receipts_sum[sku_idx] / particle_denominator,
+            });
+            sku_pipeline_traces[sku_idx].push(SenaPipelinePosteriorPoint {
+                interval_index: interval.index,
+                in_transit_mean: mean(&pipeline_samples),
+                order_probability: sku_order_probability_sum[sku_idx] / particle_denominator,
+                order_quantity_mean: sku_order_quantity_sum[sku_idx] / particle_denominator,
+                receipt_quantity_mean: sku_receipt_quantity_sum[sku_idx] / particle_denominator,
+                age_days_mean: sku_age_days_sum[sku_idx] / particle_denominator,
+            });
+            sku_lead_time_traces[sku_idx].push(SenaLeadTimePosteriorPoint {
+                interval_index: interval.index,
+                log_mean_days: mean(
+                    &lead_time_mean_samples
+                        .iter()
+                        .map(|value| value.ln())
+                        .collect::<Vec<_>>(),
+                ),
+                log_std_days: mean(
+                    &lead_time_std_samples
+                        .iter()
+                        .map(|value| value.ln())
+                        .collect::<Vec<_>>(),
+                ),
+                mean_days: mean(&lead_time_mean_samples),
+                std_days: mean(&lead_time_std_samples),
+            });
+        }
         let total_votes = regime_votes.values().sum::<f64>().max(1.0);
         for value in regime_votes.values_mut() {
             *value /= total_votes;
@@ -340,8 +416,7 @@ pub fn run_analysis(
     let mut sku_details = Vec::new();
     for (sku_idx, sku) in catalog.skus.iter().enumerate() {
         let inventory_trace = &sku_inventory_traces[sku_idx];
-        let latest_inventory = *inventory_trace.last().unwrap_or(&0.0);
-        let mean_inventory = mean(inventory_trace);
+        let latest_inventory = inventory_trace.last().map(|point| point.mean).unwrap_or(0.0);
         let demand_trace = &sku_interval_traces[sku_idx];
         let lead_time_trace = &sku_lead_time_traces[sku_idx];
         let pipeline_trace = &sku_pipeline_traces[sku_idx];
@@ -392,8 +467,8 @@ pub fn run_analysis(
         let summary = SenaSkuSummary {
             sku_id: sku.sku_id.clone(),
             latest_posterior_units: latest_inventory,
-            credible_interval_low: quantile(inventory_trace, 0.1),
-            credible_interval_high: quantile(inventory_trace, 0.9),
+            credible_interval_low: inventory_trace.last().map(|point| point.low).unwrap_or(0.0),
+            credible_interval_high: inventory_trace.last().map(|point| point.high).unwrap_or(0.0),
             demand_per_day_mean,
             stockout_risk,
             days_of_cover,
@@ -405,29 +480,14 @@ pub fn run_analysis(
             lead_time_std_days,
             regime_probabilities,
         };
-        let inventory_points = observations
-            .iter()
-            .skip(1)
-            .enumerate()
-            .map(|(index, observation)| {
-                let upto = &inventory_trace[..=index.min(inventory_trace.len().saturating_sub(1))];
-                SenaTrajectoryPoint {
-                    at: observation.input.observed_at.clone(),
-                    mean: mean(upto),
-                    low: quantile(upto, 0.1),
-                    high: quantile(upto, 0.9),
-                }
-            })
-            .collect::<Vec<_>>();
         sku_details.push(SenaSkuDetail {
             summary: summary.clone(),
-            inventory_posterior: inventory_points,
+            inventory_posterior: inventory_trace.clone(),
             demand_posterior: demand_trace.clone(),
             pipeline_posterior: pipeline_trace.clone(),
             lead_time_posterior: lead_time_trace.clone(),
         });
         sku_summaries.push(summary);
-        let _ = mean_inventory;
     }
 
     sku_summaries.sort_by(|left, right| {
@@ -482,6 +542,8 @@ pub fn run_analysis(
         });
     }
 
+    let diagnostic_denominator =
+        (intervals.len().max(1) * sku_count.max(1) * particle_count.max(1)) as f64;
     let diagnostics = SenaDiagnostics {
         effective_sample_size_mean: mean(&ess_values),
         resampling_count,
@@ -492,9 +554,8 @@ pub fn run_analysis(
             .copied()
             .unwrap_or(0.0),
         seasonality_active: intervals.len() >= 6,
-        posterior_predictive_error_mean: posterior_predictive_error_sum
-            / (intervals.len().max(1) * sku_count.max(1)) as f64,
-        coverage_estimate: covered_count / (intervals.len().max(1) * sku_count.max(1)) as f64,
+        posterior_predictive_error_mean: posterior_predictive_error_sum / diagnostic_denominator,
+        coverage_estimate: (covered_count / diagnostic_denominator).clamp(0.0, 1.0),
         regime_history: regime_history.clone(),
     };
 
@@ -670,13 +731,16 @@ fn resample(particles: Vec<Particle>, weights: Vec<f64>, rng: &mut StdRng) -> (V
     (resampled, ess, true)
 }
 
-fn smooth_inventory_traces(traces: &mut [Vec<f64>]) {
+fn smooth_inventory_traces(traces: &mut [Vec<SenaTrajectoryPoint>]) {
     for trace in traces {
         if trace.len() < 3 {
             continue;
         }
         for index in (1..trace.len() - 1).rev() {
-            trace[index] = (trace[index - 1] + trace[index] + trace[index + 1]) / 3.0;
+            trace[index].mean = (trace[index - 1].mean + trace[index].mean + trace[index + 1].mean) / 3.0;
+            trace[index].low = (trace[index - 1].low + trace[index].low + trace[index + 1].low) / 3.0;
+            trace[index].high =
+                (trace[index - 1].high + trace[index].high + trace[index + 1].high) / 3.0;
         }
     }
 }
