@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
@@ -7,12 +7,20 @@ import type { SenaDiagnostics, SenaObservationRecord, SenaSkuDetail, SenaWorkspa
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { SkuDetailRoute } from './sku-detail';
+import { buildLeadTimeHintFromInputs } from './sku-detail/actions';
 import { SkuDetailEvidence } from './sku-detail/evidence';
 import { SkuDetailExposure } from './sku-detail/exposure';
 import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay } from './sku-detail/format';
+import { SkuDetailLedger } from './sku-detail/ledger';
 import {
+  buildSparsePolylineSegments,
   classifyWheelIntent,
+  deriveAxisContentWidth,
   deriveAnchoredZoomScrollLeft,
+  deriveCenteredIntervalScrollLeft,
+  deriveLabelGutterOffset,
+  deriveSlotCenterX,
+  deriveSlotLeftX,
   deriveVisibleWindow,
   intervalLabelForWidth,
   intervalTooltipLabel,
@@ -21,7 +29,7 @@ import {
 } from './sku-detail/ledger';
 import { backfillLegacyReportsIntoSenaIfEmpty, mapLegacyReportToSenaObservation, shouldTriggerBootstrapRun } from './sku-detail/bootstrap';
 import { hashSenaCatalog, seedSenaCatalogFromSnapshot } from './sku-detail/catalog-seed';
-import { deriveRecommendedOrderBand, deriveSenaSkuDetailViewModel, extractEvidence } from './sku-detail/view-model';
+import { deriveIntervalPriceMarkers, deriveRecommendedOrderBand, deriveSenaSkuDetailViewModel, extractEvidence, type SenaSkuDetailViewModel } from './sku-detail/view-model';
 
 const inventoryHook = vi.fn();
 
@@ -125,6 +133,15 @@ const observations: SenaObservationRecord[] = [
           approximateReceiptQuantity: null,
         },
       ],
+      leadTimeHints: [
+        {
+          skuId: 'sku-1',
+          typicalDays: 5,
+          lowDays: 4,
+          highDays: 6,
+          variabilityClass: 'tight',
+        },
+      ],
       stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 9, costPerUnit: 5, productPrice: 10 }],
     },
   },
@@ -179,6 +196,8 @@ const detail: SenaSkuDetail = {
       logStdDays: 0.2,
       meanDays: 5,
       stdDays: 1.5,
+      observedVariabilityClass: 'tight',
+      observedRelativeWidth: 0.4,
     },
   ],
 };
@@ -225,6 +244,133 @@ function renderWithProviders(route: string, element: ReactNode, path: string) {
       </NavigationHistoryProvider>
     </MemoryRouter>,
   );
+}
+
+function buildLedgerModel(intervalCount: number): SenaSkuDetailViewModel {
+  const intervals = Array.from({ length: intervalCount }, (_, index) => {
+    const day = String(index + 1).padStart(2, '0');
+    return {
+      intervalIndex: index,
+      startAt: `2026-03-${day}T09:00:00Z`,
+      endAt: `2026-03-${day}T21:00:00Z`,
+    };
+  });
+
+  return {
+    identity: {
+      skuId: 'sku-ledger',
+      name: 'Ledger Test SKU',
+      description: 'Test',
+      soldAsProduct: true,
+      statusLabel: 'Healthy',
+      statusTone: 'success',
+      topRegime: 'normal',
+      legacyFallbackAvailable: false,
+    },
+    heartbeat: {
+      headlineUnits: '12 units likely on hand',
+      credibleBandLabel: '10-14 credible band',
+      coverLabel: '6d cover',
+      reorderLabel: 'reorder trigger 12%',
+      pipelineLabel: '1 open order',
+      receiptWindowLabel: '2-4 days',
+      variabilityLabel: 'Normal variability',
+      heroSentence: 'Steady signal',
+    },
+    ribbon: [],
+    selectedInterval: {
+      index: intervalCount - 1,
+      label: 'Mar 12',
+    },
+    lanes: {
+      regimePriceLane: {
+        intervals: intervals.map((interval, index) => ({
+          ...interval,
+          dominantRegime: index % 4 === 0 ? 'promo' : 'normal',
+          regimeProbabilities: index % 4 === 0 ? { promo: 0.7, normal: 0.3 } : { normal: 0.8, lull: 0.2 },
+        })),
+        priceMarkers: intervals.map((interval, index) => ({
+          observedAt: interval.startAt,
+          price: 10 + index,
+          intervalIndex: interval.intervalIndex,
+        })),
+        summary: 'Price summary',
+        currentPriceLabel: '$19.00',
+      },
+      inventoryLane: {
+        summary: 'Inventory summary',
+        points: intervals.map((interval, index) => ({
+          at: interval.endAt,
+          mean: 20 - index,
+          low: 18 - index,
+          high: 22 - index,
+        })),
+        reorderPointLabel: '10',
+        safetyStockLabel: '4',
+      },
+      flowLane: {
+        summary: 'Flow summary',
+        intervals: intervals.map((interval, index) => ({
+          intervalIndex: interval.intervalIndex,
+          startAt: interval.startAt,
+          endAt: interval.endAt,
+          deltaDays: 1,
+          serviceDemandMean: 1 + (index % 3),
+          retailDemandMean: index % 2,
+          unconstrainedDemandMean: 2 + (index % 3),
+          realizedConsumptionMean: 1.5 + (index % 2),
+          adjustmentsMean: 0,
+          receiptsMean: index % 5 === 0 ? 2 : 0,
+        })),
+      },
+      pipelineLane: {
+        summary: 'Pipeline summary',
+        intervals: intervals.map((interval, index) => ({
+          intervalIndex: interval.intervalIndex,
+          inTransitMean: index % 4 === 0 ? 3 : 0,
+          orderProbability: 0.2,
+          orderQuantityMean: index % 4 === 0 ? 4 : 0,
+          receiptQuantityMean: index % 5 === 0 ? 2 : 0,
+          ageDaysMean: 1 + (index % 3),
+        })),
+      },
+    },
+    rail: {
+      selectedIntervalSummary: {
+        label: 'Mar 12',
+        dominantRegime: 'normal',
+        serviceDemand: '2',
+        retailDemand: '1',
+        receipts: '0',
+        adjustments: '0',
+      },
+      actNow: {
+        headline: 'Hold',
+        quantityBand: '0-0 units',
+        rationale: ['Reason 1', 'Reason 2', 'Reason 3'],
+      },
+      openPipeline: {
+        summary: ['0 open orders', '0 in transit', 'No delays', 'Stable'],
+        events: [],
+      },
+      exposure: [],
+      nextTouch: {
+        dateLabel: 'Tomorrow',
+        reason: 'Check stock',
+      },
+    },
+    dependencyImpact: [],
+    evidence: [],
+    actionContext: {
+      currentStock: 12,
+      costPerUnit: 5,
+      leadTimeVariability: 'normal',
+      productPrice: 19,
+      latestObservationAt: intervals.at(-1)?.endAt ?? null,
+      soldAsProduct: true,
+    },
+    uiState: 'ready',
+  };
 }
 
 describe('SKU detail SENA helpers', () => {
@@ -329,11 +475,108 @@ describe('SKU detail SENA helpers', () => {
     ).toBe(1920);
   });
 
+  test('uses one shared axis contract for slot left and center positions', () => {
+    expect(
+      deriveAxisContentWidth({
+        itemCount: 3,
+        slotWidth: 72,
+        axisStartPadding: 20,
+        axisEndPadding: 36,
+      }),
+    ).toBe(272);
+    expect(deriveSlotLeftX({ index: 0, slotWidth: 72, axisStartPadding: 20 })).toBe(20);
+    expect(deriveSlotCenterX({ index: 0, slotWidth: 72, axisStartPadding: 20 })).toBe(56);
+    expect(deriveSlotCenterX({ index: 2, slotWidth: 72, axisStartPadding: 20 })).toBe(200);
+  });
+
+  test('centers selected scroll targeting using the same shared axis padding', () => {
+    expect(
+      deriveCenteredIntervalScrollLeft({
+        contentWidth: 272,
+        intervalIndex: 2,
+        axisStartPadding: 20,
+        slotWidth: 72,
+        viewportWidth: 160,
+      }),
+    ).toBe(112);
+  });
+
+  test('keeps label placement inside a reserved top gutter for highest points', () => {
+    expect(deriveLabelGutterOffset({ plotY: 0 })).toBe(32);
+    expect(deriveLabelGutterOffset({ plotY: 21 })).toBe(92);
+  });
+
   test('compresses regime labels into short pill initials', () => {
     expect(regimeCompactLabel('promo')).toBe('P');
     expect(regimeCompactLabel('spike')).toBe('S');
     expect(regimeCompactLabel('normal')).toBe('N');
     expect(regimeCompactLabel('stockout-constrained')).toBe('SC');
+  });
+
+  test('maps retail price markers to interval slots without drawing an extra regime point', () => {
+    const intervalMarkers = deriveIntervalPriceMarkers({
+      intervals: [
+        {
+          intervalIndex: 0,
+          startAt: '2026-03-27T00:00:00Z',
+          endAt: '2026-03-27T23:59:59Z',
+          dominantRegime: 'promo',
+          regimeProbabilities: { promo: 1 },
+        },
+        {
+          intervalIndex: 1,
+          startAt: '2026-03-28T00:00:00Z',
+          endAt: '2026-03-28T23:59:59Z',
+          dominantRegime: 'promo',
+          regimeProbabilities: { promo: 1 },
+        },
+      ],
+      observations: [
+        {
+          observationId: 'obs-a',
+          ownerSub: 'desktop-owner',
+          input: {
+            ...observations[0].input,
+            observedAt: '2026-03-27T08:00:00Z',
+            retailPrices: [{ skuId: 'sku-1', price: 9.5 }],
+          },
+        },
+        {
+          observationId: 'obs-b',
+          ownerSub: 'desktop-owner',
+          input: {
+            ...observations[0].input,
+            observedAt: '2026-03-27T19:00:00Z',
+            retailPrices: [{ skuId: 'sku-1', price: 10 }],
+          },
+        },
+        {
+          observationId: 'obs-c',
+          ownerSub: 'desktop-owner',
+          input: {
+            ...observations[0].input,
+            observedAt: '2026-03-28T09:00:00Z',
+            retailPrices: [{ skuId: 'sku-1', price: 11 }],
+          },
+        },
+      ],
+      skuId: 'sku-1',
+    });
+
+    expect(intervalMarkers).toEqual([
+      { observedAt: '2026-03-27T19:00:00Z', price: 10, intervalIndex: 0 },
+      { observedAt: '2026-03-28T09:00:00Z', price: 11, intervalIndex: 1 },
+    ]);
+
+    const sparseSeries = buildSparsePolylineSegments(intervalMarkers, [0, 1], 72, 42, {
+      topPadding: 6,
+      bottomPadding: 6,
+    });
+
+    expect(sparseSeries.points).toHaveLength(2);
+    expect(sparseSeries.points[0]?.x).toBe(36);
+    expect(sparseSeries.points[1]?.x).toBe(108);
+    expect(sparseSeries.segments).toHaveLength(1);
   });
 
   test('derives hero and order-band data from the SENA detail payload', () => {
@@ -373,6 +616,7 @@ describe('SKU detail SENA helpers', () => {
       'order_placed',
       'price_changed',
       'retail_stockout',
+      'lead_time_hint',
       'notes',
       'stock_reported',
       'receipt_logged',
@@ -380,6 +624,21 @@ describe('SKU detail SENA helpers', () => {
       'retail_stockout',
       'notes',
     ]);
+    expect(extractEvidence(observations, 'sku-1')[4]?.detail).toContain('Tight variability');
+  });
+
+  test('builds a lead-time hint payload from typical days and ordinal variability', () => {
+    const hint = buildLeadTimeHintFromInputs({
+      skuId: 'sku-1',
+      typicalLeadTimeDays: '5',
+      variabilityClass: 'wide',
+    });
+
+    expect(hint?.skuId).toBe('sku-1');
+    expect(hint?.typicalDays).toBe(5);
+    expect(hint?.variabilityClass).toBe('wide');
+    expect(hint?.lowDays).toBeCloseTo(2.75);
+    expect(hint?.highDays).toBeCloseTo(7.25);
   });
 
   test('pages evidence timeline rows in groups of five', () => {
@@ -459,6 +718,99 @@ describe('SKU detail SENA helpers', () => {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
     }
   });
+
+  test('renders regime highlight and price line legend instead of pill-style regime buttons', async () => {
+    inventoryHook.mockReturnValue({
+      snapshot,
+      reports: [report],
+      catalog: seedSenaCatalogFromSnapshot(snapshot),
+      diagnostics,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations,
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      workspaceSummary: workspace,
+      reload: vi.fn(),
+      loadInventorySnapshot: vi.fn(async () => snapshot),
+      listStockReports: vi.fn(async () => [report]),
+      submitLegacyReport: vi.fn(async () => report),
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+      loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
+      ingestSenaObservation: vi.fn(async () => observations[0]),
+      listSenaObservations: vi.fn(async () => observations),
+      loadSenaObservations: vi.fn(async () => observations),
+      triggerSenaRun: vi.fn(),
+      retrySenaRun: vi.fn(),
+      loadSenaWorkspaceSummary: vi.fn(async () => workspace),
+      loadSenaSkuDetail: vi.fn(async () => detail),
+      loadSenaServiceDetail: vi.fn(async () => null),
+      loadSenaDiagnostics: vi.fn(async () => diagnostics),
+      loadSenaRunStatus: vi.fn(async () => null),
+      updateSenaMeta: vi.fn(),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
+
+    await waitFor(() => {
+      expect(screen.getByText(/Regime$/)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Retail price line')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-regime-slot="true"]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('button[data-regime-slot="true"][data-selected="true"]').length).toBe(1);
+  });
+
+  test('keeps the current scroll position after selecting a different interval', async () => {
+    const resizeCallbacks: Array<() => void> = [];
+    const originalResizeObserver = globalThis.ResizeObserver;
+
+    class ResizeObserverMock {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+
+      observe() {
+        resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
+      }
+
+      disconnect() {}
+    }
+
+    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+
+    const LedgerHarness = () => {
+      const [selectedIntervalIndex, setSelectedIntervalIndex] = React.useState<number | null>(0);
+      return <SkuDetailLedger model={buildLedgerModel(12)} selectedIntervalIndex={selectedIntervalIndex} setSelectedIntervalIndex={setSelectedIntervalIndex} />;
+    };
+
+    try {
+      const { container } = render(<LedgerHarness />);
+      const intervalScroller = container.querySelector('.hidden-scrollbar.max-w-full.overflow-x-auto') as HTMLDivElement | null;
+
+      expect(intervalScroller).not.toBeNull();
+
+      Object.defineProperty(intervalScroller, 'clientWidth', {
+        configurable: true,
+        value: 240,
+      });
+      resizeCallbacks.forEach((callback) => callback());
+
+      intervalScroller!.scrollLeft = 144;
+      fireEvent.scroll(intervalScroller!);
+
+      await waitFor(() => {
+        expect(intervalScroller!.scrollLeft).toBe(144);
+      });
+
+      fireEvent.click(screen.getByLabelText('Mar 10'));
+
+      await waitFor(() => {
+        expect(intervalScroller!.scrollLeft).toBe(144);
+      });
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
+  });
 });
 
 describe('SKU detail route', () => {
@@ -502,5 +854,100 @@ describe('SKU detail route', () => {
 
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     expect(screen.getByText('Record stock')).toBeInTheDocument();
+  });
+
+  test('renders the log order sheet with Banji field primitives and shared select trigger', async () => {
+    inventoryHook.mockReturnValue({
+      snapshot,
+      reports: [report],
+      catalog: seedSenaCatalogFromSnapshot(snapshot),
+      diagnostics,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations,
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      workspaceSummary: workspace,
+      reload: vi.fn(),
+      loadInventorySnapshot: vi.fn(async () => snapshot),
+      listStockReports: vi.fn(async () => [report]),
+      submitLegacyReport: vi.fn(async () => report),
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+      loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
+      ingestSenaObservation: vi.fn(async () => observations[0]),
+      listSenaObservations: vi.fn(async () => observations),
+      loadSenaObservations: vi.fn(async () => observations),
+      triggerSenaRun: vi.fn(),
+      retrySenaRun: vi.fn(),
+      loadSenaWorkspaceSummary: vi.fn(async () => workspace),
+      loadSenaSkuDetail: vi.fn(async () => detail),
+      loadSenaServiceDetail: vi.fn(async () => null),
+      loadSenaDiagnostics: vi.fn(async () => diagnostics),
+      loadSenaRunStatus: vi.fn(async () => null),
+      updateSenaMeta: vi.fn(),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
+
+    await waitFor(() => {
+      expect(screen.getByText('Record stock')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Log order'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toBeInTheDocument();
+    expect(document.querySelector('select')).toBeNull();
+  });
+
+  test('shows the loading state instead of not-found while a sku detail bootstrap is in flight', async () => {
+    let resolveSnapshot: ((value: InventorySnapshot) => void) | null = null;
+
+    inventoryHook.mockReturnValue({
+      snapshot: null,
+      reports: [],
+      catalog: null,
+      diagnostics: null,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations: [],
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      workspaceSummary: null,
+      reload: vi.fn(),
+      loadInventorySnapshot: vi.fn(() => new Promise<InventorySnapshot>((resolve) => {
+        resolveSnapshot = resolve;
+      })),
+      listStockReports: vi.fn(async () => [report]),
+      submitLegacyReport: vi.fn(async () => report),
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+      loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
+      ingestSenaObservation: vi.fn(async () => observations[0]),
+      listSenaObservations: vi.fn(async () => [observations[0]]),
+      loadSenaObservations: vi.fn(async () => [observations[0]]),
+      triggerSenaRun: vi.fn(),
+      retrySenaRun: vi.fn(),
+      loadSenaWorkspaceSummary: vi.fn(async () => workspace),
+      loadSenaSkuDetail: vi.fn(async () => detail),
+      loadSenaServiceDetail: vi.fn(async () => null),
+      loadSenaDiagnostics: vi.fn(async () => diagnostics),
+      loadSenaRunStatus: vi.fn(async () => null),
+      updateSenaMeta: vi.fn(),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
+
+    expect(screen.getByText('Preparing SENA view')).toBeInTheDocument();
+    expect(screen.queryByText('SKU not found')).not.toBeInTheDocument();
+
+    resolveSnapshot?.(snapshot);
+    await waitFor(() => {
+      expect(screen.getByText('SENA needs at least two observations')).toBeInTheDocument();
+    });
   });
 });

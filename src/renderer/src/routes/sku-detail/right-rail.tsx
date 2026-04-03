@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -13,7 +14,7 @@ function RailBlock({
   tooltip: string;
 }) {
   return (
-    <section className="overflow-hidden rounded-[1.4rem] border border-border/60 bg-background/92">
+    <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[1.4rem]`}>
       <div className="border-b border-border/60 px-4 py-3">
         <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
@@ -69,19 +70,6 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
           ) : (
             <p className="text-sm text-muted-foreground">{t('catalogSenaSkuOpenPipelineEmpty')}</p>
           )}
-        </div>
-      </RailBlock>
-
-      <RailBlock title={t('catalogSenaSkuExposure')} tooltip={t('catalogSenaSkuRailExposureTooltip')}>
-        <div className="divide-y divide-border/60">
-          {model.rail.exposure.map((item) => (
-            <div key={item.serviceId} className="py-3 first:pt-0 last:pb-0">
-              <p className="font-medium text-foreground">{item.serviceName}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{item.severity}</p>
-              <p className="text-sm text-muted-foreground">Usage {item.usageProbability}</p>
-              <p className="text-sm text-muted-foreground">Bottleneck {item.bottleneckProbability}</p>
-            </div>
-          ))}
         </div>
       </RailBlock>
 

@@ -84,6 +84,19 @@ export function formatSenaDateTime(value: string | null, language: AppLanguage) 
 }
 
 const ENGLISH_MONTH_INITIALS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'] as const;
+const ENGLISH_MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+export function formatSenaWideIntervalDate(value: string | null) {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return '—';
+  }
+  const monthShort = ENGLISH_MONTH_SHORT[date.getMonth()] ?? '—';
+  return `${monthShort}-${date.getDate()}`;
+}
 
 export function formatSenaCompactIntervalDate(value: string | null) {
   if (!value) {
@@ -93,8 +106,8 @@ export function formatSenaCompactIntervalDate(value: string | null) {
   if (Number.isNaN(date.valueOf())) {
     return '—';
   }
-  const monthInitial = ENGLISH_MONTH_INITIALS[date.getUTCMonth()] ?? '—';
-  return `${monthInitial}-${date.getUTCDate()}`;
+  const monthInitial = ENGLISH_MONTH_INITIALS[date.getMonth()] ?? '—';
+  return `${monthInitial}-${date.getDate()}`;
 }
 
 export function formatSenaCompactIntervalDay(value: string | null) {
@@ -105,5 +118,5 @@ export function formatSenaCompactIntervalDay(value: string | null) {
   if (Number.isNaN(date.valueOf())) {
     return '—';
   }
-  return String(date.getUTCDate());
+  return String(date.getDate());
 }

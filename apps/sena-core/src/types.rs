@@ -1,3 +1,4 @@
+use crate::lead_time::{derive_variability_class, validate_lead_time_range, SenaLeadTimeVariabilityClass};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -126,7 +127,7 @@ pub struct SenaLeadTimeHint {
     pub typical_days: Option<f64>,
     pub low_days: Option<f64>,
     pub high_days: Option<f64>,
-    pub variability_class: Option<String>,
+    pub variability_class: Option<SenaLeadTimeVariabilityClass>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -292,6 +293,8 @@ pub struct SenaLeadTimePosteriorPoint {
     pub log_std_days: f64,
     pub mean_days: f64,
     pub std_days: f64,
+    pub observed_variability_class: Option<SenaLeadTimeVariabilityClass>,
+    pub observed_relative_width: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -368,6 +371,33 @@ impl SenaObservationInput {
                 return Err(anyhow!("duplicate stockSnapshot skuId '{}'", snapshot.sku_id));
             }
         }
+        for hint in &self.lead_time_hints {
+            validate_identifier("leadTimeHints[].skuId", &hint.sku_id)?;
+            if let Some(days) = hint.typical_days {
+                if !days.is_finite() || days < 0.0 {
+                    return Err(anyhow!("leadTimeHints[].typicalDays must be >= 0"));
+                }
+            }
+            if let Some(days) = hint.low_days {
+                if !days.is_finite() || days < 0.0 {
+                    return Err(anyhow!("leadTimeHints[].lowDays must be >= 0"));
+                }
+            }
+            if let Some(days) = hint.high_days {
+                if !days.is_finite() || days < 0.0 {
+                    return Err(anyhow!("leadTimeHints[].highDays must be >= 0"));
+                }
+            }
+            validate_lead_time_range(hint.low_days, hint.high_days)?;
+            if hint.variability_class.is_none()
+                && derive_variability_class(None, hint.low_days, hint.high_days).is_none()
+                && hint.typical_days.is_none()
+            {
+                return Err(anyhow!(
+                    "leadTimeHints[] must include typicalDays, variabilityClass, or low/high range"
+                ));
+            }
+        }
         Ok(())
     }
 }
@@ -385,4 +415,73 @@ pub fn validate_non_empty(label: &str, value: &str) -> Result<()> {
         return Err(anyhow!("{label} must not be empty"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SenaLeadTimeHint, SenaObservationInput, SenaStockSnapshot};
+    use crate::lead_time::SenaLeadTimeVariabilityClass;
+
+    #[test]
+    fn observation_validation_accepts_explicit_variability_class() {
+        let observation = SenaObservationInput {
+            observed_at: "2026-04-03T00:00:00Z".to_string(),
+            stock_snapshot: vec![SenaStockSnapshot {
+                sku_id: "sku-1".to_string(),
+                units_in_stock: 10.0,
+                cost_per_unit: Some(2.0),
+                product_price: Some(4.0),
+            }],
+            service_rankings: Vec::new(),
+            retail_rankings: Vec::new(),
+            service_stockouts: Vec::new(),
+            retail_stockouts: Vec::new(),
+            order_signals: Vec::new(),
+            service_prices: Vec::new(),
+            retail_prices: Vec::new(),
+            lead_time_hints: vec![SenaLeadTimeHint {
+                sku_id: "sku-1".to_string(),
+                typical_days: Some(4.0),
+                low_days: None,
+                high_days: None,
+                variability_class: Some(SenaLeadTimeVariabilityClass::Wide),
+            }],
+            notes: None,
+        };
+
+        observation.validate().expect("observation should validate");
+    }
+
+    #[test]
+    fn observation_validation_rejects_empty_lead_time_hint() {
+        let observation = SenaObservationInput {
+            observed_at: "2026-04-03T00:00:00Z".to_string(),
+            stock_snapshot: vec![SenaStockSnapshot {
+                sku_id: "sku-1".to_string(),
+                units_in_stock: 10.0,
+                cost_per_unit: Some(2.0),
+                product_price: Some(4.0),
+            }],
+            service_rankings: Vec::new(),
+            retail_rankings: Vec::new(),
+            service_stockouts: Vec::new(),
+            retail_stockouts: Vec::new(),
+            order_signals: Vec::new(),
+            service_prices: Vec::new(),
+            retail_prices: Vec::new(),
+            lead_time_hints: vec![SenaLeadTimeHint {
+                sku_id: "sku-1".to_string(),
+                typical_days: None,
+                low_days: None,
+                high_days: None,
+                variability_class: None,
+            }],
+            notes: None,
+        };
+
+        let error = observation.validate().expect_err("validation should fail");
+        assert!(error
+            .to_string()
+            .contains("leadTimeHints[] must include typicalDays, variabilityClass, or low/high range"));
+    }
 }

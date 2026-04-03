@@ -200,8 +200,22 @@ describe('SENA routes', () => {
         activityIntervalLow: 2,
         activityIntervalHigh: 4,
         bottleneckProbability: 0.3,
-        contributors: [],
-        regimeTimeline: [],
+        contributors: [
+          {
+            skuId: 'sku-1',
+            usageProbability: 0.85,
+            bottleneckProbability: 0.3,
+          },
+        ],
+        regimeTimeline: [
+          {
+            intervalIndex: 0,
+            startAt: '2026-04-01T00:00:00Z',
+            endAt: '2026-04-01T23:59:00Z',
+            dominantRegime: 'normal',
+            regimeProbabilities: { normal: 1 },
+          },
+        ],
       })),
       loadSenaRunStatus: vi.fn(async () => null),
       updateSenaMeta: vi.fn(),
@@ -232,8 +246,10 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByText('SENA ledger')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
     });
+
+    expect(screen.getByText('SENA')).toBeInTheDocument();
 
     expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1');
     expect(inventoryHook().loadInventorySnapshot).not.toHaveBeenCalled();
@@ -262,8 +278,10 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByText('SENA ledger')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
     });
+
+    expect(screen.getByText('SENA')).toBeInTheDocument();
 
     expect(screen.queryByText('SKU not found')).not.toBeInTheDocument();
   });
@@ -272,9 +290,10 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByText('Contributors')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Service viability ledger' })).toBeInTheDocument();
     });
 
     expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
+    expect(screen.getByText('Dependency impact')).toBeInTheDocument();
   });
 });

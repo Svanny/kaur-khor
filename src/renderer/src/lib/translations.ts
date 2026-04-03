@@ -291,8 +291,9 @@ const en = {
   catalogSenaSkuProductPrice: 'Product price',
   catalogSenaSkuApproximateOrderQuantity: 'Approximate order quantity',
   catalogSenaSkuTypicalLeadTimeDays: 'Typical lead time days',
-  catalogSenaSkuLowLeadTimeDays: 'Low lead time days',
-  catalogSenaSkuHighLeadTimeDays: 'High lead time days',
+  catalogSenaSkuLeadTimeVariability: 'Lead time variability',
+  catalogSenaSkuLeadTimeVariabilityHint:
+    'Capture the supplier timing band for this order observation.',
   catalogSenaSkuApproximateReceiptQuantity: 'Approximate receipt quantity',
   catalogSenaSkuNotes: 'Notes',
   catalogSenaSkuSaving: 'Saving…',
@@ -442,7 +443,24 @@ const en = {
     'The identifier is fixed for this SKU.',
   catalogSkuPlanningInputsTitle: 'Planning inputs',
   catalogSkuPlanningInputsDescription:
-    'Optional lead-time calibration. Update it when planning assumptions need a refresh.',
+    'Optional lead-time observations. Update them when supplier timing assumptions need a refresh.',
+  catalogSkuEditorDetailsTooltip:
+    'Edit the canonical SKU identity fields here. The identifier stays fixed once the SKU already exists.',
+  catalogSkuEditorPricingTooltip:
+    'Use this section for unit cost and whether the SKU is sold directly with a retail price.',
+  catalogSkuEditorPlanningTooltip:
+    'Planning inputs help SENA estimate replenishment timing when historical evidence is limited or changing. Variability is tracked as a time series of ordinal observations, not a fixed standard deviation setting.',
+  catalogSkuEditorSellAsProductTooltip:
+    'Enable this when the SKU is sold directly to customers instead of only supporting services or bundles.',
+  catalogSkuEditorRetailPriceTooltip:
+    'Retail price is only relevant when this SKU is sold as a product.',
+  catalogSkuEditorLeadTimeMeanTooltip:
+    'Enter the expected average supplier lead time in days.',
+  catalogSkuEditorLeadTimeVariabilityTooltip:
+    'Choose how widely supplier timing usually moves around the typical lead time.',
+  catalogSkuEditorLeadTimeVariabilityHint:
+    'Pick the class that best matches recent supplier timing spread.',
+  catalogSkuLeadTimeVariabilityPlaceholder: 'Select variability',
   catalogSkuPlanningInputsShow: 'Show inputs',
   catalogSkuPlanningInputsHide: 'Hide inputs',
   catalogServiceLinkedSkusTitle: 'Dependency contributors',
@@ -814,6 +832,7 @@ const en = {
   fieldSoldAsProduct: 'Sell as product',
   fieldProductPrice: 'Selling price',
   fieldLeadTimeMeanDays: 'Lead time mean (days)',
+  fieldLeadTimeVariability: 'Lead time variability',
   fieldLeadTimeStdDays: 'Lead time std. dev. (days)',
   fieldPrice: 'Service price',
   fieldLinkedSkus: 'Linked SKUs',
@@ -1065,7 +1084,31 @@ const km: Partial<Record<TranslationKey, string>> = {
   catalogSkuRecentReportsTitle: 'របាយការណ៍ថ្មីៗ',
   catalogSkuEditorTitleNew: 'SKU ថ្មី',
   catalogSkuEditorTitleEdit: 'កែ SKU',
+  catalogSkuEditorDescriptionNew:
+    'បង្កើតកំណត់ត្រា SKU ថ្មី ហើយបន្តទៅទំព័រព័ត៌មានរបស់វាសម្រាប់ការធ្វើផែនការ និងការងារស្តុកបន្ថែម។',
+  catalogSkuEditorDescriptionEdit:
+    'កែប្រែឈ្មោះ SKU ថ្លៃដើម តម្លៃលក់ និងទិន្នន័យផែនការ។',
+  catalogSkuEditorIdentifierDescription: 'សម្គាល់នេះត្រូវបានចាក់សោសម្រាប់ SKU នេះ។',
   catalogSkuPlanningInputsTitle: 'ទិន្នន័យផែនការ',
+  catalogSkuPlanningInputsDescription:
+    'សញ្ញារយៈពេលដឹកជញ្ជូនស្រេចចិត្ត។ កែវានៅពេលស្មានអំពីពេលវេលាអ្នកផ្គត់ផ្គង់ត្រូវការធ្វើបច្ចុប្បន្នភាព។',
+  catalogSkuEditorDetailsTooltip:
+    'កែព័ត៌មានសម្គាល់សំខាន់របស់ SKU នៅទីនេះ។ សម្គាល់នឹងត្រូវបានចាក់សោនៅពេល SKU មានរួចហើយ។',
+  catalogSkuEditorPricingTooltip:
+    'ប្រើផ្នែកនេះសម្រាប់ថ្លៃដើមក្នុងមួយឯកតា និងកំណត់ថាតើ SKU នេះលក់ផ្ទាល់ជាមួយតម្លៃលក់ឬអត់។',
+  catalogSkuEditorPlanningTooltip:
+    'ទិន្នន័យផែនការជួយ SENA ប៉ាន់ស្មានពេលវេលាបំពេញស្តុកវិញ នៅពេលភស្តុតាងប្រវត្តិមានកម្រឬកំពុងផ្លាស់ប្តូរ។ កម្រិតប្រែប្រួលត្រូវបានតាមដានជាស៊េរីពេលវេលានៃការសង្កេត ordinal មិនមែនជាការកំណត់គម្លាតស្តង់ដារថេរទេ។',
+  catalogSkuEditorSellAsProductTooltip:
+    'បើកជម្រើសនេះ នៅពេល SKU នេះត្រូវបានលក់ផ្ទាល់ទៅអតិថិជន មិនមែនប្រើតែសម្រាប់សេវាកម្ម ឬបណ្ដុំទេ។',
+  catalogSkuEditorRetailPriceTooltip:
+    'តម្លៃលក់ត្រូវការតែពេល SKU នេះត្រូវបានលក់ជាផលិតផលប៉ុណ្ណោះ។',
+  catalogSkuEditorLeadTimeMeanTooltip:
+    'បញ្ចូលរយៈពេលដឹកជញ្ជូនមធ្យមដែលរំពឹងទុក គិតជាថ្ងៃ។',
+  catalogSkuEditorLeadTimeVariabilityTooltip:
+    'ជ្រើសថាតើពេលវេលាអ្នកផ្គត់ផ្គង់ជាទូទៅប្រែប្រួលប៉ុន្មានជុំវិញរយៈពេលធម្មតា។',
+  catalogSkuEditorLeadTimeVariabilityHint:
+    'ជ្រើសកម្រិតដែលសមនឹងការប្រែប្រួលរបស់អ្នកផ្គត់ផ្គង់ថ្មីៗបំផុត។',
+  catalogSkuLeadTimeVariabilityPlaceholder: 'ជ្រើសកម្រិតប្រែប្រួល',
   catalogServiceRecentActivityTitle: 'សកម្មភាពថ្មីៗ',
   catalogServiceEditorTitleNew: 'សេវាកម្មថ្មី',
   catalogServiceEditorTitleEdit: 'កែសេវាកម្ម',
@@ -1102,6 +1145,9 @@ const km: Partial<Record<TranslationKey, string>> = {
   fieldCostPerUnit: 'ថ្លៃដើមក្នុងមួយឯកតា',
   fieldSoldAsProduct: 'លក់ជាផលិតផល',
   fieldProductPrice: 'តម្លៃលក់',
+  fieldLeadTimeMeanDays: 'រយៈពេលដឹកជញ្ជូនមធ្យម (ថ្ងៃ)',
+  fieldLeadTimeVariability: 'កម្រិតប្រែប្រួលរយៈពេលដឹកជញ្ជូន',
+  fieldLeadTimeStdDays: 'គម្លាតស្តង់ដាររយៈពេលដឹកជញ្ជូន (ថ្ងៃ)',
   fieldPrice: 'តម្លៃសេវាកម្ម',
   fieldSkuSelectionHint: 'ជ្រើស SKU ដែលមានក្នុងសេវាកម្មនេះ។',
   editorDetailsTitle: 'ព័ត៌មានលម្អិត',

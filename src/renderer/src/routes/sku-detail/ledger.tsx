@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
 import { ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
+import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePreferences } from '@/state/preferences';
-import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate } from './format';
+import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaWideIntervalDate } from './format';
 import { SectionLabel, SectionTitle } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
 
@@ -13,20 +14,79 @@ const MIN_SLOT_WIDTH = 40;
 const MAX_SLOT_WIDTH = 120;
 const INTERVAL_PILL_GAP = 0;
 const SCROLL_EDGE_TOLERANCE = 6;
+const AXIS_START_PADDING = 20;
+const AXIS_END_PADDING = 36;
+const LABEL_GUTTER_HEIGHT = 32;
+const CHART_PLOT_HEIGHT = 120;
+const CHART_VIEWBOX_HEIGHT = 42;
+const FLOW_LABEL_GUTTER_HEIGHT = 64;
+const FLOW_LANE_PLOT_HEIGHT = 112;
+
+export function deriveAxisContentWidth({
+  itemCount,
+  slotWidth,
+  axisStartPadding = AXIS_START_PADDING,
+  axisEndPadding = AXIS_END_PADDING,
+}: {
+  itemCount: number;
+  slotWidth: number;
+  axisStartPadding?: number;
+  axisEndPadding?: number;
+}) {
+  return Math.max(axisStartPadding + itemCount * slotWidth + axisEndPadding, 0);
+}
+
+export function deriveSlotLeftX({
+  index,
+  slotWidth,
+  axisStartPadding = AXIS_START_PADDING,
+}: {
+  index: number;
+  slotWidth: number;
+  axisStartPadding?: number;
+}) {
+  return axisStartPadding + index * slotWidth;
+}
+
+export function deriveSlotCenterX({
+  index,
+  slotWidth,
+  axisStartPadding = AXIS_START_PADDING,
+}: {
+  index: number;
+  slotWidth: number;
+  axisStartPadding?: number;
+}) {
+  return deriveSlotLeftX({ index, slotWidth, axisStartPadding }) + slotWidth / 2;
+}
+
+export function deriveLabelGutterOffset({
+  plotY,
+  plotHeight = CHART_PLOT_HEIGHT,
+  gutterHeight = LABEL_GUTTER_HEIGHT,
+  viewBoxHeight = CHART_VIEWBOX_HEIGHT,
+}: {
+  plotY: number;
+  plotHeight?: number;
+  gutterHeight?: number;
+  viewBoxHeight?: number;
+}) {
+  return gutterHeight + (plotY / viewBoxHeight) * plotHeight;
+}
 
 function intervalEntries(model: SenaSkuDetailViewModel) {
-  const entries = new Map<number, { intervalIndex: number; startAt: string | null }>();
+  const entries = new Map<number, { intervalIndex: number; startAt: string | null; endAt: string | null }>();
   for (const interval of model.lanes.regimePriceLane.intervals) {
-    entries.set(interval.intervalIndex, { intervalIndex: interval.intervalIndex, startAt: interval.startAt });
+    entries.set(interval.intervalIndex, { intervalIndex: interval.intervalIndex, startAt: interval.startAt, endAt: interval.endAt });
   }
   for (const interval of model.lanes.flowLane.intervals) {
     if (!entries.has(interval.intervalIndex)) {
-      entries.set(interval.intervalIndex, { intervalIndex: interval.intervalIndex, startAt: interval.startAt });
+      entries.set(interval.intervalIndex, { intervalIndex: interval.intervalIndex, startAt: interval.startAt, endAt: interval.endAt });
     }
   }
   for (const interval of model.lanes.pipelineLane.intervals) {
     if (!entries.has(interval.intervalIndex)) {
-      entries.set(interval.intervalIndex, { intervalIndex: interval.intervalIndex, startAt: null });
+      entries.set(interval.intervalIndex, { intervalIndex: interval.intervalIndex, startAt: null, endAt: null });
     }
   }
   return [...entries.values()].sort((left, right) => left.intervalIndex - right.intervalIndex);
@@ -37,6 +97,7 @@ function buildPolyline(
   slotWidth: number,
   height: number,
   options?: {
+    axisStartPadding?: number;
     topPadding?: number;
     bottomPadding?: number;
   },
@@ -47,15 +108,24 @@ function buildPolyline(
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
+  const axisStartPadding = options?.axisStartPadding ?? 0;
   const topPadding = options?.topPadding ?? 0;
   const bottomPadding = options?.bottomPadding ?? 0;
   const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
   return values
     .map((value, index) => {
-      const x = slotWidth * index + slotWidth / 2;
+      const x = deriveSlotCenterX({ index, slotWidth, axisStartPadding });
       const y = topPadding + drawableHeight - ((value - min) / range) * drawableHeight;
       return `${x},${y}`;
     })
+    .join(' ');
+}
+
+function formatRegimeLabel(regime: string) {
+  return regime
+    .split(/[_\s-]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 }
 
@@ -64,6 +134,7 @@ function buildPointCoordinates(
   slotWidth: number,
   height: number,
   options?: {
+    axisStartPadding?: number;
     topPadding?: number;
     bottomPadding?: number;
   },
@@ -74,14 +145,190 @@ function buildPointCoordinates(
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
+  const axisStartPadding = options?.axisStartPadding ?? 0;
   const topPadding = options?.topPadding ?? 0;
   const bottomPadding = options?.bottomPadding ?? 0;
   const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
   return values.map((value, index) => ({
-    x: slotWidth * index + slotWidth / 2,
+    x: deriveSlotCenterX({ index, slotWidth, axisStartPadding }),
     y: topPadding + drawableHeight - ((value - min) / range) * drawableHeight,
     value,
   }));
+}
+
+function buildPointCoordinatesWithDomain(
+  values: number[],
+  slotWidth: number,
+  height: number,
+  domainMin: number,
+  domainMax: number,
+  options?: {
+    axisStartPadding?: number;
+    topPadding?: number;
+    bottomPadding?: number;
+  },
+) {
+  if (values.length === 0) {
+    return [];
+  }
+  const min = Math.min(domainMin, domainMax);
+  const max = Math.max(domainMin, domainMax);
+  const range = max - min || 1;
+  const axisStartPadding = options?.axisStartPadding ?? 0;
+  const topPadding = options?.topPadding ?? 0;
+  const bottomPadding = options?.bottomPadding ?? 0;
+  const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
+
+  return values.map((value, index) => ({
+    x: deriveSlotCenterX({ index, slotWidth, axisStartPadding }),
+    y: topPadding + drawableHeight - ((value - min) / range) * drawableHeight,
+    value,
+  }));
+}
+
+function buildPolylineWithDomain(
+  values: number[],
+  slotWidth: number,
+  height: number,
+  domainMin: number,
+  domainMax: number,
+  options?: {
+    axisStartPadding?: number;
+    topPadding?: number;
+    bottomPadding?: number;
+  },
+) {
+  return buildPointCoordinatesWithDomain(values, slotWidth, height, domainMin, domainMax, options)
+    .map((point) => `${point.x},${point.y}`)
+    .join(' ');
+}
+
+function buildTrajectoryBandPath(
+  lows: number[],
+  highs: number[],
+  slotWidth: number,
+  height: number,
+  domainMin: number,
+  domainMax: number,
+  options?: {
+    axisStartPadding?: number;
+    topPadding?: number;
+    bottomPadding?: number;
+  },
+) {
+  if (lows.length === 0 || highs.length === 0 || lows.length !== highs.length) {
+    return '';
+  }
+
+  const lowCoordinates = buildPointCoordinatesWithDomain(lows, slotWidth, height, domainMin, domainMax, options);
+  const highCoordinates = buildPointCoordinatesWithDomain(highs, slotWidth, height, domainMin, domainMax, options);
+  if (lowCoordinates.length === 0 || highCoordinates.length === 0) {
+    return '';
+  }
+
+  const upperPath = highCoordinates.map((point) => `${point.x},${point.y}`).join(' L ');
+  const lowerPath = [...lowCoordinates].reverse().map((point) => `${point.x},${point.y}`).join(' L ');
+  return `M ${upperPath} L ${lowerPath} Z`;
+}
+
+function buildSparsePointCoordinates(
+  markers: Array<{ intervalIndex: number; price: number }>,
+  intervalIndices: number[],
+  slotWidth: number,
+  height: number,
+  options?: {
+    axisStartPadding?: number;
+    topPadding?: number;
+    bottomPadding?: number;
+  },
+) {
+  if (markers.length === 0) {
+    return [];
+  }
+  const intervalPosition = new Map(intervalIndices.map((value, index) => [value, index]));
+  const values = markers.map((marker) => marker.price);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const axisStartPadding = options?.axisStartPadding ?? 0;
+  const topPadding = options?.topPadding ?? 0;
+  const bottomPadding = options?.bottomPadding ?? 0;
+  const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
+
+  return markers
+    .map((marker) => {
+      const position = intervalPosition.get(marker.intervalIndex);
+      if (position == null) {
+        return null;
+      }
+      return {
+        intervalIndex: marker.intervalIndex,
+        price: marker.price,
+        x: deriveSlotCenterX({ index: position, slotWidth, axisStartPadding }),
+        y: topPadding + drawableHeight - ((marker.price - min) / range) * drawableHeight,
+      };
+    })
+    .filter((point): point is { intervalIndex: number; price: number; x: number; y: number } => point != null);
+}
+
+export function buildSparsePolylineSegments(
+  markers: Array<{ intervalIndex: number; price: number }>,
+  intervalIndices: number[],
+  slotWidth: number,
+  height: number,
+  options?: {
+    axisStartPadding?: number;
+    topPadding?: number;
+    bottomPadding?: number;
+  },
+) {
+  const points = buildSparsePointCoordinates(markers, intervalIndices, slotWidth, height, options);
+  if (points.length === 0) {
+    return { points: [], segments: [] as string[] };
+  }
+
+  const intervalPosition = new Map(intervalIndices.map((value, index) => [value, index]));
+  const segments: string[] = [];
+  let currentSegment: string[] = [];
+  let previousPosition: number | null = null;
+
+  for (const point of points) {
+    const position = intervalPosition.get(point.intervalIndex) ?? null;
+    if (position == null) {
+      continue;
+    }
+    if (previousPosition != null && position !== previousPosition + 1) {
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment.join(' '));
+      }
+      currentSegment = [];
+    }
+    currentSegment.push(`${point.x},${point.y}`);
+    previousPosition = position;
+  }
+
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment.join(' '));
+  }
+
+  return { points, segments };
+}
+
+export function deriveCenteredIntervalScrollLeft({
+  contentWidth,
+  intervalIndex,
+  axisStartPadding = 0,
+  slotWidth,
+  viewportWidth,
+}: {
+  contentWidth: number;
+  intervalIndex: number;
+  axisStartPadding?: number;
+  slotWidth: number;
+  viewportWidth: number;
+}) {
+  const slotCenter = deriveSlotCenterX({ index: intervalIndex, slotWidth, axisStartPadding });
+  return clampScrollLeft(slotCenter - viewportWidth / 2, viewportWidth, contentWidth);
 }
 
 function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: string; tooltip: string }) {
@@ -95,17 +342,19 @@ function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: str
   );
 }
 
-export function intervalLabelForWidth(startAt: string | null, intervalIndex: number, slotWidth: number) {
-  const compactDate = formatSenaCompactIntervalDate(startAt);
+export function intervalLabelForWidth(endAt: string | null, intervalIndex: number, slotWidth: number) {
+  const compactDate = formatSenaCompactIntervalDate(endAt);
+  const wideDate = formatSenaWideIntervalDate(endAt);
   if (compactDate !== '—') {
-    const compactDay = formatSenaCompactIntervalDay(startAt);
-    return responsivePillLabel(compactDate, compactDay !== '—' ? compactDay : compactDate, slotWidth);
+    const compactDay = formatSenaCompactIntervalDay(endAt);
+    const fullLabel = slotWidth >= 132 && wideDate !== '—' ? wideDate : compactDate;
+    return responsivePillLabel(fullLabel, compactDate, slotWidth) || responsivePillLabel(compactDate, compactDay !== '—' ? compactDay : compactDate, slotWidth);
   }
   return responsivePillLabel(`Interval ${intervalIndex + 1}`, String(intervalIndex + 1), slotWidth);
 }
 
-export function intervalTooltipLabel(startAt: string | null, intervalIndex: number, language: Parameters<typeof formatSenaDate>[1]) {
-  const fullDate = formatSenaDate(startAt, language);
+export function intervalTooltipLabel(endAt: string | null, intervalIndex: number, language: Parameters<typeof formatSenaDate>[1]) {
+  const fullDate = formatSenaDate(endAt, language);
   if (fullDate !== '—') {
     return fullDate;
   }
@@ -170,6 +419,63 @@ function pipelineUsesNumberOnlyTile(slotWidth: number) {
   return slotWidth < 64;
 }
 
+function normalizeRegimeKey(regime: string) {
+  return regime.trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function regimeTint(regime: string, isSelected: boolean) {
+  const key = normalizeRegimeKey(regime);
+  const palette: Record<string, { selected: string; idle: string }> = {
+    normal: {
+      selected: 'rgba(244, 223, 207, 0.72)',
+      idle: 'rgba(244, 223, 207, 0.48)',
+    },
+    promo: {
+      selected: 'rgba(248, 224, 184, 0.78)',
+      idle: 'rgba(248, 224, 184, 0.54)',
+    },
+    spike: {
+      selected: 'rgba(245, 196, 176, 0.78)',
+      idle: 'rgba(245, 196, 176, 0.5)',
+    },
+    lull: {
+      selected: 'rgba(216, 232, 222, 0.74)',
+      idle: 'rgba(216, 232, 222, 0.5)',
+    },
+    stockout_constrained: {
+      selected: 'rgba(239, 192, 192, 0.8)',
+      idle: 'rgba(239, 192, 192, 0.54)',
+    },
+    correction: {
+      selected: 'rgba(207, 218, 234, 0.78)',
+      idle: 'rgba(207, 218, 234, 0.52)',
+    },
+  };
+  const resolved = palette[key] ?? palette.normal;
+  return isSelected ? resolved.selected : resolved.idle;
+}
+
+const REGIME_LEGEND = [
+  'normal',
+  'promo',
+  'spike',
+  'lull',
+  'stockout_constrained',
+  'correction',
+] as const;
+
+function regimeLegendLabel(regime: (typeof REGIME_LEGEND)[number]) {
+  if (regime === 'stockout_constrained') {
+    return 'Stockout constrained regime';
+  }
+  return `${regime.charAt(0).toUpperCase()}${regime.slice(1).replace(/_/g, ' ')} regime`;
+}
+
+function presentRegimes(regimes: string[]) {
+  const present = new Set(regimes.map((regime) => normalizeRegimeKey(regime)));
+  return REGIME_LEGEND.filter((regime) => present.has(regime));
+}
+
 function clampScrollLeft(scrollLeft: number, viewportWidth: number, contentWidth: number) {
   return clamp(scrollLeft, 0, Math.max(0, contentWidth - viewportWidth));
 }
@@ -185,6 +491,7 @@ export function deriveAnchoredZoomScrollLeft({
   nextSlotWidth,
   previousScrollLeft,
   previousSlotWidth,
+  axisStartPadding = 0,
   viewportWidth,
 }: {
   contentWidth: number;
@@ -193,14 +500,15 @@ export function deriveAnchoredZoomScrollLeft({
   nextSlotWidth: number;
   previousScrollLeft: number;
   previousSlotWidth: number;
+  axisStartPadding?: number;
   viewportWidth: number;
 }) {
   if (intervalCount <= 0 || previousSlotWidth <= 0 || nextSlotWidth <= 0) {
     return 0;
   }
-  const hoveredContentX = previousScrollLeft + hoveredPointerX;
+  const hoveredContentX = Math.max(0, previousScrollLeft + hoveredPointerX - axisStartPadding);
   const hoveredIndex = clamp(Math.floor(hoveredContentX / previousSlotWidth), 0, intervalCount - 1);
-  const anchoredCenterX = hoveredIndex * nextSlotWidth + nextSlotWidth / 2;
+  const anchoredCenterX = deriveSlotCenterX({ index: hoveredIndex, slotWidth: nextSlotWidth, axisStartPadding });
   return clampScrollLeft(anchoredCenterX - hoveredPointerX, viewportWidth, contentWidth);
 }
 
@@ -254,6 +562,9 @@ function ResponsivePillButton({
 
 function IntervalStrip({
   activeIndex,
+  axisContentWidth,
+  axisEndPadding,
+  axisStartPadding,
   canScrollLeft,
   canScrollRight,
   intervals,
@@ -265,9 +576,12 @@ function IntervalStrip({
   onSelect,
 }: {
   activeIndex: number | null;
+  axisContentWidth: number;
+  axisEndPadding: number;
+  axisStartPadding: number;
   canScrollLeft: boolean;
   canScrollRight: boolean;
-  intervals: Array<{ intervalIndex: number; startAt: string | null }>;
+  intervals: Array<{ intervalIndex: number; startAt: string | null; endAt: string | null }>;
   language: Parameters<typeof formatSenaDate>[1];
   onScroll: (event: UIEvent<HTMLDivElement>) => void;
   scrollByViewport: (direction: -1 | 1) => void;
@@ -289,11 +603,19 @@ function IntervalStrip({
           </button>
         ) : null}
         <div ref={scrollRef} className="hidden-scrollbar max-w-full overflow-x-auto overscroll-contain px-1 py-1" onScroll={onScroll}>
-          <div className="grid min-w-full pr-1" style={{ gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, ${slotWidth}px)` }}>
+          <div
+            className="grid min-w-full"
+            style={{
+              width: axisContentWidth,
+              paddingLeft: axisStartPadding,
+              paddingRight: axisEndPadding,
+              gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, ${slotWidth}px)`,
+            }}
+          >
           {intervals.map((interval) => {
-            const tooltipLabel = intervalTooltipLabel(interval.startAt, interval.intervalIndex, language);
-            const compactDate = formatSenaCompactIntervalDate(interval.startAt);
-            const compactDay = formatSenaCompactIntervalDay(interval.startAt);
+            const tooltipLabel = intervalTooltipLabel(interval.endAt, interval.intervalIndex, language);
+            const compactDate = formatSenaCompactIntervalDate(interval.endAt);
+            const compactDay = formatSenaCompactIntervalDay(interval.endAt);
             return (
               <div key={interval.intervalIndex} className="flex min-h-10 items-center justify-center px-1">
                 <ResponsivePillButton
@@ -326,37 +648,57 @@ function IntervalStrip({
   );
 }
 
-function RegimePillLane({
+function RegimeChartHighlightOverlay({
   activeIndex,
-  onScroll,
-  pillWidth,
-  scrollRef,
+  axisContentWidth,
+  axisEndPadding,
+  axisStartPadding,
   intervals,
   onSelect,
 }: {
   activeIndex: number | null;
-  onScroll: (event: UIEvent<HTMLDivElement>) => void;
-  pillWidth: number;
-  scrollRef: RefObject<HTMLDivElement | null>;
+  axisContentWidth: number;
+  axisEndPadding: number;
+  axisStartPadding: number;
   intervals: SenaSkuDetailViewModel['lanes']['regimePriceLane']['intervals'];
   onSelect: (index: number) => void;
 }) {
   return (
-    <div ref={scrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-md px-1" onScroll={onScroll}>
-      <div className="grid rounded-md bg-muted/35 pr-1" style={{ gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, ${pillWidth}px)` }}>
-        {intervals.map((interval, intervalPosition) => (
-          <div key={interval.intervalIndex} className={`${intervalPosition < intervals.length - 1 ? 'border-r border-background/40' : ''} flex items-center justify-center px-1`}>
-            <ResponsivePillButton
-              active={activeIndex === interval.intervalIndex}
-              className={`min-h-8 w-full px-2 text-center text-xs ${activeIndex === interval.intervalIndex ? 'bg-foreground/80 text-background' : 'bg-secondary/45 text-foreground'}`}
-              compactLabel={regimeCompactLabel(interval.dominantRegime)}
-              fullLabel={interval.dominantRegime}
-              slotWidth={pillWidth - 8}
-              onClick={() => onSelect(interval.intervalIndex)}
-            />
-          </div>
-        ))}
-      </div>
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 grid overflow-hidden rounded-[1rem]"
+      style={{
+        width: axisContentWidth,
+        paddingLeft: axisStartPadding,
+        paddingRight: axisEndPadding,
+        gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, minmax(0, 1fr))`,
+      }}
+    >
+      {intervals.map((interval, intervalPosition) => {
+        const isSelected = activeIndex === interval.intervalIndex;
+        return (
+          <Tooltip key={interval.intervalIndex}>
+            <TooltipTrigger asChild>
+              <button
+                aria-label={interval.dominantRegime}
+                className={`relative border-r border-background/35 text-center text-xs text-foreground transition-colors last:border-r-0 ${isSelected ? '' : 'text-foreground/80'}`}
+                data-regime-slot="true"
+                data-selected={isSelected ? 'true' : 'false'}
+                style={{
+                  backgroundColor: regimeTint(interval.dominantRegime, isSelected),
+                  borderTopLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
+                  borderBottomLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
+                  borderTopRightRadius: intervalPosition === intervals.length - 1 ? '0.85rem' : undefined,
+                  borderBottomRightRadius: intervalPosition === intervals.length - 1 ? '0.85rem' : undefined,
+                }}
+                type="button"
+                onClick={() => onSelect(interval.intervalIndex)}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6}>{interval.dominantRegime}</TooltipContent>
+          </Tooltip>
+        );
+      })}
     </div>
   );
 }
@@ -372,37 +714,83 @@ export function SkuDetailLedger({
 }) {
   const { language, t } = usePreferences();
   const intervalScrollRef = useRef<HTMLDivElement | null>(null);
-  const regimeScrollRef = useRef<HTMLDivElement | null>(null);
   const priceScrollRef = useRef<HTMLDivElement | null>(null);
   const inventoryScrollRef = useRef<HTMLDivElement | null>(null);
   const flowScrollRef = useRef<HTMLDivElement | null>(null);
   const pipelineScrollRef = useRef<HTMLDivElement | null>(null);
   const intervals = intervalEntries(model);
+  const visibleRegimes = presentRegimes(model.lanes.regimePriceLane.intervals.map((interval) => interval.dominantRegime));
   const indices = intervals.map((entry) => entry.intervalIndex);
-  const syncRefs = [intervalScrollRef, regimeScrollRef, priceScrollRef, inventoryScrollRef, flowScrollRef, pipelineScrollRef];
+  const syncRefs = [intervalScrollRef, priceScrollRef, inventoryScrollRef, flowScrollRef, pipelineScrollRef];
   const syncingScrollRef = useRef(false);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [slotWidthPx, setSlotWidthPx] = useState(DEFAULT_SLOT_WIDTH);
   const effectiveSlotWidth = clamp(slotWidthPx, Math.max(SHARED_PILL_MIN_WIDTH, MIN_SLOT_WIDTH), MAX_SLOT_WIDTH);
-  const contentWidth = Math.max(indices.length * effectiveSlotWidth, 0);
+  const stretchedSlotWidth =
+    viewportWidth > 0 && indices.length > 0
+      ? Math.max(effectiveSlotWidth, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / indices.length)
+      : effectiveSlotWidth;
+  const axisStartPadding = AXIS_START_PADDING;
+  const axisEndPadding = AXIS_END_PADDING;
+  const contentWidth = deriveAxisContentWidth({
+    itemCount: indices.length,
+    slotWidth: stretchedSlotWidth,
+    axisStartPadding,
+    axisEndPadding,
+  });
   const [scrollLeft, setScrollLeft] = useState(0);
   const clampedScrollLeft = clampScrollLeft(scrollLeft, viewportWidth, contentWidth);
-  const visibleWindow = deriveVisibleWindow(indices.length, clampedScrollLeft, viewportWidth, effectiveSlotWidth, INTERVAL_PILL_GAP);
+  const visibleWindow = deriveVisibleWindow(indices.length, clampedScrollLeft, viewportWidth, stretchedSlotWidth, INTERVAL_PILL_GAP);
   const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE;
   const canScrollRight = clampedScrollLeft + viewportWidth < contentWidth - SCROLL_EDGE_TOLERANCE;
-  const inventoryValues = model.lanes.inventoryLane.points.map((point) => point.mean);
-  const inventoryPolyline = buildPolyline(inventoryValues, effectiveSlotWidth, 42);
-  const inventoryCoordinates = buildPointCoordinates(inventoryValues, effectiveSlotWidth, 42);
-  const priceValues =
-    model.lanes.regimePriceLane.priceMarkers.length > 0
-      ? model.lanes.regimePriceLane.priceMarkers.map((marker) => marker.price)
-      : [0];
-  const pricePolyline = buildPolyline(priceValues, effectiveSlotWidth, 42, { topPadding: 6, bottomPadding: 6 });
-  const priceCoordinates = buildPointCoordinates(priceValues, effectiveSlotWidth, 42, { topPadding: 6, bottomPadding: 6 });
+  const inventoryMeanValues = model.lanes.inventoryLane.points.map((point) => point.mean);
+  const inventoryLowValues = model.lanes.inventoryLane.points.map((point) => point.low);
+  const inventoryHighValues = model.lanes.inventoryLane.points.map((point) => point.high);
+  const inventoryDomainMin = Math.min(...inventoryLowValues);
+  const inventoryDomainMax = Math.max(...inventoryHighValues);
+  const inventoryPolyline = buildPolylineWithDomain(
+    inventoryMeanValues,
+    stretchedSlotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    inventoryDomainMin,
+    inventoryDomainMax,
+    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+  );
+  const inventoryCoordinates = buildPointCoordinatesWithDomain(
+    inventoryMeanValues,
+    stretchedSlotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    inventoryDomainMin,
+    inventoryDomainMax,
+    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+  );
+  const inventoryBandPath = buildTrajectoryBandPath(
+    inventoryLowValues,
+    inventoryHighValues,
+    stretchedSlotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    inventoryDomainMin,
+    inventoryDomainMax,
+    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+  );
+  const { points: priceCoordinates, segments: pricePolylines } = buildSparsePolylineSegments(
+    model.lanes.regimePriceLane.priceMarkers,
+    indices,
+    stretchedSlotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+  );
   const selectedPointIndex =
     selectedIntervalIndex != null ? Math.max(0, indices.indexOf(selectedIntervalIndex)) : null;
   const maxPipelineInTransit = Math.max(0, ...model.lanes.pipelineLane.intervals.map((interval) => interval.inTransitMean));
-
+  const maxFlowMagnitude = Math.max(
+    1,
+    ...model.lanes.flowLane.intervals.flatMap((interval) => [
+      Math.abs(interval.serviceDemandMean),
+      Math.abs(interval.retailDemandMean),
+      Math.abs(interval.receiptsMean),
+    ]),
+  );
   useEffect(() => {
     const node = intervalScrollRef.current;
     if (!node) {
@@ -448,7 +836,7 @@ export function SkuDetailLedger({
   const scrollByViewport = (direction: -1 | 1) => {
     setScrollLeft((current) =>
       clampScrollLeft(
-        current + direction * Math.max(viewportWidth - effectiveSlotWidth - INTERVAL_PILL_GAP, effectiveSlotWidth),
+        current + direction * Math.max(viewportWidth - stretchedSlotWidth - INTERVAL_PILL_GAP, stretchedSlotWidth),
         viewportWidth,
         contentWidth,
       ),
@@ -456,7 +844,7 @@ export function SkuDetailLedger({
   };
 
   const handleLaneWheel =
-    (scrollRef: RefObject<HTMLDivElement | null>) =>
+    (scrollRef: RefObject<HTMLDivElement | null>, axisPaddingStart = 0) =>
     (event: WheelEvent<HTMLDivElement>) => {
       const node = scrollRef.current;
       if (!node) {
@@ -482,7 +870,12 @@ export function SkuDetailLedger({
         if (Math.abs(nextWidth - currentWidth) < 0.5) {
           return currentWidth;
         }
-        const nextContentWidth = indices.length * nextWidth;
+        const nextContentWidth = deriveAxisContentWidth({
+          itemCount: indices.length,
+          slotWidth: nextWidth,
+          axisStartPadding: axisPaddingStart,
+          axisEndPadding,
+        });
         setScrollLeft((currentScrollLeft) =>
           deriveAnchoredZoomScrollLeft({
             contentWidth: nextContentWidth,
@@ -491,6 +884,7 @@ export function SkuDetailLedger({
             nextSlotWidth: nextWidth,
             previousScrollLeft: currentScrollLeft,
             previousSlotWidth: currentWidth,
+            axisStartPadding: axisPaddingStart,
             viewportWidth,
           }),
         );
@@ -499,12 +893,12 @@ export function SkuDetailLedger({
     };
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-[2rem] border border-border/70 bg-background/90 px-6 py-5 shadow-sm">
+    <section className={`${cardFrameClassName} ${cardSurfaceClassName} min-w-0 rounded-[2rem] px-6 py-5`}>
       <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Ledger</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">SENA</p>
           <div className="mt-1">
-            <SectionTitle title={t('catalogSenaSkuLedgerTitle')} tooltip={t('catalogSenaSkuLedgerTooltip')} />
+            <SectionTitle title="Ledger" tooltip={t('catalogSenaSkuLedgerTooltip')} />
           </div>
         </div>
         <p className="text-sm text-muted-foreground">{model.selectedInterval.label}</p>
@@ -512,6 +906,9 @@ export function SkuDetailLedger({
 
       <IntervalStrip
         activeIndex={selectedIntervalIndex}
+        axisContentWidth={contentWidth}
+        axisEndPadding={axisEndPadding}
+        axisStartPadding={axisStartPadding}
         canScrollLeft={canScrollLeft}
         canScrollRight={canScrollRight}
         intervals={intervals}
@@ -520,7 +917,7 @@ export function SkuDetailLedger({
         onScroll={handleScrollerScroll}
         scrollByViewport={scrollByViewport}
         scrollRef={intervalScrollRef}
-        slotWidth={effectiveSlotWidth}
+        slotWidth={stretchedSlotWidth}
       />
 
       <div className="mt-5">
@@ -531,41 +928,70 @@ export function SkuDetailLedger({
             tooltip={t('catalogSenaSkuRegimePriceLaneTooltip')}
           />
           <div className="grid gap-3">
-            <TooltipProvider>
-              <RegimePillLane
-                activeIndex={selectedIntervalIndex}
-                intervals={model.lanes.regimePriceLane.intervals}
-                onSelect={setSelectedIntervalIndex}
-                onScroll={handleScrollerScroll}
-                pillWidth={effectiveSlotWidth}
-                scrollRef={regimeScrollRef}
-              />
-            </TooltipProvider>
-            <div ref={priceScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain pt-8" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(priceScrollRef)}>
-              <div className="relative h-32 overflow-visible px-2 pt-2" style={{ width: contentWidth + 16 }}>
+            <div className="flex flex-wrap items-center gap-4 px-1 text-xs text-muted-foreground">
+              <span className="sr-only">Regime</span>
+              {visibleRegimes.map((regime) => (
+                <span key={regime} className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="inline-block size-4 rounded-[0.2rem]" style={{ backgroundColor: regimeTint(regime, true) }} />
+                  {regimeLegendLabel(regime)}
+                </span>
+              ))}
+              <span className="inline-flex items-center gap-2">
+                <span aria-hidden="true" className="relative inline-flex h-4 w-8 items-center">
+                  <span className="block h-px w-full bg-foreground/70" />
+                  <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/55 bg-background" />
+                </span>
+                Retail price line
+              </span>
+            </div>
+            <div ref={priceScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(priceScrollRef, axisStartPadding)}>
+              <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + CHART_PLOT_HEIGHT }}>
+                <TooltipProvider>
+                  <RegimeChartHighlightOverlay
+                    activeIndex={selectedIntervalIndex}
+                    axisContentWidth={contentWidth}
+                    axisEndPadding={axisEndPadding}
+                    axisStartPadding={axisStartPadding}
+                    intervals={model.lanes.regimePriceLane.intervals}
+                    onSelect={setSelectedIntervalIndex}
+                  />
+                </TooltipProvider>
                 <svg
                   aria-hidden="true"
-                  className="h-full w-full"
+                  className="absolute left-0 top-0 z-[1] w-full"
                   preserveAspectRatio="none"
-                  viewBox={`0 0 ${Math.max(contentWidth + 16, 1)} 42`}
+                  style={{ height: CHART_PLOT_HEIGHT, top: LABEL_GUTTER_HEIGHT }}
+                  viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                 >
-                  <polyline fill="none" points={pricePolyline} stroke="currentColor" strokeWidth="1.4" className="text-foreground/70" transform="translate(8 0)" />
+                  {pricePolylines.map((segment, index) => (
+                    <polyline
+                      key={`price-segment-${index}`}
+                      fill="none"
+                      points={segment}
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      className="text-foreground/70"
+                    />
+                  ))}
                 </svg>
                 {priceCoordinates.map((point, index) => {
                   const marker = model.lanes.regimePriceLane.priceMarkers[index];
-                  const isSelected = selectedPointIndex === index;
+                  const isSelected = marker?.intervalIndex === selectedIntervalIndex;
                 return (
                   <button
-                    key={marker?.observedAt ?? `price-${index}`}
+                    key={marker ? `${marker.observedAt}:${marker.intervalIndex}` : `price-${index}`}
                       aria-label={marker ? `Price ${marker.price}` : `Price point ${index + 1}`}
-                      className="absolute -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: point.x + 8, top: (point.y / 42) * 120 + 8 }}
+                      className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
+                    style={{ left: point.x, top: deriveLabelGutterOffset({ plotY: point.y }) }}
                     type="button"
-                    onClick={() => setSelectedIntervalIndex(indices[index] ?? index)}
+                    onClick={() => marker && setSelectedIntervalIndex(marker.intervalIndex)}
                   >
-                      {isSelected ? (
-                        <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                          {marker ? `$${marker.price}` : ''}
+                    {isSelected ? (
+                        <span className="absolute bottom-full mb-2 left-1/2 flex -translate-x-1/2 flex-col items-center rounded-[0.9rem] border border-border/70 bg-background px-2.5 py-1 text-[10px] font-medium text-foreground shadow-sm">
+                          <span className="whitespace-nowrap text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                            {formatRegimeLabel(model.lanes.regimePriceLane.intervals.find((interval) => interval.intervalIndex === marker?.intervalIndex)?.dominantRegime ?? '')}
+                          </span>
+                          <span className="whitespace-nowrap">{marker ? `$${marker.price}` : ''}</span>
                         </span>
                       ) : null}
                       <span className={`block size-4 rounded-full border-2 ${isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background'}`} />
@@ -580,11 +1006,18 @@ export function SkuDetailLedger({
 
         <div className="border-t border-border/60 py-5">
           <LaneTitle title={t('catalogSenaSkuInventoryLane')} tooltip={t('catalogSenaSkuInventoryLaneTooltip')} />
-          <div className="mb-3 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          <div className="mb-3 flex flex-wrap items-center gap-4 px-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-2">
               <span
                 aria-hidden="true"
-                className="inline-block h-px w-8 opacity-70"
+                className="inline-block h-2 w-6 rounded-[0.2rem] bg-foreground/10"
+              />
+              Uncertainty band
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="inline-block h-px w-7 opacity-70"
                 style={{
                   backgroundImage: 'repeating-linear-gradient(to right, currentColor 0 2px, transparent 2px 4px)',
                 }}
@@ -594,7 +1027,7 @@ export function SkuDetailLedger({
             <span className="inline-flex items-center gap-2">
               <span
                 aria-hidden="true"
-                className="inline-block h-px w-8 opacity-50"
+                className="inline-block h-px w-7 opacity-50"
                 style={{
                   backgroundImage: 'repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 7px)',
                 }}
@@ -602,17 +1035,25 @@ export function SkuDetailLedger({
               {t('catalogSenaSkuSafetyStock')}: {model.lanes.inventoryLane.safetyStockLabel}
             </span>
           </div>
-          <div ref={inventoryScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-md bg-muted/25 px-2 py-3" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(inventoryScrollRef)}>
-            <div className="relative h-32 overflow-visible px-2 pt-2" style={{ width: contentWidth + 16 }}>
-              <svg
-                aria-hidden="true"
-                className="h-full w-full"
-                preserveAspectRatio="none"
-                viewBox={`0 0 ${Math.max(contentWidth + 16, 1)} 42`}
-              >
-                <path d={`M8 10 H${Math.max(contentWidth + 8, 1)}`} strokeDasharray="2 2" stroke="currentColor" strokeWidth="0.6" className="text-muted-foreground/70" />
-                <path d={`M8 24 H${Math.max(contentWidth + 8, 1)}`} strokeDasharray="4 3" stroke="currentColor" strokeWidth="0.6" className="text-muted-foreground/50" />
-                <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth="1.8" className="text-foreground" transform="translate(8 0)" />
+          <div ref={inventoryScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-md bg-muted/25 px-2 py-3" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(inventoryScrollRef, axisStartPadding)}>
+              <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + CHART_PLOT_HEIGHT }}>
+                <svg
+                  aria-hidden="true"
+                  className="absolute left-0 top-0 w-full"
+                  preserveAspectRatio="none"
+                  style={{ height: CHART_PLOT_HEIGHT, top: LABEL_GUTTER_HEIGHT }}
+                  viewBox={`0 0 ${Math.max(contentWidth, 1)} 42`}
+                >
+                {inventoryBandPath ? (
+                  <path
+                    d={inventoryBandPath}
+                    fill="currentColor"
+                    className="text-foreground/10"
+                  />
+                ) : null}
+                <path d={`M${axisStartPadding} 10 H${Math.max(contentWidth - axisEndPadding, 1)}`} strokeDasharray="2 2" stroke="currentColor" strokeWidth="0.6" className="text-muted-foreground/70" />
+                <path d={`M${axisStartPadding} 24 H${Math.max(contentWidth - axisEndPadding, 1)}`} strokeDasharray="4 3" stroke="currentColor" strokeWidth="0.6" className="text-muted-foreground/50" />
+                <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth="1.8" className="text-foreground" />
               </svg>
               {inventoryCoordinates.map((point, index) => {
                 const isSelected = selectedPointIndex === index;
@@ -622,12 +1063,12 @@ export function SkuDetailLedger({
                     key={detailPoint?.at ?? `inventory-${index}`}
                     aria-label={detailPoint ? `Inventory ${Math.round(detailPoint.mean)} units` : `Inventory point ${index + 1}`}
                     className="absolute -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: point.x + 8, top: (point.y / 42) * 120 + 8 }}
+                    style={{ left: point.x, top: deriveLabelGutterOffset({ plotY: point.y }) }}
                     type="button"
                     onClick={() => setSelectedIntervalIndex(indices[index] ?? index)}
                   >
                     {isSelected ? (
-                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                      <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
                         {Math.round(detailPoint?.mean ?? point.value)}u
                       </span>
                     ) : null}
@@ -642,50 +1083,80 @@ export function SkuDetailLedger({
 
         <div className="border-t border-border/60 py-5">
           <LaneTitle title={t('catalogSenaSkuFlowLane')} tooltip={t('catalogSenaSkuFlowLaneTooltip')} />
-          <div ref={flowScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(flowScrollRef)}>
-            <div className="mb-3 flex items-center gap-4 px-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-2">
-                <span className="size-2 rounded-full bg-foreground/20" />
-                Service demand
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="size-2 rounded-full bg-foreground/45" />
-                Retail demand
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="size-2 rounded-full bg-secondary" />
-                Receipts
-              </span>
-            </div>
+          <div className="mb-3 flex items-center gap-4 px-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2">
+              <span className="size-2 rounded-full bg-foreground/20" />
+              Service demand
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="size-2 rounded-full bg-foreground/45" />
+              Retail demand
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="size-2 rounded-full bg-secondary" />
+              Receipts
+            </span>
+          </div>
+          <div ref={flowScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(flowScrollRef, axisStartPadding)}>
             <div
-              className="grid items-end gap-1 rounded-md bg-muted/20 px-2 py-3"
-              style={{ gridTemplateColumns: `repeat(${Math.max(model.lanes.flowLane.intervals.length, 1)}, ${effectiveSlotWidth}px)` }}
+              className="grid rounded-md bg-muted/20 pb-3 pt-2"
+              style={{
+                width: contentWidth,
+                paddingLeft: axisStartPadding,
+                paddingRight: axisEndPadding,
+                paddingTop: FLOW_LABEL_GUTTER_HEIGHT,
+                gridTemplateColumns: `repeat(${Math.max(model.lanes.flowLane.intervals.length, 1)}, ${stretchedSlotWidth}px)`,
+                minHeight: FLOW_LABEL_GUTTER_HEIGHT + FLOW_LANE_PLOT_HEIGHT,
+              }}
             >
-              {model.lanes.flowLane.intervals.map((interval) => (
+              {model.lanes.flowLane.intervals.map((interval) => {
+                const plotHalfHeight = FLOW_LANE_PLOT_HEIGHT / 2;
+                const serviceHeight = Math.max(3, (Math.abs(interval.serviceDemandMean) / maxFlowMagnitude) * (plotHalfHeight - 4));
+                const retailHeight = Math.max(3, (Math.abs(interval.retailDemandMean) / maxFlowMagnitude) * (plotHalfHeight - 4));
+                const receiptsHeight = Math.max(3, (Math.abs(interval.receiptsMean) / maxFlowMagnitude) * (plotHalfHeight - 4));
+                return (
                 <button
                   key={interval.intervalIndex}
-                  className="flex flex-col items-center gap-1"
+                  className="relative flex w-full items-stretch justify-center"
+                  style={{ height: FLOW_LANE_PLOT_HEIGHT }}
                   type="button"
                   onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
                 >
                   {selectedIntervalIndex === interval.intervalIndex ? (
-                    <div className="mb-1 flex flex-col items-center gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm">
+                    <div className="absolute bottom-full left-1/2 z-[2] mb-2 flex -translate-x-1/2 flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm">
                       <span className="whitespace-nowrap text-foreground">
-                        Service {Math.round(interval.serviceDemandMean)}
+                        {`Service: -${Math.round(interval.serviceDemandMean)}`}
                       </span>
                       <span className="whitespace-nowrap text-foreground">
-                        Retail {Math.round(interval.retailDemandMean)}
+                        {`Retail: -${Math.round(interval.retailDemandMean)}`}
                       </span>
                       <span className="whitespace-nowrap text-foreground">
-                        Receipts {Math.round(interval.receiptsMean)}
+                        {`Receipts: +${Math.round(interval.receiptsMean)}`}
                       </span>
                     </div>
                   ) : null}
-                  <span className="w-[85%] self-center rounded-sm bg-foreground/20" style={{ height: `${Math.max(6, interval.serviceDemandMean * 9)}px` }} />
-                  <span className="w-[85%] self-center rounded-sm bg-foreground/45" style={{ height: `${Math.max(5, interval.retailDemandMean * 9)}px` }} />
-                  <span className="w-[85%] self-center rounded-sm bg-secondary" style={{ height: `${Math.max(4, interval.receiptsMean * 9)}px` }} />
+                  <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
+                  <div className="relative h-full w-[85%] self-center">
+                    <div className="absolute inset-x-0 top-1/2 h-1/2">
+                      <span
+                        className="absolute top-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-foreground/20"
+                        style={{ height: serviceHeight }}
+                      />
+                      <span
+                        className="absolute left-1/2 w-full -translate-x-1/2 rounded-none bg-foreground/45"
+                        style={{ top: serviceHeight, height: retailHeight }}
+                      />
+                    </div>
+                    <div className="absolute inset-x-0 bottom-1/2 h-1/2">
+                      <span
+                        className="absolute bottom-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-secondary"
+                        style={{ height: receiptsHeight }}
+                      />
+                    </div>
+                  </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">{model.lanes.flowLane.summary}</p>
@@ -693,32 +1164,46 @@ export function SkuDetailLedger({
 
         <div className="border-t border-border/60 pt-5">
           <LaneTitle title={t('catalogSenaSkuPipelineLane')} tooltip={t('catalogSenaSkuPipelineLaneTooltip')} />
-          <div ref={pipelineScrollRef} className="hidden-scrollbar overflow-x-auto overflow-y-visible overscroll-contain pt-8" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(pipelineScrollRef)}>
+          <div ref={pipelineScrollRef} className="hidden-scrollbar overflow-x-auto overflow-y-visible overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(pipelineScrollRef, axisStartPadding)}>
             <div
-              className="grid gap-1 rounded-md bg-muted/20 p-2"
-              style={{ gridTemplateColumns: `repeat(${Math.max(model.lanes.pipelineLane.intervals.length, 1)}, ${effectiveSlotWidth}px)` }}
+              className="grid rounded-md bg-muted/20 pb-2 pt-2"
+              style={{
+                width: contentWidth,
+                paddingLeft: axisStartPadding,
+                paddingRight: axisEndPadding,
+                paddingTop: LABEL_GUTTER_HEIGHT,
+                gridTemplateColumns: `repeat(${Math.max(model.lanes.pipelineLane.intervals.length, 1)}, ${stretchedSlotWidth}px)`,
+                minHeight: LABEL_GUTTER_HEIGHT + 128,
+              }}
             >
               {model.lanes.pipelineLane.intervals.map((interval) => {
                 const isSelected = selectedIntervalIndex === interval.intervalIndex;
-                const isCompact = pipelineUsesCompactTile(effectiveSlotWidth);
-                const isNumberOnly = pipelineUsesNumberOnlyTile(effectiveSlotWidth);
+                const isCompact = pipelineUsesCompactTile(stretchedSlotWidth);
+                const isNumberOnly = pipelineUsesNumberOnlyTile(stretchedSlotWidth);
                 return (
                   <button
                     key={interval.intervalIndex}
-                    className="relative flex min-h-24 flex-col items-center justify-center gap-1 rounded-[1.35rem] border px-1.5 py-3 text-center transition-colors"
+                    className="relative flex min-h-24 w-[85%] self-center flex-col items-center justify-center gap-1 rounded-[1.35rem] border px-1.5 py-3 text-center transition-colors"
                     style={pipelineTintStyle(interval.inTransitMean, maxPipelineInTransit)}
                     type="button"
                     onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
                   >
                     {isSelected ? (
-                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                      <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
                         {Math.round(interval.orderQuantityMean)} pending delivery
                       </span>
                     ) : null}
-                    <span className={`inline-flex items-center justify-center gap-1 whitespace-nowrap text-sm leading-none ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
-                      <span>{Math.round(interval.inTransitMean)}</span>
-                      {!isNumberOnly ? <Package className="size-3.5" /> : null}
-                    </span>
+                    {isNumberOnly ? (
+                      <span className={`flex flex-col items-center justify-center gap-1 text-sm leading-none ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                        <span>{Math.round(interval.inTransitMean)}</span>
+                        <Package className="size-3.5" />
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center justify-center gap-1 whitespace-nowrap text-sm leading-none ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                        <span>{Math.round(interval.inTransitMean)}</span>
+                        <Package className="size-3.5" />
+                      </span>
+                    )}
                     {!isCompact && !isNumberOnly ? (
                       <span className={`text-sm leading-tight ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
                         in transit

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { DesktopLocalDataInfo } from '@shared/ipc';
+import { CheckboxRow } from '@/components/system/checkbox-row';
 import { PageTitleWithBack } from '@/components/system/page-navigation';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
@@ -68,20 +69,13 @@ export function SettingsRoute() {
             </select>
           </label>
         </div>
-        <label className="mt-4 flex items-start gap-3 rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm">
-          <input
-            checked={showExplanatoryTooltips}
-            className="mt-0.5"
-            type="checkbox"
-            onChange={(event) => setShowExplanatoryTooltips(event.target.checked)}
-          />
-          <span className="grid gap-1">
-            <span className="font-medium text-foreground">Show explanatory tooltips</span>
-            <span className="text-muted-foreground">
-              Hide helper tooltips and explanatory guidance across the desktop UI.
-            </span>
-          </span>
-        </label>
+        <CheckboxRow
+          checked={showExplanatoryTooltips}
+          className="mt-4 bg-background/70 py-3"
+          description="Hide helper tooltips and explanatory guidance across the desktop UI."
+          label="Show explanatory tooltips"
+          onCheckedChange={setShowExplanatoryTooltips}
+        />
         <WorkspaceActionRow className="mt-4">
           <Button disabled={!hasPendingChanges} type="button" onClick={() => void savePreferences()}>
             Save preferences

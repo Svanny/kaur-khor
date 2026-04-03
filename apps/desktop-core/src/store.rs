@@ -4,6 +4,7 @@ use crate::legacy_inventory::{
 };
 use anyhow::Result;
 use banji_sena_core::{
+    classify_relative_width, derive_relative_width,
     execute_analysis_run, trigger_analysis_run, SenaAnalysisRunRecord, SenaBundle, SenaCatalog,
     SenaDiagnostics, SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord,
     SenaOrderSignal, SenaRepository, SenaRetailPriceObservation, SenaService,
@@ -15,7 +16,7 @@ use std::{env, fs, path::PathBuf};
 use time::{Date, Duration, Month, PrimitiveDateTime, Time};
 
 const DEFAULT_OWNER_SUB: &str = "desktop-owner";
-const DEV_SEED_VERSION: &str = "cambodian-clothing-v3";
+const DEV_SEED_VERSION: &str = "cambodian-clothing-v4";
 const DEV_SEED_OBSERVATION_COUNT: usize = 30;
 const LEGACY_DEV_SEED_NOTE: &str = "Seeded dev observation";
 
@@ -642,41 +643,37 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
         let lead_time_hints = if day_index % 30 == 0 || matches!(date.month(), Month::April | Month::November) && date.day() == 1 {
             SEED_SKUS
                 .iter()
-                .map(|profile| SenaLeadTimeHint {
-                    sku_id: profile.sku_id.to_string(),
-                    typical_days: Some(profile.lead_time_mean_days_hint),
-                    low_days: Some((profile.lead_time_mean_days_hint - profile.lead_time_std_days_hint).max(1.0)),
-                    high_days: Some(profile.lead_time_mean_days_hint + profile.lead_time_std_days_hint + 1.0),
-                    variability_class: Some(
-                        if profile.lead_time_std_days_hint <= 1.2 {
-                            "tight"
-                        } else if profile.lead_time_std_days_hint <= 2.0 {
-                            "steady"
-                        } else {
-                            "variable"
-                        }
-                        .to_string(),
-                    ),
+                .map(|profile| {
+                    let low_days =
+                        (profile.lead_time_mean_days_hint - profile.lead_time_std_days_hint).max(1.0);
+                    let high_days =
+                        profile.lead_time_mean_days_hint + profile.lead_time_std_days_hint + 1.0;
+                    SenaLeadTimeHint {
+                        sku_id: profile.sku_id.to_string(),
+                        typical_days: Some(profile.lead_time_mean_days_hint),
+                        low_days: Some(low_days),
+                        high_days: Some(high_days),
+                        variability_class: derive_relative_width(Some(low_days), Some(high_days))
+                            .and_then(classify_relative_width),
+                    }
                 })
                 .collect()
         } else if day_index == 14 {
             SEED_SKUS
                 .iter()
-                .map(|profile| SenaLeadTimeHint {
-                    sku_id: profile.sku_id.to_string(),
-                    typical_days: Some(profile.lead_time_mean_days_hint),
-                    low_days: Some((profile.lead_time_mean_days_hint - profile.lead_time_std_days_hint).max(1.0)),
-                    high_days: Some(profile.lead_time_mean_days_hint + profile.lead_time_std_days_hint + 1.0),
-                    variability_class: Some(
-                        if profile.lead_time_std_days_hint <= 1.2 {
-                            "tight"
-                        } else if profile.lead_time_std_days_hint <= 2.0 {
-                            "steady"
-                        } else {
-                            "variable"
-                        }
-                        .to_string(),
-                    ),
+                .map(|profile| {
+                    let low_days =
+                        (profile.lead_time_mean_days_hint - profile.lead_time_std_days_hint).max(1.0);
+                    let high_days =
+                        profile.lead_time_mean_days_hint + profile.lead_time_std_days_hint + 1.0;
+                    SenaLeadTimeHint {
+                        sku_id: profile.sku_id.to_string(),
+                        typical_days: Some(profile.lead_time_mean_days_hint),
+                        low_days: Some(low_days),
+                        high_days: Some(high_days),
+                        variability_class: derive_relative_width(Some(low_days), Some(high_days))
+                            .and_then(classify_relative_width),
+                    }
                 })
                 .collect()
         } else {

@@ -84,8 +84,15 @@ export interface SenaLeadTimeHint {
   typicalDays: number | null;
   lowDays: number | null;
   highDays: number | null;
-  variabilityClass: string | null;
+  variabilityClass: SenaLeadTimeVariabilityClass | null;
 }
+
+export type SenaLeadTimeVariabilityClass =
+  | 'very_tight'
+  | 'tight'
+  | 'normal'
+  | 'wide'
+  | 'very_wide';
 
 export interface SenaObservationRecord {
   observationId: string;
@@ -182,6 +189,8 @@ export interface SenaLeadTimePosteriorPoint {
   logStdDays: number;
   meanDays: number;
   stdDays: number;
+  observedVariabilityClass: SenaLeadTimeVariabilityClass | null;
+  observedRelativeWidth: number | null;
 }
 
 export interface SenaDiagnostics {

@@ -1,3 +1,4 @@
+use crate::lead_time::{derive_relative_width, derive_variability_class, target_std_days};
 use crate::types::{
     SenaAnalysisResult, SenaDiagnostics, SenaLeadTimePosteriorPoint, SenaObservationRecord,
     SenaPipelinePosteriorPoint, SenaRegimePosteriorPoint, SenaServiceContributor,
@@ -244,9 +245,19 @@ pub fn run_analysis(
                         next.lead_time_mean[sku_idx] =
                             (0.7 * next.lead_time_mean[sku_idx].ln() + 0.3 * log_target).exp();
                     }
-                    if let (Some(low), Some(high)) = (hint.low_days, hint.high_days) {
-                        next.lead_time_std[sku_idx] =
-                            (((high - low).abs() / 4.0).max(0.3) + next.lead_time_std[sku_idx]) / 2.0;
+                    if let Some(variability_class) = derive_variability_class(
+                        hint.variability_class,
+                        hint.low_days,
+                        hint.high_days,
+                    ) {
+                        let target_std =
+                            target_std_days(next.lead_time_mean[sku_idx], variability_class);
+                        let pulled_std =
+                            next.lead_time_std[sku_idx] + (target_std - next.lead_time_std[sku_idx]) * 0.38;
+                        let max_step = (next.lead_time_mean[sku_idx] * 0.18).clamp(0.2, 1.5);
+                        let bounded_delta =
+                            (pulled_std - next.lead_time_std[sku_idx]).clamp(-max_step, max_step);
+                        next.lead_time_std[sku_idx] += bounded_delta;
                     }
                 } else {
                     next.lead_time_mean[sku_idx] =
@@ -387,6 +398,14 @@ pub fn run_analysis(
                 ),
                 mean_days: mean(&lead_time_mean_samples),
                 std_days: mean(&lead_time_std_samples),
+                observed_variability_class: interval
+                    .lead_time_hint_by_sku
+                    .get(catalog.skus[sku_idx].sku_id.as_str())
+                    .and_then(|hint| derive_variability_class(hint.variability_class, hint.low_days, hint.high_days)),
+                observed_relative_width: interval
+                    .lead_time_hint_by_sku
+                    .get(catalog.skus[sku_idx].sku_id.as_str())
+                    .and_then(|hint| derive_relative_width(hint.low_days, hint.high_days)),
             });
         }
         let total_votes = regime_votes.values().sum::<f64>().max(1.0);

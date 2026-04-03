@@ -1,6 +1,11 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
+export const cardSurfaceClassName =
+  'border border-border/70 bg-white shadow-[0_16px_40px_rgba(48,31,20,0.08)]';
+export const cardFrameClassName =
+  'editorial-panel overflow-hidden rounded-3xl text-sm text-card-foreground';
+
 function Card({
   className,
   size = 'default',
@@ -9,7 +14,9 @@ function Card({
   return (
     <div
       className={cn(
-        'group/card editorial-panel flex flex-col gap-6 overflow-hidden rounded-3xl py-6 text-sm text-card-foreground ring-1 ring-white/60 backdrop-blur-sm data-[size=sm]:gap-4 data-[size=sm]:py-4',
+        'group/card flex flex-col gap-6 py-6 data-[size=sm]:gap-4 data-[size=sm]:py-4',
+        cardFrameClassName,
+        cardSurfaceClassName,
         className,
       )}
       data-size={size}
