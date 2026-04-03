@@ -96,3 +96,14 @@ export function formatSenaCompactIntervalDate(value: string | null) {
   const monthInitial = ENGLISH_MONTH_INITIALS[date.getUTCMonth()] ?? '—';
   return `${monthInitial}-${date.getUTCDate()}`;
 }
+
+export function formatSenaCompactIntervalDay(value: string | null) {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return '—';
+  }
+  return String(date.getUTCDate());
+}

@@ -9,7 +9,7 @@ import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { SkuDetailRoute } from './sku-detail';
 import { SkuDetailEvidence } from './sku-detail/evidence';
 import { SkuDetailExposure } from './sku-detail/exposure';
-import { formatSenaCompactIntervalDate } from './sku-detail/format';
+import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay } from './sku-detail/format';
 import {
   classifyWheelIntent,
   deriveAnchoredZoomScrollLeft,
@@ -278,8 +278,10 @@ describe('SKU detail SENA helpers', () => {
   test('falls back from full pill labels to compact labels without ellipsis', () => {
     expect(formatSenaCompactIntervalDate('2026-02-14T09:00:00Z')).toBe('F-14');
     expect(formatSenaCompactIntervalDate('2026-01-01T09:00:00Z')).toBe('J-1');
+    expect(formatSenaCompactIntervalDay('2026-02-14T09:00:00Z')).toBe('14');
 
     expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 120)).toBe('F-14');
+    expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 38)).toBe('14');
     expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 20)).toBe('');
     expect(intervalLabelForWidth(null, 11, 42)).toBe('12');
     expect(intervalTooltipLabel('2026-02-14T09:00:00Z', 11, 'en')).toBe('Feb 14');

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePreferences } from '@/state/preferences';
-import { formatSenaCompactIntervalDate, formatSenaDate } from './format';
+import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate } from './format';
 import { SectionLabel, SectionTitle } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
 
@@ -98,7 +98,8 @@ function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: str
 export function intervalLabelForWidth(startAt: string | null, intervalIndex: number, slotWidth: number) {
   const compactDate = formatSenaCompactIntervalDate(startAt);
   if (compactDate !== '—') {
-    return responsivePillLabel(compactDate, compactDate, slotWidth);
+    const compactDay = formatSenaCompactIntervalDay(startAt);
+    return responsivePillLabel(compactDate, compactDay !== '—' ? compactDay : compactDate, slotWidth);
   }
   return responsivePillLabel(`Interval ${intervalIndex + 1}`, String(intervalIndex + 1), slotWidth);
 }
@@ -148,6 +149,25 @@ export function deriveVisibleWindow(itemCount: number, scrollLeft: number, viewp
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function pipelineTintStyle(value: number, maxValue: number) {
+  const normalized = maxValue > 0 ? clamp(value / maxValue, 0, 1) : 0;
+  const eased = Math.pow(normalized, 1.6);
+  const baseAlpha = 0.04 + eased * 0.26;
+  const borderAlpha = 0.08 + eased * 0.22;
+  return {
+    backgroundColor: `rgba(134, 166, 95, ${baseAlpha})`,
+    borderColor: `rgba(103, 132, 69, ${borderAlpha})`,
+  };
+}
+
+function pipelineUsesCompactTile(slotWidth: number) {
+  return slotWidth < 92;
+}
+
+function pipelineUsesNumberOnlyTile(slotWidth: number) {
+  return slotWidth < 64;
 }
 
 function clampScrollLeft(scrollLeft: number, viewportWidth: number, contentWidth: number) {
@@ -273,13 +293,14 @@ function IntervalStrip({
           {intervals.map((interval) => {
             const tooltipLabel = intervalTooltipLabel(interval.startAt, interval.intervalIndex, language);
             const compactDate = formatSenaCompactIntervalDate(interval.startAt);
+            const compactDay = formatSenaCompactIntervalDay(interval.startAt);
             return (
               <div key={interval.intervalIndex} className="flex min-h-10 items-center justify-center px-1">
                 <ResponsivePillButton
                   active={activeIndex === interval.intervalIndex}
                   ariaLabel={tooltipLabel}
                   className={`w-full rounded-full border px-2 py-2 text-center text-sm leading-none ${activeIndex === interval.intervalIndex ? 'border-foreground bg-foreground text-background' : 'border-border/70 bg-background text-foreground'}`}
-                  compactLabel={compactDate !== '—' ? compactDate : String(interval.intervalIndex + 1)}
+                  compactLabel={compactDate !== '—' ? compactDay : String(interval.intervalIndex + 1)}
                   fullLabel={compactDate !== '—' ? compactDate : `Interval ${interval.intervalIndex + 1}`}
                   slotWidth={slotWidth - 8}
                   tooltipLabel={tooltipLabel}
@@ -380,6 +401,7 @@ export function SkuDetailLedger({
   const priceCoordinates = buildPointCoordinates(priceValues, effectiveSlotWidth, 42, { topPadding: 6, bottomPadding: 6 });
   const selectedPointIndex =
     selectedIntervalIndex != null ? Math.max(0, indices.indexOf(selectedIntervalIndex)) : null;
+  const maxPipelineInTransit = Math.max(0, ...model.lanes.pipelineLane.intervals.map((interval) => interval.inTransitMean));
 
   useEffect(() => {
     const node = intervalScrollRef.current;
@@ -659,9 +681,9 @@ export function SkuDetailLedger({
                       </span>
                     </div>
                   ) : null}
-                  <span className="w-full rounded-sm bg-foreground/20" style={{ height: `${Math.max(6, interval.serviceDemandMean * 9)}px` }} />
-                  <span className="w-full rounded-sm bg-foreground/45" style={{ height: `${Math.max(5, interval.retailDemandMean * 9)}px` }} />
-                  <span className="w-full rounded-sm bg-secondary" style={{ height: `${Math.max(4, interval.receiptsMean * 9)}px` }} />
+                  <span className="w-[85%] self-center rounded-sm bg-foreground/20" style={{ height: `${Math.max(6, interval.serviceDemandMean * 9)}px` }} />
+                  <span className="w-[85%] self-center rounded-sm bg-foreground/45" style={{ height: `${Math.max(5, interval.retailDemandMean * 9)}px` }} />
+                  <span className="w-[85%] self-center rounded-sm bg-secondary" style={{ height: `${Math.max(4, interval.receiptsMean * 9)}px` }} />
                 </button>
               ))}
             </div>
@@ -671,29 +693,40 @@ export function SkuDetailLedger({
 
         <div className="border-t border-border/60 pt-5">
           <LaneTitle title={t('catalogSenaSkuPipelineLane')} tooltip={t('catalogSenaSkuPipelineLaneTooltip')} />
-          <div ref={pipelineScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(pipelineScrollRef)}>
+          <div ref={pipelineScrollRef} className="hidden-scrollbar overflow-x-auto overflow-y-visible overscroll-contain pt-8" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(pipelineScrollRef)}>
             <div
-              className="grid gap-2"
+              className="grid gap-1 rounded-md bg-muted/20 p-2"
               style={{ gridTemplateColumns: `repeat(${Math.max(model.lanes.pipelineLane.intervals.length, 1)}, ${effectiveSlotWidth}px)` }}
             >
-              {model.lanes.pipelineLane.intervals.map((interval) => (
-                <button
-                  key={interval.intervalIndex}
-                  className={`grid gap-2 rounded-md px-2 py-2 text-left ${selectedIntervalIndex === interval.intervalIndex ? 'bg-muted/35' : 'bg-transparent'}`}
-                  type="button"
-                  onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
-                >
-                  {selectedIntervalIndex === interval.intervalIndex ? (
-                    <span className="text-[10px] font-medium text-foreground">{`${Math.round(interval.inTransitMean)}u`}</span>
-                  ) : null}
-                  <div className="relative h-3 rounded-full bg-muted/35">
-                    <div className="absolute inset-y-0 left-0 rounded-full bg-secondary" style={{ width: `${Math.min(100, Math.max(6, interval.inTransitMean * 10))}%` }} />
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {Math.round(interval.inTransitMean)} in transit
-                  </span>
-                </button>
-              ))}
+              {model.lanes.pipelineLane.intervals.map((interval) => {
+                const isSelected = selectedIntervalIndex === interval.intervalIndex;
+                const isCompact = pipelineUsesCompactTile(effectiveSlotWidth);
+                const isNumberOnly = pipelineUsesNumberOnlyTile(effectiveSlotWidth);
+                return (
+                  <button
+                    key={interval.intervalIndex}
+                    className="relative flex min-h-24 flex-col items-center justify-center gap-1 rounded-[1.35rem] border px-1.5 py-3 text-center transition-colors"
+                    style={pipelineTintStyle(interval.inTransitMean, maxPipelineInTransit)}
+                    type="button"
+                    onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
+                  >
+                    {isSelected ? (
+                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                        {Math.round(interval.orderQuantityMean)} pending delivery
+                      </span>
+                    ) : null}
+                    <span className={`inline-flex items-center justify-center gap-1 whitespace-nowrap text-sm leading-none ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                      <span>{Math.round(interval.inTransitMean)}</span>
+                      {!isNumberOnly ? <Package className="size-3.5" /> : null}
+                    </span>
+                    {!isCompact && !isNumberOnly ? (
+                      <span className={`text-sm leading-tight ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                        in transit
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">{model.lanes.pipelineLane.summary}</p>
