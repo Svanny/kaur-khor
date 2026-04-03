@@ -105,10 +105,24 @@ export interface ServiceDetailViewModel {
   };
   actions: {
     primarySkuHref: string;
-    logReceiptHref: string;
-    recordStockHref: string;
-    updatePriceHref: string;
     editServiceHref: string;
+    latestObservedAt: string | null;
+    noBottleneckHint: string;
+    bottleneckSku:
+      | {
+          skuId: string;
+          name: string;
+          unitsInStock: number;
+          costPerUnit: number;
+          soldAsProduct: boolean;
+          productPrice: number | null;
+        }
+      | null;
+    servicePrice: {
+      serviceId: string;
+      serviceName: string;
+      currentPrice: number;
+    };
   };
   ribbon: Array<{ key: string; label: string; value: string }>;
   intervals: ServiceIntervalViewModel[];
@@ -440,6 +454,13 @@ export function deriveServiceDetailViewModel({
   const credibleBand = deriveCredibleBand({ detail, sellableNow });
   const disruptionRisk = detail?.bottleneckProbability ?? rankedContributors[0]?.insight?.stockoutRisk ?? 0;
   const topContributor = rankedContributors.find((entry) => entry.isBottleneck) ?? rankedContributors[0] ?? null;
+  const actionBottleneck = rankedContributors.find((entry) => entry.isBottleneck) ?? null;
+  const currentServicePrice = latestRelevantPrice({
+    cutoff: null,
+    observations,
+    reports,
+    service,
+  });
   const topRegime =
     detail?.regimeTimeline.at(-1)?.dominantRegime ??
     workspaceSummary?.topRegime ??
@@ -644,10 +665,24 @@ export function deriveServiceDetailViewModel({
     },
     actions: {
       primarySkuHref,
-      logReceiptHref: '/operations/session',
-      recordStockHref: '/operations/session',
-      updatePriceHref: `/catalog/services/${service.serviceId}/edit`,
       editServiceHref: `/catalog/services/${service.serviceId}/edit`,
+      latestObservedAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? reports.at(-1)?.reportedAt ?? null,
+      noBottleneckHint: 'No limiting contributor is active right now.',
+      bottleneckSku: actionBottleneck
+        ? {
+            skuId: actionBottleneck.sku.skuId,
+            name: actionBottleneck.sku.name,
+            unitsInStock: actionBottleneck.sku.unitsInStock,
+            costPerUnit: actionBottleneck.sku.costPerUnit,
+            soldAsProduct: actionBottleneck.sku.soldAsProduct,
+            productPrice: actionBottleneck.sku.productPrice,
+          }
+        : null,
+      servicePrice: {
+        serviceId: service.serviceId,
+        serviceName: service.name,
+        currentPrice: currentServicePrice,
+      },
     },
     ribbon: [
       { key: 'sellable-now', label: 'Sellable now', value: formatWholeNumber(sellableNow, language) },

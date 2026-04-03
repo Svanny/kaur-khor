@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { getTranslation } from '@/lib/translations';
@@ -295,5 +295,92 @@ describe('SENA routes', () => {
 
     expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
     expect(screen.getByText('Dependency impact')).toBeInTheDocument();
+    expect(screen.getByText('Log receipt')).toBeInTheDocument();
+    expect(screen.getByText('Record stock')).toBeInTheDocument();
+    expect(screen.getByText('Update price')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('href', '/catalog/services/service-1/edit');
+  });
+
+  test('opens service receipt sheet with bottleneck SKU context', async () => {
+    renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
+
+    await waitFor(() => {
+      expect(screen.getByText('Log receipt')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Log receipt'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Approximate receipt quantity')).toBeInTheDocument();
+    });
+
+    expect(screen.getByDisplayValue('12')).toBeInTheDocument();
+  });
+
+  test('submits service price updates through existing observation flows', async () => {
+    renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
+
+    await waitFor(() => {
+      expect(screen.getByText('Update price')).toBeInTheDocument();
+    });
+
+    const context = inventoryHook();
+    fireEvent.click(screen.getByText('Update price'));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('15')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByDisplayValue('15'), { target: { value: '18' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => {
+      expect(context.submitLegacyReport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          servicePriceAdjustments: [
+            expect.objectContaining({
+              serviceId: 'service-1',
+              price: 18,
+              previousPrice: 15,
+            }),
+          ],
+        }),
+      );
+      expect(context.ingestSenaObservation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          servicePrices: [{ serviceId: 'service-1', price: 18 }],
+        }),
+      );
+      expect(context.triggerSenaRun).toHaveBeenCalled();
+    });
+  });
+
+  test('disables bottleneck SKU mutation buttons when no active bottleneck exists', async () => {
+    inventoryHook.mockReturnValue({
+      ...inventoryHook(),
+      snapshot: {
+        ...inventoryHook().snapshot,
+        sist: {
+          ...inventoryHook().snapshot.sist,
+          highRiskSkuIds: [],
+        },
+      },
+      loadInventorySnapshot: vi.fn(async () => ({
+        ...inventoryHook().snapshot,
+        sist: {
+          ...inventoryHook().snapshot.sist,
+          highRiskSkuIds: [],
+        },
+      })),
+    });
+
+    renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
+
+    await waitFor(() => {
+      expect(screen.getByText('Log receipt')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: 'Log receipt' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Record stock' })).toBeDisabled();
   });
 });

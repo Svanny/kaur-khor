@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Save } from 'lucide-react';
+import { ChevronDown, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SenaLeadTimeVariabilityClass, SenaSku } from '@shared/sena';
@@ -36,6 +36,8 @@ function emptySku(skuId = ''): SenaSku {
 
 const inputClassName = 'h-14 w-full rounded-xl border border-border bg-background px-3 py-2';
 const textareaClassName = 'min-h-28 w-full rounded-xl border border-border bg-background px-3 py-2';
+const nativeSelectClassName =
+  'h-14 w-full appearance-none rounded-xl border border-border bg-background px-3 pr-12 text-base shadow-none outline-none';
 
 function parseOptionalNumber(value: string) {
   return value.trim() ? Number(value) : null;
@@ -255,21 +257,26 @@ export function SkuFormRoute() {
             label={t('fieldLeadTimeVariability')}
             tooltip={t('catalogSkuEditorLeadTimeVariabilityTooltip')}
           >
-            <select
-              aria-label={t('fieldLeadTimeVariability')}
-              className={inputClassName}
-              value={leadTimeVariability}
-              onChange={(event) =>
-                setLeadTimeVariability((event.target.value as SenaLeadTimeVariabilityClass | '') || '')
-              }
-            >
-              <option value="">{t('catalogSkuLeadTimeVariabilityPlaceholder')}</option>
-              {leadTimeVariabilityOptions().map((option) => (
-                <option key={option} value={option}>
-                  {leadTimeVariabilityLabel(option)}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                aria-label={t('fieldLeadTimeVariability')}
+                className={nativeSelectClassName}
+                value={leadTimeVariability}
+                onChange={(event) =>
+                  setLeadTimeVariability((event.target.value as SenaLeadTimeVariabilityClass | '') || '')
+                }
+              >
+                <option value="">{t('catalogSkuLeadTimeVariabilityPlaceholder')}</option>
+                {leadTimeVariabilityOptions().map((option) => (
+                  <option key={option} value={option}>
+                    {leadTimeVariabilityLabel(option)}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-foreground">
+                <ChevronDown className="size-5" />
+              </span>
+            </div>
           </SkuEditorField>
         </WorkspacePanel>
       </form>

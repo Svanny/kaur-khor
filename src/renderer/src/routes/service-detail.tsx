@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaServiceDetail } from '@shared/sena';
@@ -126,6 +126,27 @@ export function ServiceDetailRoute() {
         }
       : null);
 
+  const fetchPageData = useCallback(async () => {
+    const [nextDetail, nextSnapshot, nextReports] = await Promise.all([
+      loadSenaServiceDetail(serviceId).catch(() => null),
+      snapshot ? Promise.resolve(snapshot) : loadInventorySnapshot(),
+      reports.length > 0 ? Promise.resolve(reports) : listStockReports().catch(() => []),
+    ]);
+    return {
+      nextDetail,
+      nextReports,
+      nextSnapshot: nextSnapshot ?? null,
+    };
+  }, [listStockReports, loadInventorySnapshot, loadSenaServiceDetail, reports, serviceId, snapshot]);
+
+  const refreshPage = useCallback(async () => {
+    setError(null);
+    const { nextDetail, nextReports, nextSnapshot } = await fetchPageData();
+    setDetail(nextDetail);
+    setLoadedSnapshot(nextSnapshot);
+    setLoadedReports(nextReports);
+  }, [fetchPageData]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -136,17 +157,13 @@ export function ServiceDetailRoute() {
     setIsLoading(true);
     setError(null);
 
-    Promise.all([
-      loadSenaServiceDetail(serviceId).catch(() => null),
-      snapshot ? Promise.resolve(snapshot) : loadInventorySnapshot(),
-      reports.length > 0 ? Promise.resolve(reports) : listStockReports().catch(() => []),
-    ])
-      .then(([nextDetail, nextSnapshot, nextReports]) => {
+    fetchPageData()
+      .then(({ nextDetail, nextReports, nextSnapshot }) => {
         if (cancelled) {
           return;
         }
         setDetail(nextDetail);
-        setLoadedSnapshot(nextSnapshot ?? null);
+        setLoadedSnapshot(nextSnapshot);
         setLoadedReports(nextReports);
       })
       .catch((nextError) => {
@@ -163,7 +180,7 @@ export function ServiceDetailRoute() {
     return () => {
       cancelled = true;
     };
-  }, [listStockReports, loadInventorySnapshot, loadSenaServiceDetail, reports, serviceId, snapshot]);
+  }, [fetchPageData, serviceId]);
 
   const model = useMemo(() => {
     if (!service || !activeSnapshot) {
@@ -248,7 +265,7 @@ export function ServiceDetailRoute() {
         ) : null}
 
         <ServiceDetailHero
-          actions={<ServiceDetailActions actions={model.actions} />}
+          actions={<ServiceDetailActions actions={model.actions} onComplete={refreshPage} />}
           model={model}
         />
 
