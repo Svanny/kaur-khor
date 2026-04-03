@@ -46,7 +46,7 @@ export function WorkspacePageTitle({
 
 interface WorkspaceTitleCardProps {
   eyebrow?: string;
-  title: string;
+  title: ReactNode;
   description?: string;
   actions?: ReactNode;
   children?: ReactNode;

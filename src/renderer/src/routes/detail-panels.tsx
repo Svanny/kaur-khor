@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { SectionTitle } from './sku-detail/section-heading';
 
@@ -30,11 +31,13 @@ function PanelFrame({
   );
 }
 
-function PanelPagination({
+export function PagedPanelNavigation({
+  className,
   pageCount,
   pageIndex,
   setPageIndex,
 }: {
+  className?: string;
   pageCount: number;
   pageIndex: number;
   setPageIndex: (value: number | ((current: number) => number)) => void;
@@ -42,7 +45,7 @@ function PanelPagination({
   const { t } = usePreferences();
 
   return (
-    <div className="flex items-center justify-between border-t border-border/60 px-6 py-3">
+    <div className={cn('flex items-center justify-between border-t border-border/60 px-6 py-3', className)}>
       <p className="text-sm text-muted-foreground">
         {t('catalogSenaSkuEvidencePageLabel')
           .replace('{current}', String(pageIndex + 1))
@@ -198,7 +201,7 @@ export function MeasuredPagedDetailPanel<T>({
           <div key={index}>{renderItem(item)}</div>
         ))}
       </div>
-      {shouldPaginate ? <PanelPagination pageCount={pageCount} pageIndex={pageIndex} setPageIndex={setPageIndex} /> : null}
+      {shouldPaginate ? <PagedPanelNavigation pageCount={pageCount} pageIndex={pageIndex} setPageIndex={setPageIndex} /> : null}
     </PanelFrame>
   );
 }
@@ -247,7 +250,9 @@ export function PagedEvidenceTimelinePanel<T>({
       <div ref={bodyRef} className="divide-y divide-border/60 px-6 py-2" style={minHeightStyle(stableBodyHeight)}>
         {items.length > 0 ? pagedItems.map((item, index) => <div key={index}>{renderItem(item)}</div>) : emptyState}
       </div>
-      {items.length > 0 ? <PanelPagination pageCount={pageCount} pageIndex={pageIndex} setPageIndex={setPageIndex} /> : null}
+      {items.length > pageSize ? (
+        <PagedPanelNavigation pageCount={pageCount} pageIndex={pageIndex} setPageIndex={setPageIndex} />
+      ) : null}
     </PanelFrame>
   );
 }

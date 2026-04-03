@@ -562,7 +562,7 @@ const en = {
   operationsSearchPlaceholder: 'Search notes, SKU ids, service names, or item ids…',
   operationsSearchClear: 'Clear filters',
   operationsFiltersLabel: 'Recent activity filters',
-  operationsFilterEverything: 'Everything',
+  operationsFilterEverything: 'All',
   operationsFilterStockChanges: 'Stock changes',
   operationsFilterServiceUpdates: 'Service updates',
   operationsFilterPriceChanges: 'Price changes',

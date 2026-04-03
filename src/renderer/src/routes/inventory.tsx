@@ -1,4 +1,4 @@
-import { Eye, Grid2x2, Package, PackagePlus, Pencil, Store } from 'lucide-react';
+import { Eye, Layers3, Package, PackagePlus, Pencil, Store } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { NewServiceIcon } from '@/components/system/new-service-icon';
 import { SearchInput } from '@/components/system/search-input';
@@ -149,8 +149,8 @@ export function InventoryRoute() {
             }}
           >
             <ToggleGroupItem value="all">
-              <Grid2x2 data-icon="inline-start" />
-              {t('filterAll')}
+              <Layers3 data-icon="inline-start" />
+              All
             </ToggleGroupItem>
             <ToggleGroupItem value="skus">
               <Package data-icon="inline-start" />
