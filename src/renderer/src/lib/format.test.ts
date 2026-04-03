@@ -37,11 +37,15 @@ describe('format helpers', () => {
     expect(formatQuantityForDisplay(2.2, 'en')).toBe('2');
   });
 
-  it('steps down duration units when rounding would collapse to zero', () => {
+  it('steps down sub-unit durations and rounds them to whole numbers', () => {
     expect(formatDurationAuto(0.2, 'day', 'en')).toBe('5 hours');
-    expect(formatDurationAuto(0.01, 'hour', 'en')).toBe('0.6 minutes');
-    expect(formatDurationAuto(0.2, 'week', 'en', 'short')).toBe('1d');
+    expect(formatDurationAuto(0.999, 'day', 'en')).toBe('24 hours');
+    expect(formatDurationAuto(0.01, 'hour', 'en')).toBe('1 minute');
+    expect(formatDurationAuto(0.2, 'week', 'en', 'short')).toBe('1D');
+    expect(formatDurationAuto(0.01, 'hour', 'en', 'short')).toBe('1m');
+    expect(formatDurationAuto(2, 'month', 'en', 'short')).toBe('2M');
+    expect(formatDurationAuto(3, 'year', 'en', 'short')).toBe('3Y');
     expect(formatDurationAuto(2, 'day', 'en')).toBe('2 days');
-    expect(formatDurationAuto(0.000001, 'hour', 'en')).toBe('0.0001 minutes');
+    expect(formatDurationAuto(0.000001, 'hour', 'en')).toBe('1 minute');
   });
 });

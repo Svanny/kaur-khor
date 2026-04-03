@@ -21,6 +21,15 @@ const durationStepDown: Record<
   minute: { nextUnit: null, factorToNext: null },
 };
 
+const shortDurationUnitLabel: Record<DurationUnit, string> = {
+  minute: 'm',
+  hour: 'h',
+  day: 'D',
+  week: 'W',
+  month: 'M',
+  year: 'Y',
+};
+
 export function localeFor(language: AppLanguage): string {
   return language === 'km' ? 'km-KH' : 'en-US';
 }
@@ -95,8 +104,8 @@ function coerceDurationUnit(
   let nextUnit = unit;
 
   while (
-    nextValue !== 0 &&
-    sanitizeWholeNumberForDisplay(nextValue) === 0 &&
+    Math.abs(nextValue) > 0 &&
+    Math.abs(nextValue) < 1 &&
     durationStepDown[nextUnit].nextUnit &&
     durationStepDown[nextUnit].factorToNext
   ) {
@@ -135,13 +144,21 @@ export function formatDurationAuto(
   display: DurationDisplay = 'long',
 ): string {
   const coerced = coerceDurationUnit(value, unit);
-  const maximumFractionDigits = escalatingFractionDigits(coerced.value);
+  const roundedValue =
+    coerced.unit === 'minute' && coerced.value > 0 && coerced.value < 1
+      ? 1
+      : sanitizeWholeNumberForDisplay(coerced.value);
+
+  if (display === 'short') {
+    return `${formatWholeNumber(roundedValue, language)}${shortDurationUnitLabel[coerced.unit]}`;
+  }
+
   return new Intl.NumberFormat(localeFor(language), {
     style: 'unit',
     unit: coerced.unit,
-    unitDisplay: display === 'short' ? 'narrow' : 'long',
-    maximumFractionDigits,
-  }).format(maximumFractionDigits === 0 ? sanitizeWholeNumberForDisplay(coerced.value) : coerced.value);
+    unitDisplay: 'long',
+    maximumFractionDigits: 0,
+  }).format(roundedValue);
 }
 
 export function formatEditableDecimal(value: number, maximumFractionDigits: number): string {

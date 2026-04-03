@@ -438,40 +438,8 @@ export function ServiceDetailLedger({
     CHART_VIEWBOX_HEIGHT,
     { axisStartPadding, topPadding: 6, bottomPadding: 6 },
   );
-  const maxDemandValue = Math.max(1, ...intervals.map((interval) => interval.demandValue));
-  const maxSellableValue = Math.max(1, ...intervals.map((interval) => interval.sellableValue));
-  const demandPolyline = buildPolylineWithDomain(
-    intervals.map((interval) => interval.demandValue),
-    stretchedSlotWidth,
-    FLOW_LINE_VIEWBOX_HEIGHT,
-    0,
-    maxDemandValue,
-    { axisStartPadding, topPadding: FLOW_LINE_TOP_PADDING, bottomPadding: FLOW_LINE_BOTTOM_PADDING },
-  );
-  const sellablePolyline = buildPolylineWithDomain(
-    intervals.map((interval) => interval.sellableValue),
-    stretchedSlotWidth,
-    FLOW_LINE_VIEWBOX_HEIGHT,
-    0,
-    maxSellableValue,
-    { axisStartPadding, topPadding: FLOW_LINE_TOP_PADDING, bottomPadding: FLOW_LINE_BOTTOM_PADDING },
-  );
-  const demandCoordinates = buildPointCoordinatesWithDomain(
-    intervals.map((interval) => interval.demandValue),
-    stretchedSlotWidth,
-    FLOW_LINE_VIEWBOX_HEIGHT,
-    0,
-    maxDemandValue,
-    { axisStartPadding, topPadding: FLOW_LINE_TOP_PADDING, bottomPadding: FLOW_LINE_BOTTOM_PADDING },
-  );
-  const sellableCoordinates = buildPointCoordinatesWithDomain(
-    intervals.map((interval) => interval.sellableValue),
-    stretchedSlotWidth,
-    FLOW_LINE_VIEWBOX_HEIGHT,
-    0,
-    maxSellableValue,
-    { axisStartPadding, topPadding: FLOW_LINE_TOP_PADDING, bottomPadding: FLOW_LINE_BOTTOM_PADDING },
-  );
+  const gapValues = intervals.map((interval) => interval.sellableValue - interval.demandValue);
+  const maxGapMagnitude = Math.max(1, ...gapValues.map((value) => Math.abs(value)));
 
   useEffect(() => {
     const node = intervalScrollRef.current;
@@ -703,16 +671,12 @@ export function ServiceDetailLedger({
         <div className="border-t border-border/60 py-5">
           <LaneTitle
             title="Demand and sellability lane"
-            tooltip="The core service tension: inferred demand against service capacity."
+            tooltip="Sellable capacity minus demand, using a single service margin bar around the midline."
           />
           <div className="mb-3 flex items-center gap-4 px-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-2">
-              <span className="size-2 rounded-full bg-foreground/55" />
-              Demand
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="size-2 rounded-full bg-secondary" />
-              Sellable capacity
+              <span className="size-2 rounded-full bg-foreground/70" />
+              Sellable minus demand
             </span>
           </div>
           <div
@@ -722,114 +686,69 @@ export function ServiceDetailLedger({
             onWheel={handleLaneWheel(flowScrollRef, axisStartPadding)}
           >
             <div
-              className="relative rounded-[1rem] bg-muted/20 pb-3 pt-2"
+              className="grid rounded-md bg-muted/20 pb-3 pt-2"
               style={{
                 width: renderWidth,
+                paddingLeft: axisStartPadding,
+                paddingRight: axisEndPadding,
+                paddingTop: FLOW_LABEL_GUTTER_HEIGHT,
+                gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, ${stretchedSlotWidth}px)`,
                 minHeight: FLOW_LABEL_GUTTER_HEIGHT + FLOW_LANE_PLOT_HEIGHT,
               }}
             >
-              <div className="pointer-events-none absolute left-3 top-3 z-[2] rounded-full border border-border/70 bg-background/90 px-2 py-1 text-[10px] font-medium text-foreground shadow-sm">
-                Demand axis {maxDemandValue.toFixed(2).replace(/\.00$/, '')}
-              </div>
-              <div className="pointer-events-none absolute right-3 top-3 z-[2] rounded-full border border-border/70 bg-background/90 px-2 py-1 text-[10px] font-medium text-foreground shadow-sm">
-                Sellable axis {maxSellableValue.toFixed(0)}
-              </div>
-              <div className="pointer-events-none absolute bottom-3 left-3 z-[2] text-[10px] text-muted-foreground">0</div>
-              <div className="pointer-events-none absolute bottom-3 right-3 z-[2] text-[10px] text-muted-foreground">0</div>
-              <svg
-                aria-hidden="true"
-                className="absolute left-0 top-0 z-[1] w-full"
-                preserveAspectRatio="none"
-                style={{ height: FLOW_LANE_PLOT_HEIGHT, top: FLOW_LABEL_GUTTER_HEIGHT }}
-                viewBox={`0 0 ${Math.max(renderWidth, 1)} ${FLOW_LINE_VIEWBOX_HEIGHT}`}
-              >
-                <polyline
-                  fill="none"
-                  points={sellablePolyline}
-                  stroke="hsl(var(--secondary-foreground) / 0.82)"
-                  strokeWidth="2.4"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-                <polyline
-                  fill="none"
-                  points={demandPolyline}
-                  stroke="hsl(var(--foreground) / 0.74)"
-                  strokeWidth="2.4"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  strokeDasharray="4 3"
-                />
-              </svg>
               {intervals.map((interval, index) => {
-                const demandPoint = demandCoordinates[index];
-                const sellablePoint = sellableCoordinates[index];
-                const selected = selectedIntervalIndex === interval.intervalIndex;
-                const tooltipTop = Math.min(
-                  deriveLabelGutterOffset({ plotY: Math.min(demandPoint?.y ?? 0, sellablePoint?.y ?? 0), plotHeight: FLOW_LANE_PLOT_HEIGHT, gutterHeight: FLOW_LABEL_GUTTER_HEIGHT, viewBoxHeight: FLOW_LINE_VIEWBOX_HEIGHT }) - 8,
-                  FLOW_LABEL_GUTTER_HEIGHT + FLOW_LANE_PLOT_HEIGHT - 28,
-                );
+                const plotHalfHeight = FLOW_LANE_PLOT_HEIGHT / 2;
+                const gapValue = gapValues[index] ?? 0;
+                const gapHeight = Math.max(3, (Math.abs(gapValue) / maxGapMagnitude) * (plotHalfHeight - 4));
+                const tooltipPositionClassName =
+                  index === 0
+                    ? 'left-0 translate-x-0'
+                    : index === intervals.length - 1
+                      ? 'right-0 translate-x-0'
+                      : 'left-1/2 -translate-x-1/2';
+                const tooltipInsetTop = Math.max(4, FLOW_LABEL_GUTTER_HEIGHT - 60);
                 return (
                   <button
                     key={interval.intervalIndex}
-                    className="absolute inset-y-0 z-[2] block"
-                    style={{
-                      left: axisStartPadding + index * stretchedSlotWidth,
-                      width: stretchedSlotWidth,
-                    }}
+                    className="relative flex w-full items-stretch justify-center"
+                    style={{ height: FLOW_LANE_PLOT_HEIGHT }}
                     type="button"
                     onClick={() => setSelection({ type: 'interval', intervalIndex: interval.intervalIndex })}
                   >
-                    {selected ? (
+                    {selectedIntervalIndex === interval.intervalIndex ? (
                       <div
-                        className="pointer-events-none absolute left-1/2 z-[3] flex -translate-x-1/2 flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm"
-                        style={{ top: tooltipTop }}
+                        className={`absolute z-[2] flex max-w-[220px] flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm ${tooltipPositionClassName}`}
+                        style={{ top: tooltipInsetTop - FLOW_LABEL_GUTTER_HEIGHT }}
                       >
                         <span className="whitespace-nowrap text-foreground">{`Demand: ${interval.demandLabel}`}</span>
                         <span className="whitespace-nowrap text-foreground">{`Sellable: ${interval.sellableLabel}`}</span>
+                        <span className="whitespace-nowrap text-foreground">{`Gap: ${gapValue > 0 ? '+' : ''}${gapValue.toFixed(2).replace(/\.00$/, '')}`}</span>
                         <span className="whitespace-nowrap text-foreground">{interval.tensionLabel}</span>
                       </div>
                     ) : null}
-                    {sellablePoint ? (
-                      <span
-                        className={`pointer-events-none absolute z-[2] block size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${
-                          selected ? 'border-secondary-foreground bg-secondary' : 'border-secondary-foreground/50 bg-background'
-                        }`}
-                        style={{
-                          left: sellablePoint.x - (axisStartPadding + index * stretchedSlotWidth),
-                          top: deriveLabelGutterOffset({
-                            plotY: sellablePoint.y,
-                            plotHeight: FLOW_LANE_PLOT_HEIGHT,
-                            gutterHeight: FLOW_LABEL_GUTTER_HEIGHT,
-                            viewBoxHeight: FLOW_LINE_VIEWBOX_HEIGHT,
-                          }),
-                        }}
-                      />
-                    ) : null}
-                    {demandPoint ? (
-                      <span
-                        className={`pointer-events-none absolute z-[2] block size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${
-                          selected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background'
-                        }`}
-                        style={{
-                          left: demandPoint.x - (axisStartPadding + index * stretchedSlotWidth),
-                          top: deriveLabelGutterOffset({
-                            plotY: demandPoint.y,
-                            plotHeight: FLOW_LANE_PLOT_HEIGHT,
-                            gutterHeight: FLOW_LABEL_GUTTER_HEIGHT,
-                            viewBoxHeight: FLOW_LINE_VIEWBOX_HEIGHT,
-                          }),
-                        }}
-                      />
-                    ) : null}
+                    <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
+                    <div className="relative h-full w-[85%] self-center">
+                      {gapValue >= 0 ? (
+                        <div className="absolute inset-x-0 bottom-1/2 h-1/2">
+                          <span
+                            className="absolute bottom-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-foreground/70"
+                            style={{ height: gapHeight }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="absolute inset-x-0 top-1/2 h-1/2">
+                          <span
+                            className="absolute top-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-destructive/70"
+                            style={{ height: gapHeight }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            {intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.tensionLabel ?? intervals.at(-1)?.tensionLabel}
-          </p>
         </div>
 
         <div className="border-t border-border/60 py-5">
