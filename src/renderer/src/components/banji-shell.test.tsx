@@ -28,6 +28,7 @@ describe('BanjiShell', () => {
         const translations: Record<string, string> = {
           appBrand: 'Banji',
           navOverview: 'Overview',
+          navPerformance: 'Performance',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
           navSettings: 'Settings',
@@ -87,6 +88,7 @@ describe('BanjiShell', () => {
     );
 
     expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'SIST' })).not.toBeInTheDocument();

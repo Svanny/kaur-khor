@@ -4,6 +4,7 @@ import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from '@/components/banji-shell';
 import { DashboardRoute } from '@/routes/dashboard';
 import { InventoryRoute } from '@/routes/inventory';
+import { PerformanceRoute } from '@/routes/performance';
 import { ServiceDetailRoute } from '@/routes/service-detail';
 import { ServiceFormRoute } from '@/routes/service-form';
 import { SettingsRoute } from '@/routes/settings';
@@ -34,6 +35,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<DashboardRoute />} path="/" />
+      <Route element={<PerformanceRoute />} path="/performance" />
       <Route element={<RedirectWithSearch to="/catalog" />} path="/inventory" />
       <Route element={<RedirectWithSearch to="/catalog/skus/new" />} path="/inventory/skus/new" />
       <Route element={<RedirectWithSearch to="/catalog/skus/:skuId" />} path="/inventory/skus/:skuId" />

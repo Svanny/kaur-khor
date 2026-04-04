@@ -6,6 +6,7 @@ import {
   NotebookTabs,
   PanelRight,
   Settings,
+  TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,8 +34,8 @@ import brandLogo from '@/assets/banji-logo.svg';
 type ShellSectionConfig = {
   destination: string;
   icon: typeof LayoutDashboard;
-  id: 'overview' | 'catalog' | 'operations' | 'settings';
-  labelKey: 'navOverview' | 'navCatalog' | 'navOperations' | 'navSettings';
+  id: 'overview' | 'performance' | 'catalog' | 'operations' | 'settings';
+  labelKey: 'navOverview' | 'navPerformance' | 'navCatalog' | 'navOperations' | 'navSettings';
   matches: (pathname: string) => boolean;
 };
 
@@ -49,6 +50,13 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     labelKey: 'navOverview',
     icon: LayoutDashboard,
     matches: (pathname) => pathname === '/',
+  },
+  {
+    id: 'performance',
+    destination: '/performance',
+    labelKey: 'navPerformance',
+    icon: TrendingUp,
+    matches: (pathname) => matchesSection(pathname, '/performance'),
   },
   {
     id: 'catalog',

@@ -4,6 +4,7 @@ const en = {
   appTitle: 'Banji Desktop',
   appBrand: 'Banji',
   navOverview: 'Overview',
+  navPerformance: 'Performance',
   navCatalog: 'Catalog',
   navOperations: 'Logs',
   navSist: 'Planning',
@@ -934,6 +935,7 @@ export type TranslationKey = keyof typeof en;
 const km: Partial<Record<TranslationKey, string>> = {
   appTitle: 'បញ្ចីរ Desktop',
   navOverview: 'ទិដ្ឋភាពទូទៅ',
+  navPerformance: 'Performance',
   navCatalog: 'កាតាឡុក',
   navOperations: 'កំណត់ហេតុ',
   navSist: 'ផែនការ',
