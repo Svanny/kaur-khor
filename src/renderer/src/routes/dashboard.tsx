@@ -2,9 +2,13 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { SenaSkuDetail } from '@shared/sena';
 import {
+  Archive,
   ArrowUpRight,
   CalendarClock,
   ClipboardList,
+  ClipboardCheck,
+  ClipboardClock,
+  ListTodo,
   PackagePlus,
   Layers3,
   Package,
@@ -41,12 +45,22 @@ import {
 } from './overview/view-model';
 
 const FILTER_OPTIONS: Array<{ value: OverviewTaskFilter; label: string }> = [
-  { value: 'all', label: 'All' },
+  { value: 'all', label: 'All Tasks' },
   { value: 'to_order', label: 'To order' },
   { value: 'awaiting_receipt', label: 'Awaiting receipt' },
   { value: 'follow_up_today', label: 'Follow up today' },
   { value: 'ready_to_receive', label: 'Ready to receive' },
   { value: 'received_today', label: 'Received today' },
+];
+
+const TODAY_FILTER_ROWS: Array<{
+  countKey: 'toOrder' | 'followUpToday' | 'readyToReceive';
+  filter: OverviewTaskFilter;
+  label: string;
+}> = [
+  { countKey: 'toOrder', filter: 'to_order', label: 'To order' },
+  { countKey: 'followUpToday', filter: 'follow_up_today', label: 'Follow up today' },
+  { countKey: 'readyToReceive', filter: 'ready_to_receive', label: 'Ready to receive' },
 ];
 
 type OverviewSearchScope = 'all' | 'skus' | 'services';
@@ -71,6 +85,23 @@ function taskActionIcon(task: OverviewTask) {
       return <ScanLine className="size-4" />;
     default:
       return null;
+  }
+}
+
+function filterTabIcon(filter: OverviewTaskFilter) {
+  switch (filter) {
+    case 'all':
+      return <ClipboardList className="size-4" />;
+    case 'to_order':
+      return <PackagePlus className="size-4" />;
+    case 'awaiting_receipt':
+      return <ClipboardClock className="size-4" />;
+    case 'follow_up_today':
+      return <ListTodo className="size-4" />;
+    case 'ready_to_receive':
+      return <ClipboardCheck className="size-4" />;
+    case 'received_today':
+      return <Archive className="size-4" />;
   }
 }
 
@@ -280,6 +311,7 @@ export function DashboardRoute() {
               return (
                 <ChromeTabsTrigger
                   key={option.value}
+                  leading={filterTabIcon(option.value)}
                   value={option.value}
                 >
                   {option.label}
@@ -344,6 +376,9 @@ export function DashboardRoute() {
                             {task.stateLabel}
                           </span>
                         </div>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+                          {task.skuId}
+                        </p>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.serviceImpact}</p>
                       </button>
                     </div>
@@ -401,18 +436,20 @@ export function DashboardRoute() {
                 <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">Today</h2>
               </div>
               <div className="divide-y divide-border/50">
-                <div className="flex items-center justify-between py-3 text-sm">
-                  <span className="text-muted-foreground">To order</span>
-                  <span className="font-semibold text-foreground">{model.todayCounts.toOrder}</span>
-                </div>
-                <div className="flex items-center justify-between py-3 text-sm">
-                  <span className="text-muted-foreground">Follow up today</span>
-                  <span className="font-semibold text-foreground">{model.todayCounts.followUpToday}</span>
-                </div>
-                <div className="flex items-center justify-between py-3 text-sm">
-                  <span className="text-muted-foreground">Ready to receive</span>
-                  <span className="font-semibold text-foreground">{model.todayCounts.readyToReceive}</span>
-                </div>
+                {TODAY_FILTER_ROWS.map((row) => {
+                  return (
+                    <button
+                      key={row.filter}
+                      aria-pressed={filter === row.filter}
+                      className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left text-sm transition-colors ${rowHoverClassName}`}
+                      type="button"
+                      onClick={() => setFilter(row.filter)}
+                    >
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className="font-semibold text-foreground">{model.todayCounts[row.countKey]}</span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
 

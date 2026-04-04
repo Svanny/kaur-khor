@@ -13,6 +13,13 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain('nodeIntegration: false');
   });
 
+  it('installs a renderer content security policy without unsafe-eval', () => {
+    expect(mainSource).toContain('installRendererContentSecurityPolicy()');
+    expect(mainSource).toContain('session.defaultSession.webRequest.onHeadersReceived');
+    expect(mainSource).toContain("'Content-Security-Policy': [policy]");
+    expect(mainSource).not.toContain('unsafe-eval');
+  });
+
   it('exposes a named preload bridge through contextBridge', () => {
     expect(preloadSource).toContain("contextBridge.exposeInMainWorld('banjiDesktop', desktopBridge)");
     expect(preloadSource).toContain('ipcRenderer.invoke');

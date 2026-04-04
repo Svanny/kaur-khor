@@ -206,7 +206,7 @@ function ChromeTabsTrigger({
       <span
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute bottom-[7px] top-[7px] right-[9px] w-px bg-[#a9adb0] transition-opacity',
+          'pointer-events-none absolute bottom-[7px] top-[7px] right-0 w-px translate-x-1/2 bg-[#a9adb0] transition-opacity',
           'group-data-[hide-trailing-divider=true]/chrome-tab:opacity-0',
         )}
         style={{
@@ -279,8 +279,8 @@ function ChromeTabsTrigger({
 
       <span
         className={cn(
-          'relative z-[11] flex min-w-0 items-center gap-2 rounded-t-[8px] px-6 py-[9px]',
-          leading ? 'pr-5' : '',
+          'relative z-[11] flex min-w-0 items-center gap-2 rounded-t-[8px] px-8 py-[9px]',
+          leading ? 'pl-8 pr-8' : '',
         )}
       >
         {leading ? <span className="shrink-0">{leading}</span> : null}

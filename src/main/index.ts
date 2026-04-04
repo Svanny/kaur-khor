@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, session, shell } from 'electron';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,6 +55,41 @@ const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
 const senaReadCache = new Map<string, unknown>();
 const senaInflightReads = new Map<string, Promise<unknown>>();
+
+function buildRendererContentSecurityPolicy() {
+  const directives = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "style-src 'self' 'unsafe-inline'",
+  ];
+
+  if (process.env.ELECTRON_RENDERER_URL) {
+    directives.push(
+      "script-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:*",
+      "connect-src 'self' ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*",
+    );
+  } else {
+    directives.push("script-src 'self'", "connect-src 'self'");
+  }
+
+  return directives.join('; ');
+}
+
+function installRendererContentSecurityPolicy() {
+  const policy = buildRendererContentSecurityPolicy();
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [policy],
+      },
+    });
+  });
+}
 
 function invalidateSenaReadCache() {
   senaReadCache.clear();
@@ -115,6 +150,7 @@ async function createMainWindow() {
 }
 
 async function boot() {
+  installRendererContentSecurityPolicy();
   if (!app.isPackaged) {
     const migratedFiles = await migrateLegacyDesktopData(
       desktopDataPath,
