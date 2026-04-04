@@ -113,7 +113,7 @@ const sampleObservations = [
 ];
 
 describe('StockUpdateRoute', () => {
-  it('renders the reusable operations title card and actions', () => {
+  it('renders the reusable logs title card and actions', () => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isSaving: false,
@@ -130,7 +130,7 @@ describe('StockUpdateRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Operations')).toBeInTheDocument();
+    expect(screen.getByText('Logs')).toBeInTheDocument();
     expect(screen.getByText('Internal Evidence')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();

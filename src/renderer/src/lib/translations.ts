@@ -5,7 +5,7 @@ const en = {
   appBrand: 'Banji',
   navOverview: 'Overview',
   navCatalog: 'Catalog',
-  navOperations: 'Operations',
+  navOperations: 'Logs',
   navSist: 'Planning',
   navPlanning: 'Planning',
   shellGroupWorkflows: 'Workflows',
@@ -51,7 +51,7 @@ const en = {
     'Reorder pressure is rising even without a top-risk SKU, so Planning should confirm priorities before urgency spreads.',
   overviewDecisionSupportFirstReportTitle: 'The catalog needs its first live update',
   overviewDecisionSupportFirstReportBody:
-    'Catalog structure is in place, but operations still needs a captured stock session before recent changes can be trusted.',
+    'Catalog structure is in place, but logs still need a captured stock session before recent changes can be trusted.',
   overviewDecisionSupportSteadyTitle: 'The latest picture looks steady',
   overviewDecisionSupportSteadyBody:
     'Nothing urgent is crowding the queue, so the next guided update session is the best way to keep Overview current.',
@@ -60,7 +60,7 @@ const en = {
     'Start the catalog with the first SKU so planning, services, and stock updates have something to build on.',
   overviewPrimaryStartFirstUpdate: 'Start first update session',
   overviewPrimaryStartFirstUpdateDescription:
-    'Capture the first stock report so operations and planning have recent evidence to work from.',
+    'Capture the first stock report so logs and planning have recent evidence to work from.',
   overviewPrimaryReviewReorderPriorities: 'Review reorder priorities',
   overviewPrimaryReviewReorderPrioritiesDescription:
     'High-risk SKUs need planning attention before the next stock decision falls behind.',
@@ -69,14 +69,14 @@ const en = {
     'Open the guided stock session to capture the next report and keep the inventory picture current.',
   overviewOpenCatalog: 'Open catalog',
   overviewOpenCatalogDescription: 'Browse the current SKU and service structure or add new entries.',
-  overviewOpenOperations: 'Open operations',
+  overviewOpenOperations: 'Open logs',
   overviewOpenOperationsDescription: 'Review saved stock reports or jump into a new update session.',
   overviewOpenPlanning: 'Open planning',
   overviewOpenPlanningDescription: 'Review merchandising and reorder priorities on the planning surface.',
   overviewOpenReorderQueue: 'Open reorder queue',
   overviewReviewRecentActivity: 'Review recent activity',
   overviewReviewRecentActivityDescription:
-    'Open operations to inspect saved reports and continue from the latest operational activity.',
+    'Open logs to inspect saved reports and continue from the latest logged activity.',
   overviewNeedsAttentionTitle: 'Needs attention',
   overviewNeedsAttentionDescription:
     'Surface the strongest reorder and stockout signals first so the next decision is obvious.',
@@ -121,10 +121,10 @@ const en = {
   overviewDaysOfCoverSuffix: 'days of cover',
   overviewHealthyStateTitle: 'No urgent planning signals',
   overviewHealthyStateDescription:
-    'Reorder pressure is calm right now. Keep operations moving or continue shaping the catalog.',
+    'Reorder pressure is calm right now. Keep logs moving or continue shaping the catalog.',
   overviewQueueHealthyTitle: 'Planning queue is clear',
   overviewQueueHealthyDescription:
-    'No immediate reorder or service-impact decisions are waiting right now. Keep operations moving or continue shaping the catalog.',
+    'No immediate reorder or service-impact decisions are waiting right now. Keep logs moving or continue shaping the catalog.',
   overviewReorderPressureOnlyTitle: 'Reorder pressure is rising',
   overviewReorderPressureOnlyDescription:
     'Reorder pressure is rising even though no SKU is in the current top risk list.',
@@ -140,7 +140,7 @@ const en = {
   overviewQuickActionsDescription:
     'Keep this list short so Overview stays action-first instead of turning back into a control panel.',
   overviewQuickActionOperationsDescription:
-    'Capture the next stock update through the guided operations session.',
+    'Capture the next stock update through the guided logs session.',
   overviewQuickActionCatalogDescription:
     'Review catalog structure, item details, and create new SKU records.',
   overviewQuickActionPlanningDescription:
@@ -152,10 +152,10 @@ const en = {
   overviewSupportMetricsSaleReadyDetail: 'Sellable SKUs currently available to the storefront.',
   overviewSupportMetricsServicesDetail: 'Service bundles currently defined in the catalog.',
   overviewRankingCoverage: 'Latest ranking coverage',
-  dashboardEyebrow: 'Warm, local-first retail operations',
+  dashboardEyebrow: 'Warm, local-first retail logs',
   dashboardHeading: 'Daily control for inventory, stock moves, and storefront priorities',
   dashboardBody:
-    'Banji keeps your catalog, ranking, and stock changes on this Mac so the team can run operations without waiting on a cloud connection.',
+    'Banji keeps your catalog, ranking, and stock changes on this Mac so the team can run logs without waiting on a cloud connection.',
   dashboardTotalValue: 'Inventory value',
   dashboardSaleReady: 'Sale-ready SKUs',
   dashboardServices: 'Service bundles',
@@ -350,7 +350,7 @@ const en = {
     'Monitor operational state, current constraints, dependency health, and the latest evidence for this service.',
   catalogServiceEditAction: 'Edit service',
   catalogServiceAdjustPriceAction: 'Adjust price',
-  catalogServiceOperationsAction: 'Review this service in session',
+  catalogServiceOperationsAction: 'Review this service in logs',
   catalogServiceCommercialSetupTitle: 'Commercial setup',
   catalogServiceCommercialSetupDescription:
     'Keep the selling price and linked SKU footprint clear before opening the editor.',
@@ -506,7 +506,7 @@ const en = {
   catalogServiceEditorTitleNew: 'New service',
   catalogServiceEditorTitleEdit: 'Edit service',
   catalogServiceEditorDescriptionNew:
-    'Create a new service record, then land on its detail page for follow-up fulfillment and operations review.',
+    'Create a new service record, then land on its detail page for follow-up fulfillment and logs review.',
   catalogServiceEditorDescriptionEdit:
     'Update the service name, price, description, and linked SKUs.',
   catalogServiceEditorIdentifierDescription:
@@ -519,12 +519,12 @@ const en = {
     'Choose which SKUs are consumed whenever this service is sold so availability and bottlenecks are calculated correctly.',
   catalogServiceEditorPriceTooltip:
     'Service price is the amount charged when this service is sold.',
-  stockChangesTitle: 'Operations',
+  stockChangesTitle: 'Logs',
   stockUpdateBody:
     'Capture timestamped stock reports, optional service updates, and the ranking context the desktop workflow uses for the next planning pass.',
-  operationsTitle: 'Operations',
+  operationsTitle: 'Logs',
   operationsBody:
-    'Start the next stock session quickly, scan recent updates quickly, and inspect the saved report breakdown only when needed.',
+    'Start the next stock session quickly, scan recent updates quickly, and inspect the saved log breakdown only when needed.',
   operationsStartSession: 'Start update session',
   operationsResumeSession: 'Resume update session',
   operationsResumeDetails: 'Resume details',
@@ -554,7 +554,7 @@ const en = {
     'Start the first update session to capture timestamped SKU observations and optional service changes.',
   operationsHistoryNoResultsTitle: 'No matching updates',
   operationsHistoryNoResultsDescription:
-    'Try clearing the current search or source filter to see more saved operational history.',
+    'Try clearing the current search or source filter to see more saved log history.',
   operationsHistoryEditAction: 'Edit report',
   operationsHistoryDeleteAction: 'Delete report',
   operationsHistoryDeletePrompt: 'Type this exactly to permanently delete the report:',
@@ -598,8 +598,8 @@ const en = {
   stockComposerDescription:
     'Capture one operational update with stock observations, optional service changes, and a final review before submit.',
   stockComposerCancel: 'Cancel session',
-  stockSessionEyebrow: 'Operations session',
-  stockSessionTitle: 'Review and submit one operations update',
+  stockSessionEyebrow: 'Logs session',
+  stockSessionTitle: 'Review and submit one logs update',
   stockSessionDescription:
     'Timestamp the update, capture at least one SKU observation, optionally add service changes and a sales signal, then submit from the final review.',
   stockSessionProgress: 'sections ready',
@@ -614,7 +614,7 @@ const en = {
     'Record at least one changed SKU row. This is the core required surface for the session.',
   stockSessionStepServices: 'Service updates',
   stockSessionStepServicesDescription:
-    'Optional service stockouts and price overrides live here so they do not block the rest of operations.',
+    'Optional service stockouts and price overrides live here so they do not block the rest of logs.',
   stockSessionStepSalesSignal: 'Sales signal',
   stockSessionStepSalesSignalDescription:
     'Capture the recent selling order Banji should use as a demand signal.',
@@ -626,7 +626,7 @@ const en = {
   stockSessionNext: 'Next',
   stockSessionSubmit: 'Submit update',
   stockSessionDiscardPrompt:
-    'You have an in-progress operations update. Leave this page and discard the current draft?',
+    'You have an in-progress logs update. Leave this page and discard the current draft?',
   stockOptionalBadge: 'Optional',
   stockStepStatusRequired: 'Required',
   stockStepStatusOptional: 'Optional',
@@ -734,8 +734,8 @@ const en = {
   planningBody:
     'Set the sales priority order your team uses on the floor, then review the supporting signals before saving.',
   planningOperationsSource:
-    'You opened Planning from operations review. Finalize the order here, then return to review.',
-  planningReturnToOperationsReview: 'Return to operations review',
+    'You opened Planning from logs review. Finalize the order here, then return to review.',
+  planningReturnToOperationsReview: 'Return to logs review',
   planningRankingEntries: 'Ranking entries',
   planningLeadSpotlight: 'Top of list preview',
   planningLeadSpotlightEmpty: 'No ranked entries yet.',
@@ -849,7 +849,7 @@ const en = {
   skuEditorDetailsTitle: 'SKU details',
   skuEditorStockSellingTitle: 'Stock and selling',
   skuEditorDetailsDescription:
-    'Set the SKU name and description so the record is easy to identify in catalog and operations views.',
+    'Set the SKU name and description so the record is easy to identify in catalog and logs views.',
   skuEditorStockSellingDescription:
     'Adjust stock on hand, unit cost, and direct-sell setup together so sellability is clear at a glance.',
   skuEditorSellAsProductDescription:
@@ -935,7 +935,7 @@ const km: Partial<Record<TranslationKey, string>> = {
   appTitle: 'បញ្ចីរ Desktop',
   navOverview: 'ទិដ្ឋភាពទូទៅ',
   navCatalog: 'កាតាឡុក',
-  navOperations: 'ប្រតិបត្តិការ',
+  navOperations: 'កំណត់ហេតុ',
   navSist: 'ផែនការ',
   navPlanning: 'ផែនការ',
   shellGroupWorkflows: 'លំហូរការងារ',
@@ -975,7 +975,7 @@ const km: Partial<Record<TranslationKey, string>> = {
     'សម្ពាធ reorder កំពុងកើនឡើង ទោះមិនទាន់មាន SKU ហានិភ័យកំពូលក៏ដោយ ដូច្នេះគួរតែពិនិត្យអាទិភាពនៅ Planning មុនពេលវាខ្លាំងជាងនេះ។',
   overviewDecisionSupportFirstReportTitle: 'កាតាឡុកត្រូវការអាប់ដេតផ្ទាល់លើកដំបូង',
   overviewDecisionSupportFirstReportBody:
-    'រចនាសម្ព័ន្ធកាតាឡុកមានរួចហើយ ប៉ុន្តែ Operations នៅតែត្រូវការវគ្គស្តុកមួយ មុនពេលអាចទុកចិត្តលើការផ្លាស់ប្តូរថ្មីៗបាន។',
+    'រចនាសម្ព័ន្ធកាតាឡុកមានរួចហើយ ប៉ុន្តែ Logs នៅតែត្រូវការវគ្គស្តុកមួយ មុនពេលអាចទុកចិត្តលើការផ្លាស់ប្តូរថ្មីៗបាន។',
   overviewDecisionSupportSteadyTitle: 'ស្ថានភាពចុងក្រោយមើលទៅមានស្ថិរភាព',
   overviewDecisionSupportSteadyBody:
     'មិនមានអ្វីបន្ទាន់កំពុងចូលមកទេ ដូច្នេះវគ្គអាប់ដេតបន្ទាប់គឺជាវិធីល្អបំផុតដើម្បីរក្សា Overview ឱ្យទាន់សម័យ។',
@@ -1091,7 +1091,7 @@ const km: Partial<Record<TranslationKey, string>> = {
   catalogSkuEditAction: 'កែ SKU',
   catalogSkuStockAction: 'អាប់ដេតស្តុក',
   catalogServiceEditAction: 'កែសេវាកម្ម',
-  catalogServiceOperationsAction: 'បើកប្រតិបត្តិការ',
+  catalogServiceOperationsAction: 'បើកកំណត់ហេតុ',
   catalogSkuRecentReportsTitle: 'របាយការណ៍ថ្មីៗ',
   catalogSkuEditorTitleNew: 'SKU ថ្មី',
   catalogSkuEditorTitleEdit: 'កែ SKU',

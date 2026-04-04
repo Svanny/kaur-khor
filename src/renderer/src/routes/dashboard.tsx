@@ -387,7 +387,7 @@ export function DashboardRoute() {
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     {query || filter !== 'all'
                       ? 'Try a broader query or switch filters to bring more of the task ledger back into view.'
-                      : 'Banji is not seeing an immediate reorder, receipt, or follow-up action. Keep operations moving or capture the next live signal.'}
+                      : 'Banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.'}
                   </p>
                 </div>
               </div>
@@ -503,7 +503,7 @@ export function DashboardRoute() {
               <Button asChild variant="outline">
                 <Link to="/operations">
                   <ArrowUpRight className="size-4" />
-                  Open operations
+                  Open logs
                 </Link>
               </Button>
             </section>

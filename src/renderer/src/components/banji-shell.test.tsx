@@ -29,7 +29,7 @@ describe('BanjiShell', () => {
           appBrand: 'Banji',
           navOverview: 'Overview',
           navCatalog: 'Catalog',
-          navOperations: 'Operations',
+          navOperations: 'Logs',
           navSettings: 'Settings',
           workspaceUnavailable: 'Workspace unavailable',
           workspaceLoadingTitle: 'Loading workspace',
@@ -88,7 +88,7 @@ describe('BanjiShell', () => {
 
     expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Operations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'SIST' })).not.toBeInTheDocument();
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');

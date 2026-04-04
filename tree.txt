@@ -1,11 +1,559 @@
-.
+/Users/svanny/banji
 ├── .DS_Store
 ├── .banji-dev-data
-│   └── desktop-inventory-store.json
+│   ├── desktop-inventory-store.json
+│   ├── desktop-preferences.json
+│   ├── desktop-sena-dev-seed.txt
+│   └── desktop-sena-store.sqlite3
 ├── .codex
 │   └── environments
 │       └── environment.toml
 ├── .gitignore
+├── .playwright-cli
+│   ├── console-2026-04-04T07-10-11-101Z.log
+│   ├── console-2026-04-04T07-10-56-785Z.log
+│   ├── console-2026-04-04T07-11-20-675Z.log
+│   ├── console-2026-04-04T08-13-52-669Z.log
+│   ├── console-2026-04-04T08-31-15-951Z.log
+│   ├── console-2026-04-04T08-31-27-767Z.log
+│   ├── console-2026-04-04T08-32-13-780Z.log
+│   ├── console-2026-04-04T08-35-16-436Z.log
+│   ├── console-2026-04-04T08-37-37-110Z.log
+│   ├── page-2026-04-04T07-10-57-055Z.yml
+│   ├── page-2026-04-04T07-11-21-054Z.yml
+│   ├── page-2026-04-04T07-12-30-338Z.yml
+│   ├── page-2026-04-04T08-13-53-002Z.yml
+│   ├── page-2026-04-04T08-14-11-907Z.yml
+│   ├── page-2026-04-04T08-31-16-108Z.yml
+│   ├── page-2026-04-04T08-31-27-921Z.yml
+│   ├── page-2026-04-04T08-31-33-829Z.png
+│   ├── page-2026-04-04T08-32-12-725Z.png
+│   ├── page-2026-04-04T08-32-14-322Z.yml
+│   ├── page-2026-04-04T08-35-16-782Z.yml
+│   ├── page-2026-04-04T08-35-32-468Z.png
+│   ├── page-2026-04-04T08-36-01-868Z.png
+│   ├── page-2026-04-04T08-36-27-426Z.png
+│   ├── page-2026-04-04T08-36-55-193Z.png
+│   ├── page-2026-04-04T08-37-37-453Z.yml
+│   └── page-2026-04-04T08-37-56-708Z.png
+├── .pnpm-store
+│   └── v10
+│       ├── files
+│       │   ├── 00
+│       │   ├── 01
+│       │   ├── 02
+│       │   ├── 03
+│       │   ├── 04
+│       │   ├── 05
+│       │   ├── 06
+│       │   ├── 07
+│       │   ├── 08
+│       │   ├── 09
+│       │   ├── 0a
+│       │   ├── 0b
+│       │   ├── 0c
+│       │   ├── 0d
+│       │   ├── 0e
+│       │   ├── 0f
+│       │   ├── 10
+│       │   ├── 11
+│       │   ├── 12
+│       │   ├── 13
+│       │   ├── 14
+│       │   ├── 15
+│       │   ├── 16
+│       │   ├── 17
+│       │   ├── 18
+│       │   ├── 19
+│       │   ├── 1a
+│       │   ├── 1b
+│       │   ├── 1c
+│       │   ├── 1d
+│       │   ├── 1e
+│       │   ├── 1f
+│       │   ├── 20
+│       │   ├── 21
+│       │   ├── 22
+│       │   ├── 23
+│       │   ├── 24
+│       │   ├── 25
+│       │   ├── 26
+│       │   ├── 27
+│       │   ├── 28
+│       │   ├── 29
+│       │   ├── 2a
+│       │   ├── 2b
+│       │   ├── 2c
+│       │   ├── 2d
+│       │   ├── 2e
+│       │   ├── 2f
+│       │   ├── 30
+│       │   ├── 31
+│       │   ├── 32
+│       │   ├── 33
+│       │   ├── 34
+│       │   ├── 35
+│       │   ├── 36
+│       │   ├── 37
+│       │   ├── 38
+│       │   ├── 39
+│       │   ├── 3a
+│       │   ├── 3b
+│       │   ├── 3c
+│       │   ├── 3d
+│       │   ├── 3e
+│       │   ├── 3f
+│       │   ├── 40
+│       │   ├── 41
+│       │   ├── 42
+│       │   ├── 43
+│       │   ├── 44
+│       │   ├── 45
+│       │   ├── 46
+│       │   ├── 47
+│       │   ├── 48
+│       │   ├── 49
+│       │   ├── 4a
+│       │   ├── 4b
+│       │   ├── 4c
+│       │   ├── 4d
+│       │   ├── 4e
+│       │   ├── 4f
+│       │   ├── 50
+│       │   ├── 51
+│       │   ├── 52
+│       │   ├── 53
+│       │   ├── 54
+│       │   ├── 55
+│       │   ├── 56
+│       │   ├── 57
+│       │   ├── 58
+│       │   ├── 59
+│       │   ├── 5a
+│       │   ├── 5b
+│       │   ├── 5c
+│       │   ├── 5d
+│       │   ├── 5e
+│       │   ├── 5f
+│       │   ├── 60
+│       │   ├── 61
+│       │   ├── 62
+│       │   ├── 63
+│       │   ├── 64
+│       │   ├── 65
+│       │   ├── 66
+│       │   ├── 67
+│       │   ├── 68
+│       │   ├── 69
+│       │   ├── 6a
+│       │   ├── 6b
+│       │   ├── 6c
+│       │   ├── 6d
+│       │   ├── 6e
+│       │   ├── 6f
+│       │   ├── 70
+│       │   ├── 71
+│       │   ├── 72
+│       │   ├── 73
+│       │   ├── 74
+│       │   ├── 75
+│       │   ├── 76
+│       │   ├── 77
+│       │   ├── 78
+│       │   ├── 79
+│       │   ├── 7a
+│       │   ├── 7b
+│       │   ├── 7c
+│       │   ├── 7d
+│       │   ├── 7e
+│       │   ├── 7f
+│       │   ├── 80
+│       │   ├── 81
+│       │   ├── 82
+│       │   ├── 83
+│       │   ├── 84
+│       │   ├── 85
+│       │   ├── 86
+│       │   ├── 87
+│       │   ├── 88
+│       │   ├── 89
+│       │   ├── 8a
+│       │   ├── 8b
+│       │   ├── 8c
+│       │   ├── 8d
+│       │   ├── 8e
+│       │   ├── 8f
+│       │   ├── 90
+│       │   ├── 91
+│       │   ├── 92
+│       │   ├── 93
+│       │   ├── 94
+│       │   ├── 95
+│       │   ├── 96
+│       │   ├── 97
+│       │   ├── 98
+│       │   ├── 99
+│       │   ├── 9a
+│       │   ├── 9b
+│       │   ├── 9c
+│       │   ├── 9d
+│       │   ├── 9e
+│       │   ├── 9f
+│       │   ├── a0
+│       │   ├── a1
+│       │   ├── a2
+│       │   ├── a3
+│       │   ├── a4
+│       │   ├── a5
+│       │   ├── a6
+│       │   ├── a7
+│       │   ├── a8
+│       │   ├── a9
+│       │   ├── aa
+│       │   ├── ab
+│       │   ├── ac
+│       │   ├── ad
+│       │   ├── ae
+│       │   ├── af
+│       │   ├── b0
+│       │   ├── b1
+│       │   ├── b2
+│       │   ├── b3
+│       │   ├── b4
+│       │   ├── b5
+│       │   ├── b6
+│       │   ├── b7
+│       │   ├── b8
+│       │   ├── b9
+│       │   ├── ba
+│       │   ├── bb
+│       │   ├── bc
+│       │   ├── bd
+│       │   ├── be
+│       │   ├── bf
+│       │   ├── c0
+│       │   ├── c1
+│       │   ├── c2
+│       │   ├── c3
+│       │   ├── c4
+│       │   ├── c5
+│       │   ├── c6
+│       │   ├── c7
+│       │   ├── c8
+│       │   ├── c9
+│       │   ├── ca
+│       │   ├── cb
+│       │   ├── cc
+│       │   ├── cd
+│       │   ├── ce
+│       │   ├── cf
+│       │   ├── d0
+│       │   ├── d1
+│       │   ├── d2
+│       │   ├── d3
+│       │   ├── d4
+│       │   ├── d5
+│       │   ├── d6
+│       │   ├── d7
+│       │   ├── d8
+│       │   ├── d9
+│       │   ├── da
+│       │   ├── db
+│       │   ├── dc
+│       │   ├── dd
+│       │   ├── de
+│       │   ├── df
+│       │   ├── e0
+│       │   ├── e1
+│       │   ├── e2
+│       │   ├── e3
+│       │   ├── e4
+│       │   ├── e5
+│       │   ├── e6
+│       │   ├── e7
+│       │   ├── e8
+│       │   ├── e9
+│       │   ├── ea
+│       │   ├── eb
+│       │   ├── ec
+│       │   ├── ed
+│       │   ├── ee
+│       │   ├── ef
+│       │   ├── f0
+│       │   ├── f1
+│       │   ├── f2
+│       │   ├── f3
+│       │   ├── f4
+│       │   ├── f5
+│       │   ├── f6
+│       │   ├── f7
+│       │   ├── f8
+│       │   ├── f9
+│       │   ├── fa
+│       │   ├── fb
+│       │   ├── fc
+│       │   ├── fd
+│       │   ├── fe
+│       │   └── ff
+│       ├── index
+│       │   ├── 00
+│       │   ├── 01
+│       │   ├── 02
+│       │   ├── 03
+│       │   ├── 04
+│       │   ├── 05
+│       │   ├── 06
+│       │   ├── 07
+│       │   ├── 08
+│       │   ├── 09
+│       │   ├── 0a
+│       │   ├── 0b
+│       │   ├── 0c
+│       │   ├── 0d
+│       │   ├── 0e
+│       │   ├── 0f
+│       │   ├── 10
+│       │   ├── 11
+│       │   ├── 12
+│       │   ├── 13
+│       │   ├── 14
+│       │   ├── 15
+│       │   ├── 16
+│       │   ├── 17
+│       │   ├── 18
+│       │   ├── 19
+│       │   ├── 1a
+│       │   ├── 1b
+│       │   ├── 1c
+│       │   ├── 1d
+│       │   ├── 1e
+│       │   ├── 1f
+│       │   ├── 20
+│       │   ├── 21
+│       │   ├── 22
+│       │   ├── 23
+│       │   ├── 24
+│       │   ├── 25
+│       │   ├── 26
+│       │   ├── 27
+│       │   ├── 28
+│       │   ├── 29
+│       │   ├── 2a
+│       │   ├── 2b
+│       │   ├── 2c
+│       │   ├── 2d
+│       │   ├── 2e
+│       │   ├── 2f
+│       │   ├── 30
+│       │   ├── 31
+│       │   ├── 32
+│       │   ├── 33
+│       │   ├── 34
+│       │   ├── 35
+│       │   ├── 36
+│       │   ├── 37
+│       │   ├── 38
+│       │   ├── 39
+│       │   ├── 3a
+│       │   ├── 3b
+│       │   ├── 3c
+│       │   ├── 3d
+│       │   ├── 3e
+│       │   ├── 3f
+│       │   ├── 40
+│       │   ├── 41
+│       │   ├── 42
+│       │   ├── 43
+│       │   ├── 44
+│       │   ├── 45
+│       │   ├── 46
+│       │   ├── 47
+│       │   ├── 48
+│       │   ├── 49
+│       │   ├── 4a
+│       │   ├── 4b
+│       │   ├── 4c
+│       │   ├── 4d
+│       │   ├── 4e
+│       │   ├── 4f
+│       │   ├── 50
+│       │   ├── 51
+│       │   ├── 52
+│       │   ├── 53
+│       │   ├── 54
+│       │   ├── 55
+│       │   ├── 56
+│       │   ├── 57
+│       │   ├── 58
+│       │   ├── 59
+│       │   ├── 5a
+│       │   ├── 5b
+│       │   ├── 5c
+│       │   ├── 5d
+│       │   ├── 5e
+│       │   ├── 5f
+│       │   ├── 60
+│       │   ├── 61
+│       │   ├── 62
+│       │   ├── 63
+│       │   ├── 64
+│       │   ├── 65
+│       │   ├── 66
+│       │   ├── 67
+│       │   ├── 68
+│       │   ├── 69
+│       │   ├── 6a
+│       │   ├── 6b
+│       │   ├── 6c
+│       │   ├── 6d
+│       │   ├── 6e
+│       │   ├── 6f
+│       │   ├── 70
+│       │   ├── 71
+│       │   ├── 72
+│       │   ├── 73
+│       │   ├── 74
+│       │   ├── 75
+│       │   ├── 76
+│       │   ├── 77
+│       │   ├── 78
+│       │   ├── 79
+│       │   ├── 7a
+│       │   ├── 7b
+│       │   ├── 7c
+│       │   ├── 7d
+│       │   ├── 7e
+│       │   ├── 7f
+│       │   ├── 80
+│       │   ├── 81
+│       │   ├── 82
+│       │   ├── 83
+│       │   ├── 84
+│       │   ├── 85
+│       │   ├── 86
+│       │   ├── 87
+│       │   ├── 88
+│       │   ├── 89
+│       │   ├── 8a
+│       │   ├── 8b
+│       │   ├── 8c
+│       │   ├── 8d
+│       │   ├── 8e
+│       │   ├── 8f
+│       │   ├── 90
+│       │   ├── 91
+│       │   ├── 92
+│       │   ├── 93
+│       │   ├── 94
+│       │   ├── 95
+│       │   ├── 96
+│       │   ├── 97
+│       │   ├── 98
+│       │   ├── 99
+│       │   ├── 9a
+│       │   ├── 9b
+│       │   ├── 9c
+│       │   ├── 9d
+│       │   ├── 9e
+│       │   ├── 9f
+│       │   ├── a0
+│       │   ├── a1
+│       │   ├── a2
+│       │   ├── a3
+│       │   ├── a4
+│       │   ├── a5
+│       │   ├── a6
+│       │   ├── a7
+│       │   ├── a8
+│       │   ├── a9
+│       │   ├── aa
+│       │   ├── ab
+│       │   ├── ac
+│       │   ├── ad
+│       │   ├── ae
+│       │   ├── af
+│       │   ├── b0
+│       │   ├── b1
+│       │   ├── b2
+│       │   ├── b3
+│       │   ├── b4
+│       │   ├── b5
+│       │   ├── b6
+│       │   ├── b7
+│       │   ├── b8
+│       │   ├── b9
+│       │   ├── ba
+│       │   ├── bb
+│       │   ├── bc
+│       │   ├── bd
+│       │   ├── be
+│       │   ├── bf
+│       │   ├── c0
+│       │   ├── c1
+│       │   ├── c2
+│       │   ├── c3
+│       │   ├── c4
+│       │   ├── c5
+│       │   ├── c6
+│       │   ├── c7
+│       │   ├── c8
+│       │   ├── c9
+│       │   ├── ca
+│       │   ├── cb
+│       │   ├── cc
+│       │   ├── cd
+│       │   ├── ce
+│       │   ├── cf
+│       │   ├── d0
+│       │   ├── d1
+│       │   ├── d2
+│       │   ├── d3
+│       │   ├── d4
+│       │   ├── d5
+│       │   ├── d6
+│       │   ├── d7
+│       │   ├── d8
+│       │   ├── d9
+│       │   ├── da
+│       │   ├── db
+│       │   ├── dc
+│       │   ├── dd
+│       │   ├── de
+│       │   ├── df
+│       │   ├── e0
+│       │   ├── e1
+│       │   ├── e2
+│       │   ├── e3
+│       │   ├── e4
+│       │   ├── e5
+│       │   ├── e6
+│       │   ├── e7
+│       │   ├── e8
+│       │   ├── e9
+│       │   ├── ea
+│       │   ├── eb
+│       │   ├── ec
+│       │   ├── ed
+│       │   ├── ee
+│       │   ├── ef
+│       │   ├── f0
+│       │   ├── f1
+│       │   ├── f2
+│       │   ├── f3
+│       │   ├── f4
+│       │   ├── f5
+│       │   ├── f6
+│       │   ├── f7
+│       │   ├── f8
+│       │   ├── f9
+│       │   ├── fa
+│       │   ├── fb
+│       │   ├── fc
+│       │   ├── fd
+│       │   ├── fe
+│       │   └── ff
+│       └── projects
+│           └── 76d5031ccbd368bfb88853c5fdb93011 -> ../../../desktop
 ├── .tmp_fig
 │   ├── canvas.fig
 │   ├── meta.json
@@ -20,6 +568,7 @@
 ├── References
 │   ├── .DS_Store
 │   ├── SENA
+│   │   ├── .Rhistory
 │   │   ├── SENA.pdf
 │   │   └── SENA.tex
 │   ├── SIST
@@ -183,7 +732,10 @@
 │   │   ├── .DS_Store
 │   │   ├── Cargo.lock
 │   │   ├── Cargo.toml
+│   │   ├── build
 │   │   ├── src
+│   │   │   ├── legacy_inventory
+│   │   │   │   └── mod.rs
 │   │   │   ├── lib.rs
 │   │   │   ├── main.rs
 │   │   │   └── store.rs
@@ -194,6 +746,7 @@
 │       ├── Cargo.toml
 │       ├── src
 │       │   ├── inference.rs
+│       │   ├── lead_time.rs
 │       │   ├── lib.rs
 │       │   ├── normalize.rs
 │       │   ├── service.rs
@@ -202,8 +755,326 @@
 │       │   ├── types.rs
 │       │   └── validation.rs
 │       └── tests
-│           └── sena_core_test.rs
 ├── banji-dev.log
+├── build
+│   ├── 595fa070fb07e166febc8e70630dba42
+│   │   ├── .filecache
+│   │   ├── _composite.stamp
+│   │   ├── gen_dart_plugin_registrant.stamp
+│   │   ├── gen_l10n_inputs_and_outputs.json
+│   │   ├── gen_localizations.d
+│   │   ├── gen_localizations.stamp
+│   │   └── outputs.json
+│   ├── b91b994338c11c54cf5c76fd8ba5acce.cache.dill.track.dill
+│   ├── desktop-inventory-store.json
+│   ├── event-log
+│   │   ├── export.manifest.json
+│   │   ├── storage_report.json
+│   │   └── storage_report.txt
+│   ├── ios
+│   │   ├── Debug-iphonesimulator
+│   │   │   ├── .last_build_id
+│   │   │   ├── App.framework
+│   │   │   │   ├── App
+│   │   │   │   ├── Info.plist
+│   │   │   │   ├── _CodeSignature
+│   │   │   │   │   └── CodeResources
+│   │   │   │   └── flutter_assets
+│   │   │   │       ├── AssetManifest.bin
+│   │   │   │       ├── FontManifest.json
+│   │   │   │       ├── NOTICES.Z
+│   │   │   │       ├── NativeAssetsManifest.json
+│   │   │   │       ├── fonts
+│   │   │   │       │   └── MaterialIcons-Regular.otf
+│   │   │   │       ├── icons
+│   │   │   │       │   ├── assignment_add_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── backup_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── description_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── drag_indicator_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── edit_square_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── label_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── leaderboard_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── list_alt_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── logo.svg
+│   │   │   │       │   ├── logov2.svg
+│   │   │   │       │   ├── package_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── payments_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── person_apron_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── point_of_sale_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── point_of_sale_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24_OUTLINED.svg
+│   │   │   │       │   ├── sell_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── shopping_bag_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   ├── show_chart_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │       │   └── steppers_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24%20(1).svg
+│   │   │   │       ├── isolate_snapshot_data
+│   │   │   │       ├── kernel_blob.bin
+│   │   │   │       ├── packages
+│   │   │   │       │   └── cupertino_icons
+│   │   │   │       │       └── assets
+│   │   │   │       │           └── CupertinoIcons.ttf
+│   │   │   │       ├── shaders
+│   │   │   │       │   ├── ink_sparkle.frag
+│   │   │   │       │   └── stretch_effect.frag
+│   │   │   │       └── vm_snapshot_data
+│   │   │   ├── Flutter
+│   │   │   ├── Flutter.framework
+│   │   │   │   ├── Flutter
+│   │   │   │   ├── Headers
+│   │   │   │   │   ├── Flutter.h
+│   │   │   │   │   ├── FlutterAppDelegate.h
+│   │   │   │   │   ├── FlutterBinaryMessenger.h
+│   │   │   │   │   ├── FlutterCallbackCache.h
+│   │   │   │   │   ├── FlutterChannels.h
+│   │   │   │   │   ├── FlutterCodecs.h
+│   │   │   │   │   ├── FlutterDartProject.h
+│   │   │   │   │   ├── FlutterEngine.h
+│   │   │   │   │   ├── FlutterEngineGroup.h
+│   │   │   │   │   ├── FlutterHeadlessDartRunner.h
+│   │   │   │   │   ├── FlutterHourFormat.h
+│   │   │   │   │   ├── FlutterMacros.h
+│   │   │   │   │   ├── FlutterPlatformViews.h
+│   │   │   │   │   ├── FlutterPlugin.h
+│   │   │   │   │   ├── FlutterPluginAppLifeCycleDelegate.h
+│   │   │   │   │   ├── FlutterSceneDelegate.h
+│   │   │   │   │   ├── FlutterSceneLifeCycle.h
+│   │   │   │   │   ├── FlutterTexture.h
+│   │   │   │   │   └── FlutterViewController.h
+│   │   │   │   ├── Info.plist
+│   │   │   │   ├── Modules
+│   │   │   │   │   └── module.modulemap
+│   │   │   │   ├── PrivacyInfo.xcprivacy
+│   │   │   │   ├── _CodeSignature
+│   │   │   │   │   └── CodeResources
+│   │   │   │   └── icudtl.dat
+│   │   │   ├── Pods_Runner.framework
+│   │   │   │   ├── Headers
+│   │   │   │   │   └── Pods-Runner-umbrella.h
+│   │   │   │   ├── Info.plist
+│   │   │   │   ├── Modules
+│   │   │   │   │   └── module.modulemap
+│   │   │   │   ├── Pods_Runner
+│   │   │   │   └── _CodeSignature
+│   │   │   │       ├── CodeDirectory
+│   │   │   │       ├── CodeRequirements
+│   │   │   │       ├── CodeResources
+│   │   │   │       └── CodeSignature
+│   │   │   ├── Runner.app
+│   │   │   │   ├── AppFrameworkInfo.plist
+│   │   │   │   ├── AppIcon60x60@2x.png
+│   │   │   │   ├── AppIcon76x76@2x~ipad.png
+│   │   │   │   ├── Assets.car
+│   │   │   │   ├── Base.lproj
+│   │   │   │   │   ├── LaunchScreen.storyboardc
+│   │   │   │   │   │   ├── 01J-lp-oVM-view-Ze5-6b-2t3.nib
+│   │   │   │   │   │   ├── Info.plist
+│   │   │   │   │   │   └── UIViewController-01J-lp-oVM.nib
+│   │   │   │   │   └── Main.storyboardc
+│   │   │   │   │       ├── BYZ-38-t0r-view-8bC-Xf-vdC.nib
+│   │   │   │   │       ├── Info.plist
+│   │   │   │   │       └── UIViewController-BYZ-38-t0r.nib
+│   │   │   │   ├── Frameworks
+│   │   │   │   │   ├── App.framework
+│   │   │   │   │   │   ├── App
+│   │   │   │   │   │   ├── Info.plist
+│   │   │   │   │   │   ├── _CodeSignature
+│   │   │   │   │   │   │   └── CodeResources
+│   │   │   │   │   │   └── flutter_assets
+│   │   │   │   │   │       ├── AssetManifest.bin
+│   │   │   │   │   │       ├── FontManifest.json
+│   │   │   │   │   │       ├── NOTICES.Z
+│   │   │   │   │   │       ├── NativeAssetsManifest.json
+│   │   │   │   │   │       ├── fonts
+│   │   │   │   │   │       │   └── MaterialIcons-Regular.otf
+│   │   │   │   │   │       ├── icons
+│   │   │   │   │   │       │   ├── assignment_add_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── backup_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── description_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── drag_indicator_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── edit_square_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── label_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── leaderboard_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── list_alt_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── logo.svg
+│   │   │   │   │   │       │   ├── logov2.svg
+│   │   │   │   │   │       │   ├── package_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── payments_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── person_apron_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── point_of_sale_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── point_of_sale_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24_OUTLINED.svg
+│   │   │   │   │   │       │   ├── sell_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── shopping_bag_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   ├── show_chart_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │   │   │   │       │   └── steppers_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24%20(1).svg
+│   │   │   │   │   │       ├── isolate_snapshot_data
+│   │   │   │   │   │       ├── kernel_blob.bin
+│   │   │   │   │   │       ├── packages
+│   │   │   │   │   │       │   └── cupertino_icons
+│   │   │   │   │   │       │       └── assets
+│   │   │   │   │   │       │           └── CupertinoIcons.ttf
+│   │   │   │   │   │       ├── shaders
+│   │   │   │   │   │       │   ├── ink_sparkle.frag
+│   │   │   │   │   │       │   └── stretch_effect.frag
+│   │   │   │   │   │       └── vm_snapshot_data
+│   │   │   │   │   ├── Flutter.framework
+│   │   │   │   │   │   ├── Flutter
+│   │   │   │   │   │   ├── Headers
+│   │   │   │   │   │   │   ├── Flutter.h
+│   │   │   │   │   │   │   ├── FlutterAppDelegate.h
+│   │   │   │   │   │   │   ├── FlutterBinaryMessenger.h
+│   │   │   │   │   │   │   ├── FlutterCallbackCache.h
+│   │   │   │   │   │   │   ├── FlutterChannels.h
+│   │   │   │   │   │   │   ├── FlutterCodecs.h
+│   │   │   │   │   │   │   ├── FlutterDartProject.h
+│   │   │   │   │   │   │   ├── FlutterEngine.h
+│   │   │   │   │   │   │   ├── FlutterEngineGroup.h
+│   │   │   │   │   │   │   ├── FlutterHeadlessDartRunner.h
+│   │   │   │   │   │   │   ├── FlutterHourFormat.h
+│   │   │   │   │   │   │   ├── FlutterMacros.h
+│   │   │   │   │   │   │   ├── FlutterPlatformViews.h
+│   │   │   │   │   │   │   ├── FlutterPlugin.h
+│   │   │   │   │   │   │   ├── FlutterPluginAppLifeCycleDelegate.h
+│   │   │   │   │   │   │   ├── FlutterSceneDelegate.h
+│   │   │   │   │   │   │   ├── FlutterSceneLifeCycle.h
+│   │   │   │   │   │   │   ├── FlutterTexture.h
+│   │   │   │   │   │   │   └── FlutterViewController.h
+│   │   │   │   │   │   ├── Info.plist
+│   │   │   │   │   │   ├── Modules
+│   │   │   │   │   │   │   └── module.modulemap
+│   │   │   │   │   │   ├── PrivacyInfo.xcprivacy
+│   │   │   │   │   │   ├── _CodeSignature
+│   │   │   │   │   │   │   └── CodeResources
+│   │   │   │   │   │   └── icudtl.dat
+│   │   │   │   │   └── objective_c.framework
+│   │   │   │   │       ├── Info.plist
+│   │   │   │   │       ├── _CodeSignature
+│   │   │   │   │       │   └── CodeResources
+│   │   │   │   │       └── objective_c
+│   │   │   │   ├── Info.plist
+│   │   │   │   ├── PkgInfo
+│   │   │   │   ├── Runner
+│   │   │   │   ├── Runner.debug.dylib
+│   │   │   │   ├── _CodeSignature
+│   │   │   │   │   └── CodeResources
+│   │   │   │   └── __preview.dylib
+│   │   │   └── Runner.swiftmodule
+│   │   │       ├── Project
+│   │   │       │   └── arm64-apple-ios-simulator.swiftsourceinfo
+│   │   │       ├── arm64-apple-ios-simulator.abi.json
+│   │   │       ├── arm64-apple-ios-simulator.swiftdoc
+│   │   │       └── arm64-apple-ios-simulator.swiftmodule
+│   │   ├── framework_public_headers.fingerprint
+│   │   ├── iphonesimulator
+│   │   │   └── Runner.app
+│   │   │       ├── AppFrameworkInfo.plist
+│   │   │       ├── AppIcon60x60@2x.png
+│   │   │       ├── AppIcon76x76@2x~ipad.png
+│   │   │       ├── Assets.car
+│   │   │       ├── Base.lproj
+│   │   │       │   ├── LaunchScreen.storyboardc
+│   │   │       │   │   ├── 01J-lp-oVM-view-Ze5-6b-2t3.nib
+│   │   │       │   │   ├── Info.plist
+│   │   │       │   │   └── UIViewController-01J-lp-oVM.nib
+│   │   │       │   └── Main.storyboardc
+│   │   │       │       ├── BYZ-38-t0r-view-8bC-Xf-vdC.nib
+│   │   │       │       ├── Info.plist
+│   │   │       │       └── UIViewController-BYZ-38-t0r.nib
+│   │   │       ├── Frameworks
+│   │   │       │   ├── App.framework
+│   │   │       │   │   ├── App
+│   │   │       │   │   ├── Info.plist
+│   │   │       │   │   ├── _CodeSignature
+│   │   │       │   │   │   └── CodeResources
+│   │   │       │   │   └── flutter_assets
+│   │   │       │   │       ├── AssetManifest.bin
+│   │   │       │   │       ├── FontManifest.json
+│   │   │       │   │       ├── NOTICES.Z
+│   │   │       │   │       ├── NativeAssetsManifest.json
+│   │   │       │   │       ├── fonts
+│   │   │       │   │       │   └── MaterialIcons-Regular.otf
+│   │   │       │   │       ├── icons
+│   │   │       │   │       │   ├── assignment_add_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── backup_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── description_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── drag_indicator_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── edit_square_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── label_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── leaderboard_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── list_alt_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── logo.svg
+│   │   │       │   │       │   ├── logov2.svg
+│   │   │       │   │       │   ├── package_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── payments_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── person_apron_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── point_of_sale_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── point_of_sale_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24_OUTLINED.svg
+│   │   │       │   │       │   ├── sell_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── shopping_bag_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   ├── show_chart_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg
+│   │   │       │   │       │   └── steppers_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24%20(1).svg
+│   │   │       │   │       ├── isolate_snapshot_data
+│   │   │       │   │       ├── kernel_blob.bin
+│   │   │       │   │       ├── packages
+│   │   │       │   │       │   └── cupertino_icons
+│   │   │       │   │       │       └── assets
+│   │   │       │   │       │           └── CupertinoIcons.ttf
+│   │   │       │   │       ├── shaders
+│   │   │       │   │       │   ├── ink_sparkle.frag
+│   │   │       │   │       │   └── stretch_effect.frag
+│   │   │       │   │       └── vm_snapshot_data
+│   │   │       │   ├── Flutter.framework
+│   │   │       │   │   ├── Flutter
+│   │   │       │   │   ├── Headers
+│   │   │       │   │   │   ├── Flutter.h
+│   │   │       │   │   │   ├── FlutterAppDelegate.h
+│   │   │       │   │   │   ├── FlutterBinaryMessenger.h
+│   │   │       │   │   │   ├── FlutterCallbackCache.h
+│   │   │       │   │   │   ├── FlutterChannels.h
+│   │   │       │   │   │   ├── FlutterCodecs.h
+│   │   │       │   │   │   ├── FlutterDartProject.h
+│   │   │       │   │   │   ├── FlutterEngine.h
+│   │   │       │   │   │   ├── FlutterEngineGroup.h
+│   │   │       │   │   │   ├── FlutterHeadlessDartRunner.h
+│   │   │       │   │   │   ├── FlutterHourFormat.h
+│   │   │       │   │   │   ├── FlutterMacros.h
+│   │   │       │   │   │   ├── FlutterPlatformViews.h
+│   │   │       │   │   │   ├── FlutterPlugin.h
+│   │   │       │   │   │   ├── FlutterPluginAppLifeCycleDelegate.h
+│   │   │       │   │   │   ├── FlutterSceneDelegate.h
+│   │   │       │   │   │   ├── FlutterSceneLifeCycle.h
+│   │   │       │   │   │   ├── FlutterTexture.h
+│   │   │       │   │   │   └── FlutterViewController.h
+│   │   │       │   │   ├── Info.plist
+│   │   │       │   │   ├── Modules
+│   │   │       │   │   │   └── module.modulemap
+│   │   │       │   │   ├── PrivacyInfo.xcprivacy
+│   │   │       │   │   ├── _CodeSignature
+│   │   │       │   │   │   └── CodeResources
+│   │   │       │   │   └── icudtl.dat
+│   │   │       │   └── objective_c.framework
+│   │   │       │       ├── Info.plist
+│   │   │       │       ├── _CodeSignature
+│   │   │       │       │   └── CodeResources
+│   │   │       │       └── objective_c
+│   │   │       ├── Info.plist
+│   │   │       ├── PkgInfo
+│   │   │       ├── Runner
+│   │   │       ├── Runner.debug.dylib
+│   │   │       ├── _CodeSignature
+│   │   │       │   └── CodeResources
+│   │   │       └── __preview.dylib
+│   │   └── pod_inputs.fingerprint
+│   ├── native_assets
+│   │   └── ios
+│   │       └── objective_c.framework
+│   │           ├── Info.plist
+│   │           ├── _CodeSignature
+│   │           │   └── CodeResources
+│   │           └── objective_c
+│   ├── native_hooks
+│   │   └── .last_build_id
+│   └── restore-drill
+│       ├── report_staging.json
+│       └── validate_staging.txt
 ├── components.json
 ├── config
 │   ├── env
@@ -241,6 +1112,28 @@
 │       └── THREAT_MODEL.md
 ├── electron.vite.config.ts
 ├── l10n.yaml
+├── output
+│   └── playwright
+│       ├── overview-drawer-check
+│       │   └── .playwright-cli
+│       │       ├── console-2026-04-04T06-39-18-553Z.log
+│       │       ├── console-2026-04-04T06-46-29-191Z.log
+│       │       ├── page-2026-04-04T06-39-18-714Z.yml
+│       │       ├── page-2026-04-04T06-46-29-462Z.yml
+│       │       ├── page-2026-04-04T06-47-13-232Z.yml
+│       │       ├── page-2026-04-04T06-47-35-807Z.png
+│       │       ├── page-2026-04-04T06-47-54-418Z.yml
+│       │       └── page-2026-04-04T06-48-37-804Z.png
+│       └── overview-drawer-fix
+│           └── .playwright-cli
+│               ├── console-2026-04-04T06-51-31-679Z.log
+│               ├── page-2026-04-04T06-51-31-979Z.yml
+│               ├── page-2026-04-04T06-51-58-977Z.yml
+│               ├── page-2026-04-04T06-52-19-349Z.png
+│               ├── page-2026-04-04T06-54-04-799Z.png
+│               ├── page-2026-04-04T06-55-02-535Z.png
+│               ├── page-2026-04-04T06-55-59-263Z.png
+│               └── page-2026-04-04T07-05-46-008Z.png
 ├── package.json
 ├── pnpm-lock.yaml
 ├── resources
@@ -284,20 +1177,34 @@
 │   │   └── src
 │   │       ├── App.tsx
 │   │       ├── assets
-│   │       │   └── banji-logo.svg
+│   │       │   ├── banji-logo.svg
+│   │       │   └── fonts
+│   │       │       ├── NotoSansOriya-Bold.ttf
+│   │       │       ├── NotoSansOriya-Medium.ttf
+│   │       │       ├── NotoSansOriya-Regular.ttf
+│   │       │       └── NotoSansOriya-SemiBold.ttf
 │   │       ├── components
 │   │       │   ├── banji-shell.test.tsx
 │   │       │   ├── banji-shell.tsx
+│   │       │   ├── icons
+│   │       │   │   └── notebook-text-dashed.tsx
 │   │       │   ├── system
+│   │       │   │   ├── checkbox-row.test.tsx
+│   │       │   │   ├── checkbox-row.tsx
 │   │       │   │   ├── description-text.tsx
 │   │       │   │   ├── editor.tsx
 │   │       │   │   ├── form-fields.tsx
+│   │       │   │   ├── help-tooltip.tsx
 │   │       │   │   ├── hover-tooltip.tsx
+│   │       │   │   ├── measured-tile-grid.test.tsx
+│   │       │   │   ├── measured-tile-grid.tsx
+│   │       │   │   ├── merchandising-editor-icons.test.tsx
 │   │       │   │   ├── merchandising-editor.test.ts
 │   │       │   │   ├── merchandising-editor.tsx
 │   │       │   │   ├── new-service-icon.tsx
 │   │       │   │   ├── page-navigation.tsx
 │   │       │   │   ├── recent-activity-list.tsx
+│   │       │   │   ├── search-input.tsx
 │   │       │   │   ├── typed-confirm-dialog.tsx
 │   │       │   │   ├── workspace.test.tsx
 │   │       │   │   └── workspace.tsx
@@ -307,6 +1214,8 @@
 │   │       │       ├── button.tsx
 │   │       │       ├── card.tsx
 │   │       │       ├── checkbox.tsx
+│   │       │       ├── chrome-tabs.test.tsx
+│   │       │       ├── chrome-tabs.tsx
 │   │       │       ├── empty.tsx
 │   │       │       ├── field.tsx
 │   │       │       ├── input-group.tsx
@@ -316,15 +1225,21 @@
 │   │       │       ├── select.tsx
 │   │       │       ├── separator.tsx
 │   │       │       ├── sheet.tsx
+│   │       │       ├── sidebar.test.tsx
 │   │       │       ├── sidebar.tsx
 │   │       │       ├── skeleton.tsx
 │   │       │       ├── switch.tsx
+│   │       │       ├── table.test.tsx
 │   │       │       ├── table.tsx
 │   │       │       ├── tabs.tsx
 │   │       │       ├── textarea.tsx
 │   │       │       ├── toggle-group.tsx
+│   │       │       ├── toggle.test.tsx
 │   │       │       ├── toggle.tsx
 │   │       │       └── tooltip.tsx
+│   │       ├── dev
+│   │       │   ├── browser-desktop-bridge.test.ts
+│   │       │   └── browser-desktop-bridge.ts
 │   │       ├── global.d.ts
 │   │       ├── globals.css
 │   │       ├── hooks
@@ -334,9 +1249,14 @@
 │   │       │   ├── catalog.ts
 │   │       │   ├── format.test.ts
 │   │       │   ├── format.ts
+│   │       │   ├── icon-mappings.test.ts
+│   │       │   ├── icon-mappings.ts
 │   │       │   ├── ids.test.ts
 │   │       │   ├── ids.ts
+│   │       │   ├── interactive-surface.ts
+│   │       │   ├── measured-grid.ts
 │   │       │   ├── recent-activity.ts
+│   │       │   ├── sena-catalog.ts
 │   │       │   ├── service-control-panel.ts
 │   │       │   ├── sku-price-history.ts
 │   │       │   ├── status-pill.ts
@@ -349,25 +1269,53 @@
 │   │       │   └── validation.ts
 │   │       ├── main.tsx
 │   │       ├── routes
+│   │       │   ├── dashboard.test.tsx
 │   │       │   ├── dashboard.tsx
+│   │       │   ├── detail-action-sheet.tsx
+│   │       │   ├── detail-panels.tsx
+│   │       │   ├── editor-form-primitives.tsx
 │   │       │   ├── inventory.tsx
 │   │       │   ├── navigation-and-tabs.test.tsx
-│   │       │   ├── parity-routes.test.tsx
+│   │       │   ├── overview
+│   │       │   │   ├── task-drawer.tsx
+│   │       │   │   └── view-model.ts
 │   │       │   ├── ranking-drag.test.ts
 │   │       │   ├── ranking-drag.ts
 │   │       │   ├── ranking-order.test.ts
 │   │       │   ├── ranking-order.ts
+│   │       │   ├── service-detail
+│   │       │   │   ├── actions.tsx
+│   │       │   │   ├── dependency-impact.tsx
+│   │       │   │   ├── evidence.tsx
+│   │       │   │   ├── hero.tsx
+│   │       │   │   ├── ledger.tsx
+│   │       │   │   ├── right-rail.tsx
+│   │       │   │   └── view-model.ts
 │   │       │   ├── service-detail.tsx
+│   │       │   ├── service-form-layout.ts
+│   │       │   ├── service-form.test.tsx
 │   │       │   ├── service-form.tsx
+│   │       │   ├── settings.test.tsx
 │   │       │   ├── settings.tsx
-│   │       │   ├── sist.tsx
-│   │       │   ├── sku-detail-demand.test.ts
-│   │       │   ├── sku-detail-demand.ts
-│   │       │   ├── sku-detail-sena.test.ts
-│   │       │   ├── sku-detail-sena.ts
-│   │       │   ├── sku-detail.tsx
+│   │       │   ├── sku-detail
+│   │       │   │   ├── actions.tsx
+│   │       │   │   ├── bootstrap.ts
+│   │       │   │   ├── catalog-seed.ts
+│   │       │   │   ├── evidence.tsx
+│   │       │   │   ├── exposure.tsx
+│   │       │   │   ├── format.ts
+│   │       │   │   ├── hero.tsx
+│   │       │   │   ├── index.tsx
+│   │       │   │   ├── ledger.tsx
+│   │       │   │   ├── right-rail.tsx
+│   │       │   │   ├── section-heading.tsx
+│   │       │   │   └── view-model.ts
+│   │       │   ├── sku-detail-sena.test.tsx
+│   │       │   ├── sku-form.test.tsx
 │   │       │   ├── sku-form.tsx
+│   │       │   ├── sku-page-hero.tsx
 │   │       │   ├── stock-update-session.tsx
+│   │       │   ├── stock-update.test.tsx
 │   │       │   └── stock-update.tsx
 │   │       ├── state
 │   │       │   ├── inventory.test.tsx
@@ -381,6 +1329,8 @@
 │   └── shared
 │       ├── inventory.ts
 │       ├── ipc.ts
+│       ├── sena-lead-time.test.ts
+│       ├── sena-lead-time.ts
 │       └── sena.ts
 ├── tool
 │   ├── .DS_Store
@@ -440,4 +1390,4 @@
 ├── tsconfig.web.tsbuildinfo
 └── vitest.config.ts
 
-69 directories, 372 files
+675 directories, 716 files

@@ -1,442 +1,677 @@
-.
-./.DS_Store
-./.banji-dev-data
-./.banji-dev-data/desktop-inventory-store.json
-./.codex
-./.codex/environments
-./.codex/environments/environment.toml
-./.gitignore
-./.tmp_fig
-./.tmp_fig/canvas.fig
-./.tmp_fig/meta.json
-./.tmp_fig/thumbnail.png
-./20_ARCH_backend-process-diagram.md
-./30_RISK_banji-threat-model.md
-./30_RISK_ownership-map-fallback.md
-./30_RISK_security-best-practices-report.md
-./40_PLAN_todo-backend.md
-./DESIGN_SYSTEM.md
-./README.md
-./References
-./References/.DS_Store
-./References/SENA
-./References/SENA/SENA.pdf
-./References/SENA/SENA.tex
-./References/SIST
-./References/SIST/.Rhistory
-./References/SIST/SIST.pdf
-./References/SIST/SIST.tex
-./References/design-system.html
-./References/design-tokens.js
-./SECURITY.md
-./SYSTEM_ARCHITECTURE.mmd
-./SYSTEM_ARCHITECTURE.png
-./SYSTEM_ARCHITECTURE.svg
-./actionlint
-./apps
-./apps/.DS_Store
-./apps/api
-./apps/api/.dockerignore
-./apps/api/Cargo.lock
-./apps/api/Cargo.toml
-./apps/api/Dockerfile
-./apps/api/build.rs
-./apps/api/migrations
-./apps/api/migrations/0001_initial.sql
-./apps/api/migrations/0002_idempotency_request.sql
-./apps/api/migrations/0003_event_log.sql
-./apps/api/migrations/0004_event_log_archive.sql
-./apps/api/migrations/0005_job_outbox.sql
-./apps/api/migrations/0006_event_log_audit_indexes.sql
-./apps/api/migrations/0007_job_outbox_correlation_id.sql
-./apps/api/migrations/0008_inventory_item.sql
-./apps/api/migrations/0009_event_outbox.sql
-./apps/api/migrations/0010_event_log_publish_key.sql
-./apps/api/migrations/0011_event_schema_quarantine.sql
-./apps/api/migrations/0012_inventory_item_projection.sql
-./apps/api/migrations/0013_job_run_tables.sql
-./apps/api/migrations/0014_job_outbox_schema_hardening.sql
-./apps/api/migrations/0015_object_artifact.sql
-./apps/api/migrations/0016_backfill_run_and_replay_job_columns.sql
-./apps/api/migrations/0017_algorithm_rollout_controls.sql
-./apps/api/migrations/0018_job_outbox_metadata.sql
-./apps/api/migrations/0019_job_outbox_delivery_mode_hardening.sql
-./apps/api/migrations/0020_sena_backend.sql
-./apps/api/rust-toolchain.toml
-./apps/api/sqlx-data.json
-./apps/api/src
-./apps/api/src/auth
-./apps/api/src/auth/jwks.rs
-./apps/api/src/auth/middleware.rs
-./apps/api/src/auth/mod.rs
-./apps/api/src/backfill
-./apps/api/src/backfill/controller.rs
-./apps/api/src/backfill/mod.rs
-./apps/api/src/backfill/repository.rs
-./apps/api/src/build_metadata.rs
-./apps/api/src/cache
-./apps/api/src/cache/client.rs
-./apps/api/src/cache/keys.rs
-./apps/api/src/cache/mod.rs
-./apps/api/src/cache/noop.rs
-./apps/api/src/cache/redis_impl.rs
-./apps/api/src/config.rs
-./apps/api/src/db
-./apps/api/src/db/mod.rs
-./apps/api/src/db/pool.rs
-./apps/api/src/desktop_inventory
-./apps/api/src/desktop_inventory/analysis.rs
-./apps/api/src/desktop_inventory/mod.rs
-./apps/api/src/desktop_inventory/store.rs
-./apps/api/src/desktop_inventory/types.rs
-./apps/api/src/edge
-./apps/api/src/edge/backpressure.rs
-./apps/api/src/edge/cors.rs
-./apps/api/src/edge/identity.rs
-./apps/api/src/edge/mod.rs
-./apps/api/src/edge/origin_guard.rs
-./apps/api/src/edge/rate_limit.rs
-./apps/api/src/edge/request_limits.rs
-./apps/api/src/events
-./apps/api/src/events/archive.rs
-./apps/api/src/events/consumer.rs
-./apps/api/src/events/key.rs
-./apps/api/src/events/lag.rs
-./apps/api/src/events/mod.rs
-./apps/api/src/events/model.rs
-./apps/api/src/events/outbox.rs
-./apps/api/src/events/publisher.rs
-./apps/api/src/events/relay.rs
-./apps/api/src/events/schema.rs
-./apps/api/src/events/schema_types.rs
-./apps/api/src/events/streams.rs
-./apps/api/src/idempotency
-./apps/api/src/idempotency/mod.rs
-./apps/api/src/items
-./apps/api/src/items/mod.rs
-./apps/api/src/items/repository.rs
-./apps/api/src/items/types.rs
-./apps/api/src/jobs
-./apps/api/src/jobs/backfill.rs
-./apps/api/src/jobs/consumer.rs
-./apps/api/src/jobs/handlers.rs
-./apps/api/src/jobs/key.rs
-./apps/api/src/jobs/mod.rs
-./apps/api/src/jobs/outbox.rs
-./apps/api/src/jobs/publisher.rs
-./apps/api/src/jobs/relay.rs
-./apps/api/src/jobs/repository.rs
-./apps/api/src/jobs/result_publisher.rs
-./apps/api/src/jobs/retry.rs
-./apps/api/src/jobs/rollout.rs
-./apps/api/src/jobs/schema.rs
-./apps/api/src/jobs/schema_types.rs
-./apps/api/src/jobs/service.rs
-./apps/api/src/jobs/types.rs
-./apps/api/src/jobs/worker.rs
-./apps/api/src/lib.rs
-./apps/api/src/logging
-./apps/api/src/logging/mod.rs
-./apps/api/src/logging/redaction.rs
-./apps/api/src/main.rs
-./apps/api/src/observability
-./apps/api/src/observability/dependency_samplers.rs
-./apps/api/src/observability/metrics.rs
-./apps/api/src/observability/mod.rs
-./apps/api/src/observability/otel.rs
-./apps/api/src/observability/propagation.rs
-./apps/api/src/projections
-./apps/api/src/projections/inventory.rs
-./apps/api/src/projections/mod.rs
-./apps/api/src/sena
-./apps/api/src/sena/mod.rs
-./apps/api/src/sena/repository.rs
-./apps/api/src/storage
-./apps/api/src/storage/key.rs
-./apps/api/src/storage/mod.rs
-./apps/api/src/storage/repository.rs
-./apps/api/src/storage/s3.rs
-./apps/api/src/storage/types.rs
-./apps/api/start.sh
-./apps/api/tests
-./apps/api/tests/backfill_controller_test.rs
-./apps/api/tests/cache_contract_test.rs
-./apps/api/tests/config_contract_test.rs
-./apps/api/tests/desktop_inventory_api_test.rs
-./apps/api/tests/edge_protections_test.rs
-./apps/api/tests/event_consumer_policy_test.rs
-./apps/api/tests/event_relay_schema_poison_test.rs
-./apps/api/tests/event_schema_manifest_test.rs
-./apps/api/tests/events_contract_test.rs
-./apps/api/tests/health_test.rs
-./apps/api/tests/idempotency_cache_contract_test.rs
-./apps/api/tests/idempotency_fail_open_test.rs
-./apps/api/tests/items_api_test.rs
-./apps/api/tests/jobs_retry_test.rs
-./apps/api/tests/logging_redaction_test.rs
-./apps/api/tests/observability_correlation_test.rs
-./apps/api/tests/outbox_requeue_test.rs
-./apps/api/tests/projection_consumer_resume_test.rs
-./apps/api/tests/projection_lock_test.rs
-./apps/api/tests/sena_api_test.rs
-./apps/desktop-core
-./apps/desktop-core/.DS_Store
-./apps/desktop-core/Cargo.lock
-./apps/desktop-core/Cargo.toml
-./apps/desktop-core/build
-./apps/desktop-core/src
-./apps/desktop-core/src/lib.rs
-./apps/desktop-core/src/main.rs
-./apps/desktop-core/src/store.rs
-./apps/desktop-core/tests
-./apps/desktop-core/tests/store_smoke.rs
-./apps/sena-core
-./apps/sena-core/Cargo.lock
-./apps/sena-core/Cargo.toml
-./apps/sena-core/src
-./apps/sena-core/src/inference.rs
-./apps/sena-core/src/lib.rs
-./apps/sena-core/src/normalize.rs
-./apps/sena-core/src/service.rs
-./apps/sena-core/src/sqlite.rs
-./apps/sena-core/src/store.rs
-./apps/sena-core/src/types.rs
-./apps/sena-core/src/validation.rs
-./apps/sena-core/tests
-./apps/sena-core/tests/sena_core_test.rs
-./banji-dev.log
-./components.json
-./config
-./config/env
-./config/env/README.md
-./config/env/dev.env
-./config/topology
-./config/topology/runtime_roles.json
-./docs
-./docs/architecture
-./docs/architecture/edge-protections.md
-./docs/architecture/environment-naming-contract.md
-./docs/architecture/event-vocabulary-schema-discipline.md
-./docs/architecture/object-storage-artifacts.md
-./docs/architecture/observability-baseline.md
-./docs/architecture/postgres-event-log.md
-./docs/architecture/postgres-source-of-truth.md
-./docs/architecture/rabbitmq-job-queues.md
-./docs/architecture/redis-cache-coordination.md
-./docs/architecture/secrets-config-boundaries.md
-./docs/operations
-./docs/operations/algorithm-rollouts.md
-./docs/operations/backfill-runbook.md
-./docs/operations/job-worker-runbook.md
-./docs/operations/object-storage-runbook.md
-./docs/operations/observability-runbook.md
-./docs/operations/postgres-event-log-maintenance.md
-./docs/operations/postgres-restore-drill.md
-./docs/operations/rabbitmq-dlq-triage.md
-./docs/operations/secret-rotation-runbook.md
-./docs/operations/slo-alerting.md
-./docs/operations/sqlx-migration-repair.md
-./docs/security
-./docs/security/SECURITY_STANDARDS.md
-./docs/security/SECURITY_TEST_MATRIX.md
-./docs/security/THREAT_MODEL.md
-./electron.vite.config.ts
-./l10n.yaml
-./package.json
-./pnpm-lock.yaml
-./resources
-./resources/mac
-./resources/mac/banji.icns
-./resources/mac/banji.iconset
-./resources/mac/banji.iconset/icon_128x128.png
-./resources/mac/banji.iconset/icon_128x128@2x.png
-./resources/mac/banji.iconset/icon_16x16.png
-./resources/mac/banji.iconset/icon_16x16@2x.png
-./resources/mac/banji.iconset/icon_256x256.png
-./resources/mac/banji.iconset/icon_256x256@2x.png
-./resources/mac/banji.iconset/icon_32x32.png
-./resources/mac/banji.iconset/icon_32x32@2x.png
-./resources/mac/banji.iconset/icon_512x512.png
-./resources/mac/banji.iconset/icon_512x512@2x.png
-./resources/mac/icon.png
-./resources/mac/icon@2x.png
-./resources/mac/master-1024.png
-./scripts
-./scripts/build-macos-icon.sh
-./services
-./src
-./src/main
-./src/main/backend.test.ts
-./src/main/backend.ts
-./src/main/core-manager.test.ts
-./src/main/core-manager.ts
-./src/main/data-migration.test.ts
-./src/main/data-migration.ts
-./src/main/icon.test.ts
-./src/main/icon.ts
-./src/main/index.ts
-./src/main/platform-security.test.ts
-./src/main/preferences.test.ts
-./src/main/preferences.ts
-./src/preload
-./src/preload/index.ts
-./src/renderer
-./src/renderer/index.html
-./src/renderer/src
-./src/renderer/src/App.tsx
-./src/renderer/src/assets
-./src/renderer/src/assets/banji-logo.svg
-./src/renderer/src/components
-./src/renderer/src/components/banji-shell.test.tsx
-./src/renderer/src/components/banji-shell.tsx
-./src/renderer/src/components/system
-./src/renderer/src/components/system/description-text.tsx
-./src/renderer/src/components/system/editor.tsx
-./src/renderer/src/components/system/form-fields.tsx
-./src/renderer/src/components/system/hover-tooltip.tsx
-./src/renderer/src/components/system/merchandising-editor.test.ts
-./src/renderer/src/components/system/merchandising-editor.tsx
-./src/renderer/src/components/system/new-service-icon.tsx
-./src/renderer/src/components/system/page-navigation.tsx
-./src/renderer/src/components/system/recent-activity-list.tsx
-./src/renderer/src/components/system/typed-confirm-dialog.tsx
-./src/renderer/src/components/system/workspace.test.tsx
-./src/renderer/src/components/system/workspace.tsx
-./src/renderer/src/components/ui
-./src/renderer/src/components/ui/alert.tsx
-./src/renderer/src/components/ui/badge.tsx
-./src/renderer/src/components/ui/button.tsx
-./src/renderer/src/components/ui/card.tsx
-./src/renderer/src/components/ui/checkbox.tsx
-./src/renderer/src/components/ui/empty.tsx
-./src/renderer/src/components/ui/field.tsx
-./src/renderer/src/components/ui/input-group.tsx
-./src/renderer/src/components/ui/input.tsx
-./src/renderer/src/components/ui/label.tsx
-./src/renderer/src/components/ui/scroll-area.tsx
-./src/renderer/src/components/ui/select.tsx
-./src/renderer/src/components/ui/separator.tsx
-./src/renderer/src/components/ui/sheet.tsx
-./src/renderer/src/components/ui/sidebar.tsx
-./src/renderer/src/components/ui/skeleton.tsx
-./src/renderer/src/components/ui/switch.tsx
-./src/renderer/src/components/ui/table.tsx
-./src/renderer/src/components/ui/tabs.tsx
-./src/renderer/src/components/ui/textarea.tsx
-./src/renderer/src/components/ui/toggle-group.tsx
-./src/renderer/src/components/ui/toggle.tsx
-./src/renderer/src/components/ui/tooltip.tsx
-./src/renderer/src/global.d.ts
-./src/renderer/src/globals.css
-./src/renderer/src/hooks
-./src/renderer/src/hooks/use-mobile.ts
-./src/renderer/src/hooks/use-route-leave-confirm.ts
-./src/renderer/src/lib
-./src/renderer/src/lib/catalog.ts
-./src/renderer/src/lib/format.test.ts
-./src/renderer/src/lib/format.ts
-./src/renderer/src/lib/ids.test.ts
-./src/renderer/src/lib/ids.ts
-./src/renderer/src/lib/recent-activity.ts
-./src/renderer/src/lib/service-control-panel.ts
-./src/renderer/src/lib/sku-price-history.ts
-./src/renderer/src/lib/status-pill.ts
-./src/renderer/src/lib/stock-report-summary.ts
-./src/renderer/src/lib/trace.ts
-./src/renderer/src/lib/translations.test.ts
-./src/renderer/src/lib/translations.ts
-./src/renderer/src/lib/utils.ts
-./src/renderer/src/lib/validation.test.ts
-./src/renderer/src/lib/validation.ts
-./src/renderer/src/main.tsx
-./src/renderer/src/routes
-./src/renderer/src/routes/dashboard.tsx
-./src/renderer/src/routes/inventory.tsx
-./src/renderer/src/routes/navigation-and-tabs.test.tsx
-./src/renderer/src/routes/parity-routes.test.tsx
-./src/renderer/src/routes/ranking-drag.test.ts
-./src/renderer/src/routes/ranking-drag.ts
-./src/renderer/src/routes/ranking-order.test.ts
-./src/renderer/src/routes/ranking-order.ts
-./src/renderer/src/routes/service-detail.tsx
-./src/renderer/src/routes/service-form.tsx
-./src/renderer/src/routes/settings.tsx
-./src/renderer/src/routes/sist.tsx
-./src/renderer/src/routes/sku-detail-demand.test.ts
-./src/renderer/src/routes/sku-detail-demand.ts
-./src/renderer/src/routes/sku-detail-sena.test.ts
-./src/renderer/src/routes/sku-detail-sena.ts
-./src/renderer/src/routes/sku-detail.tsx
-./src/renderer/src/routes/sku-form.tsx
-./src/renderer/src/routes/stock-update-session.tsx
-./src/renderer/src/routes/stock-update.tsx
-./src/renderer/src/state
-./src/renderer/src/state/inventory.test.tsx
-./src/renderer/src/state/inventory.tsx
-./src/renderer/src/state/navigation-history.tsx
-./src/renderer/src/state/operations-session.tsx
-./src/renderer/src/state/preferences.test.tsx
-./src/renderer/src/state/preferences.tsx
-./src/renderer/src/test
-./src/renderer/src/test/setup.ts
-./src/shared
-./src/shared/inventory.ts
-./src/shared/ipc.ts
-./src/shared/sena.ts
-./tool
-./tool/.DS_Store
-./tool/db
-./tool/db/algorithm_rollout.sh
-./tool/db/bootstrap_roles.sql
-./tool/db/check_risky_migrations.sh
-./tool/db/event_log_storage_report.sh
-./tool/db/export_event_log.sh
-./tool/db/pool_stability_smoke.sh
-./tool/db/prune_event_outbox.sh
-./tool/db/prune_idempotency.sh
-./tool/db/rehydrate_event_log_archive.sh
-./tool/db/replay_event_log.sh
-./tool/db/restore_validate.sh
-./tool/db/sqlx_migration_history_repair.sh
-./tool/db/test_algorithm_rollout.sh
-./tool/db/test_replay_event_log.sh
-./tool/db/test_restore_validate.sh
-./tool/db/validate_restore.sql
-./tool/local
-./tool/local/bootstrap_rabbit_topology.sh
-./tool/local/check_migration_versions.sh
-./tool/local/migrate_with_lock.sh
-./tool/local/sqlx_offline_verify.sh
-./tool/local/test_bootstrap_rabbit_topology.sh
-./tool/local/test_check_migration_versions.sh
-./tool/local/test_migrate_with_lock.sh
-./tool/local/test_start_sh.sh
-./tool/naming
-./tool/naming/README.md
-./tool/naming/print_names.sh
-./tool/naming/test_print_names.sh
-./tool/otel
-./tool/otel/README.md
-./tool/otel/alerts
-./tool/otel/alerts/banji-alert-rules.yaml
-./tool/otel/collector.yaml
-./tool/rabbit
-./tool/rabbit/check_topology.sh
-./tool/rabbit/cleanup_dlq.sh
-./tool/rabbit/replay_dlq.sh
-./tool/rabbit/setup_topology.sh
-./tool/rabbit/test_cleanup_dlq.sh
-./tool/rabbit/test_replay_dlq.sh
-./tool/security
-./tool/security/check_platform_hardening.sh
-./tool/security/check_secret_patterns.sh
-./tool/security/run_security_checks.sh
-./tool/sync_design_tokens.sh
-./tree.txt
-./tree_dir.txt
-./tsconfig.json
-./tsconfig.node.json
-./tsconfig.node.tsbuildinfo
-./tsconfig.web.json
-./tsconfig.web.tsbuildinfo
-./vitest.config.ts
+/Users/svanny/banji
+├── .banji-dev-data
+├── .codex
+│   └── environments
+├── .playwright-cli
+├── .pnpm-store
+│   └── v10
+│       ├── files
+│       │   ├── 00
+│       │   ├── 01
+│       │   ├── 02
+│       │   ├── 03
+│       │   ├── 04
+│       │   ├── 05
+│       │   ├── 06
+│       │   ├── 07
+│       │   ├── 08
+│       │   ├── 09
+│       │   ├── 0a
+│       │   ├── 0b
+│       │   ├── 0c
+│       │   ├── 0d
+│       │   ├── 0e
+│       │   ├── 0f
+│       │   ├── 10
+│       │   ├── 11
+│       │   ├── 12
+│       │   ├── 13
+│       │   ├── 14
+│       │   ├── 15
+│       │   ├── 16
+│       │   ├── 17
+│       │   ├── 18
+│       │   ├── 19
+│       │   ├── 1a
+│       │   ├── 1b
+│       │   ├── 1c
+│       │   ├── 1d
+│       │   ├── 1e
+│       │   ├── 1f
+│       │   ├── 20
+│       │   ├── 21
+│       │   ├── 22
+│       │   ├── 23
+│       │   ├── 24
+│       │   ├── 25
+│       │   ├── 26
+│       │   ├── 27
+│       │   ├── 28
+│       │   ├── 29
+│       │   ├── 2a
+│       │   ├── 2b
+│       │   ├── 2c
+│       │   ├── 2d
+│       │   ├── 2e
+│       │   ├── 2f
+│       │   ├── 30
+│       │   ├── 31
+│       │   ├── 32
+│       │   ├── 33
+│       │   ├── 34
+│       │   ├── 35
+│       │   ├── 36
+│       │   ├── 37
+│       │   ├── 38
+│       │   ├── 39
+│       │   ├── 3a
+│       │   ├── 3b
+│       │   ├── 3c
+│       │   ├── 3d
+│       │   ├── 3e
+│       │   ├── 3f
+│       │   ├── 40
+│       │   ├── 41
+│       │   ├── 42
+│       │   ├── 43
+│       │   ├── 44
+│       │   ├── 45
+│       │   ├── 46
+│       │   ├── 47
+│       │   ├── 48
+│       │   ├── 49
+│       │   ├── 4a
+│       │   ├── 4b
+│       │   ├── 4c
+│       │   ├── 4d
+│       │   ├── 4e
+│       │   ├── 4f
+│       │   ├── 50
+│       │   ├── 51
+│       │   ├── 52
+│       │   ├── 53
+│       │   ├── 54
+│       │   ├── 55
+│       │   ├── 56
+│       │   ├── 57
+│       │   ├── 58
+│       │   ├── 59
+│       │   ├── 5a
+│       │   ├── 5b
+│       │   ├── 5c
+│       │   ├── 5d
+│       │   ├── 5e
+│       │   ├── 5f
+│       │   ├── 60
+│       │   ├── 61
+│       │   ├── 62
+│       │   ├── 63
+│       │   ├── 64
+│       │   ├── 65
+│       │   ├── 66
+│       │   ├── 67
+│       │   ├── 68
+│       │   ├── 69
+│       │   ├── 6a
+│       │   ├── 6b
+│       │   ├── 6c
+│       │   ├── 6d
+│       │   ├── 6e
+│       │   ├── 6f
+│       │   ├── 70
+│       │   ├── 71
+│       │   ├── 72
+│       │   ├── 73
+│       │   ├── 74
+│       │   ├── 75
+│       │   ├── 76
+│       │   ├── 77
+│       │   ├── 78
+│       │   ├── 79
+│       │   ├── 7a
+│       │   ├── 7b
+│       │   ├── 7c
+│       │   ├── 7d
+│       │   ├── 7e
+│       │   ├── 7f
+│       │   ├── 80
+│       │   ├── 81
+│       │   ├── 82
+│       │   ├── 83
+│       │   ├── 84
+│       │   ├── 85
+│       │   ├── 86
+│       │   ├── 87
+│       │   ├── 88
+│       │   ├── 89
+│       │   ├── 8a
+│       │   ├── 8b
+│       │   ├── 8c
+│       │   ├── 8d
+│       │   ├── 8e
+│       │   ├── 8f
+│       │   ├── 90
+│       │   ├── 91
+│       │   ├── 92
+│       │   ├── 93
+│       │   ├── 94
+│       │   ├── 95
+│       │   ├── 96
+│       │   ├── 97
+│       │   ├── 98
+│       │   ├── 99
+│       │   ├── 9a
+│       │   ├── 9b
+│       │   ├── 9c
+│       │   ├── 9d
+│       │   ├── 9e
+│       │   ├── 9f
+│       │   ├── a0
+│       │   ├── a1
+│       │   ├── a2
+│       │   ├── a3
+│       │   ├── a4
+│       │   ├── a5
+│       │   ├── a6
+│       │   ├── a7
+│       │   ├── a8
+│       │   ├── a9
+│       │   ├── aa
+│       │   ├── ab
+│       │   ├── ac
+│       │   ├── ad
+│       │   ├── ae
+│       │   ├── af
+│       │   ├── b0
+│       │   ├── b1
+│       │   ├── b2
+│       │   ├── b3
+│       │   ├── b4
+│       │   ├── b5
+│       │   ├── b6
+│       │   ├── b7
+│       │   ├── b8
+│       │   ├── b9
+│       │   ├── ba
+│       │   ├── bb
+│       │   ├── bc
+│       │   ├── bd
+│       │   ├── be
+│       │   ├── bf
+│       │   ├── c0
+│       │   ├── c1
+│       │   ├── c2
+│       │   ├── c3
+│       │   ├── c4
+│       │   ├── c5
+│       │   ├── c6
+│       │   ├── c7
+│       │   ├── c8
+│       │   ├── c9
+│       │   ├── ca
+│       │   ├── cb
+│       │   ├── cc
+│       │   ├── cd
+│       │   ├── ce
+│       │   ├── cf
+│       │   ├── d0
+│       │   ├── d1
+│       │   ├── d2
+│       │   ├── d3
+│       │   ├── d4
+│       │   ├── d5
+│       │   ├── d6
+│       │   ├── d7
+│       │   ├── d8
+│       │   ├── d9
+│       │   ├── da
+│       │   ├── db
+│       │   ├── dc
+│       │   ├── dd
+│       │   ├── de
+│       │   ├── df
+│       │   ├── e0
+│       │   ├── e1
+│       │   ├── e2
+│       │   ├── e3
+│       │   ├── e4
+│       │   ├── e5
+│       │   ├── e6
+│       │   ├── e7
+│       │   ├── e8
+│       │   ├── e9
+│       │   ├── ea
+│       │   ├── eb
+│       │   ├── ec
+│       │   ├── ed
+│       │   ├── ee
+│       │   ├── ef
+│       │   ├── f0
+│       │   ├── f1
+│       │   ├── f2
+│       │   ├── f3
+│       │   ├── f4
+│       │   ├── f5
+│       │   ├── f6
+│       │   ├── f7
+│       │   ├── f8
+│       │   ├── f9
+│       │   ├── fa
+│       │   ├── fb
+│       │   ├── fc
+│       │   ├── fd
+│       │   ├── fe
+│       │   └── ff
+│       ├── index
+│       │   ├── 00
+│       │   ├── 01
+│       │   ├── 02
+│       │   ├── 03
+│       │   ├── 04
+│       │   ├── 05
+│       │   ├── 06
+│       │   ├── 07
+│       │   ├── 08
+│       │   ├── 09
+│       │   ├── 0a
+│       │   ├── 0b
+│       │   ├── 0c
+│       │   ├── 0d
+│       │   ├── 0e
+│       │   ├── 0f
+│       │   ├── 10
+│       │   ├── 11
+│       │   ├── 12
+│       │   ├── 13
+│       │   ├── 14
+│       │   ├── 15
+│       │   ├── 16
+│       │   ├── 17
+│       │   ├── 18
+│       │   ├── 19
+│       │   ├── 1a
+│       │   ├── 1b
+│       │   ├── 1c
+│       │   ├── 1d
+│       │   ├── 1e
+│       │   ├── 1f
+│       │   ├── 20
+│       │   ├── 21
+│       │   ├── 22
+│       │   ├── 23
+│       │   ├── 24
+│       │   ├── 25
+│       │   ├── 26
+│       │   ├── 27
+│       │   ├── 28
+│       │   ├── 29
+│       │   ├── 2a
+│       │   ├── 2b
+│       │   ├── 2c
+│       │   ├── 2d
+│       │   ├── 2e
+│       │   ├── 2f
+│       │   ├── 30
+│       │   ├── 31
+│       │   ├── 32
+│       │   ├── 33
+│       │   ├── 34
+│       │   ├── 35
+│       │   ├── 36
+│       │   ├── 37
+│       │   ├── 38
+│       │   ├── 39
+│       │   ├── 3a
+│       │   ├── 3b
+│       │   ├── 3c
+│       │   ├── 3d
+│       │   ├── 3e
+│       │   ├── 3f
+│       │   ├── 40
+│       │   ├── 41
+│       │   ├── 42
+│       │   ├── 43
+│       │   ├── 44
+│       │   ├── 45
+│       │   ├── 46
+│       │   ├── 47
+│       │   ├── 48
+│       │   ├── 49
+│       │   ├── 4a
+│       │   ├── 4b
+│       │   ├── 4c
+│       │   ├── 4d
+│       │   ├── 4e
+│       │   ├── 4f
+│       │   ├── 50
+│       │   ├── 51
+│       │   ├── 52
+│       │   ├── 53
+│       │   ├── 54
+│       │   ├── 55
+│       │   ├── 56
+│       │   ├── 57
+│       │   ├── 58
+│       │   ├── 59
+│       │   ├── 5a
+│       │   ├── 5b
+│       │   ├── 5c
+│       │   ├── 5d
+│       │   ├── 5e
+│       │   ├── 5f
+│       │   ├── 60
+│       │   ├── 61
+│       │   ├── 62
+│       │   ├── 63
+│       │   ├── 64
+│       │   ├── 65
+│       │   ├── 66
+│       │   ├── 67
+│       │   ├── 68
+│       │   ├── 69
+│       │   ├── 6a
+│       │   ├── 6b
+│       │   ├── 6c
+│       │   ├── 6d
+│       │   ├── 6e
+│       │   ├── 6f
+│       │   ├── 70
+│       │   ├── 71
+│       │   ├── 72
+│       │   ├── 73
+│       │   ├── 74
+│       │   ├── 75
+│       │   ├── 76
+│       │   ├── 77
+│       │   ├── 78
+│       │   ├── 79
+│       │   ├── 7a
+│       │   ├── 7b
+│       │   ├── 7c
+│       │   ├── 7d
+│       │   ├── 7e
+│       │   ├── 7f
+│       │   ├── 80
+│       │   ├── 81
+│       │   ├── 82
+│       │   ├── 83
+│       │   ├── 84
+│       │   ├── 85
+│       │   ├── 86
+│       │   ├── 87
+│       │   ├── 88
+│       │   ├── 89
+│       │   ├── 8a
+│       │   ├── 8b
+│       │   ├── 8c
+│       │   ├── 8d
+│       │   ├── 8e
+│       │   ├── 8f
+│       │   ├── 90
+│       │   ├── 91
+│       │   ├── 92
+│       │   ├── 93
+│       │   ├── 94
+│       │   ├── 95
+│       │   ├── 96
+│       │   ├── 97
+│       │   ├── 98
+│       │   ├── 99
+│       │   ├── 9a
+│       │   ├── 9b
+│       │   ├── 9c
+│       │   ├── 9d
+│       │   ├── 9e
+│       │   ├── 9f
+│       │   ├── a0
+│       │   ├── a1
+│       │   ├── a2
+│       │   ├── a3
+│       │   ├── a4
+│       │   ├── a5
+│       │   ├── a6
+│       │   ├── a7
+│       │   ├── a8
+│       │   ├── a9
+│       │   ├── aa
+│       │   ├── ab
+│       │   ├── ac
+│       │   ├── ad
+│       │   ├── ae
+│       │   ├── af
+│       │   ├── b0
+│       │   ├── b1
+│       │   ├── b2
+│       │   ├── b3
+│       │   ├── b4
+│       │   ├── b5
+│       │   ├── b6
+│       │   ├── b7
+│       │   ├── b8
+│       │   ├── b9
+│       │   ├── ba
+│       │   ├── bb
+│       │   ├── bc
+│       │   ├── bd
+│       │   ├── be
+│       │   ├── bf
+│       │   ├── c0
+│       │   ├── c1
+│       │   ├── c2
+│       │   ├── c3
+│       │   ├── c4
+│       │   ├── c5
+│       │   ├── c6
+│       │   ├── c7
+│       │   ├── c8
+│       │   ├── c9
+│       │   ├── ca
+│       │   ├── cb
+│       │   ├── cc
+│       │   ├── cd
+│       │   ├── ce
+│       │   ├── cf
+│       │   ├── d0
+│       │   ├── d1
+│       │   ├── d2
+│       │   ├── d3
+│       │   ├── d4
+│       │   ├── d5
+│       │   ├── d6
+│       │   ├── d7
+│       │   ├── d8
+│       │   ├── d9
+│       │   ├── da
+│       │   ├── db
+│       │   ├── dc
+│       │   ├── dd
+│       │   ├── de
+│       │   ├── df
+│       │   ├── e0
+│       │   ├── e1
+│       │   ├── e2
+│       │   ├── e3
+│       │   ├── e4
+│       │   ├── e5
+│       │   ├── e6
+│       │   ├── e7
+│       │   ├── e8
+│       │   ├── e9
+│       │   ├── ea
+│       │   ├── eb
+│       │   ├── ec
+│       │   ├── ed
+│       │   ├── ee
+│       │   ├── ef
+│       │   ├── f0
+│       │   ├── f1
+│       │   ├── f2
+│       │   ├── f3
+│       │   ├── f4
+│       │   ├── f5
+│       │   ├── f6
+│       │   ├── f7
+│       │   ├── f8
+│       │   ├── f9
+│       │   ├── fa
+│       │   ├── fb
+│       │   ├── fc
+│       │   ├── fd
+│       │   ├── fe
+│       │   └── ff
+│       └── projects
+├── .tmp_fig
+├── References
+│   ├── SENA
+│   └── SIST
+├── apps
+│   ├── api
+│   │   ├── migrations
+│   │   ├── src
+│   │   │   ├── auth
+│   │   │   ├── backfill
+│   │   │   ├── cache
+│   │   │   ├── db
+│   │   │   ├── desktop_inventory
+│   │   │   ├── edge
+│   │   │   ├── events
+│   │   │   ├── idempotency
+│   │   │   ├── items
+│   │   │   ├── jobs
+│   │   │   ├── logging
+│   │   │   ├── observability
+│   │   │   ├── projections
+│   │   │   ├── sena
+│   │   │   └── storage
+│   │   └── tests
+│   ├── desktop-core
+│   │   ├── build
+│   │   ├── src
+│   │   │   └── legacy_inventory
+│   │   └── tests
+│   └── sena-core
+│       ├── src
+│       └── tests
+├── build
+│   ├── 595fa070fb07e166febc8e70630dba42
+│   ├── event-log
+│   ├── ios
+│   │   ├── Debug-iphonesimulator
+│   │   │   ├── App.framework
+│   │   │   │   ├── _CodeSignature
+│   │   │   │   └── flutter_assets
+│   │   │   │       ├── fonts
+│   │   │   │       ├── icons
+│   │   │   │       ├── packages
+│   │   │   │       │   └── cupertino_icons
+│   │   │   │       │       └── assets
+│   │   │   │       └── shaders
+│   │   │   ├── Flutter
+│   │   │   ├── Flutter.framework
+│   │   │   │   ├── Headers
+│   │   │   │   ├── Modules
+│   │   │   │   └── _CodeSignature
+│   │   │   ├── Pods_Runner.framework
+│   │   │   │   ├── Headers
+│   │   │   │   ├── Modules
+│   │   │   │   └── _CodeSignature
+│   │   │   ├── Runner.app
+│   │   │   │   ├── Base.lproj
+│   │   │   │   │   ├── LaunchScreen.storyboardc
+│   │   │   │   │   └── Main.storyboardc
+│   │   │   │   ├── Frameworks
+│   │   │   │   │   ├── App.framework
+│   │   │   │   │   │   ├── _CodeSignature
+│   │   │   │   │   │   └── flutter_assets
+│   │   │   │   │   │       ├── fonts
+│   │   │   │   │   │       ├── icons
+│   │   │   │   │   │       ├── packages
+│   │   │   │   │   │       │   └── cupertino_icons
+│   │   │   │   │   │       │       └── assets
+│   │   │   │   │   │       └── shaders
+│   │   │   │   │   ├── Flutter.framework
+│   │   │   │   │   │   ├── Headers
+│   │   │   │   │   │   ├── Modules
+│   │   │   │   │   │   └── _CodeSignature
+│   │   │   │   │   └── objective_c.framework
+│   │   │   │   │       └── _CodeSignature
+│   │   │   │   └── _CodeSignature
+│   │   │   └── Runner.swiftmodule
+│   │   │       └── Project
+│   │   └── iphonesimulator
+│   │       └── Runner.app
+│   │           ├── Base.lproj
+│   │           │   ├── LaunchScreen.storyboardc
+│   │           │   └── Main.storyboardc
+│   │           ├── Frameworks
+│   │           │   ├── App.framework
+│   │           │   │   ├── _CodeSignature
+│   │           │   │   └── flutter_assets
+│   │           │   │       ├── fonts
+│   │           │   │       ├── icons
+│   │           │   │       ├── packages
+│   │           │   │       │   └── cupertino_icons
+│   │           │   │       │       └── assets
+│   │           │   │       └── shaders
+│   │           │   ├── Flutter.framework
+│   │           │   │   ├── Headers
+│   │           │   │   ├── Modules
+│   │           │   │   └── _CodeSignature
+│   │           │   └── objective_c.framework
+│   │           │       └── _CodeSignature
+│   │           └── _CodeSignature
+│   ├── native_assets
+│   │   └── ios
+│   │       └── objective_c.framework
+│   │           └── _CodeSignature
+│   ├── native_hooks
+│   └── restore-drill
+├── config
+│   ├── env
+│   └── topology
+├── docs
+│   ├── architecture
+│   ├── operations
+│   └── security
+├── output
+│   └── playwright
+│       ├── overview-drawer-check
+│       │   └── .playwright-cli
+│       └── overview-drawer-fix
+│           └── .playwright-cli
+├── resources
+│   └── mac
+│       └── banji.iconset
+├── scripts
+├── services
+├── src
+│   ├── main
+│   ├── preload
+│   ├── renderer
+│   │   └── src
+│   │       ├── assets
+│   │       │   └── fonts
+│   │       ├── components
+│   │       │   ├── icons
+│   │       │   ├── system
+│   │       │   └── ui
+│   │       ├── dev
+│   │       ├── hooks
+│   │       ├── lib
+│   │       ├── routes
+│   │       │   ├── overview
+│   │       │   ├── service-detail
+│   │       │   └── sku-detail
+│   │       ├── state
+│   │       └── test
+│   └── shared
+└── tool
+    ├── db
+    ├── local
+    ├── naming
+    ├── otel
+    │   └── alerts
+    ├── rabbit
+    └── security
+
+675 directories

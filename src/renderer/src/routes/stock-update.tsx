@@ -189,9 +189,9 @@ export function StockUpdateRoute() {
   return (
     <WorkspacePage>
       <WorkspaceTitleCard
-        eyebrow="Operations"
+        eyebrow="Logs"
         title="Internal Evidence"
-        description="Operations now records SENA observation packages instead of stock snapshot mutations."
+        description="Logs now record SENA observation packages instead of stock snapshot mutations."
         actions={
           <WorkspaceActionRow>
             <Button asChild>
