@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, HandCoins, Package, Triangle, type LucideIcon } from 'lucide-react';
 import type { InventorySnapshot } from '@shared/inventory';
 import { formatCurrency, rankLabel } from '@/lib/format';
+import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { clampOverlayTransformToBoundary } from '@/routes/ranking-drag';
@@ -411,7 +412,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
           ? 'pointer-events-none rounded-2xl border border-border/70 bg-background/95 shadow-[0_24px_80px_-28px_rgba(39,27,18,0.35)] backdrop-blur-[2px]'
           : movedFromBaseline
             ? 'bg-muted/60 hover:bg-muted/70'
-            : 'bg-transparent hover:bg-white/45',
+            : `bg-transparent ${rowHoverClassName}`,
         dragging && 'opacity-0',
         className,
       )}

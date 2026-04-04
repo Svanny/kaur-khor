@@ -6,6 +6,7 @@ import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { rowHoverClassName } from '@/lib/interactive-surface';
 import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService } from '@/lib/sena-catalog';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -111,7 +112,7 @@ function ServiceSkuGridTile({
     <div
       className={cn(
         'flex min-w-0 items-center gap-3 rounded-[1.25rem] border border-border/70 bg-muted/20 px-4 py-4 text-sm transition-colors',
-        !measure && 'cursor-pointer hover:border-border hover:bg-muted/45 focus-within:border-ring/70 focus-within:bg-muted/35',
+        !measure && `cursor-pointer hover:border-border ${rowHoverClassName} focus-within:border-ring/70 focus-within:bg-muted/35`,
         className,
       )}
       aria-pressed={measure ? undefined : checked}

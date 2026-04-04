@@ -65,7 +65,7 @@ function ToggleGroupItem({
   return (
     <ToggleGroupPrimitive.Item
       className={cn(
-        'shrink-0 border-transparent hover:bg-card/80 hover:text-foreground hover:shadow-[0_1px_2px_rgba(27,15,7,0.08)] group-data-[spacing=0]/toggle-group:rounded-none group-data-[spacing=0]/toggle-group:px-3 group-data-[spacing=0]/toggle-group:shadow-none focus:z-10 focus-visible:z-10 group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-4xl group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-xl group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-4xl group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-xl data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-[0_1px_2px_rgba(27,15,7,0.08)]',
+        'shrink-0 border-transparent group-data-[spacing=0]/toggle-group:rounded-none group-data-[spacing=0]/toggle-group:px-3 group-data-[spacing=0]/toggle-group:shadow-none focus:z-10 focus-visible:z-10 group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-4xl group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-xl group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-4xl group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-xl data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-[0_1px_2px_rgba(27,15,7,0.08)] data-[state=on]:hover:bg-card data-[state=on]:hover:text-foreground data-[state=on]:hover:shadow-[0_1px_2px_rgba(27,15,7,0.08)]',
         toggleVariants({
           variant: context.variant || variant,
           size: context.size || size,

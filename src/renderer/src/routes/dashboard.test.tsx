@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SenaSkuDetail } from '@shared/sena';
+import { rowHoverClassName } from '@/lib/interactive-surface';
 import { DashboardRoute } from './dashboard';
 
 const inventoryHook = vi.fn();
@@ -59,14 +61,24 @@ const sampleCatalog = {
       leadTimeMeanDaysHint: 7,
       leadTimeStdDaysHint: 2,
     },
-    {
-      skuId: 'sku-3',
-      name: 'Styling gel',
-      description: 'Styling support',
+  {
+    skuId: 'sku-3',
+    name: 'Styling gel',
+    description: 'Styling support',
       costPerUnit: 3,
       soldAsProduct: true,
       productPrice: 8,
       leadTimeMeanDaysHint: 4,
+      leadTimeStdDaysHint: 1,
+    },
+    {
+      skuId: 'sku-4',
+      name: 'Cotton pads',
+      description: 'Retail only',
+      costPerUnit: 2,
+      soldAsProduct: true,
+      productPrice: 5,
+      leadTimeMeanDaysHint: 3,
       leadTimeStdDaysHint: 1,
     },
   ],
@@ -98,12 +110,12 @@ const sampleWorkspaceSummary = {
   ownerSub: 'desktop-owner',
   runId: 'run-1',
   latestObservedAt: '2026-04-03T08:00:00.000Z',
-  skuCount: 3,
+  skuCount: 4,
   serviceCount: 2,
-  intervalCount: 3,
-  pendingReorderCount: 1,
+  intervalCount: 4,
+  pendingReorderCount: 2,
   topRegime: 'normal',
-  highRiskSkuIds: ['sku-1'],
+  highRiskSkuIds: ['sku-1', 'sku-4'],
   skuSummaries: [
     {
       skuId: 'sku-1',
@@ -150,6 +162,22 @@ const sampleWorkspaceSummary = {
       reorderPoint: 11,
       reorderTriggerProbability: 0.22,
       leadTimeMeanDays: 4,
+      leadTimeStdDays: 1,
+      regimeProbabilities: { normal: 1 },
+    },
+    {
+      skuId: 'sku-4',
+      latestPosteriorUnits: 6,
+      credibleIntervalLow: 4,
+      credibleIntervalHigh: 7,
+      demandPerDayMean: 3,
+      stockoutRisk: 0.74,
+      daysOfCover: 1.8,
+      expectedLeadTimeDemand: 9,
+      safetyStock: 3,
+      reorderPoint: 11,
+      reorderTriggerProbability: 0.64,
+      leadTimeMeanDays: 3,
       leadTimeStdDays: 1,
       regimeProbabilities: { normal: 1 },
     },
@@ -269,6 +297,13 @@ const detailBySkuId: Record<string, SenaSkuDetail> = {
       },
     ],
   },
+  'sku-4': {
+    summary: sampleWorkspaceSummary.skuSummaries[3],
+    inventoryPosterior: [],
+    demandPosterior: [],
+    pipelinePosterior: [],
+    leadTimePosterior: [],
+  },
 };
 
 function renderRoute() {
@@ -301,23 +336,46 @@ describe('DashboardRoute', () => {
   });
 
   test('renders the SENA task queue and lets the user filter it', async () => {
-    renderRoute();
+    const user = userEvent.setup();
+    const { container } = renderRoute();
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+    expect(screen.getByText('Mission Control')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Everything' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Services' })).toBeInTheDocument();
+    const scopeToggle = screen.getByRole('group', { name: 'Search and segment' });
+    expect(within(scopeToggle).getByRole('radio', { name: 'All' })).toBeInTheDocument();
+    expect(within(scopeToggle).getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
+    expect(within(scopeToggle).getByRole('radio', { name: 'Services' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Log order' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Log order' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Update ETA' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
+    expect(screen.getByText('Cotton pads')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="overview-task-row"]')).not.toBeNull();
+    });
+    expect(container.querySelector('[data-slot="overview-task-row"]')?.className).toContain(rowHoverClassName);
+    expect(container.querySelector('[data-slot="overview-rail-row"]')?.className).toContain(rowHoverClassName);
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Ready to receive' }));
+    await user.click(screen.getByRole('tab', { name: 'Ready to receive' }));
 
-    expect(screen.queryByRole('button', { name: 'Log order' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Update ETA' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryAllByRole('button', { name: 'Log order' })).toHaveLength(0);
+      expect(screen.queryAllByRole('button', { name: 'Update ETA' })).toHaveLength(0);
+      expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
+    });
+  });
+
+  test('filters overview tasks by services even without a search query', async () => {
+    renderRoute();
+
+    expect(screen.getByText('Cotton pads')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Services' }));
+
+    expect(screen.queryByText('Cotton pads')).not.toBeInTheDocument();
+    expect(screen.getByText('Razor refill')).toBeInTheDocument();
+    expect(screen.getAllByText('Hair dye black').length).toBeGreaterThan(0);
   });
 
   test('scopes the overview search by services from the title card control', async () => {

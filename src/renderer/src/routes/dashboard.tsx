@@ -2,12 +2,17 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { SenaSkuDetail } from '@shared/sena';
 import {
-  ArrowRight,
+  ArrowUpRight,
+  CalendarClock,
   ClipboardList,
-  Grid2x2,
+  PackagePlus,
+  Layers3,
   Package,
   PackageCheck,
-  RefreshCcw,
+  ScanLine,
+  ReceiptText,
+  Radio,
+  Send,
   SearchSlash,
   Store,
   Truck,
@@ -21,7 +26,9 @@ import {
 import { SearchInput } from '@/components/system/search-input';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
+import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { rowHoverClassName } from '@/lib/interactive-surface';
 import { statusPillClassName } from '@/lib/status-pill';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -52,14 +59,44 @@ function railBlockClassName() {
   return 'border-t border-border/60 px-5 py-5 first:border-t-0';
 }
 
-function matchesOverviewScope(task: OverviewTask, query: string, scope: OverviewSearchScope) {
+function taskActionIcon(task: OverviewTask) {
+  switch (task.action) {
+    case 'log_order':
+      return <PackagePlus className="size-4" />;
+    case 'update_eta':
+      return <CalendarClock className="size-4" />;
+    case 'follow_up':
+      return <Send className="size-4" />;
+    case 'receive':
+      return <ScanLine className="size-4" />;
+    default:
+      return null;
+  }
+}
+
+function matchesOverviewEntityScope(task: OverviewTask, scope: OverviewSearchScope) {
+  if (scope === 'all') {
+    return true;
+  }
+
+  if (scope === 'skus') {
+    return task.soldAsProduct;
+  }
+
+  return task.linkedServiceNames.length > 0;
+}
+
+function matchesOverviewQuery(task: OverviewTask, query: string, scope: OverviewSearchScope) {
   const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
 
   const parts =
     scope === 'skus'
-      ? [task.skuId, task.skuName]
+      ? [task.skuId, task.skuName, task.whyNow, task.whyDetail, task.etaLabel, task.stateLabel]
       : scope === 'services'
-        ? [task.serviceImpact, ...task.linkedServiceNames]
+        ? [task.serviceImpact, ...task.linkedServiceNames, task.whyNow, task.whyDetail, task.etaLabel, task.stateLabel]
         : [
             task.skuId,
             task.skuName,
@@ -70,10 +107,6 @@ function matchesOverviewScope(task: OverviewTask, query: string, scope: Overview
             task.stateLabel,
             ...task.linkedServiceNames,
           ];
-
-  if (!normalized) {
-    return scope !== 'services' || task.linkedServiceNames.length > 0;
-  }
 
   return parts.join(' ').toLowerCase().includes(normalized);
 }
@@ -143,10 +176,11 @@ export function DashboardRoute() {
     workspaceSummary: inventory.workspaceSummary,
   });
 
-  const visibleTasks = model.tasks.filter(
-    (task) => shouldShowTask(task, filter) && matchesOverviewScope(task, deferredQuery, searchScope),
+  const scopedTasks = model.tasks.filter(
+    (task) => matchesOverviewEntityScope(task, searchScope) && matchesOverviewQuery(task, deferredQuery, searchScope),
   );
-  const selectedTask = model.tasks.find((task) => task.id === selectedTaskId) ?? null;
+  const visibleTasks = scopedTasks.filter((task) => shouldShowTask(task, filter));
+  const selectedTask = scopedTasks.find((task) => task.id === selectedTaskId) ?? null;
 
   useEffect(() => {
     if (selectedTaskId && !selectedTask) {
@@ -194,7 +228,8 @@ export function DashboardRoute() {
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
-        title={<h1>Overview</h1>}
+        eyebrow="Overview"
+        title="Mission Control"
         description="What needs attention next, what is already in motion, and when Banji will check back."
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
@@ -219,8 +254,8 @@ export function DashboardRoute() {
             }}
           >
             <ToggleGroupItem value="all">
-              <Grid2x2 data-icon="inline-start" />
-              {t('filterAll')}
+              <Layers3 data-icon="inline-start" />
+              All
             </ToggleGroupItem>
             <ToggleGroupItem value="skus">
               <Package data-icon="inline-start" />
@@ -234,27 +269,34 @@ export function DashboardRoute() {
         </div>
       </WorkspaceTitleCard>
 
-      <ToggleGroup
-        aria-label="Filter overview tasks"
-        className="inline-flex max-w-full justify-start overflow-x-auto rounded-[1.35rem]"
-        spacing={1}
-        type="single"
+      <ChromeTabs
+        className="relative gap-0"
         value={filter}
-        onValueChange={(nextValue) => {
-          if (nextValue) {
-            setFilter(nextValue as OverviewTaskFilter);
-          }
-        }}
+        onValueChange={(nextValue) => setFilter(nextValue as OverviewTaskFilter)}
       >
-        {FILTER_OPTIONS.map((option) => (
-          <ToggleGroupItem key={option.value} className="rounded-[1rem]" value={option.value}>
-            {option.label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+        <div className="relative flex overflow-x-auto px-5 sm:px-6">
+          <ChromeTabsList aria-label="Filter overview tasks" className="min-w-max">
+            {FILTER_OPTIONS.map((option) => {
+              return (
+                <ChromeTabsTrigger
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </ChromeTabsTrigger>
+              );
+            })}
+          </ChromeTabsList>
+        </div>
 
-      <section className={boardClassName()}>
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
+        <section
+          className={`relative z-[1] ${boardClassName()}`}
+          style={{ 
+            marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)', 
+            marginLeft: '-10px',
+          }}
+        >
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 border-b border-border/60 lg:border-r lg:border-b-0">
             <div className="border-b border-border/60 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -271,11 +313,11 @@ export function DashboardRoute() {
               </div>
             </div>
 
-            <div className="hidden border-b border-border/60 px-5 py-3 text-left lg:grid lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1.35fr)_minmax(0,1.1fr)_auto] lg:gap-5">
+            <div className="hidden border-b border-border/60 px-5 py-3 text-left lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-5">
               <QueueColumnHeading>Item / impact</QueueColumnHeading>
               <QueueColumnHeading>Why now</QueueColumnHeading>
               <QueueColumnHeading>ETA / window</QueueColumnHeading>
-              <QueueColumnHeading className="text-right">Action</QueueColumnHeading>
+              <QueueColumnHeading className="text-center">Action</QueueColumnHeading>
             </div>
 
             {visibleTasks.length > 0 ? (
@@ -283,7 +325,8 @@ export function DashboardRoute() {
                 {visibleTasks.map((task) => (
                   <div
                     key={task.id}
-                    className="grid gap-4 px-5 py-5 transition-colors hover:bg-secondary/25 sm:px-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1.35fr)_minmax(0,1.1fr)_auto] lg:gap-5"
+                    className={`grid gap-4 px-5 py-5 transition-colors ${rowHoverClassName} sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-5`}
+                    data-slot="overview-task-row"
                   >
                     <div className="min-w-0">
                       <button
@@ -319,13 +362,15 @@ export function DashboardRoute() {
                       </p>
                     </div>
 
-                    <div className="flex items-start lg:justify-end">
+                    <div className="flex items-start lg:justify-center">
                       <Button
+                        className="w-[136px] justify-center"
                         size="sm"
                         type="button"
                         variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
                         onClick={() => setSelectedTaskId(task.id)}
                       >
+                        {taskActionIcon(task)}
                         {task.actionLabel}
                       </Button>
                     </div>
@@ -349,22 +394,22 @@ export function DashboardRoute() {
             )}
           </div>
 
-          <aside className="bg-secondary/15">
+          <aside className="flex h-full flex-col bg-secondary/15">
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
                 <ClipboardList className="size-4 text-primary" />
                 <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">Today</h2>
               </div>
-              <div className="divide-y divide-border/60 rounded-[1.2rem] border border-border/60 bg-background/80">
-                <div className="flex items-center justify-between px-4 py-3 text-sm">
+              <div className="divide-y divide-border/50">
+                <div className="flex items-center justify-between py-3 text-sm">
                   <span className="text-muted-foreground">To order</span>
                   <span className="font-semibold text-foreground">{model.todayCounts.toOrder}</span>
                 </div>
-                <div className="flex items-center justify-between px-4 py-3 text-sm">
+                <div className="flex items-center justify-between py-3 text-sm">
                   <span className="text-muted-foreground">Follow up today</span>
                   <span className="font-semibold text-foreground">{model.todayCounts.followUpToday}</span>
                 </div>
-                <div className="flex items-center justify-between px-4 py-3 text-sm">
+                <div className="flex items-center justify-between py-3 text-sm">
                   <span className="text-muted-foreground">Ready to receive</span>
                   <span className="font-semibold text-foreground">{model.todayCounts.readyToReceive}</span>
                 </div>
@@ -376,12 +421,13 @@ export function DashboardRoute() {
                 <Truck className="size-4 text-primary" />
                 <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">In transit</h2>
               </div>
-              <div className="space-y-2">
+              <div className="divide-y divide-border/50">
                 {model.inTransit.length > 0 ? (
                   model.inTransit.map((row) => (
                     <button
                       key={row.id}
-                      className="flex w-full items-center justify-between rounded-[1.2rem] border border-border/60 bg-background/80 px-4 py-3 text-left transition-colors hover:bg-background"
+                      className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
+                      data-slot="overview-rail-row"
                       type="button"
                       onClick={() => setSelectedTaskId(row.id)}
                     >
@@ -390,7 +436,7 @@ export function DashboardRoute() {
                     </button>
                   ))
                 ) : (
-                  <p className="rounded-[1.2rem] border border-dashed border-border/60 bg-background/60 px-4 py-4 text-sm text-muted-foreground">
+                  <p className="py-3 text-sm text-muted-foreground">
                     No active receipt windows are open right now.
                   </p>
                 )}
@@ -399,15 +445,16 @@ export function DashboardRoute() {
 
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
-                <PackageCheck className="size-4 text-primary" />
+                <ReceiptText className="size-4 text-primary" />
                 <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">Recent receipts</h2>
               </div>
-              <div className="space-y-2">
+              <div className="divide-y divide-border/50">
                 {model.recentReceipts.length > 0 ? (
                   model.recentReceipts.map((row) => (
                     <button
                       key={row.id}
-                      className="flex w-full items-center justify-between rounded-[1.2rem] border border-border/60 bg-background/80 px-4 py-3 text-left transition-colors hover:bg-background"
+                      className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
+                      data-slot="overview-rail-row"
                       type="button"
                       onClick={() => setSelectedTaskId(row.skuId)}
                     >
@@ -420,47 +467,48 @@ export function DashboardRoute() {
                     </button>
                   ))
                 ) : (
-                  <p className="rounded-[1.2rem] border border-dashed border-border/60 bg-background/60 px-4 py-4 text-sm text-muted-foreground">
+                  <p className="py-3 text-sm text-muted-foreground">
                     Confirmed receipts will appear here as inventory closes the loop.
                   </p>
                 )}
               </div>
             </section>
 
-            <section className={railBlockClassName()}>
+            <section className={`${railBlockClassName()} border-b border-border/60`}>
               <div className="mb-4 flex items-center gap-2">
-                <RefreshCcw className="size-4 text-primary" />
+                <Radio className="size-4 text-primary" />
                 <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">SENA signals</h2>
               </div>
-              <div className="space-y-2">
+              <div className="divide-y divide-border/50">
                 {model.signals.length > 0 ? (
                   model.signals.map((signal) => (
                     <div
                       key={signal.id}
-                      className="rounded-[1.2rem] border border-border/60 bg-background/80 px-4 py-3 text-sm leading-6 text-foreground"
+                      className="py-3 text-sm leading-6 text-foreground"
                     >
                       {signal.text}
                     </div>
                   ))
                 ) : (
-                  <p className="rounded-[1.2rem] border border-dashed border-border/60 bg-background/60 px-4 py-4 text-sm text-muted-foreground">
+                  <p className="py-3 text-sm text-muted-foreground">
                     Regime and price shifts will surface here once SENA sees enough motion to narrate them.
                   </p>
                 )}
               </div>
             </section>
+
+            <section className="mt-auto flex justify-center px-5 py-5">
+              <Button asChild variant="outline">
+                <Link to="/operations">
+                  <ArrowUpRight className="size-4" />
+                  Open operations
+                </Link>
+              </Button>
+            </section>
           </aside>
         </div>
-      </section>
-
-      <div className="flex justify-end">
-        <Button asChild variant="outline">
-          <Link to="/operations">
-            Open operations
-            <ArrowRight className="size-4" />
-          </Link>
-        </Button>
-      </div>
+        </section>
+      </ChromeTabs>
 
       <OverviewTaskDrawer
         open={selectedTask != null}

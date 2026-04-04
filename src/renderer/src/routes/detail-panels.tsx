@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
+import { pillHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { SectionTitle } from './sku-detail/section-heading';
@@ -45,7 +46,7 @@ export function PagedPanelNavigation({
   const { t } = usePreferences();
 
   return (
-    <div className={cn('flex items-center justify-between border-t border-border/60 px-6 py-3', className)}>
+    <div className={cn('flex w-full items-center justify-between border-t border-border/60 px-6 py-3', className)}>
       <p className="text-sm text-muted-foreground">
         {t('catalogSenaSkuEvidencePageLabel')
           .replace('{current}', String(pageIndex + 1))
@@ -54,7 +55,8 @@ export function PagedPanelNavigation({
       <div className="flex items-center gap-2">
         <button
           aria-label={t('catalogSenaSkuEvidencePrevious')}
-          className="rounded-full border border-border/70 p-2 text-foreground disabled:text-muted-foreground"
+          className={`rounded-full border border-border/70 p-2 text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
+          data-slot="paged-panel-nav-pill"
           disabled={pageIndex === 0}
           type="button"
           onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
@@ -62,7 +64,8 @@ export function PagedPanelNavigation({
           <ChevronLeft className="size-4" />
         </button>
         <button
-          className="rounded-full border border-border/70 px-3 py-1 text-sm text-foreground disabled:text-muted-foreground"
+          className={`rounded-full border border-border/70 px-3 py-1 text-sm text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
+          data-slot="paged-panel-nav-pill"
           disabled={pageIndex === 0}
           type="button"
           onClick={() => setPageIndex(0)}
@@ -70,7 +73,8 @@ export function PagedPanelNavigation({
           {t('catalogSenaSkuEvidenceFirst')}
         </button>
         <button
-          className="rounded-full border border-border/70 px-3 py-1 text-sm text-foreground disabled:text-muted-foreground"
+          className={`rounded-full border border-border/70 px-3 py-1 text-sm text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
+          data-slot="paged-panel-nav-pill"
           disabled={pageIndex >= pageCount - 1}
           type="button"
           onClick={() => setPageIndex(pageCount - 1)}
@@ -79,7 +83,8 @@ export function PagedPanelNavigation({
         </button>
         <button
           aria-label={t('catalogSenaSkuEvidenceNext')}
-          className="rounded-full border border-border/70 p-2 text-foreground disabled:text-muted-foreground"
+          className={`rounded-full border border-border/70 p-2 text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
+          data-slot="paged-panel-nav-pill"
           disabled={pageIndex >= pageCount - 1}
           type="button"
           onClick={() => setPageIndex((current) => Math.min(pageCount - 1, current + 1))}

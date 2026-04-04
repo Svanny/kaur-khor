@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { pillHoverClassName } from '@/lib/interactive-surface';
 import { StockUpdateRoute } from './stock-update';
 
 const inventoryHook = vi.fn();
@@ -130,7 +131,7 @@ describe('StockUpdateRoute', () => {
     );
 
     expect(screen.getByText('Operations')).toBeInTheDocument();
-    expect(screen.getByText('Interval evidence')).toBeInTheDocument();
+    expect(screen.getByText('Internal Evidence')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
@@ -255,6 +256,7 @@ describe('StockUpdateRoute', () => {
 
     expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
     expect(screen.getByText('Observation 1')).toBeInTheDocument();
+    expect(screen.getByText('First').className).toContain(pillHoverClassName);
 
     fireEvent.click(screen.getByText('First'));
 

@@ -101,7 +101,7 @@ export function InventoryRoute() {
     <WorkspacePage>
       <WorkspaceTitleCard
         eyebrow="Catalog"
-        title="SENA catalog"
+        title="SENA Integrated"
         description="Catalog editing is now SENA-native. Services link to SKUs through the sharing mask rather than the old snapshot recipe model."
         actions={
           <WorkspaceActionRow>
