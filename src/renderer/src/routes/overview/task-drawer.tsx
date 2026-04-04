@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useState } from 'react';
 import type { StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass, SenaObservationInput } from '@shared/sena';
 import {
@@ -7,7 +7,8 @@ import {
   leadTimeVariabilityLabel,
   leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
-import { CheckCircle2, PackageCheck, Save, Truck, Undo2 } from 'lucide-react';
+import { PackageCheck, Save, Truck, X } from 'lucide-react';
+import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetFooter,
@@ -28,6 +30,9 @@ import {
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { pillHoverClassName } from '@/lib/interactive-surface';
+import { statusPillClassName } from '@/lib/status-pill';
+import { cn } from '@/lib/utils';
 import {
   ActionSheetField,
   actionSheetInputClassName,
@@ -105,8 +110,104 @@ function leadTimeHintFromTaskInputs({
   ];
 }
 
-function sectionClassName() {
-  return 'rounded-[1.6rem] border border-border/70 bg-white/90 p-5 shadow-[0_12px_28px_rgba(48,31,20,0.06)]';
+const DRAWER_MODE_OPTIONS: Array<{
+  value: OverviewTaskDrawerMode;
+  title: string;
+  description: string;
+}> = [
+  { value: 'not_ordered', title: 'Not ordered yet', description: 'Keep the task visible' },
+  { value: 'ordered_waiting', title: 'Ordered, waiting', description: 'Log the open order' },
+  { value: 'eta_changed', title: 'ETA changed', description: 'Refresh the arrival window' },
+  { value: 'goods_received', title: 'Goods received', description: 'Confirm the inventory event' },
+];
+
+const DRAWER_MIN_WIDTH = 640;
+const DRAWER_MAX_WIDTH = 1040;
+const DRAWER_DEFAULT_WIDTH = 672;
+const DRAWER_VIEWPORT_GUTTER = 16;
+
+function clampDrawerWidth(nextWidth: number) {
+  if (typeof window === 'undefined') {
+    return Math.min(DRAWER_MAX_WIDTH, Math.max(DRAWER_MIN_WIDTH, nextWidth));
+  }
+
+  const viewportMaxWidth = Math.max(360, window.innerWidth - DRAWER_VIEWPORT_GUTTER);
+  return Math.max(
+    Math.min(DRAWER_MIN_WIDTH, viewportMaxWidth),
+    Math.min(Math.max(nextWidth, DRAWER_MIN_WIDTH), Math.min(DRAWER_MAX_WIDTH, viewportMaxWidth)),
+  );
+}
+
+function drawerCanvasClassName() {
+  return 'rounded-[1.8rem] border border-border/70 bg-white/84 px-6 py-6 shadow-[0_1px_0_rgba(255,255,255,0.9)]';
+}
+
+function drawerBandClassName() {
+  return 'border-t border-border/50 py-5';
+}
+
+function drawerModeLabel(mode: OverviewTaskDrawerMode) {
+  return DRAWER_MODE_OPTIONS.find((option) => option.value === mode)?.title ?? 'Update';
+}
+
+function drawerModeSummary(mode: OverviewTaskDrawerMode) {
+  switch (mode) {
+    case 'goods_received':
+      return '1 inventory event will be logged.';
+    case 'ordered_waiting':
+      return '1 open order signal and an updated arrival window will be recorded.';
+    case 'eta_changed':
+      return 'The arrival window will be refreshed for this task.';
+    case 'not_ordered':
+      return 'Banji will keep the task visible until the order state changes.';
+  }
+}
+
+function DrawerBand({
+  children,
+  className,
+  title,
+}: {
+  children: ReactNode;
+  className?: string;
+  title: string;
+}) {
+  return (
+    <section className={cn(drawerBandClassName(), className)}>
+      <p className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {title}
+      </p>
+      {children}
+    </section>
+  );
+}
+
+function DrawerModeTile({
+  description,
+  measure = false,
+  selected,
+  title,
+}: {
+  description: string;
+  measure?: boolean;
+  selected: boolean;
+  title: string;
+}) {
+  return (
+    <div
+      data-mode-measure={measure ? 'true' : undefined}
+      className={cn(
+        'flex min-h-[4.15rem] flex-col items-start justify-center rounded-[1.15rem] border px-4 py-3 text-left transition-all',
+        measure ? 'w-max max-w-none min-w-[15rem]' : 'w-full min-w-0',
+        selected
+          ? 'border-primary/20 bg-white text-foreground shadow-[0_1px_2px_rgba(27,15,7,0.08)]'
+          : cn('border-border/70 bg-transparent text-foreground/95 shadow-none', pillHoverClassName),
+      )}
+    >
+      <span className="text-[0.92rem] font-semibold leading-5 tracking-[-0.02em]">{title}</span>
+      <span className="mt-1 text-[0.73rem] leading-4.5 text-muted-foreground">{description}</span>
+    </div>
+  );
 }
 
 export function OverviewTaskDrawer({
@@ -130,6 +231,7 @@ export function OverviewTaskDrawer({
   const [receivedQuantity, setReceivedQuantity] = useState('');
   const [receivedCost, setReceivedCost] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [drawerWidth, setDrawerWidth] = useState(() => clampDrawerWidth(DRAWER_DEFAULT_WIDTH));
 
   useEffect(() => {
     if (!task) {
@@ -147,6 +249,17 @@ export function OverviewTaskDrawer({
     setReceivedCost(task.costPerUnit ? String(task.costPerUnit) : '');
     setError(null);
   }, [task]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleResize = () => setDrawerWidth((currentWidth) => clampDrawerWidth(currentWidth));
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   if (!task) {
     return null;
@@ -258,235 +371,342 @@ export function OverviewTaskDrawer({
     ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate) ||
     (mode === 'goods_received' && (!receivedQuantity || Number(receivedQuantity) <= 0));
 
+  function startDrawerResize(event: ReactPointerEvent<HTMLDivElement>) {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    event.preventDefault();
+
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startWidth = drawerWidth;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const delta = startX - moveEvent.clientX;
+      setDrawerWidth(clampDrawerWidth(startWidth + delta));
+    };
+
+    const stopResize = () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+
+    const handlePointerUp = () => {
+      stopResize();
+    };
+
+    event.currentTarget.setPointerCapture(pointerId);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full max-w-[42rem] gap-0 overflow-y-auto border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-[42rem]">
-        <SheetHeader className="gap-3 border-b border-border/60 px-8 py-7">
-          <SheetTitle className="text-2xl tracking-[-0.03em]">{task.skuName}</SheetTitle>
-          <SheetDescription className="max-w-2xl text-base leading-7">
-            {task.whyNow} · {task.serviceImpact.toLowerCase()} · {task.etaLabel}
-          </SheetDescription>
+      <SheetContent
+        className="w-full max-w-none gap-0 overflow-hidden border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]"
+        showCloseButton={false}
+        style={{ width: `${drawerWidth}px`, maxWidth: `calc(100vw - ${DRAWER_VIEWPORT_GUTTER}px)` }}
+      >
+        <div
+          aria-label="Resize drawer"
+          className="absolute inset-y-0 left-0 z-30 w-5 cursor-ew-resize touch-none"
+          role="separator"
+          tabIndex={-1}
+          onPointerDown={startDrawerResize}
+        />
+
+        <SheetHeader className="sticky top-0 z-20 gap-4 border-b border-border/40 bg-[#f8f4ef]/96 px-8 py-7 backdrop-blur-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{task.skuName}</SheetTitle>
+                <span
+                  className={cn(
+                    'inline-flex items-center self-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium',
+                    statusPillClassName(task.statusTone),
+                  )}
+                >
+                  {task.stateLabel}
+                </span>
+              </div>
+              <SheetDescription className="mt-3 max-w-2xl text-[0.98rem] leading-7">
+                {task.whyNow} · {task.serviceImpact} · {task.etaLabel}
+              </SheetDescription>
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                {task.heartbeat.map((line) => (
+                  <div
+                    key={line}
+                    className="rounded-full border border-border/65 bg-white/72 px-3.5 py-2 text-sm text-foreground shadow-[0_1px_0_rgba(255,255,255,0.95)]"
+                  >
+                    {line}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <SheetClose className="mt-1 inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/65 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+              <X className="size-5" />
+              <span className="sr-only">Close</span>
+            </SheetClose>
+          </div>
         </SheetHeader>
 
-        <div className="grid gap-5 px-8 py-7">
-          <section className={sectionClassName()}>
-            <div className="mb-4 flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-primary" />
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Why Banji Is Asking
-              </h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {task.heartbeat.map((line) => (
-                <div
-                  key={line}
-                  className="rounded-full border border-border/70 bg-background/80 px-3 py-2 text-sm text-foreground"
-                >
-                  {line}
-                </div>
-              ))}
-            </div>
-          </section>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="px-8 py-6 pb-44">
+            <section className={drawerCanvasClassName()}>
+              <div className="flex items-center gap-2">
+                <Truck className="size-4 text-primary" />
+                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  What Happened In Real Life
+                </h2>
+              </div>
 
-          <section className={sectionClassName()}>
-            <div className="mb-4 flex items-center gap-2">
-              <Truck className="size-4 text-primary" />
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                What Happened In Real Life
-              </h2>
-            </div>
-
-            <ToggleGroup
-              className="mb-5 grid w-full grid-cols-2 gap-2 rounded-[1.5rem] bg-transparent p-0 md:grid-cols-4"
-              spacing={1}
-              type="single"
-              value={mode}
-              onValueChange={(nextValue) => {
-                if (nextValue) {
-                  setMode(nextValue as OverviewTaskDrawerMode);
-                }
-              }}
-            >
-              <ToggleGroupItem className="h-auto min-h-16 flex-col items-start rounded-[1.2rem] border border-border/70 px-4 py-3 text-left" value="not_ordered">
-                <span className="font-medium">Not ordered yet</span>
-                <span className="text-xs text-muted-foreground">Keep the task visible</span>
-              </ToggleGroupItem>
-              <ToggleGroupItem className="h-auto min-h-16 flex-col items-start rounded-[1.2rem] border border-border/70 px-4 py-3 text-left" value="ordered_waiting">
-                <span className="font-medium">Ordered, waiting</span>
-                <span className="text-xs text-muted-foreground">Log the open order</span>
-              </ToggleGroupItem>
-              <ToggleGroupItem className="h-auto min-h-16 flex-col items-start rounded-[1.2rem] border border-border/70 px-4 py-3 text-left" value="eta_changed">
-                <span className="font-medium">ETA changed</span>
-                <span className="text-xs text-muted-foreground">Refresh the arrival window</span>
-              </ToggleGroupItem>
-              <ToggleGroupItem className="h-auto min-h-16 flex-col items-start rounded-[1.2rem] border border-border/70 px-4 py-3 text-left" value="goods_received">
-                <span className="font-medium">Goods received</span>
-                <span className="text-xs text-muted-foreground">Confirm the inventory event</span>
-              </ToggleGroupItem>
-            </ToggleGroup>
-
-            <div className="grid gap-5">
-              <ActionSheetField label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}>
-                <Input
-                  aria-label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}
-                  className={actionSheetInputClassName}
-                  required
-                  type="datetime-local"
-                  value={observedAt}
-                  onChange={(event) => setObservedAt(event.target.value)}
+              <div className="mt-5">
+                <MeasuredTileGrid
+                  items={DRAWER_MODE_OPTIONS}
+                  maxColumns={2}
+                  minColumns={2}
+                  renderGrid={({ columnCount, gridRef }) => (
+                    <div ref={gridRef}>
+                      <ToggleGroup
+                        className="grid w-full gap-3 rounded-none bg-transparent p-0"
+                        spacing={2}
+                        style={{
+                          gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                        }}
+                        type="single"
+                        value={mode}
+                        onValueChange={(nextValue) => {
+                          if (nextValue) {
+                            setMode(nextValue as OverviewTaskDrawerMode);
+                          }
+                        }}
+                      >
+                        {DRAWER_MODE_OPTIONS.map((option) => (
+                          <ToggleGroupItem
+                            key={option.value}
+                            className="h-auto rounded-none border-none bg-transparent p-0 text-left shadow-none hover:bg-transparent data-[state=on]:bg-transparent data-[state=on]:shadow-none"
+                            value={option.value}
+                          >
+                            <DrawerModeTile
+                              description={option.description}
+                              selected={mode === option.value}
+                              title={option.title}
+                            />
+                          </ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
+                    </div>
+                  )}
+                  renderMeasureItem={(option) => (
+                    <DrawerModeTile
+                      key={`${option.value}-measure`}
+                      description={option.description}
+                      measure
+                      selected={mode === option.value}
+                      title={option.title}
+                    />
+                  )}
                 />
-              </ActionSheetField>
+              </div>
+
+              <DrawerBand className="mt-6" title={mode === 'goods_received' ? 'Receipt timing' : 'Timing'}>
+                <div className={cn(mode === 'goods_received' || mode === 'not_ordered' ? 'grid gap-5' : 'grid gap-5 md:grid-cols-2')}>
+                  <ActionSheetField label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}>
+                    <Input
+                      aria-label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}
+                      className={actionSheetInputClassName}
+                      required
+                      type="datetime-local"
+                      value={observedAt}
+                      onChange={(event) => setObservedAt(event.target.value)}
+                    />
+                  </ActionSheetField>
+
+                  {(mode === 'ordered_waiting' || mode === 'eta_changed') ? (
+                    <ActionSheetField label="Expected arrival date">
+                      <Input
+                        aria-label="Expected arrival date"
+                        className={actionSheetInputClassName}
+                        type="date"
+                        value={expectedArrivalDate}
+                        onChange={(event) => setExpectedArrivalDate(event.target.value)}
+                      />
+                    </ActionSheetField>
+                  ) : null}
+                </div>
+              </DrawerBand>
 
               {(mode === 'ordered_waiting' || mode === 'eta_changed') ? (
                 <>
-                  <ActionSheetField label="Ordered quantity">
-                    <Input
-                      aria-label="Ordered quantity"
-                      className={actionSheetInputClassName}
-                      min="0"
-                      step="1"
-                      type="number"
-                      value={orderedQuantity}
-                      onChange={(event) => setOrderedQuantity(event.target.value)}
-                    />
-                  </ActionSheetField>
-                  <ActionSheetField label="Expected arrival date">
-                    <Input
-                      aria-label="Expected arrival date"
-                      className={actionSheetInputClassName}
-                      type="date"
-                      value={expectedArrivalDate}
-                      onChange={(event) => setExpectedArrivalDate(event.target.value)}
-                    />
-                  </ActionSheetField>
-                  <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                    <ActionSheetField label="Uncertainty ± days">
-                      <Input
-                        aria-label="Uncertainty ± days"
-                        className={actionSheetInputClassName}
-                        min="0"
-                        step="1"
-                        type="number"
-                        value={uncertaintyDays}
-                        onChange={(event) => setUncertaintyDays(event.target.value)}
-                      />
-                    </ActionSheetField>
-                    <ActionSheetField
-                      description={
-                        variabilityClass
-                          ? leadTimeVariabilityDescription(variabilityClass)
-                          : 'Capture whether supplier timing is tight or drifting.'
-                      }
-                      label="Variability"
-                    >
-                      <Select
-                        value={variabilityClass || '__none__'}
-                        onValueChange={(value) =>
-                          setVariabilityClass(value === '__none__' ? '' : (value as SenaLeadTimeVariabilityClass))
+                  <DrawerBand title="Order shape">
+                    <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)]">
+                      <ActionSheetField label="Ordered quantity">
+                        <Input
+                          aria-label="Ordered quantity"
+                          className={actionSheetInputClassName}
+                          min="0"
+                          step="1"
+                          type="number"
+                          value={orderedQuantity}
+                          onChange={(event) => setOrderedQuantity(event.target.value)}
+                        />
+                      </ActionSheetField>
+                      <ActionSheetField label="Uncertainty ± days">
+                        <Input
+                          aria-label="Uncertainty ± days"
+                          className={actionSheetInputClassName}
+                          min="0"
+                          step="1"
+                          type="number"
+                          value={uncertaintyDays}
+                          onChange={(event) => setUncertaintyDays(event.target.value)}
+                        />
+                      </ActionSheetField>
+                      <ActionSheetField
+                        description={
+                          variabilityClass
+                            ? leadTimeVariabilityDescription(variabilityClass)
+                            : 'Capture whether supplier timing is tight or drifting.'
                         }
+                        label="Variability"
                       >
-                        <SelectTrigger aria-label="Variability" className={actionSheetSelectTriggerClassName}>
-                          <SelectValue placeholder="Choose variability" />
-                        </SelectTrigger>
-                        <SelectContent align="start">
-                          <SelectItem value="__none__">Choose variability</SelectItem>
-                          {leadTimeVariabilityOptions().map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {leadTimeVariabilityLabel(option)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </ActionSheetField>
-                  </div>
-                  <label className="flex items-start gap-3 rounded-[1.2rem] border border-border/70 bg-background/70 px-4 py-3 text-sm text-foreground">
-                    <Checkbox
-                      checked={useLeadTimeEstimate}
-                      className="mt-0.5"
-                      onCheckedChange={(checked) => setUseLeadTimeEstimate(checked === true)}
-                    />
-                    <span>Use this to improve lead time estimate.</span>
-                  </label>
+                        <Select
+                          value={variabilityClass || '__none__'}
+                          onValueChange={(value) =>
+                            setVariabilityClass(value === '__none__' ? '' : (value as SenaLeadTimeVariabilityClass))
+                          }
+                        >
+                          <SelectTrigger aria-label="Variability" className={actionSheetSelectTriggerClassName}>
+                            <SelectValue placeholder="Choose variability" />
+                          </SelectTrigger>
+                          <SelectContent align="start">
+                            <SelectItem value="__none__">Choose variability</SelectItem>
+                            {leadTimeVariabilityOptions().map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {leadTimeVariabilityLabel(option)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </ActionSheetField>
+                    </div>
+                  </DrawerBand>
+
+                  <DrawerBand title="Optional learning">
+                    <label className="flex items-start gap-3 rounded-[1.2rem] border border-border/70 bg-background/70 px-4 py-3 text-sm text-foreground">
+                      <Checkbox
+                        checked={useLeadTimeEstimate}
+                        className="mt-0.5"
+                        onCheckedChange={(checked) => setUseLeadTimeEstimate(checked === true)}
+                      />
+                      <span>Use this to improve lead time estimate.</span>
+                    </label>
+                  </DrawerBand>
                 </>
               ) : null}
 
               {mode === 'goods_received' ? (
                 <>
-                  <ActionSheetField label="Received quantity">
-                    <Input
-                      aria-label="Received quantity"
-                      className={actionSheetInputClassName}
-                      min="0"
-                      step="1"
-                      type="number"
-                      value={receivedQuantity}
-                      onChange={(event) => setReceivedQuantity(event.target.value)}
-                    />
-                  </ActionSheetField>
-                  <ActionSheetField label="Received cost if changed">
-                    <Input
-                      aria-label="Received cost if changed"
-                      className={actionSheetInputClassName}
-                      min="0"
-                      step="0.01"
-                      type="number"
-                      value={receivedCost}
-                      onChange={(event) => setReceivedCost(event.target.value)}
-                    />
-                  </ActionSheetField>
-                  <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-900">
-                    Banji will add +{receiptPreviewQuantity || 0} units and close the open receipt task.
-                    {' '}
-                    Inventory will move to {receiptPreviewNextStock} units.
-                  </div>
+                  <DrawerBand title="Receipt details">
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <ActionSheetField label="Received quantity">
+                        <Input
+                          aria-label="Received quantity"
+                          className={actionSheetInputClassName}
+                          min="0"
+                          step="1"
+                          type="number"
+                          value={receivedQuantity}
+                          onChange={(event) => setReceivedQuantity(event.target.value)}
+                        />
+                      </ActionSheetField>
+                      <ActionSheetField label="Received cost if changed">
+                        <Input
+                          aria-label="Received cost if changed"
+                          className={actionSheetInputClassName}
+                          min="0"
+                          step="0.01"
+                          type="number"
+                          value={receivedCost}
+                          onChange={(event) => setReceivedCost(event.target.value)}
+                        />
+                      </ActionSheetField>
+                    </div>
+                  </DrawerBand>
+
+                  <DrawerBand title="Preview">
+                    <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50/85 px-4 py-4 text-sm leading-6 text-emerald-900">
+                      Banji will add +{receiptPreviewQuantity || 0} units and close the open receipt task. Inventory will move to {receiptPreviewNextStock} units.
+                    </div>
+                  </DrawerBand>
                 </>
               ) : null}
 
-              <ActionSheetField label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}>
-                <Textarea
-                  aria-label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}
-                  className={actionSheetTextareaClassName}
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                />
-              </ActionSheetField>
-            </div>
-          </section>
+              <DrawerBand title={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}>
+                <ActionSheetField label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}>
+                  <Textarea
+                    aria-label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}
+                    className={cn(
+                      actionSheetTextareaClassName,
+                      mode === 'not_ordered' ? 'min-h-24' : '',
+                      mode === 'goods_received' ? 'min-h-28' : '',
+                    )}
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                </ActionSheetField>
+              </DrawerBand>
 
-          <section className={sectionClassName()}>
-            <div className="mb-4 flex items-center gap-2">
-              <Undo2 className="size-4 text-primary" />
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                What Banji Will Do Next
-              </h2>
-            </div>
-            <div className="grid gap-3">
-              {task.nextSteps.map((line) => (
-                <div key={line} className="rounded-[1rem] border border-border/60 bg-background/75 px-4 py-3 text-sm text-foreground">
-                  {line}
+              <DrawerBand title="What Banji will do next">
+                <div className="rounded-[1.35rem] border border-border/65 bg-secondary/35 px-4 py-4">
+                  <div className="grid gap-3">
+                    {task.nextSteps.map((line) => (
+                      <div key={line} className="flex items-start gap-3 text-sm leading-6 text-foreground">
+                        <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/70" />
+                        <span>{line}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
+              </DrawerBand>
 
-          {error ? (
-            <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
+              {error ? (
+                <p className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
+            </section>
+          </div>
         </div>
 
-        <SheetFooter className="border-t border-border/60 px-8 py-6">
-          <Button
-            className="h-14 w-full rounded-[1.5rem] text-base font-semibold shadow-sm shadow-primary/15"
-            disabled={submitDisabled}
-            size="lg"
-            type="button"
-            onClick={() => void submit()}
-          >
-            {mode === 'goods_received' ? <PackageCheck className="size-4" /> : <Save className="size-4" />}
-            {isSaving ? 'Saving…' : submitLabel}
-          </Button>
+        <SheetFooter className="sticky bottom-0 z-20 border-t border-border/50 bg-[#f8f4ef]/96 px-8 py-5 shadow-[0_-10px_24px_rgba(48,31,20,0.06)] backdrop-blur-sm">
+          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 sm:max-w-[18rem]">
+              <p className="text-sm font-medium text-foreground">Mode: {drawerModeLabel(mode)}</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{drawerModeSummary(mode)}</p>
+            </div>
+            <Button
+              className="w-full sm:w-auto sm:min-w-[15rem]"
+              disabled={submitDisabled}
+              size="lg"
+              type="button"
+              onClick={() => void submit()}
+            >
+              {mode === 'goods_received' ? <PackageCheck className="size-4" /> : <Save className="size-4" />}
+              {isSaving ? 'Saving…' : submitLabel}
+            </Button>
+          </div>
         </SheetFooter>
       </SheetContent>
     </Sheet>

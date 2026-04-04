@@ -1,8 +1,9 @@
 import { Check, Save } from 'lucide-react';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SenaService } from '@shared/sena';
 import { SearchInput } from '@/components/system/search-input';
+import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,7 +13,6 @@ import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
-import { deriveMeasuredGridColumnCount, SERVICE_FORM_SKU_GRID_GAP } from './service-form-layout';
 import { SkuPageHero } from './sku-page-hero';
 import { SectionTitle } from './sku-detail/section-heading';
 
@@ -226,11 +226,8 @@ export function ServiceFormRoute() {
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
   const [skuSearch, setSkuSearch] = useState('');
   const deferredSkuSearch = useDeferredValue(skuSearch);
-  const [gridColumnCount, setGridColumnCount] = useState(1);
   const editing = Boolean(serviceId);
   const formId = 'service-editor-form';
-  const skuGridRef = useRef<HTMLDivElement | null>(null);
-  const skuMeasureRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const existing = catalog?.services.find((entry) => entry.serviceId === serviceId);
@@ -283,34 +280,6 @@ export function ServiceFormRoute() {
     () => `${filteredSkus.length} ${t('serviceEditorLinkedSkusDetected')}`,
     [filteredSkus.length, t],
   );
-
-  useEffect(() => {
-    const gridNode = skuGridRef.current;
-    const measureNode = skuMeasureRef.current;
-    if (!gridNode || !measureNode) {
-      setGridColumnCount(1);
-      return;
-    }
-
-    const updateColumns = () => {
-      const containerWidth = gridNode.clientWidth;
-      const measuredTiles = Array.from(measureNode.querySelectorAll<HTMLElement>('[data-measure="true"]'));
-      const maxItemWidth = measuredTiles.reduce((maxWidth, tile) => Math.max(maxWidth, tile.getBoundingClientRect().width), 0);
-
-      setGridColumnCount(
-        deriveMeasuredGridColumnCount({
-          containerWidth,
-          gap: SERVICE_FORM_SKU_GRID_GAP,
-          maxItemWidth,
-        }),
-      );
-    };
-
-    const observer = new ResizeObserver(() => updateColumns());
-    observer.observe(gridNode);
-    updateColumns();
-    return () => observer.disconnect();
-  }, [filteredSkus]);
 
   if (isLoading && !catalog) {
     return <ServiceFormLoadingState />;
@@ -409,44 +378,46 @@ export function ServiceFormRoute() {
             </p>
           </div>
 
-          <div
-            ref={skuGridRef}
-            className="grid gap-3"
-            data-testid="linked-sku-grid"
-            style={{
-              gridTemplateColumns: `repeat(${gridColumnCount}, minmax(0, 1fr))`,
-            }}
-          >
-            {filteredSkus.map((sku) => (
-              <ServiceSkuGridTile
-                key={sku.skuId}
-                checked={selectedSkuIds.includes(sku.skuId)}
-                description={sku.skuId}
-                label={sku.name}
-                skuId={sku.skuId}
-                onCheckedChange={(checked) =>
-                  setSelectedSkuIds((current) =>
-                    checked
-                      ? [...new Set([...current, sku.skuId])]
-                      : current.filter((entry) => entry !== sku.skuId),
-                  )
-                }
-              />
-            ))}
-            {catalog?.skus.length ? null : (
-              <p className="col-span-full rounded-[1.25rem] border border-dashed border-border/70 bg-muted/10 px-4 py-4 text-sm text-muted-foreground">
-                Add at least one SKU before linking services.
-              </p>
+          <MeasuredTileGrid
+            items={filteredSkus}
+            renderGrid={({ columnCount, gridRef }) => (
+              <div
+                ref={gridRef}
+                className="grid gap-3"
+                data-testid="linked-sku-grid"
+                style={{
+                  gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                }}
+              >
+                {filteredSkus.map((sku) => (
+                  <ServiceSkuGridTile
+                    key={sku.skuId}
+                    checked={selectedSkuIds.includes(sku.skuId)}
+                    description={sku.skuId}
+                    label={sku.name}
+                    skuId={sku.skuId}
+                    onCheckedChange={(checked) =>
+                      setSelectedSkuIds((current) =>
+                        checked
+                          ? [...new Set([...current, sku.skuId])]
+                          : current.filter((entry) => entry !== sku.skuId),
+                      )
+                    }
+                  />
+                ))}
+                {catalog?.skus.length ? null : (
+                  <p className="col-span-full rounded-[1.25rem] border border-dashed border-border/70 bg-muted/10 px-4 py-4 text-sm text-muted-foreground">
+                    Add at least one SKU before linking services.
+                  </p>
+                )}
+                {catalog?.skus.length && filteredSkus.length === 0 ? (
+                  <p className="col-span-full rounded-[1.25rem] border border-dashed border-border/70 bg-muted/10 px-4 py-4 text-sm text-muted-foreground">
+                    {t('serviceEditorLinkedSkusNoMatches')}
+                  </p>
+                ) : null}
+              </div>
             )}
-            {catalog?.skus.length && filteredSkus.length === 0 ? (
-              <p className="col-span-full rounded-[1.25rem] border border-dashed border-border/70 bg-muted/10 px-4 py-4 text-sm text-muted-foreground">
-                {t('serviceEditorLinkedSkusNoMatches')}
-              </p>
-            ) : null}
-          </div>
-
-          <div ref={skuMeasureRef} aria-hidden="true" className="invisible absolute left-0 top-0 -z-10 grid gap-3 opacity-0 pointer-events-none">
-            {filteredSkus.map((sku) => (
+            renderMeasureItem={(sku) => (
               <ServiceSkuGridTile
                 key={`${sku.skuId}-measure`}
                 checked={selectedSkuIds.includes(sku.skuId)}
@@ -457,8 +428,8 @@ export function ServiceFormRoute() {
                 skuId={sku.skuId}
                 onCheckedChange={() => {}}
               />
-            ))}
-          </div>
+            )}
+          />
         </WorkspacePanel>
       </form>
     </WorkspacePage>

@@ -1,0 +1,326 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e7]:
+    - button "Collapse navigation" [ref=e9] [cursor=pointer]:
+      - generic [ref=e10]:
+        - img [ref=e11]
+        - img [ref=e13]
+      - generic [ref=e15]: Banji
+    - generic [ref=e16]:
+      - list [ref=e20]:
+        - listitem [ref=e21]:
+          - link "Overview" [ref=e22] [cursor=pointer]:
+            - /url: "#/"
+            - img [ref=e23]
+            - generic [ref=e28]: Overview
+        - listitem [ref=e29]:
+          - link "Catalog" [ref=e30] [cursor=pointer]:
+            - /url: "#/catalog"
+            - img [ref=e31]
+            - generic [ref=e41]: Catalog
+        - listitem [ref=e42]:
+          - link "Operations" [ref=e43] [cursor=pointer]:
+            - /url: "#/operations"
+            - img [ref=e44]
+            - generic [ref=e46]: Operations
+      - list [ref=e49]:
+        - listitem [ref=e50]:
+          - link "Settings" [ref=e51] [cursor=pointer]:
+            - /url: "#/settings"
+            - img [ref=e52]
+            - generic [ref=e55]: Settings
+  - main [ref=e56]:
+    - main [ref=e58]:
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - generic [ref=e63]:
+            - paragraph [ref=e64]: Overview
+            - generic [ref=e65]:
+              - generic [ref=e66]: Mission Control
+              - generic [ref=e68]: What needs attention next, what is already in motion, and when Banji will check back.
+          - generic [ref=e70]:
+            - group [ref=e72]:
+              - group [ref=e73]:
+                - generic [ref=e74]:
+                  - img
+              - searchbox "Search overview" [ref=e75]
+            - group "Search and segment" [ref=e76]:
+              - radio "All" [checked] [ref=e77] [cursor=pointer]:
+                - img
+                - text: All
+              - radio "SKUs" [ref=e78] [cursor=pointer]:
+                - img
+                - text: SKUs
+              - radio "Services" [ref=e79] [cursor=pointer]:
+                - img
+                - text: Services
+        - generic [ref=e80]:
+          - tablist "Filter overview tasks" [ref=e82]:
+            - tab "All Tasks" [selected] [ref=e83] [cursor=pointer]:
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic [ref=e84]:
+                - img [ref=e86]
+                - generic [ref=e89]: All Tasks
+            - tab "To order" [ref=e90] [cursor=pointer]:
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic [ref=e91]:
+                - img [ref=e93]
+                - generic [ref=e97]: To order
+            - tab "Awaiting receipt" [ref=e98] [cursor=pointer]:
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic [ref=e99]:
+                - img [ref=e101]
+                - generic [ref=e107]: Awaiting receipt
+            - tab "Follow up today" [ref=e108] [cursor=pointer]:
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic [ref=e109]:
+                - img [ref=e111]
+                - generic [ref=e114]: Follow up today
+            - tab "Ready to receive" [ref=e115] [cursor=pointer]:
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic [ref=e116]:
+                - img [ref=e118]
+                - generic [ref=e122]: Ready to receive
+            - tab "Received today" [ref=e123] [cursor=pointer]:
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic:
+                - generic:
+                  - img:
+                    - img
+                    - generic:
+                      - img
+              - generic [ref=e124]:
+                - img [ref=e126]
+                - generic [ref=e129]: Received today
+          - generic [ref=e131]:
+            - generic [ref=e132]:
+              - generic [ref=e134]:
+                - generic [ref=e135]:
+                  - heading "Task queue" [level=2] [ref=e136]
+                  - paragraph [ref=e137]: The human task ledger on top of SENA's order, receipt, and lead-time loop.
+                - paragraph [ref=e138]: 5 visible
+              - generic [ref=e139]:
+                - paragraph [ref=e140]: Item / impact
+                - paragraph [ref=e141]: Why now
+                - paragraph [ref=e142]: ETA / window
+                - paragraph [ref=e143]: Action
+              - generic [ref=e144]:
+                - generic [ref=e145]:
+                  - button "Rattan Market Tote To order sku-1 Blocks Market Tote Add-On and Back-to-School Family Promo" [ref=e147] [cursor=pointer]:
+                    - generic [ref=e148]:
+                      - generic [ref=e149]: Rattan Market Tote
+                      - generic [ref=e150]: To order
+                    - paragraph [ref=e151]: sku-1
+                    - paragraph [ref=e152]: Blocks Market Tote Add-On and Back-to-School Family Promo
+                  - generic [ref=e153]:
+                    - paragraph [ref=e154]: Stockout blocks service
+                    - paragraph [ref=e155]: 2D cover · reorder trigger 100%
+                  - generic [ref=e156]:
+                    - paragraph [ref=e157]: Not ordered yet
+                    - paragraph [ref=e158]: priority elevated · No open order is recorded yet.
+                  - button "Log order" [ref=e160] [cursor=pointer]:
+                    - img
+                    - text: Log order
+                - generic [ref=e161]:
+                  - button "Children's Krama Set To order sku-2 Blocks Tourist Gift Pairing and Back-to-School Family Promo" [ref=e163] [cursor=pointer]:
+                    - generic [ref=e164]:
+                      - generic [ref=e165]: Children's Krama Set
+                      - generic [ref=e166]: To order
+                    - paragraph [ref=e167]: sku-2
+                    - paragraph [ref=e168]: Blocks Tourist Gift Pairing and Back-to-School Family Promo
+                  - generic [ref=e169]:
+                    - paragraph [ref=e170]: Stockout blocks service
+                    - paragraph [ref=e171]: 3D cover · reorder trigger 66%
+                  - generic [ref=e172]:
+                    - paragraph [ref=e173]: Not ordered yet
+                    - paragraph [ref=e174]: priority elevated · No open order is recorded yet.
+                  - button "Log order" [ref=e176] [cursor=pointer]:
+                    - img
+                    - text: Log order
+                - generic [ref=e177]:
+                  - button "Krama Cotton Scarf To order sku-3 Affects Tourist Gift Pairing and Khmer New Year Capsule" [ref=e179] [cursor=pointer]:
+                    - generic [ref=e180]:
+                      - generic [ref=e181]: Krama Cotton Scarf
+                      - generic [ref=e182]: To order
+                    - paragraph [ref=e183]: sku-3
+                    - paragraph [ref=e184]: Affects Tourist Gift Pairing and Khmer New Year Capsule
+                  - generic [ref=e185]:
+                    - paragraph [ref=e186]: Reorder soon
+                    - paragraph [ref=e187]: 3D cover · reorder trigger 61%
+                  - generic [ref=e188]:
+                    - paragraph [ref=e189]: Not ordered yet
+                    - paragraph [ref=e190]: watch posture · No open order is recorded yet.
+                  - button "Log order" [ref=e192] [cursor=pointer]:
+                    - img
+                    - text: Log order
+                - generic [ref=e193]:
+                  - button "Handwoven Belt Follow up today sku-4 Affects Office Blouse Styling and Market Tote Add-On" [ref=e195] [cursor=pointer]:
+                    - generic [ref=e196]:
+                      - generic [ref=e197]: Handwoven Belt
+                      - generic [ref=e198]: Follow up today
+                    - paragraph [ref=e199]: sku-4
+                    - paragraph [ref=e200]: Affects Office Blouse Styling and Market Tote Add-On
+                  - generic [ref=e201]:
+                    - paragraph [ref=e202]: Check supplier update
+                    - paragraph [ref=e203]: Expected window passed without a confirmed receipt.
+                  - generic [ref=e204]:
+                    - paragraph [ref=e205]: Expected Apr 2
+                    - paragraph [ref=e206]: late beyond expected range · Expected window passed without a confirmed receipt.
+                  - button "Follow up" [ref=e208] [cursor=pointer]:
+                    - img
+                    - text: Follow up
+                - generic [ref=e209]:
+                  - button "Premium Wedding Sampot Awaiting receipt sku-5 Affects Wedding Premium Bundle and Pchum Ben Ceremony Set" [ref=e211] [cursor=pointer]:
+                    - generic [ref=e212]:
+                      - generic [ref=e213]: Premium Wedding Sampot
+                      - generic [ref=e214]: Awaiting receipt
+                    - paragraph [ref=e215]: sku-5
+                    - paragraph [ref=e216]: Affects Wedding Premium Bundle and Pchum Ben Ceremony Set
+                  - generic [ref=e217]:
+                    - paragraph [ref=e218]: Ordered already
+                    - paragraph [ref=e219]: Apr 4-Apr 10 arrival window
+                  - generic [ref=e220]:
+                    - paragraph [ref=e221]: Apr 7 ± 3d
+                    - paragraph [ref=e222]: wide window · Apr 4-Apr 10 arrival window
+                  - button "Update ETA" [ref=e224] [cursor=pointer]:
+                    - img
+                    - text: Update ETA
+            - complementary [ref=e225]:
+              - generic [ref=e226]:
+                - generic [ref=e227]:
+                  - img [ref=e228]
+                  - heading "Today" [level=2] [ref=e231]
+                - generic [ref=e232]:
+                  - button "To order 3" [ref=e233] [cursor=pointer]:
+                    - generic [ref=e234]: To order
+                    - generic [ref=e235]: "3"
+                  - button "Follow up today 1" [ref=e236] [cursor=pointer]:
+                    - generic [ref=e237]: Follow up today
+                    - generic [ref=e238]: "1"
+                  - button "Ready to receive 0" [ref=e239] [cursor=pointer]:
+                    - generic [ref=e240]: Ready to receive
+                    - generic [ref=e241]: "0"
+              - generic [ref=e242]:
+                - generic [ref=e243]:
+                  - img [ref=e244]
+                  - heading "In transit" [level=2] [ref=e249]
+                - generic [ref=e250]:
+                  - button "Handwoven Belt Expected Apr 2" [ref=e251] [cursor=pointer]:
+                    - generic [ref=e252]: Handwoven Belt
+                    - generic [ref=e253]: Expected Apr 2
+                  - button "Premium Wedding Sampot Apr 7 ± 3d" [ref=e254] [cursor=pointer]:
+                    - generic [ref=e255]: Premium Wedding Sampot
+                    - generic [ref=e256]: Apr 7 ± 3d
+              - generic [ref=e257]:
+                - generic [ref=e258]:
+                  - img [ref=e259]
+                  - heading "Recent receipts" [level=2] [ref=e261]
+                - paragraph [ref=e263]: Confirmed receipts will appear here as inventory closes the loop.
+              - generic [ref=e264]:
+                - generic [ref=e265]:
+                  - img [ref=e266]
+                  - heading "SENA signals" [level=2] [ref=e272]
+                - generic [ref=e273]:
+                  - generic [ref=e274]: Demand rose after a recent price move on Rattan Market Tote.
+                  - generic [ref=e275]: Handwoven Belt is late beyond the expected arrival range.
+              - link "Open operations" [ref=e277] [cursor=pointer]:
+                - /url: "#/operations"
+                - img
+                - text: Open operations
