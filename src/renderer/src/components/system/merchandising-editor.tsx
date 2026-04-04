@@ -21,9 +21,10 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, HandCoins, Package, Triangle, type LucideIcon } from 'lucide-react';
+import { GripVertical, Triangle, type LucideIcon } from 'lucide-react';
 import type { InventorySnapshot } from '@shared/inventory';
 import { formatCurrency, rankLabel } from '@/lib/format';
+import { rankingEntryTypeIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
@@ -163,12 +164,13 @@ export function MerchandisingEditor({
           ? snapshot.services.find((service) => service.serviceId === entry.entryId)?.price ?? 0
           : snapshot.skus.find((sku) => sku.skuId === entry.entryId)?.costPerUnit ?? 0;
       const price = priceByEntryKey?.[entryKey] ?? fallbackPrice;
+      const KindIcon = rankingEntryTypeIconMap[entry.entryType];
 
       return {
         id: buildRankingEntryId(entry),
         index,
         label,
-        kindIcon: entry.entryType === 'service' ? HandCoins : Package,
+        kindIcon: KindIcon,
         kindLabel: entry.entryType === 'service' ? t('serviceLabel') : t('skuLabel'),
         movedFromBaseline: Boolean(movedByEntryKey?.[entryKey]),
         priceChangeDirection: priceChangeByEntryKey?.[entryKey] ?? null,

@@ -7,7 +7,12 @@ import {
   leadTimeVariabilityLabel,
   leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
-import { PackageCheck, Save, Truck, X } from 'lucide-react';
+import {
+  Check,
+  PackageCheck,
+  Save,
+  X,
+} from 'lucide-react';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,7 +35,8 @@ import {
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { pillHoverClassName } from '@/lib/interactive-surface';
+import { overviewDrawerBandIconMap } from '@/lib/icon-mappings';
+import { rowHoverClassName } from '@/lib/interactive-surface';
 import { statusPillClassName } from '@/lib/status-pill';
 import { cn } from '@/lib/utils';
 import {
@@ -40,7 +46,7 @@ import {
   actionSheetTextareaClassName,
 } from '@/routes/detail-action-sheet';
 import { useInventory } from '@/state/inventory';
-import type { OverviewTask, OverviewTaskDrawerMode } from './view-model';
+import type { OverviewDrawerBandId, OverviewTask, OverviewTaskDrawerMode } from './view-model';
 
 function initialObservedAt(value: string | null) {
   if (value) {
@@ -164,21 +170,52 @@ function drawerModeSummary(mode: OverviewTaskDrawerMode) {
 }
 
 function DrawerBand({
+  bandId,
   children,
   className,
   title,
 }: {
+  bandId: OverviewDrawerBandId;
   children: ReactNode;
   className?: string;
   title: string;
 }) {
+  const Icon = overviewDrawerBandIconMap[bandId];
+
   return (
-    <section className={cn(drawerBandClassName(), className)}>
-      <p className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        {title}
-      </p>
+    <section className={cn(drawerBandClassName(), className)} data-band-id={bandId}>
+      <div className="mb-3 flex items-center gap-2.5">
+        <Icon className="size-4 text-primary" />
+        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {title}
+        </p>
+      </div>
       {children}
     </section>
+  );
+}
+
+function DrawerBandField({
+  children,
+  description,
+  error,
+  label,
+  showLabel = true,
+}: {
+  children: ReactNode;
+  description?: ReactNode;
+  error?: string | null;
+  label: string;
+  showLabel?: boolean;
+}) {
+  if (!showLabel) {
+    return children;
+  }
+
+  return (
+    <ActionSheetField description={description} error={error} label={label}>
+      {children}
+    </ActionSheetField>
   );
 }
 
@@ -197,15 +234,28 @@ function DrawerModeTile({
     <div
       data-mode-measure={measure ? 'true' : undefined}
       className={cn(
-        'flex min-h-[4.15rem] flex-col items-start justify-center rounded-[1.15rem] border px-4 py-3 text-left transition-all',
+        'flex min-h-[4.15rem] items-start gap-3 rounded-[1.15rem] border px-4 py-3 text-left transition-all',
         measure ? 'w-max max-w-none min-w-[15rem]' : 'w-full min-w-0',
         selected
-          ? 'border-primary/20 bg-white text-foreground shadow-[0_1px_2px_rgba(27,15,7,0.08)]'
-          : cn('border-border/70 bg-transparent text-foreground/95 shadow-none', pillHoverClassName),
+          ? 'border-primary/35 bg-transparent text-foreground shadow-none'
+          : cn('border-border/70 bg-transparent text-foreground/95 shadow-none hover:shadow-none', rowHoverClassName),
       )}
     >
-      <span className="text-[0.92rem] font-semibold leading-5 tracking-[-0.02em]">{title}</span>
-      <span className="mt-1 text-[0.73rem] leading-4.5 text-muted-foreground">{description}</span>
+      <div
+        aria-hidden="true"
+        className={cn(
+          'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-[6px] border transition-[border-color,background-color,box-shadow]',
+          selected
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-muted-foreground/45 bg-card text-transparent',
+        )}
+      >
+        <Check className="size-3.5" />
+      </div>
+      <div className="min-w-0">
+        <span className="block text-[0.92rem] font-semibold leading-5 tracking-[-0.02em]">{title}</span>
+        <span className="mt-1 block text-[0.73rem] leading-4.5 text-muted-foreground">{description}</span>
+      </div>
     </div>
   );
 }
@@ -365,6 +415,7 @@ export function OverviewTaskDrawer({
       : mode === 'not_ordered'
         ? 'Save note'
         : 'Save and refresh';
+  const RealLifeIcon = overviewDrawerBandIconMap.real_life;
   const submitDisabled =
     isSaving ||
     (mode === 'ordered_waiting' && !orderedQuantity) ||
@@ -463,9 +514,9 @@ export function OverviewTaskDrawer({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="px-8 py-6 pb-44">
-            <section className={drawerCanvasClassName()}>
+            <section className={drawerCanvasClassName()} data-band-id="real_life">
               <div className="flex items-center gap-2">
-                <Truck className="size-4 text-primary" />
+                <RealLifeIcon className="size-4 text-primary" />
                 <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   What Happened In Real Life
                 </h2>
@@ -496,6 +547,8 @@ export function OverviewTaskDrawer({
                           <ToggleGroupItem
                             key={option.value}
                             className="h-auto rounded-none border-none bg-transparent p-0 text-left shadow-none hover:bg-transparent data-[state=on]:bg-transparent data-[state=on]:shadow-none"
+                            disableHoverSurface
+                            disableSelectedShadow
                             value={option.value}
                           >
                             <DrawerModeTile
@@ -520,7 +573,7 @@ export function OverviewTaskDrawer({
                 />
               </div>
 
-              <DrawerBand className="mt-6" title={mode === 'goods_received' ? 'Receipt timing' : 'Timing'}>
+              <DrawerBand bandId="timing" className="mt-6" title={mode === 'goods_received' ? 'Receipt timing' : 'Timing'}>
                 <div className={cn(mode === 'goods_received' || mode === 'not_ordered' ? 'grid gap-5' : 'grid gap-5 md:grid-cols-2')}>
                   <ActionSheetField label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}>
                     <Input
@@ -549,7 +602,7 @@ export function OverviewTaskDrawer({
 
               {(mode === 'ordered_waiting' || mode === 'eta_changed') ? (
                 <>
-                  <DrawerBand title="Order shape">
+                  <DrawerBand bandId="order_shape" title="Order shape">
                     <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)]">
                       <ActionSheetField label="Ordered quantity">
                         <Input
@@ -603,7 +656,7 @@ export function OverviewTaskDrawer({
                     </div>
                   </DrawerBand>
 
-                  <DrawerBand title="Optional learning">
+                  <DrawerBand bandId="optional_learning" title="Optional learning">
                     <label className="flex items-start gap-3 rounded-[1.2rem] border border-border/70 bg-background/70 px-4 py-3 text-sm text-foreground">
                       <Checkbox
                         checked={useLeadTimeEstimate}
@@ -618,7 +671,7 @@ export function OverviewTaskDrawer({
 
               {mode === 'goods_received' ? (
                 <>
-                  <DrawerBand title="Receipt details">
+                  <DrawerBand bandId="receipt_details" title="Receipt details">
                     <div className="grid gap-5 md:grid-cols-2">
                       <ActionSheetField label="Received quantity">
                         <Input
@@ -645,7 +698,7 @@ export function OverviewTaskDrawer({
                     </div>
                   </DrawerBand>
 
-                  <DrawerBand title="Preview">
+                  <DrawerBand bandId="preview" title="Preview">
                     <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50/85 px-4 py-4 text-sm leading-6 text-emerald-900">
                       Banji will add +{receiptPreviewQuantity || 0} units and close the open receipt task. Inventory will move to {receiptPreviewNextStock} units.
                     </div>
@@ -653,8 +706,11 @@ export function OverviewTaskDrawer({
                 </>
               ) : null}
 
-              <DrawerBand title={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}>
-                <ActionSheetField label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}>
+              <DrawerBand bandId="note" title={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}>
+                <DrawerBandField
+                  label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}
+                  showLabel={false}
+                >
                   <Textarea
                     aria-label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}
                     className={cn(
@@ -665,10 +721,10 @@ export function OverviewTaskDrawer({
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                   />
-                </ActionSheetField>
+                </DrawerBandField>
               </DrawerBand>
 
-              <DrawerBand title="What Banji will do next">
+              <DrawerBand bandId="next_steps" title="What Banji will do next">
                 <div className="rounded-[1.35rem] border border-border/65 bg-secondary/35 px-4 py-4">
                   <div className="grid gap-3">
                     {task.nextSteps.map((line) => (

@@ -22,4 +22,38 @@ describe('ToggleGroupItem', () => {
 
     expect(screen.getByRole('radio', { name: 'All' }).className).toContain(pillHoverClassName);
   });
+
+  test('can opt out of the selected shadow without changing the shared default', () => {
+    const { rerender } = render(
+      <ToggleGroup aria-label="Scope" type="single" value="all">
+        <ToggleGroupItem value="all">All</ToggleGroupItem>
+      </ToggleGroup>,
+    );
+
+    expect(screen.getByRole('radio', { name: 'All' }).className).not.toContain('data-[state=on]:shadow-none');
+
+    rerender(
+      <ToggleGroup aria-label="Scope" type="single" value="all">
+        <ToggleGroupItem disableSelectedShadow value="all">
+          All
+        </ToggleGroupItem>
+      </ToggleGroup>,
+    );
+
+    expect(screen.getByRole('radio', { name: 'All' }).className).toContain('data-[state=on]:shadow-none');
+    expect(screen.getByRole('radio', { name: 'All' }).className).toContain('data-[state=on]:hover:shadow-none');
+  });
+
+  test('can opt out of the shared hover surface for custom tile content', () => {
+    render(
+      <ToggleGroup aria-label="Scope" type="single">
+        <ToggleGroupItem disableHoverSurface value="all">
+          All
+        </ToggleGroupItem>
+      </ToggleGroup>,
+    );
+
+    expect(screen.getByRole('radio', { name: 'All' }).className).toContain('hover:bg-transparent');
+    expect(screen.getByRole('radio', { name: 'All' }).className).toContain('hover:shadow-none');
+  });
 });

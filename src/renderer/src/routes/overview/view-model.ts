@@ -32,6 +32,16 @@ export type OverviewTaskDrawerMode =
   | 'eta_changed'
   | 'goods_received';
 
+export type OverviewDrawerBandId =
+  | 'real_life'
+  | 'timing'
+  | 'order_shape'
+  | 'optional_learning'
+  | 'receipt_details'
+  | 'preview'
+  | 'note'
+  | 'next_steps';
+
 export interface OverviewTask {
   id: string;
   skuId: string;

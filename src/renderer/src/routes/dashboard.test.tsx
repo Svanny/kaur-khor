@@ -347,8 +347,10 @@ describe('DashboardRoute', () => {
     expect(within(scopeToggle).getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
     expect(within(scopeToggle).getByRole('radio', { name: 'Services' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Awaiting receipt' }).querySelector('.lucide-clipboard-clock')).not.toBeNull();
     expect(screen.getAllByRole('button', { name: 'Log order' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Update ETA' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Update ETA' }).querySelector('.lucide-calendar-clock')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
     expect(screen.getByText('Cotton pads')).toBeInTheDocument();
     await waitFor(() => {
@@ -418,6 +420,12 @@ describe('DashboardRoute', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 2, name: 'What Happened In Real Life' })).toBeInTheDocument();
     });
+
+    expect(screen.getByRole('radio', { name: /Goods received/i }).className).toContain('data-[state=on]:shadow-none');
+    expect(document.querySelector('[data-band-id="real_life"] .lucide-scroll-text')).not.toBeNull();
+    expect(document.querySelector('[data-band-id="timing"] .lucide-timer-reset')).not.toBeNull();
+    expect(document.querySelector('[data-band-id="next_steps"] .lucide-bot')).not.toBeNull();
+
     fireEvent.change(screen.getByLabelText('Received quantity'), { target: { value: '24' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm inventory update' }));
 

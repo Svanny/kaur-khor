@@ -1,0 +1,63 @@
+import { describe, expect, test } from 'vitest';
+import {
+  overviewDrawerBandIconMap,
+  overviewTaskActionIconMap,
+  overviewTaskFilterIconMap,
+  rankingEntryTypeIconMap,
+} from './icon-mappings';
+
+describe('icon mappings', () => {
+  test('covers all overview task action keys', () => {
+    expect(Object.keys(overviewTaskActionIconMap).sort()).toEqual([
+      'follow_up',
+      'log_order',
+      'receive',
+      'review',
+      'update_eta',
+    ]);
+  });
+
+  test('covers all overview filter keys', () => {
+    expect(Object.keys(overviewTaskFilterIconMap).sort()).toEqual([
+      'all',
+      'awaiting_receipt',
+      'follow_up_today',
+      'ready_to_receive',
+      'received_today',
+      'to_order',
+    ]);
+  });
+
+  test('covers all overview drawer band ids', () => {
+    expect(Object.keys(overviewDrawerBandIconMap).sort()).toEqual([
+      'next_steps',
+      'note',
+      'optional_learning',
+      'order_shape',
+      'preview',
+      'real_life',
+      'receipt_details',
+      'timing',
+    ]);
+  });
+
+  test('covers all ranking entry types', () => {
+    expect(Object.keys(rankingEntryTypeIconMap).sort()).toEqual(['service', 'sku']);
+  });
+
+  test('does not reuse icons across different semantic maps except the intentional package reuse', () => {
+    const semanticMaps = [
+      overviewTaskActionIconMap,
+      overviewTaskFilterIconMap,
+      overviewDrawerBandIconMap,
+      rankingEntryTypeIconMap,
+    ];
+    const iconNames = semanticMaps
+      .flatMap((map) => Object.values(map))
+      .filter((value): value is Exclude<typeof value, null> => value != null)
+      .map((Icon) => Icon.displayName ?? Icon.name);
+    const duplicateNames = iconNames.filter((name, index) => iconNames.indexOf(name) !== index);
+
+    expect(duplicateNames).toEqual(['Package']);
+  });
+});

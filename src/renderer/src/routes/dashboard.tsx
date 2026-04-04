@@ -2,21 +2,12 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { SenaSkuDetail } from '@shared/sena';
 import {
-  Archive,
   ArrowUpRight,
-  CalendarClock,
   ClipboardList,
-  ClipboardCheck,
-  ClipboardClock,
-  ListTodo,
-  PackagePlus,
   Layers3,
   Package,
-  PackageCheck,
-  ScanLine,
   ReceiptText,
   Radio,
-  Send,
   SearchSlash,
   Store,
   Truck,
@@ -32,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { overviewTaskActionIconMap, overviewTaskFilterIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { statusPillClassName } from '@/lib/status-pill';
 import { useInventory } from '@/state/inventory';
@@ -71,38 +63,6 @@ function boardClassName() {
 
 function railBlockClassName() {
   return 'border-t border-border/60 px-5 py-5 first:border-t-0';
-}
-
-function taskActionIcon(task: OverviewTask) {
-  switch (task.action) {
-    case 'log_order':
-      return <PackagePlus className="size-4" />;
-    case 'update_eta':
-      return <CalendarClock className="size-4" />;
-    case 'follow_up':
-      return <Send className="size-4" />;
-    case 'receive':
-      return <ScanLine className="size-4" />;
-    default:
-      return null;
-  }
-}
-
-function filterTabIcon(filter: OverviewTaskFilter) {
-  switch (filter) {
-    case 'all':
-      return <ClipboardList className="size-4" />;
-    case 'to_order':
-      return <PackagePlus className="size-4" />;
-    case 'awaiting_receipt':
-      return <ClipboardClock className="size-4" />;
-    case 'follow_up_today':
-      return <ListTodo className="size-4" />;
-    case 'ready_to_receive':
-      return <ClipboardCheck className="size-4" />;
-    case 'received_today':
-      return <Archive className="size-4" />;
-  }
 }
 
 function matchesOverviewEntityScope(task: OverviewTask, scope: OverviewSearchScope) {
@@ -308,10 +268,11 @@ export function DashboardRoute() {
         <div className="relative flex overflow-x-auto px-5 sm:px-6">
           <ChromeTabsList aria-label="Filter overview tasks" className="min-w-max">
             {FILTER_OPTIONS.map((option) => {
+              const FilterTabIcon = overviewTaskFilterIconMap[option.value];
               return (
                 <ChromeTabsTrigger
                   key={option.value}
-                  leading={filterTabIcon(option.value)}
+                  leading={<FilterTabIcon className="size-4" />}
                   value={option.value}
                 >
                   {option.label}
@@ -354,12 +315,15 @@ export function DashboardRoute() {
 
             {visibleTasks.length > 0 ? (
               <div className="divide-y divide-border/60">
-                {visibleTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`grid gap-4 px-5 py-5 transition-colors ${rowHoverClassName} sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-5`}
-                    data-slot="overview-task-row"
-                  >
+                {visibleTasks.map((task) => {
+                  const TaskActionIcon = overviewTaskActionIconMap[task.action];
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`grid gap-4 px-5 py-5 transition-colors ${rowHoverClassName} sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-5`}
+                      data-slot="overview-task-row"
+                    >
                     <div className="min-w-0">
                       <button
                         className="group min-w-0 text-left"
@@ -397,20 +361,21 @@ export function DashboardRoute() {
                       </p>
                     </div>
 
-                    <div className="flex items-start lg:justify-center">
-                      <Button
-                        className="w-[136px] justify-center"
-                        size="sm"
-                        type="button"
-                        variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
-                        onClick={() => setSelectedTaskId(task.id)}
-                      >
-                        {taskActionIcon(task)}
-                        {task.actionLabel}
-                      </Button>
+                      <div className="flex items-start lg:justify-center">
+                        <Button
+                          className="w-[136px] justify-center"
+                          size="sm"
+                          type="button"
+                          variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
+                          onClick={() => setSelectedTaskId(task.id)}
+                        >
+                          {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
+                          {task.actionLabel}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="grid place-items-center px-5 py-16 sm:px-6">
