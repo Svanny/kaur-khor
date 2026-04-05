@@ -17,11 +17,15 @@ describe('SettingsRoute', () => {
       language: 'en',
       currency: 'USD',
       showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
     });
     savePreferences.mockResolvedValue({
       language: 'en',
       currency: 'USD',
       showExplanatoryTooltips: false,
+      showFloatingTitleActions: false,
+      showRightRailCards: false,
     });
     getLocalDataInfo.mockResolvedValue({
       dataDirectoryPath: '/tmp/banji',
@@ -67,6 +71,34 @@ describe('SettingsRoute', () => {
         language: 'en',
         currency: 'USD',
         showExplanatoryTooltips: false,
+        showFloatingTitleActions: true,
+        showRightRailCards: true,
+      });
+    });
+  });
+
+  it('renders and saves the right rail visibility preference', async () => {
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show right rail cards/i });
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('button', { name: /save preferences/i }));
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith({
+        language: 'en',
+        currency: 'USD',
+        showExplanatoryTooltips: true,
+        showFloatingTitleActions: true,
+        showRightRailCards: false,
       });
     });
   });

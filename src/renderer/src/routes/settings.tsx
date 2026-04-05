@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, FolderOpen, Save } from 'lucide-react';
+import { BadgeHelp, ChevronDown, FolderOpen, PanelsTopLeft, PanelRight, Save } from 'lucide-react';
 import type { DesktopLocalDataInfo } from '@shared/ipc';
 import { CheckboxRow } from '@/components/system/checkbox-row';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
@@ -18,6 +18,10 @@ export function SettingsRoute() {
     setCurrency,
     setLanguage,
     setShowExplanatoryTooltips,
+    setShowFloatingTitleActions,
+    setShowRightRailCards,
+    showFloatingTitleActions,
+    showRightRailCards,
     showExplanatoryTooltips,
   } = usePreferences();
   const [localDataInfo, setLocalDataInfo] = useState<DesktopLocalDataInfo | null>(null);
@@ -88,13 +92,32 @@ export function SettingsRoute() {
             </div>
           </label>
         </div>
-        <CheckboxRow
-          checked={showExplanatoryTooltips}
-          className="mt-4 bg-background/70 py-3"
-          description="Hide helper tooltips and explanatory guidance across the desktop UI."
-          label="Show explanatory tooltips"
-          onCheckedChange={setShowExplanatoryTooltips}
-        />
+        <div className="mt-4 divide-y divide-border/60">
+          <CheckboxRow
+            checked={showExplanatoryTooltips}
+            description="Hide helper tooltips and explanatory guidance across the desktop UI."
+            icon={<BadgeHelp className="size-4" />}
+            label="Show explanatory tooltips"
+            variant="flat"
+            onCheckedChange={setShowExplanatoryTooltips}
+          />
+          <CheckboxRow
+            checked={showFloatingTitleActions}
+            description="When a page hero scrolls out of view, pin its action buttons and toggles in a floating island near the top-right corner."
+            icon={<PanelsTopLeft className="size-4" />}
+            label="Show floating title actions"
+            variant="flat"
+            onCheckedChange={setShowFloatingTitleActions}
+          />
+          <CheckboxRow
+            checked={showRightRailCards}
+            description="Show the contextual right-side insight and summary blocks across performance and detail pages."
+            icon={<PanelRight className="size-4" />}
+            label="Show right rail cards"
+            variant="flat"
+            onCheckedChange={setShowRightRailCards}
+          />
+        </div>
         <WorkspaceActionRow className="mt-4">
           <Button disabled={!hasPendingChanges} type="button" onClick={() => void savePreferences()}>
             <Save data-icon="inline-start" />

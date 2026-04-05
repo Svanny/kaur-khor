@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaServiceDetail } from '@shared/sena';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
+import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
@@ -16,7 +17,7 @@ import { ServiceDetailLedger } from './service-detail/ledger';
 import { ServiceDetailRightRail } from './service-detail/right-rail';
 import { deriveServiceDetailViewModel, type ServiceInspectorSelection } from './service-detail/view-model';
 
-function ServiceDetailLoadingState() {
+function ServiceDetailLoadingState({ showRightRailCards }: { showRightRailCards: boolean }) {
   return (
     <div className="grid gap-6">
       <section className="rounded-[2rem] border border-border/60 bg-white px-6 py-5 shadow-[0_16px_44px_rgba(48,31,20,0.08)]">
@@ -50,7 +51,7 @@ function ServiceDetailLoadingState() {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className={rightRailLayoutClassName(showRightRailCards)}>
         <section className="rounded-[2rem] border border-border/60 bg-white px-6 py-5 shadow-[0_16px_44px_rgba(48,31,20,0.08)]">
           <Skeleton className="h-8 w-64 rounded-full" />
           <Skeleton className="mt-3 h-5 w-4/5 rounded-full" />
@@ -69,25 +70,27 @@ function ServiceDetailLoadingState() {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-border/60 bg-white p-4 shadow-[0_16px_44px_rgba(48,31,20,0.08)]">
-          <div className="space-y-4">
-            {Array.from({ length: 4 }, (_, index) => (
-              <div key={`service-rail-${index}`} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4">
-                <Skeleton className="h-4 w-28 rounded-full" />
-                <Skeleton className="mt-4 h-6 w-40 rounded-full" />
-                <Skeleton className="mt-2 h-4 w-full rounded-full" />
-                <Skeleton className="mt-2 h-4 w-4/5 rounded-full" />
-              </div>
-            ))}
-          </div>
-        </section>
+        {showRightRailCards ? (
+          <section className="rounded-[2rem] border border-border/60 bg-white p-4 shadow-[0_16px_44px_rgba(48,31,20,0.08)]">
+            <div className="space-y-4">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={`service-rail-${index}`} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4">
+                  <Skeleton className="h-4 w-28 rounded-full" />
+                  <Skeleton className="mt-4 h-6 w-40 rounded-full" />
+                  <Skeleton className="mt-2 h-4 w-full rounded-full" />
+                  <Skeleton className="mt-2 h-4 w-4/5 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );
 }
 
 export function ServiceDetailRoute() {
-  const { currency, language } = usePreferences();
+  const { currency, language, showRightRailCards } = usePreferences();
   const {
     catalog,
     listStockReports,
@@ -234,7 +237,7 @@ export function ServiceDetailRoute() {
   if (!model && (isLoading || !activeSnapshot)) {
     return (
       <WorkspacePage>
-        <ServiceDetailLoadingState />
+        <ServiceDetailLoadingState showRightRailCards={showRightRailCards} />
       </WorkspacePage>
     );
   }
@@ -269,7 +272,7 @@ export function ServiceDetailRoute() {
           model={model}
         />
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className={rightRailLayoutClassName(showRightRailCards)}>
           <div className="grid min-w-0 gap-6">
             <ServiceDetailLedger model={model} selection={selection} setSelection={setSelection} />
             <div className="grid gap-6 xl:grid-cols-2">
@@ -277,7 +280,7 @@ export function ServiceDetailRoute() {
               <ServiceEvidenceTimeline evidence={model.evidence} />
             </div>
           </div>
-          <ServiceDetailRightRail model={model} selection={selection} />
+          {showRightRailCards ? <ServiceDetailRightRail model={model} selection={selection} /> : null}
         </div>
       </div>
     </WorkspacePage>

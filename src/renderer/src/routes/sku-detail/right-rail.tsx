@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
+import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -29,7 +30,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
   const { t } = usePreferences();
 
   return (
-    <aside className="grid gap-4 lg:sticky lg:top-6 lg:self-start">
+    <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
       <RailBlock title={t('catalogSenaSkuSelectedInterval')} tooltip={t('catalogSenaSkuSelectedIntervalTooltip')}>
         <p className="font-medium text-foreground">{model.rail.selectedIntervalSummary.label}</p>
         <div className="mt-3 grid gap-1">

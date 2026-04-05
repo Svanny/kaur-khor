@@ -9,6 +9,11 @@ import { SkuDetailRoute } from './sku-detail';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 
 const inventoryHook = vi.fn();
+const preferenceState = {
+  currency: 'USD',
+  language: 'en',
+  showRightRailCards: true,
+};
 
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -16,8 +21,9 @@ vi.mock('../state/inventory', () => ({
 
 vi.mock('../state/preferences', () => ({
   usePreferences: () => ({
-    currency: 'USD',
-    language: 'en',
+    currency: preferenceState.currency,
+    language: preferenceState.language,
+    showRightRailCards: preferenceState.showRightRailCards,
     t: (key: string) => getTranslation('en', key as never),
   }),
 }));
@@ -51,6 +57,7 @@ const sampleCatalog = {
 
 describe('SENA routes', () => {
   beforeEach(() => {
+    preferenceState.showRightRailCards = true;
     inventoryHook.mockReturnValue({
       snapshot: {
         skus: [
@@ -237,9 +244,9 @@ describe('SENA routes', () => {
   test('renders the SENA catalog route', () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    expect(screen.getByText('SENA catalog')).toBeInTheDocument();
+    expect(screen.getByText('SENA Integrated')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Everything' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Services' })).toBeInTheDocument();
     expect(screen.getByText('SKU 1')).toBeInTheDocument();
@@ -319,6 +326,33 @@ describe('SENA routes', () => {
     expect(screen.getByText('Record stock')).toBeInTheDocument();
     expect(screen.getByText('Update price')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('href', '/catalog/services/service-1/edit');
+  });
+
+  test('hides the sku detail right rail when the global toggle is off', async () => {
+    preferenceState.showRightRailCards = false;
+
+    renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Selected interval')).not.toBeInTheDocument();
+    expect(screen.queryByText('Act now')).not.toBeInTheDocument();
+  });
+
+  test('hides the service detail right rail when the global toggle is off', async () => {
+    preferenceState.showRightRailCards = false;
+
+    renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Service viability ledger' })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Act now')).not.toBeInTheDocument();
+    expect(screen.queryByText('Recovery path')).not.toBeInTheDocument();
+    expect(screen.queryByText('Next touch')).not.toBeInTheDocument();
   });
 
   test('opens service receipt sheet with bottleneck SKU context', async () => {

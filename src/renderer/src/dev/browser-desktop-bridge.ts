@@ -609,6 +609,8 @@ function createMockState(): BrowserMockState {
       language: 'en',
       currency: 'USD',
       showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
     },
     reports: [],
     serviceDetails,

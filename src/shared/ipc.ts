@@ -32,6 +32,8 @@ export interface DesktopPreferences {
   language: AppLanguage;
   currency: AppCurrency;
   showExplanatoryTooltips: boolean;
+  showFloatingTitleActions: boolean;
+  showRightRailCards: boolean;
 }
 
 export interface SenaSkuLookupPayload {

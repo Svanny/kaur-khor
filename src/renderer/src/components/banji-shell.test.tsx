@@ -5,6 +5,7 @@ import { BanjiShell } from './banji-shell';
 
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
+const applyDisplayViewMode = vi.fn();
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -24,6 +25,11 @@ describe('BanjiShell', () => {
       reload: vi.fn(),
     });
     preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      displayViewMode: 'maximal',
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
       t: (key: string) => {
         const translations: Record<string, string> = {
           appBrand: 'Banji',
@@ -46,6 +52,7 @@ describe('BanjiShell', () => {
         return translations[key] ?? key;
       },
     });
+    applyDisplayViewMode.mockReset();
   });
 
   test('closes the mobile sidebar after following a navigation link', async () => {
@@ -95,6 +102,45 @@ describe('BanjiShell', () => {
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(within(brandToggle).getByText('Banji')).toBeInTheDocument();
+    const viewModeToggle = screen.getByRole('button', { name: 'Maximal View' });
+    expect(viewModeToggle).toBeInTheDocument();
+    expect(viewModeToggle.closest('li')).not.toBeNull();
+  });
+
+  test('toggles the sidebar view mode pill between maximal and minimal presets', () => {
+    setViewport({ width: 1440, isMobile: false });
+    preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      displayViewMode: 'maximal',
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      t: (key: string) =>
+        ({
+          appBrand: 'Banji',
+          navOverview: 'Overview',
+          navPerformance: 'Performance',
+          navCatalog: 'Catalog',
+          navOperations: 'Logs',
+          navSettings: 'Settings',
+          skipToContent: 'Skip to content',
+          openNavigation: 'Open navigation',
+          collapseNavigation: 'Collapse navigation',
+        }[key] ?? key),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Settings screen</div>} path="/settings" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByTestId('sidebar-view-mode-toggle'));
+    expect(applyDisplayViewMode).toHaveBeenCalledWith('minimal');
   });
 
   test('offers a retry action when workspace loading fails', () => {

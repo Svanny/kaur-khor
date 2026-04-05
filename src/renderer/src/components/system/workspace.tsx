@@ -22,12 +22,25 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DescriptionText, hasDescriptionText, useDescriptionTextVisible } from '@/components/system/description-text';
+import { FloatingTitleActionsIsland, useFloatingTitleActions } from '@/components/system/floating-title-actions';
+import { usePreferences } from '@/state/preferences';
 
 export function WorkspacePage({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex flex-col gap-6', className)} {...props} />;
+  const { showFloatingTitleActions } = usePreferences();
+
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-6',
+        showFloatingTitleActions && 'pb-32 md:pb-36',
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 export function WorkspacePageTitle({
@@ -63,34 +76,39 @@ export function WorkspaceTitleCard({
 }: WorkspaceTitleCardProps) {
   const descriptionVisible = useDescriptionTextVisible();
   const showDescription = hasDescriptionText(description, descriptionVisible);
+  const { showFloatingTitleActions } = usePreferences();
+  const { anchorRef, visible } = useFloatingTitleActions(Boolean(actions) && showFloatingTitleActions);
 
   return (
-    <Card className={cn('hero-mesh relative overflow-hidden border-white/70', !showDescription && 'gap-4', className)}>
-      <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-64 bg-[radial-gradient(circle_at_top,rgba(189,124,81,0.2),transparent_60%)] lg:block" />
-      <CardHeader className={cn('relative gap-4', !showDescription && 'gap-2')}>
-        <div className={cn('flex flex-col gap-3', !showDescription && 'gap-2')}>
-          {eyebrow ? (
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-primary/85">
-              {eyebrow}
-            </p>
-          ) : null}
-          <div className="flex max-w-3xl flex-col gap-3">
-            <CardTitle className="text-3xl tracking-[-0.04em] sm:text-4xl">
-              {title}
-            </CardTitle>
-            {showDescription ? (
-              <CardDescription className="max-w-2xl text-sm leading-6 sm:text-base">
-                <DescriptionText as="div">
-                  {description}
-                </DescriptionText>
-              </CardDescription>
+    <div ref={anchorRef}>
+      <Card className={cn('hero-mesh relative overflow-hidden border-white/70', !showDescription && 'gap-4', className)}>
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-64 bg-[radial-gradient(circle_at_top,rgba(189,124,81,0.2),transparent_60%)] lg:block" />
+        <CardHeader className={cn('relative gap-4', !showDescription && 'gap-2')}>
+          <div className={cn('flex flex-col gap-3', !showDescription && 'gap-2')}>
+            {eyebrow ? (
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-primary/85">
+                {eyebrow}
+              </p>
             ) : null}
+            <div className="flex min-w-0 max-w-none flex-col gap-3">
+              <CardTitle className="text-3xl tracking-[-0.04em] sm:text-4xl">
+                {title}
+              </CardTitle>
+              {showDescription ? (
+                <CardDescription className="min-w-0 max-w-none text-sm leading-6 sm:text-base">
+                  <DescriptionText as="div">
+                    {description}
+                  </DescriptionText>
+                </CardDescription>
+              ) : null}
+            </div>
           </div>
-        </div>
-        {actions ? <CardAction className="static col-auto row-auto">{actions}</CardAction> : null}
-      </CardHeader>
-      {children ? <CardContent className="relative">{children}</CardContent> : null}
-    </Card>
+          {actions ? <CardAction className="static col-auto row-auto">{actions}</CardAction> : null}
+        </CardHeader>
+        {children ? <CardContent className="relative">{children}</CardContent> : null}
+      </Card>
+      <FloatingTitleActionsIsland actions={actions} visible={visible} />
+    </div>
   );
 }
 

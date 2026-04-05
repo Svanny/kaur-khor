@@ -25,6 +25,8 @@ describe('desktop preferences store', () => {
       language: 'en',
       currency: 'USD',
       showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
     });
   });
 
@@ -40,23 +42,30 @@ describe('desktop preferences store', () => {
       language: 'km',
       currency: 'USD',
       showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
     });
 
     await expect(
       saveDesktopPreferences(userDataPath, {
         currency: 'KHR',
         showExplanatoryTooltips: false,
+        showRightRailCards: false,
       }),
     ).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
       showExplanatoryTooltips: false,
+      showFloatingTitleActions: true,
+      showRightRailCards: false,
     });
 
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
       showExplanatoryTooltips: false,
+      showFloatingTitleActions: true,
+      showRightRailCards: false,
     });
 
     const raw = await readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8');
@@ -64,6 +73,8 @@ describe('desktop preferences store', () => {
       language: 'km',
       currency: 'KHR',
       showExplanatoryTooltips: false,
+      showFloatingTitleActions: true,
+      showRightRailCards: false,
     });
   });
 
@@ -115,16 +126,22 @@ describe('desktop preferences store', () => {
       language: 'km',
       currency: 'USD',
       showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
     });
     await expect(secondSave).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
       showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
     });
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
       showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
     });
   });
 });

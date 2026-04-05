@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
+import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,7 +20,7 @@ function emptyBootstrap(): BootstrapSkuDetailResult | null {
   return null;
 }
 
-function SkuDetailLoadingState({ label }: { label: string }) {
+function SkuDetailLoadingState({ label, showRightRailCards }: { label: string; showRightRailCards: boolean }) {
   return (
     <div className="grid gap-6">
       <div className="rounded-[1.4rem] border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground">
@@ -58,7 +59,7 @@ function SkuDetailLoadingState({ label }: { label: string }) {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
           <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[2rem] px-6 py-5`}>
             <div className="flex items-end justify-between border-b border-border/60 pb-4">
@@ -106,25 +107,27 @@ function SkuDetailLoadingState({ label }: { label: string }) {
           </div>
         </div>
 
-        <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[2rem] p-4`}>
-          <div className="space-y-4">
-            {Array.from({ length: 5 }, (_, index) => (
-              <div key={`loading-rail-${index}`} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_12px_28px_rgba(48,31,20,0.07)]">
-                <Skeleton className="h-4 w-28 rounded-full" />
-                <Skeleton className="mt-4 h-6 w-40 rounded-full" />
-                <Skeleton className="mt-2 h-4 w-full rounded-full" />
-                <Skeleton className="mt-2 h-4 w-4/5 rounded-full" />
-              </div>
-            ))}
-          </div>
-        </section>
+        {showRightRailCards ? (
+          <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[2rem] p-4`}>
+            <div className="space-y-4">
+              {Array.from({ length: 5 }, (_, index) => (
+                <div key={`loading-rail-${index}`} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_12px_28px_rgba(48,31,20,0.07)]">
+                  <Skeleton className="h-4 w-28 rounded-full" />
+                  <Skeleton className="mt-4 h-6 w-40 rounded-full" />
+                  <Skeleton className="mt-2 h-4 w-full rounded-full" />
+                  <Skeleton className="mt-2 h-4 w-4/5 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );
 }
 
 export function SkuDetailRoute() {
-  const { currency, language, t } = usePreferences();
+  const { currency, language, showRightRailCards, t } = usePreferences();
   const inventory = useInventory();
   const { skuId = '' } = useParams();
   const [bootstrap, setBootstrap] = useState<BootstrapSkuDetailResult | null>(() => emptyBootstrap());
@@ -175,7 +178,7 @@ export function SkuDetailRoute() {
   if (!bootstrap && (inventory.isLoading || isRefreshing)) {
     return (
       <WorkspacePage>
-        <SkuDetailLoadingState label={t('catalogSenaSkuPreparing')} />
+        <SkuDetailLoadingState label={t('catalogSenaSkuPreparing')} showRightRailCards={showRightRailCards} />
       </WorkspacePage>
     );
   }
@@ -224,7 +227,7 @@ export function SkuDetailRoute() {
           model={model}
         />
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className={rightRailLayoutClassName(showRightRailCards)}>
           <div className="grid min-w-0 gap-6">
             <SkuDetailLedger model={model} selectedIntervalIndex={selectedIntervalIndex} setSelectedIntervalIndex={setSelectedIntervalIndex} />
             <div className="grid gap-6 xl:grid-cols-2">
@@ -232,7 +235,7 @@ export function SkuDetailRoute() {
               <SkuDetailEvidence evidence={model.evidence} />
             </div>
           </div>
-          <SkuDetailRightRail model={model} />
+          {showRightRailCards ? <SkuDetailRightRail model={model} /> : null}
         </div>
       </div>
     </WorkspacePage>

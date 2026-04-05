@@ -6,6 +6,8 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   language: 'en',
   currency: 'USD',
   showExplanatoryTooltips: true,
+  showFloatingTitleActions: true,
+  showRightRailCards: true,
 };
 let preferencesWriteQueue: Promise<void> = Promise.resolve();
 
@@ -18,6 +20,8 @@ function normalizePreferences(value: Partial<DesktopPreferences> | null | undefi
     language: value?.language === 'km' ? 'km' : 'en',
     currency: value?.currency === 'KHR' ? 'KHR' : 'USD',
     showExplanatoryTooltips: value?.showExplanatoryTooltips ?? true,
+    showFloatingTitleActions: value?.showFloatingTitleActions ?? true,
+    showRightRailCards: value?.showRightRailCards ?? true,
   };
 }
 

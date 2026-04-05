@@ -7,6 +7,7 @@ vi.mock('@/state/preferences', () => ({
   usePreferences: () => ({
     currency: 'USD',
     language: 'en',
+    showRightRailCards: true,
     t: (key: string) => {
       if (key === 'serviceLabel') {
         return 'Service';

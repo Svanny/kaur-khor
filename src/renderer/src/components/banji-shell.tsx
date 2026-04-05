@@ -5,6 +5,8 @@ import {
   LayoutDashboard,
   NotebookTabs,
   PanelRight,
+  Rows2,
+  Rows3,
   Settings,
   TrendingUp,
 } from 'lucide-react';
@@ -96,7 +98,7 @@ export function BanjiShell({
 
 function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { t } = usePreferences();
+  const { applyDisplayViewMode, displayViewMode, t } = usePreferences();
   const { error, isLoading, reload } = useInventory();
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
 
@@ -106,8 +108,10 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const isExpandedLayout = isMobile || state === 'expanded';
   const showSidebarText = isMobile || state === 'expanded';
+  const mainContentInset = 'var(--spacing-page)';
+  const viewModeLabel = displayViewMode === 'maximal' ? 'Maximal View' : 'Minimal View';
+  const ViewModeIcon = displayViewMode === 'maximal' ? Rows3 : Rows2;
 
   return (
     <>
@@ -205,6 +209,25 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
           <SidebarGroup className="mt-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent>
               <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+                <SidebarMenuItem key={viewModeLabel}>
+                  <SidebarMenuButton
+                    aria-label={viewModeLabel}
+                    className={cn(
+                      'justify-start rounded-full border border-sidebar-border/70 bg-sidebar-accent/45 font-medium hover:bg-sidebar-accent',
+                      'group-data-[collapsible=icon]:rounded-[1rem] group-data-[collapsible=icon]:border-sidebar-border/0 group-data-[collapsible=icon]:bg-transparent',
+                    )}
+                    data-testid="sidebar-view-mode-toggle"
+                    tooltip={viewModeLabel}
+                    type="button"
+                    onClick={(event) => {
+                      event.currentTarget.blur();
+                      void applyDisplayViewMode(displayViewMode === 'maximal' ? 'minimal' : 'maximal');
+                    }}
+                  >
+                    <ViewModeIcon className="size-4 shrink-0" />
+                    {showSidebarText ? <span className="min-w-0 truncate text-left">{viewModeLabel}</span> : null}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
@@ -232,12 +255,9 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
 
       <SidebarInset>
         <div className="flex min-h-svh flex-col">
-          <main id="main-content" className="flex-1 px-[var(--spacing-page)] py-5">
+          <main id="main-content" className="flex-1 py-5" style={{ paddingInline: mainContentInset }}>
             <div
-              className={cn(
-                'flex w-full flex-col gap-4',
-                isExpandedLayout ? 'mx-auto max-w-[1500px]' : 'max-w-none',
-              )}
+              className="flex w-full max-w-none flex-col gap-4"
               data-testid="shell-main-frame"
             >
               <div className="flex items-center justify-between md:hidden">

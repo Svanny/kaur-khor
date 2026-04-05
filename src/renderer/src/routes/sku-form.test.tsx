@@ -17,6 +17,8 @@ vi.mock('../state/preferences', () => ({
     currency: 'USD',
     language: 'en',
     showExplanatoryTooltips: true,
+    showFloatingTitleActions: true,
+    showRightRailCards: true,
     t: (key: string) => getTranslation('en', key as never),
   }),
 }));

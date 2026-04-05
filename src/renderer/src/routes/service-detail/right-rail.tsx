@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
 function RailBlock({
@@ -47,7 +48,7 @@ export function ServiceDetailRightRail({
   const interval = selectedInterval(model, selection);
 
   return (
-    <aside className="grid gap-4 lg:sticky lg:top-6 lg:self-start">
+    <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
       {contributor ? (
         <RailBlock title="Selected contributor">
           <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{contributor.name}</p>
