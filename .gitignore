@@ -26,6 +26,7 @@ migrate_working_dir/
 
 # Local build and tooling outputs
 /build/
+/dist/
 /coverage/
 /apps/api/target/
 /apps/desktop-core/target/
@@ -33,6 +34,13 @@ migrate_working_dir/
 **/target/
 /node_modules/
 /out/
+/.next/
+/.turbo/
+/.cache/
+/.vite/
+*.tsbuildinfo
+tree.txt
+tree_dir.txt
 /.vitest/
 /.pnpm-store/
 .banji-dev-data/

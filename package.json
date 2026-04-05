@@ -9,6 +9,7 @@
     "build": "electron-vite build",
     "build:icon": "bash ./scripts/build-macos-icon.sh",
     "preview": "electron-vite preview",
+    "refresh:tree": "bash ./scripts/refresh-tree.sh",
     "test": "vitest run"
   },
   "dependencies": {
