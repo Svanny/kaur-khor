@@ -7,6 +7,7 @@ import {
   PanelRight,
   Rows2,
   Rows3,
+  SearchCheck,
   Settings,
   TrendingUp,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -36,10 +38,16 @@ import brandLogo from '@/assets/banji-logo.svg';
 type ShellSectionConfig = {
   destination: string;
   icon: typeof LayoutDashboard;
-  id: 'overview' | 'performance' | 'catalog' | 'operations' | 'settings';
-  labelKey: 'navOverview' | 'navPerformance' | 'navCatalog' | 'navOperations' | 'navSettings';
+  id: 'overview' | 'performance' | 'analysis' | 'catalog' | 'operations' | 'settings';
+  labelKey: 'navOverview' | 'navPerformance' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navSettings';
   matches: (pathname: string) => boolean;
 };
+
+type SidebarSectionLabelKey = 'sidebarSectionMain' | 'sidebarSectionOther';
+
+const sidebarSectionGroupClassName = 'py-1.5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0';
+const sidebarSectionLabelClassName =
+  'group-data-[collapsible=icon]:mt-0 group-data-[collapsible=icon]:opacity-0';
 
 function matchesSection(pathname: string, sectionRoot: string) {
   return pathname === sectionRoot || pathname.startsWith(`${sectionRoot}/`);
@@ -67,6 +75,16 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     icon: Boxes,
     matches: (pathname) => matchesSection(pathname, '/catalog'),
   },
+];
+
+const SECONDARY_SECTIONS: ShellSectionConfig[] = [
+  {
+    id: 'analysis',
+    destination: '/analysis',
+    labelKey: 'navAnalysis',
+    icon: SearchCheck,
+    matches: (pathname) => matchesSection(pathname, '/analysis'),
+  },
   {
     id: 'operations',
     destination: '/operations',
@@ -83,6 +101,51 @@ const SETTINGS_SECTION: ShellSectionConfig = {
   icon: Settings,
   matches: (pathname) => matchesSection(pathname, '/settings'),
 };
+
+function SidebarSectionMenu({
+  sections,
+  pathname,
+  showSidebarText,
+  onNavigate,
+  t,
+}: {
+  sections: ShellSectionConfig[];
+  pathname: string;
+  showSidebarText: boolean;
+  onNavigate: () => void;
+  t: (key: ShellSectionConfig['labelKey'] | SidebarSectionLabelKey) => string;
+}) {
+  return (
+    <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+      {sections.map((section) => {
+        const label = t(section.labelKey);
+        const isActive = section.matches(pathname);
+
+        return (
+          <SidebarMenuItem key={section.destination}>
+            <SidebarMenuButton
+              asChild
+              className="justify-start group-data-[collapsible=icon]:justify-center"
+              isActive={isActive}
+              tooltip={label}
+            >
+              <NavLink
+                aria-label={label}
+                className="group-data-[collapsible=icon]:justify-center"
+                state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+                to={section.destination}
+                onClick={onNavigate}
+              >
+                <section.icon className="size-4" />
+                {showSidebarText ? <span>{label}</span> : null}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
+  );
+}
 
 export function BanjiShell({
   children,
@@ -171,37 +234,30 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
         </SidebarHeader>
 
         <SidebarContent className="flex flex-col px-2 pb-3 group-data-[collapsible=icon]:px-1.5">
-          <div className="flex flex-1 flex-col gap-6">
-            <SidebarGroup className="group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+          <div className="flex flex-1 flex-col gap-3">
+            <SidebarGroup className={sidebarSectionGroupClassName}>
+              <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionMain')}</SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-                  {PRIMARY_SECTIONS.map((section) => {
-                    const label = t(section.labelKey);
-                    const isActive = section.matches(location.pathname);
+                <SidebarSectionMenu
+                  pathname={location.pathname}
+                  sections={PRIMARY_SECTIONS}
+                  showSidebarText={showSidebarText}
+                  t={t}
+                  onNavigate={handleSidebarNavigation}
+                />
+              </SidebarGroupContent>
+            </SidebarGroup>
 
-                    return (
-                      <SidebarMenuItem key={section.destination}>
-                        <SidebarMenuButton
-                          asChild
-                          className="justify-start group-data-[collapsible=icon]:justify-center"
-                          isActive={isActive}
-                          tooltip={label}
-                        >
-                          <NavLink
-                            aria-label={label}
-                            className="group-data-[collapsible=icon]:justify-center"
-                            state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-                            to={section.destination}
-                            onClick={handleSidebarNavigation}
-                          >
-                            <section.icon className="size-4" />
-                            {showSidebarText ? <span>{label}</span> : null}
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
+            <SidebarGroup className={sidebarSectionGroupClassName}>
+              <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionOther')}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarSectionMenu
+                  pathname={location.pathname}
+                  sections={SECONDARY_SECTIONS}
+                  showSidebarText={showSidebarText}
+                  t={t}
+                  onNavigate={handleSidebarNavigation}
+                />
               </SidebarGroupContent>
             </SidebarGroup>
           </div>

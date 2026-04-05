@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { generatePath, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from '@/components/banji-shell';
+import { AnalysisRoute } from '@/routes/analysis';
 import { DashboardRoute } from '@/routes/dashboard';
 import { InventoryRoute } from '@/routes/inventory';
 import { PerformanceRoute } from '@/routes/performance';
@@ -35,6 +36,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<DashboardRoute />} path="/" />
+      <Route element={<AnalysisRoute />} path="/analysis" />
       <Route element={<PerformanceRoute />} path="/performance" />
       <Route element={<RedirectWithSearch to="/catalog" />} path="/inventory" />
       <Route element={<RedirectWithSearch to="/catalog/skus/new" />} path="/inventory/skus/new" />

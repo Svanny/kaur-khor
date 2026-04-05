@@ -328,6 +328,17 @@ describe('DashboardRoute', () => {
     preferenceState.showRightRailCards = true;
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-04-03T12:00:00.000Z'));
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 120,
+      height: 120,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
 
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -343,6 +354,7 @@ describe('DashboardRoute', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   test('renders the SENA task queue and lets the user filter it', async () => {

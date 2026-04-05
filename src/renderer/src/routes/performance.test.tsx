@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
+import { AnalysisRoute } from './analysis';
 import { PerformanceRoute } from './performance';
 
 const inventoryHook = vi.fn();
@@ -112,6 +114,30 @@ const workspaceSummary = {
   topRegime: 'normal',
 };
 
+const regimeHistory = [
+  {
+    dominantRegime: 'normal',
+    endAt: '2026-02-10T08:00:00.000Z',
+    intervalIndex: 0,
+    regimeProbabilities: { normal: 0.7, promo: 0.3 },
+    startAt: '2026-02-01T08:00:00.000Z',
+  },
+  {
+    dominantRegime: 'promo',
+    endAt: '2026-03-05T08:00:00.000Z',
+    intervalIndex: 1,
+    regimeProbabilities: { normal: 0.25, promo: 0.75 },
+    startAt: '2026-02-11T08:00:00.000Z',
+  },
+  {
+    dominantRegime: 'correction',
+    endAt: '2026-04-03T08:00:00.000Z',
+    intervalIndex: 2,
+    regimeProbabilities: { correction: 0.6, normal: 0.4 },
+    startAt: '2026-03-06T08:00:00.000Z',
+  },
+];
+
 describe('PerformanceRoute', () => {
   beforeEach(() => {
     preferenceState.showRightRailCards = true;
@@ -122,7 +148,7 @@ describe('PerformanceRoute', () => {
         coverageEstimate: 0.89,
         effectiveSampleSizeMean: 84,
         posteriorPredictiveErrorMean: 0.18,
-        regimeHistory: [],
+        regimeHistory,
         resamplingCount: 8,
         seasonalityActive: false,
         smoothingEnabled: true,
@@ -151,10 +177,91 @@ describe('PerformanceRoute', () => {
       loadSenaSkuDetail: vi.fn(async (skuId: string) =>
         skuId === 'sku-razor'
           ? {
-              demandPosterior: [],
+              demandPosterior: [
+                {
+                  adjustmentsMean: -1,
+                  deltaDays: 9,
+                  endAt: '2026-02-10T08:00:00.000Z',
+                  intervalIndex: 0,
+                  realizedConsumptionMean: 3,
+                  receiptsMean: 0,
+                  retailDemandMean: 1,
+                  serviceDemandMean: 2,
+                  startAt: '2026-02-01T08:00:00.000Z',
+                  unconstrainedDemandMean: 3,
+                },
+                {
+                  adjustmentsMean: 0,
+                  deltaDays: 22,
+                  endAt: '2026-03-05T08:00:00.000Z',
+                  intervalIndex: 1,
+                  realizedConsumptionMean: 5,
+                  receiptsMean: 4,
+                  retailDemandMean: 1,
+                  serviceDemandMean: 4,
+                  startAt: '2026-02-11T08:00:00.000Z',
+                  unconstrainedDemandMean: 5,
+                },
+                {
+                  adjustmentsMean: -2,
+                  deltaDays: 29,
+                  endAt: '2026-04-03T08:00:00.000Z',
+                  intervalIndex: 2,
+                  realizedConsumptionMean: 4,
+                  receiptsMean: 2,
+                  retailDemandMean: 1,
+                  serviceDemandMean: 3,
+                  startAt: '2026-03-06T08:00:00.000Z',
+                  unconstrainedDemandMean: 5,
+                },
+              ],
               inventoryPosterior: [],
-              leadTimePosterior: [],
+              leadTimePosterior: [
+                {
+                  intervalIndex: 0,
+                  logMeanDays: 1.5,
+                  logStdDays: 0.2,
+                  meanDays: 5,
+                  observedRelativeWidth: 0.2,
+                  observedVariabilityClass: 'tight',
+                  stdDays: 1,
+                },
+                {
+                  intervalIndex: 1,
+                  logMeanDays: 1.6,
+                  logStdDays: 0.28,
+                  meanDays: 6,
+                  observedRelativeWidth: 0.3,
+                  observedVariabilityClass: 'normal',
+                  stdDays: 2,
+                },
+                {
+                  intervalIndex: 2,
+                  logMeanDays: 1.7,
+                  logStdDays: 0.35,
+                  meanDays: 7,
+                  observedRelativeWidth: 0.35,
+                  observedVariabilityClass: 'wide',
+                  stdDays: 2.5,
+                },
+              ],
               pipelinePosterior: [
+                {
+                  ageDaysMean: 2,
+                  inTransitMean: 0,
+                  intervalIndex: 0,
+                  orderProbability: 0.25,
+                  orderQuantityMean: 0,
+                  receiptQuantityMean: 0,
+                },
+                {
+                  ageDaysMean: 5,
+                  inTransitMean: 8,
+                  intervalIndex: 1,
+                  orderProbability: 0.75,
+                  orderQuantityMean: 10,
+                  receiptQuantityMean: 0,
+                },
                 {
                   ageDaysMean: 6,
                   inTransitMean: 16,
@@ -167,9 +274,74 @@ describe('PerformanceRoute', () => {
               summary: workspaceSummary.skuSummaries[0],
             }
           : {
-              demandPosterior: [],
+              demandPosterior: [
+                {
+                  adjustmentsMean: 0,
+                  deltaDays: 9,
+                  endAt: '2026-02-10T08:00:00.000Z',
+                  intervalIndex: 0,
+                  realizedConsumptionMean: 1,
+                  receiptsMean: 0,
+                  retailDemandMean: 1,
+                  serviceDemandMean: 0,
+                  startAt: '2026-02-01T08:00:00.000Z',
+                  unconstrainedDemandMean: 1,
+                },
+                {
+                  adjustmentsMean: 1,
+                  deltaDays: 22,
+                  endAt: '2026-03-05T08:00:00.000Z',
+                  intervalIndex: 1,
+                  realizedConsumptionMean: 1,
+                  receiptsMean: 2,
+                  retailDemandMean: 1,
+                  serviceDemandMean: 0,
+                  startAt: '2026-02-11T08:00:00.000Z',
+                  unconstrainedDemandMean: 1,
+                },
+                {
+                  adjustmentsMean: 0,
+                  deltaDays: 29,
+                  endAt: '2026-04-03T08:00:00.000Z',
+                  intervalIndex: 2,
+                  realizedConsumptionMean: 1,
+                  receiptsMean: 0,
+                  retailDemandMean: 1,
+                  serviceDemandMean: 0,
+                  startAt: '2026-03-06T08:00:00.000Z',
+                  unconstrainedDemandMean: 1,
+                },
+              ],
               inventoryPosterior: [],
-              leadTimePosterior: [],
+              leadTimePosterior: [
+                {
+                  intervalIndex: 0,
+                  logMeanDays: 1.35,
+                  logStdDays: 0.15,
+                  meanDays: 4,
+                  observedRelativeWidth: 0.2,
+                  observedVariabilityClass: 'tight',
+                  stdDays: 1,
+                },
+                {
+                  intervalIndex: 1,
+                  logMeanDays: 1.4,
+                  logStdDays: 0.18,
+                  meanDays: 4,
+                  observedRelativeWidth: 0.2,
+                  observedVariabilityClass: 'tight',
+                  stdDays: 1,
+                },
+                {
+                  intervalIndex: 2,
+                  logMeanDays: 1.45,
+                  logStdDays: 0.22,
+                  meanDays: 5,
+                  observedRelativeWidth: 0.22,
+                  observedVariabilityClass: 'normal',
+                  stdDays: 1.2,
+                },
+              ],
               pipelinePosterior: [],
               summary: workspaceSummary.skuSummaries[1],
             },
@@ -214,10 +386,18 @@ describe('PerformanceRoute', () => {
     });
   });
 
-  function renderRoute() {
+  function renderRoute(initialEntry = '/performance') {
     return render(
-      <MemoryRouter initialEntries={['/performance']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <PerformanceRoute />
+      </MemoryRouter>,
+    );
+  }
+
+  function renderAnalysisRoute(initialEntry = '/analysis') {
+    return render(
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <AnalysisRoute />
       </MemoryRouter>,
     );
   }
@@ -247,6 +427,157 @@ describe('PerformanceRoute', () => {
     expect(screen.getByText('Demand momentum')).toBeInTheDocument();
     expect(screen.getByText('Revenue at risk')).toBeInTheDocument();
   });
+
+  test('renders the dedicated analysis workbench route', async () => {
+    renderAnalysisRoute();
+
+    expect(screen.getByText('Analysis')).toBeInTheDocument();
+    expect(
+      screen.getByText('Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.'),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+    expect(screen.getByText('Regime + price lane')).toBeInTheDocument();
+    expect(screen.getByText('Inventory + demand lane')).toBeInTheDocument();
+    expect(screen.getByText('Pipeline lane')).toBeInTheDocument();
+    expect(screen.getByText('Lead-time lane')).toBeInTheDocument();
+    expect(screen.getByText('Price cues')).toBeInTheDocument();
+    expect(screen.getByText('Inventory band')).toBeInTheDocument();
+    expect(screen.getByText('In-transit window')).toBeInTheDocument();
+    expect(screen.getByText('Spread band')).toBeInTheDocument();
+    expect(screen.queryByText('Entity pressure explorer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
+    expect(screen.queryByText('Supply fragility map')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /Select analysis time range/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Workbench/i })).toHaveAttribute('data-state', 'active');
+  });
+
+  test('renders the analysis pressure tab as its own surface', async () => {
+    const user = userEvent.setup();
+
+    renderAnalysisRoute();
+
+    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Pressure/i }));
+
+    expect(await screen.findByText('Entity pressure explorer')).toBeInTheDocument();
+    expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
+    expect(screen.queryByText('Supply fragility map')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
+  });
+
+  test('renders the analysis observations tab as its own surface', async () => {
+    const user = userEvent.setup();
+
+    renderAnalysisRoute();
+
+    await user.click(screen.getByRole('tab', { name: /Observations/i }));
+
+    expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
+    expect(screen.queryByText('Entity pressure explorer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Supply fragility map')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
+  });
+
+  test('renders the analysis fragility tab as its own surface', async () => {
+    const user = userEvent.setup();
+
+    renderAnalysisRoute();
+
+    await user.click(screen.getByRole('tab', { name: /Fragility/i }));
+
+    expect(await screen.findByText('Supply fragility map')).toBeInTheDocument();
+    expect(screen.queryByText('Entity pressure explorer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
+  });
+
+  test('uses the shared interval strip on analysis and updates the interval rail when a pill is selected', async () => {
+    const resizeCallbacks: Array<() => void> = [];
+    const originalResizeObserver = globalThis.ResizeObserver;
+
+    class ResizeObserverMock {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+
+      observe() {
+        resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
+      }
+
+      disconnect() {}
+    }
+
+    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+
+    try {
+      const { container } = renderAnalysisRoute();
+      expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+
+      const intervalScroller = container.querySelector('.hidden-scrollbar.max-w-full.overflow-x-auto') as HTMLDivElement | null;
+      expect(intervalScroller).not.toBeNull();
+
+      Object.defineProperty(intervalScroller, 'clientWidth', {
+        configurable: true,
+        value: 120,
+      });
+      act(() => {
+        resizeCallbacks.forEach((callback) => callback());
+      });
+
+      expect(screen.getByLabelText('Scroll intervals right')).toBeInTheDocument();
+      const intervalButtons = Array.from(container.querySelectorAll('button[data-active]')) as HTMLButtonElement[];
+      expect(intervalButtons.length).toBeGreaterThan(0);
+
+      fireEvent.click(intervalButtons[0]!);
+
+      expect(await screen.findByText('Interval explanation')).toBeInTheDocument();
+      expect(screen.getByText('What happened')).toBeInTheDocument();
+      expect(intervalButtons[0]).toHaveAttribute('data-active', 'true');
+      expect(container.querySelectorAll('[data-selected-interval-column="true"]')).toHaveLength(4);
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
+  });
+
+  test('lets lane marks drive the selected analysis interval', async () => {
+    const resizeCallbacks: Array<() => void> = [];
+    const originalResizeObserver = globalThis.ResizeObserver;
+
+    class ResizeObserverMock {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+
+      observe() {
+        resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
+      }
+
+      disconnect() {}
+    }
+
+    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+
+    try {
+      const { container } = renderAnalysisRoute();
+      expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+
+      const intervalScroller = container.querySelector('.hidden-scrollbar.max-w-full.overflow-x-auto') as HTMLDivElement | null;
+      expect(intervalScroller).not.toBeNull();
+
+      Object.defineProperty(intervalScroller, 'clientWidth', {
+        configurable: true,
+        value: 240,
+      });
+      act(() => {
+        resizeCallbacks.forEach((callback) => callback());
+      });
+
+      fireEvent.click(screen.getByLabelText('Inventory 29 units in interval 1'));
+
+      expect(await screen.findByText('Interval explanation')).toBeInTheDocument();
+      expect(screen.getByText('Feb 10')).toBeInTheDocument();
+      expect(container.querySelectorAll('[data-selected-interval-column="true"]')).toHaveLength(4);
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
+  });
+
 
   test('hides section header descriptions when explanatory text is disabled', async () => {
     renderRouteWithDescriptionVisibility(false);

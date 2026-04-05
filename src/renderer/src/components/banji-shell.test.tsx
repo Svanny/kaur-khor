@@ -35,8 +35,11 @@ describe('BanjiShell', () => {
           appBrand: 'Banji',
           navOverview: 'Overview',
           navPerformance: 'Performance',
+          navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
+          sidebarSectionMain: 'Main',
+          sidebarSectionOther: 'Other',
           navSettings: 'Settings',
           workspaceUnavailable: 'Workspace unavailable',
           workspaceLoadingTitle: 'Loading workspace',
@@ -97,8 +100,14 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
+    expect(screen.getByText('Main')).toBeInTheDocument();
+    expect(screen.getByText('Other')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'SIST' })).not.toBeInTheDocument();
+    const navLinks = screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'));
+    expect(navLinks.indexOf('Catalog')).toBeLessThan(navLinks.indexOf('Analysis'));
+    expect(navLinks.indexOf('Analysis')).toBeLessThan(navLinks.indexOf('Logs'));
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(within(brandToggle).getByText('Banji')).toBeInTheDocument();
@@ -120,8 +129,11 @@ describe('BanjiShell', () => {
           appBrand: 'Banji',
           navOverview: 'Overview',
           navPerformance: 'Performance',
+          navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
+          sidebarSectionMain: 'Main',
+          sidebarSectionOther: 'Other',
           navSettings: 'Settings',
           skipToContent: 'Skip to content',
           openNavigation: 'Open navigation',

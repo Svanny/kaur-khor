@@ -62,6 +62,7 @@ interface WorkspaceTitleCardProps {
   title: ReactNode;
   description?: string;
   actions?: ReactNode;
+  floatingActions?: ReactNode;
   children?: ReactNode;
   className?: string;
 }
@@ -71,13 +72,15 @@ export function WorkspaceTitleCard({
   title,
   description,
   actions,
+  floatingActions,
   children,
   className,
 }: WorkspaceTitleCardProps) {
   const descriptionVisible = useDescriptionTextVisible();
   const showDescription = hasDescriptionText(description, descriptionVisible);
   const { showFloatingTitleActions } = usePreferences();
-  const { anchorRef, visible } = useFloatingTitleActions(Boolean(actions) && showFloatingTitleActions);
+  const resolvedFloatingActions = floatingActions ?? actions;
+  const { anchorRef, visible } = useFloatingTitleActions(Boolean(resolvedFloatingActions) && showFloatingTitleActions);
 
   return (
     <div ref={anchorRef}>
@@ -107,7 +110,7 @@ export function WorkspaceTitleCard({
         </CardHeader>
         {children ? <CardContent className="relative">{children}</CardContent> : null}
       </Card>
-      <FloatingTitleActionsIsland actions={actions} visible={visible} />
+      <FloatingTitleActionsIsland actions={resolvedFloatingActions} visible={visible} />
     </div>
   );
 }

@@ -1,78 +1,58 @@
 import { useEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
-import { ChevronLeft, ChevronRight, Package } from 'lucide-react';
-import { useDescriptionTextVisible } from '@/components/system/description-text';
+import { Package } from 'lucide-react';
+import {
+  AXIS_END_PADDING,
+  AXIS_START_PADDING,
+  classifyWheelIntent,
+  clampScrollLeft,
+  DEFAULT_SLOT_WIDTH,
+  deriveAnchoredZoomScrollLeft,
+  deriveAxisContentWidth,
+  deriveCenteredIntervalScrollLeft,
+  deriveViewportPageScrollLeft,
+  deriveVisibleWindow,
+  INTERVAL_PILL_GAP,
+  IntervalStrip,
+  MAX_SLOT_WIDTH,
+  MIN_SLOT_WIDTH,
+  SCROLL_EDGE_TOLERANCE,
+  SHARED_PILL_MIN_WIDTH,
+} from '@/components/system/interval-strip';
+import {
+  buildPointCoordinatesWithDomain,
+  buildPolylineWithDomain,
+  buildSparsePolylineSegments,
+  buildTrajectoryBandPath,
+  deriveLabelGutterOffset,
+} from '@/components/system/timeline-chart';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePreferences } from '@/state/preferences';
-import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaWideIntervalDate } from './format';
 import { SectionLabel, SectionTitle } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
 
-const SHARED_PILL_MIN_WIDTH = 48;
-const DEFAULT_SLOT_WIDTH = 72;
-const MIN_SLOT_WIDTH = 40;
-const MAX_SLOT_WIDTH = 120;
-const INTERVAL_PILL_GAP = 0;
-const SCROLL_EDGE_TOLERANCE = 6;
-const AXIS_START_PADDING = 20;
-const AXIS_END_PADDING = 36;
+export {
+  classifyWheelIntent,
+  deriveAnchoredZoomScrollLeft,
+  deriveAxisContentWidth,
+  deriveCenteredIntervalScrollLeft,
+  deriveSlotCenterX,
+  deriveSlotLeftX,
+  deriveVisibleWindow,
+  intervalLabelForWidth,
+  intervalTooltipLabel,
+  responsivePillLabel,
+} from '@/components/system/interval-strip';
+export {
+  buildSparsePolylineSegments,
+  deriveLabelGutterOffset,
+} from '@/components/system/timeline-chart';
+
 const LABEL_GUTTER_HEIGHT = 32;
 const CHART_PLOT_HEIGHT = 120;
 const CHART_VIEWBOX_HEIGHT = 42;
 const FLOW_LABEL_GUTTER_HEIGHT = 64;
 const FLOW_LANE_PLOT_HEIGHT = 112;
-
-export function deriveAxisContentWidth({
-  itemCount,
-  slotWidth,
-  axisStartPadding = AXIS_START_PADDING,
-  axisEndPadding = AXIS_END_PADDING,
-}: {
-  itemCount: number;
-  slotWidth: number;
-  axisStartPadding?: number;
-  axisEndPadding?: number;
-}) {
-  return Math.max(axisStartPadding + itemCount * slotWidth + axisEndPadding, 0);
-}
-
-export function deriveSlotLeftX({
-  index,
-  slotWidth,
-  axisStartPadding = AXIS_START_PADDING,
-}: {
-  index: number;
-  slotWidth: number;
-  axisStartPadding?: number;
-}) {
-  return axisStartPadding + index * slotWidth;
-}
-
-export function deriveSlotCenterX({
-  index,
-  slotWidth,
-  axisStartPadding = AXIS_START_PADDING,
-}: {
-  index: number;
-  slotWidth: number;
-  axisStartPadding?: number;
-}) {
-  return deriveSlotLeftX({ index, slotWidth, axisStartPadding }) + slotWidth / 2;
-}
-
-export function deriveLabelGutterOffset({
-  plotY,
-  plotHeight = CHART_PLOT_HEIGHT,
-  gutterHeight = LABEL_GUTTER_HEIGHT,
-  viewBoxHeight = CHART_VIEWBOX_HEIGHT,
-}: {
-  plotY: number;
-  plotHeight?: number;
-  gutterHeight?: number;
-  viewBoxHeight?: number;
-}) {
-  return gutterHeight + (plotY / viewBoxHeight) * plotHeight;
-}
 
 function intervalEntries(model: SenaSkuDetailViewModel) {
   const entries = new Map<number, { intervalIndex: number; startAt: string | null; endAt: string | null }>();
@@ -92,243 +72,12 @@ function intervalEntries(model: SenaSkuDetailViewModel) {
   return [...entries.values()].sort((left, right) => left.intervalIndex - right.intervalIndex);
 }
 
-function buildPolyline(
-  values: number[],
-  slotWidth: number,
-  height: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  if (values.length === 0) {
-    return '';
-  }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const axisStartPadding = options?.axisStartPadding ?? 0;
-  const topPadding = options?.topPadding ?? 0;
-  const bottomPadding = options?.bottomPadding ?? 0;
-  const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
-  return values
-    .map((value, index) => {
-      const x = deriveSlotCenterX({ index, slotWidth, axisStartPadding });
-      const y = topPadding + drawableHeight - ((value - min) / range) * drawableHeight;
-      return `${x},${y}`;
-    })
-    .join(' ');
-}
-
 function formatRegimeLabel(regime: string) {
   return regime
     .split(/[_\s-]+/g)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-}
-
-function buildPointCoordinates(
-  values: number[],
-  slotWidth: number,
-  height: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  if (values.length === 0) {
-    return [];
-  }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const axisStartPadding = options?.axisStartPadding ?? 0;
-  const topPadding = options?.topPadding ?? 0;
-  const bottomPadding = options?.bottomPadding ?? 0;
-  const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
-  return values.map((value, index) => ({
-    x: deriveSlotCenterX({ index, slotWidth, axisStartPadding }),
-    y: topPadding + drawableHeight - ((value - min) / range) * drawableHeight,
-    value,
-  }));
-}
-
-function buildPointCoordinatesWithDomain(
-  values: number[],
-  slotWidth: number,
-  height: number,
-  domainMin: number,
-  domainMax: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  if (values.length === 0) {
-    return [];
-  }
-  const min = Math.min(domainMin, domainMax);
-  const max = Math.max(domainMin, domainMax);
-  const range = max - min || 1;
-  const axisStartPadding = options?.axisStartPadding ?? 0;
-  const topPadding = options?.topPadding ?? 0;
-  const bottomPadding = options?.bottomPadding ?? 0;
-  const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
-
-  return values.map((value, index) => ({
-    x: deriveSlotCenterX({ index, slotWidth, axisStartPadding }),
-    y: topPadding + drawableHeight - ((value - min) / range) * drawableHeight,
-    value,
-  }));
-}
-
-function buildPolylineWithDomain(
-  values: number[],
-  slotWidth: number,
-  height: number,
-  domainMin: number,
-  domainMax: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  return buildPointCoordinatesWithDomain(values, slotWidth, height, domainMin, domainMax, options)
-    .map((point) => `${point.x},${point.y}`)
-    .join(' ');
-}
-
-function buildTrajectoryBandPath(
-  lows: number[],
-  highs: number[],
-  slotWidth: number,
-  height: number,
-  domainMin: number,
-  domainMax: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  if (lows.length === 0 || highs.length === 0 || lows.length !== highs.length) {
-    return '';
-  }
-
-  const lowCoordinates = buildPointCoordinatesWithDomain(lows, slotWidth, height, domainMin, domainMax, options);
-  const highCoordinates = buildPointCoordinatesWithDomain(highs, slotWidth, height, domainMin, domainMax, options);
-  if (lowCoordinates.length === 0 || highCoordinates.length === 0) {
-    return '';
-  }
-
-  const upperPath = highCoordinates.map((point) => `${point.x},${point.y}`).join(' L ');
-  const lowerPath = [...lowCoordinates].reverse().map((point) => `${point.x},${point.y}`).join(' L ');
-  return `M ${upperPath} L ${lowerPath} Z`;
-}
-
-function buildSparsePointCoordinates(
-  markers: Array<{ intervalIndex: number; price: number }>,
-  intervalIndices: number[],
-  slotWidth: number,
-  height: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  if (markers.length === 0) {
-    return [];
-  }
-  const intervalPosition = new Map(intervalIndices.map((value, index) => [value, index]));
-  const values = markers.map((marker) => marker.price);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const axisStartPadding = options?.axisStartPadding ?? 0;
-  const topPadding = options?.topPadding ?? 0;
-  const bottomPadding = options?.bottomPadding ?? 0;
-  const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
-
-  return markers
-    .map((marker) => {
-      const position = intervalPosition.get(marker.intervalIndex);
-      if (position == null) {
-        return null;
-      }
-      return {
-        intervalIndex: marker.intervalIndex,
-        price: marker.price,
-        x: deriveSlotCenterX({ index: position, slotWidth, axisStartPadding }),
-        y: topPadding + drawableHeight - ((marker.price - min) / range) * drawableHeight,
-      };
-    })
-    .filter((point): point is { intervalIndex: number; price: number; x: number; y: number } => point != null);
-}
-
-export function buildSparsePolylineSegments(
-  markers: Array<{ intervalIndex: number; price: number }>,
-  intervalIndices: number[],
-  slotWidth: number,
-  height: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  const points = buildSparsePointCoordinates(markers, intervalIndices, slotWidth, height, options);
-  if (points.length === 0) {
-    return { points: [], segments: [] as string[] };
-  }
-
-  const intervalPosition = new Map(intervalIndices.map((value, index) => [value, index]));
-  const segments: string[] = [];
-  let currentSegment: string[] = [];
-  let previousPosition: number | null = null;
-
-  for (const point of points) {
-    const position = intervalPosition.get(point.intervalIndex) ?? null;
-    if (position == null) {
-      continue;
-    }
-    if (previousPosition != null && position !== previousPosition + 1) {
-      if (currentSegment.length > 0) {
-        segments.push(currentSegment.join(' '));
-      }
-      currentSegment = [];
-    }
-    currentSegment.push(`${point.x},${point.y}`);
-    previousPosition = position;
-  }
-
-  if (currentSegment.length > 0) {
-    segments.push(currentSegment.join(' '));
-  }
-
-  return { points, segments };
-}
-
-export function deriveCenteredIntervalScrollLeft({
-  contentWidth,
-  intervalIndex,
-  axisStartPadding = 0,
-  slotWidth,
-  viewportWidth,
-}: {
-  contentWidth: number;
-  intervalIndex: number;
-  axisStartPadding?: number;
-  slotWidth: number;
-  viewportWidth: number;
-}) {
-  const slotCenter = deriveSlotCenterX({ index: intervalIndex, slotWidth, axisStartPadding });
-  return clampScrollLeft(slotCenter - viewportWidth / 2, viewportWidth, contentWidth);
 }
 
 function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: string; tooltip: string }) {
@@ -342,36 +91,6 @@ function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: str
   );
 }
 
-export function intervalLabelForWidth(endAt: string | null, intervalIndex: number, slotWidth: number) {
-  const compactDate = formatSenaCompactIntervalDate(endAt);
-  const wideDate = formatSenaWideIntervalDate(endAt);
-  if (compactDate !== '—') {
-    const compactDay = formatSenaCompactIntervalDay(endAt);
-    const fullLabel = slotWidth >= 132 && wideDate !== '—' ? wideDate : compactDate;
-    return responsivePillLabel(fullLabel, compactDate, slotWidth) || responsivePillLabel(compactDate, compactDay !== '—' ? compactDay : compactDate, slotWidth);
-  }
-  return responsivePillLabel(`Interval ${intervalIndex + 1}`, String(intervalIndex + 1), slotWidth);
-}
-
-export function intervalTooltipLabel(endAt: string | null, intervalIndex: number, language: Parameters<typeof formatSenaDate>[1]) {
-  const fullDate = formatSenaDate(endAt, language);
-  if (fullDate !== '—') {
-    return fullDate;
-  }
-  return `Interval ${intervalIndex + 1}`;
-}
-
-export function responsivePillLabel(fullLabel: string, compactLabel: string, slotWidth: number) {
-  const requiredWidth = (label: string) => label.length * 9 + 20;
-  if (slotWidth >= requiredWidth(fullLabel)) {
-    return fullLabel;
-  }
-  if (slotWidth >= requiredWidth(compactLabel)) {
-    return compactLabel;
-  }
-  return '';
-}
-
 export function regimeCompactLabel(regime: string) {
   const normalized = regime.trim().toLowerCase();
   if (normalized === 'stockout-constrained') {
@@ -383,17 +102,6 @@ export function regimeCompactLabel(regime: string) {
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('')
     .slice(0, 2);
-}
-
-export function deriveVisibleWindow(itemCount: number, scrollLeft: number, viewportWidth: number, slotWidth: number, gapWidth: number) {
-  if (itemCount <= 0 || viewportWidth <= 0 || slotWidth <= 0) {
-    return { start: 0, end: Math.max(0, itemCount - 1) };
-  }
-  const stride = slotWidth + gapWidth;
-  const start = Math.max(0, Math.min(itemCount - 1, Math.floor(scrollLeft / Math.max(stride, 1))));
-  const visibleCount = Math.max(1, Math.ceil((viewportWidth + gapWidth) / Math.max(stride, 1)));
-  const end = Math.max(start, Math.min(itemCount - 1, start + visibleCount - 1));
-  return { start, end };
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -476,177 +184,6 @@ function presentRegimes(regimes: string[]) {
   return REGIME_LEGEND.filter((regime) => present.has(regime));
 }
 
-function clampScrollLeft(scrollLeft: number, viewportWidth: number, contentWidth: number) {
-  return clamp(scrollLeft, 0, Math.max(0, contentWidth - viewportWidth));
-}
-
-export function classifyWheelIntent(deltaX: number, deltaY: number) {
-  return Math.abs(deltaY) > Math.abs(deltaX) ? 'zoom' : 'pan';
-}
-
-export function deriveAnchoredZoomScrollLeft({
-  contentWidth,
-  hoveredPointerX,
-  intervalCount,
-  nextSlotWidth,
-  previousScrollLeft,
-  previousSlotWidth,
-  axisStartPadding = 0,
-  viewportWidth,
-}: {
-  contentWidth: number;
-  hoveredPointerX: number;
-  intervalCount: number;
-  nextSlotWidth: number;
-  previousScrollLeft: number;
-  previousSlotWidth: number;
-  axisStartPadding?: number;
-  viewportWidth: number;
-}) {
-  if (intervalCount <= 0 || previousSlotWidth <= 0 || nextSlotWidth <= 0) {
-    return 0;
-  }
-  const hoveredContentX = Math.max(0, previousScrollLeft + hoveredPointerX - axisStartPadding);
-  const hoveredIndex = clamp(Math.floor(hoveredContentX / previousSlotWidth), 0, intervalCount - 1);
-  const anchoredCenterX = deriveSlotCenterX({ index: hoveredIndex, slotWidth: nextSlotWidth, axisStartPadding });
-  return clampScrollLeft(anchoredCenterX - hoveredPointerX, viewportWidth, contentWidth);
-}
-
-function ResponsivePillButton({
-  active,
-  ariaLabel,
-  className,
-  compactLabel,
-  fullLabel,
-  slotWidth,
-  tooltipLabel,
-  width,
-  onClick,
-}: {
-  active: boolean;
-  ariaLabel?: string;
-  className: string;
-  compactLabel: string;
-  fullLabel: string;
-  slotWidth: number;
-  tooltipLabel?: string;
-  width?: number;
-  onClick: () => void;
-}) {
-  const showExplanatoryTooltips = useDescriptionTextVisible();
-  const visibleLabel = responsivePillLabel(fullLabel, compactLabel, slotWidth);
-  const accessibleLabel = ariaLabel ?? tooltipLabel ?? fullLabel;
-  const hoverLabel = tooltipLabel ?? fullLabel;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          aria-label={accessibleLabel}
-          className={className}
-          data-active={active ? 'true' : 'false'}
-          style={width != null ? { width } : undefined}
-          title={showExplanatoryTooltips ? hoverLabel : undefined}
-          type="button"
-          onClick={onClick}
-        >
-          <span aria-hidden="true" className="block overflow-hidden whitespace-nowrap">
-            {visibleLabel}
-          </span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" sideOffset={6}>{hoverLabel}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function IntervalStrip({
-  activeIndex,
-  axisContentWidth,
-  axisEndPadding,
-  axisStartPadding,
-  canScrollLeft,
-  canScrollRight,
-  intervals,
-  language,
-  onScroll,
-  scrollByViewport,
-  scrollRef,
-  slotWidth,
-  onSelect,
-}: {
-  activeIndex: number | null;
-  axisContentWidth: number;
-  axisEndPadding: number;
-  axisStartPadding: number;
-  canScrollLeft: boolean;
-  canScrollRight: boolean;
-  intervals: Array<{ intervalIndex: number; startAt: string | null; endAt: string | null }>;
-  language: Parameters<typeof formatSenaDate>[1];
-  onScroll: (event: UIEvent<HTMLDivElement>) => void;
-  scrollByViewport: (direction: -1 | 1) => void;
-  scrollRef: RefObject<HTMLDivElement | null>;
-  slotWidth: number;
-  onSelect: (index: number) => void;
-}) {
-  return (
-    <TooltipProvider>
-      <div className="relative mt-4 min-h-12">
-        {canScrollLeft ? (
-          <button
-            aria-label="Scroll intervals left"
-            className="absolute left-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
-            type="button"
-            onClick={() => scrollByViewport(-1)}
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-        ) : null}
-        <div ref={scrollRef} className="hidden-scrollbar max-w-full overflow-x-auto overscroll-contain px-1 py-1" onScroll={onScroll}>
-          <div
-            className="grid min-w-full"
-            style={{
-              width: axisContentWidth,
-              paddingLeft: axisStartPadding,
-              paddingRight: axisEndPadding,
-              gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, ${slotWidth}px)`,
-            }}
-          >
-          {intervals.map((interval) => {
-            const tooltipLabel = intervalTooltipLabel(interval.endAt, interval.intervalIndex, language);
-            const compactDate = formatSenaCompactIntervalDate(interval.endAt);
-            const compactDay = formatSenaCompactIntervalDay(interval.endAt);
-            return (
-              <div key={interval.intervalIndex} className="flex min-h-10 items-center justify-center px-1">
-                <ResponsivePillButton
-                  active={activeIndex === interval.intervalIndex}
-                  ariaLabel={tooltipLabel}
-                  className={`w-full rounded-full border px-2 py-2 text-center text-sm leading-none ${activeIndex === interval.intervalIndex ? 'border-foreground bg-foreground text-background' : 'border-border/70 bg-background text-foreground'}`}
-                  compactLabel={compactDate !== '—' ? compactDay : String(interval.intervalIndex + 1)}
-                  fullLabel={compactDate !== '—' ? compactDate : `Interval ${interval.intervalIndex + 1}`}
-                  slotWidth={slotWidth - 8}
-                  tooltipLabel={tooltipLabel}
-                  onClick={() => onSelect(interval.intervalIndex)}
-                />
-              </div>
-            );
-          })}
-          </div>
-        </div>
-        {canScrollRight ? (
-          <button
-            aria-label="Scroll intervals right"
-            className="absolute right-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
-            type="button"
-            onClick={() => scrollByViewport(1)}
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        ) : null}
-      </div>
-    </TooltipProvider>
-  );
-}
 
 function RegimeChartHighlightOverlay({
   activeIndex,
@@ -835,11 +372,13 @@ export function SkuDetailLedger({
 
   const scrollByViewport = (direction: -1 | 1) => {
     setScrollLeft((current) =>
-      clampScrollLeft(
-        current + direction * Math.max(viewportWidth - stretchedSlotWidth - INTERVAL_PILL_GAP, stretchedSlotWidth),
-        viewportWidth,
+      deriveViewportPageScrollLeft({
         contentWidth,
-      ),
+        currentScrollLeft: current,
+        direction,
+        slotWidth: stretchedSlotWidth,
+        viewportWidth,
+      }),
     );
   };
 

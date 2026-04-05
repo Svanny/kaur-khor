@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, BadgeDollarSign, GitCompareArrows, Layers3, Package, PiggyBank, RefreshCw, Store, Trophy, TrendingUp, Truck, TriangleAlert } from 'lucide-react';
-import { DescriptionText, hasDescriptionText, useDescriptionTextVisible } from '@/components/system/description-text';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
@@ -15,15 +14,16 @@ import {
   HeaderedTableRow,
 } from '@/components/system/headered-table';
 import { Button } from '@/components/ui/button';
-import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { CompactSparkline } from '@/components/ui/compact-sparkline';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
 import { statusPillClassName, surfacePillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
-import { SectionLabel, SectionTitle } from '@/routes/sku-detail/section-heading';
+import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+import { PerformanceRightRailBlock, PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './performance/chrome';
+import { useSenaDetailHydration } from './performance/use-sena-detail-hydration';
 import {
   derivePerformanceViewModel,
   type PerformanceBandEntry,
@@ -33,8 +33,6 @@ import {
   type PerformanceTimelineEvent,
 } from './performance/view-model';
 
-const HEADER_SURFACE_CLASS_NAME = `${cardFrameClassName} ${cardSurfaceClassName} rounded-[2rem]`;
-const RAIL_BLOCK_CLASS_NAME = `${cardFrameClassName} ${cardSurfaceClassName} rounded-[1.4rem]`;
 const moveNowTableLayout = createHeaderedTableLayout({
   breakpoint: 'lg',
   columns: 'minmax(18rem,1.1fr) minmax(16rem,1fr) minmax(16rem,1fr) minmax(10rem,0.7fr)',
@@ -50,60 +48,6 @@ const demandCapacityBoardNormalLayout = createHeaderedTableLayout({
   columns: 'minmax(12rem,0.95fr) minmax(12rem,0.95fr) minmax(11rem,0.9fr) minmax(11rem,0.9fr) minmax(11rem,0.9fr) minmax(10rem,0.82fr)',
   gap: 4,
 });
-
-function SectionShell({
-  title,
-  tooltip,
-  description,
-  children,
-  contentClassName,
-}: {
-  title: string;
-  tooltip: string;
-  description?: string;
-  children: ReactNode;
-  contentClassName?: string;
-}) {
-  const descriptionVisible = useDescriptionTextVisible();
-  const showDescription = hasDescriptionText(description, descriptionVisible);
-
-  return (
-    <section className={HEADER_SURFACE_CLASS_NAME}>
-      <div className="border-b border-border/60 px-6 py-4">
-        <div className={cn('flex flex-col gap-2', !showDescription && 'gap-0')}>
-          <SectionTitle title={title} tooltip={tooltip} />
-          {showDescription ? (
-            <DescriptionText className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              {description}
-            </DescriptionText>
-          ) : null}
-        </div>
-      </div>
-      <div className={cn('px-6 py-5', contentClassName)}>{children}</div>
-    </section>
-  );
-}
-
-function RightRailBlock({
-  title,
-  tooltip,
-  children,
-}: {
-  title: string;
-  tooltip: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className={RAIL_BLOCK_CLASS_NAME}>
-      <div className="border-b border-border/60 px-4 py-3">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
-        </h3>
-      </div>
-      <div className="px-4 py-4">{children}</div>
-    </section>
-  );
-}
 
 function SteeringPill({
   active,
@@ -381,61 +325,8 @@ export function PerformanceRoute() {
   const [timeRange, setTimeRange] = useState<PerformanceTimeRange>('30d');
   const [scope, setScope] = useState<PerformanceScope>('all');
   const [compareMode, setCompareMode] = useState(true);
-  const [skuDetailsById, setSkuDetailsById] = useState<Record<string, Awaited<ReturnType<typeof inventory.loadSenaSkuDetail>>>>({});
-  const [serviceDetailsById, setServiceDetailsById] = useState<Record<string, Awaited<ReturnType<typeof inventory.loadSenaServiceDetail>>>>({});
-  const [isHydratingDetails, setIsHydratingDetails] = useState(false);
+  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration();
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
-
-  useEffect(() => {
-    if (!inventory.catalog || !inventory.workspaceSummary) {
-      setSkuDetailsById({});
-      setServiceDetailsById({});
-      setIsHydratingDetails(false);
-      return;
-    }
-
-    let active = true;
-    setIsHydratingDetails(true);
-
-    void Promise.all([
-      Promise.all(
-        inventory.catalog.skus.map(async (sku) => {
-          try {
-            return [sku.skuId, await inventory.loadSenaSkuDetail(sku.skuId)] as const;
-          } catch {
-            return [sku.skuId, null] as const;
-          }
-        }),
-      ),
-      Promise.all(
-        inventory.catalog.services.map(async (service) => {
-          try {
-            return [service.serviceId, await inventory.loadSenaServiceDetail(service.serviceId)] as const;
-          } catch {
-            return [service.serviceId, null] as const;
-          }
-        }),
-      ),
-    ])
-      .then(([skuEntries, serviceEntries]) => {
-        if (!active) {
-          return;
-        }
-        setSkuDetailsById(Object.fromEntries(skuEntries));
-        setServiceDetailsById(Object.fromEntries(serviceEntries));
-        setIsHydratingDetails(false);
-      })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-        setIsHydratingDetails(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [inventory, inventory.catalog, inventory.workspaceSummary]);
 
   const model = useMemo(() => {
     if (!inventory.catalog || !inventory.workspaceSummary) {
@@ -509,7 +400,8 @@ export function PerformanceRoute() {
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
-        title="Performance"
+        eyebrow="Performance"
+        title="Business Health"
         description="Demand, capacity, pipeline, and pricing in one business view"
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -560,10 +452,6 @@ export function PerformanceRoute() {
               <GitCompareArrows className="size-4" />
               Compare
             </SteeringPill>
-
-            <Button disabled size="sm" variant="outline">
-              Analysis
-            </Button>
           </div>
         }
       >
@@ -574,8 +462,7 @@ export function PerformanceRoute() {
           <span>{compareMode ? `Showing ${model.windowLabel} posture vs ${model.previousWindowLabel}` : `Showing ${model.windowLabel} posture only`}</span>
         </div>
       </WorkspaceTitleCard>
-
-      <section className={`${HEADER_SURFACE_CLASS_NAME} overflow-hidden`}>
+      <section className={`${PERFORMANCE_HEADER_SURFACE_CLASS_NAME} overflow-hidden`}>
         <div className="grid divide-y divide-border/60 bg-border/40 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-5">
           {model.ribbon.map((metric) => (
             <div key={metric.key} className="bg-white px-5 py-4 sm:px-6">
@@ -601,16 +488,16 @@ export function PerformanceRoute() {
 
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
-          <SectionShell
+          <PerformanceSectionShell
             title="Move now"
             tooltip="Commercial interventions belong here. Overview owns the operational queue; Performance owns the business move."
             description="The highest-value commercial moves across services and SKUs, ordered by where Banji sees the next steering intervention."
             contentClassName="px-0 py-0"
           >
             <MoveNowTable rows={model.moves} />
-          </SectionShell>
+          </PerformanceSectionShell>
 
-          <SectionShell
+          <PerformanceSectionShell
             title="Demand × capacity board"
             tooltip="Demand alone is not enough. Capacity, pipeline support, and margin posture change the real business picture."
             description="A mixed scan across services and SKUs so the owner can read the portfolio in one pass rather than splitting by subsystem."
@@ -748,9 +635,9 @@ export function PerformanceRoute() {
                 </HeaderedTableBody>
               </div>
             </HeaderedTable>
-          </SectionShell>
+          </PerformanceSectionShell>
 
-          <SectionShell
+          <PerformanceSectionShell
             title="Cash and profit efficiency"
             tooltip="SKU and service truths become portfolio decisions here: where to press, where profit is blocked, and where cash is trapped."
             description="Three business bands for deciding what to push, what to recover, and what to clear before it weighs on the next period."
@@ -772,12 +659,12 @@ export function PerformanceRoute() {
                 tooltip="Weak demand with inventory or inbound weight that is tying up cash."
               />
             </div>
-          </SectionShell>
+          </PerformanceSectionShell>
         </div>
 
         {showRightRailCards ? (
           <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
-          <RightRailBlock
+          <PerformanceRightRailBlock
             title="Operational drag"
             tooltip="A short bridge back to Overview: the operational constraints that are currently holding the business back."
           >
@@ -788,9 +675,9 @@ export function PerformanceRoute() {
                 </p>
               ))}
             </div>
-          </RightRailBlock>
+          </PerformanceRightRailBlock>
 
-          <RightRailBlock
+          <PerformanceRightRailBlock
             title="Recovery pipeline"
             tooltip="Inbound events already in motion that can restore sellable capacity or ease a bottleneck."
           >
@@ -802,9 +689,9 @@ export function PerformanceRoute() {
                 </Link>
               ))}
             </div>
-          </RightRailBlock>
+          </PerformanceRightRailBlock>
 
-          <RightRailBlock
+          <PerformanceRightRailBlock
             title="Price and margin watch"
             tooltip="Commercial entities where margin pressure or price-response signals deserve a closer read."
           >
@@ -816,9 +703,9 @@ export function PerformanceRoute() {
                 </Link>
               ))}
             </div>
-          </RightRailBlock>
+          </PerformanceRightRailBlock>
 
-          <RightRailBlock
+          <PerformanceRightRailBlock
             title="Confidence / coverage"
             tooltip="Quiet trust context: signal coverage, evidence freshness, and where the page is least certain."
           >
@@ -827,12 +714,12 @@ export function PerformanceRoute() {
               <p className="text-sm leading-6 text-muted-foreground">{model.confidence.evidenceLabel}</p>
               <p className="text-sm leading-6 text-muted-foreground">Least certain {model.confidence.weakSpotLabel}</p>
             </div>
-          </RightRailBlock>
+          </PerformanceRightRailBlock>
           </aside>
         ) : null}
       </div>
 
-      <SectionShell
+      <PerformanceSectionShell
         title="Business timeline"
         tooltip="A business memory lane, not a technical evidence ledger. Demand shifts, pricing moves, stock episodes, and recovery moments sit together here."
         description="A compact temporal read of what has been changing in the business posture."
@@ -842,7 +729,7 @@ export function PerformanceRoute() {
             <TimelineStep key={event.id} event={event} showConnector={index < model.timeline.length - 1} />
           ))}
         </div>
-      </SectionShell>
+      </PerformanceSectionShell>
     </WorkspacePage>
   );
 }
