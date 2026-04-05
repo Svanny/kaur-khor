@@ -1,19 +1,22 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { PerformanceRoute } from './performance';
 
 const inventoryHook = vi.fn();
+const preferenceState = {
+  currency: 'USD',
+  language: 'en',
+  showRightRailCards: true,
+};
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
 }));
 
 vi.mock('@/state/preferences', () => ({
-  usePreferences: () => ({
-    currency: 'USD',
-    language: 'en',
-  }),
+  usePreferences: () => preferenceState,
 }));
 
 const catalog = {
@@ -111,6 +114,7 @@ const workspaceSummary = {
 
 describe('PerformanceRoute', () => {
   beforeEach(() => {
+    preferenceState.showRightRailCards = true;
     inventoryHook.mockReturnValue({
       catalog,
       diagnostics: {
@@ -178,14 +182,31 @@ describe('PerformanceRoute', () => {
             observedAt: '2026-04-02T08:00:00.000Z',
             orderSignals: [],
             retailPrices: [{ price: 18, skuId: 'sku-shampoo' }],
-            retailRankings: [],
+            retailRankings: ['sku-shampoo'],
             servicePrices: [],
-            serviceRankings: [],
+            serviceRankings: ['service-haircut'],
             serviceStockouts: [],
             stockSnapshot: [],
             retailStockouts: [],
           },
           observationId: 'obs-1',
+          ownerSub: 'desktop-owner',
+        },
+        {
+          input: {
+            leadTimeHints: [],
+            notes: 'Older demand pulse before the current window tightened.',
+            observedAt: '2026-02-15T08:00:00.000Z',
+            orderSignals: [{ approximateOrderQuantity: 12, approximateReceiptQuantity: null, orderPlaced: true, receiptArrived: false, skuId: 'sku-razor' }],
+            retailPrices: [],
+            retailRankings: ['sku-razor'],
+            servicePrices: [{ price: 44, serviceId: 'service-color' }],
+            serviceRankings: ['service-color'],
+            serviceStockouts: [],
+            stockSnapshot: [],
+            retailStockouts: [],
+          },
+          observationId: 'obs-2',
           ownerSub: 'desktop-owner',
         },
       ],
@@ -201,6 +222,16 @@ describe('PerformanceRoute', () => {
     );
   }
 
+  function renderRouteWithDescriptionVisibility(visible: boolean) {
+    return render(
+      <DescriptionTextVisibilityProvider visible={visible}>
+        <MemoryRouter initialEntries={['/performance']}>
+          <PerformanceRoute />
+        </MemoryRouter>
+      </DescriptionTextVisibilityProvider>,
+    );
+  }
+
   test('renders the performance steering surface', async () => {
     renderRoute();
 
@@ -210,8 +241,21 @@ describe('PerformanceRoute', () => {
     expect(screen.getByRole('heading', { name: 'Demand × capacity board' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Cash and profit efficiency' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Business timeline' })).toBeInTheDocument();
+    expect(
+      screen.getByText('A compact temporal read of what has been changing in the business posture.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Demand momentum')).toBeInTheDocument();
     expect(screen.getByText('Revenue at risk')).toBeInTheDocument();
+  });
+
+  test('hides section header descriptions when explanatory text is disabled', async () => {
+    renderRouteWithDescriptionVisibility(false);
+
+    expect(await screen.findByRole('heading', { name: 'Business timeline' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Business timeline help' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('A compact temporal read of what has been changing in the business posture.'),
+    ).not.toBeInTheDocument();
   });
 
   test('filters the board between services and skus', async () => {
@@ -232,5 +276,84 @@ describe('PerformanceRoute', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'SKUs' }));
     expect(boardQueries.getByText('Razor Refill')).toBeInTheDocument();
     expect(boardQueries.queryByText('Hair Coloring')).not.toBeInTheDocument();
+  });
+
+  test('hides the right rail and expands the main content when the global toggle is off', async () => {
+    preferenceState.showRightRailCards = false;
+
+    renderRoute();
+
+    expect(await screen.findByRole('heading', { name: 'Move now' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Operational drag' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Recovery pipeline' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Price and margin watch' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Confidence / coverage' })).not.toBeInTheDocument();
+  });
+
+  test('updates the business window when the time-range toggle changes', async () => {
+    renderRoute();
+
+    expect(await screen.findByText('Showing last 30d posture vs prior 30d')).toBeInTheDocument();
+    expect(screen.getByText(/price or margin drags in last 30d/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: '7d' }));
+    expect(screen.getByText('Showing last 7d posture vs prior 7d')).toBeInTheDocument();
+    expect(screen.getByText(/price or margin drags in last 7d/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: '90d' }));
+    expect(screen.getByText('Showing last 90d posture vs prior 90d')).toBeInTheDocument();
+    expect(screen.getByText(/price or margin drags in last 90d/i)).toBeInTheDocument();
+  });
+
+  test('turns the board into a comparison surface when compare is enabled', async () => {
+    const { container } = renderRoute();
+
+    expect(await screen.findByText('Showing last 30d posture vs prior 30d')).toBeInTheDocument();
+    expect(
+      screen.getAllByText((_, element) => {
+        const text = element?.textContent ?? '';
+        return (
+          (text.includes('Soft') && text.includes('Steady')) ||
+          (text.includes('Steady') && text.includes('Strong')) ||
+          (text.includes('Soft') && text.includes('Strong'))
+        );
+      }).length,
+    ).toBeGreaterThan(1);
+    expect(screen.getAllByText(/cover up|cover down|from capacity holding|from partially coverable|Limited comparison/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Review price|Stable/i).length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('[data-tone]').length).toBeGreaterThan(1);
+    expect(container.querySelectorAll('line[stroke-dasharray="4 3"]').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /compare/i }));
+    expect(screen.getByText('Showing last 30d posture only')).toBeInTheDocument();
+    expect(screen.queryByText(/Push from Stable|Unblock from Stable|Review price from Stable/i)).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-tone]').length).toBeGreaterThan(1);
+  });
+
+  test('renders sparklines for demand in normal mode only', async () => {
+    const { container } = renderRoute();
+
+    await screen.findByText('Showing last 30d posture vs prior 30d');
+    fireEvent.click(screen.getByRole('button', { name: /compare/i }));
+
+    const sparklineNodes = container.querySelectorAll('[data-tone]');
+    expect(sparklineNodes.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Rising').length).toBeGreaterThan(0);
+  });
+
+  test('suppresses hover styling after deactivation until the compare button is left', async () => {
+    renderRoute();
+
+    const compareButton = await screen.findByRole('button', { name: /compare/i });
+    fireEvent.mouseEnter(compareButton);
+    fireEvent.click(compareButton);
+
+    expect(compareButton).toHaveAttribute('data-hover-suppressed', 'true');
+    expect(compareButton.className).not.toContain('hover:bg-card');
+
+    fireEvent.mouseLeave(compareButton);
+
+    expect(compareButton).toHaveAttribute('data-hover-suppressed', 'false');
+    expect(compareButton.className).toContain('hover:bg-card');
   });
 });

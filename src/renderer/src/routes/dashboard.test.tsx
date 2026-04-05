@@ -7,6 +7,13 @@ import { rowHoverClassName } from '@/lib/interactive-surface';
 import { DashboardRoute } from './dashboard';
 
 const inventoryHook = vi.fn();
+const preferenceState = {
+  currency: 'USD',
+  language: 'en',
+  showExplanatoryTooltips: true,
+  showFloatingTitleActions: true,
+  showRightRailCards: true,
+};
 
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -14,9 +21,11 @@ vi.mock('../state/inventory', () => ({
 
 vi.mock('../state/preferences', () => ({
   usePreferences: () => ({
-    currency: 'USD',
-    language: 'en',
-    showExplanatoryTooltips: true,
+    currency: preferenceState.currency,
+    language: preferenceState.language,
+    showExplanatoryTooltips: preferenceState.showExplanatoryTooltips,
+    showFloatingTitleActions: preferenceState.showFloatingTitleActions,
+    showRightRailCards: preferenceState.showRightRailCards,
     t: (key: string) => {
       if (key === 'searchPlaceholder') {
         return 'Search name, description, or id…';
@@ -316,6 +325,7 @@ function renderRoute() {
 
 describe('DashboardRoute', () => {
   beforeEach(() => {
+    preferenceState.showRightRailCards = true;
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-04-03T12:00:00.000Z'));
 
@@ -445,5 +455,17 @@ describe('DashboardRoute', () => {
     expect(submitLegacyReport.mock.calls[0]?.[0].reportedAt).toContain('2026-04-03');
     expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
     expect(triggerSenaRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('hides the overview right rail when the global toggle is off', async () => {
+    preferenceState.showRightRailCards = false;
+
+    renderRoute();
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Today' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'In transit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Recent receipts' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'SENA signals' })).not.toBeInTheDocument();
   });
 });

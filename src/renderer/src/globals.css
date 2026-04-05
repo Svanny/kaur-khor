@@ -78,7 +78,7 @@
   --radius-xl: calc(var(--radius) * 1.2);
   --radius-2xl: calc(var(--radius) * 1.55);
   --radius-3xl: calc(var(--radius) * 1.95);
-  --spacing-page: clamp(0.55rem, 0.9vw, 1rem);
+  --spacing-page: 1.5rem;
   --shadow-panel:
     0 1px 0 rgba(255, 255, 255, 0.88),
     0 10px 30px rgba(27, 15, 7, 0.06),

@@ -37,7 +37,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { overviewDrawerBandIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { statusPillClassName } from '@/lib/status-pill';
+import { statusPillClassName } from '@/lib/state-tones';
 import { cn } from '@/lib/utils';
 import {
   ActionSheetField,

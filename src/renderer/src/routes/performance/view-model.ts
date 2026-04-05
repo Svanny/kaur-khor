@@ -11,7 +11,7 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
-import type { StatusPillTone } from '@/lib/status-pill';
+import type { StatusPillTone } from '@/lib/state-tones';
 import { formatSenaDate, formatSenaDays, formatSenaPercent } from '@/routes/sku-detail/format';
 
 export type PerformanceScope = 'all' | 'services' | 'skus';
@@ -19,6 +19,13 @@ export type PerformanceTimeRange = '7d' | '30d' | '90d';
 
 type TrendTone = 'up' | 'flat' | 'down';
 type BusinessStatus = 'push' | 'unblock' | 'review' | 'clear' | 'steady';
+
+export interface PerformanceTrendSignal {
+  label: string;
+  points: number[];
+  splitIndex?: number;
+  tone: TrendTone;
+}
 
 interface PriceSignal {
   at: string;
@@ -92,11 +99,15 @@ export interface PerformanceRibbonMetric {
   label: string;
   value: string;
   detail: string;
+  trendSignal?: PerformanceTrendSignal;
 }
 
 export interface PerformanceMoveRow {
   id: string;
   move: string;
+  moveEntityName: string;
+  moveEntityType: 'service' | 'sku';
+  moveVerb: string;
   whyNow: string;
   expectedEffect: string;
   ctaLabel: 'Open queue' | 'Open SKU' | 'Open service' | 'See evidence';
@@ -110,15 +121,29 @@ export interface PerformanceBoardRow {
   entityHref: string;
   type: string;
   demandTrend: string;
+  demandTrendSignal?: PerformanceTrendSignal;
   supportStatus: string;
   pipelineSupport: string;
   priceMarginTone: string;
   statusLabel: string;
   statusTone: StatusPillTone;
+  compareEnabled: boolean;
+  hasMaterialChange: boolean;
+  changeScore: number;
+  compareTone: StatusPillTone;
+  demandCompareText: string | null;
+  supportCompareText: string | null;
+  pipelineCompareText: string | null;
+  priceMarginCompareText: string | null;
+  previousStatusLabel: string | null;
+  previousStatusTone: StatusPillTone | null;
+  statusCompareText: string | null;
+  rowCompareSummary: string | null;
 }
 
 export interface PerformanceBandEntry {
   id: string;
+  entityType: 'service' | 'sku';
   label: string;
   href: string;
   summary: string;
@@ -149,6 +174,318 @@ export interface PerformanceViewModel {
   };
   timeline: PerformanceTimelineEvent[];
   lastUpdatedLabel: string;
+  windowLabel: string;
+  previousWindowLabel: string;
+}
+
+function daysForTimeRange(timeRange: PerformanceTimeRange) {
+  if (timeRange === '7d') {
+    return 7;
+  }
+  if (timeRange === '90d') {
+    return 90;
+  }
+  return 30;
+}
+
+function windowLabel(timeRange: PerformanceTimeRange) {
+  return `last ${daysForTimeRange(timeRange)}d`;
+}
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
+function filterObservationsForWindow({
+  observations,
+  endAt,
+  offsetDays = 0,
+  windowDays,
+}: {
+  observations: SenaObservationRecord[];
+  endAt: string | null;
+  offsetDays?: number;
+  windowDays: number;
+}) {
+  if (!endAt) {
+    return observations;
+  }
+
+  const endTime = new Date(endAt).getTime();
+  if (Number.isNaN(endTime)) {
+    return observations;
+  }
+
+  const windowEnd = endTime - offsetDays * 24 * 60 * 60 * 1000;
+  const windowStart = windowEnd - windowDays * 24 * 60 * 60 * 1000;
+
+  return observations.filter((observation) => {
+    const observedTime = new Date(observation.input.observedAt).getTime();
+    if (Number.isNaN(observedTime)) {
+      return false;
+    }
+    return observedTime > windowStart && observedTime <= windowEnd;
+  });
+}
+
+function observationActivityScore(observation: SenaObservationRecord) {
+  const orderScore = observation.input.orderSignals.reduce((sum, signal) => {
+    return sum + (signal.orderPlaced ? 0.4 : 0) + (signal.receiptArrived ? 0.3 : 0);
+  }, 0);
+
+  return (
+    observation.input.serviceRankings.length * 1.25 +
+    observation.input.retailRankings.length +
+    observation.input.serviceStockouts.length * 0.9 +
+    observation.input.retailStockouts.length * 0.6 +
+    observation.input.servicePrices.length * 0.45 +
+    observation.input.retailPrices.length * 0.35 +
+    observation.input.stockSnapshot.length * 0.25 +
+    orderScore
+  );
+}
+
+function activityRate(observations: SenaObservationRecord[], days: number) {
+  return observations.reduce((sum, observation) => sum + observationActivityScore(observation), 0) / Math.max(1, days);
+}
+
+type WindowPipelineState = 'quiet' | 'inbound-open' | 'receipt-arrived';
+
+function windowDemandScoreForService(serviceId: string, observations: SenaObservationRecord[]) {
+  return observations.reduce((sum, observation) => {
+    const rankingCount = observation.input.serviceRankings.filter((entry) => entry === serviceId).length;
+    const stockoutCount = observation.input.serviceStockouts.filter((entry) => entry === serviceId).length;
+    return sum + rankingCount * 1.25 + stockoutCount * 0.75;
+  }, 0);
+}
+
+function windowDemandScoreForSku({
+  linkedServiceIds,
+  observations,
+  skuId,
+}: {
+  linkedServiceIds: string[];
+  observations: SenaObservationRecord[];
+  skuId: string;
+}) {
+  const linkedServices = new Set(linkedServiceIds);
+  return observations.reduce((sum, observation) => {
+    const retailRankingCount = observation.input.retailRankings.filter((entry) => entry === skuId).length;
+    const retailStockoutCount = observation.input.retailStockouts.filter((entry) => entry === skuId).length;
+    const linkedServiceRankingCount = observation.input.serviceRankings.filter((entry) => linkedServices.has(entry)).length;
+    const linkedServiceStockoutCount = observation.input.serviceStockouts.filter((entry) => linkedServices.has(entry)).length;
+    const orderPlacedCount = observation.input.orderSignals.filter((entry) => entry.skuId === skuId && entry.orderPlaced).length;
+    const receiptArrivedCount = observation.input.orderSignals.filter((entry) => entry.skuId === skuId && entry.receiptArrived).length;
+    return (
+      sum +
+      retailRankingCount * 1.1 +
+      retailStockoutCount * 0.85 +
+      linkedServiceRankingCount * 0.55 +
+      linkedServiceStockoutCount * 0.7 +
+      orderPlacedCount * 0.35 +
+      receiptArrivedCount * 0.2
+    );
+  }, 0);
+}
+
+function relativeFactor(currentScore: number, previousScore: number) {
+  if (currentScore <= 0 && previousScore <= 0) {
+    return 1;
+  }
+  if (previousScore <= 0) {
+    return 1.2;
+  }
+  if (currentScore <= 0) {
+    return 0.8;
+  }
+  return clamp(currentScore / previousScore, 0.65, 1.45);
+}
+
+function compareToneFromDelta(delta: number, neutralThreshold = 0.08): StatusPillTone {
+  if (delta > neutralThreshold) {
+    return 'success';
+  }
+  if (delta < neutralThreshold * -1) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function compareTrendText(currentScore: number, previousScore: number) {
+  if (currentScore <= 0 && previousScore <= 0) {
+    return { direction: 'flat', text: 'Limited comparison', tone: 'neutral' as const, delta: 0 };
+  }
+  const deltaRatio = previousScore <= 0 ? 0.2 : (currentScore - previousScore) / Math.max(previousScore, 0.25);
+  if (deltaRatio > 0.18) {
+    return { direction: 'up', text: `vs prior ${trendGlyph('up')} stronger`, tone: 'success' as const, delta: deltaRatio };
+  }
+  if (deltaRatio < -0.18) {
+    return { direction: 'down', text: `vs prior ${trendGlyph('down')} softer`, tone: 'warning' as const, delta: deltaRatio };
+  }
+  return { direction: 'flat', text: `vs prior ${trendGlyph('flat')} flat`, tone: 'neutral' as const, delta: deltaRatio };
+}
+
+function signalLabelForTone(tone: TrendTone) {
+  if (tone === 'up') {
+    return 'Strong';
+  }
+  if (tone === 'down') {
+    return 'Soft';
+  }
+  return 'Steady';
+}
+
+function previousToneFromCompare({
+  compareDirection,
+  currentTone,
+}: {
+  compareDirection: 'up' | 'down' | 'flat';
+  currentTone: TrendTone;
+}): TrendTone {
+  if (compareDirection === 'flat') {
+    return currentTone;
+  }
+
+  const ladder: TrendTone[] = ['down', 'flat', 'up'];
+  const currentIndex = ladder.indexOf(currentTone);
+  const shift = compareDirection === 'up' ? -1 : 1;
+  return ladder[clamp(currentIndex + shift, 0, ladder.length - 1)];
+}
+
+function latestRetailPriceSignalForWindow(skuId: string, sku: SenaSku, observations: SenaObservationRecord[]) {
+  return latestRetailPriceSignal(skuId, sku, observations);
+}
+
+function latestServicePriceSignalForWindow(serviceId: string, service: SenaService, observations: SenaObservationRecord[]) {
+  return latestServicePriceSignal(serviceId, service, observations);
+}
+
+function windowPipelineStateForSku(skuId: string, observations: SenaObservationRecord[]): WindowPipelineState {
+  const hasReceipt = observations.some((observation) =>
+    observation.input.orderSignals.some((signal) => signal.skuId === skuId && signal.receiptArrived),
+  );
+  if (hasReceipt) {
+    return 'receipt-arrived';
+  }
+  const hasOrder = observations.some((observation) =>
+    observation.input.orderSignals.some((signal) => signal.skuId === skuId && signal.orderPlaced),
+  );
+  return hasOrder ? 'inbound-open' : 'quiet';
+}
+
+function windowPipelineStateForService(linkedSkuIds: string[], observations: SenaObservationRecord[]): WindowPipelineState {
+  const states = linkedSkuIds.map((skuId) => windowPipelineStateForSku(skuId, observations));
+  if (states.includes('receipt-arrived')) {
+    return 'receipt-arrived';
+  }
+  if (states.includes('inbound-open')) {
+    return 'inbound-open';
+  }
+  return 'quiet';
+}
+
+function pipelineCompareText(currentState: WindowPipelineState, previousState: WindowPipelineState) {
+  if (currentState === previousState) {
+    return { text: 'no change', tone: 'neutral' as const, delta: 0 };
+  }
+  if (currentState === 'inbound-open' && previousState === 'quiet') {
+    return { text: 'new inbound', tone: 'success' as const, delta: 0.7 };
+  }
+  if (currentState === 'receipt-arrived' && previousState === 'inbound-open') {
+    return { text: 'receipt closed', tone: 'success' as const, delta: 0.8 };
+  }
+  if (currentState === 'quiet' && previousState !== 'quiet') {
+    return { text: 'pipeline slipped', tone: 'warning' as const, delta: -0.7 };
+  }
+  if (currentState === 'receipt-arrived') {
+    return { text: 'recovery landed', tone: 'success' as const, delta: 0.6 };
+  }
+  return { text: 'window shifted', tone: 'info' as const, delta: 0.15 };
+}
+
+function statusTransitionText(currentLabel: string, previousLabel: string) {
+  if (currentLabel === previousLabel) {
+    return { text: null, delta: 0 };
+  }
+  return { text: `${currentLabel} from ${previousLabel}`, delta: 1 };
+}
+
+function coverCompareText({
+  currentDays,
+  previousDays,
+  language,
+}: {
+  currentDays: number | null;
+  previousDays: number | null;
+  language: AppLanguage;
+}) {
+  if (currentDays == null || previousDays == null) {
+    return { text: 'Limited comparison', tone: 'neutral' as const, delta: 0 };
+  }
+  const delta = currentDays - previousDays;
+  if (Math.abs(delta) < 0.75) {
+    return { text: `from ${formatSenaDays(previousDays, language)} cover`, tone: 'neutral' as const, delta };
+  }
+  return {
+    text: `cover ${delta > 0 ? 'up' : 'down'} ${formatSenaDays(Math.abs(delta), language)}`,
+    tone: delta > 0 ? ('success' as const) : ('warning' as const),
+    delta,
+  };
+}
+
+function coverageCompareText(currentRatio: number, previousRatio: number, previousSupportLabel: string) {
+  if (Number.isNaN(previousRatio)) {
+    return { text: 'Limited comparison', tone: 'neutral' as const, delta: 0 };
+  }
+  const deltaPoints = Math.round((currentRatio - previousRatio) * 100);
+  if (Math.abs(deltaPoints) < 6) {
+    return { text: `from ${previousSupportLabel.toLowerCase()}`, tone: 'neutral' as const, delta: deltaPoints / 100 };
+  }
+  return {
+    text: `cover ${deltaPoints > 0 ? 'up' : 'down'} ${Math.abs(deltaPoints)} pts`,
+    tone: deltaPoints > 0 ? ('success' as const) : ('warning' as const),
+    delta: deltaPoints / 100,
+  };
+}
+
+function priceCompareText({
+  current,
+  previous,
+}: {
+  current: PriceSignal | null;
+  previous: PriceSignal | null;
+}) {
+  if (!current && !previous) {
+    return { text: 'unchanged', tone: 'neutral' as const, delta: 0 };
+  }
+  if (current && !previous) {
+    return { text: 'new price move', tone: current.delta < 0 ? ('warning' as const) : ('success' as const), delta: 0.7 };
+  }
+  if (!current && previous) {
+    return { text: 'unchanged', tone: 'neutral' as const, delta: -0.25 };
+  }
+  const currentDelta = current?.delta ?? 0;
+  const previousDelta = previous?.delta ?? 0;
+  const shift = currentDelta - previousDelta;
+  if (Math.abs(shift) < 0.5) {
+    return { text: 'unchanged', tone: 'neutral' as const, delta: 0 };
+  }
+  if (currentDelta < previousDelta) {
+    return { text: 'price drag worsened', tone: 'warning' as const, delta: -0.6 };
+  }
+  if (currentDelta > previousDelta) {
+    return { text: currentDelta > 0 ? 'margin recovered' : 'price drag eased', tone: 'success' as const, delta: 0.6 };
+  }
+  return { text: 'unchanged', tone: 'neutral' as const, delta: 0 };
+}
+
+function compareSummary(parts: string[]) {
+  const filtered = parts.filter(Boolean);
+  if (filtered.length === 0) {
+    return null;
+  }
+  const [first, second, third] = filtered;
+  return [first, second, third].filter(Boolean).join(' while ');
 }
 
 function dominantRegime(summary: SenaSkuSummary | null) {
@@ -331,6 +668,106 @@ function trendFromScore(score: number): { tone: TrendTone; label: string } {
   return { tone: 'flat', label: 'Steady' };
 }
 
+function sparklinePointsFromValues(values: number[], targetLength = 6) {
+  if (values.length === 0) {
+    return Array.from({ length: targetLength }, () => 0);
+  }
+  if (values.length === 1) {
+    return Array.from({ length: targetLength }, () => values[0] ?? 0);
+  }
+
+  return Array.from({ length: targetLength }, (_, index) => {
+    const position = (index / Math.max(1, targetLength - 1)) * (values.length - 1);
+    const lowerIndex = Math.floor(position);
+    const upperIndex = Math.ceil(position);
+    const lowerValue = values[lowerIndex] ?? values.at(-1) ?? 0;
+    const upperValue = values[upperIndex] ?? lowerValue;
+    const ratio = position - lowerIndex;
+    return lowerValue + (upperValue - lowerValue) * ratio;
+  });
+}
+
+function aggregateActivityScore(observation: SenaObservationRecord) {
+  const demandCount =
+    observation.input.serviceRankings.length * 1.2 +
+    observation.input.retailRankings.length +
+    observation.input.serviceStockouts.length * 0.75 +
+    observation.input.retailStockouts.length * 0.6;
+  const commercialCount = observation.input.servicePrices.length * 0.2 + observation.input.retailPrices.length * 0.16;
+  const supplyCount = observation.input.orderSignals.length * 0.14;
+  return demandCount + commercialCount + supplyCount;
+}
+
+function orderedObservations(observations: SenaObservationRecord[]) {
+  return [...observations].sort((left, right) => {
+    return new Date(left.input.observedAt).getTime() - new Date(right.input.observedAt).getTime();
+  });
+}
+
+function ribbonDemandSeries(observations: SenaObservationRecord[], targetLength = 6) {
+  return sparklinePointsFromValues(orderedObservations(observations).map((observation) => aggregateActivityScore(observation)), targetLength);
+}
+
+function serviceDemandSeries(serviceId: string, observations: SenaObservationRecord[], targetLength = 6) {
+  return sparklinePointsFromValues(
+    orderedObservations(observations).map((observation) => {
+      const rankingCount = observation.input.serviceRankings.filter((entry) => entry === serviceId).length;
+      const stockoutCount = observation.input.serviceStockouts.filter((entry) => entry === serviceId).length;
+      return rankingCount * 1.2 + stockoutCount * 0.8;
+    }),
+    targetLength,
+  );
+}
+
+function skuDemandSeries({
+  linkedServiceIds,
+  observations,
+  skuId,
+  targetLength = 6,
+}: {
+  linkedServiceIds: string[];
+  observations: SenaObservationRecord[];
+  skuId: string;
+  targetLength?: number;
+}) {
+  const linkedServices = new Set(linkedServiceIds);
+  return sparklinePointsFromValues(
+    orderedObservations(observations).map((observation) => {
+      const retailRankingCount = observation.input.retailRankings.filter((entry) => entry === skuId).length;
+      const retailStockoutCount = observation.input.retailStockouts.filter((entry) => entry === skuId).length;
+      const linkedServiceRankingCount = observation.input.serviceRankings.filter((entry) => linkedServices.has(entry)).length;
+      const linkedServiceStockoutCount = observation.input.serviceStockouts.filter((entry) => linkedServices.has(entry)).length;
+      return (
+        retailRankingCount * 1.05 +
+        retailStockoutCount * 0.8 +
+        linkedServiceRankingCount * 0.5 +
+        linkedServiceStockoutCount * 0.68
+      );
+    }),
+    targetLength,
+  );
+}
+
+function compareTrendSignal({
+  compareDirection,
+  currentPoints,
+  currentTone,
+  previousPoints,
+}: {
+  compareDirection: 'up' | 'down' | 'flat';
+  currentPoints: number[];
+  currentTone: TrendTone;
+  previousPoints: number[];
+}) {
+  const previousTone = previousToneFromCompare({ compareDirection, currentTone });
+  return {
+    label: `${signalLabelForTone(previousTone)} -> ${signalLabelForTone(currentTone)}`,
+    points: [...previousPoints, ...currentPoints],
+    splitIndex: previousPoints.length,
+    tone: currentTone,
+  } satisfies PerformanceTrendSignal;
+}
+
 function formatPipelineSupport(signal: ReceiptSignal | null, language: AppLanguage) {
   if (!signal) {
     return 'No inbound relief';
@@ -377,26 +814,55 @@ function marginToneLabel({
 
 function trendGlyph(tone: TrendTone) {
   if (tone === 'up') {
-    return '↑';
+    return '↗';
   }
   if (tone === 'down') {
-    return '↓';
+    return '↘';
   }
   return '→';
 }
 
-function toBoardRow(row: SkuBusinessRow | ServiceBusinessRow): PerformanceBoardRow {
+function toBoardRow(
+  row: SkuBusinessRow | ServiceBusinessRow,
+  compare: {
+    compareEnabled: boolean;
+    compareTone: StatusPillTone;
+    changeScore: number;
+    demandCompareText: string | null;
+    supportCompareText: string | null;
+    pipelineCompareText: string | null;
+    priceMarginCompareText: string | null;
+    previousStatusLabel: string | null;
+    previousStatusTone: StatusPillTone | null;
+    statusCompareText: string | null;
+    rowCompareSummary: string | null;
+  },
+  demandTrendSignal?: PerformanceTrendSignal,
+): PerformanceBoardRow {
   return {
     id: row.id,
     entity: row.name,
     entityHref: row.href,
     type: row.type === 'service' ? 'Service' : 'SKU',
     demandTrend: `${trendGlyph(row.trendTone)} ${row.trendLabel}`,
+    demandTrendSignal,
     supportStatus: row.supportLabel,
     pipelineSupport: row.pipelineLabel,
     priceMarginTone: row.type === 'service' ? row.grossMarginLabel : row.marginLabel,
     statusLabel: row.statusLabel,
     statusTone: row.statusTone,
+    compareEnabled: compare.compareEnabled,
+    hasMaterialChange: compare.changeScore >= 0.75,
+    changeScore: compare.changeScore,
+    compareTone: compare.compareTone,
+    demandCompareText: compare.demandCompareText,
+    supportCompareText: compare.supportCompareText,
+    pipelineCompareText: compare.pipelineCompareText,
+    priceMarginCompareText: compare.priceMarginCompareText,
+    previousStatusLabel: compare.previousStatusLabel,
+    previousStatusTone: compare.previousStatusTone,
+    statusCompareText: compare.statusCompareText,
+    rowCompareSummary: compare.rowCompareSummary,
   };
 }
 
@@ -418,6 +884,9 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
   if (row.type === 'service') {
     if (row.status === 'push') {
       return {
+        moveEntityName: row.name,
+        moveEntityType: row.type,
+        moveVerb: 'Push',
         move: `Push ${row.name}`,
         whyNow: `${row.trendLabel.toLowerCase()} demand, ${row.supportLabel.toLowerCase()}, ${row.grossMarginLabel.toLowerCase()}`,
         expectedEffect: 'Capture upside while capacity is still holding',
@@ -425,12 +894,18 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
     }
     if (row.status === 'unblock') {
       return {
+        moveEntityName: row.name,
+        moveEntityType: row.type,
+        moveVerb: 'Recover',
         move: `Recover ${row.name}`,
         whyNow: `${row.supportLabel.toLowerCase()} with ${row.pipelineLabel.toLowerCase()}`,
         expectedEffect: 'Restore sellable capacity and recover blocked revenue',
       };
     }
     return {
+      moveEntityName: row.name,
+      moveEntityType: row.type,
+      moveVerb: 'Review',
       move: `Review ${row.name} pricing`,
       whyNow: `${row.grossMarginLabel.toLowerCase()} and ${row.trendLabel.toLowerCase()} demand`,
       expectedEffect: 'Protect margin without stalling service demand',
@@ -439,6 +914,9 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
 
   if (row.status === 'unblock') {
     return {
+      moveEntityName: row.name,
+      moveEntityType: row.type,
+      moveVerb: 'Restock',
       move: `Restock ${row.name}`,
       whyNow: `${row.supportLabel.toLowerCase()} with ${row.pipelineLabel.toLowerCase()}`,
       expectedEffect: 'Restore service capacity and stop revenue leakage',
@@ -446,6 +924,9 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
   }
   if (row.status === 'review') {
     return {
+      moveEntityName: row.name,
+      moveEntityType: row.type,
+      moveVerb: 'Review',
       move: `Review ${row.name} pricing`,
       whyNow: `${row.marginLabel.toLowerCase()} while ${row.trendLabel.toLowerCase()} demand is visible`,
       expectedEffect: 'Recover velocity or margin before the drag hardens',
@@ -453,12 +934,18 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
   }
   if (row.status === 'clear') {
     return {
+      moveEntityName: row.name,
+      moveEntityType: row.type,
+      moveVerb: 'Clear',
       move: `Clear ${row.name}`,
       whyNow: `${row.trendLabel.toLowerCase()} demand with ${row.unitsLabel.toLowerCase()}`,
       expectedEffect: 'Free cash tied up in slow-moving stock',
     };
   }
   return {
+    moveEntityName: row.name,
+    moveEntityType: row.type,
+    moveVerb: 'Push',
     move: `Push ${row.name}`,
     whyNow: `${row.trendLabel.toLowerCase()} demand with ${row.marginLabel.toLowerCase()}`,
     expectedEffect: 'Capture stronger retail or service-led demand',
@@ -496,8 +983,28 @@ function sortBusinessRows(rows: Array<SkuBusinessRow | ServiceBusinessRow>) {
   });
 }
 
+function sortBoardRowsForCompare(rows: PerformanceBoardRow[]) {
+  return [...rows].sort((left, right) => {
+    const materialDelta = Number(right.hasMaterialChange) - Number(left.hasMaterialChange);
+    if (materialDelta !== 0) {
+      return materialDelta;
+    }
+    if (left.changeScore !== right.changeScore) {
+      return right.changeScore - left.changeScore;
+    }
+    if (left.statusCompareText && !right.statusCompareText) {
+      return -1;
+    }
+    if (!left.statusCompareText && right.statusCompareText) {
+      return 1;
+    }
+    return left.entity.localeCompare(right.entity);
+  });
+}
+
 export function derivePerformanceViewModel({
   catalog,
+  compareMode,
   currency,
   diagnostics,
   language,
@@ -505,9 +1012,11 @@ export function derivePerformanceViewModel({
   scope,
   serviceDetailsById,
   skuDetailsById,
+  timeRange,
   workspaceSummary,
 }: {
   catalog: SenaCatalog;
+  compareMode: boolean;
   currency: AppCurrency;
   diagnostics: SenaDiagnostics | null;
   language: AppLanguage;
@@ -515,9 +1024,24 @@ export function derivePerformanceViewModel({
   scope: PerformanceScope;
   serviceDetailsById: Record<string, SenaServiceDetail | null>;
   skuDetailsById: Record<string, SenaSkuDetail | null>;
+  timeRange: PerformanceTimeRange;
   workspaceSummary: SenaWorkspaceSummary | null;
 }): PerformanceViewModel {
   const observedAt = lastUpdatedAt(workspaceSummary, observations);
+  const rangeDays = daysForTimeRange(timeRange);
+  const activeWindowLabel = windowLabel(timeRange);
+  const priorWindowLabel = `prior ${rangeDays}d`;
+  const recentObservations = filterObservationsForWindow({
+    observations,
+    endAt: observedAt,
+    windowDays: rangeDays,
+  });
+  const previousObservations = filterObservationsForWindow({
+    observations,
+    endAt: observedAt,
+    offsetDays: rangeDays,
+    windowDays: rangeDays,
+  });
   const skuSummaryById = new Map(workspaceSummary?.skuSummaries.map((entry) => [entry.skuId, entry]) ?? []);
   const linkedServicesBySkuId = new Map<string, SenaService[]>();
   const linkedSkusByServiceId = new Map<string, SenaSku[]>();
@@ -545,7 +1069,7 @@ export function derivePerformanceViewModel({
 
   const skuRows: SkuBusinessRow[] = catalog.skus.map((sku) => {
     const summary = skuSummaryById.get(sku.skuId) ?? null;
-    const priceSignal = latestRetailPriceSignal(sku.skuId, sku, observations);
+    const priceSignal = latestRetailPriceSignal(sku.skuId, sku, recentObservations);
     const receiptSignal = buildReceiptSignal({ detail: skuDetailsById[sku.skuId], observedAt });
     const linkedServices = linkedServicesBySkuId.get(sku.skuId) ?? [];
     const marginRatio = sku.productPrice ? (sku.productPrice - sku.costPerUnit) / sku.productPrice : null;
@@ -615,7 +1139,7 @@ export function derivePerformanceViewModel({
     }, null) ?? 0;
     const activityMean = serviceDetail?.activityMean ?? Math.max(1, linkedSkus.length);
     const coverageRatio = activityMean > 0 ? Math.min(1, sellableUnits / activityMean) : 1;
-    const priceSignal = latestServicePriceSignal(service.serviceId, service, observations);
+    const priceSignal = latestServicePriceSignal(service.serviceId, service, recentObservations);
     const grossMargin = service.price - linkedSkus.reduce((sum, sku) => sum + sku.costPerUnit, 0);
     const grossMarginRatio = service.price > 0 ? grossMargin / service.price : 0;
     const pipelineSignals = linkedSkus
@@ -672,6 +1196,9 @@ export function derivePerformanceViewModel({
     return {
       id: row.id,
       move: description.move,
+      moveEntityName: description.moveEntityName,
+      moveEntityType: description.moveEntityType,
+      moveVerb: description.moveVerb,
       whyNow: description.whyNow,
       expectedEffect: description.expectedEffect,
       ctaHref: action.href,
@@ -683,9 +1210,26 @@ export function derivePerformanceViewModel({
   const serviceDemandTotal = serviceRows.reduce((sum, row) => sum + row.activityMean, 0);
   const coverableDemandTotal = serviceRows.reduce((sum, row) => sum + Math.min(row.activityMean, row.sellableUnits), 0);
   const sellableCapacityRatio = serviceDemandTotal > 0 ? coverableDemandTotal / serviceDemandTotal : 1;
-  const demandScore =
+  const regimeDemandScore =
     skuRows.reduce((sum, row) => sum + regimeMomentum(skuSummaryById.get(row.id) ?? null), 0) / Math.max(1, skuRows.length);
+  const recentActivityRate = activityRate(recentObservations, rangeDays);
+  const previousActivityRate = activityRate(previousObservations, rangeDays);
+  const demandScore = regimeDemandScore + clamp((recentActivityRate - previousActivityRate) * 2.2, -0.6, 0.6);
   const demandTrend = trendFromScore(demandScore);
+  const currentRibbonDemandPoints = ribbonDemandSeries(recentObservations);
+  const previousRibbonDemandPoints = ribbonDemandSeries(previousObservations);
+  const demandTrendSignal: PerformanceTrendSignal = compareMode
+    ? compareTrendSignal({
+        compareDirection: compareTrendText(recentActivityRate, previousActivityRate).direction,
+        currentPoints: currentRibbonDemandPoints,
+        currentTone: demandTrend.tone,
+        previousPoints: previousRibbonDemandPoints,
+      })
+    : {
+        label: demandTrend.label,
+        points: currentRibbonDemandPoints,
+        tone: demandTrend.tone,
+      };
   const inboundRows = skuRows.filter((row) => row.receiptSignal != null);
   const overdueInboundCount = inboundRows.filter((row) => row.receiptSignal?.stateLabel === 'Overdue').length;
   const priceWatchRows = [...serviceRows, ...skuRows]
@@ -704,18 +1248,19 @@ export function derivePerformanceViewModel({
       key: 'demand',
       label: 'Demand momentum',
       value: `${trendGlyph(demandTrend.tone)} ${demandTrend.label}`,
+      trendSignal: demandTrendSignal,
       detail:
         demandTrend.tone === 'up'
-          ? `${skuRows.filter((row) => row.trendTone === 'up').length} entities pulling ahead`
+          ? `${skuRows.filter((row) => row.trendTone === 'up').length} entities pulling ahead across ${activeWindowLabel}`
           : demandTrend.tone === 'down'
-            ? `${skuRows.filter((row) => row.trendTone === 'down').length} entities softening`
-            : 'Demand is broadly holding',
+            ? `${skuRows.filter((row) => row.trendTone === 'down').length} entities softening across ${activeWindowLabel}`
+            : `Demand is broadly holding across ${activeWindowLabel}`,
     },
     {
       key: 'capacity',
       label: 'Sellable capacity',
       value: `${formatSenaPercent(sellableCapacityRatio, language)} coverable`,
-      detail: 'Current service demand that can still be served',
+      detail: `${activeWindowLabel} service demand that can still be served`,
     },
     {
       key: 'inbound',
@@ -729,24 +1274,203 @@ export function derivePerformanceViewModel({
       value: priceWatchRows.length > 1 ? 'Watch' : 'Stable',
       detail:
         priceWatchRows.length > 0
-          ? `${formatWholeNumber(priceWatchRows.length, language)} price or margin drags`
-          : 'No immediate margin drag detected',
+          ? `${formatWholeNumber(priceWatchRows.length, language)} price or margin drags in ${activeWindowLabel}`
+          : `No immediate margin drag detected in ${activeWindowLabel}`,
     },
     {
       key: 'risk',
       label: 'Revenue at risk',
       value: formatCurrency(revenueAtRisk, currency, language),
-      detail: 'Revenue currently blocked by capacity or stock pressure',
+      detail: `Revenue currently blocked by capacity or stock pressure in ${activeWindowLabel}`,
     },
   ];
 
-  const boardRows = allRows.slice(0, scope === 'all' ? 8 : 6).map(toBoardRow);
+  const boardRows = (() => {
+    const rows = allRows.slice(0, scope === 'all' ? 8 : 6).map((row) => {
+      if (row.type === 'service') {
+        const linkedSkuIds = linkedSkusByServiceId.get(row.id)?.map((entry) => entry.skuId) ?? [];
+        const currentDemandScore = windowDemandScoreForService(row.id, recentObservations);
+        const previousDemandScore = windowDemandScoreForService(row.id, previousObservations);
+        const demandCompare = compareTrendText(currentDemandScore, previousDemandScore);
+        const demandFactor = relativeFactor(currentDemandScore, previousDemandScore);
+        const previousActivityMean = row.activityMean / demandFactor;
+        const previousCoverageRatio = previousActivityMean > 0 ? Math.min(1, row.sellableUnits / previousActivityMean) : row.coverageRatio;
+        const previousSupportLabel =
+          previousCoverageRatio >= 0.9 ? 'Capacity holding' : previousCoverageRatio >= 0.7 ? 'Partially coverable' : 'Blocked by supply';
+        const supportCompare = coverageCompareText(row.coverageRatio, previousCoverageRatio, previousSupportLabel);
+        const currentPipelineState = windowPipelineStateForService(linkedSkuIds, recentObservations);
+        const previousPipelineState = windowPipelineStateForService(linkedSkuIds, previousObservations);
+        const pipelineCompare = pipelineCompareText(currentPipelineState, previousPipelineState);
+        const previousPriceSignal = latestServicePriceSignalForWindow(row.id, catalog.services.find((entry) => entry.serviceId === row.id)!, previousObservations);
+        const priceCompare = priceCompareText({ current: row.priceSignal, previous: previousPriceSignal });
+        const previousStatus = statusForService({
+          activityMean: previousActivityMean,
+          coverageRatio: previousCoverageRatio,
+          grossMarginRatio: row.grossMarginRatio,
+          priceSignal: previousPriceSignal,
+        });
+        const statusCompare = statusTransitionText(row.statusLabel, previousStatus.label);
+        const rowChangeScore =
+          Math.abs(demandCompare.delta) * 1.4 +
+          Math.abs(supportCompare.delta) * 1.2 +
+          Math.abs(pipelineCompare.delta) * 1.1 +
+          Math.abs(priceCompare.delta) +
+          Math.abs(statusCompare.delta) * 2;
+        const compareTone = compareToneFromDelta(
+          demandCompare.delta + supportCompare.delta + pipelineCompare.delta + priceCompare.delta + statusCompare.delta,
+          0.04,
+        );
+
+        const currentDemandPoints = serviceDemandSeries(row.id, recentObservations);
+        const previousDemandPoints = serviceDemandSeries(row.id, previousObservations);
+        const rowDemandTrendSignal: PerformanceTrendSignal = compareMode
+          ? compareTrendSignal({
+              compareDirection: demandCompare.direction,
+              currentPoints: currentDemandPoints,
+              currentTone: row.trendTone,
+              previousPoints: previousDemandPoints,
+            })
+          : {
+              label: row.trendLabel,
+              points: currentDemandPoints,
+              tone: row.trendTone,
+            };
+
+        return toBoardRow(row, {
+          compareEnabled: compareMode,
+          compareTone,
+          changeScore: rowChangeScore,
+          demandCompareText: demandCompare.text,
+          supportCompareText: supportCompare.text,
+          pipelineCompareText: pipelineCompare.text,
+          priceMarginCompareText: priceCompare.text,
+          previousStatusLabel: previousStatus.label,
+          previousStatusTone: previousStatus.tone,
+          statusCompareText: statusCompare.text,
+          rowCompareSummary:
+            rowChangeScore >= 0.75
+              ? compareSummary([
+                  demandCompare.delta > 0.18 ? 'Demand strengthened' : demandCompare.delta < -0.18 ? 'Demand softened' : '',
+                  supportCompare.delta > 0.06 ? 'cover improved' : supportCompare.delta < -0.06 ? 'cover fell' : '',
+                  pipelineCompare.text === 'pipeline slipped'
+                    ? 'pipeline slipped'
+                    : pipelineCompare.text === 'new inbound'
+                      ? 'new inbound arrived'
+                      : pipelineCompare.text === 'receipt closed'
+                        ? 'receipt landed'
+                        : '',
+                ])
+              : null,
+        }, rowDemandTrendSignal);
+      }
+
+      const linkedServiceIds = linkedServicesBySkuId.get(row.id)?.map((entry) => entry.serviceId) ?? [];
+      const currentDemandScore = windowDemandScoreForSku({
+        linkedServiceIds,
+        observations: recentObservations,
+        skuId: row.id,
+      });
+      const previousDemandScore = windowDemandScoreForSku({
+        linkedServiceIds,
+        observations: previousObservations,
+        skuId: row.id,
+      });
+      const demandCompare = compareTrendText(currentDemandScore, previousDemandScore);
+      const demandFactor = relativeFactor(currentDemandScore, previousDemandScore);
+      const previousDemandPerDay = row.demandPerDay / demandFactor;
+      const previousDaysOfCover = previousDemandPerDay > 0 ? (row.daysOfCover ?? 0) * (row.demandPerDay / previousDemandPerDay) : row.daysOfCover;
+      const supportCompare = coverCompareText({
+        currentDays: row.daysOfCover,
+        previousDays: previousDaysOfCover,
+        language,
+      });
+      const currentPipelineState = windowPipelineStateForSku(row.id, recentObservations);
+      const previousPipelineState = windowPipelineStateForSku(row.id, previousObservations);
+      const pipelineCompare = pipelineCompareText(currentPipelineState, previousPipelineState);
+      const previousPriceSignal = latestRetailPriceSignalForWindow(row.id, catalog.skus.find((entry) => entry.skuId === row.id)!, previousObservations);
+      const priceCompare = priceCompareText({ current: row.priceSignal, previous: previousPriceSignal });
+      const previousReceiptSignal = previousPipelineState === 'quiet' ? null : row.receiptSignal;
+      const previousStatus = statusForSku({
+        demandPerDay: previousDemandPerDay,
+        daysOfCover: previousDaysOfCover,
+        linkedServiceRevenue: row.linkedServiceRevenue,
+        marginRatio: row.marginRatio,
+        priceSignal: previousPriceSignal,
+        receiptSignal: previousReceiptSignal,
+        stockoutRisk: row.stockoutRisk,
+        units: row.daysOfCover && previousDaysOfCover ? (row.daysOfCover / previousDaysOfCover) * (row.daysOfCover ?? 0) : 0,
+      });
+      const statusCompare = statusTransitionText(row.statusLabel, previousStatus.label);
+      const rowChangeScore =
+        Math.abs(demandCompare.delta) * 1.4 +
+        Math.abs(supportCompare.delta) * 1.25 +
+        Math.abs(pipelineCompare.delta) * 1.1 +
+        Math.abs(priceCompare.delta) +
+        Math.abs(statusCompare.delta) * 2;
+      const compareTone = compareToneFromDelta(
+        demandCompare.delta + supportCompare.delta + pipelineCompare.delta + priceCompare.delta + statusCompare.delta,
+        0.04,
+      );
+      const currentDemandPoints = skuDemandSeries({
+        linkedServiceIds,
+        observations: recentObservations,
+        skuId: row.id,
+      });
+      const previousDemandPoints = skuDemandSeries({
+        linkedServiceIds,
+        observations: previousObservations,
+        skuId: row.id,
+      });
+      const rowDemandTrendSignal: PerformanceTrendSignal = compareMode
+        ? compareTrendSignal({
+            compareDirection: demandCompare.direction,
+            currentPoints: currentDemandPoints,
+            currentTone: row.trendTone,
+            previousPoints: previousDemandPoints,
+          })
+        : {
+            label: row.trendLabel,
+            points: currentDemandPoints,
+            tone: row.trendTone,
+          };
+
+      return toBoardRow(row, {
+        compareEnabled: compareMode,
+        compareTone,
+        changeScore: rowChangeScore,
+        demandCompareText: demandCompare.text,
+        supportCompareText: supportCompare.text,
+        pipelineCompareText: pipelineCompare.text,
+        priceMarginCompareText: priceCompare.text,
+        previousStatusLabel: previousStatus.label,
+        previousStatusTone: previousStatus.tone,
+        statusCompareText: statusCompare.text,
+        rowCompareSummary:
+          rowChangeScore >= 0.75
+            ? compareSummary([
+                demandCompare.delta > 0.18 ? 'Demand strengthened' : demandCompare.delta < -0.18 ? 'Demand softened' : '',
+                supportCompare.delta > 0.75 ? 'cover improved' : supportCompare.delta < -0.75 ? 'cover fell' : '',
+                pipelineCompare.text === 'pipeline slipped'
+                  ? 'pipeline slipped'
+                  : pipelineCompare.text === 'new inbound'
+                    ? 'new inbound opened'
+                    : pipelineCompare.text === 'receipt closed'
+                      ? 'receipt landed'
+                      : '',
+                ])
+              : null,
+      }, rowDemandTrendSignal);
+    });
+
+    return compareMode ? sortBoardRowsForCompare(rows) : rows;
+  })();
 
   const winners = sortBusinessRows([...serviceRows, ...skuRows])
     .filter((row) => row.status === 'push')
     .slice(0, 3)
     .map((row) => ({
       id: row.id,
+      entityType: row.type,
       label: row.name,
       href: row.href,
       summary:
@@ -761,6 +1485,7 @@ export function derivePerformanceViewModel({
     .slice(0, 3)
     .map((row) => ({
       id: row.id,
+      entityType: row.type,
       label: row.name,
       href: row.href,
       summary:
@@ -775,6 +1500,7 @@ export function derivePerformanceViewModel({
     .slice(0, 3)
     .map((row) => ({
       id: row.id,
+      entityType: row.type,
       label: row.name,
       href: row.href,
       summary: `${row.unitsLabel} · ${row.trendLabel.toLowerCase()} demand`,
@@ -863,16 +1589,20 @@ export function derivePerformanceViewModel({
     cashTraps,
     confidence: {
       coverageLabel,
-      evidenceLabel: observedAt ? `Last strong evidence ${formatSenaDate(observedAt, language)}` : 'No evidence window yet',
+      evidenceLabel: observedAt
+        ? `${formatWholeNumber(recentObservations.length, language)} observations in ${activeWindowLabel} · last strong evidence ${formatSenaDate(observedAt, language)}`
+        : 'No evidence window yet',
       weakSpotLabel,
     },
-    lastUpdatedLabel: observedAt ? `Updated ${formatSenaDate(observedAt, language)}` : 'Waiting for SENA evidence',
+    lastUpdatedLabel: observedAt ? `Updated ${formatSenaDate(observedAt, language)} · ${activeWindowLabel}` : 'Waiting for SENA evidence',
     moves,
     operationalDrag,
     priceWatch,
     recoveryPipeline,
     ribbon,
     timeline,
+    windowLabel: activeWindowLabel,
+    previousWindowLabel: priorWindowLabel,
     winners,
   };
 }

@@ -18,6 +18,16 @@ import {
   WorkspacePage,
   WorkspaceTitleCard,
 } from '@/components/system/workspace';
+import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
+import {
+  createHeaderedTableLayout,
+  HeaderedTable,
+  HeaderedTableBody,
+  HeaderedTableHeader,
+  HeaderedTableHeaderCell,
+  HeaderedTableMobileLabel,
+  HeaderedTableRow,
+} from '@/components/system/headered-table';
 import { SearchInput } from '@/components/system/search-input';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
@@ -25,7 +35,7 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { overviewTaskActionIconMap, overviewTaskFilterIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { statusPillClassName } from '@/lib/status-pill';
+import { statusPillClassName } from '@/lib/state-tones';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { OverviewTaskDrawer } from './overview/task-drawer';
@@ -54,6 +64,12 @@ const TODAY_FILTER_ROWS: Array<{
   { countKey: 'followUpToday', filter: 'follow_up_today', label: 'Follow up today' },
   { countKey: 'readyToReceive', filter: 'ready_to_receive', label: 'Ready to receive' },
 ];
+
+const overviewQueueTableLayout = createHeaderedTableLayout({
+  breakpoint: 'lg',
+  columns: 'minmax(18rem,1.15fr) minmax(14rem,0.95fr) minmax(16rem,1fr) minmax(10rem,0.7fr)',
+  gap: 5,
+});
 
 type OverviewSearchScope = 'all' | 'skus' | 'services';
 
@@ -102,23 +118,9 @@ function matchesOverviewQuery(task: OverviewTask, query: string, scope: Overview
   return parts.join(' ').toLowerCase().includes(normalized);
 }
 
-function QueueColumnHeading({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <p className={`text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground ${className ?? ''}`}>
-      {children}
-    </p>
-  );
-}
-
 export function DashboardRoute() {
   const inventory = useInventory();
-  const { language, t } = usePreferences();
+  const { language, showRightRailCards, t } = usePreferences();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const [searchScope, setSearchScope] = useState<OverviewSearchScope>('all');
@@ -265,8 +267,8 @@ export function DashboardRoute() {
         value={filter}
         onValueChange={(nextValue) => setFilter(nextValue as OverviewTaskFilter)}
       >
-        <div className="relative flex overflow-x-auto px-5 sm:px-6">
-          <ChromeTabsList aria-label="Filter overview tasks" className="min-w-max">
+        <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
+          <ChromeTabsList aria-label="Filter overview tasks" className="min-w-0" collapseBehavior="progressive">
             {FILTER_OPTIONS.map((option) => {
               const FilterTabIcon = overviewTaskFilterIconMap[option.value];
               return (
@@ -284,12 +286,11 @@ export function DashboardRoute() {
 
         <section
           className={`relative z-[1] ${boardClassName()}`}
-          style={{ 
-            marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)', 
-            marginLeft: '-10px',
+          style={{
+            marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
           }}
         >
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className={showRightRailCards ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
           <div className="min-w-0 border-b border-border/60 lg:border-r lg:border-b-0">
             <div className="border-b border-border/60 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -306,77 +307,84 @@ export function DashboardRoute() {
               </div>
             </div>
 
-            <div className="hidden border-b border-border/60 px-5 py-3 text-left lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-5">
-              <QueueColumnHeading>Item / impact</QueueColumnHeading>
-              <QueueColumnHeading>Why now</QueueColumnHeading>
-              <QueueColumnHeading>ETA / window</QueueColumnHeading>
-              <QueueColumnHeading className="text-center">Action</QueueColumnHeading>
-            </div>
-
             {visibleTasks.length > 0 ? (
-              <div className="divide-y divide-border/60">
-                {visibleTasks.map((task) => {
-                  const TaskActionIcon = overviewTaskActionIconMap[task.action];
+              <HeaderedTable>
+                <div className={overviewQueueTableLayout.containerClassName} style={overviewQueueTableLayout.style}>
+                  <HeaderedTableHeader className={overviewQueueTableLayout.headerClassName}>
+                    <HeaderedTableHeaderCell>Item / impact</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell>Why now</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell>ETA / window</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell align="center">Action</HeaderedTableHeaderCell>
+                  </HeaderedTableHeader>
+                  <HeaderedTableBody className={overviewQueueTableLayout.bodyClassName}>
+                    {visibleTasks.map((task) => {
+                      const TaskActionIcon = overviewTaskActionIconMap[task.action];
 
-                  return (
-                    <div
-                      key={task.id}
-                      className={`grid gap-4 px-5 py-5 transition-colors ${rowHoverClassName} sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-5`}
-                      data-slot="overview-task-row"
-                    >
-                    <div className="min-w-0">
-                      <button
-                        className="group min-w-0 text-left"
-                        type="button"
-                        onClick={() => setSelectedTaskId(task.id)}
-                      >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
-                            {task.skuName}
-                          </span>
-                          <span
-                            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
-                          >
-                            {task.stateLabel}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                          {task.skuId}
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.serviceImpact}</p>
-                      </button>
-                    </div>
-
-                    <div className="min-w-0">
-                      <QueueColumnHeading className="mb-1 lg:hidden">Why now</QueueColumnHeading>
-                      <p className="font-medium text-foreground">{task.whyNow}</p>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
-                    </div>
-
-                    <div className="min-w-0">
-                      <QueueColumnHeading className="mb-1 lg:hidden">ETA / window</QueueColumnHeading>
-                      <p className="font-medium text-foreground">{task.etaLabel}</p>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {task.confidenceCue} · {task.etaDetail}
-                      </p>
-                    </div>
-
-                      <div className="flex items-start lg:justify-center">
-                        <Button
-                          className="w-[136px] justify-center"
-                          size="sm"
-                          type="button"
-                          variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
-                          onClick={() => setSelectedTaskId(task.id)}
+                      return (
+                        <HeaderedTableRow
+                          key={task.id}
+                          className={`${rowHoverClassName} ${overviewQueueTableLayout.rowClassName}`}
+                          data-slot="overview-task-row"
                         >
-                          {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
-                          {task.actionLabel}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                          <div className="min-w-0">
+                            <button
+                              className="group min-w-0 text-left"
+                              type="button"
+                              onClick={() => setSelectedTaskId(task.id)}
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
+                                  {task.skuName}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
+                                >
+                                  {task.stateLabel}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+                                {task.skuId}
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.serviceImpact}</p>
+                            </button>
+                          </div>
+
+                          <div className="min-w-0">
+                            <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
+                              Why now
+                            </HeaderedTableMobileLabel>
+                            <p className="font-medium text-foreground">{task.whyNow}</p>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
+                          </div>
+
+                          <div className="min-w-0">
+                            <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
+                              ETA / window
+                            </HeaderedTableMobileLabel>
+                            <p className="font-medium text-foreground">{task.etaLabel}</p>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                              {task.confidenceCue} · {task.etaDetail}
+                            </p>
+                          </div>
+
+                          <div className="flex items-start lg:justify-center">
+                            <Button
+                              className="w-[136px] justify-center"
+                              size="sm"
+                              type="button"
+                              variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
+                              onClick={() => setSelectedTaskId(task.id)}
+                            >
+                              {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
+                              {task.actionLabel}
+                            </Button>
+                          </div>
+                        </HeaderedTableRow>
+                      );
+                    })}
+                  </HeaderedTableBody>
+                </div>
+              </HeaderedTable>
             ) : (
               <div className="grid place-items-center px-5 py-16 sm:px-6">
                 <div className="max-w-md text-center">
@@ -394,6 +402,7 @@ export function DashboardRoute() {
             )}
           </div>
 
+          {showRightRailCards ? (
           <aside className="flex h-full flex-col bg-secondary/15">
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
@@ -508,6 +517,7 @@ export function DashboardRoute() {
               </Button>
             </section>
           </aside>
+          ) : null}
         </div>
         </section>
       </ChromeTabs>

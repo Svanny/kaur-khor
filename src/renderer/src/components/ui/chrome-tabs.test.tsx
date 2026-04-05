@@ -1,7 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
-import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from './chrome-tabs';
+import {
+  ChromeTabs,
+  ChromeTabsList,
+  ChromeTabsTrigger,
+  availableInlineContentWidth,
+  resolveChromeTabPresentationMode,
+} from './chrome-tabs';
 
 function Harness() {
   return (
@@ -84,5 +90,24 @@ describe('ChromeTabs', () => {
     await user.click(screen.getByRole('tab', { name: 'Two' }));
 
     expect(onValueChange).toHaveBeenCalledWith('two');
+  });
+
+  test('resolves the progressive presentation mode from available per-tab width', () => {
+    expect(resolveChromeTabPresentationMode({ availableWidth: 600, fullWidth: 560, labelWidth: 440, tabCount: 5 })).toBe('full');
+    expect(resolveChromeTabPresentationMode({ availableWidth: 500, fullWidth: 560, labelWidth: 440, tabCount: 5 })).toBe('label');
+    expect(resolveChromeTabPresentationMode({ availableWidth: 320, fullWidth: 560, labelWidth: 440, tabCount: 5 })).toBe('icon');
+    expect(resolveChromeTabPresentationMode({ availableWidth: 120, fullWidth: 560, labelWidth: 440, tabCount: 5 })).toBe('blank');
+  });
+
+  test('measures available inline width without container padding', () => {
+    const element = document.createElement('div');
+    Object.defineProperty(element, 'clientWidth', {
+      configurable: true,
+      value: 640,
+    });
+    element.style.paddingLeft = '24px';
+    element.style.paddingRight = '40px';
+
+    expect(availableInlineContentWidth(element)).toBe(576);
   });
 });

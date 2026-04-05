@@ -22,12 +22,52 @@ const ChromeTabsContext = React.createContext<ChromeTabsContextValue>({ value: u
 type ChromeTabsListContextValue = {
   activeIndex: number;
   count: number;
+  presentationMode: ChromeTabPresentationMode;
 };
 
 const ChromeTabsListContext = React.createContext<ChromeTabsListContextValue>({
   activeIndex: -1,
   count: 0,
+  presentationMode: 'full',
 });
+
+type ChromeTabPresentationMode = 'full' | 'label' | 'icon' | 'blank';
+
+const CHROME_TAB_MIN_WIDTH_BY_MODE: Record<Exclude<ChromeTabPresentationMode, 'full' | 'label'>, number> = {
+  icon: 56,
+  blank: 36,
+};
+
+function resolveChromeTabPresentationMode({
+  availableWidth,
+  fullWidth,
+  labelWidth,
+  tabCount,
+}: {
+  availableWidth: number;
+  fullWidth: number;
+  labelWidth: number;
+  tabCount: number;
+}): ChromeTabPresentationMode {
+  if (availableWidth >= fullWidth) {
+    return 'full';
+  }
+  if (availableWidth >= labelWidth) {
+    return 'label';
+  }
+  if (availableWidth >= CHROME_TAB_MIN_WIDTH_BY_MODE.icon * tabCount) {
+    return 'icon';
+  }
+  return 'blank';
+}
+
+function availableInlineContentWidth(element: HTMLElement) {
+  const styles = window.getComputedStyle(element);
+  const paddingStart = Number.parseFloat(styles.paddingInlineStart || styles.paddingLeft || '0');
+  const paddingEnd = Number.parseFloat(styles.paddingInlineEnd || styles.paddingRight || '0');
+
+  return Math.max(0, element.clientWidth - paddingStart - paddingEnd);
+}
 
 function ChromeTabBackground({
   className,
@@ -122,17 +162,76 @@ function ChromeTabs({
   );
 }
 
+type ChromeTabsListProps = React.ComponentProps<typeof TabsPrimitive.List> & {
+  collapseBehavior?: 'none' | 'progressive';
+};
+
 function ChromeTabsList({
   children,
   className,
+  collapseBehavior = 'none',
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.List>) {
+}: ChromeTabsListProps) {
   const { value } = React.useContext(ChromeTabsContext);
   const items = React.Children.toArray(children).filter(
     (child): child is React.ReactElement<ChromeTabsTriggerProps> =>
       React.isValidElement<ChromeTabsTriggerProps>(child),
   );
   const activeIndex = items.findIndex((child) => child.props.value === value);
+  const listRef = React.useRef<HTMLDivElement | null>(null);
+  const [presentationMode, setPresentationMode] = React.useState<ChromeTabPresentationMode>('full');
+
+  React.useEffect(() => {
+    if (collapseBehavior !== 'progressive') {
+      setPresentationMode('full');
+      return;
+    }
+
+    const node = listRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updatePresentationMode = () => {
+      const availableWidth = node.parentElement
+        ? availableInlineContentWidth(node.parentElement)
+        : availableInlineContentWidth(node);
+      if (availableWidth <= 0) {
+        setPresentationMode('full');
+        return;
+      }
+      const triggerNodes = Array.from(node.querySelectorAll<HTMLElement>('[data-slot="chrome-tabs-trigger"]'));
+      const fullWidth = triggerNodes.reduce((totalWidth, triggerNode) => {
+        const measureNode = triggerNode.querySelector<HTMLElement>('[data-slot="chrome-tab-measure-full"]');
+        return totalWidth + Math.ceil(measureNode?.getBoundingClientRect().width ?? 0);
+      }, 0);
+      const labelWidth = triggerNodes.reduce((totalWidth, triggerNode) => {
+        const measureNode = triggerNode.querySelector<HTMLElement>('[data-slot="chrome-tab-measure-label"]');
+        return totalWidth + Math.ceil(measureNode?.getBoundingClientRect().width ?? 0);
+      }, 0);
+      const nextMode = resolveChromeTabPresentationMode({
+        availableWidth,
+        fullWidth: fullWidth + 8,
+        labelWidth: labelWidth + 8,
+        tabCount: Math.max(items.length, 1),
+      });
+      setPresentationMode((currentMode) => (currentMode === nextMode ? currentMode : nextMode));
+    };
+
+    updatePresentationMode();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updatePresentationMode();
+    });
+    resizeObserver.observe(node);
+    if (node.parentElement) {
+      resizeObserver.observe(node.parentElement);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [collapseBehavior, items.length]);
 
   const enhancedChildren = items.map((child, index) =>
     React.cloneElement(child, {
@@ -142,11 +241,13 @@ function ChromeTabsList({
   );
 
   return (
-    <ChromeTabsListContext.Provider value={{ activeIndex, count: items.length }}>
+    <ChromeTabsListContext.Provider value={{ activeIndex, count: items.length, presentationMode }}>
       <TabsPrimitive.List
+        ref={listRef}
         data-slot="chrome-tabs-list"
+        data-presentation-mode={presentationMode}
         className={cn(
-          'relative inline-flex min-h-11 w-fit min-w-full items-end gap-0 overflow-visible bg-transparent pt-2',
+          'relative inline-flex min-h-11 w-full min-w-0 items-end gap-0 overflow-visible bg-transparent pt-2',
           className,
         )}
         style={{
@@ -185,14 +286,19 @@ function ChromeTabsTrigger({
   value,
   ...props
 }: ChromeTabsTriggerProps) {
-  const { activeIndex } = React.useContext(ChromeTabsListContext);
+  const { activeIndex, presentationMode } = React.useContext(ChromeTabsListContext);
   const isBeforeActive = chromeTabIndex === activeIndex - 1;
   const hideTrailingDivider =
     chromeTabIndex === chromeTabCount - 1 || chromeTabIndex === activeIndex || isBeforeActive;
+  const accessibleLabel = typeof children === 'string' ? children : undefined;
+  const showLeading = presentationMode === 'full' || presentationMode === 'icon';
+  const showLabel = presentationMode === 'full' || presentationMode === 'label';
 
   return (
     <TabsPrimitive.Trigger
+      aria-label={accessibleLabel}
       data-hide-trailing-divider={hideTrailingDivider ? 'true' : 'false'}
+      data-presentation-mode={presentationMode}
       data-slot="chrome-tabs-trigger"
       value={value}
       className={cn(
@@ -279,15 +385,31 @@ function ChromeTabsTrigger({
 
       <span
         className={cn(
-          'relative z-[11] flex min-w-0 items-center gap-2 rounded-t-[8px] px-8 py-[9px]',
-          leading ? 'pl-8 pr-8' : '',
+          'relative z-[11] flex items-center justify-center gap-2 rounded-t-[8px] py-[9px]',
+          presentationMode === 'blank' ? 'px-[0.9375rem]' : presentationMode === 'icon' ? 'px-[1.25rem]' : 'px-[1.875rem]',
         )}
       >
-        {leading ? <span className="shrink-0">{leading}</span> : null}
-        <span className="truncate whitespace-nowrap">{children}</span>
+        {leading && showLeading ? <span className="shrink-0">{leading}</span> : null}
+        {showLabel ? <span className="whitespace-nowrap">{children}</span> : null}
+        {!showLabel && accessibleLabel ? <span className="sr-only">{accessibleLabel}</span> : null}
+      </span>
+      <span aria-hidden="true" className="pointer-events-none absolute left-0 top-0 -z-10 opacity-0">
+        <span
+          data-slot="chrome-tab-measure-full"
+          className="inline-flex items-center gap-2 rounded-t-[8px] px-[1.875rem] py-[9px] whitespace-nowrap"
+        >
+          {leading ? <span className="shrink-0">{leading}</span> : null}
+          <span>{children}</span>
+        </span>
+        <span
+          data-slot="chrome-tab-measure-label"
+          className="inline-flex items-center rounded-t-[8px] px-[1.875rem] py-[9px] whitespace-nowrap"
+        >
+          <span>{children}</span>
+        </span>
       </span>
     </TabsPrimitive.Trigger>
   );
 }
 
-export { ChromeTabs, ChromeTabsList, ChromeTabsTrigger };
+export { ChromeTabs, ChromeTabsList, ChromeTabsTrigger, availableInlineContentWidth, resolveChromeTabPresentationMode };
