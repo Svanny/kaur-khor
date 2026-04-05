@@ -1,0 +1,115 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e7]:
+    - button "Collapse navigation" [ref=e9] [cursor=pointer]:
+      - generic [ref=e10]:
+        - img [ref=e11]
+        - img [ref=e13]
+      - generic [ref=e15]: Banji
+    - generic [ref=e16]:
+      - list [ref=e20]:
+        - listitem [ref=e21]:
+          - link "Overview" [ref=e22] [cursor=pointer]:
+            - /url: "#/"
+            - img [ref=e23]
+            - generic [ref=e28]: Overview
+        - listitem [ref=e29]:
+          - link "Performance" [ref=e30] [cursor=pointer]:
+            - /url: "#/performance"
+            - img [ref=e31]
+            - generic [ref=e34]: Performance
+        - listitem [ref=e35]:
+          - link "Catalog" [ref=e36] [cursor=pointer]:
+            - /url: "#/catalog"
+            - img [ref=e37]
+            - generic [ref=e47]: Catalog
+        - listitem [ref=e48]:
+          - link "Logs" [ref=e49] [cursor=pointer]:
+            - /url: "#/operations"
+            - img [ref=e50]
+            - generic [ref=e52]: Logs
+      - list [ref=e55]:
+        - listitem [ref=e56]:
+          - button "Maximal View" [ref=e57] [cursor=pointer]:
+            - img [ref=e58]
+            - generic [ref=e60]: Maximal View
+        - listitem [ref=e61]:
+          - link "Settings" [ref=e62] [cursor=pointer]:
+            - /url: "#/settings"
+            - img [ref=e63]
+            - generic [ref=e66]: Settings
+  - main [ref=e67]:
+    - main [ref=e69]:
+      - generic [ref=e71]:
+        - generic [ref=e75]:
+          - paragraph [ref=e76]: Settings
+          - generic [ref=e77]:
+            - generic [ref=e78]: Desktop preferences
+            - generic [ref=e80]: These controls tune the local Banji shell and its on-device SENA workspace storage.
+        - generic [ref=e81]:
+          - generic [ref=e82]:
+            - generic [ref=e83]: Preferences controls
+            - generic [ref=e85]: These preferences affect only the local desktop shell.
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - generic [ref=e88]:
+                - generic [ref=e89]: Language
+                - generic [ref=e90]:
+                  - combobox "Language" [ref=e91]:
+                    - option "English" [selected]
+                    - option "Khmer"
+                  - img
+              - generic [ref=e92]:
+                - generic [ref=e93]: Currency
+                - generic [ref=e94]:
+                  - combobox "Currency" [ref=e95]:
+                    - option "USD" [selected]
+                    - option "KHR"
+                  - img
+            - generic [ref=e96]:
+              - generic [ref=e97]:
+                - checkbox "Show explanatory tooltips" [checked] [ref=e98] [cursor=pointer]:
+                  - generic:
+                    - img
+                - img [ref=e100]
+                - generic [ref=e103]:
+                  - generic [ref=e104]: Show explanatory tooltips
+                  - generic [ref=e105]: Hide helper tooltips and explanatory guidance across the desktop UI.
+              - generic [ref=e106]:
+                - checkbox "Show floating title actions" [checked] [ref=e107] [cursor=pointer]:
+                  - generic:
+                    - img
+                - img [ref=e109]
+                - generic [ref=e111]:
+                  - generic [ref=e112]: Show floating title actions
+                  - generic [ref=e113]: When a page hero scrolls out of view, pin its action buttons and toggles in a floating island near the top-right corner.
+              - generic [ref=e114]:
+                - checkbox "Show right rail cards" [checked] [ref=e115] [cursor=pointer]:
+                  - generic:
+                    - img
+                - img [ref=e117]
+                - generic [ref=e119]:
+                  - generic [ref=e120]: Show right rail cards
+                  - generic [ref=e121]: Show the contextual right-side insight and summary blocks across performance and detail pages.
+            - generic [ref=e122]:
+              - button "Save preferences" [disabled]:
+                - img
+                - text: Save preferences
+        - generic [ref=e123]:
+          - generic [ref=e124]:
+            - generic [ref=e125]: Local workspace storage
+            - generic [ref=e127]: The desktop shell now stores SENA data in a local SQLite workspace.
+          - generic [ref=e129]:
+            - generic [ref=e130]:
+              - paragraph [ref=e131]: Data directory
+              - paragraph [ref=e132]: /tmp/banji-browser-mock
+            - generic [ref=e133]:
+              - paragraph [ref=e134]: Workspace store
+              - paragraph [ref=e135]: /tmp/banji-browser-mock/sena.sqlite
+            - generic [ref=e136]:
+              - paragraph [ref=e137]: Preferences file
+              - paragraph [ref=e138]: /tmp/banji-browser-mock/preferences.json
+            - button "Open local data folder" [ref=e140] [cursor=pointer]:
+              - img
+              - text: Open local data folder
