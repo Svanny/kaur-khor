@@ -113,7 +113,7 @@ describe('ServiceFormRoute', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Commercial setup' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Linked SKUs' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('service-1')).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Save changes' }).length).toBeGreaterThan(0);
     expect(screen.getByPlaceholderText('Search linked SKUs by name or id…')).toBeInTheDocument();
     expect(screen.getByText('2 Linked SKUs detected')).toBeInTheDocument();
     expect(screen.getByTestId('linked-sku-grid')).toBeInTheDocument();
@@ -156,7 +156,7 @@ describe('ServiceFormRoute', () => {
     fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
     fireEvent.change(screen.getByDisplayValue('24'), { target: { value: '29' } });
     fireEvent.click(screen.getByRole('checkbox', { name: 'SKU 2' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save changes' })[0]!);
 
     await waitFor(() => {
       expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);

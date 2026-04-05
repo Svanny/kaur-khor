@@ -13,7 +13,6 @@ import { SkuDetailExposure } from './sku-detail/exposure';
 import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay } from './sku-detail/format';
 import { SkuDetailLedger } from './sku-detail/ledger';
 import {
-  buildSparsePolylineSegments,
   classifyWheelIntent,
   deriveAxisContentWidth,
   deriveAnchoredZoomScrollLeft,
@@ -568,16 +567,6 @@ describe('SKU detail SENA helpers', () => {
       { observedAt: '2026-03-27T19:00:00Z', price: 10, intervalIndex: 0 },
       { observedAt: '2026-03-28T09:00:00Z', price: 11, intervalIndex: 1 },
     ]);
-
-    const sparseSeries = buildSparsePolylineSegments(intervalMarkers, [0, 1], 72, 42, {
-      topPadding: 6,
-      bottomPadding: 6,
-    });
-
-    expect(sparseSeries.points).toHaveLength(2);
-    expect(sparseSeries.points[0]?.x).toBe(36);
-    expect(sparseSeries.points[1]?.x).toBe(108);
-    expect(sparseSeries.segments).toHaveLength(1);
   });
 
   test('derives hero and order-band data from the SENA detail payload', () => {

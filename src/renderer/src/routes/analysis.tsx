@@ -92,6 +92,7 @@ export function AnalysisRoute() {
         eyebrow="Analysis"
         title="Deep Review"
         description="Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations."
+        disableFloatingActions
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <ToggleGroup

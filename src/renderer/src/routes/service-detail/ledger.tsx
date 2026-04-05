@@ -8,17 +8,15 @@ import {
 } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
-import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { usePreferences } from '@/state/preferences';
 import {
-  buildSparsePolylineSegments,
   classifyWheelIntent,
   deriveAnchoredZoomScrollLeft,
   deriveAxisContentWidth,
-  deriveLabelGutterOffset,
-  deriveSlotCenterX,
-} from '@/routes/sku-detail/ledger';
+} from '@/components/system/interval-strip';
+import { IntervalBarTimelineChart, SparseTimelineChart } from '@/components/system/timeline-chart';
+import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { usePreferences } from '@/state/preferences';
 import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaWideIntervalDate } from '@/routes/sku-detail/format';
 import { SectionLabel, SectionTitle } from '@/routes/sku-detail/section-heading';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
@@ -33,12 +31,8 @@ const AXIS_START_PADDING = 20;
 const AXIS_END_PADDING = 36;
 const LABEL_GUTTER_HEIGHT = 32;
 const CHART_PLOT_HEIGHT = 120;
-const CHART_VIEWBOX_HEIGHT = 42;
 const FLOW_LABEL_GUTTER_HEIGHT = 64;
 const FLOW_LANE_PLOT_HEIGHT = 112;
-const FLOW_LINE_VIEWBOX_HEIGHT = 52;
-const FLOW_LINE_TOP_PADDING = 6;
-const FLOW_LINE_BOTTOM_PADDING = 6;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -130,53 +124,6 @@ function intervalTooltipLabel(endAt: string | null, intervalIndex: number, langu
     return fullDate;
   }
   return `Interval ${intervalIndex + 1}`;
-}
-
-function buildPointCoordinatesWithDomain(
-  values: number[],
-  slotWidth: number,
-  height: number,
-  domainMin: number,
-  domainMax: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  if (values.length === 0) {
-    return [];
-  }
-  const min = Math.min(domainMin, domainMax);
-  const max = Math.max(domainMin, domainMax);
-  const range = max - min || 1;
-  const axisStartPadding = options?.axisStartPadding ?? 0;
-  const topPadding = options?.topPadding ?? 0;
-  const bottomPadding = options?.bottomPadding ?? 0;
-  const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
-
-  return values.map((value, index) => ({
-    x: deriveSlotCenterX({ index, slotWidth, axisStartPadding }),
-    y: topPadding + drawableHeight - ((value - min) / range) * drawableHeight,
-    value,
-  }));
-}
-
-function buildPolylineWithDomain(
-  values: number[],
-  slotWidth: number,
-  height: number,
-  domainMin: number,
-  domainMax: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  return buildPointCoordinatesWithDomain(values, slotWidth, height, domainMin, domainMax, options)
-    .map((point) => `${point.x},${point.y}`)
-    .join(' ');
 }
 
 function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: string; tooltip: string }) {
@@ -325,61 +272,6 @@ function IntervalStrip({
   );
 }
 
-function RegimeChartHighlightOverlay({
-  activeIndex,
-  axisContentWidth,
-  axisEndPadding,
-  axisStartPadding,
-  intervals,
-  onSelect,
-}: {
-  activeIndex: number | null;
-  axisContentWidth: number;
-  axisEndPadding: number;
-  axisStartPadding: number;
-  intervals: Array<{ intervalIndex: number; dominantRegime: string }>;
-  onSelect: (index: number) => void;
-}) {
-  return (
-    <div
-      aria-hidden="true"
-      className="absolute inset-0 grid overflow-hidden rounded-[1rem]"
-      style={{
-        width: axisContentWidth,
-        paddingLeft: axisStartPadding,
-        paddingRight: axisEndPadding,
-        gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, minmax(0, 1fr))`,
-      }}
-    >
-      {intervals.map((interval, intervalPosition) => {
-        const isSelected = activeIndex === interval.intervalIndex;
-        return (
-          <Tooltip key={interval.intervalIndex}>
-            <TooltipTrigger asChild>
-              <button
-                aria-label={interval.dominantRegime}
-                className={`relative border-r border-background/35 text-center text-xs text-foreground transition-colors last:border-r-0 ${isSelected ? '' : 'text-foreground/80'}`}
-                data-regime-slot="true"
-                data-selected={isSelected ? 'true' : 'false'}
-                style={{
-                  backgroundColor: regimeTint(interval.dominantRegime, isSelected),
-                  borderTopLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
-                  borderBottomLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
-                  borderTopRightRadius: intervalPosition === intervals.length - 1 ? '0.85rem' : undefined,
-                  borderBottomRightRadius: intervalPosition === intervals.length - 1 ? '0.85rem' : undefined,
-                }}
-                type="button"
-                onClick={() => onSelect(interval.intervalIndex)}
-              />
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>{interval.dominantRegime}</TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </div>
-  );
-}
-
 function selectedIntervalIndexFromSelection(model: ServiceDetailViewModel, selection: ServiceInspectorSelection) {
   if (selection.type === 'interval' && selection.intervalIndex != null) {
     return selection.intervalIndex;
@@ -426,20 +318,29 @@ export function ServiceDetailLedger({
   const clampedScrollLeft = clampScrollLeft(scrollLeft, viewportWidth, contentWidth);
   const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE;
   const canScrollRight = clampedScrollLeft + viewportWidth < contentWidth - SCROLL_EDGE_TOLERANCE;
-  const priceMarkers = intervals.map((interval) => ({
+  const priceSlots = intervals.map((interval, intervalPosition) => ({
+    ariaLabel: interval.dominantRegime,
+    fill: regimeTint(interval.dominantRegime, interval.intervalIndex === selectedIntervalIndex),
     intervalIndex: interval.intervalIndex,
-    price: interval.priceValue,
-    observedAt: interval.endAt ?? `interval-${interval.intervalIndex}`,
+    intervalPosition,
   }));
-  const { points: priceCoordinates, segments: pricePolylines } = buildSparsePolylineSegments(
-    priceMarkers,
-    indices,
-    stretchedSlotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
-  );
+  const pricePoints = intervals.map((interval, intervalPosition) => ({
+    ariaLabel: `Price ${interval.priceValue}`,
+    intervalIndex: interval.intervalIndex,
+    intervalPosition,
+    key: `${interval.endAt ?? `interval-${interval.intervalIndex}`}:${interval.intervalIndex}`,
+    value: interval.priceValue,
+  }));
   const gapValues = intervals.map((interval) => interval.sellableValue - interval.demandValue);
   const maxGapMagnitude = Math.max(1, ...gapValues.map((value) => Math.abs(value)));
+  const gapChartData = intervals.map((interval, index) => ({
+    ariaLabel: `Demand ${interval.demandLabel}, sellable ${interval.sellableLabel}, gap ${gapValues[index] > 0 ? '+' : ''}${gapValues[index]?.toFixed(2).replace(/\\.00$/, '') ?? '0'}`,
+    intervalIndex: interval.intervalIndex,
+    values: {
+      negativeGap: Math.min(gapValues[index] ?? 0, 0),
+      positiveGap: Math.max(gapValues[index] ?? 0, 0),
+    },
+  }));
 
   useEffect(() => {
     const node = intervalScrollRef.current;
@@ -604,63 +505,44 @@ export function ServiceDetailLedger({
               onScroll={handleScrollerScroll}
               onWheel={handleLaneWheel(priceScrollRef, axisStartPadding)}
             >
-              <div className="relative overflow-visible" style={{ width: renderWidth, height: LABEL_GUTTER_HEIGHT + CHART_PLOT_HEIGHT }}>
-                <TooltipProvider>
-                  <RegimeChartHighlightOverlay
-                    activeIndex={selectedIntervalIndex}
-                    axisContentWidth={renderWidth}
-                    axisEndPadding={axisEndPadding}
-                    axisStartPadding={axisStartPadding}
-                    intervals={intervals.map((interval) => ({
-                      intervalIndex: interval.intervalIndex,
-                      dominantRegime: interval.dominantRegime,
-                    }))}
-                    onSelect={(index) => setSelection({ type: 'interval', intervalIndex: index })}
-                  />
-                </TooltipProvider>
-                <svg
-                  aria-hidden="true"
-                  className="absolute left-0 top-0 z-[1] w-full"
-                  preserveAspectRatio="none"
-                  style={{ height: CHART_PLOT_HEIGHT, top: LABEL_GUTTER_HEIGHT }}
-                  viewBox={`0 0 ${Math.max(renderWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
-                >
-                  {pricePolylines.map((segment, index) => (
-                    <polyline
-                      key={`service-price-segment-${index}`}
-                      fill="none"
-                      points={segment}
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      className="text-foreground/70"
-                    />
-                  ))}
-                </svg>
-                {priceCoordinates.map((point, index) => {
-                  const marker = priceMarkers[index];
-                  const isSelected = marker?.intervalIndex === selectedIntervalIndex;
-                  return (
-                    <button
-                      key={marker ? `${marker.observedAt}:${marker.intervalIndex}` : `price-${index}`}
-                      aria-label={marker ? `Price ${marker.price}` : `Price point ${index + 1}`}
-                      className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
-                      style={{ left: point.x, top: deriveLabelGutterOffset({ plotY: point.y }) }}
-                      type="button"
-                      onClick={() => marker && setSelection({ type: 'interval', intervalIndex: marker.intervalIndex })}
-                    >
-                      {isSelected ? (
-                        <span className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center rounded-[0.9rem] border border-border/70 bg-background px-2.5 py-1 text-[10px] font-medium text-foreground shadow-sm">
-                          <span className="whitespace-nowrap text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
-                            {formatRegimeLabel(intervals[index]?.dominantRegime ?? '')}
-                          </span>
-                          <span className="whitespace-nowrap">{intervals[index]?.priceLabel ?? ''}</span>
-                        </span>
-                      ) : null}
-                      <span className={`block size-4 rounded-full border-2 ${isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background'}`} />
-                    </button>
-                  );
-                })}
-              </div>
+              <SparseTimelineChart
+                axisEndPadding={axisEndPadding}
+                axisStartPadding={axisStartPadding}
+                gutterHeight={LABEL_GUTTER_HEIGHT}
+                lineStroke="rgba(48,31,20,0.7)"
+                plotHeight={CHART_PLOT_HEIGHT}
+                pointButtons={{
+                  ariaLabel: (marker) => `Price ${marker.value}`,
+                  onSelect: (marker) => setSelection({ type: 'interval', intervalIndex: marker.intervalIndex }),
+                  selected: (marker) => marker.intervalIndex === selectedIntervalIndex,
+                  selectedLabel: (marker, index) => (
+                    <span className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col items-center rounded-[0.9rem] border border-border/70 bg-background px-2.5 py-1 text-[10px] font-medium text-foreground shadow-sm">
+                      <span className="whitespace-nowrap text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                        {formatRegimeLabel(intervals[index]?.dominantRegime ?? '')}
+                      </span>
+                      <span className="whitespace-nowrap">{intervals[index]?.priceLabel ?? ''}</span>
+                    </span>
+                  ),
+                }}
+                points={pricePoints}
+                slotButtons={{
+                  className: 'border-r border-background/35 last:border-r-0',
+                  onSelect: (slot) => setSelection({ type: 'interval', intervalIndex: slot.intervalIndex }),
+                  selected: (slot) => slot.intervalIndex === selectedIntervalIndex,
+                  style: (slot, isSelected) => {
+                    const intervalPosition = priceSlots.findIndex((entry) => entry.intervalIndex === slot.intervalIndex);
+                    return {
+                      borderTopLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
+                      borderBottomLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
+                      borderTopRightRadius: intervalPosition === priceSlots.length - 1 ? '0.85rem' : undefined,
+                      borderBottomRightRadius: intervalPosition === priceSlots.length - 1 ? '0.85rem' : undefined,
+                      boxShadow: isSelected ? 'inset 0 0 0 1px rgba(48,31,20,0.12)' : undefined,
+                    };
+                  },
+                }}
+                slots={priceSlots}
+                slotWidth={stretchedSlotWidth}
+              />
             </div>
             <p className="text-sm text-muted-foreground">
               {intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.evidenceSummary ?? intervals.at(-1)?.evidenceSummary}
@@ -685,21 +567,20 @@ export function ServiceDetailLedger({
             onScroll={handleScrollerScroll}
             onWheel={handleLaneWheel(flowScrollRef, axisStartPadding)}
           >
-            <div
-              className="grid rounded-md bg-muted/20 pb-3 pt-2"
-              style={{
-                width: renderWidth,
-                paddingLeft: axisStartPadding,
-                paddingRight: axisEndPadding,
-                paddingTop: FLOW_LABEL_GUTTER_HEIGHT,
-                gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, ${stretchedSlotWidth}px)`,
-                minHeight: FLOW_LABEL_GUTTER_HEIGHT + FLOW_LANE_PLOT_HEIGHT,
-              }}
-            >
-              {intervals.map((interval, index) => {
-                const plotHalfHeight = FLOW_LANE_PLOT_HEIGHT / 2;
+            <IntervalBarTimelineChart
+              axisEndPadding={axisEndPadding}
+              axisStartPadding={axisStartPadding}
+              data={gapChartData}
+              gutterHeight={FLOW_LABEL_GUTTER_HEIGHT}
+              plotHeight={FLOW_LANE_PLOT_HEIGHT}
+              series={[
+                { dataKey: 'positiveGap', fill: 'rgba(48,31,20,0.7)', stackId: 'positive-gap' },
+                { dataKey: 'negativeGap', fill: 'rgba(196, 74, 67, 0.7)', stackId: 'negative-gap' },
+              ]}
+              selected={(datum) => selectedIntervalIndex === datum.intervalIndex}
+              selectedLabel={(datum, index) => {
+                const interval = intervals[index];
                 const gapValue = gapValues[index] ?? 0;
-                const gapHeight = Math.max(3, (Math.abs(gapValue) / maxGapMagnitude) * (plotHalfHeight - 4));
                 const tooltipPositionClassName =
                   index === 0
                     ? 'left-0 translate-x-0'
@@ -707,47 +588,23 @@ export function ServiceDetailLedger({
                       ? 'right-0 translate-x-0'
                       : 'left-1/2 -translate-x-1/2';
                 const tooltipInsetTop = Math.max(4, FLOW_LABEL_GUTTER_HEIGHT - 60);
+
                 return (
-                  <button
-                    key={interval.intervalIndex}
-                    className="relative flex w-full items-stretch justify-center"
-                    style={{ height: FLOW_LANE_PLOT_HEIGHT }}
-                    type="button"
-                    onClick={() => setSelection({ type: 'interval', intervalIndex: interval.intervalIndex })}
+                  <div
+                    className={`absolute z-[2] flex max-w-[220px] flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm ${tooltipPositionClassName}`}
+                    style={{ top: tooltipInsetTop - FLOW_LABEL_GUTTER_HEIGHT }}
                   >
-                    {selectedIntervalIndex === interval.intervalIndex ? (
-                      <div
-                        className={`absolute z-[2] flex max-w-[220px] flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm ${tooltipPositionClassName}`}
-                        style={{ top: tooltipInsetTop - FLOW_LABEL_GUTTER_HEIGHT }}
-                      >
-                        <span className="whitespace-nowrap text-foreground">{`Demand: ${interval.demandLabel}`}</span>
-                        <span className="whitespace-nowrap text-foreground">{`Sellable: ${interval.sellableLabel}`}</span>
-                        <span className="whitespace-nowrap text-foreground">{`Gap: ${gapValue > 0 ? '+' : ''}${gapValue.toFixed(2).replace(/\.00$/, '')}`}</span>
-                        <span className="whitespace-nowrap text-foreground">{interval.tensionLabel}</span>
-                      </div>
-                    ) : null}
-                    <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
-                    <div className="relative h-full w-[85%] self-center">
-                      {gapValue >= 0 ? (
-                        <div className="absolute inset-x-0 bottom-1/2 h-1/2">
-                          <span
-                            className="absolute bottom-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-foreground/70"
-                            style={{ height: gapHeight }}
-                          />
-                        </div>
-                      ) : (
-                        <div className="absolute inset-x-0 top-1/2 h-1/2">
-                          <span
-                            className="absolute top-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-destructive/70"
-                            style={{ height: gapHeight }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </button>
+                    <span className="whitespace-nowrap text-foreground">{`Demand: ${interval?.demandLabel ?? '—'}`}</span>
+                    <span className="whitespace-nowrap text-foreground">{`Sellable: ${interval?.sellableLabel ?? '—'}`}</span>
+                    <span className="whitespace-nowrap text-foreground">{`Gap: ${gapValue > 0 ? '+' : ''}${gapValue.toFixed(2).replace(/\.00$/, '')}`}</span>
+                    <span className="whitespace-nowrap text-foreground">{interval?.tensionLabel ?? ''}</span>
+                  </div>
                 );
-              })}
-            </div>
+              }}
+              slotWidth={stretchedSlotWidth}
+              symmetricDomainMax={maxGapMagnitude}
+              onSelect={(datum) => setSelection({ type: 'interval', intervalIndex: datum.intervalIndex })}
+            />
           </div>
         </div>
 

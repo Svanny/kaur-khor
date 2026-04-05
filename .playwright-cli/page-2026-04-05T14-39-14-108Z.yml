@@ -1,0 +1,601 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e7]:
+    - button "Collapse navigation" [ref=e9] [cursor=pointer]:
+      - generic [ref=e10]:
+        - img [ref=e11]
+        - img [ref=e13]
+      - generic [ref=e15]: Banji
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: Main
+          - list [ref=e21]:
+            - listitem [ref=e22]:
+              - link "Overview" [ref=e23] [cursor=pointer]:
+                - /url: "#/"
+                - img [ref=e24]
+                - generic [ref=e29]: Overview
+            - listitem [ref=e30]:
+              - link "Performance" [ref=e31] [cursor=pointer]:
+                - /url: "#/performance"
+                - img [ref=e32]
+                - generic [ref=e35]: Performance
+            - listitem [ref=e36]:
+              - link "Catalog" [ref=e37] [cursor=pointer]:
+                - /url: "#/catalog"
+                - img [ref=e38]
+                - generic [ref=e48]: Catalog
+        - generic [ref=e49]:
+          - generic [ref=e50]: Other
+          - list [ref=e52]:
+            - listitem [ref=e53]:
+              - link "Analysis" [ref=e54] [cursor=pointer]:
+                - /url: "#/analysis"
+                - img [ref=e55]
+                - generic [ref=e59]: Analysis
+            - listitem [ref=e60]:
+              - link "Logs" [ref=e61] [cursor=pointer]:
+                - /url: "#/operations"
+                - img [ref=e62]
+                - generic [ref=e64]: Logs
+      - list [ref=e67]:
+        - listitem [ref=e68]:
+          - button "Maximal View" [ref=e69] [cursor=pointer]:
+            - img [ref=e70]
+            - generic [ref=e72]: Maximal View
+        - listitem [ref=e73]:
+          - link "Settings" [ref=e74] [cursor=pointer]:
+            - /url: "#/settings"
+            - img [ref=e75]
+            - generic [ref=e78]: Settings
+  - main [ref=e79]:
+    - main [ref=e81]:
+      - generic [ref=e83]:
+        - generic [ref=e85]:
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - paragraph [ref=e88]: Performance
+              - generic [ref=e89]:
+                - generic [ref=e90]: Business Health
+                - generic [ref=e92]: Demand, capacity, pipeline, and pricing in one business view
+            - generic [ref=e94]:
+              - group "Select performance time range" [ref=e95]:
+                - radio "7d" [ref=e96] [cursor=pointer]
+                - radio "30d" [checked] [ref=e97] [cursor=pointer]
+                - radio "90d" [ref=e98] [cursor=pointer]
+              - group "Select performance scope" [ref=e99]:
+                - radio "All" [checked] [ref=e100] [cursor=pointer]:
+                  - img
+                  - text: All
+                - radio "Services" [ref=e101] [cursor=pointer]:
+                  - img
+                  - text: Services
+                - radio "SKUs" [ref=e102] [cursor=pointer]:
+                  - img
+                  - text: SKUs
+              - button "Compare" [pressed] [ref=e103] [cursor=pointer]:
+                - generic [ref=e104]:
+                  - img [ref=e105]
+                  - text: Compare
+          - generic [ref=e113]:
+            - generic [ref=e114]: Updated Apr 3 · last 30d
+            - generic [ref=e115]: Mixed portfolio view
+            - generic [ref=e116]: Showing last 30d posture vs prior 30d
+        - generic [ref=e118]:
+          - generic [ref=e119]:
+            - paragraph [ref=e120]: Demand momentum
+            - generic [ref=e122]:
+              - generic [ref=e123]:
+                - application [ref=e126]
+                - generic [ref=e139]: none
+              - generic [ref=e140]:
+                - generic [ref=e141]: Steady
+                - img [ref=e142]
+                - generic [ref=e144]: Strong
+            - paragraph [ref=e145]: 3 entities pulling ahead across last 30d
+          - generic [ref=e146]:
+            - paragraph [ref=e147]: Sellable capacity
+            - paragraph [ref=e149]: 94% coverable
+            - paragraph [ref=e150]: last 30d service demand that can still be served
+          - generic [ref=e151]:
+            - paragraph [ref=e152]: Inbound relief
+            - paragraph [ref=e154]: 2 receipts in motion
+            - paragraph [ref=e155]: 1 overdue
+          - generic [ref=e156]:
+            - paragraph [ref=e157]: Margin health
+            - paragraph [ref=e159]: Watch
+            - paragraph [ref=e160]: 3 price or margin drags in last 30d
+          - generic [ref=e161]:
+            - paragraph [ref=e162]: Revenue at risk
+            - paragraph [ref=e164]: $227.44
+            - paragraph [ref=e165]: Revenue currently blocked by capacity or stock pressure in last 30d
+        - generic [ref=e166]:
+          - generic [ref=e167]:
+            - generic [ref=e168]:
+              - generic [ref=e170]:
+                - generic [ref=e171]:
+                  - heading "Move now" [level=2] [ref=e172]
+                  - button "Move now help" [ref=e173] [cursor=pointer]:
+                    - img [ref=e174]
+                - paragraph [ref=e177]: The highest-value commercial moves across services and SKUs, ordered by where Banji sees the next steering intervention.
+              - generic [ref=e180]:
+                - generic [ref=e181]:
+                  - paragraph [ref=e182]:
+                    - generic [ref=e183]:
+                      - generic [ref=e184]: Move
+                      - button "Move help" [ref=e185] [cursor=pointer]:
+                        - img [ref=e186]
+                  - paragraph [ref=e189]:
+                    - generic [ref=e190]:
+                      - generic [ref=e191]: Why now
+                      - button "Why now help" [ref=e192] [cursor=pointer]:
+                        - img [ref=e193]
+                  - paragraph [ref=e196]:
+                    - generic [ref=e197]:
+                      - generic [ref=e198]: Expected effect
+                      - button "Expected effect help" [ref=e199] [cursor=pointer]:
+                        - img [ref=e200]
+                  - paragraph [ref=e203]:
+                    - generic [ref=e204]:
+                      - generic [ref=e205]: Action
+                      - button "Action help" [ref=e206] [cursor=pointer]:
+                        - img [ref=e207]
+                - generic [ref=e210]:
+                  - generic [ref=e211]:
+                    - generic [ref=e213]:
+                      - generic [ref=e214]: Restock
+                      - img [ref=e215]
+                      - generic [ref=e219]: Rattan Market Tote
+                    - paragraph [ref=e221]: 2d cover · 2 service links with no inbound relief
+                    - paragraph [ref=e223]: Restore service capacity and stop revenue leakage
+                    - link "Open queue" [ref=e225] [cursor=pointer]:
+                      - /url: "#/"
+                      - img
+                      - generic [ref=e226]: Open queue
+                  - generic [ref=e227]:
+                    - generic [ref=e229]:
+                      - generic [ref=e230]: Restock
+                      - img [ref=e231]
+                      - generic [ref=e235]: Children's Krama Set
+                    - paragraph [ref=e237]: 3d cover · 2 service links with no inbound relief
+                    - paragraph [ref=e239]: Restore service capacity and stop revenue leakage
+                    - link "Open queue" [ref=e241] [cursor=pointer]:
+                      - /url: "#/"
+                      - img
+                      - generic [ref=e242]: Open queue
+                  - generic [ref=e243]:
+                    - generic [ref=e245]:
+                      - generic [ref=e246]: Restock
+                      - img [ref=e247]
+                      - generic [ref=e251]: Krama Cotton Scarf
+                    - paragraph [ref=e253]: 3d cover · 2 service links with no inbound relief
+                    - paragraph [ref=e255]: Restore service capacity and stop revenue leakage
+                    - link "Open queue" [ref=e257] [cursor=pointer]:
+                      - /url: "#/"
+                      - img
+                      - generic [ref=e258]: Open queue
+                  - generic [ref=e259]:
+                    - generic [ref=e261]:
+                      - generic [ref=e262]: Push
+                      - img [ref=e263]
+                      - generic [ref=e267]: Khmer New Year Capsule
+                    - paragraph [ref=e269]: steady demand, capacity holding, healthy margin
+                    - paragraph [ref=e271]: Capture upside while capacity is still holding
+                    - link "Open service" [ref=e273] [cursor=pointer]:
+                      - /url: "#/catalog/services/service-4"
+                      - img
+                      - generic [ref=e274]: Open service
+                  - generic [ref=e275]:
+                    - generic [ref=e277]:
+                      - generic [ref=e278]: Push
+                      - img [ref=e279]
+                      - generic [ref=e283]: Pchum Ben Ceremony Set
+                    - paragraph [ref=e285]: steady demand, capacity holding, healthy margin
+                    - paragraph [ref=e287]: Capture upside while capacity is still holding
+                    - link "Open service" [ref=e289] [cursor=pointer]:
+                      - /url: "#/catalog/services/service-7"
+                      - img
+                      - generic [ref=e290]: Open service
+            - generic [ref=e291]:
+              - generic [ref=e293]:
+                - generic [ref=e294]:
+                  - heading "Demand × capacity board" [level=2] [ref=e295]
+                  - button "Demand × capacity board help" [ref=e296] [cursor=pointer]:
+                    - img [ref=e297]
+                - paragraph [ref=e300]: A mixed scan across services and SKUs so the owner can read the portfolio in one pass rather than splitting by subsystem.
+              - generic [ref=e304]:
+                - generic [ref=e305]:
+                  - generic [ref=e307]:
+                    - generic [ref=e309]:
+                      - img [ref=e310]
+                      - link "Market Tote Add-On" [ref=e314] [cursor=pointer]:
+                        - /url: "#/catalog/services/service-1"
+                    - generic [ref=e315]: new inbound arrived.
+                  - generic [ref=e319]:
+                    - generic [ref=e320]:
+                      - application [ref=e323]
+                      - generic [ref=e327]: none
+                    - generic [ref=e328]:
+                      - generic [ref=e329]: Steady
+                      - img [ref=e330]
+                      - generic [ref=e332]: Steady
+                  - generic [ref=e334]:
+                    - generic [ref=e335]: Partially coverable
+                    - generic [ref=e336]: from partially coverable
+                  - generic [ref=e338]:
+                    - generic [ref=e339]: Overdue · 24 units
+                    - generic [ref=e340]: new inbound
+                  - generic [ref=e342]:
+                    - generic [ref=e343]: Margin pressure
+                    - generic [ref=e344]: unchanged
+                  - generic [ref=e346]:
+                    - generic [ref=e347]: Review price
+                    - img [ref=e348]
+                    - generic [ref=e350]: Review price
+                - generic [ref=e351]:
+                  - generic [ref=e353]:
+                    - generic [ref=e355]:
+                      - img [ref=e356]
+                      - link "Pchum Ben Ceremony Set" [ref=e360] [cursor=pointer]:
+                        - /url: "#/catalog/services/service-7"
+                    - generic [ref=e361]: new inbound arrived.
+                  - generic [ref=e365]:
+                    - generic [ref=e366]:
+                      - application [ref=e369]
+                      - generic [ref=e373]: none
+                    - generic [ref=e374]:
+                      - generic [ref=e375]: Steady
+                      - img [ref=e376]
+                      - generic [ref=e378]: Steady
+                  - generic [ref=e380]:
+                    - generic [ref=e381]: Capacity holding
+                    - generic [ref=e382]: from capacity holding
+                  - generic [ref=e384]:
+                    - generic [ref=e385]: Partial received · 44 in motion
+                    - generic [ref=e386]: new inbound
+                  - generic [ref=e388]:
+                    - generic [ref=e389]: Healthy margin
+                    - generic [ref=e390]: unchanged
+                  - generic [ref=e392]:
+                    - generic [ref=e393]: Push
+                    - img [ref=e394]
+                    - generic [ref=e396]: Push
+                - generic [ref=e397]:
+                  - generic [ref=e399]:
+                    - generic [ref=e401]:
+                      - img [ref=e402]
+                      - link "Wedding Premium Bundle" [ref=e406] [cursor=pointer]:
+                        - /url: "#/catalog/services/service-6"
+                    - generic [ref=e407]: new inbound arrived.
+                  - generic [ref=e411]:
+                    - generic [ref=e412]:
+                      - application [ref=e415]
+                      - generic [ref=e419]: none
+                    - generic [ref=e420]:
+                      - generic [ref=e421]: Steady
+                      - img [ref=e422]
+                      - generic [ref=e424]: Steady
+                  - generic [ref=e426]:
+                    - generic [ref=e427]: Capacity holding
+                    - generic [ref=e428]: from capacity holding
+                  - generic [ref=e430]:
+                    - generic [ref=e431]: Partial received · 44 in motion
+                    - generic [ref=e432]: new inbound
+                  - generic [ref=e434]:
+                    - generic [ref=e435]: Healthy margin
+                    - generic [ref=e436]: unchanged
+                  - generic [ref=e438]:
+                    - generic [ref=e439]: Push
+                    - img [ref=e440]
+                    - generic [ref=e442]: Push
+                - generic [ref=e443]:
+                  - generic [ref=e447]:
+                    - img [ref=e448]
+                    - link "Rattan Market Tote" [ref=e452] [cursor=pointer]:
+                      - /url: "#/catalog/skus/sku-1"
+                  - generic [ref=e456]:
+                    - generic [ref=e457]:
+                      - application [ref=e460]
+                      - generic [ref=e464]: none
+                    - generic [ref=e465]:
+                      - generic [ref=e466]: Strong
+                      - img [ref=e467]
+                      - generic [ref=e469]: Strong
+                  - generic [ref=e471]:
+                    - generic [ref=e472]: 2D cover · 2 service links
+                    - generic [ref=e473]: from 2D cover
+                  - generic [ref=e475]:
+                    - generic [ref=e476]: No inbound relief
+                    - generic [ref=e477]: no change
+                  - generic [ref=e479]:
+                    - generic [ref=e480]: Healthy margin · price drag $4.00
+                    - generic [ref=e481]: new price move
+                  - generic [ref=e483]:
+                    - generic [ref=e484]: Unblock
+                    - img [ref=e485]
+                    - generic [ref=e487]: Unblock
+                - generic [ref=e488]:
+                  - generic [ref=e492]:
+                    - img [ref=e493]
+                    - link "Back-to-School Family Promo" [ref=e497] [cursor=pointer]:
+                      - /url: "#/catalog/services/service-2"
+                  - generic [ref=e501]:
+                    - generic [ref=e502]:
+                      - application [ref=e505]
+                      - generic [ref=e509]: none
+                    - generic [ref=e510]:
+                      - generic [ref=e511]: Steady
+                      - img [ref=e512]
+                      - generic [ref=e514]: Steady
+                  - generic [ref=e516]:
+                    - generic [ref=e517]: Partially coverable
+                    - generic [ref=e518]: from partially coverable
+                  - generic [ref=e520]:
+                    - generic [ref=e521]: No inbound support
+                    - generic [ref=e522]: no change
+                  - generic [ref=e524]:
+                    - generic [ref=e525]: Margin pressure
+                    - generic [ref=e526]: unchanged
+                  - generic [ref=e528]:
+                    - generic [ref=e529]: Review price
+                    - img [ref=e530]
+                    - generic [ref=e532]: Review price
+                - generic [ref=e533]:
+                  - generic [ref=e537]:
+                    - img [ref=e538]
+                    - link "Children's Krama Set" [ref=e542] [cursor=pointer]:
+                      - /url: "#/catalog/skus/sku-2"
+                  - generic [ref=e546]:
+                    - generic [ref=e547]:
+                      - application [ref=e550]
+                      - generic [ref=e554]: none
+                    - generic [ref=e555]:
+                      - generic [ref=e556]: Strong
+                      - img [ref=e557]
+                      - generic [ref=e559]: Strong
+                  - generic [ref=e561]:
+                    - generic [ref=e562]: 3D cover · 2 service links
+                    - generic [ref=e563]: from 3D cover
+                  - generic [ref=e565]:
+                    - generic [ref=e566]: No inbound relief
+                    - generic [ref=e567]: no change
+                  - generic [ref=e569]:
+                    - generic [ref=e570]: Healthy margin
+                    - generic [ref=e571]: unchanged
+                  - generic [ref=e573]:
+                    - generic [ref=e574]: Unblock
+                    - img [ref=e575]
+                    - generic [ref=e577]: Unblock
+                - generic [ref=e578]:
+                  - generic [ref=e582]:
+                    - img [ref=e583]
+                    - link "Khmer New Year Capsule" [ref=e587] [cursor=pointer]:
+                      - /url: "#/catalog/services/service-4"
+                  - generic [ref=e591]:
+                    - generic [ref=e592]:
+                      - application [ref=e595]
+                      - generic [ref=e599]: none
+                    - generic [ref=e600]:
+                      - generic [ref=e601]: Steady
+                      - img [ref=e602]
+                      - generic [ref=e604]: Steady
+                  - generic [ref=e606]:
+                    - generic [ref=e607]: Capacity holding
+                    - generic [ref=e608]: from capacity holding
+                  - generic [ref=e610]:
+                    - generic [ref=e611]: No inbound support
+                    - generic [ref=e612]: no change
+                  - generic [ref=e614]:
+                    - generic [ref=e615]: Healthy margin
+                    - generic [ref=e616]: unchanged
+                  - generic [ref=e618]:
+                    - generic [ref=e619]: Push
+                    - img [ref=e620]
+                    - generic [ref=e622]: Push
+                - generic [ref=e623]:
+                  - generic [ref=e627]:
+                    - img [ref=e628]
+                    - link "Krama Cotton Scarf" [ref=e632] [cursor=pointer]:
+                      - /url: "#/catalog/skus/sku-3"
+                  - generic [ref=e636]:
+                    - generic [ref=e637]:
+                      - application [ref=e640]
+                      - generic [ref=e644]: none
+                    - generic [ref=e645]:
+                      - generic [ref=e646]: Strong
+                      - img [ref=e647]
+                      - generic [ref=e649]: Strong
+                  - generic [ref=e651]:
+                    - generic [ref=e652]: 3D cover · 2 service links
+                    - generic [ref=e653]: from 3D cover
+                  - generic [ref=e655]:
+                    - generic [ref=e656]: No inbound relief
+                    - generic [ref=e657]: no change
+                  - generic [ref=e659]:
+                    - generic [ref=e660]: Healthy margin
+                    - generic [ref=e661]: unchanged
+                  - generic [ref=e663]:
+                    - generic [ref=e664]: Unblock
+                    - img [ref=e665]
+                    - generic [ref=e667]: Unblock
+            - generic [ref=e668]:
+              - generic [ref=e670]:
+                - generic [ref=e671]:
+                  - heading "Cash and profit efficiency" [level=2] [ref=e672]
+                  - button "Cash and profit efficiency help" [ref=e673] [cursor=pointer]:
+                    - img [ref=e674]
+                - paragraph [ref=e677]: Three business bands for deciding what to push, what to recover, and what to clear before it weighs on the next period.
+              - generic [ref=e679]:
+                - generic [ref=e680]:
+                  - heading "Winners Winners help" [level=3] [ref=e682]:
+                    - img [ref=e683]
+                    - generic [ref=e689]:
+                      - generic [ref=e690]: Winners
+                      - button "Winners help" [ref=e691] [cursor=pointer]:
+                        - img [ref=e692]
+                  - generic [ref=e695]:
+                    - link "Khmer New Year Capsule Capacity holding · healthy margin" [ref=e696] [cursor=pointer]:
+                      - /url: "#/catalog/services/service-4"
+                      - generic [ref=e697]:
+                        - img [ref=e698]
+                        - paragraph [ref=e702]: Khmer New Year Capsule
+                      - paragraph [ref=e703]: Capacity holding · healthy margin
+                    - link "Pchum Ben Ceremony Set Capacity holding · healthy margin" [ref=e704] [cursor=pointer]:
+                      - /url: "#/catalog/services/service-7"
+                      - generic [ref=e705]:
+                        - img [ref=e706]
+                        - paragraph [ref=e710]: Pchum Ben Ceremony Set
+                      - paragraph [ref=e711]: Capacity holding · healthy margin
+                    - link "Wedding Premium Bundle Capacity holding · healthy margin" [ref=e712] [cursor=pointer]:
+                      - /url: "#/catalog/services/service-6"
+                      - generic [ref=e713]:
+                        - img [ref=e714]
+                        - paragraph [ref=e718]: Wedding Premium Bundle
+                      - paragraph [ref=e719]: Capacity holding · healthy margin
+                - generic [ref=e720]:
+                  - heading "Blocked profit Blocked profit help" [level=3] [ref=e722]:
+                    - img [ref=e723]
+                    - generic [ref=e725]:
+                      - generic [ref=e726]: Blocked profit
+                      - button "Blocked profit help" [ref=e727] [cursor=pointer]:
+                        - img [ref=e728]
+                  - generic [ref=e731]:
+                    - link "Rattan Market Tote 2D cover · 2 service links · no inbound relief" [ref=e732] [cursor=pointer]:
+                      - /url: "#/catalog/skus/sku-1"
+                      - generic [ref=e733]:
+                        - img [ref=e734]
+                        - paragraph [ref=e738]: Rattan Market Tote
+                      - paragraph [ref=e739]: 2D cover · 2 service links · no inbound relief
+                    - link "Children's Krama Set 3D cover · 2 service links · no inbound relief" [ref=e740] [cursor=pointer]:
+                      - /url: "#/catalog/skus/sku-2"
+                      - generic [ref=e741]:
+                        - img [ref=e742]
+                        - paragraph [ref=e746]: Children's Krama Set
+                      - paragraph [ref=e747]: 3D cover · 2 service links · no inbound relief
+                    - link "Krama Cotton Scarf 3D cover · 2 service links · no inbound relief" [ref=e748] [cursor=pointer]:
+                      - /url: "#/catalog/skus/sku-3"
+                      - generic [ref=e749]:
+                        - img [ref=e750]
+                        - paragraph [ref=e754]: Krama Cotton Scarf
+                      - paragraph [ref=e755]: 3D cover · 2 service links · no inbound relief
+                - generic [ref=e756]:
+                  - heading "Cash traps Cash traps help" [level=3] [ref=e758]:
+                    - img [ref=e759]
+                    - generic [ref=e762]:
+                      - generic [ref=e763]: Cash traps
+                      - button "Cash traps help" [ref=e764] [cursor=pointer]:
+                        - img [ref=e765]
+                  - link "Handwoven Belt 15 units · steady demand" [ref=e769] [cursor=pointer]:
+                    - /url: "#/catalog/skus/sku-4"
+                    - generic [ref=e770]:
+                      - img [ref=e771]
+                      - paragraph [ref=e775]: Handwoven Belt
+                    - paragraph [ref=e776]: 15 units · steady demand
+          - complementary [ref=e777]:
+            - generic [ref=e778]:
+              - heading "Operational drag Operational drag help" [level=3] [ref=e780]:
+                - generic [ref=e781]:
+                  - generic [ref=e782]: Operational drag
+                  - button "Operational drag help" [ref=e783] [cursor=pointer]:
+                    - img [ref=e784]
+              - generic [ref=e788]:
+                - paragraph [ref=e789]: 2 services partially blocked
+                - paragraph [ref=e790]: 1 overdue receipts
+                - paragraph [ref=e791]: 3 SKUs below safe cover
+            - generic [ref=e792]:
+              - heading "Recovery pipeline Recovery pipeline help" [level=3] [ref=e794]:
+                - generic [ref=e795]:
+                  - generic [ref=e796]: Recovery pipeline
+                  - button "Recovery pipeline help" [ref=e797] [cursor=pointer]:
+                    - img [ref=e798]
+              - generic [ref=e802]:
+                - link "Handwoven Belt Overdue" [ref=e803] [cursor=pointer]:
+                  - /url: "#/catalog/skus/sku-4"
+                  - paragraph [ref=e804]: Handwoven Belt
+                  - paragraph [ref=e805]: Overdue
+                - link "Premium Wedding Sampot Apr 9 ± 6D" [ref=e806] [cursor=pointer]:
+                  - /url: "#/catalog/skus/sku-5"
+                  - paragraph [ref=e807]: Premium Wedding Sampot
+                  - paragraph [ref=e808]: Apr 9 ± 6D
+            - generic [ref=e809]:
+              - heading "Price and margin watch Price and margin watch help" [level=3] [ref=e811]:
+                - generic [ref=e812]:
+                  - generic [ref=e813]: Price and margin watch
+                  - button "Price and margin watch help" [ref=e814] [cursor=pointer]:
+                    - img [ref=e815]
+              - generic [ref=e819]:
+                - link "Market Tote Add-On Margin pressure" [ref=e820] [cursor=pointer]:
+                  - /url: "#/catalog/services/service-1"
+                  - paragraph [ref=e821]: Market Tote Add-On
+                  - paragraph [ref=e822]: Margin pressure
+                - link "Back-to-School Family Promo Margin pressure" [ref=e823] [cursor=pointer]:
+                  - /url: "#/catalog/services/service-2"
+                  - paragraph [ref=e824]: Back-to-School Family Promo
+                  - paragraph [ref=e825]: Margin pressure
+                - link "Tourist Gift Pairing Margin pressure" [ref=e826] [cursor=pointer]:
+                  - /url: "#/catalog/services/service-3"
+                  - paragraph [ref=e827]: Tourist Gift Pairing
+                  - paragraph [ref=e828]: Margin pressure
+            - generic [ref=e829]:
+              - heading "Confidence / coverage Confidence / coverage help" [level=3] [ref=e831]:
+                - generic [ref=e832]:
+                  - generic [ref=e833]: Confidence / coverage
+                  - button "Confidence / coverage help" [ref=e834] [cursor=pointer]:
+                    - img [ref=e835]
+              - generic [ref=e839]:
+                - paragraph [ref=e840]: Signal coverage Good
+                - paragraph [ref=e841]: 5 observations in last 30d · last strong evidence Apr 3
+                - paragraph [ref=e842]: Least certain Rattan Market Tote · Krama Cotton Scarf
+        - generic [ref=e843]:
+          - generic [ref=e845]:
+            - generic [ref=e846]:
+              - heading "Business timeline" [level=2] [ref=e847]
+              - button "Business timeline help" [ref=e848] [cursor=pointer]:
+                - img [ref=e849]
+            - paragraph [ref=e852]: A compact temporal read of what has been changing in the business posture.
+          - generic [ref=e854]:
+            - generic [ref=e855]:
+              - generic [ref=e856]:
+                - generic:
+                  - img
+                - generic [ref=e858]:
+                  - paragraph [ref=e859]: Demand shift
+                  - paragraph [ref=e860]: Upside building
+                  - paragraph [ref=e861]: 3 entities pulling ahead across last 30d
+              - img [ref=e864]
+            - generic [ref=e867]:
+              - generic [ref=e868]:
+                - generic:
+                  - img
+                - generic [ref=e870]:
+                  - paragraph [ref=e871]: Stockout episode
+                  - paragraph [ref=e872]: Rattan Market Tote
+                  - paragraph [ref=e873]: $227.44 tied up in blocked demand
+              - img [ref=e876]
+            - generic [ref=e879]:
+              - generic [ref=e880]:
+                - generic:
+                  - img
+                - generic [ref=e882]:
+                  - paragraph [ref=e883]: Receipt arrival
+                  - paragraph [ref=e884]: Handwoven Belt
+                  - paragraph [ref=e885]: Overdue
+              - img [ref=e888]
+            - generic [ref=e891]:
+              - generic [ref=e892]:
+                - generic:
+                  - img
+                - generic [ref=e894]:
+                  - paragraph [ref=e895]: Price change
+                  - paragraph [ref=e896]: Market Tote Add-On
+                  - paragraph [ref=e897]: Margin pressure
+              - img [ref=e900]
+            - generic [ref=e904]:
+              - generic:
+                - img
+              - generic [ref=e906]:
+                - paragraph [ref=e907]: Promo / recovery
+                - paragraph [ref=e908]: Khmer New Year Capsule
+                - paragraph [ref=e909]: Capacity holding · healthy margin

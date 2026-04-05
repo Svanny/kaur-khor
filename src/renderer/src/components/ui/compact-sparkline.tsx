@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Sparklines } from 'react-sparklines';
+import { useEffect, useRef, useState } from 'react';
+import { Area, AreaChart, ReferenceDot, ReferenceLine, XAxis, YAxis } from 'recharts';
 import { demandSparklineToneColors } from '@/lib/state-tones';
 
 export type CompactSparklineTone = 'up' | 'flat' | 'down';
@@ -14,159 +14,131 @@ export interface CompactSparklineProps {
   width?: number;
 }
 
-type SparklineColors = ReturnType<typeof demandSparklineToneColors>;
-
 const PREVIOUS_SEGMENT_STYLE = demandSparklineToneColors('previous');
+const CHART_MARGIN = 2;
 
-const SPARKLINE_MARGIN = 2;
-const STROKE_WIDTH = 2.2;
-
-type ChartPoint = {
-  x: number;
-  y: number;
-};
-
-function polylinePoints(points: ChartPoint[]) {
-  return points.flatMap((point) => [point.x, point.y]).join(' ');
+function midpoint(left: number, right: number) {
+  return (left + right) / 2;
 }
 
-function areaPoints({
-  height,
-  points,
-}: {
-  height: number;
-  points: ChartPoint[];
-}) {
-  const base = polylinePoints(points);
-  const endPoint = points[points.length - 1];
-  const startPoint = points[0];
-  if (!endPoint || !startPoint) {
-    return '';
+function buildChartData(points: number[], splitIndex?: number) {
+  const normalized = points.length > 1 ? points : [points[0] ?? 0, points[0] ?? 0];
+  const showSplit = splitIndex != null && splitIndex > 0 && splitIndex < normalized.length;
+
+  if (!showSplit) {
+    return {
+      boundary: null,
+      rows: normalized.map((value, index) => ({
+        area: value,
+        current: value,
+        previous: null,
+        x: index,
+      })),
+    };
   }
-  return `${base} ${endPoint.x} ${height - SPARKLINE_MARGIN} ${startPoint.x} ${height - SPARKLINE_MARGIN} ${startPoint.x} ${startPoint.y}`;
-}
 
-function midpoint(left: ChartPoint, right: ChartPoint): ChartPoint {
+  const left = normalized[splitIndex - 1];
+  const right = normalized[splitIndex];
+  const boundaryY = midpoint(left ?? 0, right ?? 0);
+  const boundaryX = splitIndex - 0.5;
+  const rows = normalized.flatMap((value, index) => {
+    const row = {
+      area: value,
+      current: index >= splitIndex ? value : null,
+      previous: index < splitIndex ? value : null,
+      x: index,
+    };
+
+    if (index === splitIndex - 1) {
+      return [
+        row,
+        {
+          area: boundaryY,
+          current: boundaryY,
+          previous: boundaryY,
+          x: boundaryX,
+        },
+      ];
+    }
+
+    return [row];
+  });
+
   return {
-    x: (left.x + right.x) / 2,
-    y: (left.y + right.y) / 2,
+    boundary: { x: boundaryX, y: boundaryY },
+    rows,
   };
 }
 
-function SparklineSegment({
+function SparklineChart({
+  boundary,
   colors,
   height,
-  margin,
-  points,
-}: {
-  colors: SparklineColors;
-  height: number;
-  margin: number;
-  points: ChartPoint[];
-}) {
-  if (points.length < 2) {
-    return null;
-  }
-
-  return (
-    <g>
-      <polyline
-        points={areaPoints({ height, points })}
-        style={{ fill: colors.fill, fillOpacity: colors.fillOpacity, stroke: 'none', strokeWidth: 0 }}
-      />
-      <polyline
-        points={polylinePoints(points)}
-        style={{ fill: 'none', stroke: colors.stroke, strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: STROKE_WIDTH }}
-      />
-    </g>
-  );
-}
-
-function SparklineRenderer({
-  color,
-  data,
-  height,
-  margin,
-  points,
+  rows,
   splitIndex,
-}: {
-  color: CompactSparklineTone;
-  data?: number[];
-  height?: number;
-  margin?: number;
-  points?: ChartPoint[];
-  splitIndex?: number;
-}) {
-  if (!points || points.length === 0 || !height || margin == null) {
-    return null;
-  }
-
-  const colors = demandSparklineToneColors(color);
-  const showSplit = splitIndex != null && splitIndex > 0 && splitIndex < points.length;
-
-  if (!showSplit) {
-    return <SparklineSegment colors={colors} height={height} margin={margin} points={points} />;
-  }
-
-  const leftPoint = points[splitIndex - 1];
-  const rightPoint = points[splitIndex];
-  if (!leftPoint || !rightPoint) {
-    return <SparklineSegment colors={colors} height={height} margin={margin} points={points} />;
-  }
-
-  const boundary = midpoint(leftPoint, rightPoint);
-  const previousPoints = [...points.slice(0, splitIndex), boundary];
-  const currentPoints = [boundary, ...points.slice(splitIndex)];
-
-  return (
-    <g>
-      <SparklineSegment colors={PREVIOUS_SEGMENT_STYLE} height={height} margin={margin} points={previousPoints} />
-      <SparklineSegment colors={colors} height={height} margin={margin} points={currentPoints} />
-      <line
-        stroke="rgba(48,31,20,0.35)"
-        strokeDasharray="4 3"
-        strokeWidth={STROKE_WIDTH}
-        x1={boundary.x}
-        x2={boundary.x}
-        y1={margin}
-        y2={height - margin}
-      />
-      <circle
-        cx={boundary.x}
-        cy={boundary.y}
-        fill={colors.stroke}
-        r={3.8}
-        stroke="white"
-        strokeWidth={1.8}
-      />
-    </g>
-  );
-}
-
-function SparklineSvg({
-  children,
-  data,
-  height,
-  preserveAspectRatio,
   width,
 }: {
-  children: ReactNode;
-  data: number[];
+  boundary: { x: number; y: number } | null;
+  colors: ReturnType<typeof demandSparklineToneColors>;
   height: number;
-  preserveAspectRatio?: string;
+  rows: Array<{ area: number; current: number | null; previous: number | null; x: number }>;
+  splitIndex?: number;
   width: number;
 }) {
   return (
-    <Sparklines
-      data={data}
-      height={height}
-      margin={SPARKLINE_MARGIN}
-      preserveAspectRatio={preserveAspectRatio}
-      style={{ display: 'block', height: '100%', overflow: 'visible', width: '100%' }}
-      width={width}
-    >
-      {children}
-    </Sparklines>
+    <AreaChart data={rows} height={height} margin={{ bottom: CHART_MARGIN, left: CHART_MARGIN, right: CHART_MARGIN, top: CHART_MARGIN }} width={width}>
+      <XAxis allowDataOverflow dataKey="x" domain={[0, Math.max(rows.at(-1)?.x ?? 1, 1)]} hide type="number" />
+      <YAxis allowDataOverflow domain={['dataMin', 'dataMax']} hide type="number" />
+      {boundary ? (
+        <ReferenceLine
+          ifOverflow="extendDomain"
+          stroke="rgba(48,31,20,0.35)"
+          strokeDasharray="4 3"
+          strokeWidth={2.2}
+          x={boundary.x}
+        />
+      ) : null}
+      {splitIndex != null ? (
+        <Area
+          activeDot={false}
+          dataKey="previous"
+          dot={false}
+          fill={PREVIOUS_SEGMENT_STYLE.fill}
+          fillOpacity={PREVIOUS_SEGMENT_STYLE.fillOpacity}
+          isAnimationActive={false}
+          stroke={PREVIOUS_SEGMENT_STYLE.stroke}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2.2}
+          type="monotone"
+        />
+      ) : null}
+      <Area
+        activeDot={false}
+        dataKey={splitIndex != null ? 'current' : 'area'}
+        dot={false}
+        fill={colors.fill}
+        fillOpacity={colors.fillOpacity}
+        isAnimationActive={false}
+        stroke={colors.stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.2}
+        type="monotone"
+      />
+      {boundary ? (
+        <ReferenceDot
+          fill={colors.stroke}
+          ifOverflow="extendDomain"
+          isFront
+          r={3.8}
+          stroke="white"
+          strokeWidth={1.8}
+          x={boundary.x}
+          y={boundary.y}
+        />
+      ) : null}
+    </AreaChart>
   );
 }
 
@@ -179,13 +151,46 @@ export function CompactSparkline({
   tone = 'flat',
   width = 56,
 }: CompactSparklineProps) {
-  const data = points.length > 1 ? points : [points[0] ?? 0, points[0] ?? 0];
+  const colors = demandSparklineToneColors(tone);
+  const { boundary, rows } = buildChartData(points, splitIndex);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const isJsdom = typeof navigator !== 'undefined' && navigator.userAgent.includes('jsdom');
+  const [measuredWidth, setMeasuredWidth] = useState(width);
+
+  useEffect(() => {
+    if (isJsdom) {
+      setMeasuredWidth(width);
+      return;
+    }
+
+    const node = rootRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateWidth = () => {
+      const nextWidth = Math.max(node.clientWidth, width);
+      setMeasuredWidth(nextWidth);
+    };
+
+    const observer = new ResizeObserver(() => updateWidth());
+    observer.observe(node);
+    updateWidth();
+    return () => observer.disconnect();
+  }, [isJsdom, width]);
 
   return (
-    <div aria-hidden="true" className={`${className ?? ''}`.trim()} data-split-index={splitIndex} data-tone={tone}>
-      <SparklineSvg data={data} height={height} preserveAspectRatio={preserveAspectRatio} width={width}>
-        <SparklineRenderer color={tone} splitIndex={splitIndex} />
-      </SparklineSvg>
+    <div
+      aria-hidden="true"
+      className={`${className ?? ''}`.trim()}
+      data-chart-kind="compact-sparkline"
+      data-split-index={splitIndex}
+      data-tone={tone}
+      ref={rootRef}
+      style={{ height, maxWidth: '100%', minWidth: width, width: '100%' }}
+    >
+      <SparklineChart boundary={boundary} colors={colors} height={height} rows={rows} splitIndex={splitIndex} width={measuredWidth} />
+      {preserveAspectRatio ? <span className="sr-only">{preserveAspectRatio}</span> : null}
     </div>
   );
 }

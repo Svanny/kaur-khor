@@ -1,0 +1,383 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e7]:
+    - button "Collapse navigation" [ref=e9] [cursor=pointer]:
+      - generic [ref=e10]:
+        - img [ref=e11]
+        - img [ref=e13]
+      - generic [ref=e15]: Banji
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: Main
+          - list [ref=e21]:
+            - listitem [ref=e22]:
+              - link "Overview" [ref=e23] [cursor=pointer]:
+                - /url: "#/"
+                - img [ref=e24]
+                - generic [ref=e29]: Overview
+            - listitem [ref=e30]:
+              - link "Performance" [ref=e31] [cursor=pointer]:
+                - /url: "#/performance"
+                - img [ref=e32]
+                - generic [ref=e35]: Performance
+            - listitem [ref=e36]:
+              - link "Catalog" [ref=e37] [cursor=pointer]:
+                - /url: "#/catalog"
+                - img [ref=e38]
+                - generic [ref=e48]: Catalog
+        - generic [ref=e49]:
+          - generic [ref=e50]: Other
+          - list [ref=e52]:
+            - listitem [ref=e53]:
+              - link "Analysis" [ref=e54] [cursor=pointer]:
+                - /url: "#/analysis"
+                - img [ref=e55]
+                - generic [ref=e59]: Analysis
+            - listitem [ref=e60]:
+              - link "Logs" [ref=e61] [cursor=pointer]:
+                - /url: "#/operations"
+                - img [ref=e62]
+                - generic [ref=e64]: Logs
+      - list [ref=e67]:
+        - listitem [ref=e68]:
+          - button "Maximal View" [ref=e69] [cursor=pointer]:
+            - img [ref=e70]
+            - generic [ref=e72]: Maximal View
+        - listitem [ref=e73]:
+          - link "Settings" [ref=e74] [cursor=pointer]:
+            - /url: "#/settings"
+            - img [ref=e75]
+            - generic [ref=e78]: Settings
+  - main [ref=e79]:
+    - main [ref=e81]:
+      - generic [ref=e83]:
+        - generic [ref=e85]:
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - paragraph [ref=e88]: Analysis
+              - generic [ref=e89]:
+                - generic [ref=e90]: Deep Review
+                - generic [ref=e92]: Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.
+            - group "Select analysis scope" [ref=e95]:
+              - radio "All" [checked] [ref=e96] [cursor=pointer]:
+                - img
+                - text: All
+              - radio "Services" [ref=e97] [cursor=pointer]:
+                - img
+                - text: Services
+              - radio "SKUs" [ref=e98] [cursor=pointer]:
+                - img
+                - text: SKUs
+          - generic [ref=e100]:
+            - generic [ref=e101]: Updated Apr 3, 3:00 PM
+            - generic [ref=e102]: Mixed system scan across SKUs and services · 5 observations · 0 intervals
+        - generic [ref=e103]:
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - paragraph [ref=e107]: Current regime
+              - paragraph [ref=e108]: Normal
+              - paragraph [ref=e109]: 0 intervals in view
+            - generic [ref=e110]:
+              - paragraph [ref=e111]: Pipeline pressure
+              - paragraph [ref=e112]: medium
+              - paragraph [ref=e113]: 1 pending reorder cues
+            - generic [ref=e114]:
+              - paragraph [ref=e115]: Lead-time stability
+              - paragraph [ref=e116]: stable
+              - paragraph [ref=e117]: 20% composite risk
+            - generic [ref=e118]:
+              - paragraph [ref=e119]: Price shift activity
+              - paragraph [ref=e120]: watching
+              - paragraph [ref=e121]: 1 price observations
+            - generic [ref=e122]:
+              - paragraph [ref=e123]: Model coverage
+              - paragraph [ref=e124]: high
+              - paragraph [ref=e125]: 91% coverage estimate
+            - generic [ref=e126]:
+              - paragraph [ref=e127]: Top structural bottleneck
+              - paragraph [ref=e128]: Rattan Market Tote
+              - paragraph [ref=e129]: 63 pressure score
+          - generic [ref=e130]:
+            - tablist "Select analysis surface" [ref=e132]:
+              - tab "Workbench" [selected] [ref=e133] [cursor=pointer]:
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic [ref=e134]:
+                  - img [ref=e136]
+                  - generic [ref=e143]: Workbench
+                - generic:
+                  - generic:
+                    - generic:
+                      - img
+                    - generic: Workbench
+                  - generic:
+                    - generic: Workbench
+              - tab "Pressure" [ref=e144] [cursor=pointer]:
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic [ref=e145]:
+                  - img [ref=e147]
+                  - generic [ref=e149]: Pressure
+                - generic:
+                  - generic:
+                    - generic:
+                      - img
+                    - generic: Pressure
+                  - generic:
+                    - generic: Pressure
+              - tab "Observations" [ref=e150] [cursor=pointer]:
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic [ref=e151]:
+                  - img [ref=e153]
+                  - generic [ref=e157]: Observations
+                - generic:
+                  - generic:
+                    - generic:
+                      - img
+                    - generic: Observations
+                  - generic:
+                    - generic: Observations
+              - tab "Fragility" [ref=e158] [cursor=pointer]:
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic [ref=e159]:
+                  - img [ref=e161]
+                  - generic [ref=e163]: Fragility
+                - generic:
+                  - generic:
+                    - generic:
+                      - img
+                    - generic: Fragility
+                  - generic:
+                    - generic: Fragility
+              - tab "Evidence" [ref=e164] [cursor=pointer]:
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic [ref=e165]:
+                  - img [ref=e167]
+                  - generic [ref=e171]: Evidence
+                - generic:
+                  - generic:
+                    - generic:
+                      - img
+                    - generic: Evidence
+                  - generic:
+                    - generic: Evidence
+              - tab "Settings" [ref=e172] [cursor=pointer]:
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic:
+                  - generic:
+                    - img:
+                      - img
+                      - generic:
+                        - img
+                - generic [ref=e173]:
+                  - img [ref=e175]
+                  - generic [ref=e186]: Settings
+                - generic:
+                  - generic:
+                    - generic:
+                      - img
+                    - generic: Settings
+                  - generic:
+                    - generic: Settings
+            - generic [ref=e188]:
+              - generic [ref=e192]:
+                - generic [ref=e194]:
+                  - generic [ref=e195]:
+                    - heading "SENA system ledger" [level=2] [ref=e196]
+                    - button "SENA system ledger help" [ref=e197] [cursor=pointer]:
+                      - img [ref=e198]
+                  - paragraph [ref=e201]: Observation to inference to operational consequence in one canvas. Each interval stays aligned across regime, flow, pipeline, and lead-time lanes.
+                - generic [ref=e208]:
+                  - generic [ref=e209]:
+                    - generic [ref=e211]:
+                      - paragraph [ref=e212]:
+                        - generic [ref=e213]:
+                          - generic [ref=e214]: Regime + price lane
+                          - button "Regime + price lane help" [ref=e215] [cursor=pointer]:
+                            - img [ref=e216]
+                      - paragraph [ref=e219]: Continuous regime state with price and stockout cues carried as lightweight markers instead of interval cards.
+                    - generic [ref=e220]:
+                      - generic [ref=e221]:
+                        - generic [ref=e222]: Price cues
+                        - generic [ref=e224]: Stockout cues
+                      - application [ref=e231]
+                  - generic [ref=e232]:
+                    - generic [ref=e234]:
+                      - paragraph [ref=e235]:
+                        - generic [ref=e236]:
+                          - generic [ref=e237]: Inventory + demand lane
+                          - button "Inventory + demand lane help" [ref=e238] [cursor=pointer]:
+                            - img [ref=e239]
+                      - paragraph [ref=e242]: Inventory trajectory stays continuous while service demand, retail demand, receipts, and adjustments remain interval-native.
+                    - generic [ref=e243]:
+                      - generic [ref=e244]:
+                        - generic [ref=e245]: Inventory band
+                        - generic [ref=e247]: Inventory mean
+                        - generic [ref=e249]: Service demand
+                        - generic [ref=e251]: Retail demand
+                        - generic [ref=e253]: Receipts
+                        - generic [ref=e255]: Adjustments
+                      - generic [ref=e258]:
+                        - application [ref=e263]
+                        - application [ref=e268]
+                  - generic [ref=e269]:
+                    - generic [ref=e271]:
+                      - paragraph [ref=e272]:
+                        - generic [ref=e273]:
+                          - generic [ref=e274]: Pipeline lane
+                          - button "Pipeline lane help" [ref=e275] [cursor=pointer]:
+                            - img [ref=e276]
+                      - paragraph [ref=e279]: Aggregate transit windows approximate the pipeline story now, with order and receipt activity pulled out as explicit markers.
+                    - generic [ref=e280]:
+                      - generic [ref=e281]:
+                        - generic [ref=e282]: In-transit window
+                        - generic [ref=e284]: Order cue
+                        - generic [ref=e286]: Receipt cue
+                      - application [ref=e293]
+                  - generic [ref=e294]:
+                    - generic [ref=e296]:
+                      - paragraph [ref=e297]:
+                        - generic [ref=e298]:
+                          - generic [ref=e299]: Lead-time lane
+                          - button "Lead-time lane help" [ref=e300] [cursor=pointer]:
+                            - img [ref=e301]
+                      - paragraph [ref=e304]: Lead-time drift reads as a trajectory with spread, while variability class stays available on selection instead of printed everywhere.
+                    - generic [ref=e305]:
+                      - generic [ref=e306]:
+                        - generic [ref=e307]: Spread band
+                        - generic [ref=e309]: Mean lead time
+                      - application [ref=e316]
+              - complementary [ref=e317]:
+                - generic [ref=e318]:
+                  - generic [ref=e319]:
+                    - img [ref=e321]
+                    - heading "Current system state Current system state help" [level=2] [ref=e325]:
+                      - generic [ref=e326]:
+                        - generic [ref=e327]: Current system state
+                        - button "Current system state help" [ref=e328] [cursor=pointer]:
+                          - img [ref=e329]
+                  - paragraph [ref=e332]: Normal
+                  - generic [ref=e333]:
+                    - paragraph [ref=e334]: Change-point probability 22%
+                    - paragraph [ref=e335]: 84 ESS · high coverage
+                - generic [ref=e336]:
+                  - generic [ref=e337]:
+                    - img [ref=e339]
+                    - heading "Strongest channels Strongest channels help" [level=2] [ref=e345]:
+                      - generic [ref=e346]:
+                        - generic [ref=e347]: Strongest channels
+                        - button "Strongest channels help" [ref=e348] [cursor=pointer]:
+                          - img [ref=e349]
+                  - generic [ref=e352]:
+                    - generic [ref=e354]: note (5)
+                    - generic [ref=e356]: order placed (2)
+                    - generic [ref=e358]: price signal (1)
+                - generic [ref=e359]:
+                  - generic [ref=e360]:
+                    - img [ref=e362]
+                    - heading "Affected entities Affected entities help" [level=2] [ref=e365]:
+                      - generic [ref=e366]:
+                        - generic [ref=e367]: Affected entities
+                        - button "Affected entities help" [ref=e368] [cursor=pointer]:
+                          - img [ref=e369]
+                  - generic [ref=e372]:
+                    - generic [ref=e374]: Rattan Market Tote
+                    - generic [ref=e376]: Children's Krama Set
+                    - generic [ref=e378]: Krama Cotton Scarf
+                    - generic [ref=e380]: Premium Wedding Sampot
