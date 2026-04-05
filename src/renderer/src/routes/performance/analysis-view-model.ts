@@ -414,11 +414,9 @@ function filterObservationsForScope({
 
 function buildIntervalBounds({
   diagnostics,
-  observations,
   skuDetailsById,
 }: {
   diagnostics: SenaDiagnostics | null;
-  observations: SenaObservationRecord[];
   skuDetailsById: Record<string, SenaSkuDetail | null>;
 }) {
   const entries = new Map<number, { intervalIndex: number; startAt: string | null; endAt: string | null; regime: string }>();
@@ -442,33 +440,6 @@ function buildIntervalBounds({
         regime: current?.regime ?? 'normal',
       });
     }
-    for (const interval of detail?.pipelinePosterior ?? []) {
-      const current = entries.get(interval.intervalIndex);
-      entries.set(interval.intervalIndex, {
-        intervalIndex: interval.intervalIndex,
-        startAt: current?.startAt ?? null,
-        endAt: current?.endAt ?? null,
-        regime: current?.regime ?? 'normal',
-      });
-    }
-    for (const interval of detail?.leadTimePosterior ?? []) {
-      const current = entries.get(interval.intervalIndex);
-      entries.set(interval.intervalIndex, {
-        intervalIndex: interval.intervalIndex,
-        startAt: current?.startAt ?? null,
-        endAt: current?.endAt ?? null,
-        regime: current?.regime ?? 'normal',
-      });
-    }
-  }
-
-  if (entries.size === 0) {
-    return orderedObservations(observations).map((observation, index) => ({
-      intervalIndex: index,
-      startAt: observation.input.observedAt,
-      endAt: observation.input.observedAt,
-      regime: diagnostics?.regimeHistory.at(-1)?.dominantRegime ?? 'normal',
-    }));
   }
 
   return [...entries.values()].sort((left, right) => left.intervalIndex - right.intervalIndex);
@@ -660,7 +631,7 @@ export function deriveAnalysisViewModel({
     observations,
     scope,
   });
-  const allIntervals = buildIntervalBounds({ diagnostics, observations, skuDetailsById });
+  const allIntervals = buildIntervalBounds({ diagnostics, skuDetailsById });
   const filteredIntervals = filterIntervalsForScope({
     intervals: allIntervals,
   });

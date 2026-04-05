@@ -22,16 +22,17 @@ import {
   clampScrollLeft,
   DEFAULT_SLOT_WIDTH,
   deriveAxisContentWidth,
+  deriveSlotCenterX,
   deriveViewportPageScrollLeft,
   IntervalStrip,
   SCROLL_EDGE_TOLERANCE,
 } from '@/components/system/interval-strip';
 import {
-  IntervalBarTimelineChart,
-  MeanBandTimelineChart,
-  SparseTimelineChart,
+  buildPointCoordinatesWithDomain,
+  buildPolylineWithDomain,
+  buildTrajectoryBandPath,
+  deriveLabelGutterOffset,
   SelectedIntervalColumnOverlay,
-  TimelineRangeChart,
 } from '@/components/system/timeline-chart';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import {
@@ -158,9 +159,10 @@ function regimeFill(regime: string) {
 
 const LANE_LABEL_COLUMN = '14rem';
 const CHART_GUTTER_HEIGHT = 24;
+const CHART_VIEWBOX_HEIGHT = 42;
 const INVENTORY_LANE_HEIGHT = 168;
 const LEAD_TIME_LANE_HEIGHT = 132;
-const PIPELINE_LANE_HEIGHT = 148;
+const PIPELINE_LANE_HEIGHT = 122;
 
 function LaneLabel({
   title,
@@ -326,39 +328,68 @@ function SystemLedger({
   const selectedIntervalPosition = selectedIntervalIndex == null
     ? null
     : model.workbench.regimePriceLane.intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.intervalPosition ?? null;
-  const regimeSlots = model.workbench.regimePriceLane.intervals.map((interval) => ({
-    ariaLabel: `${interval.dominantRegime} regime, ${interval.cueSummary}`,
-    fill: regimeFill(interval.dominantRegime),
-    intervalIndex: interval.intervalIndex,
-    intervalPosition: interval.intervalPosition,
-  }));
   const inventoryPoints = model.workbench.inventoryDemandLane.points;
-  const inventoryChartData = inventoryPoints.map((point) => ({
-    high: point.inventoryHigh,
-    intervalIndex: point.intervalIndex,
-    intervalPosition: point.intervalPosition,
-    low: point.inventoryLow,
-    mean: point.inventoryMean,
-  }));
-  const inventoryFlowChartData = inventoryPoints.map((point) => ({
-    ariaLabel: `Service demand ${Math.round(point.serviceDemandMean)}, retail demand ${Math.round(point.retailDemandMean)}, receipts ${Math.round(point.receiptsMean)}, adjustments ${Math.round(point.adjustmentsMean)}`,
-    intervalIndex: point.intervalIndex,
-    values: {
-      adjustmentsNegative: Math.min(point.adjustmentsMean, 0),
-      adjustmentsPositive: Math.max(point.adjustmentsMean, 0),
-      receipts: Math.abs(point.receiptsMean),
-      retailDemand: -Math.abs(point.retailDemandMean),
-      serviceDemand: -Math.abs(point.serviceDemandMean),
-    },
-  }));
+  const inventoryMeanValues = inventoryPoints.map((point) => point.inventoryMean);
+  const inventoryLowValues = inventoryPoints.map((point) => point.inventoryLow);
+  const inventoryHighValues = inventoryPoints.map((point) => point.inventoryHigh);
+  const inventoryDomainMin = inventoryLowValues.length > 0 ? Math.min(...inventoryLowValues) : 0;
+  const inventoryDomainMax = inventoryHighValues.length > 0 ? Math.max(...inventoryHighValues) : 1;
+  const inventoryPolyline = buildPolylineWithDomain(
+    inventoryMeanValues,
+    slotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    inventoryDomainMin,
+    inventoryDomainMax,
+    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+  );
+  const inventoryCoordinates = buildPointCoordinatesWithDomain(
+    inventoryMeanValues,
+    slotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    inventoryDomainMin,
+    inventoryDomainMax,
+    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+  );
+  const inventoryBandPath = buildTrajectoryBandPath(
+    inventoryLowValues,
+    inventoryHighValues,
+    slotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    inventoryDomainMin,
+    inventoryDomainMax,
+    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+  );
   const leadTimePoints = model.workbench.leadTimeLane.points;
-  const leadTimeChartData = leadTimePoints.map((point) => ({
-    high: point.highDays,
-    intervalIndex: point.intervalIndex,
-    intervalPosition: point.intervalPosition,
-    low: point.lowDays,
-    mean: point.meanDays,
-  }));
+  const leadTimeMeanValues = leadTimePoints.map((point) => point.meanDays);
+  const leadTimeLowValues = leadTimePoints.map((point) => point.lowDays);
+  const leadTimeHighValues = leadTimePoints.map((point) => point.highDays);
+  const leadTimeDomainMin = leadTimeLowValues.length > 0 ? Math.min(...leadTimeLowValues) : 0;
+  const leadTimeDomainMax = leadTimeHighValues.length > 0 ? Math.max(...leadTimeHighValues) : 1;
+  const leadTimePolyline = buildPolylineWithDomain(
+    leadTimeMeanValues,
+    slotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    leadTimeDomainMin,
+    leadTimeDomainMax,
+    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+  );
+  const leadTimeCoordinates = buildPointCoordinatesWithDomain(
+    leadTimeMeanValues,
+    slotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    leadTimeDomainMin,
+    leadTimeDomainMax,
+    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+  );
+  const leadTimeBandPath = buildTrajectoryBandPath(
+    leadTimeLowValues,
+    leadTimeHighValues,
+    slotWidth,
+    CHART_VIEWBOX_HEIGHT,
+    leadTimeDomainMin,
+    leadTimeDomainMax,
+    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+  );
 
   useEffect(() => {
     const node = intervalScrollRef.current;
@@ -473,59 +504,47 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <SparseTimelineChart
-                    axisEndPadding={AXIS_END_PADDING}
-                    axisStartPadding={AXIS_START_PADDING}
-                    gutterHeight={0}
-                    lineStroke="rgba(48,31,20,0)"
-                    plotHeight={92}
-                    pointButtons={{
-                      ariaLabel: () => '',
-                      onSelect: () => undefined,
-                      selected: () => false,
+                  <div
+                    className="absolute inset-y-0 grid items-center px-0"
+                    style={{
+                      paddingLeft: AXIS_START_PADDING,
+                      paddingRight: AXIS_END_PADDING,
+                      gridTemplateColumns: `repeat(${Math.max(itemCount, 1)}, ${slotWidth}px)`,
                     }}
-                    points={[]}
-                    slotButtons={{
-                      className: 'px-1 py-2',
-                      onSelect: (slot) => setSelection({ type: 'interval', intervalIndex: slot.intervalIndex }),
-                      renderContent: (slot, isSelected) => {
-                        const interval = model.workbench.regimePriceLane.intervals.find((entry) => entry.intervalIndex === slot.intervalIndex);
-                        if (!interval) {
-                          return null;
-                        }
-                        return (
-                          <span
-                            className={cn(
-                              'relative block h-[4.1rem] rounded-[1rem] border text-left transition-transform hover:-translate-y-0.5',
-                              isSelected ? 'border-foreground/20 shadow-sm' : 'border-white/70',
-                            )}
-                          >
-                            <span className="absolute left-2.5 top-2 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-foreground/70">
-                              {interval.dominantRegime}
+                  >
+                    {model.workbench.regimePriceLane.intervals.map((interval) => (
+                      <button
+                        key={`regime:${interval.intervalIndex}`}
+                        aria-label={`${interval.dominantRegime} regime, ${interval.cueSummary}`}
+                        className={cn(
+                          'relative mx-1 h-[4.1rem] rounded-[1rem] border text-left transition-transform hover:-translate-y-0.5',
+                          selectedIntervalIndex === interval.intervalIndex ? 'border-foreground/20 shadow-sm' : 'border-white/70',
+                        )}
+                        style={{ backgroundColor: regimeFill(interval.dominantRegime) }}
+                        type="button"
+                        onClick={() => setSelection({ type: 'interval', intervalIndex: interval.intervalIndex })}
+                      >
+                        <span className="absolute left-2.5 top-2 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-foreground/70">
+                          {interval.dominantRegime}
+                        </span>
+                        <span className="absolute inset-x-2.5 bottom-2 flex items-center gap-1.5">
+                          {interval.priceCueCount > 0 ? (
+                            <span className="inline-flex items-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
+                              {interval.priceCueCount}P
                             </span>
-                            <span className="absolute inset-x-2.5 bottom-2 flex items-center gap-1.5">
-                              {interval.priceCueCount > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
-                                  {interval.priceCueCount}P
-                                </span>
-                              ) : null}
-                              {interval.stockoutCueCount > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
-                                  {interval.stockoutCueCount}S
-                                </span>
-                              ) : null}
-                              {interval.priceCueCount === 0 && interval.stockoutCueCount === 0 ? (
-                                <span className="text-[0.62rem] text-foreground/60">Quiet</span>
-                              ) : null}
+                          ) : null}
+                          {interval.stockoutCueCount > 0 ? (
+                            <span className="inline-flex items-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
+                              {interval.stockoutCueCount}S
                             </span>
-                          </span>
-                        );
-                      },
-                      selected: (slot) => slot.intervalIndex === selectedIntervalIndex,
-                    }}
-                    slots={regimeSlots}
-                    slotWidth={slotWidth}
-                  />
+                          ) : null}
+                          {interval.priceCueCount === 0 && interval.stockoutCueCount === 0 ? (
+                            <span className="text-[0.62rem] text-foreground/60">Quiet</span>
+                          ) : null}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -575,58 +594,81 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <div className="absolute left-0 top-0">
-                    <MeanBandTimelineChart
-                      axisEndPadding={AXIS_END_PADDING}
-                      axisStartPadding={AXIS_START_PADDING}
-                      bandFill="rgba(48,31,20,0.1)"
-                      data={inventoryChartData}
-                      gutterHeight={CHART_GUTTER_HEIGHT}
-                      lineStroke="rgba(48,31,20,1)"
-                      plotHeight={72}
-                      pointButtons={{
-                        ariaLabel: (datum) => `Inventory ${Math.round(datum.mean)} units in interval ${datum.intervalIndex + 1}`,
-                        onSelect: (datum) => setSelection({ type: 'interval', intervalIndex: datum.intervalIndex }),
-                        selected: (datum) => selectedIntervalIndex === datum.intervalIndex,
-                        selectedLabel: (datum) => (
+                  <svg
+                    aria-hidden="true"
+                    className="absolute left-0 top-0 w-full"
+                    preserveAspectRatio="none"
+                    style={{ height: 72, top: CHART_GUTTER_HEIGHT }}
+                    viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
+                  >
+                    {inventoryBandPath ? <path d={inventoryBandPath} fill="currentColor" className="text-foreground/10" /> : null}
+                    <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth="1.8" className="text-foreground" />
+                  </svg>
+                  {inventoryCoordinates.map((point, index) => {
+                    const entry = inventoryPoints[index];
+                    if (!entry) {
+                      return null;
+                    }
+                    const isSelected = selectedIntervalIndex === entry.intervalIndex;
+                    return (
+                      <button
+                        key={`inventory-point:${entry.intervalIndex}`}
+                        aria-label={`Inventory ${Math.round(entry.inventoryMean)} units in interval ${entry.intervalIndex + 1}`}
+                        className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: point.x,
+                          top: deriveLabelGutterOffset({
+                            plotY: point.y,
+                            plotHeight: 72,
+                            gutterHeight: CHART_GUTTER_HEIGHT,
+                            viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+                          }),
+                        }}
+                        type="button"
+                        onClick={() => setSelection({ type: 'interval', intervalIndex: entry.intervalIndex })}
+                      >
+                        {isSelected ? (
                           <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                            {Math.round(datum.mean)}u
+                            {Math.round(entry.inventoryMean)}u
                           </span>
-                        ),
-                      }}
-                      slotWidth={slotWidth}
-                    />
-                  </div>
-                  <div className="absolute left-0 top-[72px]">
-                    <IntervalBarTimelineChart
-                      axisEndPadding={AXIS_END_PADDING}
-                      axisStartPadding={AXIS_START_PADDING}
-                      data={inventoryFlowChartData}
-                      gutterHeight={CHART_GUTTER_HEIGHT}
-                      plotHeight={60}
-                      series={[
-                        { dataKey: 'serviceDemand', fill: 'rgba(100, 116, 139, 0.7)', stackId: 'demand' },
-                        { dataKey: 'retailDemand', fill: 'rgba(15, 23, 42, 0.8)', stackId: 'demand' },
-                        { dataKey: 'receipts', fill: 'rgba(5, 150, 105, 0.8)', stackId: 'supply' },
-                        { dataKey: 'adjustmentsPositive', fill: 'rgba(217, 119, 6, 0.85)', stackId: 'adjustments-positive' },
-                        { dataKey: 'adjustmentsNegative', fill: 'rgba(217, 119, 6, 0.85)', stackId: 'adjustments-negative' },
-                      ]}
-                      selected={(datum) => selectedIntervalIndex === datum.intervalIndex}
-                      slotWidth={slotWidth}
-                      symmetricDomainMax={model.workbench.inventoryDemandLane.maxFlowMagnitude}
-                      selectedLabel={(datum) => {
-                        const point = inventoryPoints.find((entry) => entry.intervalIndex === datum.intervalIndex);
-                        if (!point) {
-                          return null;
-                        }
-                        return (
-                          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                            {Math.round(point.inventoryMean)}u
-                          </span>
-                        );
-                      }}
-                      onSelect={(datum) => setSelection({ type: 'interval', intervalIndex: datum.intervalIndex })}
-                    />
+                        ) : null}
+                        <span className={cn('block size-3 rounded-full border-2', isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background')} />
+                      </button>
+                    );
+                  })}
+                  <div
+                    className="absolute left-0 top-[96px] grid"
+                    style={{
+                      paddingLeft: AXIS_START_PADDING,
+                      paddingRight: AXIS_END_PADDING,
+                      gridTemplateColumns: `repeat(${Math.max(itemCount, 1)}, ${slotWidth}px)`,
+                    }}
+                  >
+                    {inventoryPoints.map((point) => {
+                      const serviceHeight = Math.max(2, (Math.abs(point.serviceDemandMean) / model.workbench.inventoryDemandLane.maxFlowMagnitude) * 24);
+                      const retailHeight = Math.max(2, (Math.abs(point.retailDemandMean) / model.workbench.inventoryDemandLane.maxFlowMagnitude) * 24);
+                      const receiptsHeight = Math.max(2, (Math.abs(point.receiptsMean) / model.workbench.inventoryDemandLane.maxFlowMagnitude) * 24);
+                      const adjustmentHeight = Math.max(2, (Math.abs(point.adjustmentsMean) / model.workbench.inventoryDemandLane.maxFlowMagnitude) * 18);
+
+                      return (
+                        <button
+                          key={`flow:${point.intervalIndex}`}
+                          aria-label={`Service demand ${Math.round(point.serviceDemandMean)}, retail demand ${Math.round(point.retailDemandMean)}, receipts ${Math.round(point.receiptsMean)}, adjustments ${Math.round(point.adjustmentsMean)}`}
+                          className="relative h-[60px]"
+                          type="button"
+                          onClick={() => setSelection({ type: 'interval', intervalIndex: point.intervalIndex })}
+                        >
+                          <span className="absolute inset-x-1 top-1/2 h-px -translate-y-1/2 bg-border/80" />
+                          <span className="absolute left-[28%] bottom-1/2 w-[18%] rounded-sm bg-emerald-600/80" style={{ height: receiptsHeight }} />
+                          <span
+                            className={cn('absolute left-[50%] w-[14%] rounded-sm', point.adjustmentsMean >= 0 ? 'bottom-1/2 bg-amber-600/85' : 'top-1/2 bg-amber-600/85')}
+                            style={{ height: adjustmentHeight }}
+                          />
+                          <span className="absolute left-[18%] top-1/2 w-[18%] rounded-sm bg-slate-500/70" style={{ height: serviceHeight }} />
+                          <span className="absolute left-[40%] top-1/2 w-[18%] rounded-sm bg-slate-800/80" style={{ top: `calc(50% + ${serviceHeight}px)`, height: retailHeight }} />
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -642,7 +684,7 @@ function SystemLedger({
             <div className="grid gap-2">
               <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-3 w-8 rounded-full border border-emerald-700/45 bg-emerald-600/35" />
+                  <span className="inline-block h-3 w-8 rounded-full border border-emerald-700/25 bg-emerald-600/20" />
                   In-transit window
                 </span>
                 <span className="inline-flex items-center gap-2">
@@ -665,47 +707,63 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <TimelineRangeChart
-                    axisEndPadding={AXIS_END_PADDING}
-                    axisStartPadding={AXIS_START_PADDING}
-                    gutterHeight={8}
-                    itemCount={itemCount}
-                    markers={model.workbench.pipelineLane.markers.map((marker) => ({
-                      ariaLabel: `${marker.kind === 'order' ? 'Order' : 'Receipt'} cue ${Math.round(marker.quantityMean)} units`,
-                      fill: marker.kind === 'order' ? 'rgba(2,132,199,0.92)' : 'rgba(5,150,105,0.92)',
-                      intervalIndex: marker.intervalIndex,
-                      key: marker.key,
-                      kind: marker.kind,
-                      quantityLabel: selectedIntervalIndex === marker.intervalIndex ? (
-                        <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                          {marker.kind === 'order' ? 'Order' : 'Receipt'} {Math.round(marker.quantityMean)}
-                        </span>
-                      ) : null,
-                      row: marker.row,
-                      x: marker.intervalPosition,
-                    }))}
-                    plotHeight={PIPELINE_LANE_HEIGHT - 16}
-                    rowCount={3}
-                    selectedIntervalIndex={selectedIntervalIndex}
-                    slotWidth={slotWidth}
-                    spans={model.workbench.pipelineLane.spans.map((span) => ({
-                      ariaLabel: `${Math.round(span.inTransitMean)} in transit, ${Math.round(span.orderQuantityMean)} ordered, ${Math.round(span.receiptQuantityMean)} expected receipt`,
-                      endPosition: span.endPosition,
-                      fill: span.overdue ? 'rgba(254, 205, 211, 0.92)' : 'rgba(167, 243, 208, 0.9)',
-                      intervalIndex: span.intervalIndex,
-                      key: span.key,
-                      label: <span className="truncate">{Math.round(span.inTransitMean)}u</span>,
-                      row: span.row,
-                      startPosition: span.startPosition,
-                      stroke: span.overdue ? 'rgba(225, 29, 72, 0.45)' : 'rgba(4, 120, 87, 0.38)',
-                      tooltip: selectedIntervalIndex === span.intervalIndex ? (
-                        <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                          {Math.round(span.orderProbability * 100)}% order probability
-                        </span>
-                      ) : null,
-                    }))}
-                    onSelectInterval={(intervalIndex) => setSelection({ type: 'interval', intervalIndex })}
-                  />
+                  {model.workbench.pipelineLane.spans.map((span) => {
+                    const left = AXIS_START_PADDING + span.startPosition * slotWidth + slotWidth * 0.14;
+                    const right = AXIS_START_PADDING + span.endPosition * slotWidth + slotWidth * 0.86;
+                    const width = Math.max(slotWidth * 0.32, right - left);
+                    const top = 18 + span.row * 28;
+                    const isSelected = selectedIntervalIndex === span.intervalIndex;
+
+                    return (
+                      <button
+                        key={span.key}
+                        aria-label={`${Math.round(span.inTransitMean)} in transit, ${Math.round(span.orderQuantityMean)} ordered, ${Math.round(span.receiptQuantityMean)} expected receipt`}
+                        className={cn(
+                          'absolute flex h-5 items-center rounded-full border px-2 text-[0.62rem] font-medium transition-colors',
+                          span.overdue
+                            ? 'border-rose-300/70 bg-rose-100/75 text-rose-900'
+                            : 'border-emerald-700/20 bg-emerald-600/20 text-emerald-900',
+                        )}
+                        style={{ left, top, width }}
+                        type="button"
+                        onClick={() => setSelection({ type: 'interval', intervalIndex: span.intervalIndex })}
+                      >
+                        <span className="truncate">{Math.round(span.inTransitMean)} in transit</span>
+                        {isSelected ? (
+                          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                            {Math.round(span.orderProbability * 100)}% order probability
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                  {model.workbench.pipelineLane.markers.map((marker) => {
+                    const x = deriveSlotCenterX({ index: marker.intervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
+                    const top = 18 + marker.row * 28 + (marker.kind === 'receipt' ? 2 : -7);
+                    const isSelected = selectedIntervalIndex === marker.intervalIndex;
+                    return (
+                      <button
+                        key={marker.key}
+                        aria-label={`${marker.kind === 'order' ? 'Order' : 'Receipt'} cue ${Math.round(marker.quantityMean)} units`}
+                        className="absolute z-[2] -translate-x-1/2"
+                        style={{ left: x, top }}
+                        type="button"
+                        onClick={() => setSelection({ type: 'interval', intervalIndex: marker.intervalIndex })}
+                      >
+                        {isSelected ? (
+                          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                            {marker.kind === 'order' ? 'Order' : 'Receipt'} {Math.round(marker.quantityMean)}
+                          </span>
+                        ) : null}
+                        <span
+                          className={cn(
+                            'block size-3 border border-white shadow-sm',
+                            marker.kind === 'order' ? 'rotate-45 rounded-[0.25rem] bg-sky-600/85' : 'rounded-full bg-emerald-600/85',
+                          )}
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -739,26 +797,48 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <MeanBandTimelineChart
-                    axisEndPadding={AXIS_END_PADDING}
-                    axisStartPadding={AXIS_START_PADDING}
-                    bandFill="rgba(2,132,199,0.14)"
-                    data={leadTimeChartData}
-                    gutterHeight={CHART_GUTTER_HEIGHT}
-                    lineStroke="rgba(3,105,161,0.8)"
-                    plotHeight={72}
-                    pointButtons={{
-                      ariaLabel: (datum) => `Lead time ${datum.mean.toFixed(1)} days`,
-                      onSelect: (datum) => setSelection({ type: 'interval', intervalIndex: datum.intervalIndex }),
-                      selected: (datum) => selectedIntervalIndex === datum.intervalIndex,
-                      selectedLabel: (datum) => (
-                        <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                          {datum.mean.toFixed(1)}d mean
-                        </span>
-                      ),
-                    }}
-                    slotWidth={slotWidth}
-                  />
+                  <svg
+                    aria-hidden="true"
+                    className="absolute left-0 top-0 w-full"
+                    preserveAspectRatio="none"
+                    style={{ height: 72, top: CHART_GUTTER_HEIGHT }}
+                    viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
+                  >
+                    {leadTimeBandPath ? <path d={leadTimeBandPath} fill="currentColor" className="text-sky-600/14" /> : null}
+                    <polyline fill="none" points={leadTimePolyline} stroke="currentColor" strokeWidth="1.8" className="text-sky-700/80" />
+                  </svg>
+                  {leadTimeCoordinates.map((point, index) => {
+                    const entry = leadTimePoints[index];
+                    if (!entry) {
+                      return null;
+                    }
+                    const isSelected = selectedIntervalIndex === entry.intervalIndex;
+                    return (
+                      <button
+                        key={`lead-time:${entry.intervalIndex}`}
+                        aria-label={`Lead time ${entry.meanDays.toFixed(1)} days`}
+                        className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: point.x,
+                          top: deriveLabelGutterOffset({
+                            plotY: point.y,
+                            plotHeight: 72,
+                            gutterHeight: CHART_GUTTER_HEIGHT,
+                            viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+                          }),
+                        }}
+                        type="button"
+                        onClick={() => setSelection({ type: 'interval', intervalIndex: entry.intervalIndex })}
+                      >
+                        {isSelected ? (
+                          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                            {entry.meanDays.toFixed(1)}d mean
+                          </span>
+                        ) : null}
+                        <span className={cn('block size-3 rounded-full border-2', isSelected ? 'border-sky-700 bg-sky-700' : 'border-sky-700/55 bg-background')} />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
