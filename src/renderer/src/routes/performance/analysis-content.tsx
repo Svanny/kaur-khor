@@ -58,7 +58,6 @@ export function AnalysisContent({
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
   const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
   const [pendingTimeframe, setPendingTimeframe] = useState<AnalysisTimeframe | null>(null);
-  const [hasObservedPendingHydration, setHasObservedPendingHydration] = useState(false);
   const model = useMemo(() => {
     if (!inventory.catalog || !inventory.workspaceSummary) {
       return null;
@@ -120,7 +119,6 @@ export function AnalysisContent({
     }
     setOlderLoadProgress(null);
     setPendingTimeframe(nextTimeframe);
-    setHasObservedPendingHydration(false);
     setTimeframe(nextTimeframe);
     setChartZoomResetToken((current) => current + 1);
   }
@@ -129,15 +127,13 @@ export function AnalysisContent({
     if (pendingTimeframe == null) {
       return;
     }
-    if (isHydratingDetails) {
-      setHasObservedPendingHydration(true);
+    if (timeframe !== pendingTimeframe) {
       return;
     }
-    if (hasObservedPendingHydration && timeframe === pendingTimeframe) {
+    if (isHydratingDetails || timeframeHydrationProgress != null) {
       setPendingTimeframe(null);
-      setHasObservedPendingHydration(false);
     }
-  }, [hasObservedPendingHydration, isHydratingDetails, pendingTimeframe, timeframe]);
+  }, [isHydratingDetails, pendingTimeframe, timeframe, timeframeHydrationProgress]);
 
   const showsLoadingIsland =
     isLoadingOlderIntervals ||

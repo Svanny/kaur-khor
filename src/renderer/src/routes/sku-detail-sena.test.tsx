@@ -468,7 +468,7 @@ describe('SKU detail SENA helpers', () => {
     expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 38)).toBe('14');
     expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 20)).toBe('');
     expect(intervalLabelForWidth(null, 11, 42)).toBe('12');
-    expect(intervalTooltipLabel('2026-02-14T09:00:00Z', 11, 'en')).toBe('Feb 14');
+    expect(intervalTooltipLabel('2026-02-14T09:00:00Z', 11, 'en')).toBe('Feb 14, 2026');
     expect(intervalTooltipLabel(null, 11, 'en')).toBe('Interval 12');
 
     expect(responsivePillLabel('stockout-constrained', '12', 42)).toBe('12');
@@ -840,7 +840,7 @@ describe('SKU detail SENA helpers', () => {
       });
       const anchoredScrollLeft = intervalScroller!.scrollLeft;
 
-      fireEvent.click(screen.getByLabelText('Mar 10'));
+      fireEvent.click(screen.getByLabelText('Mar 10, 2026'));
 
       await waitFor(() => {
         expect(intervalScroller!.scrollLeft).toBe(anchoredScrollLeft);

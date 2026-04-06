@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   type DesktopBridge,
   type DesktopPreferences,
+  type SenaDetailCacheClearPayload,
   type SenaRunLookupPayload,
   type SenaServiceLookupPayload,
   type SenaSkuLookupPayload,
@@ -52,6 +53,8 @@ const desktopBridge: DesktopBridge = {
       ipcRenderer.invoke(IPC_CHANNELS.senaGetDiagnostics),
     getServiceDetail: (payload: SenaServiceLookupPayload): Promise<SenaServiceDetailPage | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaGetServiceDetail, payload),
+    clearDetailCache: (payload: SenaDetailCacheClearPayload): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaClearDetailCache, payload),
     getRunStatus: (payload: SenaRunLookupPayload): Promise<SenaAnalysisRunRecord | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaGetRunStatus, payload),
   },

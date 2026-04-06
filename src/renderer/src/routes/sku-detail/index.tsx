@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
-import { usePagedIntervalHistory } from '@/components/system/interval-history';
+import { type ChartTimeframe } from '@/components/system/chart-timeframe';
+import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
@@ -148,6 +149,9 @@ export function SkuDetailRoute() {
   const [selectedIntervalIndex, setSelectedIntervalIndex] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [timeframe, setTimeframe] = useState<ChartTimeframe>('Recent');
+  const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
+  const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
 
   async function loadPage() {
     setIsRefreshing(true);
@@ -166,21 +170,70 @@ export function SkuDetailRoute() {
     }
     setBootstrap(emptyBootstrap());
     setSelectedIntervalIndex(null);
+    setTimeframe('Recent');
+    setChartZoomResetToken(0);
     void loadPage();
   }, [skuId]);
 
   const snapshotSku = bootstrap?.snapshot.skus.find((entry) => entry.skuId === skuId) ?? null;
   const {
     detail: pagedDetail,
+    isHydratingDetails,
     hasOlder,
     isLoadingOlder,
     loadOlder,
-  } = usePagedIntervalHistory({
-    initialPage: bootstrap?.detailPage ?? null,
-    mergeDetails: mergeSkuDetailPages,
+    resolvedTimeframe,
+    resetHydratedDetails,
+    timeframeHydrationProgress,
+  } = useTimeframedIntervalHistory({
+    fetchInitialPage: async (limit = INTERVAL_PAGE_SIZE) =>
+      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit })),
     fetchOlderPage: async (beforeIntervalIndex, limit = INTERVAL_PAGE_SIZE) =>
       normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { beforeIntervalIndex, limit })),
+    getLoadedIntervalCount: (page) => page?.detail.demandPosterior.length ?? 0,
+    getOldestIntervalAt: (page) =>
+      page?.detail.demandPosterior[0]?.startAt ?? page?.detail.demandPosterior[0]?.endAt ?? null,
+    initialPage: bootstrap?.detailPage ?? null,
+    intervalCount: bootstrap?.workspaceSummary?.intervalCount ?? bootstrap?.detailPage?.detail.demandPosterior.length ?? 0,
+    latestObservedAt: bootstrap?.workspaceSummary?.latestObservedAt,
+    mergeDetails: mergeSkuDetailPages,
+    onPruneTransition: () => inventory.clearSenaSkuDetailCache(skuId),
+    timeframe,
   });
+  const effectiveIsHydratingDetails =
+    isHydratingDetails || timeframeHydrationProgress != null || pendingTimeframe != null;
+
+  useEffect(() => {
+    if (pendingTimeframe == null) {
+      return;
+    }
+    if (timeframe !== pendingTimeframe) {
+      return;
+    }
+    if (
+      resolvedTimeframe === pendingTimeframe ||
+      isHydratingDetails ||
+      timeframeHydrationProgress != null
+    ) {
+      setPendingTimeframe(null);
+    }
+  }, [isHydratingDetails, pendingTimeframe, resolvedTimeframe, timeframe, timeframeHydrationProgress]);
+
+  function handleTimeframeChange(nextTimeframe: ChartTimeframe) {
+    if (nextTimeframe === timeframe) {
+      return;
+    }
+    setOlderLoadProgress(null);
+    setPendingTimeframe(nextTimeframe);
+    setTimeframe(nextTimeframe);
+    setChartZoomResetToken((current) => current + 1);
+  }
+
+  async function handleResetCharts() {
+    setOlderLoadProgress(null);
+    await resetHydratedDetails();
+    setChartZoomResetToken((current) => current + 1);
+  }
 
   const model = useMemo(() => {
     if (!bootstrap || !snapshotSku) {
@@ -232,9 +285,9 @@ export function SkuDetailRoute() {
   return (
     <WorkspacePage>
       <LoadingMoreIntervalsIsland
-        currentBatch={olderLoadProgress?.current ?? null}
-        totalBatches={olderLoadProgress?.total ?? null}
-        visible={isLoadingOlder || olderLoadProgress != null}
+        currentBatch={(timeframeHydrationProgress ?? olderLoadProgress)?.current ?? null}
+        totalBatches={(timeframeHydrationProgress ?? olderLoadProgress)?.total ?? null}
+        visible={effectiveIsHydratingDetails || isLoadingOlder || olderLoadProgress != null}
       />
       <div className="grid gap-6">
         {bootstrap.uiState === 'running' || isRefreshing ? (
@@ -261,13 +314,18 @@ export function SkuDetailRoute() {
         <div className={rightRailLayoutClassName(showRightRailCards)}>
           <div className="grid min-w-0 gap-6">
             <SkuDetailLedger
+              chartZoomResetToken={chartZoomResetToken}
               hasOlderIntervals={hasOlder}
+              isHydratingDetails={effectiveIsHydratingDetails}
               isLoadingOlderIntervals={isLoadingOlder}
               loadOlderIntervals={loadOlder}
               model={model}
               onOlderLoadProgressChange={setOlderLoadProgress}
+              onResetCharts={() => void handleResetCharts()}
+              onTimeframeChange={handleTimeframeChange}
               selectedIntervalIndex={selectedIntervalIndex}
               setSelectedIntervalIndex={setSelectedIntervalIndex}
+              timeframe={timeframe}
             />
             <div className="grid gap-6 xl:grid-cols-2">
               <SkuDetailExposure rows={model.dependencyImpact} />

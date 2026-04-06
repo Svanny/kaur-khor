@@ -25,11 +25,6 @@ import {
   Store,
   Waypoints,
   Wrench,
-  Maximize2,
-  Minimize2,
-  Minus,
-  Plus,
-  Scan,
 } from 'lucide-react';
 import {
   AXIS_END_PADDING,
@@ -59,6 +54,7 @@ import {
   buildPointCoordinatesWithDomain,
   buildPolylineWithDomain,
   buildTrajectoryBandPath,
+  ClampedChartDataLabel,
   deriveProportionalChartGeometry,
   deriveScaledVisualValue,
   deriveFlowStackHeights,
@@ -78,17 +74,17 @@ import {
   HeaderedTableMobileLabel,
   HeaderedTableRow,
 } from '@/components/system/headered-table';
-import { FloatingActionsIsland, useFloatingTitleActions, useObservedFloatingIslandWidth } from '@/components/system/floating-title-actions';
+import { useFloatingTitleActions } from '@/components/system/floating-title-actions';
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
 import { statusPillClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
+import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '@/components/system/chart-workspace';
 import { PagedPanelNavigation } from '@/routes/detail-panels';
 import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './chrome';
 import type {
@@ -339,10 +335,6 @@ const MAX_PIPELINE_ROW_HEIGHT = 46;
 const MAX_PIPELINE_PILL_HEIGHT = 28;
 const MAX_PIPELINE_MARKER_SIZE = 16;
 const MAX_PIPELINE_TOP_PADDING = 28;
-const MANUAL_ZOOM_STEP = 12;
-const FLOATING_ISLAND_BASE_RIGHT = 24;
-const FLOATING_ISLAND_GAP = 16;
-
 function LaneLabel({
   title,
   subtitle,
@@ -361,91 +353,6 @@ function LaneLabel({
         <p className="text-sm leading-6 text-muted-foreground">{subtitle}</p>
       </div>
     </div>
-  );
-}
-
-function LaneExpandButton({
-  expanded,
-  title,
-  onClick,
-}: {
-  expanded: boolean;
-  title: string;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      aria-label={`${expanded ? 'Minimize' : 'Expand'} ${title}`}
-      className="h-8 rounded-full px-3 text-[0.68rem] font-medium"
-      size="sm"
-      type="button"
-      variant="outline"
-      onClick={onClick}
-    >
-      {expanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-      {expanded ? 'Minimize' : 'Expand'}
-    </Button>
-  );
-}
-
-function ChartZoomIsland({
-  className,
-  disabled,
-  onReset,
-  onZoomIn,
-  onZoomOut,
-}: {
-  className?: string;
-  disabled?: boolean;
-  onReset: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-}) {
-  const buttonClassName =
-    'inline-flex size-9 items-center justify-center rounded-full text-foreground transition hover:bg-white/70 disabled:pointer-events-none disabled:opacity-45';
-  return (
-    <div className={cn("inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/95 p-1 shadow-[0_12px_28px_rgba(48,31,20,0.09)] backdrop-blur", className)}>
-      <button aria-label="Zoom out chart" className={buttonClassName} disabled={disabled} type="button" onClick={onZoomOut}>
-        <Minus className="size-4" />
-      </button>
-      <button aria-label="Reset chart zoom" className={buttonClassName} disabled={disabled} type="button" onClick={onReset}>
-        <Scan className="size-4" />
-      </button>
-      <button aria-label="Zoom in chart" className={buttonClassName} disabled={disabled} type="button" onClick={onZoomIn}>
-        <Plus className="size-4" />
-      </button>
-    </div>
-  );
-}
-
-function TimeframeIsland({
-  disabled,
-  onValueChange,
-  value,
-}: {
-  disabled?: boolean;
-  onValueChange: (value: AnalysisTimeframe) => void;
-  value: AnalysisTimeframe;
-}) {
-  return (
-    <Select disabled={disabled} value={value} onValueChange={(nextValue) => onValueChange(nextValue as AnalysisTimeframe)}>
-      <SelectTrigger
-        aria-label="Select chart timeframe"
-        className="h-[48px] min-h-[48px] py-0 data-[size=default]:h-[48px] rounded-full border border-border/70 bg-background/95 px-4 text-sm font-medium leading-none shadow-[0_12px_28px_rgba(48,31,20,0.09)] backdrop-blur [&_svg]:text-foreground [&_svg]:opacity-100"
-      >
-        <span className="inline-flex items-center gap-2 text-foreground">
-          <CalendarClock className="size-4" />
-          <span>{`Timeframe: ${value}`}</span>
-        </span>
-      </SelectTrigger>
-      <SelectContent position="popper">
-        {ANALYSIS_TIMEFRAME_OPTIONS.map((option) => (
-          <SelectItem key={option} value={option}>
-            {option}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 
@@ -721,19 +628,12 @@ function SystemLedger({
   showRightRailCards: boolean;
   timeframe: AnalysisTimeframe;
 }) {
-  const { language, showFloatingTitleActions } = usePreferences();
+  const { language } = usePreferences();
   const intervalScrollRef = useRef<HTMLDivElement | null>(null);
   const regimeScrollRef = useRef<HTMLDivElement | null>(null);
   const inventoryScrollRef = useRef<HTMLDivElement | null>(null);
   const pipelineScrollRef = useRef<HTMLDivElement | null>(null);
   const leadTimeScrollRef = useRef<HTMLDivElement | null>(null);
-  const syncingScrollRef = useRef(false);
-  const loadingOlderRef = useRef(false);
-  const initializedLatestWindowRef = useRef(false);
-  const latestLoadedIntervalKeyRef = useRef<number | null>(null);
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [slotWidthPx, setSlotWidthPx] = useState<number | null>(null);
   const [expandedLane, setExpandedLane] = useState<WorkbenchLaneKey | null>(null);
   const intervalEntries = model.intervals.map((interval) => ({
     intervalIndex: interval.intervalIndex,
@@ -749,45 +649,41 @@ function SystemLedger({
   const targetVisibleIntervalCount = timeframe === 'Recent'
     ? INTERVAL_VISIBLE_COUNT
     : Math.max(1, itemCount);
-  const slotWidth = Math.min(
-    MAX_SLOT_WIDTH,
-    Math.max(
-      MIN_SLOT_WIDTH,
-      slotWidthPx ?? deriveInitialViewportSlotWidth({
-        visibleCount: targetVisibleIntervalCount,
-        itemCount,
-        viewportWidth,
-        axisStartPadding: AXIS_START_PADDING,
-        axisEndPadding: AXIS_END_PADDING,
-      }),
-    ),
-  );
-  const contentWidth = deriveAxisContentWidth({
-    itemCount,
-    slotWidth,
-    axisStartPadding: AXIS_START_PADDING,
-    axisEndPadding: AXIS_END_PADDING,
-  });
-  const clampedScrollLeft = clampScrollLeft(scrollLeft, viewportWidth, contentWidth);
   const latestLoadedIntervalIndex = intervalEntries.at(-1)?.intervalIndex ?? null;
-  const { anchorRef: chartControlsAnchorRef, visible: floatingChartControlsVisible } = useFloatingTitleActions(showFloatingTitleActions);
-  const adjacentFloatingIslandWidth = useObservedFloatingIslandWidth({
-    enabled: showFloatingTitleActions && floatingChartControlsVisible,
-    selector: '[data-slot="floating-title-actions"]',
+  const {
+    adjustZoom,
+    canScrollLeft,
+    canScrollRight,
+    clampedScrollLeft,
+    contentWidth,
+    createWheelHandler,
+    handleScrollerScroll,
+    scrollByViewport,
+    slotWidth,
+    viewportWidth,
+  } = useChartWorkspace<number>({
+    chartZoomResetToken,
+    getPrependedCount: (result) => result,
+    hasOlderIntervals,
+    intervalCount: itemCount,
+    intervalScrollRef,
+    isLoadingOlderIntervals,
+    latestLoadedIntervalIndex,
+    loadOlderIntervals,
+    onOlderLoadProgressChange,
+    syncRefs,
+    targetVisibleIntervalCount,
   });
-  const floatingTimeframeIslandWidth = useObservedFloatingIslandWidth({
-    enabled: showFloatingTitleActions && floatingChartControlsVisible,
-    selector: '[data-slot="floating-timeframe-actions"]',
+  const { floatingIslands: floatingChartControlIslands, headerActions: chartHeaderActions } = useChartWorkspaceControls({
+    disabled: isLoadingOlderIntervals,
+    onReset: () => {
+      void onResetCharts?.();
+    },
+    onTimeframeChange,
+    onZoomIn: () => adjustZoom(1),
+    onZoomOut: () => adjustZoom(-1),
+    timeframe,
   });
-  const floatingTimeframeIslandRightOffset = adjacentFloatingIslandWidth > 0
-    ? FLOATING_ISLAND_BASE_RIGHT + adjacentFloatingIslandWidth + FLOATING_ISLAND_GAP
-    : FLOATING_ISLAND_BASE_RIGHT;
-  const floatingChartIslandRightOffset =
-    floatingTimeframeIslandWidth > 0
-      ? floatingTimeframeIslandRightOffset + floatingTimeframeIslandWidth + FLOATING_ISLAND_GAP
-      : floatingTimeframeIslandRightOffset + FLOATING_ISLAND_GAP + 220;
-  const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE || hasOlderIntervals;
-  const canScrollRight = clampedScrollLeft + viewportWidth < contentWidth - SCROLL_EDGE_TOLERANCE;
   const selectedIntervalPosition = selectedIntervalIndex == null
     ? null
     : model.workbench.regimePriceLane.intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.intervalPosition ?? null;
@@ -971,187 +867,19 @@ function SystemLedger({
   const selectedPipelineLabelX = selectedIntervalPosition == null
     ? null
     : deriveSlotCenterX({ index: selectedIntervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
-  const maybeLoadOlder = async (nextScrollLeft: number) => {
-    if (
-      loadingOlderRef.current ||
-      !shouldLoadOlderIntervals({ hasOlder: hasOlderIntervals, isLoadingOlder: isLoadingOlderIntervals, scrollLeft: nextScrollLeft })
-    ) {
-      return;
+  const selectedPipelineLabelY = (() => {
+    if (selectedPipelineSpan) {
+      return pipelineTopPadding + selectedPipelineSpan.row * pipelineRowHeight;
     }
-    loadingOlderRef.current = true;
-    try {
-      const sequentialBatchCount = deriveSequentialOlderLoadBatchCount({
-        batchSize: INTERVAL_LOAD_BATCH_SIZE,
-        slotWidth,
-        viewportWidth,
-      });
-      const loadCount = Math.max(1, sequentialBatchCount);
-      let nextAnchoredScrollLeft = nextScrollLeft;
-      for (let batchIndex = 0; batchIndex < loadCount; batchIndex += 1) {
-        onOlderLoadProgressChange?.({ current: batchIndex + 1, total: loadCount });
-        const prependedCount = await loadOlderIntervals(INTERVAL_LOAD_BATCH_SIZE);
-        if (prependedCount <= 0) {
-          break;
-        }
-        nextAnchoredScrollLeft = derivePrependedScrollLeft({
-          currentScrollLeft: nextAnchoredScrollLeft,
-          prependedCount,
-          slotWidth,
-        });
-        setScrollLeft(nextAnchoredScrollLeft);
-      }
-    } finally {
-      onOlderLoadProgressChange?.(null);
-      loadingOlderRef.current = false;
+    if (selectedPipelineMarkers.length > 0) {
+      return Math.min(
+        ...selectedPipelineMarkers.map((marker) => (
+          pipelineTopPadding + marker.row * pipelineRowHeight + (marker.kind === 'receipt' ? 2 : -pipelineMarkerHalf - 1)
+        )),
+      );
     }
-  };
-
-  useEffect(() => {
-    if (latestLoadedIntervalKeyRef.current !== latestLoadedIntervalIndex) {
-      latestLoadedIntervalKeyRef.current = latestLoadedIntervalIndex;
-      initializedLatestWindowRef.current = false;
-    }
-  }, [latestLoadedIntervalIndex]);
-
-  useEffect(() => {
-    setSlotWidthPx(null);
-    initializedLatestWindowRef.current = false;
-  }, [chartZoomResetToken]);
-
-  useLayoutEffect(() => {
-    if (initializedLatestWindowRef.current) {
-      return;
-    }
-    const nextScrollLeft = deriveFreshMountIntervalScrollLeft({
-      contentWidth,
-      itemCount,
-      visibleCount: targetVisibleIntervalCount,
-      viewportWidth,
-    });
-    if (nextScrollLeft == null) {
-      return;
-    }
-    if (intervalScrollRef.current) {
-      if (typeof intervalScrollRef.current.scrollTo === 'function') {
-        intervalScrollRef.current.scrollTo({ left: nextScrollLeft, behavior: 'auto' });
-      } else {
-        intervalScrollRef.current.scrollLeft = nextScrollLeft;
-      }
-    }
-    setScrollLeft(nextScrollLeft);
-    initializedLatestWindowRef.current = true;
-  }, [contentWidth, itemCount, targetVisibleIntervalCount, viewportWidth]);
-
-  useEffect(() => {
-    const node = intervalScrollRef.current;
-    if (!node) {
-      return;
-    }
-    const updateViewportWidth = () => setViewportWidth(node.clientWidth);
-    const observer = new ResizeObserver(() => updateViewportWidth());
-    observer.observe(node);
-    updateViewportWidth();
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (scrollLeft === clampedScrollLeft) {
-      return;
-    }
-    setScrollLeft(clampedScrollLeft);
-  }, [clampedScrollLeft, scrollLeft]);
-
-  useEffect(() => {
-    syncingScrollRef.current = true;
-    for (const ref of syncRefs) {
-      const node = ref.current;
-      if (!node) {
-        continue;
-      }
-      if (Math.abs(node.scrollLeft - clampedScrollLeft) > 1) {
-        node.scrollLeft = clampedScrollLeft;
-      }
-    }
-    requestAnimationFrame(() => {
-      syncingScrollRef.current = false;
-    });
-  }, [clampedScrollLeft]);
-
-  const handleSharedScroll = (event: UIEvent<HTMLDivElement>) => {
-    if (syncingScrollRef.current) {
-      return;
-    }
-    const nextScrollLeft = event.currentTarget.scrollLeft;
-    setScrollLeft(nextScrollLeft);
-    void maybeLoadOlder(nextScrollLeft);
-  };
-
-  const scrollByViewport = (direction: -1 | 1) => {
-    if (direction < 0 && clampedScrollLeft <= SCROLL_EDGE_TOLERANCE && hasOlderIntervals) {
-      void maybeLoadOlder(0);
-      return;
-    }
-    setScrollLeft((current) =>
-      deriveViewportPageScrollLeft({
-        contentWidth,
-        currentScrollLeft: current,
-        direction,
-        slotWidth,
-        viewportWidth,
-      }),
-    );
-  };
-
-  const handleLaneWheel = (event: WheelEvent<HTMLDivElement>) => {
-    handleIntervalChartWheel({
-      axisEndPadding: AXIS_END_PADDING,
-      axisStartPadding: AXIS_START_PADDING,
-      contentWidth,
-      currentSlotWidth: slotWidth,
-      event,
-      hasOlder: hasOlderIntervals,
-      intervalCount: itemCount,
-      isLoadingOlder: isLoadingOlderIntervals,
-      onLoadOlder: () => {
-        void maybeLoadOlder(0);
-      },
-      onPan: (nextScrollLeft) => setScrollLeft(nextScrollLeft),
-      onZoom: ({ nextScrollLeft, nextSlotWidth }) => {
-        setSlotWidthPx(nextSlotWidth);
-        setScrollLeft(nextScrollLeft);
-      },
-      viewportWidth,
-    });
-  };
-
-  const adjustZoom = (direction: -1 | 1) => {
-    if (itemCount <= 0 || viewportWidth <= 0) {
-      return;
-    }
-    const nextSlotWidth = Math.min(MAX_SLOT_WIDTH, Math.max(MIN_SLOT_WIDTH, slotWidth + direction * MANUAL_ZOOM_STEP));
-    if (Math.abs(nextSlotWidth - slotWidth) < 0.5) {
-      return;
-    }
-    const nextContentWidth = deriveAxisContentWidth({
-      itemCount,
-      slotWidth: nextSlotWidth,
-      axisStartPadding: AXIS_START_PADDING,
-      axisEndPadding: AXIS_END_PADDING,
-    });
-    const nextScrollLeft = deriveAnchoredZoomScrollLeft({
-      contentWidth: nextContentWidth,
-      hoveredPointerX: viewportWidth / 2,
-      intervalCount: itemCount,
-      nextSlotWidth,
-      previousScrollLeft: clampedScrollLeft,
-      previousSlotWidth: slotWidth,
-      axisStartPadding: AXIS_START_PADDING,
-      viewportWidth,
-    });
-    setSlotWidthPx(nextSlotWidth);
-    setScrollLeft(nextScrollLeft);
-  };
-
+    return null;
+  })();
   const laneGridStyle = { gridTemplateColumns: `${LANE_LABEL_COLUMN} minmax(0,1fr)` };
   const showsRegimeCueLabels = slotWidth >= REGIME_CUE_LABEL_MIN_SLOT_WIDTH;
   const showsRegimeIcons = slotWidth >= REGIME_ICON_MIN_SLOT_WIDTH;
@@ -1166,48 +894,14 @@ function SystemLedger({
   const toggleLaneExpanded = (laneKey: WorkbenchLaneKey) => {
     setExpandedLane((current) => (current === laneKey ? null : laneKey));
   };
-  const renderChartZoomControls = () => (
-    <ChartZoomIsland
-      disabled={isLoadingOlderIntervals}
-      onReset={() => {
-        void onResetCharts?.();
-      }}
-      onZoomIn={() => adjustZoom(1)}
-      onZoomOut={() => adjustZoom(-1)}
-    />
-  );
-  const renderTimeframeControls = () => (
-    <TimeframeIsland
-      disabled={isLoadingOlderIntervals}
-      value={timeframe}
-      onValueChange={onTimeframeChange}
-    />
-  );
-
   return (
     <>
-      <FloatingActionsIsland
-        actions={renderTimeframeControls()}
-        slot="floating-timeframe-actions"
-        style={{ right: `${floatingTimeframeIslandRightOffset}px` }}
-        visible={showFloatingTitleActions && floatingChartControlsVisible}
-      />
-      <FloatingActionsIsland
-        actions={renderChartZoomControls()}
-        slot="floating-chart-actions"
-        style={{ right: `${floatingChartIslandRightOffset}px` }}
-        visible={showFloatingTitleActions && floatingChartControlsVisible}
-      />
+      {floatingChartControlIslands}
       <PerformanceSectionShell
         title="SENA system ledger"
         tooltip="One synchronized ledger across regime, demand decomposition, pipeline posture, and latent lead-time drift."
         description="Observation to inference to operational consequence in one canvas. Each interval stays aligned across regime, flow, pipeline, and lead-time lanes."
-        headerActions={(
-          <div ref={chartControlsAnchorRef} className="flex items-center gap-3" data-analysis-chart-controls-anchor="true">
-            {renderChartZoomControls()}
-            {renderTimeframeControls()}
-          </div>
-        )}
+        headerActions={chartHeaderActions}
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
       >
@@ -1223,7 +917,7 @@ function SystemLedger({
             canScrollRight={canScrollRight}
             intervals={intervalEntries}
             language={language}
-            onScroll={handleSharedScroll}
+            onScroll={handleScrollerScroll}
             scrollByViewport={scrollByViewport}
             scrollRef={intervalScrollRef}
             slotWidth={slotWidth}
@@ -1267,8 +961,8 @@ function SystemLedger({
               <div
                 ref={regimeScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
-                onScroll={handleSharedScroll}
-                onWheel={handleLaneWheel}
+                onScroll={handleScrollerScroll}
+                onWheel={createWheelHandler(regimeScrollRef)}
               >
                 <div className="relative h-full" style={{ width: contentWidth, minHeight: regimeChartMinHeight }}>
                   <SelectedIntervalColumnOverlay
@@ -1370,8 +1064,8 @@ function SystemLedger({
               <div
                 ref={inventoryScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20 px-0"
-                onScroll={handleSharedScroll}
-                onWheel={handleLaneWheel}
+                onScroll={handleScrollerScroll}
+                onWheel={createWheelHandler(inventoryScrollRef)}
               >
                 <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: inventoryLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
@@ -1410,34 +1104,42 @@ function SystemLedger({
                       if (!showsLinePointMarkers && !isSelected) {
                         return null;
                       }
+                      const pointTop = deriveLabelGutterOffset({
+                        plotY: point.y,
+                        plotHeight: inventoryPlotHeight,
+                        gutterHeight: CHART_GUTTER_HEIGHT,
+                        viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+                      });
                       return (
-                        <button
-                          key={`inventory-point:${entry.intervalIndex}`}
-                          aria-label={`Inventory ${Math.round(entry.inventoryMean)} units in interval ${entry.intervalIndex + 1}`}
-                          className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
-                          style={{
-                            left: point.x,
-                            top: deriveLabelGutterOffset({
-                              plotY: point.y,
-                              plotHeight: inventoryPlotHeight,
-                              gutterHeight: CHART_GUTTER_HEIGHT,
-                              viewBoxHeight: CHART_VIEWBOX_HEIGHT,
-                            }),
-                          }}
-                          data-analysis-datalabel="true"
-                          type="button"
-                          onClick={() => onIntervalChartLabelClick(entry.intervalIndex, 'what-happened')}
-                        >
+                        <Fragment key={`inventory-point:${entry.intervalIndex}`}>
                           {isSelected ? (
-                            <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                            <ClampedChartDataLabel
+                              anchorX={point.x}
+                              anchorY={pointTop}
+                              containerWidth={contentWidth}
+                              containerHeight={CHART_GUTTER_HEIGHT + inventoryPlotHeight}
+                              className="whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm"
+                            >
                               {Math.round(entry.inventoryMean)}u
-                            </span>
+                            </ClampedChartDataLabel>
                           ) : null}
+                          <button
+                            aria-label={`Inventory ${Math.round(entry.inventoryMean)} units in interval ${entry.intervalIndex + 1}`}
+                            className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
+                            style={{
+                              left: point.x,
+                              top: pointTop,
+                            }}
+                            data-analysis-datalabel="true"
+                            type="button"
+                            onClick={() => onIntervalChartLabelClick(entry.intervalIndex, 'what-happened')}
+                          >
                           <span
                             className={cn('block rounded-full border-2', isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background')}
                             style={{ width: inventoryGeometry.markerSize, height: inventoryGeometry.markerSize }}
                           />
-                        </button>
+                          </button>
+                        </Fragment>
                       );
                     })}
                     <div
@@ -1557,8 +1259,8 @@ function SystemLedger({
               <div
                 ref={pipelineScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
-                onScroll={handleSharedScroll}
-                onWheel={handleLaneWheel}
+                onScroll={handleScrollerScroll}
+                onWheel={createWheelHandler(pipelineScrollRef)}
               >
                 <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: pipelineLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
@@ -1571,10 +1273,14 @@ function SystemLedger({
                     className="inset-y-2"
                   />
                   <div className="relative w-full self-stretch" data-analysis-chart="pipeline" style={{ height: pipelineChartContentHeight }}>
-                    {selectedPipelineLabelX != null && selectedPipelineLabels.length > 0 ? (
-                      <div
-                        className="pointer-events-none absolute z-[3] flex -translate-x-1/2 flex-col items-center gap-1"
-                        style={{ left: selectedPipelineLabelX, top: 8 }}
+                    {selectedPipelineLabelX != null && selectedPipelineLabelY != null && selectedPipelineLabels.length > 0 ? (
+                      <ClampedChartDataLabel
+                        anchorX={selectedPipelineLabelX}
+                        anchorY={selectedPipelineLabelY}
+                        containerWidth={contentWidth}
+                        containerHeight={pipelineChartContentHeight}
+                        gap={8}
+                        className="flex flex-col items-center gap-1"
                       >
                         {selectedPipelineLabels.map((label, index) => (
                           <span
@@ -1584,7 +1290,7 @@ function SystemLedger({
                             {label}
                           </span>
                         ))}
-                      </div>
+                      </ClampedChartDataLabel>
                     ) : null}
                     {model.workbench.pipelineLane.spans.map((span) => {
                       const rangeStart = AXIS_START_PADDING + span.startPosition * slotWidth;
@@ -1670,8 +1376,8 @@ function SystemLedger({
               <div
                 ref={leadTimeScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
-                onScroll={handleSharedScroll}
-                onWheel={handleLaneWheel}
+                onScroll={handleScrollerScroll}
+                onWheel={createWheelHandler(leadTimeScrollRef)}
               >
                 <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: leadTimeLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
@@ -1711,34 +1417,42 @@ function SystemLedger({
                       if (!showsLinePointMarkers && !isSelected) {
                         return null;
                       }
+                      const pointTop = deriveLabelGutterOffset({
+                        plotY: point.y,
+                        plotHeight: leadTimePlotHeight,
+                        gutterHeight: CHART_GUTTER_HEIGHT,
+                        viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+                      });
                       return (
-                        <button
-                          key={`lead-time:${entry.intervalIndex}`}
-                          aria-label={`Lead time ${entry.meanDays.toFixed(1)} days`}
-                          className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
-                          style={{
-                            left: point.x,
-                            top: deriveLabelGutterOffset({
-                              plotY: point.y,
-                              plotHeight: leadTimePlotHeight,
-                              gutterHeight: CHART_GUTTER_HEIGHT,
-                              viewBoxHeight: CHART_VIEWBOX_HEIGHT,
-                            }),
-                          }}
-                          data-analysis-datalabel="true"
-                          type="button"
-                          onClick={() => onIntervalChartLabelClick(entry.intervalIndex, 'orders-transit-lead-time')}
-                        >
+                        <Fragment key={`lead-time:${entry.intervalIndex}`}>
                           {isSelected ? (
-                            <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                            <ClampedChartDataLabel
+                              anchorX={point.x}
+                              anchorY={pointTop}
+                              containerWidth={contentWidth}
+                              containerHeight={CHART_GUTTER_HEIGHT + leadTimePlotHeight}
+                              className="whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm"
+                            >
                               {`${entry.meanDays.toFixed(1)} ± ${spreadDays.toFixed(1)} Days`}
-                            </span>
+                            </ClampedChartDataLabel>
                           ) : null}
+                          <button
+                            aria-label={`Lead time ${entry.meanDays.toFixed(1)} days`}
+                            className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
+                            style={{
+                              left: point.x,
+                              top: pointTop,
+                            }}
+                            data-analysis-datalabel="true"
+                            type="button"
+                            onClick={() => onIntervalChartLabelClick(entry.intervalIndex, 'orders-transit-lead-time')}
+                          >
                           <span
                             className={cn('block rounded-full border-2', isSelected ? 'border-sky-700 bg-sky-700' : 'border-sky-700/55 bg-background')}
                             style={{ width: leadTimeGeometry.markerSize, height: leadTimeGeometry.markerSize }}
                           />
-                        </button>
+                          </button>
+                        </Fragment>
                       );
                     })}
                   </div>
@@ -2639,9 +2353,9 @@ export function AnalysisWorkbench({
   onResetCharts,
   section,
   setSection,
-  setTimeframe,
+  setTimeframe = () => {},
   showRightRailCards,
-  timeframe,
+  timeframe = 'Recent',
 }: {
   chartZoomResetToken?: number;
   hasOlderIntervals: boolean;
@@ -2652,9 +2366,9 @@ export function AnalysisWorkbench({
   onResetCharts?: () => Promise<void> | void;
   section: AnalysisSection;
   setSection: (value: AnalysisSection) => void;
-  setTimeframe: (value: AnalysisTimeframe) => void;
+  setTimeframe?: (value: AnalysisTimeframe) => void;
   showRightRailCards: boolean;
-  timeframe: AnalysisTimeframe;
+  timeframe?: AnalysisTimeframe;
 }) {
   const [selection, setSelection] = useState<AnalysisSelection>({ type: 'overview' });
   const [pendingSection, setPendingSection] = useState<AnalysisSection | null>(null);

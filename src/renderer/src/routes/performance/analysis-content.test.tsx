@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AnalysisContent } from './analysis-content';
@@ -163,6 +163,89 @@ describe('AnalysisContent', () => {
 
     expect(screen.getByText('Loading data')).toBeInTheDocument();
     expect(screen.getByText('[1/8]')).toBeInTheDocument();
+  });
+
+  it('clears the loading island after timeframe hydration completes', async () => {
+    const user = userEvent.setup();
+    const setTimeframe = vi.fn();
+
+    const { rerender } = render(
+      <AnalysisContent
+        currency="USD"
+        hasOlderIntervals={false}
+        inventory={createInventory()}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        language="en"
+        loadOlderIntervals={vi.fn(async () => 0)}
+        resetHydratedDetails={vi.fn(async () => {})}
+        scope="all"
+        section="workbench"
+        serviceDetailsById={{}}
+        setScope={vi.fn()}
+        setSection={vi.fn()}
+        setTimeframe={setTimeframe}
+        showRightRailCards={false}
+        skuDetailsById={{}}
+        timeframe="Recent"
+        timeframeHydrationProgress={null}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Choose timeframe' }));
+    expect(screen.getByText('Loading data')).toBeInTheDocument();
+
+    rerender(
+      <AnalysisContent
+        currency="USD"
+        hasOlderIntervals={false}
+        inventory={createInventory()}
+        isHydratingDetails={true}
+        isLoadingOlderIntervals={false}
+        language="en"
+        loadOlderIntervals={vi.fn(async () => 0)}
+        resetHydratedDetails={vi.fn(async () => {})}
+        scope="all"
+        section="workbench"
+        serviceDetailsById={{}}
+        setScope={vi.fn()}
+        setSection={vi.fn()}
+        setTimeframe={setTimeframe}
+        showRightRailCards={false}
+        skuDetailsById={{}}
+        timeframe="YTD"
+        timeframeHydrationProgress={{ current: 1, total: 2 }}
+      />,
+    );
+
+    expect(screen.getByText('[1/2]')).toBeInTheDocument();
+
+    rerender(
+      <AnalysisContent
+        currency="USD"
+        hasOlderIntervals={false}
+        inventory={createInventory()}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        language="en"
+        loadOlderIntervals={vi.fn(async () => 0)}
+        resetHydratedDetails={vi.fn(async () => {})}
+        scope="all"
+        section="workbench"
+        serviceDetailsById={{}}
+        setScope={vi.fn()}
+        setSection={vi.fn()}
+        setTimeframe={setTimeframe}
+        showRightRailCards={false}
+        skuDetailsById={{}}
+        timeframe="YTD"
+        timeframeHydrationProgress={null}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading data')).toBeNull();
+    });
   });
 
   it('animates and disables the rerun button while analysis is running', async () => {

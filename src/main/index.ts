@@ -11,6 +11,7 @@ import {
   type DesktopAppContext,
   type DesktopLocalDataInfo,
   type DesktopPreferences,
+  type SenaDetailCacheClearPayload,
   type SenaRunLookupPayload,
   type SenaServiceLookupPayload,
   type SenaSkuLookupPayload,
@@ -164,6 +165,23 @@ async function invalidateSenaReadCache() {
   senaReadCache.clear();
   senaInflightReads.clear();
   senaObservationFingerprint = null;
+  await persistSenaReadCache();
+}
+
+async function invalidateSenaDetailCache({ entityId, entityType }: SenaDetailCacheClearPayload) {
+  const prefix = entityType === 'sku'
+    ? `sku-detail:${entityId}:`
+    : `service-detail:${entityId}:`;
+  for (const key of senaReadCache.keys()) {
+    if (key.startsWith(prefix)) {
+      senaReadCache.delete(key);
+    }
+  }
+  for (const key of senaInflightReads.keys()) {
+    if (key.startsWith(prefix)) {
+      senaInflightReads.delete(key);
+    }
+  }
   await persistSenaReadCache();
 }
 
@@ -469,6 +487,11 @@ ipcMain.handle(
         timeoutMs: SENA_READ_TIMEOUT_MS,
       }),
     ),
+);
+ipcMain.handle(
+  IPC_CHANNELS.senaClearDetailCache,
+  async (_event, payload: SenaDetailCacheClearPayload) =>
+    invalidateSenaDetailCache(payload),
 );
 ipcMain.handle(IPC_CHANNELS.senaGetRunStatus, async (_event, payload: SenaRunLookupPayload) =>
   loadCachedSenaRead(`run-status:${payload.runId}`, () =>

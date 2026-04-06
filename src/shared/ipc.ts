@@ -57,6 +57,11 @@ export interface SenaTriggerRunPayload {
   algorithmVersion?: string;
 }
 
+export interface SenaDetailCacheClearPayload {
+  entityType: 'sku' | 'service';
+  entityId: string;
+}
+
 export interface DesktopSenaBridge {
   getCatalog: () => Promise<SenaCatalog | null>;
   listObservations: () => Promise<SenaObservationRecord[]>;
@@ -67,6 +72,7 @@ export interface DesktopSenaBridge {
   getWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
   getSkuDetail: (payload: SenaSkuLookupPayload & Partial<SenaDetailWindowRequest>) => Promise<SenaSkuDetailPage | null>;
   getServiceDetail: (payload: SenaServiceLookupPayload & Partial<SenaDetailWindowRequest>) => Promise<SenaServiceDetailPage | null>;
+  clearDetailCache: (payload: SenaDetailCacheClearPayload) => Promise<void>;
   getDiagnostics: () => Promise<SenaDiagnostics | null>;
   getRunStatus: (payload: SenaRunLookupPayload) => Promise<SenaAnalysisRunRecord | null>;
 }
@@ -112,6 +118,7 @@ export const IPC_CHANNELS = {
   senaGetSkuDetail: 'banji:sena:get-sku-detail',
   senaGetDiagnostics: 'banji:sena:get-diagnostics',
   senaGetServiceDetail: 'banji:sena:get-service-detail',
+  senaClearDetailCache: 'banji:sena:clear-detail-cache',
   senaGetRunStatus: 'banji:sena:get-run-status',
   preferencesGet: 'banji:preferences:get',
   preferencesSave: 'banji:preferences:save',

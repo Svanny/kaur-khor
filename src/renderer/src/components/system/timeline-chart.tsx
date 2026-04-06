@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { deriveSlotCenterX, deriveSlotLeftX } from './interval-strip';
 
@@ -10,9 +11,46 @@ export interface ProportionalChartGeometry {
   bandMinThickness: number;
 }
 
+export interface ExpandedChartVisualStyle {
+  strokeWidth: number;
+  markerSize: number;
+  dashedStrokeWidth: number;
+  primaryDotDiameter: number;
+  primaryDotGap: number;
+  primaryDashArray: string;
+  secondaryDashArray: string;
+  dataLabelFontSize: number;
+  dataLabelPaddingX: number;
+  dataLabelPaddingY: number;
+  dataLabelGap: number;
+}
+
 export interface TouchingSlotGlyphLayout {
   width: number;
   inset: number;
+}
+
+export interface HorizontalDotGuideLayout {
+  centers: number[];
+  radius: number;
+}
+
+export interface ClampedChartDataLabelPosition {
+  left: number;
+  top: number;
+}
+
+function clampValue(value: number, min: number, max: number) {
+  if (max < min) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+}
+
+export function deriveDashUnit(dashArray: string) {
+  const firstToken = dashArray.trim().split(/\s+/)[0];
+  const parsed = Number(firstToken);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function deriveTouchingSlotGlyphLayout({
@@ -85,6 +123,236 @@ export function deriveScaledVisualValue(
   const min = options?.min ?? baseValue;
   const max = options?.max ?? Number.POSITIVE_INFINITY;
   return Math.min(max, Math.max(min, scaled));
+}
+
+export function deriveHorizontalDotGuideLayout({
+  startX,
+  endX,
+  dotDiameter,
+  gap,
+}: {
+  startX: number;
+  endX: number;
+  dotDiameter: number;
+  gap: number;
+}): HorizontalDotGuideLayout {
+  const guideStart = Math.min(startX, endX);
+  const guideEnd = Math.max(startX, endX);
+  const radius = Math.max(0.5, dotDiameter / 2);
+  const firstCenter = guideStart + radius;
+  const lastCenter = Math.max(firstCenter, guideEnd - radius);
+  const step = Math.max(radius * 2 + Math.max(0, gap), radius * 2);
+  const centers: number[] = [];
+
+  for (let center = firstCenter; center <= lastCenter + 0.001; center += step) {
+    centers.push(Number(center.toFixed(3)));
+  }
+
+  if (centers.length === 0) {
+    centers.push(Number(((guideStart + guideEnd) / 2).toFixed(3)));
+  }
+
+  return {
+    centers,
+    radius,
+  };
+}
+
+export function deriveClampedChartDataLabelPosition({
+  anchorX,
+  anchorY,
+  labelWidth,
+  labelHeight,
+  containerWidth,
+  containerHeight,
+  sidePadding = 8,
+  topPadding = 4,
+  bottomPadding = 4,
+  gap = 8,
+  placement = 'above',
+}: {
+  anchorX: number;
+  anchorY: number;
+  labelWidth: number;
+  labelHeight: number;
+  containerWidth: number;
+  containerHeight: number;
+  sidePadding?: number;
+  topPadding?: number;
+  bottomPadding?: number;
+  gap?: number;
+  placement?: 'above' | 'below';
+}): ClampedChartDataLabelPosition {
+  const width = Math.max(0, labelWidth);
+  const height = Math.max(0, labelHeight);
+  const preferredLeft = anchorX - width / 2;
+  const maxLeft = Math.max(sidePadding, containerWidth - width - sidePadding);
+  const left = clampValue(preferredLeft, sidePadding, maxLeft);
+  const preferredTop = placement === 'above' ? anchorY - height - gap : anchorY + gap;
+  const maxTop = Math.max(topPadding, containerHeight - height - bottomPadding);
+  const top = clampValue(preferredTop, topPadding, maxTop);
+
+  return { left, top };
+}
+
+export function ClampedChartDataLabel({
+  anchorX,
+  anchorY,
+  containerWidth,
+  containerHeight,
+  sidePadding = 8,
+  topPadding = 4,
+  bottomPadding = 4,
+  gap = 8,
+  placement = 'above',
+  className,
+  style,
+  children,
+}: {
+  anchorX: number;
+  anchorY: number;
+  containerWidth: number;
+  containerHeight: number;
+  sidePadding?: number;
+  topPadding?: number;
+  bottomPadding?: number;
+  gap?: number;
+  placement?: 'above' | 'below';
+  className?: string;
+  style?: CSSProperties;
+  children: ReactNode;
+}) {
+  const labelRef = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    const node = labelRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateSize = () => {
+      const nextWidth = node.offsetWidth;
+      const nextHeight = node.offsetHeight;
+      setSize((current) => (
+        current.width === nextWidth && current.height === nextHeight
+          ? current
+          : { width: nextWidth, height: nextHeight }
+      ));
+    };
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    updateSize();
+    return () => observer.disconnect();
+  }, [children]);
+
+  const position = deriveClampedChartDataLabelPosition({
+    anchorX,
+    anchorY,
+    labelWidth: size.width,
+    labelHeight: size.height,
+    containerWidth,
+    containerHeight,
+    sidePadding,
+    topPadding,
+    bottomPadding,
+    gap,
+    placement,
+  });
+
+  return (
+    <div
+      ref={labelRef}
+      className={cn('pointer-events-none absolute z-[3]', className)}
+      style={{ left: position.left, top: position.top, ...style }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function deriveExpandedChartVisualStyle({
+  expandedHeightRatio,
+  baseStrokeWidth = 1,
+  maxStrokeWidth = 1,
+  baseMarkerSize = 12,
+  maxMarkerSize = 14,
+  baseDashedStrokeWidth = 0.6,
+  maxDashedStrokeWidth = 0.8,
+  baseDataLabelFontSize = 10,
+  maxDataLabelFontSize = 12,
+  baseDataLabelPaddingX = 8,
+  maxDataLabelPaddingX = 10,
+  baseDataLabelPaddingY = 2,
+  maxDataLabelPaddingY = 4,
+  baseDataLabelGap = 8,
+  maxDataLabelGap = 12,
+}: {
+  expandedHeightRatio: number;
+  baseStrokeWidth?: number;
+  maxStrokeWidth?: number;
+  baseMarkerSize?: number;
+  maxMarkerSize?: number;
+  baseDashedStrokeWidth?: number;
+  maxDashedStrokeWidth?: number;
+  baseDataLabelFontSize?: number;
+  maxDataLabelFontSize?: number;
+  baseDataLabelPaddingX?: number;
+  maxDataLabelPaddingX?: number;
+  baseDataLabelPaddingY?: number;
+  maxDataLabelPaddingY?: number;
+  baseDataLabelGap?: number;
+  maxDataLabelGap?: number;
+}): ExpandedChartVisualStyle {
+  const primaryDotDiameter = deriveScaledVisualValue(baseDashedStrokeWidth * 2.6, expandedHeightRatio, {
+    min: baseDashedStrokeWidth * 2.6,
+    max: maxDashedStrokeWidth * 3.4,
+    power: 0.35,
+  });
+  const dotGap = deriveScaledVisualValue(4.8, expandedHeightRatio, { min: 4.8, max: 8.4, power: 0.5 });
+  const secondaryDashUnit = deriveScaledVisualValue(4, expandedHeightRatio, { min: 4, max: 7, power: 0.5 });
+  return {
+    strokeWidth: deriveScaledVisualValue(baseStrokeWidth, expandedHeightRatio, {
+      min: baseStrokeWidth,
+      max: maxStrokeWidth,
+      power: 0.4,
+    }),
+    markerSize: deriveScaledVisualValue(baseMarkerSize, expandedHeightRatio, {
+      min: baseMarkerSize,
+      max: maxMarkerSize,
+      power: 0.45,
+    }),
+    dashedStrokeWidth: deriveScaledVisualValue(baseDashedStrokeWidth, expandedHeightRatio, {
+      min: baseDashedStrokeWidth,
+      max: maxDashedStrokeWidth,
+      power: 0.35,
+    }),
+    primaryDotDiameter,
+    primaryDotGap: dotGap,
+    primaryDashArray: `0 ${dotGap.toFixed(1)}`,
+    secondaryDashArray: `${secondaryDashUnit.toFixed(1)} ${(secondaryDashUnit * 0.75).toFixed(1)}`,
+    dataLabelFontSize: deriveScaledVisualValue(baseDataLabelFontSize, expandedHeightRatio, {
+      min: baseDataLabelFontSize,
+      max: maxDataLabelFontSize,
+      power: 0.35,
+    }),
+    dataLabelPaddingX: deriveScaledVisualValue(baseDataLabelPaddingX, expandedHeightRatio, {
+      min: baseDataLabelPaddingX,
+      max: maxDataLabelPaddingX,
+      power: 0.3,
+    }),
+    dataLabelPaddingY: deriveScaledVisualValue(baseDataLabelPaddingY, expandedHeightRatio, {
+      min: baseDataLabelPaddingY,
+      max: maxDataLabelPaddingY,
+      power: 0.3,
+    }),
+    dataLabelGap: deriveScaledVisualValue(baseDataLabelGap, expandedHeightRatio, {
+      min: baseDataLabelGap,
+      max: maxDataLabelGap,
+      power: 0.35,
+    }),
+  };
 }
 
 export function deriveProportionalChartGeometry({

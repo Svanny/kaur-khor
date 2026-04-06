@@ -1,6 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
 import { Package } from 'lucide-react';
 import type { SenaSkuDetailPage } from '@shared/sena';
+import type { ChartTimeframe } from '@/components/system/chart-timeframe';
+import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '@/components/system/chart-workspace';
 import {
   AXIS_END_PADDING,
   AXIS_START_PADDING,
@@ -35,11 +37,18 @@ import {
   buildPolylineWithDomain,
   buildSparsePolylineSegments,
   buildTrajectoryBandPath,
+  ClampedChartDataLabel,
+  deriveDashUnit,
+  deriveHorizontalDotGuideLayout,
+  deriveExpandedChartVisualStyle,
+  deriveProportionalChartGeometry,
+  deriveTouchingSlotGlyphLayout,
   deriveFlowStackHeights,
   deriveLabelGutterOffset,
 } from '@/components/system/timeline-chart';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel, SectionTitle } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -68,6 +77,8 @@ const CHART_VIEWBOX_HEIGHT = 42;
 const FLOW_LABEL_GUTTER_HEIGHT = 64;
 const FLOW_LANE_PLOT_HEIGHT = 112;
 const LINE_POINT_MARKER_MIN_SLOT_WIDTH = 20;
+const EXPANDED_LANE_HEADER_ALLOWANCE = 136;
+const PIPELINE_TILE_MIN_HEIGHT = 96;
 
 function intervalEntries(model: SenaSkuDetailViewModel) {
   const entries = new Map<number, { intervalIndex: number; startAt: string | null; endAt: string | null }>();
@@ -123,6 +134,30 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function useObservedElementHeight(
+  ref: RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+) {
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    const node = ref.current;
+    if (!node) {
+      return;
+    }
+    const updateHeight = () => setHeight(node.offsetHeight);
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(node);
+    updateHeight();
+    return () => observer.disconnect();
+  }, [enabled, ref]);
+
+  return height;
+}
+
 function pipelineTintStyle(value: number, maxValue: number) {
   const normalized = maxValue > 0 ? clamp(value / maxValue, 0, 1) : 0;
   const eased = Math.pow(normalized, 1.6);
@@ -140,6 +175,17 @@ function pipelineUsesCompactTile(slotWidth: number) {
 
 function pipelineUsesNumberOnlyTile(slotWidth: number) {
   return slotWidth < 64;
+}
+
+function pipelineUsesExternalDataLabel(slotWidth: number) {
+  return slotWidth < 72;
+}
+
+function pipelineTileLayout(slotWidth: number) {
+  return deriveTouchingSlotGlyphLayout({
+    slotWidth,
+    preferredInset: slotWidth >= 96 ? 8 : slotWidth >= 72 ? 5 : 0,
+  });
 }
 
 function normalizeRegimeKey(regime: string) {
@@ -256,21 +302,31 @@ function RegimeChartHighlightOverlay({
 }
 
 export function SkuDetailLedger({
-  hasOlderIntervals,
-  isLoadingOlderIntervals,
-  loadOlderIntervals,
+  chartZoomResetToken = 0,
+  hasOlderIntervals = false,
+  isHydratingDetails = false,
+  isLoadingOlderIntervals = false,
+  loadOlderIntervals = async () => null,
   model,
   onOlderLoadProgressChange,
+  onResetCharts = () => {},
+  onTimeframeChange = () => {},
   selectedIntervalIndex,
   setSelectedIntervalIndex,
+  timeframe = 'Recent',
 }: {
+  chartZoomResetToken?: string | number;
   hasOlderIntervals: boolean;
+  isHydratingDetails: boolean;
   isLoadingOlderIntervals: boolean;
   loadOlderIntervals: (limit?: number) => Promise<SenaSkuDetailPage | null>;
   model: SenaSkuDetailViewModel;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
+  onResetCharts: () => void;
+  onTimeframeChange: (value: ChartTimeframe) => void;
   selectedIntervalIndex: number | null;
   setSelectedIntervalIndex: (index: number) => void;
+  timeframe: ChartTimeframe;
 }) {
   const { language, t } = usePreferences();
   const intervalScrollRef = useRef<HTMLDivElement | null>(null);
@@ -278,37 +334,53 @@ export function SkuDetailLedger({
   const inventoryScrollRef = useRef<HTMLDivElement | null>(null);
   const flowScrollRef = useRef<HTMLDivElement | null>(null);
   const pipelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const laneBodyRef = useRef<HTMLDivElement | null>(null);
   const intervals = intervalEntries(model);
   const showsPriceSurfaces = model.identity.soldAsProduct;
   const visibleRegimes = presentRegimes(model.lanes.regimePriceLane.intervals.map((interval) => interval.dominantRegime));
   const indices = intervals.map((entry) => entry.intervalIndex);
   const syncRefs = [intervalScrollRef, priceScrollRef, inventoryScrollRef, flowScrollRef, pipelineScrollRef];
-  const syncingScrollRef = useRef(false);
-  const initializedLatestWindowRef = useRef(false);
-  const latestLoadedIntervalKeyRef = useRef<number | null>(null);
-  const loadingOlderRef = useRef(false);
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [slotWidthPx, setSlotWidthPx] = useState<number | null>(null);
-  const stretchedSlotWidth = clamp(
-    slotWidthPx ?? deriveInitialViewportSlotWidth({ itemCount: indices.length, viewportWidth }),
-    MIN_SLOT_WIDTH,
-    MAX_SLOT_WIDTH,
-  );
+  const [expandedLane, setExpandedLane] = useState<'regime' | 'inventory' | 'flow' | 'pipeline' | null>(null);
+  const latestLoadedIntervalIndex = indices.at(-1) ?? null;
+  const targetVisibleIntervalCount = timeframe === 'Recent'
+    ? INTERVAL_VISIBLE_COUNT
+    : Math.max(1, indices.length);
+  const {
+    adjustZoom,
+    canScrollLeft,
+    canScrollRight,
+    clampedScrollLeft,
+    contentWidth,
+    createWheelHandler,
+    handleScrollerScroll,
+    scrollByViewport,
+    slotWidth: stretchedSlotWidth,
+    viewportWidth,
+  } = useChartWorkspace<SenaSkuDetailPage | null>({
+    chartZoomResetToken,
+    getPrependedCount: (result) => result?.detail?.demandPosterior.length ?? 0,
+    hasOlderIntervals,
+    intervalCount: indices.length,
+    intervalScrollRef,
+    isLoadingOlderIntervals,
+    latestLoadedIntervalIndex,
+    loadOlderIntervals,
+    onOlderLoadProgressChange,
+    syncRefs,
+    targetVisibleIntervalCount,
+  });
+  const { floatingIslands: floatingChartControlIslands, headerActions: chartHeaderActions } = useChartWorkspaceControls({
+    disabled: isHydratingDetails || isLoadingOlderIntervals,
+    onReset: onResetCharts,
+    onTimeframeChange,
+    onZoomIn: () => adjustZoom(1),
+    onZoomOut: () => adjustZoom(-1),
+    timeframe,
+  });
   const axisStartPadding = AXIS_START_PADDING;
   const axisEndPadding = AXIS_END_PADDING;
   const showsLinePointMarkers = stretchedSlotWidth >= LINE_POINT_MARKER_MIN_SLOT_WIDTH;
-  const contentWidth = deriveAxisContentWidth({
-    itemCount: indices.length,
-    slotWidth: stretchedSlotWidth,
-    axisStartPadding,
-    axisEndPadding,
-  });
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const clampedScrollLeft = clampScrollLeft(scrollLeft, viewportWidth, contentWidth);
-  const latestLoadedIntervalIndex = indices.at(-1) ?? null;
   const visibleWindow = deriveVisibleWindow(indices.length, clampedScrollLeft, viewportWidth, stretchedSlotWidth, INTERVAL_PILL_GAP);
-  const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE || hasOlderIntervals;
-  const canScrollRight = clampedScrollLeft + viewportWidth < contentWidth - SCROLL_EDGE_TOLERANCE;
   const inventoryMeanValues = model.lanes.inventoryLane.points.map((point) => point.mean);
   const inventoryLowValues = model.lanes.inventoryLane.points.map((point) => point.low);
   const inventoryHighValues = model.lanes.inventoryLane.points.map((point) => point.high);
@@ -357,161 +429,74 @@ export function SkuDetailLedger({
       Math.abs(interval.receiptsMean),
     ]),
   );
-  const maybeLoadOlderIntervals = async (nextScrollLeft: number) => {
-    if (
-      loadingOlderRef.current ||
-      !shouldLoadOlderIntervals({ hasOlder: hasOlderIntervals, isLoadingOlder: isLoadingOlderIntervals, scrollLeft: nextScrollLeft })
-    ) {
-      return;
-    }
-    loadingOlderRef.current = true;
-    try {
-      const sequentialBatchCount = deriveSequentialOlderLoadBatchCount({
-        batchSize: INTERVAL_LOAD_BATCH_SIZE,
-        slotWidth: stretchedSlotWidth,
-        viewportWidth,
-      });
-      const loadCount = Math.max(1, sequentialBatchCount);
-      let nextAnchoredScrollLeft = nextScrollLeft;
-      for (let batchIndex = 0; batchIndex < loadCount; batchIndex += 1) {
-        onOlderLoadProgressChange?.({ current: batchIndex + 1, total: loadCount });
-        const olderPage = await loadOlderIntervals(INTERVAL_LOAD_BATCH_SIZE);
-        const prependedCount = olderPage?.detail?.demandPosterior?.length ?? 0;
-        if (prependedCount <= 0) {
-          break;
-        }
-        nextAnchoredScrollLeft = derivePrependedScrollLeft({
-          currentScrollLeft: nextAnchoredScrollLeft,
-          prependedCount,
-          slotWidth: stretchedSlotWidth,
-        });
-        setScrollLeft(nextAnchoredScrollLeft);
-      }
-    } finally {
-      onOlderLoadProgressChange?.(null);
-      loadingOlderRef.current = false;
-    }
+  const laneOrder = ['regime', 'inventory', 'flow', 'pipeline'] as const;
+  const visibleLaneOrder = expandedLane == null ? laneOrder : [expandedLane];
+  const isLaneExpanded = (laneKey: (typeof laneOrder)[number]) => expandedLane === laneKey;
+  const toggleLaneExpanded = (laneKey: (typeof laneOrder)[number]) => {
+    setExpandedLane((current) => (current === laneKey ? null : laneKey));
   };
-  useEffect(() => {
-    if (latestLoadedIntervalKeyRef.current !== latestLoadedIntervalIndex) {
-      latestLoadedIntervalKeyRef.current = latestLoadedIntervalIndex;
-      initializedLatestWindowRef.current = false;
-    }
-  }, [latestLoadedIntervalIndex]);
-
-  useLayoutEffect(() => {
-    if (initializedLatestWindowRef.current) {
-      return;
-    }
-    const nextScrollLeft = deriveFreshMountIntervalScrollLeft({
-      contentWidth,
-      itemCount: indices.length,
-      viewportWidth,
-    });
-    if (nextScrollLeft == null) {
-      return;
-    }
-    if (intervalScrollRef.current) {
-      if (typeof intervalScrollRef.current.scrollTo === 'function') {
-        intervalScrollRef.current.scrollTo({ left: nextScrollLeft, behavior: 'auto' });
-      } else {
-        intervalScrollRef.current.scrollLeft = nextScrollLeft;
-      }
-    }
-    setScrollLeft(nextScrollLeft);
-    initializedLatestWindowRef.current = true;
-  }, [contentWidth, indices.length, viewportWidth]);
-
-  useEffect(() => {
-    const node = intervalScrollRef.current;
-    if (!node) {
-      return;
-    }
-    const updateViewportWidth = () => setViewportWidth(node.clientWidth);
-    const observer = new ResizeObserver(() => updateViewportWidth());
-    observer.observe(node);
-    updateViewportWidth();
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (scrollLeft === clampedScrollLeft) {
-      return;
-    }
-    setScrollLeft(clampedScrollLeft);
-  }, [clampedScrollLeft, scrollLeft]);
-
-  useEffect(() => {
-    syncingScrollRef.current = true;
-    for (const ref of syncRefs) {
-      const node = ref.current;
-      if (!node) {
-        continue;
-      }
-      if (Math.abs(node.scrollLeft - clampedScrollLeft) > 1) {
-        node.scrollLeft = clampedScrollLeft;
-      }
-    }
-    requestAnimationFrame(() => {
-      syncingScrollRef.current = false;
-    });
-  }, [clampedScrollLeft]);
-
-  const handleScrollerScroll = (event: UIEvent<HTMLDivElement>) => {
-    if (syncingScrollRef.current) {
-      return;
-    }
-    const nextScrollLeft = event.currentTarget.scrollLeft;
-    setScrollLeft(nextScrollLeft);
-    void maybeLoadOlderIntervals(nextScrollLeft);
-  };
-
-  const scrollByViewport = (direction: -1 | 1) => {
-    if (direction < 0 && clampedScrollLeft <= SCROLL_EDGE_TOLERANCE && hasOlderIntervals) {
-      void maybeLoadOlderIntervals(0);
-      return;
-    }
-    setScrollLeft((current) =>
-      deriveViewportPageScrollLeft({
-        contentWidth,
-        currentScrollLeft: current,
-        direction,
-        slotWidth: stretchedSlotWidth,
-        viewportWidth,
-      }),
-    );
-  };
-
-  const handleLaneWheel =
-    (scrollRef: RefObject<HTMLDivElement | null>, axisPaddingStart = 0) =>
-    (event: WheelEvent<HTMLDivElement>) => {
-      const node = scrollRef.current;
-      if (!node) {
-        return;
-      }
-      handleIntervalChartWheel({
-        axisEndPadding,
-        axisStartPadding,
-        contentWidth,
-        currentSlotWidth: stretchedSlotWidth,
-        event,
-        hasOlder: hasOlderIntervals,
-        intervalCount: indices.length,
-        isLoadingOlder: isLoadingOlderIntervals,
-        onLoadOlder: () => {
-          void maybeLoadOlderIntervals(0);
-        },
-        onPan: (nextScrollLeft) => setScrollLeft(nextScrollLeft),
-        onZoom: ({ nextScrollLeft, nextSlotWidth }) => {
-          setSlotWidthPx(nextSlotWidth);
-          setScrollLeft(nextScrollLeft);
-        },
-        viewportWidth,
-      });
-    };
+  const collapsedLaneBodyHeight = useObservedElementHeight(laneBodyRef, expandedLane == null);
+  const reservedExpandedLaneBodyHeight =
+    expandedLane != null && collapsedLaneBodyHeight > 0 ? collapsedLaneBodyHeight : undefined;
+  const expandedLinePlotHeight =
+    expandedLane != null && reservedExpandedLaneBodyHeight != null
+      ? Math.max(CHART_PLOT_HEIGHT, reservedExpandedLaneBodyHeight - EXPANDED_LANE_HEADER_ALLOWANCE)
+      : CHART_PLOT_HEIGHT;
+  const expandedFlowPlotHeight =
+    expandedLane === 'flow' && reservedExpandedLaneBodyHeight != null
+      ? Math.max(FLOW_LANE_PLOT_HEIGHT, reservedExpandedLaneBodyHeight - EXPANDED_LANE_HEADER_ALLOWANCE)
+      : FLOW_LANE_PLOT_HEIGHT;
+  const expandedPipelineBodyHeight =
+    expandedLane === 'pipeline' && reservedExpandedLaneBodyHeight != null
+      ? Math.max(128, reservedExpandedLaneBodyHeight - EXPANDED_LANE_HEADER_ALLOWANCE)
+      : 128;
+  const regimeGeometry = deriveProportionalChartGeometry({
+    collapsedPlotHeight: CHART_PLOT_HEIGHT,
+    availableHeight: expandedLinePlotHeight,
+    baseStrokeWidth: 1,
+    maxStrokeWidth: 1,
+    baseMarkerSize: 12,
+    maxMarkerSize: 14,
+  });
+  const regimeVisual = deriveExpandedChartVisualStyle({
+    expandedHeightRatio: regimeGeometry.expandedHeightRatio,
+    maxStrokeWidth: 1,
+  });
+  const inventoryGeometry = deriveProportionalChartGeometry({
+    collapsedPlotHeight: CHART_PLOT_HEIGHT,
+    availableHeight: expandedLinePlotHeight,
+    baseStrokeWidth: 1,
+    maxStrokeWidth: 1,
+    baseMarkerSize: 12,
+    maxMarkerSize: 14,
+  });
+  const inventoryVisual = deriveExpandedChartVisualStyle({
+    expandedHeightRatio: inventoryGeometry.expandedHeightRatio,
+    maxStrokeWidth: 1,
+  });
+  const inventoryReorderDotRadius = Math.max(0.5, deriveDashUnit(inventoryVisual.secondaryDashArray));
+  const inventoryReorderGuide = deriveHorizontalDotGuideLayout({
+    startX: axisStartPadding,
+    endX: Math.max(contentWidth - axisEndPadding, 1),
+    dotDiameter: inventoryReorderDotRadius * 2,
+    gap: inventoryVisual.primaryDotGap,
+  });
+  const inventoryReorderGuideTop = deriveLabelGutterOffset({
+    plotY: 10,
+    plotHeight: expandedLinePlotHeight,
+    gutterHeight: LABEL_GUTTER_HEIGHT,
+    viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+  });
+  const flowVisual = deriveExpandedChartVisualStyle({
+    expandedHeightRatio: Math.max(1, expandedFlowPlotHeight / FLOW_LANE_PLOT_HEIGHT),
+    maxStrokeWidth: 1,
+    maxDataLabelFontSize: 12,
+  });
 
   return (
-    <section className={`${cardFrameClassName} ${cardSurfaceClassName} min-w-0 rounded-[2rem] px-6 py-5`}>
+    <>
+      {floatingChartControlIslands}
+      <section className={`${cardFrameClassName} ${cardSurfaceClassName} min-w-0 rounded-[2rem] px-6 py-5`}>
       <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">SENA</p>
@@ -519,7 +504,9 @@ export function SkuDetailLedger({
             <SectionTitle title="Ledger" tooltip={t('catalogSenaSkuLedgerTooltip')} />
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">{model.selectedInterval.label}</p>
+        <div className="flex items-center sm:justify-end">
+          {chartHeaderActions}
+        </div>
       </div>
 
       <IntervalStrip
@@ -538,33 +525,41 @@ export function SkuDetailLedger({
         slotWidth={stretchedSlotWidth}
       />
 
-      <div className="mt-5">
-        <div className="pb-5">
+      <div
+        ref={laneBodyRef}
+        className="mt-5"
+        style={reservedExpandedLaneBodyHeight != null ? { minHeight: reservedExpandedLaneBodyHeight } : undefined}
+      >
+        {visibleLaneOrder.includes('regime') ? (
+        <div className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
           <LaneTitle
             title={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLane') : 'Regime lane'}
             tooltip={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLaneTooltip') : 'Demand conditions across the active interval sequence.'}
           />
-          <div className="grid gap-3">
-            <div className="flex flex-wrap items-center gap-4 px-1 text-xs text-muted-foreground">
-              <span className="sr-only">Regime</span>
-              {visibleRegimes.map((regime) => (
-                <span key={regime} className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="inline-block size-4 rounded-[0.2rem]" style={{ backgroundColor: regimeTint(regime, true) }} />
-                  {regimeLegendLabel(regime)}
-                </span>
-              ))}
-              {showsPriceSurfaces ? (
-                <span className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="relative inline-flex h-4 w-8 items-center">
-                    <span className="block h-px w-full bg-foreground/70" />
-                    <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/55 bg-background" />
+          <div className={cn('grid gap-3', isLaneExpanded('regime') && 'min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
+            <div className="flex items-start justify-between gap-3 px-1">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                <span className="sr-only">Regime</span>
+                {visibleRegimes.map((regime) => (
+                  <span key={regime} className="inline-flex items-center gap-2">
+                    <span aria-hidden="true" className="inline-block size-4 rounded-[0.2rem]" style={{ backgroundColor: regimeTint(regime, true) }} />
+                    {regimeLegendLabel(regime)}
                   </span>
-                  Retail price line
-                </span>
-              ) : null}
+                ))}
+                {showsPriceSurfaces ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span aria-hidden="true" className="relative inline-flex h-4 w-8 items-center">
+                      <span className="block h-px w-full bg-foreground/70" />
+                      <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/55 bg-background" />
+                    </span>
+                    Retail price line
+                  </span>
+                ) : null}
+              </div>
+              <LaneExpandButton expanded={isLaneExpanded('regime')} title={showsPriceSurfaces ? 'Regime + price lane' : 'Regime lane'} onClick={() => toggleLaneExpanded('regime')} />
             </div>
-            <div ref={priceScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(priceScrollRef, axisStartPadding)}>
-              <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + CHART_PLOT_HEIGHT }}>
+            <div ref={priceScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('regime') && 'min-h-0 h-full')} onScroll={handleScrollerScroll} onWheel={createWheelHandler(priceScrollRef)}>
+              <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + expandedLinePlotHeight }}>
                 <TooltipProvider>
                   <RegimeChartHighlightOverlay
                     activeIndex={selectedIntervalIndex}
@@ -579,7 +574,7 @@ export function SkuDetailLedger({
                   aria-hidden="true"
                   className="absolute left-0 top-0 z-[1] w-full"
                   preserveAspectRatio="none"
-                  style={{ height: CHART_PLOT_HEIGHT, top: LABEL_GUTTER_HEIGHT }}
+                  style={{ height: expandedLinePlotHeight, top: LABEL_GUTTER_HEIGHT }}
                   viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                 >
                   {showsPriceSurfaces
@@ -589,7 +584,7 @@ export function SkuDetailLedger({
                           fill="none"
                           points={segment}
                           stroke="currentColor"
-                          strokeWidth="1.4"
+                          strokeWidth={regimeVisual.strokeWidth}
                           className="text-foreground/70"
                         />
                       ))
@@ -601,70 +596,105 @@ export function SkuDetailLedger({
                   if (!showsLinePointMarkers && !isSelected) {
                     return null;
                   }
+                const pointTop = deriveLabelGutterOffset({
+                  plotY: point.y,
+                  plotHeight: expandedLinePlotHeight,
+                  gutterHeight: LABEL_GUTTER_HEIGHT,
+                  viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+                });
                 return (
-                  <button
-                    key={marker ? `${marker.observedAt}:${marker.intervalIndex}` : `price-${index}`}
+                  <Fragment key={marker ? `${marker.observedAt}:${marker.intervalIndex}` : `price-${index}`}>
+                    {isSelected ? (
+                      <ClampedChartDataLabel
+                        anchorX={point.x}
+                        anchorY={pointTop}
+                        containerWidth={contentWidth}
+                        containerHeight={LABEL_GUTTER_HEIGHT + expandedLinePlotHeight}
+                        gap={regimeVisual.dataLabelGap}
+                        className="flex flex-col items-center rounded-[0.9rem] border border-border/70 bg-background font-medium text-foreground shadow-sm"
+                        style={{
+                          padding: `${regimeVisual.dataLabelPaddingY}px ${regimeVisual.dataLabelPaddingX}px`,
+                          fontSize: regimeVisual.dataLabelFontSize,
+                        }}
+                      >
+                        <span
+                          className="whitespace-nowrap uppercase tracking-[0.14em] text-muted-foreground"
+                          style={{ fontSize: Math.max(9, regimeVisual.dataLabelFontSize - 1) }}
+                        >
+                          {formatRegimeLabel(model.lanes.regimePriceLane.intervals.find((interval) => interval.intervalIndex === marker?.intervalIndex)?.dominantRegime ?? '')}
+                        </span>
+                        <span className="whitespace-nowrap">{marker ? `$${marker.price}` : ''}</span>
+                      </ClampedChartDataLabel>
+                    ) : null}
+                    <button
                       aria-label={marker ? `Price ${marker.price}` : `Price point ${index + 1}`}
                       className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: point.x, top: deriveLabelGutterOffset({ plotY: point.y }) }}
-                    type="button"
-                    onClick={() => marker && setSelectedIntervalIndex(marker.intervalIndex)}
-                  >
-                    {isSelected ? (
-                        <span className="absolute bottom-full mb-2 left-1/2 flex -translate-x-1/2 flex-col items-center rounded-[0.9rem] border border-border/70 bg-background px-2.5 py-1 text-[10px] font-medium text-foreground shadow-sm">
-                          <span className="whitespace-nowrap text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
-                            {formatRegimeLabel(model.lanes.regimePriceLane.intervals.find((interval) => interval.intervalIndex === marker?.intervalIndex)?.dominantRegime ?? '')}
-                          </span>
-                          <span className="whitespace-nowrap">{marker ? `$${marker.price}` : ''}</span>
-                        </span>
-                      ) : null}
-                      <span className={`block size-4 rounded-full border-2 ${isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background'}`} />
-                  </button>
+                      style={{
+                        left: point.x,
+                        top: pointTop,
+                      }}
+                      type="button"
+                      onClick={() => marker && setSelectedIntervalIndex(marker.intervalIndex)}
+                    >
+                      <span
+                        className={`block rounded-full border-2 ${isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background'}`}
+                        style={{ width: regimeVisual.markerSize, height: regimeVisual.markerSize }}
+                      />
+                    </button>
+                  </Fragment>
                 );
               }) : null}
               </div>
             </div>
           </div>
         </div>
+        ) : null}
 
-        <div className="border-t border-border/60 py-5">
+        {visibleLaneOrder.includes('inventory') ? (
+        <div className={cn('border-t border-border/60 py-5', isLaneExpanded('inventory') && 'grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)]')}>
           <LaneTitle title={t('catalogSenaSkuInventoryLane')} tooltip={t('catalogSenaSkuInventoryLaneTooltip')} />
-          <div className="mb-3 flex flex-wrap items-center gap-4 px-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="inline-block h-2 w-6 rounded-[0.2rem] bg-foreground/10"
-              />
-              Uncertainty band
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="inline-block h-px w-7 opacity-70"
-                style={{
-                  backgroundImage: 'repeating-linear-gradient(to right, currentColor 0 2px, transparent 2px 4px)',
-                }}
-              />
-              {t('catalogSenaSkuReorderPoint')}: {model.lanes.inventoryLane.reorderPointLabel}
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="inline-block h-px w-7 opacity-50"
-                style={{
-                  backgroundImage: 'repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 7px)',
-                }}
-              />
-              {t('catalogSenaSkuSafetyStock')}: {model.lanes.inventoryLane.safetyStockLabel}
-            </span>
+          <div className="mb-3 flex items-start justify-between gap-3 px-1">
+            <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-2 w-6 rounded-[0.2rem] bg-foreground/10"
+                />
+                Uncertainty band
+              </span>
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-px w-7 opacity-70"
+                    style={{
+                    backgroundImage: 'radial-gradient(circle, currentColor 1.2px, transparent 1.4px)',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'repeat-x',
+                    backgroundSize: '6px 2px',
+                  }}
+                />
+                {t('catalogSenaSkuReorderPoint')}: {model.lanes.inventoryLane.reorderPointLabel}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-px w-7 opacity-50"
+                  style={{
+                    backgroundImage: 'repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 7px)',
+                  }}
+                />
+                {t('catalogSenaSkuSafetyStock')}: {model.lanes.inventoryLane.safetyStockLabel}
+              </span>
+            </div>
+            <LaneExpandButton expanded={isLaneExpanded('inventory')} title="Inventory posterior lane" onClick={() => toggleLaneExpanded('inventory')} />
           </div>
-          <div ref={inventoryScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-md bg-muted/25 px-2 py-3" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(inventoryScrollRef, axisStartPadding)}>
-              <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + CHART_PLOT_HEIGHT }}>
+          <div ref={inventoryScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain rounded-md bg-muted/25 px-2 py-3', isLaneExpanded('inventory') && 'min-h-0 h-full')} onScroll={handleScrollerScroll} onWheel={createWheelHandler(inventoryScrollRef)}>
+              <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + expandedLinePlotHeight }}>
                 <svg
                   aria-hidden="true"
                   className="absolute left-0 top-0 w-full"
                   preserveAspectRatio="none"
-                  style={{ height: CHART_PLOT_HEIGHT, top: LABEL_GUTTER_HEIGHT }}
+                  style={{ height: expandedLinePlotHeight, top: LABEL_GUTTER_HEIGHT }}
                   viewBox={`0 0 ${Math.max(contentWidth, 1)} 42`}
                 >
                 {inventoryBandPath ? (
@@ -674,87 +704,139 @@ export function SkuDetailLedger({
                     className="text-foreground/10"
                   />
                 ) : null}
-                <path d={`M${axisStartPadding} 10 H${Math.max(contentWidth - axisEndPadding, 1)}`} strokeDasharray="2 2" stroke="currentColor" strokeWidth="0.6" className="text-muted-foreground/70" />
-                <path d={`M${axisStartPadding} 24 H${Math.max(contentWidth - axisEndPadding, 1)}`} strokeDasharray="4 3" stroke="currentColor" strokeWidth="0.6" className="text-muted-foreground/50" />
-                <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth="1.8" className="text-foreground" />
+                <path d={`M${axisStartPadding} 24 H${Math.max(contentWidth - axisEndPadding, 1)}`} strokeDasharray={inventoryVisual.secondaryDashArray} stroke="currentColor" strokeWidth={inventoryVisual.dashedStrokeWidth} className="text-muted-foreground/50" />
+                <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth={inventoryVisual.strokeWidth} className="text-foreground" />
               </svg>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 z-[1]"
+                style={{ top: inventoryReorderGuideTop, height: inventoryReorderDotRadius * 2 }}
+              >
+                {inventoryReorderGuide.centers.map((centerX) => (
+                  <span
+                    key={`inventory-reorder-dot-${centerX}`}
+                    className="absolute rounded-full bg-muted-foreground/70"
+                    style={{
+                      left: centerX - inventoryReorderDotRadius,
+                      top: 0,
+                      width: inventoryReorderDotRadius * 2,
+                      height: inventoryReorderDotRadius * 2,
+                    }}
+                  />
+                ))}
+              </div>
               {inventoryCoordinates.map((point, index) => {
                 const isSelected = selectedPointIndex === index;
                 const detailPoint = model.lanes.inventoryLane.points[index];
                 if (!showsLinePointMarkers && !isSelected) {
                   return null;
                 }
+                const pointTop = deriveLabelGutterOffset({
+                  plotY: point.y,
+                  plotHeight: expandedLinePlotHeight,
+                  gutterHeight: LABEL_GUTTER_HEIGHT,
+                  viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+                });
                 return (
-                  <button
-                    key={detailPoint?.at ?? `inventory-${index}`}
-                    aria-label={detailPoint ? `Inventory ${Math.round(detailPoint.mean)} units` : `Inventory point ${index + 1}`}
-                    className="absolute -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: point.x, top: deriveLabelGutterOffset({ plotY: point.y }) }}
-                    type="button"
-                    onClick={() => setSelectedIntervalIndex(indices[index] ?? index)}
-                  >
+                  <Fragment key={detailPoint?.at ?? `inventory-${index}`}>
                     {isSelected ? (
-                      <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                      <ClampedChartDataLabel
+                        anchorX={point.x}
+                        anchorY={pointTop}
+                        containerWidth={contentWidth}
+                        containerHeight={LABEL_GUTTER_HEIGHT + expandedLinePlotHeight}
+                        gap={inventoryVisual.dataLabelGap}
+                        className="whitespace-nowrap rounded-full border border-border/70 bg-background font-medium text-foreground shadow-sm"
+                        style={{
+                          padding: `${inventoryVisual.dataLabelPaddingY}px ${inventoryVisual.dataLabelPaddingX}px`,
+                          fontSize: inventoryVisual.dataLabelFontSize,
+                        }}
+                      >
                         {Math.round(detailPoint?.mean ?? point.value)}u
-                      </span>
+                      </ClampedChartDataLabel>
                     ) : null}
-                    <span className={`block size-4 rounded-full border-2 ${isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background'}`} />
-                  </button>
+                    <button
+                      aria-label={detailPoint ? `Inventory ${Math.round(detailPoint.mean)} units` : `Inventory point ${index + 1}`}
+                      className="absolute -translate-x-1/2 -translate-y-1/2"
+                      style={{
+                        left: point.x,
+                        top: pointTop,
+                      }}
+                      type="button"
+                      onClick={() => setSelectedIntervalIndex(indices[index] ?? index)}
+                    >
+                    <span
+                      className={`block rounded-full border-2 ${isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background'}`}
+                      style={{ width: inventoryVisual.markerSize, height: inventoryVisual.markerSize }}
+                    />
+                    </button>
+                  </Fragment>
                 );
               })}
             </div>
           </div>
         </div>
+        ) : null}
 
-        <div className="border-t border-border/60 py-5">
+        {visibleLaneOrder.includes('flow') ? (
+        <div className={cn('border-t border-border/60 py-5', isLaneExpanded('flow') && 'grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)]')}>
           <LaneTitle title={t('catalogSenaSkuFlowLane')} tooltip={t('catalogSenaSkuFlowLaneTooltip')} />
-          <div className="mb-3 flex items-center gap-4 px-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-2">
-              <span className="size-2 rounded-full bg-foreground/20" />
-              Service demand
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="size-2 rounded-full bg-foreground/45" />
-              Retail demand
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="size-2 rounded-full bg-secondary" />
-              Receipts
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="size-2 rounded-full bg-amber-600/85" />
-              Adjustments
-            </span>
+          <div className="mb-3 flex items-start justify-between gap-3 px-2">
+            <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-2">
+                <span className="size-2 rounded-full bg-foreground/20" />
+                Service demand
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="size-2 rounded-full bg-foreground/45" />
+                Retail demand
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="size-2 rounded-full bg-secondary" />
+                Receipts
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="size-2 rounded-full bg-amber-600/85" />
+                Adjustments
+              </span>
+            </div>
+            <LaneExpandButton expanded={isLaneExpanded('flow')} title="Flow decomposition lane" onClick={() => toggleLaneExpanded('flow')} />
           </div>
-          <div ref={flowScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(flowScrollRef, axisStartPadding)}>
+          <div ref={flowScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('flow') && 'min-h-0 h-full')} onScroll={handleScrollerScroll} onWheel={createWheelHandler(flowScrollRef)}>
             <div
-              className="grid rounded-md bg-muted/20 pb-3 pt-2"
+              className="relative grid rounded-md bg-muted/20 pb-3 pt-2"
               style={{
                 width: contentWidth,
                 paddingLeft: axisStartPadding,
                 paddingRight: axisEndPadding,
                 paddingTop: FLOW_LABEL_GUTTER_HEIGHT,
                 gridTemplateColumns: `repeat(${Math.max(model.lanes.flowLane.intervals.length, 1)}, ${stretchedSlotWidth}px)`,
-                minHeight: FLOW_LABEL_GUTTER_HEIGHT + FLOW_LANE_PLOT_HEIGHT,
+                minHeight: FLOW_LABEL_GUTTER_HEIGHT + expandedFlowPlotHeight,
               }}
             >
-              {model.lanes.flowLane.intervals.map((interval) => {
-                const plotHalfHeight = FLOW_LANE_PLOT_HEIGHT / 2;
+              {model.lanes.flowLane.intervals.map((interval, index) => {
+                const plotHalfHeight = expandedFlowPlotHeight / 2;
                 const flowStackHeights = deriveFlowStackHeights(interval, maxFlowMagnitude, {
                   demandMaxHeight: plotHalfHeight - 4,
                   supplyMaxHeight: plotHalfHeight - 4,
                   minHeight: 3,
                 });
+                const flowAnchorX = axisStartPadding + index * stretchedSlotWidth + stretchedSlotWidth / 2;
                 return (
-                  <button
-                    key={interval.intervalIndex}
-                    className="relative flex w-full items-stretch justify-center"
-                    style={{ height: FLOW_LANE_PLOT_HEIGHT }}
-                    type="button"
-                    onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
-                  >
+                  <Fragment key={interval.intervalIndex}>
                     {selectedIntervalIndex === interval.intervalIndex ? (
-                      <div className="absolute bottom-full left-1/2 z-[2] mb-2 flex -translate-x-1/2 flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm">
+                      <ClampedChartDataLabel
+                        anchorX={flowAnchorX}
+                        anchorY={FLOW_LABEL_GUTTER_HEIGHT}
+                        containerWidth={contentWidth}
+                        containerHeight={FLOW_LABEL_GUTTER_HEIGHT + expandedFlowPlotHeight}
+                        gap={flowVisual.dataLabelGap}
+                        className="flex flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 shadow-sm"
+                        style={{
+                          padding: `${flowVisual.dataLabelPaddingY}px ${flowVisual.dataLabelPaddingX}px`,
+                          fontSize: flowVisual.dataLabelFontSize,
+                        }}
+                      >
                         <span className="whitespace-nowrap text-foreground">
                           {`Service: -${Math.round(interval.serviceDemandMean)}`}
                         </span>
@@ -767,8 +849,14 @@ export function SkuDetailLedger({
                         <span className="whitespace-nowrap text-foreground">
                           {`Adjustments: ${interval.adjustmentsMean >= 0 ? '+' : ''}${Math.round(interval.adjustmentsMean)}`}
                         </span>
-                      </div>
+                      </ClampedChartDataLabel>
                     ) : null}
+                    <button
+                      className="relative flex w-full items-stretch justify-center"
+                      style={{ height: expandedFlowPlotHeight }}
+                      type="button"
+                      onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
+                    >
                     <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
                     <div className="relative h-full w-[85%] self-center">
                       <div className="absolute inset-x-0 top-1/2 h-1/2">
@@ -803,45 +891,79 @@ export function SkuDetailLedger({
                         ) : null}
                       </div>
                     </div>
-                  </button>
+                    </button>
+                  </Fragment>
                 );
               })}
             </div>
           </div>
         </div>
+        ) : null}
 
-        <div className="border-t border-border/60 pt-5">
+        {visibleLaneOrder.includes('pipeline') ? (
+        <div className={cn('border-t border-border/60 pt-5', isLaneExpanded('pipeline') && 'grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)]')}>
           <LaneTitle title={t('catalogSenaSkuPipelineLane')} tooltip={t('catalogSenaSkuPipelineLaneTooltip')} />
-          <div ref={pipelineScrollRef} className="hidden-scrollbar overflow-x-auto overflow-y-visible overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(pipelineScrollRef, axisStartPadding)}>
+          <div className="-mt-1 mb-3 flex justify-end">
+            <LaneExpandButton expanded={isLaneExpanded('pipeline')} title="Pipeline lane" onClick={() => toggleLaneExpanded('pipeline')} />
+          </div>
+          <div ref={pipelineScrollRef} className={cn('hidden-scrollbar overflow-x-auto overflow-y-visible overscroll-contain', isLaneExpanded('pipeline') && 'min-h-0 h-full')} onScroll={handleScrollerScroll} onWheel={createWheelHandler(pipelineScrollRef)}>
             <div
-              className="grid rounded-md bg-muted/20 pb-2 pt-2"
+              className="relative grid rounded-md bg-muted/20 pb-2 pt-2"
               style={{
                 width: contentWidth,
                 paddingLeft: axisStartPadding,
                 paddingRight: axisEndPadding,
                 paddingTop: LABEL_GUTTER_HEIGHT,
                 gridTemplateColumns: `repeat(${Math.max(model.lanes.pipelineLane.intervals.length, 1)}, ${stretchedSlotWidth}px)`,
-                minHeight: LABEL_GUTTER_HEIGHT + 128,
+                minHeight: LABEL_GUTTER_HEIGHT + expandedPipelineBodyHeight,
               }}
             >
-              {model.lanes.pipelineLane.intervals.map((interval) => {
+              {model.lanes.pipelineLane.intervals.map((interval, index) => {
                 const isSelected = selectedIntervalIndex === interval.intervalIndex;
                 const isCompact = pipelineUsesCompactTile(stretchedSlotWidth);
                 const isNumberOnly = pipelineUsesNumberOnlyTile(stretchedSlotWidth);
+                const usesExternalDataLabel = pipelineUsesExternalDataLabel(stretchedSlotWidth);
+                const tileLayout = pipelineTileLayout(stretchedSlotWidth);
+                const pipelineAnchorX = axisStartPadding + index * stretchedSlotWidth + stretchedSlotWidth / 2;
+                const pipelineTileTop = LABEL_GUTTER_HEIGHT + Math.max(0, (expandedPipelineBodyHeight - PIPELINE_TILE_MIN_HEIGHT) / 2);
                 return (
-                  <button
-                    key={interval.intervalIndex}
-                    className="relative flex min-h-24 w-[85%] self-center flex-col items-center justify-center gap-1 rounded-[1.35rem] border px-1.5 py-3 text-center transition-colors"
-                    style={pipelineTintStyle(interval.inTransitMean, maxPipelineInTransit)}
-                    type="button"
-                    onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
-                  >
+                  <Fragment key={interval.intervalIndex}>
                     {isSelected ? (
-                      <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                        {Math.round(interval.orderQuantityMean)} pending delivery
-                      </span>
+                      <ClampedChartDataLabel
+                        anchorX={pipelineAnchorX}
+                        anchorY={pipelineTileTop}
+                        containerWidth={contentWidth}
+                        containerHeight={LABEL_GUTTER_HEIGHT + expandedPipelineBodyHeight}
+                        gap={flowVisual.dataLabelGap}
+                        className="flex flex-col items-start gap-1 rounded-md border border-border/70 bg-background font-medium text-foreground shadow-sm"
+                        style={{
+                          padding: `${flowVisual.dataLabelPaddingY}px ${flowVisual.dataLabelPaddingX}px`,
+                          fontSize: flowVisual.dataLabelFontSize,
+                        }}
+                      >
+                        {usesExternalDataLabel ? (
+                          <>
+                            <span className="whitespace-nowrap">{Math.round(interval.orderQuantityMean)} pending delivery</span>
+                            <span className="whitespace-nowrap">{Math.round(interval.inTransitMean)} in transit</span>
+                          </>
+                        ) : (
+                          <span className="whitespace-nowrap">{Math.round(interval.orderQuantityMean)} pending delivery</span>
+                        )}
+                      </ClampedChartDataLabel>
                     ) : null}
-                    {isNumberOnly ? (
+                    <button
+                      className="relative flex min-h-24 self-center flex-col items-center justify-center gap-1 rounded-[1.35rem] border px-1.5 py-3 text-center transition-colors"
+                      data-pipeline-tile="true"
+                      style={{
+                        ...pipelineTintStyle(interval.inTransitMean, maxPipelineInTransit),
+                        width: tileLayout.width,
+                        marginLeft: tileLayout.inset,
+                        marginRight: tileLayout.inset,
+                      }}
+                      type="button"
+                      onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
+                    >
+                    {usesExternalDataLabel ? null : isNumberOnly ? (
                       <span className={`flex flex-col items-center justify-center gap-1 text-sm leading-none ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
                         <span>{Math.round(interval.inTransitMean)}</span>
                         <Package className="size-3.5" />
@@ -857,13 +979,16 @@ export function SkuDetailLedger({
                         in transit
                       </span>
                     ) : null}
-                  </button>
+                    </button>
+                  </Fragment>
                 );
               })}
             </div>
           </div>
         </div>
+        ) : null}
       </div>
     </section>
+    </>
   );
 }

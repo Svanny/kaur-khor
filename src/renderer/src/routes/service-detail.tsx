@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaServiceDetail, SenaServiceDetailPage } from '@shared/sena';
-import { usePagedIntervalHistory } from '@/components/system/interval-history';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
+import { type ChartTimeframe } from '@/components/system/chart-timeframe';
+import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
@@ -106,6 +107,7 @@ export function ServiceDetailRoute() {
     catalog,
     listStockReports,
     loadInventorySnapshot,
+    clearSenaServiceDetailCache,
     loadSenaServiceDetail,
     observations,
     reports,
@@ -120,6 +122,9 @@ export function ServiceDetailRoute() {
   const [isLoading, setIsLoading] = useState(false);
   const [selection, setSelection] = useState<ServiceInspectorSelection>({ type: 'overview' });
   const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [timeframe, setTimeframe] = useState<ChartTimeframe>('Recent');
+  const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
+  const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
 
   const catalogService = catalog?.services.find((entry) => entry.serviceId === serviceId) ?? null;
   const linkedSkuIds = useMemo(
@@ -171,6 +176,8 @@ export function ServiceDetailRoute() {
 
     setIsLoading(true);
     setError(null);
+    setTimeframe('Recent');
+    setChartZoomResetToken(0);
 
     fetchPageData()
       .then(({ nextDetail, nextReports, nextSnapshot }) => {
@@ -197,15 +204,72 @@ export function ServiceDetailRoute() {
     };
   }, [fetchPageData, serviceId]);
 
-  const { detail, hasOlder, isLoadingOlder, loadOlder } = usePagedIntervalHistory({
-    initialPage: detailPage,
-    mergeDetails: mergeServiceDetailPages,
-    onPageChange: setDetailPage,
+  const {
+    detail,
+    hasOlder,
+    isHydratingDetails,
+    isLoadingOlder,
+    loadOlder,
+    page: hydratedPage,
+    resolvedTimeframe,
+    resetHydratedDetails,
+    timeframeHydrationProgress,
+  } = useTimeframedIntervalHistory({
+    fetchInitialPage: async (limit = INTERVAL_PAGE_SIZE) =>
+      normalizeServiceDetailPage(
+        (await loadSenaServiceDetail(serviceId, { limit }).catch(() => null)) ?? null,
+      ),
     fetchOlderPage: async (beforeIntervalIndex, limit = INTERVAL_PAGE_SIZE) =>
       normalizeServiceDetailPage(
         (await loadSenaServiceDetail(serviceId, { beforeIntervalIndex, limit }).catch(() => null)) ?? null,
       ),
+    getLoadedIntervalCount: (page) => page?.detail.regimeTimeline.length ?? 0,
+    getOldestIntervalAt: (page) => page?.detail.regimeTimeline[0]?.startAt ?? page?.detail.regimeTimeline[0]?.endAt ?? null,
+    initialPage: detailPage,
+    intervalCount: workspaceSummary?.intervalCount ?? detailPage?.detail.regimeTimeline.length ?? 0,
+    latestObservedAt: workspaceSummary?.latestObservedAt,
+    mergeDetails: mergeServiceDetailPages,
+    onPruneTransition: () => clearSenaServiceDetailCache(serviceId),
+    timeframe,
   });
+  const effectiveIsHydratingDetails =
+    isHydratingDetails || timeframeHydrationProgress != null || pendingTimeframe != null;
+
+  useEffect(() => {
+    if (pendingTimeframe == null) {
+      return;
+    }
+    if (timeframe !== pendingTimeframe) {
+      return;
+    }
+    if (
+      resolvedTimeframe === pendingTimeframe ||
+      isHydratingDetails ||
+      timeframeHydrationProgress != null
+    ) {
+      setPendingTimeframe(null);
+    }
+  }, [isHydratingDetails, pendingTimeframe, resolvedTimeframe, timeframe, timeframeHydrationProgress]);
+
+  function handleTimeframeChange(nextTimeframe: ChartTimeframe) {
+    if (nextTimeframe === timeframe) {
+      return;
+    }
+    setOlderLoadProgress(null);
+    setPendingTimeframe(nextTimeframe);
+    setTimeframe(nextTimeframe);
+    setChartZoomResetToken((current) => current + 1);
+  }
+
+  async function handleResetCharts() {
+    setOlderLoadProgress(null);
+    await resetHydratedDetails();
+    setChartZoomResetToken((current) => current + 1);
+  }
+
+  useEffect(() => {
+    setDetailPage(hydratedPage);
+  }, [hydratedPage]);
 
   const model = useMemo(() => {
     if (!service || !activeSnapshot) {
@@ -283,9 +347,9 @@ export function ServiceDetailRoute() {
   return (
     <WorkspacePage>
       <LoadingMoreIntervalsIsland
-        currentBatch={olderLoadProgress?.current ?? null}
-        totalBatches={olderLoadProgress?.total ?? null}
-        visible={isLoadingOlder || olderLoadProgress != null}
+        currentBatch={(timeframeHydrationProgress ?? olderLoadProgress)?.current ?? null}
+        totalBatches={(timeframeHydrationProgress ?? olderLoadProgress)?.total ?? null}
+        visible={effectiveIsHydratingDetails || isLoadingOlder || olderLoadProgress != null}
       />
       <div className="grid gap-6">
         {error ? (
@@ -302,13 +366,18 @@ export function ServiceDetailRoute() {
         <div className={rightRailLayoutClassName(showRightRailCards)}>
           <div className="grid min-w-0 gap-6">
             <ServiceDetailLedger
+              chartZoomResetToken={chartZoomResetToken}
               hasOlderIntervals={hasOlder}
+              isHydratingDetails={effectiveIsHydratingDetails}
               isLoadingOlderIntervals={isLoadingOlder}
               loadOlderIntervals={loadOlder}
               model={model}
               onOlderLoadProgressChange={setOlderLoadProgress}
+              onResetCharts={() => void handleResetCharts()}
+              onTimeframeChange={handleTimeframeChange}
               selection={selection}
               setSelection={setSelection}
+              timeframe={timeframe}
             />
             <div className="grid gap-6 xl:grid-cols-2">
               <ServiceDependencyImpact rows={model.dependencyImpact} />

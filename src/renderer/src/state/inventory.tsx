@@ -66,6 +66,8 @@ export interface InventoryContextValue {
   loadSenaWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
   loadSenaSkuDetail: (skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaSkuDetailPage | null>;
   loadSenaServiceDetail: (serviceId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaServiceDetailPage | null>;
+  clearSenaSkuDetailCache: (skuId: string) => Promise<void>;
+  clearSenaServiceDetailCache: (serviceId: string) => Promise<void>;
   loadSenaDiagnostics: () => Promise<SenaDiagnostics | null>;
   loadSenaRunStatus: (runId: string) => Promise<SenaAnalysisRunRecord | null>;
   updateSenaMeta: (next: Partial<SenaMetaCache>) => void;
@@ -90,6 +92,10 @@ function emptyState() {
 
 function isSenaCacheKey(key: string) {
   return key.startsWith('sena:');
+}
+
+function isSenaDetailCacheKey(key: string, entityType: 'sku' | 'service', entityId: string) {
+  return key.startsWith(`sena:${entityType}:${entityId}:`);
 }
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
@@ -349,6 +355,32 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           `sena:service:${serviceId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`,
           () => window.banjiDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }),
         );
+      },
+      clearSenaSkuDetailCache: async (skuId) => {
+        for (const key of readCacheRef.current.keys()) {
+          if (isSenaDetailCacheKey(key, 'sku', skuId)) {
+            readCacheRef.current.delete(key);
+          }
+        }
+        for (const key of inflightRef.current.keys()) {
+          if (isSenaDetailCacheKey(key, 'sku', skuId)) {
+            inflightRef.current.delete(key);
+          }
+        }
+        await window.banjiDesktop.sena.clearDetailCache({ entityId: skuId, entityType: 'sku' });
+      },
+      clearSenaServiceDetailCache: async (serviceId) => {
+        for (const key of readCacheRef.current.keys()) {
+          if (isSenaDetailCacheKey(key, 'service', serviceId)) {
+            readCacheRef.current.delete(key);
+          }
+        }
+        for (const key of inflightRef.current.keys()) {
+          if (isSenaDetailCacheKey(key, 'service', serviceId)) {
+            inflightRef.current.delete(key);
+          }
+        }
+        await window.banjiDesktop.sena.clearDetailCache({ entityId: serviceId, entityType: 'service' });
       },
       loadSenaDiagnostics: async () => {
         const diagnostics = await loadWithCache('sena:diagnostics', () => window.banjiDesktop.sena.getDiagnostics());
