@@ -12,6 +12,8 @@ export const INTERVAL_PILL_GAP = 0;
 export const SCROLL_EDGE_TOLERANCE = 6;
 export const AXIS_START_PADDING = 20;
 export const AXIS_END_PADDING = 36;
+export const INTERVAL_PAGE_SIZE = 10;
+export const LOAD_OLDER_SCROLL_THRESHOLD_PX = 24;
 
 export interface IntervalStripEntry {
   intervalIndex: number;
@@ -104,6 +106,34 @@ export function deriveVisibleWindow(itemCount: number, scrollLeft: number, viewp
   const visibleCount = Math.max(1, Math.ceil((viewportWidth + gapWidth) / Math.max(stride, 1)));
   const end = Math.max(start, Math.min(itemCount - 1, start + visibleCount - 1));
   return { start, end };
+}
+
+export function shouldLoadOlderIntervals({
+  hasOlder,
+  isLoadingOlder,
+  scrollLeft,
+  thresholdPx = LOAD_OLDER_SCROLL_THRESHOLD_PX,
+}: {
+  hasOlder: boolean;
+  isLoadingOlder: boolean;
+  scrollLeft: number;
+  thresholdPx?: number;
+}) {
+  return hasOlder && !isLoadingOlder && scrollLeft <= thresholdPx;
+}
+
+export function derivePrependedScrollLeft({
+  currentScrollLeft,
+  prependedCount,
+  slotWidth,
+  gapWidth = INTERVAL_PILL_GAP,
+}: {
+  currentScrollLeft: number;
+  prependedCount: number;
+  slotWidth: number;
+  gapWidth?: number;
+}) {
+  return currentScrollLeft + prependedCount * (slotWidth + gapWidth);
 }
 
 function clamp(value: number, min: number, max: number) {

@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
-import type { SenaServiceDetail } from '@shared/sena';
+import type { SenaServiceDetail, SenaServiceDetailPage } from '@shared/sena';
+import { usePagedIntervalHistory } from '@/components/system/interval-history';
+import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
+import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 import { ServiceDependencyImpact } from './service-detail/dependency-impact';
@@ -16,6 +19,13 @@ import { ServiceDetailHero } from './service-detail/hero';
 import { ServiceDetailLedger } from './service-detail/ledger';
 import { ServiceDetailRightRail } from './service-detail/right-rail';
 import { deriveServiceDetailViewModel, type ServiceInspectorSelection } from './service-detail/view-model';
+
+function mergeServiceDetailPages(older: SenaServiceDetail, newer: SenaServiceDetail) {
+  return {
+    ...newer,
+    regimeTimeline: [...older.regimeTimeline, ...newer.regimeTimeline],
+  };
+}
 
 function ServiceDetailLoadingState({ showRightRailCards }: { showRightRailCards: boolean }) {
   return (
@@ -102,7 +112,7 @@ export function ServiceDetailRoute() {
     workspaceSummary,
   } = useInventory();
   const { serviceId = '' } = useParams();
-  const [detail, setDetail] = useState<SenaServiceDetail | null>(null);
+  const [detailPage, setDetailPage] = useState<SenaServiceDetailPage | null>(null);
   const [loadedSnapshot, setLoadedSnapshot] = useState<InventorySnapshot | null>(null);
   const [loadedReports, setLoadedReports] = useState<StockReport[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +146,7 @@ export function ServiceDetailRoute() {
       reports.length > 0 ? Promise.resolve(reports) : listStockReports().catch(() => []),
     ]);
     return {
-      nextDetail,
+      nextDetail: normalizeServiceDetailPage(nextDetail),
       nextReports,
       nextSnapshot: nextSnapshot ?? null,
     };
@@ -145,7 +155,7 @@ export function ServiceDetailRoute() {
   const refreshPage = useCallback(async () => {
     setError(null);
     const { nextDetail, nextReports, nextSnapshot } = await fetchPageData();
-    setDetail(nextDetail);
+    setDetailPage(nextDetail);
     setLoadedSnapshot(nextSnapshot);
     setLoadedReports(nextReports);
   }, [fetchPageData]);
@@ -165,7 +175,7 @@ export function ServiceDetailRoute() {
         if (cancelled) {
           return;
         }
-        setDetail(nextDetail);
+        setDetailPage(nextDetail);
         setLoadedSnapshot(nextSnapshot);
         setLoadedReports(nextReports);
       })
@@ -184,6 +194,16 @@ export function ServiceDetailRoute() {
       cancelled = true;
     };
   }, [fetchPageData, serviceId]);
+
+  const { detail, hasOlder, isLoadingOlder, loadOlder } = usePagedIntervalHistory({
+    initialPage: detailPage,
+    mergeDetails: mergeServiceDetailPages,
+    onPageChange: setDetailPage,
+    fetchOlderPage: async (beforeIntervalIndex) =>
+      normalizeServiceDetailPage(
+        (await loadSenaServiceDetail(serviceId, { beforeIntervalIndex, limit: INTERVAL_PAGE_SIZE }).catch(() => null)) ?? null,
+      ),
+  });
 
   const model = useMemo(() => {
     if (!service || !activeSnapshot) {
@@ -274,7 +294,14 @@ export function ServiceDetailRoute() {
 
         <div className={rightRailLayoutClassName(showRightRailCards)}>
           <div className="grid min-w-0 gap-6">
-            <ServiceDetailLedger model={model} selection={selection} setSelection={setSelection} />
+            <ServiceDetailLedger
+              hasOlderIntervals={hasOlder}
+              isLoadingOlderIntervals={isLoadingOlder}
+              loadOlderIntervals={loadOlder}
+              model={model}
+              selection={selection}
+              setSelection={setSelection}
+            />
             <div className="grid gap-6 xl:grid-cols-2">
               <ServiceDependencyImpact rows={model.dependencyImpact} />
               <ServiceEvidenceTimeline evidence={model.evidence} />

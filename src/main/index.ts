@@ -23,8 +23,8 @@ import type {
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
-  SenaServiceDetail,
-  SenaSkuDetail,
+  SenaServiceDetailPage,
+  SenaSkuDetailPage,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 
@@ -256,8 +256,12 @@ ipcMain.handle(IPC_CHANNELS.senaGetWorkspaceSummary, async () =>
   ),
 );
 ipcMain.handle(IPC_CHANNELS.senaGetSkuDetail, async (_event, payload: SenaSkuLookupPayload) =>
-  loadCachedSenaRead(`sku-detail:${payload.skuId}`, () =>
-    managedCore.invoke<SenaSkuDetail | null>('sena.getSkuDetail', { skuId: payload.skuId }, {
+  loadCachedSenaRead(`sku-detail:${payload.skuId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 10}`, () =>
+    managedCore.invoke<SenaSkuDetailPage | null>('sena.getSkuDetail', {
+      skuId: payload.skuId,
+      beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
+      limit: payload.limit ?? 10,
+    }, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
@@ -272,9 +276,11 @@ ipcMain.handle(IPC_CHANNELS.senaGetDiagnostics, async () =>
 ipcMain.handle(
   IPC_CHANNELS.senaGetServiceDetail,
   async (_event, payload: SenaServiceLookupPayload) =>
-    loadCachedSenaRead(`service-detail:${payload.serviceId}`, () =>
-      managedCore.invoke<SenaServiceDetail | null>('sena.getServiceDetail', {
+    loadCachedSenaRead(`service-detail:${payload.serviceId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 10}`, () =>
+      managedCore.invoke<SenaServiceDetailPage | null>('sena.getServiceDetail', {
         serviceId: payload.serviceId,
+        beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
+        limit: payload.limit ?? 10,
       }, {
         timeoutMs: SENA_READ_TIMEOUT_MS,
       }),

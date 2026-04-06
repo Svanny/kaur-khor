@@ -7,6 +7,7 @@ import {
   type WheelEvent,
 } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import type { SenaServiceDetailPage } from '@shared/sena';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -31,6 +32,8 @@ const INTERVAL_PILL_GAP = 0;
 const SCROLL_EDGE_TOLERANCE = 6;
 const AXIS_START_PADDING = 20;
 const AXIS_END_PADDING = 36;
+const INTERVAL_PAGE_SIZE = 10;
+const LOAD_OLDER_SCROLL_THRESHOLD_PX = 24;
 const LABEL_GUTTER_HEIGHT = 32;
 const CHART_PLOT_HEIGHT = 120;
 const CHART_VIEWBOX_HEIGHT = 42;
@@ -46,6 +49,14 @@ function clamp(value: number, min: number, max: number) {
 
 function clampScrollLeft(scrollLeft: number, viewportWidth: number, contentWidth: number) {
   return clamp(scrollLeft, 0, Math.max(0, contentWidth - viewportWidth));
+}
+
+function shouldLoadOlderIntervals(hasOlder: boolean, isLoadingOlder: boolean, scrollLeft: number) {
+  return hasOlder && !isLoadingOlder && scrollLeft <= LOAD_OLDER_SCROLL_THRESHOLD_PX;
+}
+
+function derivePrependedScrollLeft(currentScrollLeft: number, prependedCount: number, slotWidth: number) {
+  return currentScrollLeft + prependedCount * (slotWidth + INTERVAL_PILL_GAP);
 }
 
 function normalizeRegimeKey(regime: string) {
@@ -388,10 +399,16 @@ function selectedIntervalIndexFromSelection(model: ServiceDetailViewModel, selec
 }
 
 export function ServiceDetailLedger({
+  hasOlderIntervals,
+  isLoadingOlderIntervals,
+  loadOlderIntervals,
   model,
   selection,
   setSelection,
 }: {
+  hasOlderIntervals: boolean;
+  isLoadingOlderIntervals: boolean;
+  loadOlderIntervals: () => Promise<SenaServiceDetailPage | null>;
   model: ServiceDetailViewModel;
   selection: ServiceInspectorSelection;
   setSelection: (value: ServiceInspectorSelection) => void;
@@ -411,7 +428,7 @@ export function ServiceDetailLedger({
   const effectiveSlotWidth = clamp(slotWidthPx, Math.max(SHARED_PILL_MIN_WIDTH, MIN_SLOT_WIDTH), MAX_SLOT_WIDTH);
   const stretchedSlotWidth =
     viewportWidth > 0 && indices.length > 0
-      ? Math.max(effectiveSlotWidth, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / indices.length)
+      ? Math.max(effectiveSlotWidth, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / Math.min(indices.length, INTERVAL_PAGE_SIZE))
       : effectiveSlotWidth;
   const axisStartPadding = AXIS_START_PADDING;
   const axisEndPadding = AXIS_END_PADDING;
@@ -440,6 +457,16 @@ export function ServiceDetailLedger({
   );
   const gapValues = intervals.map((interval) => interval.sellableValue - interval.demandValue);
   const maxGapMagnitude = Math.max(1, ...gapValues.map((value) => Math.abs(value)));
+  const maybeLoadOlderIntervals = async (nextScrollLeft: number) => {
+    if (!shouldLoadOlderIntervals(hasOlderIntervals, isLoadingOlderIntervals, nextScrollLeft)) {
+      return;
+    }
+    const olderPage = await loadOlderIntervals();
+    const prependedCount = olderPage?.detail?.regimeTimeline?.length ?? 0;
+    if (prependedCount > 0) {
+      setScrollLeft((current) => derivePrependedScrollLeft(current, prependedCount, stretchedSlotWidth));
+    }
+  };
 
   useEffect(() => {
     const node = intervalScrollRef.current;
@@ -480,7 +507,9 @@ export function ServiceDetailLedger({
     if (syncingScrollRef.current) {
       return;
     }
-    setScrollLeft(event.currentTarget.scrollLeft);
+    const nextScrollLeft = event.currentTarget.scrollLeft;
+    setScrollLeft(nextScrollLeft);
+    void maybeLoadOlderIntervals(nextScrollLeft);
   };
 
   const scrollByViewport = (direction: -1 | 1) => {

@@ -149,6 +149,51 @@ export function buildTrajectoryBandPath(
   return `M ${upperPath} L ${lowerPath} Z`;
 }
 
+function deriveFlowBarHeight(value: number, maxMagnitude: number, maxHeight: number, minHeight: number) {
+  const magnitude = Math.abs(value);
+  if (magnitude <= 0 || maxMagnitude <= 0 || maxHeight <= 0) {
+    return 0;
+  }
+  return Math.max(minHeight, (magnitude / maxMagnitude) * maxHeight);
+}
+
+export function deriveFlowStackHeights(
+  values: {
+    serviceDemandMean: number;
+    retailDemandMean: number;
+    receiptsMean: number;
+    adjustmentsMean: number;
+  },
+  maxMagnitude: number,
+  options?: {
+    demandMaxHeight?: number;
+    supplyMaxHeight?: number;
+    minHeight?: number;
+  },
+) {
+  const demandMaxHeight = options?.demandMaxHeight ?? 24;
+  const supplyMaxHeight = options?.supplyMaxHeight ?? demandMaxHeight;
+  const minHeight = options?.minHeight ?? 2;
+
+  const serviceHeight = deriveFlowBarHeight(values.serviceDemandMean, maxMagnitude, demandMaxHeight, minHeight);
+  const retailHeight = deriveFlowBarHeight(values.retailDemandMean, maxMagnitude, demandMaxHeight, minHeight);
+  const receiptsHeight = deriveFlowBarHeight(values.receiptsMean, maxMagnitude, supplyMaxHeight, minHeight);
+  const adjustmentHeight = deriveFlowBarHeight(values.adjustmentsMean, maxMagnitude, supplyMaxHeight, minHeight);
+
+  return {
+    demand: {
+      serviceHeight,
+      retailHeight,
+      retailOffset: serviceHeight,
+    },
+    supply: {
+      receiptsHeight,
+      adjustmentHeight,
+      adjustmentOffset: receiptsHeight,
+    },
+  };
+}
+
 function buildSparsePointCoordinates(
   markers: Array<{ intervalIndex: number; price: number }>,
   intervalIndices: number[],

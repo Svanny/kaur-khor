@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 type HeaderedTableVariant = 'overview' | 'framed';
@@ -43,14 +43,14 @@ export function createHeaderedTableLayout({
   const gapClasses =
     gap === 4
       ? {
-          header: `${breakpoint}:gap-4`,
+          header: `${breakpoint}:gap-0 ${breakpoint}:[&>*]:px-3`,
           body: '',
-          row: `${breakpoint}:gap-4`,
+          row: `${breakpoint}:gap-0 ${breakpoint}:[&>*]:px-3`,
         }
       : {
-          header: `${breakpoint}:gap-5`,
+          header: `${breakpoint}:gap-0 ${breakpoint}:[&>*]:px-3.5`,
           body: '',
-          row: `${breakpoint}:gap-5`,
+          row: `${breakpoint}:gap-0 ${breakpoint}:[&>*]:px-3.5`,
         };
 
   return {
@@ -152,19 +152,36 @@ export function HeaderedTableRow({
   className,
   dataSlot,
   'data-slot': dataSlotAttr,
+  onClick,
   style,
 }: {
   children: ReactNode;
   className?: string;
   dataSlot?: string;
   'data-slot'?: string;
+  onClick?: () => void;
   style?: CSSProperties;
 }) {
+  const interactive = typeof onClick === 'function';
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!interactive) {
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <div
-      className={cn('grid gap-4 px-5 py-5 transition-colors sm:px-6', className)}
+      className={cn('grid gap-4 px-5 py-5 transition-colors sm:px-6', interactive && 'cursor-pointer', className)}
       data-slot={dataSlotAttr ?? dataSlot ?? 'headered-table-row'}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={interactive ? 'button' : undefined}
       style={style}
+      tabIndex={interactive ? 0 : undefined}
     >
       {children}
     </div>

@@ -26,7 +26,7 @@ export function PerformanceSectionShell({
   const showDescription = hasDescriptionText(description, descriptionVisible);
 
   return (
-    <section className={cn(PERFORMANCE_HEADER_SURFACE_CLASS_NAME, className)}>
+    <section className={cn(PERFORMANCE_HEADER_SURFACE_CLASS_NAME, 'flex h-full flex-col', className)}>
       <div className="border-b border-border/60 px-6 py-4">
         <div className={cn('flex flex-col gap-2', !showDescription && 'gap-0')}>
           <SectionTitle title={title} tooltip={tooltip} />
@@ -37,7 +37,7 @@ export function PerformanceSectionShell({
           ) : null}
         </div>
       </div>
-      <div className={cn('px-6 py-5', contentClassName)}>{children}</div>
+      <div className={cn('min-h-0 flex-1 px-6 py-5', contentClassName)}>{children}</div>
     </section>
   );
 }

@@ -19,7 +19,7 @@ export function AnalysisRoute() {
   const { currency, language, showRightRailCards } = usePreferences();
   const [scope, setScope] = useState<AnalysisScope>('all');
   const [section, setSection] = useState<AnalysisSection>('workbench');
-  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration();
+  const { hasOlderIntervals, isHydratingDetails, isLoadingOlderIntervals, loadOlderIntervals, serviceDetailsById, skuDetailsById } = useSenaDetailHydration();
 
   const model = useMemo(() => {
     if (!inventory.catalog || !inventory.workspaceSummary) {
@@ -92,7 +92,7 @@ export function AnalysisRoute() {
         eyebrow="Analysis"
         title="Deep Review"
         description="Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations."
-        actions={
+        actions={section === 'fragility' ? undefined : (
           <div className="flex flex-wrap items-center justify-end gap-2">
             <ToggleGroup
               aria-label="Select analysis scope"
@@ -120,7 +120,7 @@ export function AnalysisRoute() {
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
-        }
+        )}
       >
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span>{model.lastUpdatedLabel}</span>
@@ -130,6 +130,9 @@ export function AnalysisRoute() {
       </WorkspaceTitleCard>
 
       <AnalysisWorkbench
+        hasOlderIntervals={hasOlderIntervals}
+        isLoadingOlderIntervals={isLoadingOlderIntervals}
+        loadOlderIntervals={loadOlderIntervals}
         model={model}
         section={section}
         setSection={setSection}

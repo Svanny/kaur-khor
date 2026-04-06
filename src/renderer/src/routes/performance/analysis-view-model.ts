@@ -14,7 +14,7 @@ import { formatWholeNumber } from '@/lib/format';
 import { formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity } from '@/routes/sku-detail/format';
 
 export type AnalysisScope = 'all' | 'skus' | 'services';
-export type AnalysisSection = 'workbench' | 'pressure' | 'observations' | 'fragility' | 'evidence' | 'settings';
+export type AnalysisSection = 'workbench' | 'pressure' | 'observations' | 'fragility' | 'settings';
 export type AnalysisEntityType = 'sku' | 'service';
 export type AnalysisSelection =
   | { type: 'overview' }
@@ -198,6 +198,9 @@ export interface AnalysisWorkbenchPipelineMarker {
   quantityMean: number;
 }
 
+export const PIPELINE_PILL_START_OFFSET = 0.14;
+export const PIPELINE_PILL_END_OFFSET = 0.86;
+
 export interface AnalysisWorkbenchLeadTimePoint {
   intervalIndex: number;
   intervalPosition: number;
@@ -220,6 +223,7 @@ export interface AnalysisWorkbenchChartModel {
   pipelineLane: {
     spans: AnalysisWorkbenchPipelineSpan[];
     markers: AnalysisWorkbenchPipelineMarker[];
+    rowCount: number;
   };
   leadTimeLane: {
     points: AnalysisWorkbenchLeadTimePoint[];
@@ -352,7 +356,7 @@ function recentSlice<T>(items: T[], count: number) {
   return items.length <= count ? items : items.slice(items.length - count);
 }
 
-const ANALYSIS_RECENT_REPORT_COUNT = 6;
+const ANALYSIS_RECENT_REPORT_COUNT = 10;
 
 function observationBelongsToScope({
   catalog,
@@ -409,7 +413,7 @@ function filterObservationsForScope({
     observationBelongsToScope({ catalog, observation, scope }),
   );
 
-  return recentSlice(scopedObservations, ANALYSIS_RECENT_REPORT_COUNT);
+  return scopedObservations;
 }
 
 function buildIntervalBounds({
@@ -561,7 +565,20 @@ function signalCounter(observations: SenaObservationRecord[]) {
 }
 
 function topEntityNames(rows: AnalysisEntityPressureRow[], count: number) {
-  return rows.slice(0, count).map((row) => row.name);
+  return uniqueOrderedStrings(rows.map((row) => row.name), count);
+}
+
+function uniqueOrderedStrings(values: string[], count?: number) {
+  const deduplicated = [...new Set(values)];
+  return typeof count === 'number' ? deduplicated.slice(0, count) : deduplicated;
+}
+
+function analysisEligibleServices(catalog: SenaCatalog, scope: AnalysisScope) {
+  if (scope === 'skus') {
+    return [];
+  }
+
+  return catalog.services.filter((service) => linkedSkuIdsForService(catalog, service.serviceId).length > 0);
 }
 
 function latestRetailPriceCount(skuId: string, observations: SenaObservationRecord[]) {
@@ -596,6 +613,38 @@ function intervalDurationDays(startAt: string | null, endAt: string | null) {
   }
 
   return Math.max((end - start) / (1000 * 60 * 60 * 24), 1);
+}
+
+function spansOverlap(
+  left: { startPosition: number; endPosition: number },
+  right: { startPosition: number; endPosition: number },
+) {
+  const leftVisualStart = left.startPosition + PIPELINE_PILL_START_OFFSET;
+  const leftVisualEnd = left.endPosition + PIPELINE_PILL_END_OFFSET;
+  const rightVisualStart = right.startPosition + PIPELINE_PILL_START_OFFSET;
+  const rightVisualEnd = right.endPosition + PIPELINE_PILL_END_OFFSET;
+  const hasGap = leftVisualStart >= rightVisualEnd || leftVisualEnd <= rightVisualStart;
+  return !hasGap;
+}
+
+function derivePipelineSpanRow({
+  span,
+  spansByRow,
+}: {
+  span: { startPosition: number; endPosition: number };
+  spansByRow: Map<number, Array<{ startPosition: number; endPosition: number }>>;
+}) {
+  for (let row = 0; ; row += 1) {
+    const rowSpans = spansByRow.get(row) ?? [];
+    const hasConflict = rowSpans.some((existingSpan) => spansOverlap(span, existingSpan));
+    if (hasConflict) {
+      continue;
+    }
+
+    rowSpans.push(span);
+    spansByRow.set(row, rowSpans);
+    return row;
+  }
 }
 
 function pushSeedEntity(seed: IntervalAggregateSeed, label: string) {
@@ -635,10 +684,9 @@ export function deriveAnalysisViewModel({
   const filteredIntervals = filterIntervalsForScope({
     intervals: allIntervals,
   });
+  const eligibleServices = analysisEligibleServices(catalog, scope);
   const activeServiceIds = new Set(
-    scope === 'services'
-      ? catalog.services.filter((service) => !service.bundle).map((service) => service.serviceId)
-      : catalog.services.filter((service) => !service.bundle).map((service) => service.serviceId),
+    eligibleServices.map((service) => service.serviceId),
   );
   const activeSkuIds = new Set(
     scope === 'services'
@@ -777,8 +825,8 @@ export function deriveAnalysisViewModel({
     const averageLeadTimeMeanDays = seed.leadTimeCount > 0 ? seed.leadTimeMeanDays / seed.leadTimeCount : null;
     const averageLeadTimeStdDays = seed.leadTimeCount > 0 ? seed.leadTimeStdDays / seed.leadTimeCount : null;
     const priceOrStockoutSummary =
-      seed.priceDeltaCount > 0
-        ? `${formatWholeNumber(seed.priceDeltaCount, language)} price or stockout cues landed`
+      seed.priceDeltaCount > 0 || seed.stockoutCueCount > 0
+        ? `${formatWholeNumber(seed.priceShiftCount, language)} price cues and ${formatWholeNumber(seed.stockoutCueCount, language)} stockout cues landed.`
         : 'No material price or stockout cue in this interval';
 
     return {
@@ -825,6 +873,47 @@ export function deriveAnalysisViewModel({
     };
   });
 
+  const rawPipelineSpans = orderedSeeds.flatMap((seed, intervalPosition) => {
+    const averageLeadTimeMeanDays = seed.leadTimeCount > 0 ? seed.leadTimeMeanDays / seed.leadTimeCount : 0;
+    const averageAgeDays = seed.pipelineCount > 0 ? seed.ageDaysMean / seed.pipelineCount : 0;
+    const averageIntervalDays = intervalDurationDays(seed.startAt, seed.endAt);
+
+    if (seed.inTransitMean <= 0 && seed.orderQuantityMean <= 0 && seed.receiptQuantityMean <= 0) {
+      return [];
+    }
+
+    const slotsBack = averageAgeDays > 0 ? averageAgeDays / averageIntervalDays : 0;
+    const slotsForward = averageLeadTimeMeanDays > averageAgeDays
+      ? (averageLeadTimeMeanDays - averageAgeDays) / averageIntervalDays
+      : 0.35;
+
+    return [{
+      key: `pipeline:${seed.intervalIndex}`,
+      intervalIndex: seed.intervalIndex,
+      intervalPosition,
+      startPosition: Math.max(-0.25, intervalPosition - slotsBack),
+      endPosition: Math.max(intervalPosition + 0.2, intervalPosition + slotsForward),
+      inTransitMean: seed.inTransitMean,
+      orderProbability: averageProbability(seed.orderProbabilitySum, seed.pipelineCount),
+      orderQuantityMean: seed.orderQuantityMean,
+      receiptQuantityMean: seed.receiptQuantityMean,
+      ageDaysMean: averageAgeDays,
+      leadTimeMeanDays: averageLeadTimeMeanDays,
+      overdue: averageLeadTimeMeanDays > 0 && averageAgeDays > averageLeadTimeMeanDays,
+    }];
+  });
+
+  const occupiedPipelineSpansByRow = new Map<number, Array<{ startPosition: number; endPosition: number }>>();
+  const pipelineSpans = rawPipelineSpans.map((span) => ({
+    ...span,
+    row: derivePipelineSpanRow({
+      span,
+      spansByRow: occupiedPipelineSpansByRow,
+    }),
+  }));
+  const pipelineSpanRowByInterval = new Map(pipelineSpans.map((span) => [span.intervalIndex, span.row]));
+  const pipelineRowCount = Math.max(1, ...pipelineSpans.map((span) => span.row + 1));
+
   const workbench: AnalysisWorkbenchChartModel = {
     regimePriceLane: {
       intervals: orderedSeeds.map((seed, intervalPosition) => ({
@@ -867,38 +956,9 @@ export function deriveAnalysisViewModel({
       ),
     },
     pipelineLane: {
-      spans: orderedSeeds.flatMap((seed, intervalPosition) => {
-        const averageLeadTimeMeanDays = seed.leadTimeCount > 0 ? seed.leadTimeMeanDays / seed.leadTimeCount : 0;
-        const averageAgeDays = seed.pipelineCount > 0 ? seed.ageDaysMean / seed.pipelineCount : 0;
-        const averageIntervalDays = intervalDurationDays(seed.startAt, seed.endAt);
-
-        if (seed.inTransitMean <= 0 && seed.orderQuantityMean <= 0 && seed.receiptQuantityMean <= 0) {
-          return [];
-        }
-
-        const slotsBack = averageAgeDays > 0 ? averageAgeDays / averageIntervalDays : 0;
-        const slotsForward = averageLeadTimeMeanDays > averageAgeDays
-          ? (averageLeadTimeMeanDays - averageAgeDays) / averageIntervalDays
-          : 0.35;
-
-        return [{
-          key: `pipeline:${seed.intervalIndex}`,
-          intervalIndex: seed.intervalIndex,
-          intervalPosition,
-          startPosition: Math.max(-0.25, intervalPosition - slotsBack),
-          endPosition: Math.max(intervalPosition + 0.2, intervalPosition + slotsForward),
-          row: intervalPosition % 3,
-          inTransitMean: seed.inTransitMean,
-          orderProbability: averageProbability(seed.orderProbabilitySum, seed.pipelineCount),
-          orderQuantityMean: seed.orderQuantityMean,
-          receiptQuantityMean: seed.receiptQuantityMean,
-          ageDaysMean: averageAgeDays,
-          leadTimeMeanDays: averageLeadTimeMeanDays,
-          overdue: averageLeadTimeMeanDays > 0 && averageAgeDays > averageLeadTimeMeanDays,
-        }];
-      }),
+      spans: pipelineSpans,
       markers: orderedSeeds.flatMap((seed, intervalPosition) => {
-        const row = intervalPosition % 3;
+        const row = pipelineSpanRowByInterval.get(seed.intervalIndex) ?? 0;
         const markers: AnalysisWorkbenchPipelineMarker[] = [];
         if (seed.orderPlacedCount > 0 || seed.orderQuantityMean > 0) {
           markers.push({
@@ -922,6 +982,7 @@ export function deriveAnalysisViewModel({
         }
         return markers;
       }),
+      rowCount: pipelineRowCount,
     },
     leadTimeLane: {
       points: orderedSeeds.map((seed, intervalPosition) => {
@@ -996,14 +1057,7 @@ export function deriveAnalysisViewModel({
     });
   }
 
-  for (const service of catalog.services) {
-    if (service.bundle) {
-      continue;
-    }
-    if (scope === 'skus') {
-      continue;
-    }
-
+  for (const service of eligibleServices) {
     const detail = serviceDetailsById[service.serviceId];
     const linkedSkuIds = linkedSkuIdsForService(catalog, service.serviceId);
     const linkedRows = linkedSkuIds
@@ -1077,14 +1131,17 @@ export function deriveAnalysisViewModel({
       const retailPriceCount = observation.input.retailPrices.length;
       const leadTimeHintCount = observation.input.leadTimeHints.length;
       const channelsPresent = accumulateSignals(observation);
-      const affectedEntityLabels = [
-        ...observation.input.serviceRankings
-          .map((serviceId) => serviceById.get(serviceId)?.name)
-          .filter((value): value is string => Boolean(value)),
-        ...observation.input.retailRankings
-          .map((skuId) => skuById.get(skuId)?.name)
-          .filter((value): value is string => Boolean(value)),
-      ].slice(0, 4);
+      const affectedEntityLabels = uniqueOrderedStrings(
+        [
+          ...observation.input.serviceRankings
+            .map((serviceId) => serviceById.get(serviceId)?.name)
+            .filter((value): value is string => Boolean(value)),
+          ...observation.input.retailRankings
+            .map((skuId) => skuById.get(skuId)?.name)
+            .filter((value): value is string => Boolean(value)),
+        ],
+        4,
+      );
 
       return {
         id: observation.observationId,
@@ -1113,19 +1170,7 @@ export function deriveAnalysisViewModel({
       name: sku.name,
     }));
 
-  const fragilityRows: AnalysisFragilityRow[] = catalog.services
-    .filter((service) => {
-      if (service.bundle) {
-        return false;
-      }
-      if (scope === 'services') {
-        return true;
-      }
-      if (scope === 'skus') {
-        return false;
-      }
-      return true;
-    })
+  const fragilityRows: AnalysisFragilityRow[] = eligibleServices
     .map((service) => {
       const detail = serviceDetailsById[service.serviceId];
       const linkedSkuIds = new Set(linkedSkuIdsForService(catalog, service.serviceId));

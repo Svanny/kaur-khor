@@ -66,8 +66,12 @@ describe('HeaderedTable', () => {
 
     expect(layout.containerClassName).toContain('lg:[grid-template-columns:var(--headered-table-columns)]');
     expect(layout.headerClassName).toContain('lg:grid-cols-subgrid');
+    expect(layout.headerClassName).toContain('lg:gap-0');
+    expect(layout.headerClassName).toContain('lg:[&>*]:px-3.5');
     expect(layout.bodyClassName).toContain('lg:grid-cols-subgrid');
     expect(layout.rowClassName).toContain('lg:grid-cols-subgrid');
+    expect(layout.rowClassName).toContain('lg:gap-0');
+    expect(layout.rowClassName).toContain('lg:[&>*]:px-3.5');
     expect(layout.mobileLabelClassName).toBe('lg:hidden');
     expect(layout.style).toEqual({ '--headered-table-columns': 'minmax(18rem,1fr) fit-content(9rem)' });
   });

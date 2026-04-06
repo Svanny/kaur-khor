@@ -4,11 +4,14 @@ import type {
   SenaObservationInput,
   SenaObservationRecord,
   SenaServiceDetail,
+  SenaServiceDetailPage,
   SenaSkuDetail,
+  SenaSkuDetailPage,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import type { AppLanguage } from '@shared/inventory';
 import type { InventoryContextValue } from '@/state/inventory';
+import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { hashSenaCatalog, projectInventorySnapshotFromSena, seedSenaCatalogFromSnapshot } from './catalog-seed';
 
 export type SkuDetailUiState = 'ready' | 'bootstrapping' | 'running' | 'needs_observations' | 'degraded';
@@ -18,6 +21,7 @@ export interface BootstrapSkuDetailResult {
   reports: StockReport[];
   observations: SenaObservationRecord[];
   workspaceSummary: SenaWorkspaceSummary | null;
+  detailPage: SenaSkuDetailPage | null;
   detail: SenaSkuDetail | null;
   diagnostics: SenaDiagnostics | null;
   linkedServiceDetails: SenaServiceDetail[];
@@ -136,7 +140,9 @@ async function loadLinkedServiceDetails(
   const results = await Promise.all(
     linkedServices.map((service) => inventory.loadSenaServiceDetail(service.serviceId).catch(() => null)),
   );
-  return results.filter((detail): detail is SenaServiceDetail => detail != null);
+  return results
+    .map((detail) => normalizeServiceDetailPage(detail)?.detail ?? null)
+    .filter((detail): detail is SenaServiceDetail => detail != null);
 }
 
 export async function reloadSenaSkuData({
@@ -149,11 +155,12 @@ export async function reloadSenaSkuData({
   snapshot: InventorySnapshot;
 }) {
   const workspaceSummary = await inventory.loadSenaWorkspaceSummary();
-  const detail = await inventory.loadSenaSkuDetail(skuId);
+  const detailPage = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId));
+  const detail = detailPage?.detail ?? null;
   const diagnostics = await inventory.loadSenaDiagnostics();
   const observations = await inventory.listSenaObservations();
   const linkedServiceDetails = await loadLinkedServiceDetails(inventory, snapshot, skuId);
-  return { workspaceSummary, detail, diagnostics, observations, linkedServiceDetails };
+  return { workspaceSummary, detailPage, detail, diagnostics, observations, linkedServiceDetails };
 }
 
 export async function bootstrapSkuDetail({
@@ -182,6 +189,7 @@ export async function bootstrapSkuDetail({
   });
 
   let workspaceSummary: SenaWorkspaceSummary | null = null;
+  let detailPage: SenaSkuDetailPage | null = null;
   let detail: SenaSkuDetail | null = null;
   let diagnostics: SenaDiagnostics | null = null;
   let linkedServiceDetails: SenaServiceDetail[] = [];
@@ -191,7 +199,8 @@ export async function bootstrapSkuDetail({
 
   try {
     workspaceSummary = await inventory.loadSenaWorkspaceSummary();
-    detail = await inventory.loadSenaSkuDetail(skuId);
+    detailPage = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId));
+    detail = detailPage?.detail ?? null;
     diagnostics = await inventory.loadSenaDiagnostics();
 
     if (
@@ -209,6 +218,7 @@ export async function bootstrapSkuDetail({
       projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
       const reloaded = await reloadSenaSkuData({ inventory, skuId, snapshot: projectedSnapshot });
       workspaceSummary = reloaded.workspaceSummary;
+      detailPage = reloaded.detailPage;
       detail = reloaded.detail;
       diagnostics = reloaded.diagnostics;
       observations = reloaded.observations;
@@ -228,6 +238,7 @@ export async function bootstrapSkuDetail({
     reports,
     observations,
     workspaceSummary,
+    detailPage,
     detail,
     diagnostics,
     linkedServiceDetails,

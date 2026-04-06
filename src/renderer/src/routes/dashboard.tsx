@@ -35,6 +35,7 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { overviewTaskActionIconMap, overviewTaskFilterIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -143,7 +144,7 @@ export function DashboardRoute() {
     void Promise.all(
       skuIds.map(async (skuId) => {
         try {
-          return [skuId, await inventory.loadSenaSkuDetail(skuId)] as const;
+          return [skuId, normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId))?.detail ?? null] as const;
         } catch {
           return [skuId, null] as const;
         }

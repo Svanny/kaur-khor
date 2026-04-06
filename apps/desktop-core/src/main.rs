@@ -42,12 +42,20 @@ struct RunLookupPayload {
 #[serde(rename_all = "camelCase")]
 struct SkuLookupPayload {
     sku_id: String,
+    #[serde(default)]
+    before_interval_index: Option<usize>,
+    #[serde(default)]
+    limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ServiceLookupPayload {
     service_id: String,
+    #[serde(default)]
+    before_interval_index: Option<usize>,
+    #[serde(default)]
+    limit: Option<usize>,
 }
 
 fn default_algorithm_version() -> String {
@@ -150,7 +158,12 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
         "sena.getSkuDetail" => {
             let request: SkuLookupPayload =
                 serde_json::from_value(payload).context("invalid sena.getSkuDetail payload")?;
-            Ok(Some(serde_json::to_value(store::get_sku_detail(owner, &request.sku_id)?)?))
+            Ok(Some(serde_json::to_value(store::get_sku_detail(
+                owner,
+                &request.sku_id,
+                request.before_interval_index,
+                request.limit.unwrap_or(10),
+            )?)?))
         }
         "sena.getServiceDetail" => {
             let request: ServiceLookupPayload =
@@ -158,6 +171,8 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
             Ok(Some(serde_json::to_value(store::get_service_detail(
                 owner,
                 &request.service_id,
+                request.before_interval_index,
+                request.limit.unwrap_or(10),
             )?)?))
         }
         "sena.getDiagnostics" => Ok(Some(serde_json::to_value(store::get_diagnostics(owner)?)?)),

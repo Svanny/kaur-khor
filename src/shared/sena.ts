@@ -154,6 +154,19 @@ export interface SenaSkuDetail {
   leadTimePosterior: SenaLeadTimePosteriorPoint[];
 }
 
+export interface SenaDetailWindowRequest {
+  beforeIntervalIndex?: number | null;
+  limit: number;
+}
+
+export interface SenaSkuDetailPage {
+  detail: SenaSkuDetail;
+  pageLimit: number;
+  hasOlder: boolean;
+  nextBeforeIntervalIndex: number | null;
+  latestIntervalIndex: number | null;
+}
+
 export interface SenaTrajectoryPoint {
   at: string;
   mean: number;
@@ -220,6 +233,14 @@ export interface SenaServiceDetail {
   bottleneckProbability: number;
   contributors: SenaServiceContributor[];
   regimeTimeline: SenaRegimePosteriorPoint[];
+}
+
+export interface SenaServiceDetailPage {
+  detail: SenaServiceDetail;
+  pageLimit: number;
+  hasOlder: boolean;
+  nextBeforeIntervalIndex: number | null;
+  latestIntervalIndex: number | null;
 }
 
 export interface SenaServiceContributor {

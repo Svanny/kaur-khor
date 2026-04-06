@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
+import { getTranslation } from '@/lib/translations';
 import { AnalysisRoute } from './analysis';
 import { PerformanceRoute } from './performance';
 
@@ -11,6 +12,7 @@ const preferenceState = {
   currency: 'USD',
   language: 'en',
   showRightRailCards: true,
+  t: (key: Parameters<typeof getTranslation>[1]) => getTranslation('en', key),
 };
 
 vi.mock('@/state/inventory', () => ({
@@ -138,252 +140,283 @@ const regimeHistory = [
   },
 ];
 
+function buildObservation(index: number) {
+  const day = String(index + 1).padStart(2, '0');
+
+  return {
+    input: {
+      leadTimeHints: [],
+      notes: `Observation note ${index}`,
+      observedAt: `2026-04-${day}T08:00:00.000Z`,
+      orderSignals: index % 2 === 0
+        ? [{ approximateOrderQuantity: 8 + index, approximateReceiptQuantity: null, orderPlaced: true, receiptArrived: false, skuId: 'sku-razor' }]
+        : [],
+      retailPrices: index % 3 === 0 ? [{ price: 18 + index, skuId: 'sku-shampoo' }] : [],
+      retailRankings: index % 2 === 0 ? ['sku-shampoo'] : ['sku-razor'],
+      servicePrices: index % 2 === 1 ? [{ price: 42 + index, serviceId: 'service-color' }] : [],
+      serviceRankings: index % 2 === 0 ? ['service-haircut'] : ['service-color'],
+      serviceStockouts: [],
+      stockSnapshot: [],
+      retailStockouts: [],
+    },
+    observationId: `obs-${index}`,
+    ownerSub: 'desktop-owner',
+  };
+}
+
+const defaultObservations = [
+  {
+    input: {
+      leadTimeHints: [],
+      notes: 'Demand softened after a recent shampoo price move.',
+      observedAt: '2026-04-02T08:00:00.000Z',
+      orderSignals: [],
+      retailPrices: [{ price: 18, skuId: 'sku-shampoo' }],
+      retailRankings: ['sku-shampoo'],
+      servicePrices: [],
+      serviceRankings: ['service-haircut'],
+      serviceStockouts: [],
+      stockSnapshot: [],
+      retailStockouts: [],
+    },
+    observationId: 'obs-1',
+    ownerSub: 'desktop-owner',
+  },
+  {
+    input: {
+      leadTimeHints: [],
+      notes: 'Older demand pulse before the current window tightened.',
+      observedAt: '2026-02-15T08:00:00.000Z',
+      orderSignals: [{ approximateOrderQuantity: 12, approximateReceiptQuantity: null, orderPlaced: true, receiptArrived: false, skuId: 'sku-razor' }],
+      retailPrices: [],
+      retailRankings: ['sku-razor'],
+      servicePrices: [{ price: 44, serviceId: 'service-color' }],
+      serviceRankings: ['service-color'],
+      serviceStockouts: [],
+      stockSnapshot: [],
+      retailStockouts: [],
+    },
+    observationId: 'obs-2',
+    ownerSub: 'desktop-owner',
+  },
+];
+
+function createInventoryState(overrides: Record<string, unknown> = {}) {
+  return {
+    catalog,
+    diagnostics: {
+      changePointProbability: 0.22,
+      coverageEstimate: 0.89,
+      effectiveSampleSizeMean: 84,
+      posteriorPredictiveErrorMean: 0.18,
+      regimeHistory,
+      resamplingCount: 8,
+      seasonalityActive: false,
+      smoothingEnabled: true,
+    },
+    loadSenaServiceDetail: vi.fn(async (serviceId: string) =>
+      serviceId === 'service-color'
+        ? {
+            activityIntervalHigh: 8,
+            activityIntervalLow: 5,
+            activityMean: 6,
+            bottleneckProbability: 0.12,
+            contributors: [{ bottleneckProbability: 0.12, skuId: 'sku-shampoo', usageProbability: 1 }],
+            regimeTimeline: [],
+            serviceId,
+          }
+        : {
+            activityIntervalHigh: 8,
+            activityIntervalLow: 6,
+            activityMean: 7,
+            bottleneckProbability: 0.65,
+            contributors: [{ bottleneckProbability: 0.65, skuId: 'sku-razor', usageProbability: 1 }],
+            regimeTimeline: [],
+            serviceId,
+          },
+    ),
+    loadSenaSkuDetail: vi.fn(async (skuId: string) =>
+      skuId === 'sku-razor'
+        ? {
+            demandPosterior: [
+              {
+                adjustmentsMean: -1,
+                deltaDays: 9,
+                endAt: '2026-02-10T08:00:00.000Z',
+                intervalIndex: 0,
+                realizedConsumptionMean: 3,
+                receiptsMean: 0,
+                retailDemandMean: 1,
+                serviceDemandMean: 2,
+                startAt: '2026-02-01T08:00:00.000Z',
+                unconstrainedDemandMean: 3,
+              },
+              {
+                adjustmentsMean: 0,
+                deltaDays: 22,
+                endAt: '2026-03-05T08:00:00.000Z',
+                intervalIndex: 1,
+                realizedConsumptionMean: 5,
+                receiptsMean: 4,
+                retailDemandMean: 1,
+                serviceDemandMean: 4,
+                startAt: '2026-02-11T08:00:00.000Z',
+                unconstrainedDemandMean: 5,
+              },
+              {
+                adjustmentsMean: -2,
+                deltaDays: 29,
+                endAt: '2026-04-03T08:00:00.000Z',
+                intervalIndex: 2,
+                realizedConsumptionMean: 4,
+                receiptsMean: 2,
+                retailDemandMean: 1,
+                serviceDemandMean: 3,
+                startAt: '2026-03-06T08:00:00.000Z',
+                unconstrainedDemandMean: 5,
+              },
+            ],
+            inventoryPosterior: [],
+            leadTimePosterior: [
+              {
+                intervalIndex: 0,
+                logMeanDays: 1.5,
+                logStdDays: 0.2,
+                meanDays: 5,
+                observedRelativeWidth: 0.2,
+                observedVariabilityClass: 'tight',
+                stdDays: 1,
+              },
+              {
+                intervalIndex: 1,
+                logMeanDays: 1.6,
+                logStdDays: 0.28,
+                meanDays: 6,
+                observedRelativeWidth: 0.3,
+                observedVariabilityClass: 'normal',
+                stdDays: 2,
+              },
+              {
+                intervalIndex: 2,
+                logMeanDays: 1.7,
+                logStdDays: 0.35,
+                meanDays: 7,
+                observedRelativeWidth: 0.35,
+                observedVariabilityClass: 'wide',
+                stdDays: 2.5,
+              },
+            ],
+            pipelinePosterior: [
+              {
+                ageDaysMean: 2,
+                inTransitMean: 0,
+                intervalIndex: 0,
+                orderProbability: 0.25,
+                orderQuantityMean: 0,
+                receiptQuantityMean: 0,
+              },
+              {
+                ageDaysMean: 5,
+                inTransitMean: 8,
+                intervalIndex: 1,
+                orderProbability: 0.75,
+                orderQuantityMean: 10,
+                receiptQuantityMean: 0,
+              },
+              {
+                ageDaysMean: 6,
+                inTransitMean: 16,
+                intervalIndex: 2,
+                orderProbability: 0.92,
+                orderQuantityMean: 16,
+                receiptQuantityMean: 16,
+              },
+            ],
+            summary: workspaceSummary.skuSummaries[0],
+          }
+        : {
+            demandPosterior: [
+              {
+                adjustmentsMean: 0,
+                deltaDays: 9,
+                endAt: '2026-02-10T08:00:00.000Z',
+                intervalIndex: 0,
+                realizedConsumptionMean: 1,
+                receiptsMean: 0,
+                retailDemandMean: 1,
+                serviceDemandMean: 0,
+                startAt: '2026-02-01T08:00:00.000Z',
+                unconstrainedDemandMean: 1,
+              },
+              {
+                adjustmentsMean: 1,
+                deltaDays: 22,
+                endAt: '2026-03-05T08:00:00.000Z',
+                intervalIndex: 1,
+                realizedConsumptionMean: 1,
+                receiptsMean: 2,
+                retailDemandMean: 1,
+                serviceDemandMean: 0,
+                startAt: '2026-02-11T08:00:00.000Z',
+                unconstrainedDemandMean: 1,
+              },
+              {
+                adjustmentsMean: 0,
+                deltaDays: 29,
+                endAt: '2026-04-03T08:00:00.000Z',
+                intervalIndex: 2,
+                realizedConsumptionMean: 1,
+                receiptsMean: 0,
+                retailDemandMean: 1,
+                serviceDemandMean: 0,
+                startAt: '2026-03-06T08:00:00.000Z',
+                unconstrainedDemandMean: 1,
+              },
+            ],
+            inventoryPosterior: [],
+            leadTimePosterior: [
+              {
+                intervalIndex: 0,
+                logMeanDays: 1.35,
+                logStdDays: 0.15,
+                meanDays: 4,
+                observedRelativeWidth: 0.2,
+                observedVariabilityClass: 'tight',
+                stdDays: 1,
+              },
+              {
+                intervalIndex: 1,
+                logMeanDays: 1.4,
+                logStdDays: 0.18,
+                meanDays: 4,
+                observedRelativeWidth: 0.2,
+                observedVariabilityClass: 'tight',
+                stdDays: 1,
+              },
+              {
+                intervalIndex: 2,
+                logMeanDays: 1.45,
+                logStdDays: 0.22,
+                meanDays: 5,
+                observedRelativeWidth: 0.22,
+                observedVariabilityClass: 'normal',
+                stdDays: 1.2,
+              },
+            ],
+            pipelinePosterior: [],
+            summary: workspaceSummary.skuSummaries[1],
+          },
+    ),
+    observations: defaultObservations,
+    workspaceSummary,
+    ...overrides,
+  };
+}
+
 describe('PerformanceRoute', () => {
   beforeEach(() => {
     preferenceState.showRightRailCards = true;
-    inventoryHook.mockReturnValue({
-      catalog,
-      diagnostics: {
-        changePointProbability: 0.22,
-        coverageEstimate: 0.89,
-        effectiveSampleSizeMean: 84,
-        posteriorPredictiveErrorMean: 0.18,
-        regimeHistory,
-        resamplingCount: 8,
-        seasonalityActive: false,
-        smoothingEnabled: true,
-      },
-      loadSenaServiceDetail: vi.fn(async (serviceId: string) =>
-        serviceId === 'service-color'
-          ? {
-              activityIntervalHigh: 8,
-              activityIntervalLow: 5,
-              activityMean: 6,
-              bottleneckProbability: 0.12,
-              contributors: [{ bottleneckProbability: 0.12, skuId: 'sku-shampoo', usageProbability: 1 }],
-              regimeTimeline: [],
-              serviceId,
-            }
-          : {
-              activityIntervalHigh: 8,
-              activityIntervalLow: 6,
-              activityMean: 7,
-              bottleneckProbability: 0.65,
-              contributors: [{ bottleneckProbability: 0.65, skuId: 'sku-razor', usageProbability: 1 }],
-              regimeTimeline: [],
-              serviceId,
-            },
-      ),
-      loadSenaSkuDetail: vi.fn(async (skuId: string) =>
-        skuId === 'sku-razor'
-          ? {
-              demandPosterior: [
-                {
-                  adjustmentsMean: -1,
-                  deltaDays: 9,
-                  endAt: '2026-02-10T08:00:00.000Z',
-                  intervalIndex: 0,
-                  realizedConsumptionMean: 3,
-                  receiptsMean: 0,
-                  retailDemandMean: 1,
-                  serviceDemandMean: 2,
-                  startAt: '2026-02-01T08:00:00.000Z',
-                  unconstrainedDemandMean: 3,
-                },
-                {
-                  adjustmentsMean: 0,
-                  deltaDays: 22,
-                  endAt: '2026-03-05T08:00:00.000Z',
-                  intervalIndex: 1,
-                  realizedConsumptionMean: 5,
-                  receiptsMean: 4,
-                  retailDemandMean: 1,
-                  serviceDemandMean: 4,
-                  startAt: '2026-02-11T08:00:00.000Z',
-                  unconstrainedDemandMean: 5,
-                },
-                {
-                  adjustmentsMean: -2,
-                  deltaDays: 29,
-                  endAt: '2026-04-03T08:00:00.000Z',
-                  intervalIndex: 2,
-                  realizedConsumptionMean: 4,
-                  receiptsMean: 2,
-                  retailDemandMean: 1,
-                  serviceDemandMean: 3,
-                  startAt: '2026-03-06T08:00:00.000Z',
-                  unconstrainedDemandMean: 5,
-                },
-              ],
-              inventoryPosterior: [],
-              leadTimePosterior: [
-                {
-                  intervalIndex: 0,
-                  logMeanDays: 1.5,
-                  logStdDays: 0.2,
-                  meanDays: 5,
-                  observedRelativeWidth: 0.2,
-                  observedVariabilityClass: 'tight',
-                  stdDays: 1,
-                },
-                {
-                  intervalIndex: 1,
-                  logMeanDays: 1.6,
-                  logStdDays: 0.28,
-                  meanDays: 6,
-                  observedRelativeWidth: 0.3,
-                  observedVariabilityClass: 'normal',
-                  stdDays: 2,
-                },
-                {
-                  intervalIndex: 2,
-                  logMeanDays: 1.7,
-                  logStdDays: 0.35,
-                  meanDays: 7,
-                  observedRelativeWidth: 0.35,
-                  observedVariabilityClass: 'wide',
-                  stdDays: 2.5,
-                },
-              ],
-              pipelinePosterior: [
-                {
-                  ageDaysMean: 2,
-                  inTransitMean: 0,
-                  intervalIndex: 0,
-                  orderProbability: 0.25,
-                  orderQuantityMean: 0,
-                  receiptQuantityMean: 0,
-                },
-                {
-                  ageDaysMean: 5,
-                  inTransitMean: 8,
-                  intervalIndex: 1,
-                  orderProbability: 0.75,
-                  orderQuantityMean: 10,
-                  receiptQuantityMean: 0,
-                },
-                {
-                  ageDaysMean: 6,
-                  inTransitMean: 16,
-                  intervalIndex: 2,
-                  orderProbability: 0.92,
-                  orderQuantityMean: 16,
-                  receiptQuantityMean: 16,
-                },
-              ],
-              summary: workspaceSummary.skuSummaries[0],
-            }
-          : {
-              demandPosterior: [
-                {
-                  adjustmentsMean: 0,
-                  deltaDays: 9,
-                  endAt: '2026-02-10T08:00:00.000Z',
-                  intervalIndex: 0,
-                  realizedConsumptionMean: 1,
-                  receiptsMean: 0,
-                  retailDemandMean: 1,
-                  serviceDemandMean: 0,
-                  startAt: '2026-02-01T08:00:00.000Z',
-                  unconstrainedDemandMean: 1,
-                },
-                {
-                  adjustmentsMean: 1,
-                  deltaDays: 22,
-                  endAt: '2026-03-05T08:00:00.000Z',
-                  intervalIndex: 1,
-                  realizedConsumptionMean: 1,
-                  receiptsMean: 2,
-                  retailDemandMean: 1,
-                  serviceDemandMean: 0,
-                  startAt: '2026-02-11T08:00:00.000Z',
-                  unconstrainedDemandMean: 1,
-                },
-                {
-                  adjustmentsMean: 0,
-                  deltaDays: 29,
-                  endAt: '2026-04-03T08:00:00.000Z',
-                  intervalIndex: 2,
-                  realizedConsumptionMean: 1,
-                  receiptsMean: 0,
-                  retailDemandMean: 1,
-                  serviceDemandMean: 0,
-                  startAt: '2026-03-06T08:00:00.000Z',
-                  unconstrainedDemandMean: 1,
-                },
-              ],
-              inventoryPosterior: [],
-              leadTimePosterior: [
-                {
-                  intervalIndex: 0,
-                  logMeanDays: 1.35,
-                  logStdDays: 0.15,
-                  meanDays: 4,
-                  observedRelativeWidth: 0.2,
-                  observedVariabilityClass: 'tight',
-                  stdDays: 1,
-                },
-                {
-                  intervalIndex: 1,
-                  logMeanDays: 1.4,
-                  logStdDays: 0.18,
-                  meanDays: 4,
-                  observedRelativeWidth: 0.2,
-                  observedVariabilityClass: 'tight',
-                  stdDays: 1,
-                },
-                {
-                  intervalIndex: 2,
-                  logMeanDays: 1.45,
-                  logStdDays: 0.22,
-                  meanDays: 5,
-                  observedRelativeWidth: 0.22,
-                  observedVariabilityClass: 'normal',
-                  stdDays: 1.2,
-                },
-              ],
-              pipelinePosterior: [],
-              summary: workspaceSummary.skuSummaries[1],
-            },
-      ),
-      observations: [
-        {
-          input: {
-            leadTimeHints: [],
-            notes: 'Demand softened after a recent shampoo price move.',
-            observedAt: '2026-04-02T08:00:00.000Z',
-            orderSignals: [],
-            retailPrices: [{ price: 18, skuId: 'sku-shampoo' }],
-            retailRankings: ['sku-shampoo'],
-            servicePrices: [],
-            serviceRankings: ['service-haircut'],
-            serviceStockouts: [],
-            stockSnapshot: [],
-            retailStockouts: [],
-          },
-          observationId: 'obs-1',
-          ownerSub: 'desktop-owner',
-        },
-        {
-          input: {
-            leadTimeHints: [],
-            notes: 'Older demand pulse before the current window tightened.',
-            observedAt: '2026-02-15T08:00:00.000Z',
-            orderSignals: [{ approximateOrderQuantity: 12, approximateReceiptQuantity: null, orderPlaced: true, receiptArrived: false, skuId: 'sku-razor' }],
-            retailPrices: [],
-            retailRankings: ['sku-razor'],
-            servicePrices: [{ price: 44, serviceId: 'service-color' }],
-            serviceRankings: ['service-color'],
-            serviceStockouts: [],
-            stockSnapshot: [],
-            retailStockouts: [],
-          },
-          observationId: 'obs-2',
-          ownerSub: 'desktop-owner',
-        },
-      ],
-      workspaceSummary,
-    });
+    inventoryHook.mockReturnValue(createInventoryState());
   });
 
   function renderRoute(initialEntry = '/performance') {
@@ -476,6 +509,50 @@ describe('PerformanceRoute', () => {
     expect(screen.queryByText('Entity pressure explorer')).not.toBeInTheDocument();
     expect(screen.queryByText('Supply fragility map')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
+  });
+
+  test('uses shared observation row spacing while preserving selection behavior', async () => {
+    const user = userEvent.setup();
+
+    const { container } = renderAnalysisRoute();
+
+    await user.click(screen.getByRole('tab', { name: /Observations/i }));
+    expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
+
+    const observationCells = Array.from(container.querySelectorAll('[data-observation-cell="true"]'));
+    expect(observationCells.length).toBeGreaterThan(0);
+    observationCells.forEach((cell) => {
+      expect(cell.className).not.toContain('px-5');
+      expect(cell.className).not.toContain('sm:px-6');
+    });
+
+    expect(screen.getAllByText('Older demand pulse before the current window tightened.')).toHaveLength(1);
+    await user.click(screen.getByText('Observation 1'));
+    expect(screen.getAllByText('Older demand pulse before the current window tightened.')).toHaveLength(2);
+  });
+
+  test('keeps observation pagination on the analysis observations tab', async () => {
+    const user = userEvent.setup();
+
+    inventoryHook.mockReturnValue(createInventoryState({ observations: Array.from({ length: 7 }, (_, index) => buildObservation(index + 1)) }));
+
+    renderAnalysisRoute();
+
+    await user.click(screen.getByRole('tab', { name: /Observations/i }));
+    expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
+
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Observation note 7')).toBeInTheDocument();
+    expect(screen.getByText('Observation note 3')).toBeInTheDocument();
+    expect(screen.queryByText('Observation note 2')).not.toBeInTheDocument();
+    expect(screen.queryByText('Observation note 1')).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Next evidence page'));
+
+    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Observation note 2')).toBeInTheDocument();
+    expect(screen.getByText('Observation note 1')).toBeInTheDocument();
+    expect(screen.queryByText('Observation note 7')).not.toBeInTheDocument();
   });
 
   test('renders the analysis fragility tab as its own surface', async () => {

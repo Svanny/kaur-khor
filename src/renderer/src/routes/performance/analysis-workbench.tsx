@@ -1,13 +1,17 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type UIEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  BadgePercent,
   ArrowUpRight,
   AudioLines,
   CircleGauge,
+  CircleOff,
   Cog,
   FileSearch,
+  Flame,
   ListTree,
-  Map,
+  Map as MapIcon,
+  MoonStar,
   PackageSearch,
   Package,
   Radio,
@@ -15,28 +19,35 @@ import {
   SearchCheck,
   Store,
   Waypoints,
+  Wrench,
 } from 'lucide-react';
 import {
   AXIS_END_PADDING,
   AXIS_START_PADDING,
   clampScrollLeft,
   DEFAULT_SLOT_WIDTH,
+  derivePrependedScrollLeft,
   deriveAxisContentWidth,
   deriveSlotCenterX,
   deriveViewportPageScrollLeft,
+  INTERVAL_PAGE_SIZE,
   IntervalStrip,
+  MIN_SLOT_WIDTH,
   SCROLL_EDGE_TOLERANCE,
+  shouldLoadOlderIntervals,
 } from '@/components/system/interval-strip';
 import {
   buildPointCoordinatesWithDomain,
   buildPolylineWithDomain,
   buildTrajectoryBandPath,
+  deriveFlowStackHeights,
   deriveLabelGutterOffset,
   SelectedIntervalColumnOverlay,
 } from '@/components/system/timeline-chart';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
+  HeaderedTableCellStack,
   HeaderedTable,
   HeaderedTableBody,
   HeaderedTableHeader,
@@ -52,6 +63,7 @@ import { cn } from '@/lib/utils';
 import { statusPillClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
+import { PagedPanelNavigation } from '@/routes/detail-panels';
 import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './chrome';
 import type {
   AnalysisEntityPressureRow,
@@ -60,23 +72,11 @@ import type {
   AnalysisSelection,
   AnalysisWorkbenchViewModel,
 } from './analysis-view-model';
+import { PIPELINE_PILL_END_OFFSET, PIPELINE_PILL_START_OFFSET } from './analysis-view-model';
 
 const pressureTableLayout = createHeaderedTableLayout({
   breakpoint: 'xl',
-  columns: 'minmax(15rem,1.2fr) minmax(7rem,0.7fr) minmax(8rem,0.7fr) minmax(8rem,0.72fr) minmax(8rem,0.72fr) minmax(8rem,0.72fr) minmax(7rem,0.65fr)',
-  gap: 4,
-});
-
-const evidenceTableLayout = createHeaderedTableLayout({
-  breakpoint: 'xl',
-  columns: 'minmax(13rem,1fr) minmax(20rem,1.8fr) minmax(13rem,0.9fr)',
-  gap: 4,
-});
-
-const fullEvidenceTableLayout = createHeaderedTableLayout({
-  breakpoint: 'xl',
-  columns:
-    'minmax(12rem,0.95fr) minmax(5rem,0.45fr) minmax(5rem,0.45fr) minmax(5rem,0.45fr) minmax(5rem,0.45fr) minmax(5rem,0.45fr) minmax(5rem,0.45fr) minmax(5rem,0.45fr) minmax(5rem,0.45fr) minmax(5rem,0.45fr) minmax(4rem,0.4fr)',
+  columns: 'minmax(18rem,1.45fr) minmax(8rem,0.72fr) minmax(8rem,0.72fr) minmax(8rem,0.72fr) minmax(10rem,0.9fr)',
   gap: 4,
 });
 
@@ -88,13 +88,73 @@ const NAV_OPTIONS: Array<{
   { value: 'workbench', label: 'Workbench', leading: <Waypoints className="size-4" /> },
   { value: 'pressure', label: 'Pressure', leading: <Rows3 className="size-4" /> },
   { value: 'observations', label: 'Observations', leading: <SearchCheck className="size-4" /> },
-  { value: 'fragility', label: 'Fragility', leading: <Map className="size-4" /> },
-  { value: 'evidence', label: 'Evidence', leading: <SearchCheck className="size-4" /> },
-  { value: 'settings', label: 'Settings', leading: <Cog className="size-4" /> },
+  { value: 'fragility', label: 'Fragility', leading: <MapIcon className="size-4" /> },
+  { value: 'settings', label: 'Parameters', leading: <Cog className="size-4" /> },
 ];
 
 const ANALYSIS_BOARD_CLASS_NAME = `${cardFrameClassName} ${cardSurfaceClassName} relative z-[1] overflow-hidden rounded-[2rem]`;
 const ANALYSIS_RAIL_PANEL_CLASS_NAME = 'flex h-full flex-col bg-secondary/15 lg:rounded-l-none';
+
+const ANALYSIS_SETTINGS_FIELDS = [
+  {
+    key: 'run-id',
+    label: 'Run ID',
+    tooltip: 'Unique identifier for the analysis run that produced the current posterior and diagnostics.',
+    valueKey: 'runId',
+  },
+  {
+    key: 'latest-observed',
+    label: 'Latest observed',
+    tooltip: 'Most recent observation timestamp included in this analysis window.',
+    valueKey: 'latestObservedAt',
+  },
+  {
+    key: 'observations-used',
+    label: 'Observations used',
+    tooltip: 'Count of observation records that remained after scope and coverage filtering.',
+    valueKey: 'observationsUsed',
+  },
+  {
+    key: 'intervals-in-view',
+    label: 'Intervals in view',
+    tooltip: 'Number of modeled intervals currently represented in the workbench and diagnostics.',
+    valueKey: 'intervalCount',
+  },
+  {
+    key: 'smoothing',
+    label: 'Smoothing',
+    tooltip: 'Whether smoothing is applied to reduce noise before diagnostics and posterior summaries are shown.',
+    valueKey: 'smoothingLabel',
+  },
+  {
+    key: 'effective-sample-size',
+    label: 'Effective sample size',
+    tooltip: 'Estimate of how much independent evidence the posterior behaves as if it contains after weighting and resampling.',
+    valueKey: 'effectiveSampleSize',
+  },
+  {
+    key: 'predictive-error',
+    label: 'Predictive error',
+    tooltip: 'Average gap between observed outcomes and what the posterior predictive distribution expected.',
+    valueKey: 'predictiveError',
+  },
+  {
+    key: 'coverage-estimate',
+    label: 'Coverage estimate',
+    tooltip: 'Share of the expected evidence surface that was actually observed across the current analysis window.',
+    valueKey: 'coverageEstimate',
+  },
+  {
+    key: 'scope',
+    label: 'Scope',
+    tooltip: 'Entity slice included in this run, such as all entities, SKU-only, service-only, or a mixed system scan.',
+    valueKey: 'scopeSummary',
+  },
+] as const;
+
+function sectionSupportsRightRail(section: AnalysisSection) {
+  return section !== 'observations' && section !== 'fragility';
+}
 
 function analysisRailBlockClassName() {
   return 'border-t border-border/60 px-5 py-5 first:border-t-0';
@@ -116,6 +176,27 @@ function entityIcon(type: AnalysisEntityPressureRow['entityType']) {
   }
   return <Store className="size-4 text-muted-foreground" />;
 }
+
+function selectionsEqual(left: AnalysisSelection, right: AnalysisSelection) {
+  if (left.type !== right.type) {
+    return false;
+  }
+  if (left.type === 'overview' && right.type === 'overview') {
+    return true;
+  }
+  if (left.type === 'interval' && right.type === 'interval') {
+    return left.intervalIndex === right.intervalIndex;
+  }
+  if (left.type === 'entity' && right.type === 'entity') {
+    return left.entityId === right.entityId && left.entityType === right.entityType;
+  }
+  if (left.type === 'observation' && right.type === 'observation') {
+    return left.observationId === right.observationId;
+  }
+  return false;
+}
+
+type IntervalRailSectionKey = 'observed-signals' | 'what-happened' | 'orders-transit-lead-time';
 
 function regimeTint(regime: string) {
   const normalized = regime.trim().toLowerCase();
@@ -157,12 +238,41 @@ function regimeFill(regime: string) {
   return 'rgba(244, 223, 207, 0.64)';
 }
 
+function regimeIcon(regime: string) {
+  const normalized = regime.trim().toLowerCase();
+  if (normalized.includes('promo')) {
+    return <BadgePercent className="size-4" />;
+  }
+  if (normalized.includes('spike')) {
+    return <Flame className="size-4" />;
+  }
+  if (normalized.includes('lull')) {
+    return <MoonStar className="size-4" />;
+  }
+  if (normalized.includes('correction')) {
+    return <Wrench className="size-4" />;
+  }
+  if (normalized.includes('stockout')) {
+    return <CircleOff className="size-4" />;
+  }
+  return <CircleGauge className="size-4" />;
+}
+
+function HeaderTooltipLabel({
+  children,
+  tooltip,
+}: {
+  children: ReactNode;
+  tooltip: string;
+}) {
+  return <SectionLabel tooltip={tooltip}>{children}</SectionLabel>;
+}
+
 const LANE_LABEL_COLUMN = '14rem';
 const CHART_GUTTER_HEIGHT = 24;
 const CHART_VIEWBOX_HEIGHT = 42;
-const INVENTORY_LANE_HEIGHT = 168;
-const LEAD_TIME_LANE_HEIGHT = 132;
-const PIPELINE_LANE_HEIGHT = 122;
+const INVENTORY_CHART_CONTENT_HEIGHT = 156;
+const LEAD_TIME_CHART_CONTENT_HEIGHT = 96;
 
 function LaneLabel({
   title,
@@ -174,7 +284,7 @@ function LaneLabel({
   tooltip: string;
 }) {
   return (
-    <div className="sticky left-0 z-[1] flex min-h-[8.75rem] flex-col justify-between rounded-[1.2rem] border border-border/60 bg-white/95 px-4 py-3 backdrop-blur">
+    <div className="sticky left-0 z-[1] flex h-full min-h-[8.75rem] flex-col justify-between rounded-[1.2rem] border border-border/60 bg-white/95 px-4 py-3 backdrop-blur">
       <div className="grid gap-2">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
@@ -206,14 +316,22 @@ function AnalysisRailSection({
   tooltip,
   icon,
   children,
+  flash,
 }: {
   title: string;
   tooltip: string;
   icon: ReactNode;
   children: ReactNode;
+  flash?: boolean;
 }) {
   return (
-    <section className={analysisRailBlockClassName()}>
+    <section
+      className={cn(
+        analysisRailBlockClassName(),
+        'scroll-mt-6 rounded-[1.1rem] transition-colors duration-300',
+        flash && 'bg-primary/[0.08] ring-1 ring-primary/20',
+      )}
+    >
       <div className="mb-4 flex items-center gap-2">
         <span className="text-primary">{icon}</span>
         <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
@@ -274,8 +392,8 @@ function InternalNav({
   showRightRailCards: boolean;
 }) {
   return (
-    <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
-      <ChromeTabsList aria-label="Select analysis surface" className="min-w-0" collapseBehavior="progressive">
+    <div className={`relative flex overflow-x-auto overflow-y-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
+      <ChromeTabsList aria-label="Select analysis surface" className="min-w-max">
         {NAV_OPTIONS.map((option) => (
           <ChromeTabsTrigger key={option.value} leading={option.leading} value={option.value}>
             {option.label}
@@ -287,14 +405,22 @@ function InternalNav({
 }
 
 function SystemLedger({
+  hasOlderIntervals,
+  isLoadingOlderIntervals,
+  loadOlderIntervals,
   model,
   selectedIntervalIndex,
   setSelection,
+  onIntervalChartLabelClick,
   showRightRailCards,
 }: {
+  hasOlderIntervals: boolean;
+  isLoadingOlderIntervals: boolean;
+  loadOlderIntervals: () => Promise<number>;
   model: AnalysisWorkbenchViewModel;
   selectedIntervalIndex: number | null;
   setSelection: (value: AnalysisSelection) => void;
+  onIntervalChartLabelClick: (intervalIndex: number, section: IntervalRailSectionKey) => void;
   showRightRailCards: boolean;
 }) {
   const { language } = usePreferences();
@@ -314,7 +440,7 @@ function SystemLedger({
   const itemCount = intervalEntries.length;
   const syncRefs = [intervalScrollRef, regimeScrollRef, inventoryScrollRef, pipelineScrollRef, leadTimeScrollRef];
   const slotWidth = itemCount > 0 && viewportWidth > 0
-    ? Math.max(DEFAULT_SLOT_WIDTH, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / itemCount)
+    ? Math.max(MIN_SLOT_WIDTH, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / Math.min(itemCount, INTERVAL_PAGE_SIZE))
     : DEFAULT_SLOT_WIDTH;
   const contentWidth = deriveAxisContentWidth({
     itemCount,
@@ -328,6 +454,10 @@ function SystemLedger({
   const selectedIntervalPosition = selectedIntervalIndex == null
     ? null
     : model.workbench.regimePriceLane.intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.intervalPosition ?? null;
+  const visibleRegimes = useMemo(
+    () => [...new Map(model.workbench.regimePriceLane.intervals.map((interval) => [interval.dominantRegime, interval.dominantRegime])).values()],
+    [model.workbench.regimePriceLane.intervals],
+  );
   const inventoryPoints = model.workbench.inventoryDemandLane.points;
   const inventoryMeanValues = inventoryPoints.map((point) => point.inventoryMean);
   const inventoryLowValues = inventoryPoints.map((point) => point.inventoryLow);
@@ -390,6 +520,37 @@ function SystemLedger({
     leadTimeDomainMax,
     { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
   );
+  const pipelineRowHeight = 28;
+  const pipelineChartContentHeight = Math.max(122, 18 + Math.max(0, model.workbench.pipelineLane.rowCount - 1) * pipelineRowHeight + 28);
+  const pipelineLaneMinHeight = pipelineChartContentHeight;
+  const selectedPipelineSpan = selectedIntervalIndex == null
+    ? null
+    : model.workbench.pipelineLane.spans.find((span) => span.intervalIndex === selectedIntervalIndex) ?? null;
+  const selectedPipelineMarkers = selectedIntervalIndex == null
+    ? []
+    : model.workbench.pipelineLane.markers.filter((marker) => marker.intervalIndex === selectedIntervalIndex);
+  const selectedPipelineLabels = [
+    ...(selectedPipelineSpan ? [`${Math.round(selectedPipelineSpan.orderProbability * 100)}% order probability`] : []),
+    ...selectedPipelineMarkers.map((marker) => `${marker.kind === 'order' ? 'Order' : 'Receipt'} ${Math.round(marker.quantityMean)}`),
+  ];
+  const selectedPipelineLabelX = selectedIntervalPosition == null
+    ? null
+    : deriveSlotCenterX({ index: selectedIntervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
+  const maybeLoadOlder = async (nextScrollLeft: number) => {
+    if (!shouldLoadOlderIntervals({ hasOlder: hasOlderIntervals, isLoadingOlder: isLoadingOlderIntervals, scrollLeft: nextScrollLeft })) {
+      return;
+    }
+    const prependedCount = await loadOlderIntervals();
+    if (prependedCount > 0) {
+      setScrollLeft((current) =>
+        derivePrependedScrollLeft({
+          currentScrollLeft: current,
+          prependedCount,
+          slotWidth,
+        }),
+      );
+    }
+  };
 
   useEffect(() => {
     const node = intervalScrollRef.current;
@@ -430,7 +591,9 @@ function SystemLedger({
     if (syncingScrollRef.current) {
       return;
     }
-    setScrollLeft(event.currentTarget.scrollLeft);
+    const nextScrollLeft = event.currentTarget.scrollLeft;
+    setScrollLeft(nextScrollLeft);
+    void maybeLoadOlder(nextScrollLeft);
   };
 
   const scrollByViewport = (direction: -1 | 1) => {
@@ -455,7 +618,7 @@ function SystemLedger({
       className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       contentClassName="px-0 py-0"
     >
-      <div className="grid gap-4 px-6 py-5">
+      <div className="grid h-full gap-4 px-6 py-5 [grid-template-rows:auto_minmax(0,1fr)]">
         <div className="grid gap-3" style={laneGridStyle}>
           <div />
           <IntervalStrip
@@ -471,30 +634,46 @@ function SystemLedger({
             scrollByViewport={scrollByViewport}
             scrollRef={intervalScrollRef}
             slotWidth={slotWidth}
-            onSelect={(intervalIndex) => setSelection({ type: 'interval', intervalIndex })}
+            onSelect={(intervalIndex) => onIntervalChartLabelClick(intervalIndex, 'observed-signals')}
           />
         </div>
 
-        <div className="grid gap-4">
-          <div className="grid gap-3" style={laneGridStyle}>
+        <div className="grid min-h-0 gap-4 [grid-template-rows:repeat(4,minmax(0,1fr))]">
+          <div className="grid h-full min-h-0 gap-3" style={laneGridStyle}>
             <LaneLabel
               subtitle="Continuous regime state with price and stockout cues carried as lightweight markers instead of interval cards."
               title="Regime + price lane"
               tooltip="The current system regime plus interval-level price and stockout evidence."
             />
-            <div className="grid gap-2">
+            <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
+                {visibleRegimes.map((regime) => (
+                  <span key={regime} className="inline-flex items-center gap-2">
+                    <span className={cn('inline-flex size-5 items-center justify-center rounded-full border border-foreground/10', regimeTint(regime))}>
+                      {regimeIcon(regime)}
+                    </span>
+                    {regime}
+                  </span>
+                ))}
                 <span className="inline-flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-amber-500/80" />
-                  Price cues
+                  <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground shadow-sm">
+                    P
+                  </span>
+                  Price cue count
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-rose-500/80" />
-                  Stockout cues
+                  <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground shadow-sm">
+                    S
+                  </span>
+                  Stockout cue count
                 </span>
               </div>
-              <div ref={regimeScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20" onScroll={handleSharedScroll}>
-                <div className="relative" style={{ width: contentWidth, height: 92 }}>
+              <div
+                ref={regimeScrollRef}
+                className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
+                onScroll={handleSharedScroll}
+              >
+                <div className="relative h-full min-h-[92px]" style={{ width: contentWidth }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -521,11 +700,12 @@ function SystemLedger({
                           selectedIntervalIndex === interval.intervalIndex ? 'border-foreground/20 shadow-sm' : 'border-white/70',
                         )}
                         style={{ backgroundColor: regimeFill(interval.dominantRegime) }}
+                        data-analysis-datalabel="true"
                         type="button"
-                        onClick={() => setSelection({ type: 'interval', intervalIndex: interval.intervalIndex })}
+                        onClick={() => onIntervalChartLabelClick(interval.intervalIndex, 'observed-signals')}
                       >
-                        <span className="absolute left-2.5 top-2 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-foreground/70">
-                          {interval.dominantRegime}
+                        <span className="absolute left-1/2 top-[1.35rem] inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-foreground/75">
+                          {regimeIcon(interval.dominantRegime)}
                         </span>
                         <span className="absolute inset-x-2.5 bottom-2 flex items-center gap-1.5">
                           {interval.priceCueCount > 0 ? (
@@ -550,13 +730,13 @@ function SystemLedger({
             </div>
           </div>
 
-          <div className="grid gap-3" style={laneGridStyle}>
+          <div className="grid h-full min-h-0 gap-3" style={laneGridStyle}>
             <LaneLabel
               subtitle="Inventory trajectory stays continuous while service demand, retail demand, receipts, and adjustments remain interval-native."
               title="Inventory + demand lane"
               tooltip="The demand decomposition that turns sparse observations into a reconstructed stock story."
             />
-            <div className="grid gap-2">
+            <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block h-2 w-6 rounded-[0.2rem] bg-foreground/12" />
@@ -583,8 +763,12 @@ function SystemLedger({
                   Adjustments
                 </span>
               </div>
-              <div ref={inventoryScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20 px-0" onScroll={handleSharedScroll}>
-                <div className="relative" style={{ width: contentWidth, height: INVENTORY_LANE_HEIGHT }}>
+              <div
+                ref={inventoryScrollRef}
+                className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20 px-0"
+                onScroll={handleSharedScroll}
+              >
+                <div className="relative flex h-full min-h-[168px] items-center" style={{ width: contentWidth }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -594,98 +778,128 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <svg
-                    aria-hidden="true"
-                    className="absolute left-0 top-0 w-full"
-                    preserveAspectRatio="none"
-                    style={{ height: 72, top: CHART_GUTTER_HEIGHT }}
-                    viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
-                  >
-                    {inventoryBandPath ? <path d={inventoryBandPath} fill="currentColor" className="text-foreground/10" /> : null}
-                    <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth="1.8" className="text-foreground" />
-                  </svg>
-                  {inventoryCoordinates.map((point, index) => {
-                    const entry = inventoryPoints[index];
-                    if (!entry) {
-                      return null;
-                    }
-                    const isSelected = selectedIntervalIndex === entry.intervalIndex;
-                    return (
-                      <button
-                        key={`inventory-point:${entry.intervalIndex}`}
-                        aria-label={`Inventory ${Math.round(entry.inventoryMean)} units in interval ${entry.intervalIndex + 1}`}
-                        className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
-                        style={{
-                          left: point.x,
-                          top: deriveLabelGutterOffset({
-                            plotY: point.y,
-                            plotHeight: 72,
-                            gutterHeight: CHART_GUTTER_HEIGHT,
-                            viewBoxHeight: CHART_VIEWBOX_HEIGHT,
-                          }),
-                        }}
-                        type="button"
-                        onClick={() => setSelection({ type: 'interval', intervalIndex: entry.intervalIndex })}
-                      >
-                        {isSelected ? (
-                          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                            {Math.round(entry.inventoryMean)}u
-                          </span>
-                        ) : null}
-                        <span className={cn('block size-3 rounded-full border-2', isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background')} />
-                      </button>
-                    );
-                  })}
-                  <div
-                    className="absolute left-0 top-[96px] grid"
-                    style={{
-                      paddingLeft: AXIS_START_PADDING,
-                      paddingRight: AXIS_END_PADDING,
-                      gridTemplateColumns: `repeat(${Math.max(itemCount, 1)}, ${slotWidth}px)`,
-                    }}
-                  >
-                    {inventoryPoints.map((point) => {
-                      const serviceHeight = Math.max(2, (Math.abs(point.serviceDemandMean) / model.workbench.inventoryDemandLane.maxFlowMagnitude) * 24);
-                      const retailHeight = Math.max(2, (Math.abs(point.retailDemandMean) / model.workbench.inventoryDemandLane.maxFlowMagnitude) * 24);
-                      const receiptsHeight = Math.max(2, (Math.abs(point.receiptsMean) / model.workbench.inventoryDemandLane.maxFlowMagnitude) * 24);
-                      const adjustmentHeight = Math.max(2, (Math.abs(point.adjustmentsMean) / model.workbench.inventoryDemandLane.maxFlowMagnitude) * 18);
-
+                  <div className="relative w-full" style={{ height: INVENTORY_CHART_CONTENT_HEIGHT }}>
+                    <svg
+                      aria-hidden="true"
+                      className="absolute left-0 top-0 w-full"
+                      preserveAspectRatio="none"
+                      style={{ height: 72, top: CHART_GUTTER_HEIGHT }}
+                      viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
+                    >
+                      {inventoryBandPath ? <path d={inventoryBandPath} fill="currentColor" className="text-foreground/10" /> : null}
+                      <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth="1.8" className="text-foreground" />
+                    </svg>
+                    {inventoryCoordinates.map((point, index) => {
+                      const entry = inventoryPoints[index];
+                      if (!entry) {
+                        return null;
+                      }
+                      const isSelected = selectedIntervalIndex === entry.intervalIndex;
                       return (
                         <button
-                          key={`flow:${point.intervalIndex}`}
-                          aria-label={`Service demand ${Math.round(point.serviceDemandMean)}, retail demand ${Math.round(point.retailDemandMean)}, receipts ${Math.round(point.receiptsMean)}, adjustments ${Math.round(point.adjustmentsMean)}`}
-                          className="relative h-[60px]"
+                          key={`inventory-point:${entry.intervalIndex}`}
+                          aria-label={`Inventory ${Math.round(entry.inventoryMean)} units in interval ${entry.intervalIndex + 1}`}
+                          className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
+                          style={{
+                            left: point.x,
+                            top: deriveLabelGutterOffset({
+                              plotY: point.y,
+                              plotHeight: 72,
+                              gutterHeight: CHART_GUTTER_HEIGHT,
+                              viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+                            }),
+                          }}
+                          data-analysis-datalabel="true"
                           type="button"
-                          onClick={() => setSelection({ type: 'interval', intervalIndex: point.intervalIndex })}
+                          onClick={() => onIntervalChartLabelClick(entry.intervalIndex, 'what-happened')}
                         >
-                          <span className="absolute inset-x-1 top-1/2 h-px -translate-y-1/2 bg-border/80" />
-                          <span className="absolute left-[28%] bottom-1/2 w-[18%] rounded-sm bg-emerald-600/80" style={{ height: receiptsHeight }} />
-                          <span
-                            className={cn('absolute left-[50%] w-[14%] rounded-sm', point.adjustmentsMean >= 0 ? 'bottom-1/2 bg-amber-600/85' : 'top-1/2 bg-amber-600/85')}
-                            style={{ height: adjustmentHeight }}
-                          />
-                          <span className="absolute left-[18%] top-1/2 w-[18%] rounded-sm bg-slate-500/70" style={{ height: serviceHeight }} />
-                          <span className="absolute left-[40%] top-1/2 w-[18%] rounded-sm bg-slate-800/80" style={{ top: `calc(50% + ${serviceHeight}px)`, height: retailHeight }} />
+                          {isSelected ? (
+                            <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                              {Math.round(entry.inventoryMean)}u
+                            </span>
+                          ) : null}
+                          <span className={cn('block size-3 rounded-full border-2', isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background')} />
                         </button>
                       );
                     })}
+                    <div
+                      className="absolute left-0 top-[96px] grid"
+                      style={{
+                        paddingLeft: AXIS_START_PADDING,
+                        paddingRight: AXIS_END_PADDING,
+                        gridTemplateColumns: `repeat(${Math.max(itemCount, 1)}, ${slotWidth}px)`,
+                      }}
+                    >
+                      {inventoryPoints.map((point) => {
+                        const flowStackHeights = deriveFlowStackHeights(
+                          point,
+                          model.workbench.inventoryDemandLane.maxFlowMagnitude,
+                          {
+                            demandMaxHeight: 24,
+                            supplyMaxHeight: 24,
+                            minHeight: 2,
+                          },
+                        );
+
+                        return (
+                          <button
+                            key={`flow:${point.intervalIndex}`}
+                            aria-label={`Service demand ${Math.round(point.serviceDemandMean)}, retail demand ${Math.round(point.retailDemandMean)}, receipts ${Math.round(point.receiptsMean)}, adjustments ${Math.round(point.adjustmentsMean)}`}
+                            className="relative h-[60px]"
+                            data-analysis-datalabel="true"
+                            type="button"
+                            onClick={() => onIntervalChartLabelClick(point.intervalIndex, 'what-happened')}
+                          >
+                            <span className="absolute inset-x-1 top-1/2 h-px -translate-y-1/2 bg-border/80" />
+                            {flowStackHeights.supply.receiptsHeight > 0 ? (
+                              <span className="absolute bottom-1/2 left-1/2 w-[32%] -translate-x-1/2 rounded-none bg-emerald-600/80" style={{ height: flowStackHeights.supply.receiptsHeight }} />
+                            ) : null}
+                            {flowStackHeights.supply.adjustmentHeight > 0 ? (
+                              <span
+                                className="absolute left-1/2 w-[32%] -translate-x-1/2 rounded-none bg-amber-600/85"
+                                style={{
+                                  bottom: `calc(50% + ${flowStackHeights.supply.adjustmentOffset}px)`,
+                                  height: flowStackHeights.supply.adjustmentHeight,
+                                }}
+                              />
+                            ) : null}
+                            {flowStackHeights.demand.serviceHeight > 0 ? (
+                              <span className="absolute left-1/2 top-1/2 w-[32%] -translate-x-1/2 rounded-none bg-slate-500/70" style={{ height: flowStackHeights.demand.serviceHeight }} />
+                            ) : null}
+                            {flowStackHeights.demand.retailHeight > 0 ? (
+                              <span
+                                className="absolute left-1/2 w-[32%] -translate-x-1/2 rounded-none bg-slate-800/80"
+                                style={{
+                                  top: `calc(50% + ${flowStackHeights.demand.retailOffset}px)`,
+                                  height: flowStackHeights.demand.retailHeight,
+                                }}
+                              />
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-3" style={laneGridStyle}>
+          <div className="grid h-full min-h-0 gap-3" style={laneGridStyle}>
             <LaneLabel
               subtitle="Aggregate transit windows approximate the pipeline story now, with order and receipt activity pulled out as explicit markers."
               title="Pipeline lane"
               tooltip="Pipeline posterior across in-transit stock, order placement, receipt expectation, and transit age."
             />
-            <div className="grid gap-2">
+            <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block h-3 w-8 rounded-full border border-emerald-700/25 bg-emerald-600/20" />
                   In-transit window
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block h-3 w-8 rounded-full border border-rose-300/70 bg-rose-100/75" />
+                  Overdue window
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block size-2 rotate-45 rounded-[0.2rem] bg-sky-600/85" />
@@ -696,8 +910,12 @@ function SystemLedger({
                   Receipt cue
                 </span>
               </div>
-              <div ref={pipelineScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20" onScroll={handleSharedScroll}>
-                <div className="relative" style={{ width: contentWidth, height: PIPELINE_LANE_HEIGHT }}>
+              <div
+                ref={pipelineScrollRef}
+                className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
+                onScroll={handleSharedScroll}
+              >
+                <div className="relative flex h-full items-center" style={{ width: contentWidth, minHeight: pipelineLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -707,75 +925,82 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  {model.workbench.pipelineLane.spans.map((span) => {
-                    const left = AXIS_START_PADDING + span.startPosition * slotWidth + slotWidth * 0.14;
-                    const right = AXIS_START_PADDING + span.endPosition * slotWidth + slotWidth * 0.86;
-                    const width = Math.max(slotWidth * 0.32, right - left);
-                    const top = 18 + span.row * 28;
-                    const isSelected = selectedIntervalIndex === span.intervalIndex;
+                  <div className="relative w-full" style={{ height: pipelineChartContentHeight }}>
+                    {selectedPipelineLabelX != null && selectedPipelineLabels.length > 0 ? (
+                      <div
+                        className="pointer-events-none absolute z-[3] flex -translate-x-1/2 flex-col items-center gap-1"
+                        style={{ left: selectedPipelineLabelX, top: 8 }}
+                      >
+                        {selectedPipelineLabels.map((label, index) => (
+                          <span
+                            key={`${label}:${index}`}
+                            className="whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {model.workbench.pipelineLane.spans.map((span) => {
+                      const left = AXIS_START_PADDING + span.startPosition * slotWidth + slotWidth * PIPELINE_PILL_START_OFFSET;
+                      const right = AXIS_START_PADDING + span.endPosition * slotWidth + slotWidth * PIPELINE_PILL_END_OFFSET;
+                      const width = Math.max(slotWidth * 0.32, right - left);
+                      const top = 18 + span.row * pipelineRowHeight;
 
-                    return (
-                      <button
-                        key={span.key}
-                        aria-label={`${Math.round(span.inTransitMean)} in transit, ${Math.round(span.orderQuantityMean)} ordered, ${Math.round(span.receiptQuantityMean)} expected receipt`}
-                        className={cn(
-                          'absolute flex h-5 items-center rounded-full border px-2 text-[0.62rem] font-medium transition-colors',
-                          span.overdue
-                            ? 'border-rose-300/70 bg-rose-100/75 text-rose-900'
-                            : 'border-emerald-700/20 bg-emerald-600/20 text-emerald-900',
-                        )}
-                        style={{ left, top, width }}
-                        type="button"
-                        onClick={() => setSelection({ type: 'interval', intervalIndex: span.intervalIndex })}
-                      >
-                        <span className="truncate">{Math.round(span.inTransitMean)} in transit</span>
-                        {isSelected ? (
-                          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                            {Math.round(span.orderProbability * 100)}% order probability
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                  {model.workbench.pipelineLane.markers.map((marker) => {
-                    const x = deriveSlotCenterX({ index: marker.intervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
-                    const top = 18 + marker.row * 28 + (marker.kind === 'receipt' ? 2 : -7);
-                    const isSelected = selectedIntervalIndex === marker.intervalIndex;
-                    return (
-                      <button
-                        key={marker.key}
-                        aria-label={`${marker.kind === 'order' ? 'Order' : 'Receipt'} cue ${Math.round(marker.quantityMean)} units`}
-                        className="absolute z-[2] -translate-x-1/2"
-                        style={{ left: x, top }}
-                        type="button"
-                        onClick={() => setSelection({ type: 'interval', intervalIndex: marker.intervalIndex })}
-                      >
-                        {isSelected ? (
-                          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                            {marker.kind === 'order' ? 'Order' : 'Receipt'} {Math.round(marker.quantityMean)}
-                          </span>
-                        ) : null}
-                        <span
+                      return (
+                        <button
+                          key={span.key}
+                          aria-label={`${Math.round(span.inTransitMean)} in transit, ${Math.round(span.orderQuantityMean)} ordered, ${Math.round(span.receiptQuantityMean)} expected receipt`}
                           className={cn(
-                            'block size-3 border border-white shadow-sm',
-                            marker.kind === 'order' ? 'rotate-45 rounded-[0.25rem] bg-sky-600/85' : 'rounded-full bg-emerald-600/85',
+                            'absolute flex h-5 items-center rounded-full border px-2 text-[0.62rem] font-medium transition-colors',
+                            span.overdue
+                              ? 'border-rose-300/70 bg-rose-100/75 text-rose-900'
+                              : 'border-emerald-700/20 bg-emerald-600/20 text-emerald-900',
                           )}
-                        />
-                      </button>
-                    );
-                  })}
+                          style={{ left, top, width }}
+                          data-analysis-datalabel="true"
+                          type="button"
+                          onClick={() => onIntervalChartLabelClick(span.intervalIndex, 'orders-transit-lead-time')}
+                        >
+                          <span className="truncate">{Math.round(span.inTransitMean)} in transit</span>
+                        </button>
+                      );
+                    })}
+                    {model.workbench.pipelineLane.markers.map((marker) => {
+                      const x = deriveSlotCenterX({ index: marker.intervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
+                      const top = 18 + marker.row * pipelineRowHeight + (marker.kind === 'receipt' ? 2 : -7);
+                      return (
+                        <button
+                          key={marker.key}
+                          aria-label={`${marker.kind === 'order' ? 'Order' : 'Receipt'} cue ${Math.round(marker.quantityMean)} units`}
+                          className="absolute z-[2] -translate-x-1/2"
+                          data-analysis-datalabel="true"
+                          style={{ left: x, top }}
+                          type="button"
+                          onClick={() => onIntervalChartLabelClick(marker.intervalIndex, 'orders-transit-lead-time')}
+                        >
+                          <span
+                            className={cn(
+                              'block size-3 border border-white shadow-sm',
+                              marker.kind === 'order' ? 'rotate-45 rounded-[0.25rem] bg-sky-600/85' : 'rounded-full bg-emerald-600/85',
+                            )}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-3" style={laneGridStyle}>
+          <div className="grid h-full min-h-0 gap-3" style={laneGridStyle}>
             <LaneLabel
               subtitle="Lead-time drift reads as a trajectory with spread, while variability class stays available on selection instead of printed everywhere."
               title="Lead-time lane"
               tooltip="The latent lead-time state SENA is carrying at each interval."
             />
-            <div className="grid gap-2">
+            <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block h-2 w-6 rounded-[0.2rem] bg-sky-600/14" />
@@ -786,8 +1011,12 @@ function SystemLedger({
                   Mean lead time
                 </span>
               </div>
-              <div ref={leadTimeScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20" onScroll={handleSharedScroll}>
-                <div className="relative" style={{ width: contentWidth, height: LEAD_TIME_LANE_HEIGHT }}>
+              <div
+                ref={leadTimeScrollRef}
+                className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
+                onScroll={handleSharedScroll}
+              >
+                <div className="relative flex h-full min-h-[132px] items-center" style={{ width: contentWidth }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -797,48 +1026,52 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <svg
-                    aria-hidden="true"
-                    className="absolute left-0 top-0 w-full"
-                    preserveAspectRatio="none"
-                    style={{ height: 72, top: CHART_GUTTER_HEIGHT }}
-                    viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
-                  >
-                    {leadTimeBandPath ? <path d={leadTimeBandPath} fill="currentColor" className="text-sky-600/14" /> : null}
-                    <polyline fill="none" points={leadTimePolyline} stroke="currentColor" strokeWidth="1.8" className="text-sky-700/80" />
-                  </svg>
-                  {leadTimeCoordinates.map((point, index) => {
-                    const entry = leadTimePoints[index];
-                    if (!entry) {
-                      return null;
-                    }
-                    const isSelected = selectedIntervalIndex === entry.intervalIndex;
-                    return (
-                      <button
-                        key={`lead-time:${entry.intervalIndex}`}
-                        aria-label={`Lead time ${entry.meanDays.toFixed(1)} days`}
-                        className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
-                        style={{
-                          left: point.x,
-                          top: deriveLabelGutterOffset({
-                            plotY: point.y,
-                            plotHeight: 72,
-                            gutterHeight: CHART_GUTTER_HEIGHT,
-                            viewBoxHeight: CHART_VIEWBOX_HEIGHT,
-                          }),
-                        }}
-                        type="button"
-                        onClick={() => setSelection({ type: 'interval', intervalIndex: entry.intervalIndex })}
-                      >
-                        {isSelected ? (
-                          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
-                            {entry.meanDays.toFixed(1)}d mean
-                          </span>
-                        ) : null}
-                        <span className={cn('block size-3 rounded-full border-2', isSelected ? 'border-sky-700 bg-sky-700' : 'border-sky-700/55 bg-background')} />
-                      </button>
-                    );
-                  })}
+                  <div className="relative w-full" style={{ height: LEAD_TIME_CHART_CONTENT_HEIGHT }}>
+                    <svg
+                      aria-hidden="true"
+                      className="absolute left-0 top-0 w-full"
+                      preserveAspectRatio="none"
+                      style={{ height: 72, top: CHART_GUTTER_HEIGHT }}
+                      viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
+                    >
+                      {leadTimeBandPath ? <path d={leadTimeBandPath} fill="currentColor" className="text-sky-600/14" /> : null}
+                      <polyline fill="none" points={leadTimePolyline} stroke="currentColor" strokeWidth="1.8" className="text-sky-700/80" />
+                    </svg>
+                    {leadTimeCoordinates.map((point, index) => {
+                      const entry = leadTimePoints[index];
+                      if (!entry) {
+                        return null;
+                      }
+                      const isSelected = selectedIntervalIndex === entry.intervalIndex;
+                      const spreadDays = Math.max(0, (entry.highDays - entry.lowDays) / 2);
+                      return (
+                        <button
+                          key={`lead-time:${entry.intervalIndex}`}
+                          aria-label={`Lead time ${entry.meanDays.toFixed(1)} days`}
+                          className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
+                          style={{
+                            left: point.x,
+                            top: deriveLabelGutterOffset({
+                              plotY: point.y,
+                              plotHeight: 72,
+                              gutterHeight: CHART_GUTTER_HEIGHT,
+                              viewBoxHeight: CHART_VIEWBOX_HEIGHT,
+                            }),
+                          }}
+                          data-analysis-datalabel="true"
+                          type="button"
+                          onClick={() => onIntervalChartLabelClick(entry.intervalIndex, 'orders-transit-lead-time')}
+                        >
+                          {isSelected ? (
+                            <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+                              {`${entry.meanDays.toFixed(1)} ± ${spreadDays.toFixed(1)} Days`}
+                            </span>
+                          ) : null}
+                          <span className={cn('block size-3 rounded-full border-2', isSelected ? 'border-sky-700 bg-sky-700' : 'border-sky-700/55 bg-background')} />
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -849,9 +1082,15 @@ function SystemLedger({
   );
 }
 
-function ObservationChannels({ row }: { row: AnalysisObservationLedgerRow }) {
+function ObservationChannels({
+  row,
+  className,
+}: {
+  row: AnalysisObservationLedgerRow;
+  className?: string;
+}) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className={cn('flex flex-wrap gap-1.5', className)}>
       {[
         ['Stock', row.stockSnapshotLabel],
         ['Svc rank', row.serviceRankingLabel],
@@ -870,8 +1109,28 @@ function ObservationChannels({ row }: { row: AnalysisObservationLedgerRow }) {
             'inline-flex items-center rounded-full border px-2 py-1 text-[0.68rem]',
             value === '—' ? 'border-border/60 bg-background/70 text-muted-foreground' : 'border-foreground/10 bg-white text-foreground',
           )}
+          data-observation-pill="true"
         >
           {label}: {value}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ObservationEntityList({ row }: { row: AnalysisObservationLedgerRow }) {
+  if (row.affectedEntityLabels.length === 0) {
+    return <span className="text-sm text-muted-foreground">No named entity</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {row.affectedEntityLabels.map((label) => (
+        <span
+          key={`${row.id}:${label}`}
+          className="rounded-full border border-border/60 bg-white px-2 py-1 text-[0.68rem] text-muted-foreground"
+        >
+          {label}
         </span>
       ))}
     </div>
@@ -891,13 +1150,31 @@ function EntityPressureTable({
     <HeaderedTable>
       <div className={pressureTableLayout.containerClassName} style={pressureTableLayout.style}>
         <HeaderedTableHeader className={pressureTableLayout.headerClassName}>
-          <HeaderedTableHeaderCell>Entity</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Type</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Pressure score</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Pipeline risk</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>LT risk</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Price sensitivity</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell align="center">Open</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel tooltip="The service or SKU carrying the pressure signal. The icon shows which subsystem it comes from: package for SKUs and storefront for services.">
+              Item
+            </HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell align="center">
+            <HeaderTooltipLabel tooltip="The composite pressure score for the entity on a 0 to 100 scale. Higher values mean stronger evidence that demand, pipeline, lead time, or price conditions are creating operational pressure.">
+              Pressure score
+            </HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell align="center">
+            <HeaderTooltipLabel tooltip="How much inbound timing and pipeline posture are contributing to the entity's risk. Typical states range from Low through High to Critical when in-transit relief is missing, late, or unreliable.">
+              Pipeline risk
+            </HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell align="center">
+            <HeaderTooltipLabel tooltip="How much lead-time uncertainty is contributing to pressure on the entity. Higher risk means longer or more variable lead times are making replenishment less dependable.">
+              Lead time risk
+            </HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell align="center">
+            <HeaderTooltipLabel tooltip="A read on whether pricing conditions are materially contributing to pressure. Higher sensitivity means price posture is likely changing demand quality, margin quality, or both.">
+              Price sensitivity
+            </HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
         </HeaderedTableHeader>
         <HeaderedTableBody className={pressureTableLayout.bodyClassName}>
           {model.entityRows.map((row) => (
@@ -908,55 +1185,43 @@ function EntityPressureTable({
                 pressureTableLayout.rowClassName,
                 selectedEntityId === row.id && 'bg-background/60',
               )}
+              onClick={() => setSelection({ type: 'entity', entityId: row.id, entityType: row.entityType })}
             >
-              <button
-                className="min-w-0 text-left"
-                type="button"
-                onClick={() => setSelection({ type: 'entity', entityId: row.id, entityType: row.entityType })}
-              >
-                <div className="flex items-center gap-2.5">
-                  {entityIcon(row.entityType)}
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-foreground">{row.name}</p>
-                    <p className="text-sm text-muted-foreground">{row.summary}</p>
+              <div className="group min-w-0 text-left" data-pressure-cell="true">
+                <div className="min-w-0">
+                  <div className="flex items-start gap-2.5">
+                    <span className="shrink-0 pt-0.5">{entityIcon(row.entityType)}</span>
+                    <p className="truncate font-semibold text-foreground transition-colors group-hover:text-primary">{row.name}</p>
                   </div>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{row.summary}</p>
                 </div>
-              </button>
-              <div>
-                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Type</HeaderedTableMobileLabel>
-                <span className="text-sm capitalize text-muted-foreground">{row.entityType}</span>
               </div>
-              <div>
+              <div className="flex items-center justify-center" data-pressure-cell="true">
                 <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Pressure score</HeaderedTableMobileLabel>
-                <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm', statusPillClassName(row.tone))}>
-                  {row.pressureScoreLabel}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm', statusPillClassName(row.tone))}>
+                    {row.pressureScoreLabel}
+                  </span>
+                  <span className="text-sm text-muted-foreground">/ 100</span>
+                </div>
               </div>
-              <div>
+              <div className="flex items-center justify-center" data-pressure-cell="true">
                 <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Pipeline risk</HeaderedTableMobileLabel>
                 <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.pipelineRiskLabel)))}>
                   {row.pipelineRiskLabel}
                 </span>
               </div>
-              <div>
-                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>LT risk</HeaderedTableMobileLabel>
+              <div className="flex items-center justify-center" data-pressure-cell="true">
+                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Lead time risk</HeaderedTableMobileLabel>
                 <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.leadTimeRiskLabel)))}>
                   {row.leadTimeRiskLabel}
                 </span>
               </div>
-              <div>
+              <div className="flex items-center justify-center" data-pressure-cell="true">
                 <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Price sensitivity</HeaderedTableMobileLabel>
                 <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.priceSensitivityLabel)))}>
                   {row.priceSensitivityLabel}
                 </span>
-              </div>
-              <div className="flex items-start lg:justify-center">
-                <Button asChild className="w-full lg:w-auto" size="sm" variant="outline">
-                  <Link to={row.href}>
-                    <ArrowUpRight className="size-3.5" />
-                    Detail
-                  </Link>
-                </Button>
               </div>
             </HeaderedTableRow>
           ))}
@@ -968,48 +1233,72 @@ function EntityPressureTable({
 
 function ObservationLedgerCompact({
   model,
-  setSelection,
 }: {
   model: AnalysisWorkbenchViewModel;
-  setSelection: (value: AnalysisSelection) => void;
 }) {
-  const rows = model.evidenceRows.slice(0, 6);
+  const observationLedgerGridClassName = 'lg:grid lg:grid-cols-[minmax(18rem,1.3fr)_minmax(14rem,1fr)_minmax(12rem,0.9fr)] lg:gap-0 lg:[&>*]:px-3';
+  const rowsPerPage = 5;
+  const [pageIndex, setPageIndex] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(model.evidenceRows.length / rowsPerPage));
+  const rows = useMemo(() => {
+    const start = pageIndex * rowsPerPage;
+    return model.evidenceRows.slice(start, start + rowsPerPage);
+  }, [model.evidenceRows, pageIndex]);
+
+  useEffect(() => {
+    setPageIndex((current) => Math.min(current, pageCount - 1));
+  }, [pageCount]);
 
   return (
-    <HeaderedTable>
-      <div className={evidenceTableLayout.containerClassName} style={evidenceTableLayout.style}>
-        <HeaderedTableHeader className={evidenceTableLayout.headerClassName}>
-          <HeaderedTableHeaderCell>Observed</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Observation channels</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Affected entities</HeaderedTableHeaderCell>
+    <div className="grid gap-0">
+      <HeaderedTable>
+        <HeaderedTableHeader className={observationLedgerGridClassName}>
+          <HeaderedTableHeaderCell className="justify-self-start">
+            <HeaderTooltipLabel tooltip="The observation record itself: title, observed timestamp, and the short narrative detail explaining what landed in that row.">
+              Observed
+            </HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell className="justify-self-start">
+            <HeaderTooltipLabel tooltip="The raw evidence channels present in the selected observation, such as stock snapshots, rankings, stockout flags, orders, receipts, price inputs, lead-time hints, and notes.">
+              Observation channels
+            </HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell className="justify-self-start">
+            <HeaderTooltipLabel tooltip="The named services or SKUs that were resolved from the observation. When none are listed, the observation was not tied to a specific entity.">
+              Affected entities
+            </HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
         </HeaderedTableHeader>
-        <HeaderedTableBody className={evidenceTableLayout.bodyClassName}>
+        <HeaderedTableBody>
           {rows.map((row) => (
-            <HeaderedTableRow key={row.id} className={cn(rowHoverClassName, evidenceTableLayout.rowClassName)}>
-              <button className="min-w-0 text-left" type="button" onClick={() => setSelection({ type: 'observation', observationId: row.id })}>
-                <p className="font-medium text-foreground">{row.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{row.observedAt}</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{row.detail}</p>
-              </button>
-              <div>
-                <HeaderedTableMobileLabel className={evidenceTableLayout.mobileLabelClassName}>Channels</HeaderedTableMobileLabel>
+            <HeaderedTableRow key={row.id} className={observationLedgerGridClassName}>
+              <div className="min-w-0 text-left" data-observation-cell="true">
+                <HeaderedTableCellStack
+                  primary={row.title}
+                  secondary={
+                    <>
+                      <p>{row.observedAt}</p>
+                      <p className="mt-2">{row.detail}</p>
+                    </>
+                  }
+                  primaryClassName="font-semibold"
+                  secondaryClassName="text-sm leading-6 text-muted-foreground"
+                />
+              </div>
+              <div className="min-w-0" data-observation-cell="true">
+                <HeaderedTableMobileLabel>Channels</HeaderedTableMobileLabel>
                 <ObservationChannels row={row} />
               </div>
-              <div>
-                <HeaderedTableMobileLabel className={evidenceTableLayout.mobileLabelClassName}>Affected entities</HeaderedTableMobileLabel>
-                <div className="flex flex-wrap gap-1.5">
-                  {row.affectedEntityLabels.length > 0 ? row.affectedEntityLabels.map((label) => (
-                    <span key={`${row.id}:${label}`} className="rounded-full border border-border/60 bg-background/70 px-2 py-1 text-[0.68rem] text-muted-foreground">
-                      {label}
-                    </span>
-                  )) : <span className="text-sm text-muted-foreground">No named entity</span>}
-                </div>
+              <div className="min-w-0" data-observation-cell="true">
+                <HeaderedTableMobileLabel>Affected entities</HeaderedTableMobileLabel>
+                <ObservationEntityList row={row} />
               </div>
             </HeaderedTableRow>
           ))}
         </HeaderedTableBody>
-      </div>
-    </HeaderedTable>
+      </HeaderedTable>
+      {pageCount > 1 ? <PagedPanelNavigation pageCount={pageCount} pageIndex={pageIndex} setPageIndex={setPageIndex} /> : null}
+    </div>
   );
 }
 
@@ -1022,59 +1311,143 @@ function SupplyFragilityMap({
   setSelection: (value: AnalysisSelection) => void;
   showRightRailCards: boolean;
 }) {
+  const measuredCellRefs = useRef(new Map<string, HTMLDivElement>());
+  const measuredCellContentRefs = useRef(new Map<string, HTMLDivElement>());
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [sharedCellWidth, setSharedCellWidth] = useState(240);
+
+  const setMeasuredCellRef = (key: string) => (node: HTMLDivElement | null) => {
+    if (node) {
+      measuredCellRefs.current.set(key, node);
+      return;
+    }
+    measuredCellRefs.current.delete(key);
+  };
+
+  const setMeasuredCellContentRef = (key: string) => (node: HTMLDivElement | null) => {
+    if (node) {
+      measuredCellContentRefs.current.set(key, node);
+      return;
+    }
+    measuredCellContentRefs.current.delete(key);
+  };
+
+  const transposedRows = useMemo(
+    () =>
+      model.fragilityColumns.map((column) => ({
+        key: `sku:${column.skuId}`,
+        skuId: column.skuId,
+        name: column.name,
+        cells: model.fragilityRows
+          .map((service, serviceIndex) => ({
+            serviceId: service.entityId,
+            serviceName: service.name,
+            serviceColumnStart: serviceIndex + 2,
+            cell: service.cells.find((entry) => entry.skuId === column.skuId),
+          }))
+          .filter(({ cell }) => cell?.tone !== 'neutral'),
+      }))
+      .filter((row) => row.cells.length > 0),
+    [model.fragilityColumns, model.fragilityRows],
+  );
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const widestContent = Array.from(measuredCellContentRefs.current.values()).reduce((max, element) => {
+        return Math.max(max, Math.ceil(element.scrollWidth));
+      }, 0);
+      const tallestCell = Array.from(measuredCellRefs.current.values()).reduce((max, element) => {
+        return Math.max(max, Math.ceil(element.getBoundingClientRect().height));
+      }, 0);
+      const baseWidth = Math.max(widestContent + 26, tallestCell);
+      const columnCount = model.fragilityRows.length + 1;
+      const columnGap = 8;
+      const viewportWidth = viewportRef.current?.clientWidth ?? 0;
+      const horizontalPadding = 48;
+      const availableWidth = Math.max(0, viewportWidth - horizontalPadding);
+      const stretchedWidth =
+        columnCount > 0 && availableWidth > 0 ? Math.floor((availableWidth - columnGap * (columnCount - 1)) / columnCount) : 0;
+      const nextWidth = stretchedWidth > baseWidth ? stretchedWidth : baseWidth;
+      setSharedCellWidth((current) => (current === nextWidth ? current : nextWidth));
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+    const observer = new ResizeObserver(() => {
+      measure();
+    });
+    if (viewportRef.current) {
+      observer.observe(viewportRef.current);
+    }
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer.disconnect();
+    };
+  }, [model.fragilityRows.length, transposedRows]);
+
   return (
     <PerformanceSectionShell
       title="Supply fragility map"
-      tooltip="Services against linked SKUs, with contributor pressure and inbound relief in each cell."
-      description="The system-level sibling of the service contributor stack: where pressure is concentrated, and whether pipeline relief is likely to land soon."
+      tooltip="Linked SKUs against services, with contributor pressure and inbound relief in each cell."
+      description="The system-level sibling of the service contributor stack, transposed to show each SKU across the services it supports."
       className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       contentClassName="px-0 py-0"
     >
-      <div className="overflow-x-auto px-6 py-5">
-        <div className="min-w-max rounded-[1.4rem] border border-border/60 bg-background/55 p-3">
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: `minmax(15rem, 1fr) repeat(${model.fragilityColumns.length}, minmax(8rem, 1fr))` }}
-          >
-            <div className="px-3 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Service</div>
-            {model.fragilityColumns.map((column) => (
-              <div key={column.skuId} className="px-3 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                {column.name}
-              </div>
-            ))}
+      <div ref={viewportRef} className="overflow-x-auto px-6 py-5">
+        <div
+          className="grid min-w-max gap-2"
+          style={{ gridTemplateColumns: `repeat(${model.fragilityRows.length + 1}, ${sharedCellWidth}px)` }}
+        >
+          <div aria-hidden="true" />
+          {model.fragilityRows.map((service, serviceIndex) => (
+            <button
+              key={service.entityId}
+              className="flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              style={{ gridColumnStart: serviceIndex + 2, gridRowStart: 1 }}
+              type="button"
+              onClick={() => setSelection({ type: 'entity', entityId: service.entityId, entityType: service.entityType })}
+            >
+              <Store className="size-4 shrink-0" />
+              <span>{service.name}</span>
+            </button>
+          ))}
 
-            {model.fragilityRows.map((row) => (
-              <Fragment key={row.key}>
-                <button
-                  className="rounded-[1rem] border border-border/60 bg-white px-3 py-3 text-left hover:border-border/90"
-                  type="button"
-                  onClick={() => setSelection({ type: 'entity', entityId: row.entityId, entityType: row.entityType })}
+          {transposedRows.map((row, rowIndex) => (
+            <Fragment key={row.key}>
+              <div className="flex items-center rounded-[1rem] border border-border/60 bg-white px-3 py-3" style={{ gridColumnStart: 1, gridRowStart: rowIndex + 2 }}>
+                <div className="max-w-full min-w-0">
+                  <p className="flex items-center gap-2 font-medium text-foreground">
+                    <Package className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 break-words">{row.name}</span>
+                  </p>
+                </div>
+              </div>
+              {row.cells.map(({ serviceId, serviceName, serviceColumnStart, cell }) => (
+                <div
+                  key={`${row.skuId}:${serviceId}`}
+                  className={cn(
+                    'rounded-[1rem] border px-3 py-3',
+                    cell?.tone === 'danger'
+                      ? 'border-rose-200/80 bg-rose-50/90'
+                      : cell?.tone === 'warning'
+                        ? 'border-amber-200/80 bg-amber-50/90'
+                        : cell?.tone === 'info'
+                          ? 'border-sky-200/80 bg-sky-50/90'
+                          : 'border-border/60 bg-white',
+                  )}
+                  ref={setMeasuredCellRef(`${row.skuId}:${serviceId}`)}
+                  style={{ gridColumnStart: serviceColumnStart, gridRowStart: rowIndex + 2 }}
                 >
-                  <p className="font-medium text-foreground">{row.name}</p>
-                  <p className="mt-1 text-sm capitalize text-muted-foreground">{row.entityType}</p>
-                </button>
-                {row.cells.map((cell) => (
-                  <div
-                    key={cell.key}
-                    className={cn(
-                      'rounded-[1rem] border px-3 py-3',
-                      cell.tone === 'danger'
-                        ? 'border-rose-200/80 bg-rose-50/90'
-                        : cell.tone === 'warning'
-                          ? 'border-amber-200/80 bg-amber-50/90'
-                          : cell.tone === 'info'
-                            ? 'border-sky-200/80 bg-sky-50/90'
-                            : 'border-border/60 bg-white',
-                    )}
-                  >
-                    <p className="text-sm font-medium text-foreground">{cell.usageLabel}</p>
-                    <p className="mt-1 text-xs capitalize text-muted-foreground">{cell.pressureLabel}</p>
-                    <p className="mt-2 text-xs text-muted-foreground">{cell.reliefLabel}</p>
+                  <div ref={setMeasuredCellContentRef(`${row.skuId}:${serviceId}`)} className="w-max max-w-none">
+                    <p className="text-sm font-medium text-foreground">{cell?.usageLabel ?? '—'}</p>
+                    <p className="mt-1 text-xs capitalize text-muted-foreground">{cell?.pressureLabel ?? '—'}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{cell?.reliefLabel ?? '—'}</p>
+                    <p className="mt-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground lg:hidden">{serviceName}</p>
                   </div>
-                ))}
-              </Fragment>
-            ))}
-          </div>
+                </div>
+              ))}
+            </Fragment>
+          ))}
         </div>
       </div>
     </PerformanceSectionShell>
@@ -1105,7 +1478,13 @@ function SelectedObservationRail({ row }: { row: AnalysisObservationLedgerRow })
   );
 }
 
-function IntervalRail({ interval }: { interval: AnalysisWorkbenchViewModel['intervals'][number] }) {
+function IntervalRail({
+  interval,
+  flashedSection,
+}: {
+  interval: AnalysisWorkbenchViewModel['intervals'][number];
+  flashedSection: IntervalRailSectionKey | null;
+}) {
   return (
     <>
       <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Interval explanation" tooltip="What SENA thinks happened in the currently selected interval.">
@@ -1117,8 +1496,26 @@ function IntervalRail({ interval }: { interval: AnalysisWorkbenchViewModel['inte
         </div>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<AudioLines className="size-4" />} title="What happened" tooltip="The dominant causal explanation in the selected interval.">
-        <p className="text-sm leading-6 text-muted-foreground">{interval.narrative}</p>
+      <AnalysisRailSection
+        flash={flashedSection === 'observed-signals'}
+        icon={<Radio className="size-4" />}
+        title="Observed signals"
+        tooltip="The raw observation channels that touched this interval."
+      >
+        <SignalsWrap values={interval.observedSignals} />
+        <AnalysisRailList className="mt-3">
+          {interval.affectedEntities.length > 0 ? interval.affectedEntities.map((label) => (
+            <AnalysisRailRow key={`${interval.key}:${label}`} primary={<span className="text-muted-foreground">{label}</span>} />
+          )) : <AnalysisRailRow primary={<span className="text-muted-foreground">No named entity resolved for this interval.</span>} />}
+        </AnalysisRailList>
+      </AnalysisRailSection>
+
+      <AnalysisRailSection
+        flash={flashedSection === 'what-happened'}
+        icon={<AudioLines className="size-4" />}
+        title="What happened"
+        tooltip="The dominant causal explanation in the selected interval."
+      >
         <AnalysisRailList>
           <AnalysisRailRow primary={<span className="text-muted-foreground">Service demand</span>} secondary={interval.serviceDemandLabel} />
           <AnalysisRailRow primary={<span className="text-muted-foreground">Retail demand</span>} secondary={interval.retailDemandLabel} />
@@ -1127,12 +1524,21 @@ function IntervalRail({ interval }: { interval: AnalysisWorkbenchViewModel['inte
         </AnalysisRailList>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<Radio className="size-4" />} title="Observed signals" tooltip="The raw observation channels that touched this interval.">
-        <SignalsWrap values={interval.observedSignals} />
-        <AnalysisRailList className="mt-3">
-          {interval.affectedEntities.length > 0 ? interval.affectedEntities.map((label) => (
-            <AnalysisRailRow key={`${interval.key}:${label}`} primary={<span className="text-muted-foreground">{label}</span>} />
-          )) : <AnalysisRailRow primary={<span className="text-muted-foreground">No named entity resolved for this interval.</span>} />}
+      <AnalysisRailSection
+        flash={flashedSection === 'orders-transit-lead-time'}
+        icon={<Waypoints className="size-4" />}
+        title="Orders, transit, lead time"
+        tooltip="Inbound order placement, pipeline state, and lead-time conditions for the selected interval."
+      >
+        <AnalysisRailList>
+          <AnalysisRailRow primary={<span className="text-muted-foreground">In transit</span>} secondary={interval.inTransitLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">Order probability</span>} secondary={interval.orderProbabilityLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">Order quantity</span>} secondary={interval.orderQuantityLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">Receipt quantity</span>} secondary={interval.receiptQuantityLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">Transit age</span>} secondary={interval.ageDaysLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time mean</span>} secondary={interval.leadTimeMeanLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time spread</span>} secondary={interval.leadTimeSpreadLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time class</span>} secondary={interval.leadTimeVariabilityLabel} />
         </AnalysisRailList>
       </AnalysisRailSection>
     </>
@@ -1196,16 +1602,16 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
 
       <AnalysisRailSection icon={<Radio className="size-4" />} title="Strongest channels" tooltip="Which observation channels are most responsible for the current system inference.">
         <AnalysisRailList>
-          {model.inspectorOverview.strongestChannels.map((entry) => (
-            <AnalysisRailRow key={entry} primary={<span className="text-muted-foreground">{entry}</span>} />
+          {model.inspectorOverview.strongestChannels.map((entry, index) => (
+            <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
           ))}
         </AnalysisRailList>
       </AnalysisRailSection>
 
       <AnalysisRailSection icon={<ListTree className="size-4" />} title="Affected entities" tooltip="The current system actors carrying the most structural pressure.">
         <AnalysisRailList>
-          {model.inspectorOverview.affectedEntities.map((entry) => (
-            <AnalysisRailRow key={entry} primary={<span className="text-muted-foreground">{entry}</span>} />
+          {model.inspectorOverview.affectedEntities.map((entry, index) => (
+            <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
           ))}
         </AnalysisRailList>
       </AnalysisRailSection>
@@ -1215,10 +1621,14 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
 
 function InspectorRail({
   model,
+  section,
   selection,
+  flashedSection,
 }: {
   model: AnalysisWorkbenchViewModel;
+  section: AnalysisSection;
   selection: AnalysisSelection;
+  flashedSection: IntervalRailSectionKey | null;
 }) {
   const interval = selection.type === 'interval'
     ? model.intervals.find((entry) => entry.intervalIndex === selection.intervalIndex) ?? null
@@ -1229,11 +1639,86 @@ function InspectorRail({
   const observation = selection.type === 'observation'
     ? model.evidenceRows.find((entry) => entry.id === selection.observationId) ?? null
     : null;
+  const measurementRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [reservedHeight, setReservedHeight] = useState<number | null>(null);
+  const measurementVariants = useMemo(() => {
+    const overviewVariant = [{ key: 'overview', content: <OverviewRail model={model} /> }];
+    if (section === 'workbench') {
+      return [
+        ...overviewVariant,
+        ...model.intervals.map((interval) => ({
+          key: `interval:${interval.key}`,
+          content: <IntervalRail flashedSection={null} interval={interval} />,
+        })),
+      ];
+    }
+    if (section === 'pressure') {
+      return [
+        ...overviewVariant,
+        ...model.entityRows.map((row) => ({
+          key: `entity:${row.entityType}:${row.id}`,
+          content: <EntityRail row={row} />,
+        })),
+      ];
+    }
+    if (section === 'observations') {
+      return [
+        ...overviewVariant,
+        ...model.evidenceRows.map((row) => ({
+          key: `observation:${row.id}`,
+          content: <SelectedObservationRail row={row} />,
+        })),
+      ];
+    }
+    if (section === 'fragility') {
+      return [
+        ...overviewVariant,
+        ...model.entityRows.map((row) => ({
+          key: `entity:${row.entityType}:${row.id}`,
+          content: <EntityRail row={row} />,
+        })),
+      ];
+    }
+    return overviewVariant;
+  }, [model, section]);
+
+  useEffect(() => {
+    measurementRefs.current = measurementRefs.current.slice(0, measurementVariants.length);
+    const updateReservedHeight = () => {
+      const nextHeight = Math.max(...measurementRefs.current.map((node) => node?.offsetHeight ?? 0), 0);
+      setReservedHeight((current) => (current === nextHeight ? current : nextHeight));
+    };
+    updateReservedHeight();
+    const observer = new ResizeObserver(() => updateReservedHeight());
+    for (const node of measurementRefs.current) {
+      if (node) {
+        observer.observe(node);
+      }
+    }
+    return () => observer.disconnect();
+  }, [measurementVariants]);
 
   return (
-    <aside className={cn(RIGHT_RAIL_ASIDE_CLASS_NAME, ANALYSIS_RAIL_PANEL_CLASS_NAME, 'gap-0')}>
+    <aside
+      className={cn(RIGHT_RAIL_ASIDE_CLASS_NAME, ANALYSIS_RAIL_PANEL_CLASS_NAME, 'relative gap-0')}
+      data-analysis-inspector="true"
+      style={reservedHeight != null ? { minHeight: reservedHeight } : undefined}
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 invisible">
+        {measurementVariants.map((variant, index) => (
+          <div
+            key={variant.key}
+            ref={(node) => {
+              measurementRefs.current[index] = node;
+            }}
+            className={cn(ANALYSIS_RAIL_PANEL_CLASS_NAME, 'gap-0')}
+          >
+            {variant.content}
+          </div>
+        ))}
+      </div>
       {observation ? <SelectedObservationRail row={observation} /> : null}
-      {!observation && interval ? <IntervalRail interval={interval} /> : null}
+      {!observation && interval ? <IntervalRail flashedSection={flashedSection} interval={interval} /> : null}
       {!observation && !interval && entity ? <EntityRail row={entity} /> : null}
       {!observation && !interval && !entity ? <OverviewRail model={model} /> : null}
     </aside>
@@ -1241,22 +1726,34 @@ function InspectorRail({
 }
 
 function WorkbenchSurface({
+  hasOlderIntervals,
+  isLoadingOlderIntervals,
+  loadOlderIntervals,
   model,
   selectedIntervalIndex,
   setSelection,
+  onIntervalChartLabelClick,
   showRightRailCards,
 }: {
+  hasOlderIntervals: boolean;
+  isLoadingOlderIntervals: boolean;
+  loadOlderIntervals: () => Promise<number>;
   model: AnalysisWorkbenchViewModel;
   selectedIntervalIndex: number | null;
   setSelection: (value: AnalysisSelection) => void;
+  onIntervalChartLabelClick: (intervalIndex: number, section: IntervalRailSectionKey) => void;
   showRightRailCards: boolean;
 }) {
   return (
     <div className="grid gap-6">
       <SystemLedger
+        hasOlderIntervals={hasOlderIntervals}
+        isLoadingOlderIntervals={isLoadingOlderIntervals}
+        loadOlderIntervals={loadOlderIntervals}
         model={model}
         selectedIntervalIndex={selectedIntervalIndex}
         setSelection={setSelection}
+        onIntervalChartLabelClick={onIntervalChartLabelClick}
         showRightRailCards={showRightRailCards}
       />
     </div>
@@ -1307,7 +1804,7 @@ function ObservationsSurface({
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
       >
-        <ObservationLedgerCompact model={model} setSelection={setSelection} />
+        <ObservationLedgerCompact model={model} />
       </PerformanceSectionShell>
     </div>
   );
@@ -1329,73 +1826,6 @@ function FragilitySurface({
   );
 }
 
-function EvidenceSurface({
-  model,
-  setSelection,
-  showRightRailCards,
-}: {
-  model: AnalysisWorkbenchViewModel;
-  setSelection: (value: AnalysisSelection) => void;
-  showRightRailCards: boolean;
-}) {
-  return (
-    <div className="grid gap-6">
-      <PerformanceSectionShell
-        title="Observation ledger"
-        tooltip="The full evidence ledger across every raw channel that fed the current system inference."
-        description="This is the trust layer for SENA: which observations existed, which channels were active, and when they landed."
-        className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
-        contentClassName="px-0 py-0"
-      >
-        <HeaderedTable>
-          <div className={fullEvidenceTableLayout.containerClassName} style={fullEvidenceTableLayout.style}>
-            <HeaderedTableHeader className={fullEvidenceTableLayout.headerClassName}>
-              <HeaderedTableHeaderCell>Observed</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Stock</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Svc rank</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Retail</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Stockout</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Order</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Receipt</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Svc price</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Retail price</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>LT hint</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Note</HeaderedTableHeaderCell>
-            </HeaderedTableHeader>
-            <HeaderedTableBody className={fullEvidenceTableLayout.bodyClassName}>
-              {model.evidenceRows.map((row) => (
-                <HeaderedTableRow key={row.id} className={cn(rowHoverClassName, fullEvidenceTableLayout.rowClassName)}>
-                  <button className="min-w-0 text-left" type="button" onClick={() => setSelection({ type: 'observation', observationId: row.id })}>
-                    <p className="font-medium text-foreground">{row.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{row.observedAt}</p>
-                  </button>
-                  {[
-                    row.stockSnapshotLabel,
-                    row.serviceRankingLabel,
-                    row.retailRankingLabel,
-                    row.stockoutFlagsLabel,
-                    row.orderPlacedLabel,
-                    row.receiptArrivedLabel,
-                    row.servicePriceLabel,
-                    row.retailPriceLabel,
-                    row.leadTimeHintLabel,
-                    row.noteLabel,
-                  ].map((value, index) => (
-                    <div key={`${row.id}:${index}`}>
-                      <HeaderedTableMobileLabel className={fullEvidenceTableLayout.mobileLabelClassName}>Signal</HeaderedTableMobileLabel>
-                      <span className="text-sm text-muted-foreground">{value}</span>
-                    </div>
-                  ))}
-                </HeaderedTableRow>
-              ))}
-            </HeaderedTableBody>
-          </div>
-        </HeaderedTable>
-      </PerformanceSectionShell>
-    </div>
-  );
-}
-
 function SettingsSurface({
   model,
   showRightRailCards,
@@ -1406,28 +1836,24 @@ function SettingsSurface({
   return (
     <div className="grid gap-6">
       <PerformanceSectionShell
-        title="Analysis settings"
+        title="Analysis Parameters"
         tooltip="Read-only model state and evidence coverage for the current analysis window."
         description="The least important surface in the analysis stack. It exposes current model status without competing with the workbench."
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {[
-            ['Run ID', model.settings.runId],
-            ['Latest observed', model.settings.latestObservedAt],
-            ['Observations used', model.settings.observationsUsed],
-            ['Intervals in view', model.settings.intervalCount],
-            ['Smoothing', model.settings.smoothingLabel],
-            ['Effective sample size', model.settings.effectiveSampleSize],
-            ['Predictive error', model.settings.predictiveError],
-            ['Coverage estimate', model.settings.coverageEstimate],
-            ['Scope', model.settings.scopeSummary],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-[1.25rem] border border-border/60 bg-white px-4 py-4">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-              <p className="mt-2 text-base font-medium text-foreground">{value}</p>
-            </div>
-          ))}
+          {ANALYSIS_SETTINGS_FIELDS.map((field) => {
+            const value = model.settings[field.valueKey];
+
+            return (
+              <div key={field.key} className="rounded-[1.25rem] border border-border/60 bg-white px-4 py-4">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <SectionLabel tooltip={field.tooltip}>{field.label}</SectionLabel>
+                </p>
+                <p className="mt-2 text-base font-medium text-foreground">{value}</p>
+              </div>
+            );
+          })}
         </div>
       </PerformanceSectionShell>
     </div>
@@ -1435,17 +1861,47 @@ function SettingsSurface({
 }
 
 export function AnalysisWorkbench({
+  hasOlderIntervals,
+  isLoadingOlderIntervals,
+  loadOlderIntervals,
   model,
   section,
   setSection,
   showRightRailCards,
 }: {
+  hasOlderIntervals: boolean;
+  isLoadingOlderIntervals: boolean;
+  loadOlderIntervals: () => Promise<number>;
   model: AnalysisWorkbenchViewModel;
   section: AnalysisSection;
   setSection: (value: AnalysisSection) => void;
   showRightRailCards: boolean;
 }) {
   const [selection, setSelection] = useState<AnalysisSelection>({ type: 'overview' });
+  const [flashedIntervalSection, setFlashedIntervalSection] = useState<IntervalRailSectionKey | null>(null);
+  const flashTimeoutRef = useRef<number | null>(null);
+  const railEnabled = showRightRailCards && sectionSupportsRightRail(section);
+  const handleSelection = (nextSelection: AnalysisSelection) => {
+    setSelection((current) => (selectionsEqual(current, nextSelection) ? current : nextSelection));
+  };
+  const flashIntervalSection = (sectionKey: IntervalRailSectionKey) => {
+    setFlashedIntervalSection(sectionKey);
+    if (flashTimeoutRef.current != null) {
+      window.clearTimeout(flashTimeoutRef.current);
+    }
+    flashTimeoutRef.current = window.setTimeout(() => {
+      setFlashedIntervalSection((current) => (current === sectionKey ? null : current));
+      flashTimeoutRef.current = null;
+    }, 550);
+  };
+  const handleIntervalChartLabelClick = (intervalIndex: number, sectionKey: IntervalRailSectionKey) => {
+    handleSelection({ type: 'interval', intervalIndex });
+    flashIntervalSection(sectionKey);
+  };
+  const clearIntervalSelection = () => {
+    setFlashedIntervalSection(null);
+    handleSelection({ type: 'overview' });
+  };
 
   const selectedIntervalIndex = selection.type === 'interval' ? selection.intervalIndex : null;
   const selectedEntityId = selection.type === 'entity' ? selection.entityId : null;
@@ -1466,34 +1922,72 @@ export function AnalysisWorkbench({
     });
   }, [model]);
 
+  useEffect(() => () => {
+    if (flashTimeoutRef.current != null) {
+      window.clearTimeout(flashTimeoutRef.current);
+    }
+  }, []);
+
+  const handleWorkbenchPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    if (target.closest('[data-analysis-inspector="true"]')) {
+      return;
+    }
+    if (section === 'workbench' && selection.type === 'interval') {
+      if (target.closest('[data-analysis-datalabel="true"]')) {
+        return;
+      }
+      clearIntervalSelection();
+      return;
+    }
+    if (section === 'pressure' && selection.type === 'entity') {
+      if (target.closest('[data-pressure-cell="true"]')) {
+        return;
+      }
+      handleSelection({ type: 'overview' });
+      return;
+    }
+    if (section === 'observations' && selection.type === 'observation') {
+      if (target.closest('[data-observation-cell="true"]')) {
+        return;
+      }
+      handleSelection({ type: 'overview' });
+      return;
+    }
+  };
+
   const surface = useMemo(() => {
     if (section === 'pressure') {
-      return <PressureSurface model={model} selectedEntityId={selectedEntityId} setSelection={setSelection} showRightRailCards={showRightRailCards} />;
+      return <PressureSurface model={model} selectedEntityId={selectedEntityId} setSelection={handleSelection} showRightRailCards={railEnabled} />;
     }
     if (section === 'observations') {
-      return <ObservationsSurface model={model} setSelection={setSelection} showRightRailCards={showRightRailCards} />;
+      return <ObservationsSurface model={model} setSelection={handleSelection} showRightRailCards={railEnabled} />;
     }
     if (section === 'fragility') {
-      return <FragilitySurface model={model} setSelection={setSelection} showRightRailCards={showRightRailCards} />;
-    }
-    if (section === 'evidence') {
-      return <EvidenceSurface model={model} setSelection={setSelection} showRightRailCards={showRightRailCards} />;
+      return <FragilitySurface model={model} setSelection={handleSelection} showRightRailCards={railEnabled} />;
     }
     if (section === 'settings') {
-      return <SettingsSurface model={model} showRightRailCards={showRightRailCards} />;
+      return <SettingsSurface model={model} showRightRailCards={railEnabled} />;
     }
     return (
-      <WorkbenchSurface
-        model={model}
-        selectedIntervalIndex={selectedIntervalIndex}
-        setSelection={setSelection}
-        showRightRailCards={showRightRailCards}
+            <WorkbenchSurface
+              hasOlderIntervals={hasOlderIntervals}
+              isLoadingOlderIntervals={isLoadingOlderIntervals}
+              loadOlderIntervals={loadOlderIntervals}
+              model={model}
+              selectedIntervalIndex={selectedIntervalIndex}
+              setSelection={handleSelection}
+        onIntervalChartLabelClick={handleIntervalChartLabelClick}
+        showRightRailCards={railEnabled}
       />
     );
-  }, [model, section, selectedEntityId, selectedIntervalIndex, showRightRailCards]);
+  }, [handleIntervalChartLabelClick, handleSelection, model, railEnabled, section, selectedEntityId, selectedIntervalIndex]);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-6" onPointerDown={handleWorkbenchPointerDown}>
       <DiagnosticStrip model={model} />
       <ChromeTabs
         className="relative gap-0"
@@ -1504,7 +1998,7 @@ export function AnalysisWorkbench({
           }
         }}
       >
-        <InternalNav section={section} showRightRailCards={showRightRailCards} />
+        <InternalNav section={section} showRightRailCards={railEnabled} />
 
         <section
           className={ANALYSIS_BOARD_CLASS_NAME}
@@ -1512,11 +2006,11 @@ export function AnalysisWorkbench({
             marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
           }}
         >
-          <div className={showRightRailCards ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
-            <div className="min-w-0 border-b border-border/60 lg:border-r lg:border-b-0 lg:rounded-r-none">
-              <div className="grid min-w-0 gap-6 px-0 py-0">{surface}</div>
+          <div className={railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
+            <div className={cn('min-w-0 border-b border-border/60 lg:border-b-0', railEnabled && 'lg:border-r lg:rounded-r-none')}>
+              <div className="grid min-h-full min-w-0 gap-6 px-0 py-0">{surface}</div>
             </div>
-            {showRightRailCards ? <InspectorRail model={model} selection={selectedObservationId ? selection : selection} /> : null}
+            {railEnabled ? <InspectorRail flashedSection={flashedIntervalSection} model={model} section={section} selection={selectedObservationId ? selection : selection} /> : null}
           </div>
         </section>
       </ChromeTabs>

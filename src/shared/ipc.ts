@@ -8,11 +8,12 @@ import type {
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaDetailWindowRequest,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
-  SenaServiceDetail,
-  SenaSkuDetail,
+  SenaServiceDetailPage,
+  SenaSkuDetailPage,
   SenaWorkspaceSummary,
 } from './sena';
 
@@ -38,10 +39,14 @@ export interface DesktopPreferences {
 
 export interface SenaSkuLookupPayload {
   skuId: string;
+  beforeIntervalIndex?: number | null;
+  limit?: number;
 }
 
 export interface SenaServiceLookupPayload {
   serviceId: string;
+  beforeIntervalIndex?: number | null;
+  limit?: number;
 }
 
 export interface SenaRunLookupPayload {
@@ -60,8 +65,8 @@ export interface DesktopSenaBridge {
   triggerRun: (payload?: SenaTriggerRunPayload) => Promise<SenaAnalysisRunRecord>;
   retryRun: (payload: SenaRunLookupPayload) => Promise<SenaAnalysisRunRecord>;
   getWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
-  getSkuDetail: (payload: SenaSkuLookupPayload) => Promise<SenaSkuDetail | null>;
-  getServiceDetail: (payload: SenaServiceLookupPayload) => Promise<SenaServiceDetail | null>;
+  getSkuDetail: (payload: SenaSkuLookupPayload & Partial<SenaDetailWindowRequest>) => Promise<SenaSkuDetailPage | null>;
+  getServiceDetail: (payload: SenaServiceLookupPayload & Partial<SenaDetailWindowRequest>) => Promise<SenaServiceDetailPage | null>;
   getDiagnostics: () => Promise<SenaDiagnostics | null>;
   getRunStatus: (payload: SenaRunLookupPayload) => Promise<SenaAnalysisRunRecord | null>;
 }

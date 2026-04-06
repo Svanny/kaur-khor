@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
+import { usePagedIntervalHistory } from '@/components/system/interval-history';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
+import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
@@ -15,6 +18,16 @@ import { SkuDetailHero } from './hero';
 import { SkuDetailLedger } from './ledger';
 import { SkuDetailRightRail } from './right-rail';
 import { deriveSenaSkuDetailViewModel } from './view-model';
+
+function mergeSkuDetailPages(older: NonNullable<BootstrapSkuDetailResult['detail']>, newer: NonNullable<BootstrapSkuDetailResult['detail']>) {
+  return {
+    ...newer,
+    inventoryPosterior: [...older.inventoryPosterior, ...newer.inventoryPosterior],
+    demandPosterior: [...older.demandPosterior, ...newer.demandPosterior],
+    pipelinePosterior: [...older.pipelinePosterior, ...newer.pipelinePosterior],
+    leadTimePosterior: [...older.leadTimePosterior, ...newer.leadTimePosterior],
+  };
+}
 
 function emptyBootstrap(): BootstrapSkuDetailResult | null {
   return null;
@@ -139,7 +152,7 @@ export function SkuDetailRoute() {
     try {
       const result = await bootstrapSkuDetail({ inventory, skuId, language });
       setBootstrap(result);
-      setSelectedIntervalIndex(result.detail?.demandPosterior.at(-1)?.intervalIndex ?? null);
+      setSelectedIntervalIndex(result.detailPage?.latestIntervalIndex ?? result.detail?.demandPosterior.at(-1)?.intervalIndex ?? null);
     } finally {
       setIsRefreshing(false);
     }
@@ -155,6 +168,17 @@ export function SkuDetailRoute() {
   }, [skuId]);
 
   const snapshotSku = bootstrap?.snapshot.skus.find((entry) => entry.skuId === skuId) ?? null;
+  const {
+    detail: pagedDetail,
+    hasOlder,
+    isLoadingOlder,
+    loadOlder,
+  } = usePagedIntervalHistory({
+    initialPage: bootstrap?.detailPage ?? null,
+    mergeDetails: mergeSkuDetailPages,
+    fetchOlderPage: async (beforeIntervalIndex) =>
+      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { beforeIntervalIndex, limit: INTERVAL_PAGE_SIZE })),
+  });
 
   const model = useMemo(() => {
     if (!bootstrap || !snapshotSku) {
@@ -168,12 +192,12 @@ export function SkuDetailRoute() {
       selectedIntervalIndex,
       skuId,
       snapshot: bootstrap.snapshot,
-      detail: bootstrap.detail,
+      detail: pagedDetail,
       uiState: bootstrap.uiState,
       workspaceSummary: bootstrap.workspaceSummary,
       language,
     });
-  }, [bootstrap, currency, language, selectedIntervalIndex, skuId, snapshotSku]);
+  }, [bootstrap, currency, language, pagedDetail, selectedIntervalIndex, skuId, snapshotSku]);
 
   if (!bootstrap && (inventory.isLoading || isRefreshing)) {
     return (
@@ -229,7 +253,14 @@ export function SkuDetailRoute() {
 
         <div className={rightRailLayoutClassName(showRightRailCards)}>
           <div className="grid min-w-0 gap-6">
-            <SkuDetailLedger model={model} selectedIntervalIndex={selectedIntervalIndex} setSelectedIntervalIndex={setSelectedIntervalIndex} />
+            <SkuDetailLedger
+              hasOlderIntervals={hasOlder}
+              isLoadingOlderIntervals={isLoadingOlder}
+              loadOlderIntervals={loadOlder}
+              model={model}
+              selectedIntervalIndex={selectedIntervalIndex}
+              setSelectedIntervalIndex={setSelectedIntervalIndex}
+            />
             <div className="grid gap-6 xl:grid-cols-2">
               <SkuDetailExposure rows={model.dependencyImpact} />
               <SkuDetailEvidence evidence={model.evidence} />

@@ -15,8 +15,8 @@ import type {
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
-  SenaServiceDetail,
-  SenaSkuDetail,
+  SenaServiceDetailPage,
+  SenaSkuDetailPage,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 
@@ -26,11 +26,13 @@ type ReadCacheValue =
   | SenaCatalog
   | SenaObservationRecord[]
   | SenaWorkspaceSummary
-  | SenaSkuDetail
-  | SenaServiceDetail
+  | SenaSkuDetailPage
+  | SenaServiceDetailPage
   | SenaDiagnostics
   | SenaAnalysisRunRecord
   | null;
+
+const DEFAULT_INTERVAL_PAGE_LIMIT = 10;
 
 type SenaMetaCache = {
   catalogHash: string | null;
@@ -62,8 +64,8 @@ export interface InventoryContextValue {
   triggerSenaRun: (payload?: { algorithmVersion?: string }) => Promise<SenaAnalysisRunRecord>;
   retrySenaRun: (payload: { runId: string }) => Promise<SenaAnalysisRunRecord>;
   loadSenaWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
-  loadSenaSkuDetail: (skuId: string) => Promise<SenaSkuDetail | null>;
-  loadSenaServiceDetail: (serviceId: string) => Promise<SenaServiceDetail | null>;
+  loadSenaSkuDetail: (skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaSkuDetailPage | null>;
+  loadSenaServiceDetail: (serviceId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaServiceDetailPage | null>;
   loadSenaDiagnostics: () => Promise<SenaDiagnostics | null>;
   loadSenaRunStatus: (runId: string) => Promise<SenaAnalysisRunRecord | null>;
   updateSenaMeta: (next: Partial<SenaMetaCache>) => void;
@@ -332,9 +334,22 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         setStatePartial({ latestRun, workspaceSummary });
         return workspaceSummary;
       },
-      loadSenaSkuDetail: async (skuId) => loadWithCache(`sena:sku:${skuId}`, () => window.banjiDesktop.sena.getSkuDetail({ skuId })),
-      loadSenaServiceDetail: async (serviceId) =>
-        loadWithCache(`sena:service:${serviceId}`, () => window.banjiDesktop.sena.getServiceDetail({ serviceId })),
+      loadSenaSkuDetail: async (skuId, options) => {
+        const beforeIntervalIndex = options?.beforeIntervalIndex ?? null;
+        const limit = options?.limit ?? DEFAULT_INTERVAL_PAGE_LIMIT;
+        return loadWithCache(
+          `sena:sku:${skuId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`,
+          () => window.banjiDesktop.sena.getSkuDetail({ skuId, beforeIntervalIndex, limit }),
+        );
+      },
+      loadSenaServiceDetail: async (serviceId, options) => {
+        const beforeIntervalIndex = options?.beforeIntervalIndex ?? null;
+        const limit = options?.limit ?? DEFAULT_INTERVAL_PAGE_LIMIT;
+        return loadWithCache(
+          `sena:service:${serviceId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`,
+          () => window.banjiDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }),
+        );
+      },
       loadSenaDiagnostics: async () => {
         const diagnostics = await loadWithCache('sena:diagnostics', () => window.banjiDesktop.sena.getDiagnostics());
         setStatePartial({ diagnostics });

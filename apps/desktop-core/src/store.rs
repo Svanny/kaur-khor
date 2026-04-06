@@ -12,6 +12,7 @@ use banji_sena_core::{
     SenaSkuDetail, SenaStockSnapshot, SenaWorkspaceSummary, SqliteSenaRepository,
 };
 use futures::executor::block_on;
+use serde::Serialize;
 use std::{env, fs, path::PathBuf};
 use time::{Date, Duration, Month, PrimitiveDateTime, Time};
 
@@ -19,6 +20,135 @@ const DEFAULT_OWNER_SUB: &str = "desktop-owner";
 const DEV_SEED_VERSION: &str = "cambodian-clothing-v4";
 const DEV_SEED_OBSERVATION_COUNT: usize = 30;
 const LEGACY_DEV_SEED_NOTE: &str = "Seeded dev observation";
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaSkuDetailPage {
+    pub detail: SenaSkuDetail,
+    pub page_limit: usize,
+    pub has_older: bool,
+    pub next_before_interval_index: Option<usize>,
+    pub latest_interval_index: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaServiceDetailPage {
+    pub detail: SenaServiceDetail,
+    pub page_limit: usize,
+    pub has_older: bool,
+    pub next_before_interval_index: Option<usize>,
+    pub latest_interval_index: Option<usize>,
+}
+
+fn bounded_page_limit(limit: usize) -> usize {
+    limit.clamp(1, 10)
+}
+
+fn page_bounds(
+    interval_indices: &[usize],
+    before_interval_index: Option<usize>,
+    limit: usize,
+) -> Option<(usize, usize, bool, Option<usize>, Option<usize>)> {
+    if interval_indices.is_empty() {
+        return None;
+    }
+    let latest_interval_index = interval_indices.last().copied();
+    let upper_exclusive = before_interval_index
+        .and_then(|value| interval_indices.iter().position(|index| *index >= value))
+        .unwrap_or(interval_indices.len());
+    if upper_exclusive == 0 {
+        return Some((0, 0, false, None, latest_interval_index));
+    }
+    let start = upper_exclusive.saturating_sub(limit);
+    let has_older = start > 0;
+    let next_before_interval_index = has_older.then(|| interval_indices[start]);
+    Some((
+        start,
+        upper_exclusive,
+        has_older,
+        next_before_interval_index,
+        latest_interval_index,
+    ))
+}
+
+fn page_sku_detail(
+    detail: SenaSkuDetail,
+    before_interval_index: Option<usize>,
+    limit: usize,
+) -> SenaSkuDetailPage {
+    let limit = bounded_page_limit(limit);
+    let interval_indices: Vec<usize> = detail
+        .demand_posterior
+        .iter()
+        .map(|interval| interval.interval_index)
+        .collect();
+    let Some((start, end, has_older, next_before_interval_index, latest_interval_index)) =
+        page_bounds(&interval_indices, before_interval_index, limit)
+    else {
+        return SenaSkuDetailPage {
+            detail,
+            page_limit: limit,
+            has_older: false,
+            next_before_interval_index: None,
+            latest_interval_index: None,
+        };
+    };
+
+    SenaSkuDetailPage {
+        detail: SenaSkuDetail {
+            summary: detail.summary,
+            inventory_posterior: detail.inventory_posterior[start..end.min(detail.inventory_posterior.len())].to_vec(),
+            demand_posterior: detail.demand_posterior[start..end].to_vec(),
+            pipeline_posterior: detail.pipeline_posterior[start..end.min(detail.pipeline_posterior.len())].to_vec(),
+            lead_time_posterior: detail.lead_time_posterior[start..end.min(detail.lead_time_posterior.len())].to_vec(),
+        },
+        page_limit: limit,
+        has_older,
+        next_before_interval_index,
+        latest_interval_index,
+    }
+}
+
+fn page_service_detail(
+    detail: SenaServiceDetail,
+    before_interval_index: Option<usize>,
+    limit: usize,
+) -> SenaServiceDetailPage {
+    let limit = bounded_page_limit(limit);
+    let interval_indices: Vec<usize> = detail
+        .regime_timeline
+        .iter()
+        .map(|interval| interval.interval_index)
+        .collect();
+    let Some((start, end, has_older, next_before_interval_index, latest_interval_index)) =
+        page_bounds(&interval_indices, before_interval_index, limit)
+    else {
+        return SenaServiceDetailPage {
+            detail,
+            page_limit: limit,
+            has_older: false,
+            next_before_interval_index: None,
+            latest_interval_index: None,
+        };
+    };
+
+    SenaServiceDetailPage {
+        detail: SenaServiceDetail {
+            service_id: detail.service_id,
+            activity_mean: detail.activity_mean,
+            activity_interval_low: detail.activity_interval_low,
+            activity_interval_high: detail.activity_interval_high,
+            bottleneck_probability: detail.bottleneck_probability,
+            contributors: detail.contributors,
+            regime_timeline: detail.regime_timeline[start..end].to_vec(),
+        },
+        page_limit: limit,
+        has_older,
+        next_before_interval_index,
+        latest_interval_index,
+    }
+}
 
 fn db_path() -> PathBuf {
     env::var_os("BANJI_DESKTOP_DATA_PATH")
@@ -747,12 +877,24 @@ pub fn get_workspace_summary(owner_sub: &str) -> Result<Option<SenaWorkspaceSumm
     block_on(repository()?.load_workspace_summary(owner_sub))
 }
 
-pub fn get_sku_detail(owner_sub: &str, sku_id: &str) -> Result<Option<SenaSkuDetail>> {
-    block_on(repository()?.load_sku_detail(owner_sub, sku_id))
+pub fn get_sku_detail(
+    owner_sub: &str,
+    sku_id: &str,
+    before_interval_index: Option<usize>,
+    limit: usize,
+) -> Result<Option<SenaSkuDetailPage>> {
+    Ok(block_on(repository()?.load_sku_detail(owner_sub, sku_id))?
+        .map(|detail| page_sku_detail(detail, before_interval_index, limit)))
 }
 
-pub fn get_service_detail(owner_sub: &str, service_id: &str) -> Result<Option<SenaServiceDetail>> {
-    block_on(repository()?.load_service_detail(owner_sub, service_id))
+pub fn get_service_detail(
+    owner_sub: &str,
+    service_id: &str,
+    before_interval_index: Option<usize>,
+    limit: usize,
+) -> Result<Option<SenaServiceDetailPage>> {
+    Ok(block_on(repository()?.load_service_detail(owner_sub, service_id))?
+        .map(|detail| page_service_detail(detail, before_interval_index, limit)))
 }
 
 pub fn get_diagnostics(owner_sub: &str) -> Result<Option<SenaDiagnostics>> {

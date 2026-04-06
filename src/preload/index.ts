@@ -15,8 +15,8 @@ import type {
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
-  SenaServiceDetail,
-  SenaSkuDetail,
+  SenaServiceDetailPage,
+  SenaSkuDetailPage,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 
@@ -46,11 +46,11 @@ const desktopBridge: DesktopBridge = {
       ipcRenderer.invoke(IPC_CHANNELS.senaRetryRun, payload),
     getWorkspaceSummary: (): Promise<SenaWorkspaceSummary | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaGetWorkspaceSummary),
-    getSkuDetail: (payload: SenaSkuLookupPayload): Promise<SenaSkuDetail | null> =>
+    getSkuDetail: (payload: SenaSkuLookupPayload): Promise<SenaSkuDetailPage | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaGetSkuDetail, payload),
     getDiagnostics: (): Promise<SenaDiagnostics | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaGetDiagnostics),
-    getServiceDetail: (payload: SenaServiceLookupPayload): Promise<SenaServiceDetail | null> =>
+    getServiceDetail: (payload: SenaServiceLookupPayload): Promise<SenaServiceDetailPage | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaGetServiceDetail, payload),
     getRunStatus: (payload: SenaRunLookupPayload): Promise<SenaAnalysisRunRecord | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaGetRunStatus, payload),

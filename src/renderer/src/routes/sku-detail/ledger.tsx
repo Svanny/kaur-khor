@@ -1,28 +1,33 @@
 import { useEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
 import { Package } from 'lucide-react';
+import type { SenaSkuDetailPage } from '@shared/sena';
 import {
   AXIS_END_PADDING,
   AXIS_START_PADDING,
   classifyWheelIntent,
   clampScrollLeft,
   DEFAULT_SLOT_WIDTH,
+  derivePrependedScrollLeft,
   deriveAnchoredZoomScrollLeft,
   deriveAxisContentWidth,
   deriveCenteredIntervalScrollLeft,
   deriveViewportPageScrollLeft,
   deriveVisibleWindow,
+  INTERVAL_PAGE_SIZE,
   INTERVAL_PILL_GAP,
   IntervalStrip,
   MAX_SLOT_WIDTH,
   MIN_SLOT_WIDTH,
   SCROLL_EDGE_TOLERANCE,
   SHARED_PILL_MIN_WIDTH,
+  shouldLoadOlderIntervals,
 } from '@/components/system/interval-strip';
 import {
   buildPointCoordinatesWithDomain,
   buildPolylineWithDomain,
   buildSparsePolylineSegments,
   buildTrajectoryBandPath,
+  deriveFlowStackHeights,
   deriveLabelGutterOffset,
 } from '@/components/system/timeline-chart';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
@@ -241,10 +246,16 @@ function RegimeChartHighlightOverlay({
 }
 
 export function SkuDetailLedger({
+  hasOlderIntervals,
+  isLoadingOlderIntervals,
+  loadOlderIntervals,
   model,
   selectedIntervalIndex,
   setSelectedIntervalIndex,
 }: {
+  hasOlderIntervals: boolean;
+  isLoadingOlderIntervals: boolean;
+  loadOlderIntervals: () => Promise<SenaSkuDetailPage | null>;
   model: SenaSkuDetailViewModel;
   selectedIntervalIndex: number | null;
   setSelectedIntervalIndex: (index: number) => void;
@@ -265,7 +276,7 @@ export function SkuDetailLedger({
   const effectiveSlotWidth = clamp(slotWidthPx, Math.max(SHARED_PILL_MIN_WIDTH, MIN_SLOT_WIDTH), MAX_SLOT_WIDTH);
   const stretchedSlotWidth =
     viewportWidth > 0 && indices.length > 0
-      ? Math.max(effectiveSlotWidth, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / indices.length)
+      ? Math.max(effectiveSlotWidth, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / Math.min(indices.length, INTERVAL_PAGE_SIZE))
       : effectiveSlotWidth;
   const axisStartPadding = AXIS_START_PADDING;
   const axisEndPadding = AXIS_END_PADDING;
@@ -328,6 +339,22 @@ export function SkuDetailLedger({
       Math.abs(interval.receiptsMean),
     ]),
   );
+  const maybeLoadOlderIntervals = async (nextScrollLeft: number) => {
+    if (!shouldLoadOlderIntervals({ hasOlder: hasOlderIntervals, isLoadingOlder: isLoadingOlderIntervals, scrollLeft: nextScrollLeft })) {
+      return;
+    }
+    const olderPage = await loadOlderIntervals();
+    const prependedCount = olderPage?.detail?.demandPosterior?.length ?? 0;
+    if (prependedCount > 0) {
+      setScrollLeft((current) =>
+        derivePrependedScrollLeft({
+          currentScrollLeft: current,
+          prependedCount,
+          slotWidth: stretchedSlotWidth,
+        }),
+      );
+    }
+  };
   useEffect(() => {
     const node = intervalScrollRef.current;
     if (!node) {
@@ -367,7 +394,9 @@ export function SkuDetailLedger({
     if (syncingScrollRef.current) {
       return;
     }
-    setScrollLeft(event.currentTarget.scrollLeft);
+    const nextScrollLeft = event.currentTarget.scrollLeft;
+    setScrollLeft(nextScrollLeft);
+    void maybeLoadOlderIntervals(nextScrollLeft);
   };
 
   const scrollByViewport = (direction: -1 | 1) => {
@@ -635,6 +664,10 @@ export function SkuDetailLedger({
               <span className="size-2 rounded-full bg-secondary" />
               Receipts
             </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="size-2 rounded-full bg-amber-600/85" />
+              Adjustments
+            </span>
           </div>
           <div ref={flowScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(flowScrollRef, axisStartPadding)}>
             <div
@@ -650,50 +683,70 @@ export function SkuDetailLedger({
             >
               {model.lanes.flowLane.intervals.map((interval) => {
                 const plotHalfHeight = FLOW_LANE_PLOT_HEIGHT / 2;
-                const serviceHeight = Math.max(3, (Math.abs(interval.serviceDemandMean) / maxFlowMagnitude) * (plotHalfHeight - 4));
-                const retailHeight = Math.max(3, (Math.abs(interval.retailDemandMean) / maxFlowMagnitude) * (plotHalfHeight - 4));
-                const receiptsHeight = Math.max(3, (Math.abs(interval.receiptsMean) / maxFlowMagnitude) * (plotHalfHeight - 4));
+                const flowStackHeights = deriveFlowStackHeights(interval, maxFlowMagnitude, {
+                  demandMaxHeight: plotHalfHeight - 4,
+                  supplyMaxHeight: plotHalfHeight - 4,
+                  minHeight: 3,
+                });
                 return (
-                <button
-                  key={interval.intervalIndex}
-                  className="relative flex w-full items-stretch justify-center"
-                  style={{ height: FLOW_LANE_PLOT_HEIGHT }}
-                  type="button"
-                  onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
-                >
-                  {selectedIntervalIndex === interval.intervalIndex ? (
-                    <div className="absolute bottom-full left-1/2 z-[2] mb-2 flex -translate-x-1/2 flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm">
-                      <span className="whitespace-nowrap text-foreground">
-                        {`Service: -${Math.round(interval.serviceDemandMean)}`}
-                      </span>
-                      <span className="whitespace-nowrap text-foreground">
-                        {`Retail: -${Math.round(interval.retailDemandMean)}`}
-                      </span>
-                      <span className="whitespace-nowrap text-foreground">
-                        {`Receipts: +${Math.round(interval.receiptsMean)}`}
-                      </span>
+                  <button
+                    key={interval.intervalIndex}
+                    className="relative flex w-full items-stretch justify-center"
+                    style={{ height: FLOW_LANE_PLOT_HEIGHT }}
+                    type="button"
+                    onClick={() => setSelectedIntervalIndex(interval.intervalIndex)}
+                  >
+                    {selectedIntervalIndex === interval.intervalIndex ? (
+                      <div className="absolute bottom-full left-1/2 z-[2] mb-2 flex -translate-x-1/2 flex-col items-start gap-1 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-[10px] shadow-sm">
+                        <span className="whitespace-nowrap text-foreground">
+                          {`Service: -${Math.round(interval.serviceDemandMean)}`}
+                        </span>
+                        <span className="whitespace-nowrap text-foreground">
+                          {`Retail: -${Math.round(interval.retailDemandMean)}`}
+                        </span>
+                        <span className="whitespace-nowrap text-foreground">
+                          {`Receipts: +${Math.round(interval.receiptsMean)}`}
+                        </span>
+                        <span className="whitespace-nowrap text-foreground">
+                          {`Adjustments: ${interval.adjustmentsMean >= 0 ? '+' : ''}${Math.round(interval.adjustmentsMean)}`}
+                        </span>
+                      </div>
+                    ) : null}
+                    <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
+                    <div className="relative h-full w-[85%] self-center">
+                      <div className="absolute inset-x-0 top-1/2 h-1/2">
+                        {flowStackHeights.demand.serviceHeight > 0 ? (
+                          <span
+                            className="absolute top-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-foreground/20"
+                            style={{ height: flowStackHeights.demand.serviceHeight }}
+                          />
+                        ) : null}
+                        {flowStackHeights.demand.retailHeight > 0 ? (
+                          <span
+                            className="absolute left-1/2 w-full -translate-x-1/2 rounded-none bg-foreground/45"
+                            style={{ top: flowStackHeights.demand.retailOffset, height: flowStackHeights.demand.retailHeight }}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="absolute inset-x-0 bottom-1/2 h-1/2">
+                        {flowStackHeights.supply.receiptsHeight > 0 ? (
+                          <span
+                            className="absolute bottom-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-secondary"
+                            style={{ height: flowStackHeights.supply.receiptsHeight }}
+                          />
+                        ) : null}
+                        {flowStackHeights.supply.adjustmentHeight > 0 ? (
+                          <span
+                            className="absolute left-1/2 w-full -translate-x-1/2 rounded-none bg-amber-600/85"
+                            style={{
+                              bottom: flowStackHeights.supply.adjustmentOffset,
+                              height: flowStackHeights.supply.adjustmentHeight,
+                            }}
+                          />
+                        ) : null}
+                      </div>
                     </div>
-                  ) : null}
-                  <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
-                  <div className="relative h-full w-[85%] self-center">
-                    <div className="absolute inset-x-0 top-1/2 h-1/2">
-                      <span
-                        className="absolute top-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-foreground/20"
-                        style={{ height: serviceHeight }}
-                      />
-                      <span
-                        className="absolute left-1/2 w-full -translate-x-1/2 rounded-none bg-foreground/45"
-                        style={{ top: serviceHeight, height: retailHeight }}
-                      />
-                    </div>
-                    <div className="absolute inset-x-0 bottom-1/2 h-1/2">
-                      <span
-                        className="absolute bottom-0 left-1/2 w-full -translate-x-1/2 rounded-none bg-secondary"
-                        style={{ height: receiptsHeight }}
-                      />
-                    </div>
-                  </div>
-                </button>
+                  </button>
                 );
               })}
             </div>

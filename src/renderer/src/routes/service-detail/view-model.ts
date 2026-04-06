@@ -527,7 +527,7 @@ export function deriveServiceDetailViewModel({
     };
   });
 
-  const intervalsSource = detail?.regimeTimeline.length ? detail.regimeTimeline.slice(-6) : [fallbackInterval({ service, workspaceSummary })];
+  const intervalsSource = detail?.regimeTimeline.length ? detail.regimeTimeline : [fallbackInterval({ service, workspaceSummary })];
   const intervals = intervalsSource.map<ServiceIntervalViewModel>((interval) => {
     const { relevantEvidence, relevantReports } = collectRelevantIntervalEvidence({
       interval,

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { SenaCatalog, SenaDiagnostics, SenaObservationRecord, SenaServiceDetail, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
-import { deriveAnalysisViewModel } from './analysis-view-model';
+import { deriveAnalysisViewModel, PIPELINE_PILL_END_OFFSET, PIPELINE_PILL_START_OFFSET } from './analysis-view-model';
 
 const catalog: SenaCatalog = {
   schemaVersion: 1,
@@ -277,5 +277,152 @@ describe('deriveAnalysisViewModel', () => {
     });
     expect(model.intervals[1]?.intervalIndex).toBe(model.workbench.leadTimeLane.points[1]?.intervalIndex);
     expect(model.intervals[1]?.dateLabel).toBe('Apr 3');
+  });
+
+  test('separates visually overlapping pipeline spans into different rows', () => {
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics,
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    const [firstSpan, secondSpan] = model.workbench.pipelineLane.spans;
+    expect(firstSpan).toBeDefined();
+    expect(secondSpan).toBeDefined();
+    if (!firstSpan || !secondSpan) {
+      return;
+    }
+
+    const firstVisualEnd = firstSpan.endPosition + PIPELINE_PILL_END_OFFSET;
+    const secondVisualStart = secondSpan.startPosition + PIPELINE_PILL_START_OFFSET;
+    expect(secondVisualStart).toBeLessThan(firstVisualEnd);
+    expect(firstSpan.row).not.toBe(secondSpan.row);
+  });
+
+  test('deduplicates overview entity names when multiple entities share the same label', () => {
+    const model = deriveAnalysisViewModel({
+      catalog: {
+        ...catalog,
+        skus: [
+          ...catalog.skus,
+          {
+            ...catalog.skus[0],
+            skuId: 'sku-razor-2',
+          },
+        ],
+      },
+      currency: 'USD',
+      diagnostics,
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: {
+        ...skuDetailsById,
+        'sku-razor-2': {
+          ...skuDetailsById['sku-razor'],
+          summary: {
+            ...workspaceSummary.skuSummaries[0],
+            skuId: 'sku-razor-2',
+          },
+        },
+      },
+      workspaceSummary: {
+        ...workspaceSummary,
+        skuCount: 2,
+        skuSummaries: [
+          ...workspaceSummary.skuSummaries,
+          {
+            ...workspaceSummary.skuSummaries[0],
+            skuId: 'sku-razor-2',
+          },
+        ],
+      },
+    });
+
+    expect(model.inspectorOverview.affectedEntities.filter((entry) => entry === 'Razor Refill')).toHaveLength(1);
+  });
+
+  test('keeps fragility rows for bundle-backed services when they have linked SKUs', () => {
+    const model = deriveAnalysisViewModel({
+      catalog: {
+        ...catalog,
+        services: catalog.services.map((service) => ({
+          ...service,
+          bundle: true,
+        })),
+      },
+      currency: 'USD',
+      diagnostics,
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    expect(model.fragilityRows).toHaveLength(1);
+    expect(model.fragilityRows[0]).toMatchObject({
+      entityId: 'service-haircut',
+      name: 'Haircut',
+    });
+  });
+
+  test('deduplicates observation entity labels when the same name appears through multiple ranking channels', () => {
+    const model = deriveAnalysisViewModel({
+      catalog: {
+        ...catalog,
+        skus: [
+          {
+            ...catalog.skus[0],
+            name: 'Haircut',
+            skuId: 'sku-haircut',
+          },
+        ],
+      },
+      currency: 'USD',
+      diagnostics,
+      language: 'en',
+      observations: [
+        {
+          ...observations[0],
+          input: {
+            ...observations[0].input,
+            retailRankings: ['sku-haircut'],
+            serviceRankings: ['service-haircut'],
+          },
+          observationId: 'obs-duplicate-label',
+        },
+      ],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: {
+        'sku-haircut': {
+          ...skuDetailsById['sku-razor'],
+          summary: {
+            ...workspaceSummary.skuSummaries[0],
+            skuId: 'sku-haircut',
+          },
+        },
+      },
+      workspaceSummary: {
+        ...workspaceSummary,
+        skuSummaries: [
+          {
+            ...workspaceSummary.skuSummaries[0],
+            skuId: 'sku-haircut',
+          },
+        ],
+      },
+    });
+
+    expect(model.evidenceRows[0]?.affectedEntityLabels).toEqual(['Haircut']);
   });
 });

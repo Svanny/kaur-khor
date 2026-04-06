@@ -18,7 +18,7 @@ pub mod storage;
 
 use auth::{AuthPrincipal, JwtVerifier};
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{header::HeaderName, HeaderMap, HeaderValue, StatusCode},
     middleware,
     response::IntoResponse,
@@ -651,6 +651,13 @@ struct SenaTriggerRunRequest {
     algorithm_version: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SenaDetailWindowQuery {
+    before_interval_index: Option<usize>,
+    limit: Option<usize>,
+}
+
 fn default_sena_algorithm_version() -> String {
     "sena-analysis-v1".to_string()
 }
@@ -835,6 +842,7 @@ async fn get_sena_sku_detail(
     State(state): State<AppState>,
     Extension(principal): Extension<AuthPrincipal>,
     Path(sku_id): Path<String>,
+    Query(window): Query<SenaDetailWindowQuery>,
 ) -> axum::response::Response {
     let Some(db) = state.db.as_ref() else {
         return (
@@ -843,7 +851,15 @@ async fn get_sena_sku_detail(
         )
             .into_response();
     };
-    match sena::repository::load_sku_detail(db, &principal.sub, &sku_id).await {
+    match sena::repository::load_sku_detail_page(
+        db,
+        &principal.sub,
+        &sku_id,
+        window.before_interval_index,
+        window.limit.unwrap_or(10),
+    )
+    .await
+    {
         Ok(Some(detail)) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -862,6 +878,7 @@ async fn get_sena_service_detail(
     State(state): State<AppState>,
     Extension(principal): Extension<AuthPrincipal>,
     Path(service_id): Path<String>,
+    Query(window): Query<SenaDetailWindowQuery>,
 ) -> axum::response::Response {
     let Some(db) = state.db.as_ref() else {
         return (
@@ -870,7 +887,15 @@ async fn get_sena_service_detail(
         )
             .into_response();
     };
-    match sena::repository::load_service_detail(db, &principal.sub, &service_id).await {
+    match sena::repository::load_service_detail_page(
+        db,
+        &principal.sub,
+        &service_id,
+        window.before_interval_index,
+        window.limit.unwrap_or(10),
+    )
+    .await
+    {
         Ok(Some(detail)) => (StatusCode::OK, Json(serde_json::json!(detail))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,

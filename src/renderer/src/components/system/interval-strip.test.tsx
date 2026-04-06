@@ -5,6 +5,7 @@ import {
   deriveAnchoredZoomScrollLeft,
   deriveAxisContentWidth,
   deriveCenteredIntervalScrollLeft,
+  derivePrependedScrollLeft,
   deriveSlotCenterX,
   deriveSlotLeftX,
   deriveViewportPageScrollLeft,
@@ -12,6 +13,7 @@ import {
   IntervalStrip,
   intervalTooltipLabel,
   responsivePillLabel,
+  shouldLoadOlderIntervals,
 } from './interval-strip';
 
 describe('interval strip helpers', () => {
@@ -73,6 +75,13 @@ describe('interval strip helpers', () => {
     expect(intervalTooltipLabel(null, 11, 'en')).toBe('Interval 12');
     expect(responsivePillLabel('Feb-14', 'F-14', 80)).toBe('Feb-14');
     expect(responsivePillLabel('February-14', 'F-14', 56)).toBe('F-14');
+  });
+
+  test('detects when older intervals should load and preserves scroll anchor after prepend', () => {
+    expect(shouldLoadOlderIntervals({ hasOlder: true, isLoadingOlder: false, scrollLeft: 12 })).toBe(true);
+    expect(shouldLoadOlderIntervals({ hasOlder: true, isLoadingOlder: true, scrollLeft: 12 })).toBe(false);
+    expect(shouldLoadOlderIntervals({ hasOlder: false, isLoadingOlder: false, scrollLeft: 12 })).toBe(false);
+    expect(derivePrependedScrollLeft({ currentScrollLeft: 48, prependedCount: 3, slotWidth: 72 })).toBe(264);
   });
 });
 
