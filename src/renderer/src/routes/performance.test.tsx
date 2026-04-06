@@ -749,11 +749,11 @@ describe('PerformanceRoute', () => {
     expect(await screen.findByText('Showing last 30d posture vs prior 30d')).toBeInTheDocument();
     expect(screen.getByText(/price or margin drags in last 30d/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: '7d' }));
+    fireEvent.click(screen.getByRole('radio', { name: '7D' }));
     expect(screen.getByText('Showing last 7d posture vs prior 7d')).toBeInTheDocument();
     expect(screen.getByText(/price or margin drags in last 7d/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: '90d' }));
+    fireEvent.click(screen.getByRole('radio', { name: '90D' }));
     expect(screen.getByText('Showing last 90d posture vs prior 90d')).toBeInTheDocument();
     expect(screen.getByText(/price or margin drags in last 90d/i)).toBeInTheDocument();
   });

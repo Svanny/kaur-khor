@@ -12,6 +12,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { catalogViewFromSearchParams, matchesCatalogQuery, type CatalogView } from '@/lib/catalog';
+import { formatCurrency } from '@/lib/format';
+import { rowHoverClassName } from '@/lib/interactive-surface';
 import { linkedServiceIdsForSku, linkedSkuIdsForService } from '@/lib/sena-catalog';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -49,9 +51,29 @@ function matchesCatalogRow(parts: Array<string | null | undefined>, query: strin
   return matchesCatalogQuery(parts.filter(Boolean).join(' '), query);
 }
 
+function skuMetaLine(
+  linkedServiceCount: number,
+  options: {
+    costPerUnit: number;
+    currency: 'USD' | 'KHR';
+    language: 'en' | 'km';
+    productPrice: number | null;
+    soldAsProduct: boolean;
+  },
+) {
+  const parts = [`${linkedServiceCount} linked services`, options.soldAsProduct ? 'sellable' : 'not sellable'];
+
+  if (options.soldAsProduct && options.productPrice != null) {
+    parts.push(`price ${formatCurrency(options.productPrice, options.currency, options.language)}`);
+  }
+
+  parts.push(`cost ${formatCurrency(options.costPerUnit, options.currency, options.language)}`);
+  return parts.join(' · ');
+}
+
 export function InventoryRoute() {
   const { catalog } = useInventory();
-  const { t } = usePreferences();
+  const { currency, language, t } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
 
   if (!catalog) {
@@ -196,13 +218,22 @@ export function InventoryRoute() {
             return (
               <div
                 key={sku.skuId}
-                className="flex flex-col gap-2 rounded-[1.25rem] border border-border/70 bg-background/70 p-4 md:flex-row md:items-center md:justify-between"
+                className={`group flex flex-col gap-2 rounded-[1.25rem] border border-border/70 bg-background/70 p-4 transition-colors md:flex-row md:items-center md:justify-between ${rowHoverClassName}`}
               >
                 <div className="min-w-0">
-                  <p className="font-medium text-foreground">{sku.name}</p>
+                  <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/skus/${sku.skuId}`}>
+                    {sku.name}
+                  </Link>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{sku.skuId}</p>
                   <p className="text-sm text-muted-foreground">{sku.description || 'No description'}</p>
                   <p className="text-xs text-muted-foreground">
-                    {linkedServices.length} linked services · cost {sku.costPerUnit}
+                    {skuMetaLine(linkedServices.length, {
+                      costPerUnit: sku.costPerUnit,
+                      currency,
+                      language,
+                      productPrice: sku.productPrice,
+                      soldAsProduct: sku.soldAsProduct,
+                    })}
                   </p>
                 </div>
                 <WorkspaceActionRow>
@@ -237,13 +268,16 @@ export function InventoryRoute() {
             return (
               <div
                 key={service.serviceId}
-                className="flex flex-col gap-2 rounded-[1.25rem] border border-border/70 bg-background/70 p-4 md:flex-row md:items-center md:justify-between"
+                className={`group flex flex-col gap-2 rounded-[1.25rem] border border-border/70 bg-background/70 p-4 transition-colors md:flex-row md:items-center md:justify-between ${rowHoverClassName}`}
               >
                 <div className="min-w-0">
-                  <p className="font-medium text-foreground">{service.name}</p>
+                  <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/services/${service.serviceId}`}>
+                    {service.name}
+                  </Link>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{service.serviceId}</p>
                   <p className="text-sm text-muted-foreground">{service.description || 'No description'}</p>
                   <p className="text-xs text-muted-foreground">
-                    {linkedSkus.length} linked SKUs · price {service.price}
+                    {linkedSkus.length} linked SKUs · price {formatCurrency(service.price, currency, language)}
                   </p>
                 </div>
                 <WorkspaceActionRow>

@@ -74,7 +74,7 @@ function SteeringPill({
   return (
     <button
       aria-pressed={active}
-      className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors ${
+      className={`inline-flex h-[48px] items-center justify-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors ${
         active ? surfacePillClassName('selected') : suppressHoverUntilLeave ? idleClassName : surfacePillClassName('default')
       }`}
       data-hover-suppressed={suppressHoverUntilLeave ? 'true' : 'false'}
@@ -417,9 +417,9 @@ export function PerformanceRoute() {
                 }
               }}
             >
-              <ToggleGroupItem value="7d">7d</ToggleGroupItem>
-              <ToggleGroupItem value="30d">30d</ToggleGroupItem>
-              <ToggleGroupItem value="90d">90d</ToggleGroupItem>
+              <ToggleGroupItem value="7d">7D</ToggleGroupItem>
+              <ToggleGroupItem value="30d">30D</ToggleGroupItem>
+              <ToggleGroupItem value="90d">90D</ToggleGroupItem>
             </ToggleGroup>
 
             <ToggleGroup

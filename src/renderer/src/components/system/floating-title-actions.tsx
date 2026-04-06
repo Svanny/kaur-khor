@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
+export const headerActionSurfaceClassName =
+  '[&_[data-slot=button]]:!h-12 [&_[data-slot=button]]:!rounded-full [&_[data-slot=button]]:!px-4 [&_[data-slot=button]]:[&_svg]:!size-4 [&_[data-slot=toggle-group-item]]:!h-12 [&_[data-slot=toggle-group-item]]:!min-w-12 [&_[data-slot=toggle-group-item]]:!rounded-full [&_[data-slot=toggle-group-item]]:!px-4 [&_[data-slot=toggle-group-item]]:[&_svg]:!size-4';
+
 export function useFloatingTitleActions(enabled: boolean) {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -113,7 +116,7 @@ export function FloatingActionsIsland({
       style={style}
     >
       <div className="editorial-panel rounded-[1.5rem] border-white/70 bg-background/92 p-2 shadow-[var(--shadow-float)] backdrop-blur-[10px]">
-        <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+        <div className={cn('flex max-w-full flex-wrap items-center justify-end gap-2', headerActionSurfaceClassName)}>
           {actions}
         </div>
       </div>

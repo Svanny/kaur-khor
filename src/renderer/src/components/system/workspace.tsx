@@ -22,7 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DescriptionText, hasDescriptionText, useDescriptionTextVisible } from '@/components/system/description-text';
-import { FloatingTitleActionsIsland, useFloatingTitleActions } from '@/components/system/floating-title-actions';
+import { FloatingTitleActionsIsland, headerActionSurfaceClassName, useFloatingTitleActions } from '@/components/system/floating-title-actions';
 import { usePreferences } from '@/state/preferences';
 
 export function WorkspacePage({
@@ -106,7 +106,7 @@ export function WorkspaceTitleCard({
               ) : null}
             </div>
           </div>
-          {actions ? <CardAction className="static col-auto row-auto">{actions}</CardAction> : null}
+          {actions ? <CardAction className={cn('static col-auto row-auto', headerActionSurfaceClassName)}>{actions}</CardAction> : null}
         </CardHeader>
         {children ? <CardContent className="relative">{children}</CardContent> : null}
       </Card>

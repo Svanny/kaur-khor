@@ -264,6 +264,10 @@ describe('SENA routes', () => {
     expect(screen.getByRole('radio', { name: 'Services' })).toBeInTheDocument();
     expect(screen.getByText('SKU 1')).toBeInTheDocument();
     expect(screen.getByText('Service 1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'SKU 1' })).toHaveAttribute('href', '/catalog/skus/sku-1');
+    expect(screen.getByRole('link', { name: 'Service 1' })).toHaveAttribute('href', '/catalog/services/service-1');
+    expect(screen.getByText('1 linked services · sellable · price $9.00 · cost $4.00')).toBeInTheDocument();
+    expect(screen.getByText('1 linked SKUs · price $15.00')).toBeInTheDocument();
   });
 
   test('filters the catalog route from the title-card search and toggle pill', () => {

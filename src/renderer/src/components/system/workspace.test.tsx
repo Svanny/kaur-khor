@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { PreferencesProvider } from '@/state/preferences';
 import { WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from './workspace';
+import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
 
 describe('WorkspacePanel', () => {
   beforeEach(() => {
@@ -116,6 +117,39 @@ describe('WorkspacePanel', () => {
     await waitFor(() => {
       expect(container.querySelector('[data-slot="floating-title-actions"]')).not.toBeNull();
     });
+  });
+
+  test('applies shared header action sizing to title-card and floating action surfaces', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: -12,
+      height: 120,
+      left: 0,
+      right: 800,
+      top: -132,
+      width: 800,
+      x: 0,
+      y: -132,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    const { container } = render(
+      <PreferencesProvider>
+        <WorkspaceTitleCard
+          actions={<button data-slot="button" type="button">Quick action</button>}
+          title="Panel title"
+        />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="floating-title-actions"]')).not.toBeNull();
+    });
+
+    const titleActionSurface = container.querySelector('[data-slot="card-action"]');
+    const floatingActionSurface = container.querySelector('[data-slot="floating-title-actions"] > div > div');
+
+    expect(titleActionSurface?.className).toContain(headerActionSurfaceClassName);
+    expect(floatingActionSurface?.className).toContain(headerActionSurfaceClassName);
   });
 
   test('adds bottom safe-area spacing when floating title actions are enabled', async () => {

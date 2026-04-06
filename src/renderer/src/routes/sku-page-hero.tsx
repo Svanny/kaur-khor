@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { FloatingTitleActionsIsland, useFloatingTitleActions } from '@/components/system/floating-title-actions';
+import { FloatingTitleActionsIsland, headerActionSurfaceClassName, useFloatingTitleActions } from '@/components/system/floating-title-actions';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { usePreferences } from '@/state/preferences';
@@ -30,7 +30,7 @@ export function SkuPageHero({
               </div>
             </div>
             {actions ? (
-              <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+              <div className={`flex flex-wrap items-center justify-start gap-2 lg:justify-end ${headerActionSurfaceClassName}`}>
                 {actions}
               </div>
             ) : null}
