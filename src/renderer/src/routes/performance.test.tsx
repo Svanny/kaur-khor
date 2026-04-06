@@ -407,7 +407,10 @@ function createInventoryState(overrides: Record<string, unknown> = {}) {
             summary: workspaceSummary.skuSummaries[1],
           },
     ),
+    latestRun: { runId: 'run-1' },
     observations: defaultObservations,
+    retrySenaRun: vi.fn(async () => ({ runId: 'run-1' })),
+    triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
     workspaceSummary,
     ...overrides,
   };
@@ -477,11 +480,53 @@ describe('PerformanceRoute', () => {
     expect(screen.getByText('Inventory band')).toBeInTheDocument();
     expect(screen.getByText('In-transit window')).toBeInTheDocument();
     expect(screen.getByText('Spread band')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-run analysis' })).toBeInTheDocument();
     expect(screen.queryByText('Entity pressure explorer')).not.toBeInTheDocument();
     expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
     expect(screen.queryByText('Supply fragility map')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: /Select analysis time range/i })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Workbench/i })).toHaveAttribute('data-state', 'active');
+  });
+
+  test('runs analysis from the analysis page header', async () => {
+    const user = userEvent.setup();
+    const retrySenaRun = vi.fn(async () => ({ runId: 'run-1' }));
+    inventoryHook.mockReturnValue(createInventoryState({ retrySenaRun }));
+
+    renderAnalysisRoute();
+
+    await user.click(await screen.findByRole('button', { name: 'Re-run analysis' }));
+
+    expect(retrySenaRun).toHaveBeenCalledWith({ runId: 'run-1' });
+  });
+
+  test('shows the analysis loading state during initial bootstrap instead of the empty state', () => {
+    inventoryHook.mockReturnValue(createInventoryState({
+      catalog: null,
+      diagnostics: null,
+      isLoading: true,
+      observations: [],
+      workspaceSummary: null,
+    }));
+
+    renderAnalysisRoute();
+
+    expect(screen.getByText('Preparing analysis workbench')).toBeInTheDocument();
+    expect(screen.queryByText('Analysis needs the catalog first')).not.toBeInTheDocument();
+    expect(screen.queryByText('Analysis needs the first SENA run')).not.toBeInTheDocument();
+  });
+
+  test('shows the analysis loading state while entity detail hydration is still pending', () => {
+    inventoryHook.mockReturnValue(createInventoryState({
+      loadSenaServiceDetail: vi.fn(() => new Promise(() => {})),
+      loadSenaSkuDetail: vi.fn(() => new Promise(() => {})),
+    }));
+
+    renderAnalysisRoute();
+
+    expect(screen.getByText('Preparing analysis workbench')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Analysis needs the first SENA run')).not.toBeInTheDocument();
   });
 
   test('renders the analysis pressure tab as its own surface', async () => {

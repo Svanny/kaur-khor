@@ -114,6 +114,7 @@ export interface AnalysisFragilityCell {
   skuId: string;
   intensity: number;
   usageLabel: string;
+  bottleneckLabel: string;
   pressureLabel: string;
   reliefLabel: string;
   tone: StatusPillTone;
@@ -352,12 +353,6 @@ function scopeSummary(scope: AnalysisScope) {
   }
 }
 
-function recentSlice<T>(items: T[], count: number) {
-  return items.length <= count ? items : items.slice(items.length - count);
-}
-
-const ANALYSIS_RECENT_REPORT_COUNT = 10;
-
 function observationBelongsToScope({
   catalog,
   observation,
@@ -418,11 +413,55 @@ function filterObservationsForScope({
 
 function buildIntervalBounds({
   diagnostics,
+  serviceDetailsById,
   skuDetailsById,
 }: {
   diagnostics: SenaDiagnostics | null;
+  serviceDetailsById: Record<string, SenaServiceDetail | null>;
   skuDetailsById: Record<string, SenaSkuDetail | null>;
 }) {
+  const loadedIntervals = new Map<number, { intervalIndex: number; startAt: string | null; endAt: string | null; regime: string }>();
+
+  for (const detail of Object.values(serviceDetailsById)) {
+    for (const interval of detail?.regimeTimeline ?? []) {
+      loadedIntervals.set(interval.intervalIndex, {
+        intervalIndex: interval.intervalIndex,
+        startAt: interval.startAt,
+        endAt: interval.endAt,
+        regime: interval.dominantRegime,
+      });
+    }
+  }
+
+  for (const detail of Object.values(skuDetailsById)) {
+    for (const interval of detail?.demandPosterior ?? []) {
+      const current = loadedIntervals.get(interval.intervalIndex);
+      loadedIntervals.set(interval.intervalIndex, {
+        intervalIndex: interval.intervalIndex,
+        startAt: current?.startAt ?? interval.startAt,
+        endAt: current?.endAt ?? interval.endAt,
+        regime: current?.regime ?? 'normal',
+      });
+    }
+  }
+
+  if (loadedIntervals.size > 0) {
+    for (const interval of diagnostics?.regimeHistory ?? []) {
+      const current = loadedIntervals.get(interval.intervalIndex);
+      if (!current) {
+        continue;
+      }
+      loadedIntervals.set(interval.intervalIndex, {
+        intervalIndex: interval.intervalIndex,
+        startAt: current.startAt ?? interval.startAt,
+        endAt: current.endAt ?? interval.endAt,
+        regime: interval.dominantRegime,
+      });
+    }
+
+    return [...loadedIntervals.values()].sort((left, right) => left.intervalIndex - right.intervalIndex);
+  }
+
   const entries = new Map<number, { intervalIndex: number; startAt: string | null; endAt: string | null; regime: string }>();
 
   for (const interval of diagnostics?.regimeHistory ?? []) {
@@ -454,7 +493,7 @@ function filterIntervalsForScope({
 }: {
   intervals: Array<{ intervalIndex: number; startAt: string | null; endAt: string | null; regime: string }>;
 }) {
-  return recentSlice(intervals, ANALYSIS_RECENT_REPORT_COUNT);
+  return intervals;
 }
 
 function closestInventoryState(detail: SenaSkuDetail | null, endAt: string | null) {
@@ -680,7 +719,7 @@ export function deriveAnalysisViewModel({
     observations,
     scope,
   });
-  const allIntervals = buildIntervalBounds({ diagnostics, skuDetailsById });
+  const allIntervals = buildIntervalBounds({ diagnostics, serviceDetailsById, skuDetailsById });
   const filteredIntervals = filterIntervalsForScope({
     intervals: allIntervals,
   });
@@ -1193,6 +1232,7 @@ export function deriveAnalysisViewModel({
             skuId: column.skuId,
             intensity,
             usageLabel: contributor ? formatSenaPercent(contributor.usageProbability, language) : linkedSkuIds.has(column.skuId) ? 'linked' : '—',
+            bottleneckLabel: contributor ? formatSenaPercent(contributor.bottleneckProbability, language) : linkedSkuIds.has(column.skuId) ? '—' : '—',
             pressureLabel: intensity > 0 ? labelForLevel(intensity) : '—',
             reliefLabel: reliefSoon ? 'inbound soon' : linkedSkuIds.has(column.skuId) ? 'no relief' : '—',
             tone: intensity >= 0.6 ? 'danger' : intensity >= 0.35 ? 'warning' : intensity > 0 ? 'info' : 'neutral',

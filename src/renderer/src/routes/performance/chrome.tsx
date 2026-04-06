@@ -11,6 +11,7 @@ export function PerformanceSectionShell({
   title,
   tooltip,
   description,
+  headerActions,
   children,
   className,
   contentClassName,
@@ -18,6 +19,7 @@ export function PerformanceSectionShell({
   title: string;
   tooltip: string;
   description?: string;
+  headerActions?: ReactNode;
   children: ReactNode;
   className?: string;
   contentClassName?: string;
@@ -28,13 +30,16 @@ export function PerformanceSectionShell({
   return (
     <section className={cn(PERFORMANCE_HEADER_SURFACE_CLASS_NAME, 'flex h-full flex-col', className)}>
       <div className="border-b border-border/60 px-6 py-4">
-        <div className={cn('flex flex-col gap-2', !showDescription && 'gap-0')}>
-          <SectionTitle title={title} tooltip={tooltip} />
-          {showDescription ? (
-            <DescriptionText className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              {description}
-            </DescriptionText>
-          ) : null}
+        <div className="flex items-start justify-between gap-4">
+          <div className={cn('flex flex-col gap-2', !showDescription && 'gap-0')}>
+            <SectionTitle title={title} tooltip={tooltip} />
+            {showDescription ? (
+              <DescriptionText className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                {description}
+              </DescriptionText>
+            ) : null}
+          </div>
+          {headerActions ? <div className="shrink-0">{headerActions}</div> : null}
         </div>
       </div>
       <div className={cn('min-h-0 flex-1 px-6 py-5', contentClassName)}>{children}</div>

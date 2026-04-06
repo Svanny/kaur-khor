@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type RefObject,
@@ -9,6 +10,16 @@ import {
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { SenaServiceDetailPage } from '@shared/sena';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
+import {
+  deriveFreshMountIntervalScrollLeft,
+  deriveInitialViewportSlotWidth,
+  deriveSequentialOlderLoadBatchCount,
+  handleIntervalChartWheel,
+  INTERVAL_LOAD_BATCH_SIZE,
+  INTERVAL_VISIBLE_COUNT,
+  MAX_SLOT_WIDTH,
+  MIN_SLOT_WIDTH,
+} from '@/components/system/interval-strip';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePreferences } from '@/state/preferences';
@@ -19,20 +30,17 @@ import {
   deriveAxisContentWidth,
   deriveLabelGutterOffset,
   deriveSlotCenterX,
+  isPinchZoomGesture,
 } from '@/routes/sku-detail/ledger';
-import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaWideIntervalDate } from '@/routes/sku-detail/format';
+import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDate, formatSenaWideIntervalDate } from '@/routes/sku-detail/format';
 import { SectionLabel, SectionTitle } from '@/routes/sku-detail/section-heading';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
-const SHARED_PILL_MIN_WIDTH = 48;
 const DEFAULT_SLOT_WIDTH = 72;
-const MIN_SLOT_WIDTH = 40;
-const MAX_SLOT_WIDTH = 120;
 const INTERVAL_PILL_GAP = 0;
 const SCROLL_EDGE_TOLERANCE = 6;
 const AXIS_START_PADDING = 20;
 const AXIS_END_PADDING = 36;
-const INTERVAL_PAGE_SIZE = 10;
 const LOAD_OLDER_SCROLL_THRESHOLD_PX = 24;
 const LABEL_GUTTER_HEIGHT = 32;
 const CHART_PLOT_HEIGHT = 120;
@@ -42,6 +50,7 @@ const FLOW_LANE_PLOT_HEIGHT = 112;
 const FLOW_LINE_VIEWBOX_HEIGHT = 52;
 const FLOW_LINE_TOP_PADDING = 6;
 const FLOW_LINE_BOTTOM_PADDING = 6;
+const LINE_POINT_MARKER_MIN_SLOT_WIDTH = 20;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -136,7 +145,7 @@ function responsivePillLabel(fullLabel: string, compactLabel: string, slotWidth:
 }
 
 function intervalTooltipLabel(endAt: string | null, intervalIndex: number, language: 'en' | 'km') {
-  const fullDate = formatSenaDate(endAt, language);
+  const fullDate = formatSenaLongDate(endAt, language);
   if (fullDate !== '—') {
     return fullDate;
   }
@@ -403,13 +412,15 @@ export function ServiceDetailLedger({
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
+  onOlderLoadProgressChange,
   selection,
   setSelection,
 }: {
   hasOlderIntervals: boolean;
   isLoadingOlderIntervals: boolean;
-  loadOlderIntervals: () => Promise<SenaServiceDetailPage | null>;
+  loadOlderIntervals: (limit?: number) => Promise<SenaServiceDetailPage | null>;
   model: ServiceDetailViewModel;
+  onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
   selection: ServiceInspectorSelection;
   setSelection: (value: ServiceInspectorSelection) => void;
 }) {
@@ -423,15 +434,19 @@ export function ServiceDetailLedger({
   const visibleRegimes = presentRegimes(intervals.map((interval) => interval.dominantRegime));
   const syncRefs = [intervalScrollRef, priceScrollRef, flowScrollRef];
   const syncingScrollRef = useRef(false);
+  const initializedLatestWindowRef = useRef(false);
+  const latestLoadedIntervalKeyRef = useRef<number | null>(null);
+  const loadingOlderRef = useRef(false);
   const [viewportWidth, setViewportWidth] = useState(0);
-  const [slotWidthPx, setSlotWidthPx] = useState(DEFAULT_SLOT_WIDTH);
-  const effectiveSlotWidth = clamp(slotWidthPx, Math.max(SHARED_PILL_MIN_WIDTH, MIN_SLOT_WIDTH), MAX_SLOT_WIDTH);
-  const stretchedSlotWidth =
-    viewportWidth > 0 && indices.length > 0
-      ? Math.max(effectiveSlotWidth, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / Math.min(indices.length, INTERVAL_PAGE_SIZE))
-      : effectiveSlotWidth;
+  const [slotWidthPx, setSlotWidthPx] = useState<number | null>(null);
+  const stretchedSlotWidth = clamp(
+    slotWidthPx ?? deriveInitialViewportSlotWidth({ itemCount: indices.length, viewportWidth, visibleCount: INTERVAL_VISIBLE_COUNT, axisStartPadding: AXIS_START_PADDING, axisEndPadding: AXIS_END_PADDING }),
+    MIN_SLOT_WIDTH,
+    MAX_SLOT_WIDTH,
+  );
   const axisStartPadding = AXIS_START_PADDING;
   const axisEndPadding = AXIS_END_PADDING;
+  const showsLinePointMarkers = stretchedSlotWidth >= LINE_POINT_MARKER_MIN_SLOT_WIDTH;
   const contentWidth = deriveAxisContentWidth({
     itemCount: indices.length,
     slotWidth: stretchedSlotWidth,
@@ -441,7 +456,8 @@ export function ServiceDetailLedger({
   const renderWidth = Math.max(contentWidth, viewportWidth || 0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const clampedScrollLeft = clampScrollLeft(scrollLeft, viewportWidth, contentWidth);
-  const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE;
+  const latestLoadedIntervalIndex = indices.at(-1) ?? null;
+  const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE || hasOlderIntervals;
   const canScrollRight = clampedScrollLeft + viewportWidth < contentWidth - SCROLL_EDGE_TOLERANCE;
   const priceMarkers = intervals.map((interval) => ({
     intervalIndex: interval.intervalIndex,
@@ -458,15 +474,64 @@ export function ServiceDetailLedger({
   const gapValues = intervals.map((interval) => interval.sellableValue - interval.demandValue);
   const maxGapMagnitude = Math.max(1, ...gapValues.map((value) => Math.abs(value)));
   const maybeLoadOlderIntervals = async (nextScrollLeft: number) => {
-    if (!shouldLoadOlderIntervals(hasOlderIntervals, isLoadingOlderIntervals, nextScrollLeft)) {
+    if (loadingOlderRef.current || !shouldLoadOlderIntervals(hasOlderIntervals, isLoadingOlderIntervals, nextScrollLeft)) {
       return;
     }
-    const olderPage = await loadOlderIntervals();
-    const prependedCount = olderPage?.detail?.regimeTimeline?.length ?? 0;
-    if (prependedCount > 0) {
-      setScrollLeft((current) => derivePrependedScrollLeft(current, prependedCount, stretchedSlotWidth));
+    loadingOlderRef.current = true;
+    try {
+      const sequentialBatchCount = deriveSequentialOlderLoadBatchCount({
+        batchSize: INTERVAL_LOAD_BATCH_SIZE,
+        slotWidth: stretchedSlotWidth,
+        viewportWidth,
+      });
+      const loadCount = Math.max(1, sequentialBatchCount);
+      let nextAnchoredScrollLeft = nextScrollLeft;
+      for (let batchIndex = 0; batchIndex < loadCount; batchIndex += 1) {
+        onOlderLoadProgressChange?.({ current: batchIndex + 1, total: loadCount });
+        const olderPage = await loadOlderIntervals(INTERVAL_LOAD_BATCH_SIZE);
+        const prependedCount = olderPage?.detail?.regimeTimeline?.length ?? 0;
+        if (prependedCount <= 0) {
+          break;
+        }
+        nextAnchoredScrollLeft = derivePrependedScrollLeft(nextAnchoredScrollLeft, prependedCount, stretchedSlotWidth);
+        setScrollLeft(nextAnchoredScrollLeft);
+      }
+    } finally {
+      onOlderLoadProgressChange?.(null);
+      loadingOlderRef.current = false;
     }
   };
+
+  useEffect(() => {
+    if (latestLoadedIntervalKeyRef.current !== latestLoadedIntervalIndex) {
+      latestLoadedIntervalKeyRef.current = latestLoadedIntervalIndex;
+      initializedLatestWindowRef.current = false;
+    }
+  }, [latestLoadedIntervalIndex]);
+
+  useLayoutEffect(() => {
+    if (initializedLatestWindowRef.current) {
+      return;
+    }
+    const nextScrollLeft = deriveFreshMountIntervalScrollLeft({
+      contentWidth,
+      itemCount: indices.length,
+      viewportWidth,
+      visibleCount: INTERVAL_VISIBLE_COUNT,
+    });
+    if (nextScrollLeft == null) {
+      return;
+    }
+    if (intervalScrollRef.current) {
+      if (typeof intervalScrollRef.current.scrollTo === 'function') {
+        intervalScrollRef.current.scrollTo({ left: nextScrollLeft, behavior: 'auto' });
+      } else {
+        intervalScrollRef.current.scrollLeft = nextScrollLeft;
+      }
+    }
+    setScrollLeft(nextScrollLeft);
+    initializedLatestWindowRef.current = true;
+  }, [contentWidth, indices.length, viewportWidth]);
 
   useEffect(() => {
     const node = intervalScrollRef.current;
@@ -513,6 +578,10 @@ export function ServiceDetailLedger({
   };
 
   const scrollByViewport = (direction: -1 | 1) => {
+    if (direction < 0 && clampedScrollLeft <= SCROLL_EDGE_TOLERANCE && hasOlderIntervals) {
+      void maybeLoadOlderIntervals(0);
+      return;
+    }
     setScrollLeft((current) =>
       clampScrollLeft(
         current + direction * Math.max(viewportWidth - stretchedSlotWidth - INTERVAL_PILL_GAP, stretchedSlotWidth),
@@ -529,44 +598,24 @@ export function ServiceDetailLedger({
       if (!node) {
         return;
       }
-      event.preventDefault();
-      const intent = classifyWheelIntent(event.deltaX, event.deltaY);
-      if (intent === 'pan') {
-        if (Math.abs(event.deltaX) < 1 || contentWidth <= viewportWidth + 1) {
-          return;
-        }
-        setScrollLeft((current) => clampScrollLeft(current + event.deltaX, viewportWidth, contentWidth));
-        return;
-      }
-      if (Math.abs(event.deltaY) < 1 || indices.length === 0) {
-        return;
-      }
-      const rect = node.getBoundingClientRect();
-      const pointerX = clamp(event.clientX - rect.left, 0, node.clientWidth);
-      setSlotWidthPx((currentWidth) => {
-        const nextWidth = clamp(currentWidth - event.deltaY * 0.08, Math.max(SHARED_PILL_MIN_WIDTH, MIN_SLOT_WIDTH), MAX_SLOT_WIDTH);
-        if (Math.abs(nextWidth - currentWidth) < 0.5) {
-          return currentWidth;
-        }
-        const nextContentWidth = deriveAxisContentWidth({
-          itemCount: indices.length,
-          slotWidth: nextWidth,
-          axisStartPadding: axisPaddingStart,
-          axisEndPadding,
-        });
-        setScrollLeft((currentScrollLeft) =>
-          deriveAnchoredZoomScrollLeft({
-            contentWidth: nextContentWidth,
-            hoveredPointerX: pointerX,
-            intervalCount: indices.length,
-            nextSlotWidth: nextWidth,
-            previousScrollLeft: currentScrollLeft,
-            previousSlotWidth: currentWidth,
-            axisStartPadding: axisPaddingStart,
-            viewportWidth,
-          }),
-        );
-        return nextWidth;
+      handleIntervalChartWheel({
+        axisEndPadding,
+        axisStartPadding,
+        contentWidth,
+        currentSlotWidth: stretchedSlotWidth,
+        event,
+        hasOlder: hasOlderIntervals,
+        intervalCount: indices.length,
+        isLoadingOlder: isLoadingOlderIntervals,
+        onLoadOlder: () => {
+          void maybeLoadOlderIntervals(0);
+        },
+        onPan: (nextScrollLeft) => setScrollLeft(nextScrollLeft),
+        onZoom: ({ nextScrollLeft, nextSlotWidth }) => {
+          setSlotWidthPx(nextSlotWidth);
+          setScrollLeft(nextScrollLeft);
+        },
+        viewportWidth,
       });
     };
 
@@ -668,6 +717,9 @@ export function ServiceDetailLedger({
                 {priceCoordinates.map((point, index) => {
                   const marker = priceMarkers[index];
                   const isSelected = marker?.intervalIndex === selectedIntervalIndex;
+                  if (!showsLinePointMarkers && !isSelected) {
+                    return null;
+                  }
                   return (
                     <button
                       key={marker ? `${marker.observedAt}:${marker.intervalIndex}` : `price-${index}`}
@@ -691,9 +743,6 @@ export function ServiceDetailLedger({
                 })}
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.evidenceSummary ?? intervals.at(-1)?.evidenceSummary}
-            </p>
           </div>
         </div>
 

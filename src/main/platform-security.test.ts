@@ -11,6 +11,16 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain("preload: join(__dirname, '../preload/index.mjs')");
     expect(mainSource).toContain('contextIsolation: true');
     expect(mainSource).toContain('nodeIntegration: false');
+    expect(mainSource).toContain('screen.getPrimaryDisplay().workArea');
+    expect(mainSource).toContain('mainWindow.webContents.setZoomLevel(DEFAULT_ACTUAL_SIZE_ZOOM_LEVEL)');
+  });
+
+  it('remaps actual size to the preferred default zoom level', () => {
+    expect(mainSource).toContain('Menu.setApplicationMenu(Menu.buildFromTemplate(template))');
+    expect(mainSource).toContain("label: 'Actual Size'");
+    expect(mainSource).toContain("accelerator: 'CmdOrCtrl+0'");
+    expect(mainSource).toContain('setFocusedWindowToActualSize();');
+    expect(mainSource).not.toContain("role: 'resetZoom'");
   });
 
   it('installs a renderer content security policy without unsafe-eval', () => {

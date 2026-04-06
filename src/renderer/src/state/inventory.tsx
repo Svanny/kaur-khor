@@ -32,7 +32,7 @@ type ReadCacheValue =
   | SenaAnalysisRunRecord
   | null;
 
-const DEFAULT_INTERVAL_PAGE_LIMIT = 10;
+const DEFAULT_INTERVAL_PAGE_LIMIT = 20;
 
 type SenaMetaCache = {
   catalogHash: string | null;

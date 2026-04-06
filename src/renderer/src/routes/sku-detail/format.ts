@@ -67,6 +67,21 @@ export function formatSenaDate(value: string | null, language: AppLanguage) {
   }).format(date);
 }
 
+export function formatSenaLongDate(value: string | null, language: AppLanguage) {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return '—';
+  }
+  return new Intl.DateTimeFormat(localeFor(language), {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
 export function formatSenaDateTime(value: string | null, language: AppLanguage) {
   if (!value) {
     return '—';
@@ -80,6 +95,19 @@ export function formatSenaDateTime(value: string | null, language: AppLanguage) 
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+  }).format(date);
+}
+
+export function formatSenaWeekdayShort(value: string | null, language: AppLanguage) {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return '—';
+  }
+  return new Intl.DateTimeFormat(localeFor(language), {
+    weekday: 'short',
   }).format(date);
 }
 

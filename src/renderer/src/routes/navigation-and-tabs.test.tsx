@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { getTranslation } from '@/lib/translations';
 import { InventoryRoute } from './inventory';
 import { ServiceDetailRoute } from './service-detail';
@@ -224,7 +225,19 @@ describe('SENA routes', () => {
           },
         ],
       })),
-      loadSenaRunStatus: vi.fn(async () => null),
+      loadSenaRunStatus: vi.fn(async () => ({
+        runId: 'run-1',
+        ownerSub: 'desktop-owner',
+        algorithmVersion: 'sena-analysis-v2',
+        status: 'succeeded',
+        observationCount: 0,
+        createdAt: '2026-04-02T00:00:00Z',
+        completedAt: '2026-04-02T00:01:00Z',
+        summary: null,
+        diagnostics: null,
+        primaryArtifactKey: null,
+        error: null,
+      })),
       updateSenaMeta: vi.fn(),
     });
   });
@@ -278,7 +291,7 @@ describe('SENA routes', () => {
 
     expect(screen.getByText('SENA')).toBeInTheDocument();
 
-    expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1');
+    expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', { limit: INTERVAL_PAGE_SIZE });
     expect(inventoryHook().loadInventorySnapshot).not.toHaveBeenCalled();
     expect(screen.getAllByText('Dependency impact').length).toBeGreaterThan(0);
   });
@@ -320,7 +333,7 @@ describe('SENA routes', () => {
       expect(screen.getByRole('heading', { name: 'Service viability ledger' })).toBeInTheDocument();
     });
 
-    expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
+    expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1', { limit: INTERVAL_PAGE_SIZE });
     expect(screen.getByText('Dependency impact')).toBeInTheDocument();
     expect(screen.getByText('Log receipt')).toBeInTheDocument();
     expect(screen.getByText('Record stock')).toBeInTheDocument();

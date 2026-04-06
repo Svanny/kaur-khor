@@ -300,6 +300,10 @@ export function extractEvidence(observations: SenaObservationRecord[], skuId: st
     .sort((left, right) => right.observedAt.localeCompare(left.observedAt));
 }
 
+function extractSkuEvidence(observations: SenaObservationRecord[], skuId: string, soldAsProduct: boolean) {
+  return extractEvidence(observations, skuId).filter((entry) => soldAsProduct || entry.type !== 'price_changed');
+}
+
 export function deriveSenaSkuDetailViewModel({
   currency,
   diagnostics,
@@ -340,12 +344,15 @@ export function deriveSenaSkuDetailViewModel({
   const receipt = receiptWindow(latestPipeline, latestLeadTime);
   const orderBand = deriveRecommendedOrderBand(detail);
   const openPipelineCount = (latestPipeline?.inTransitMean ?? 0) > 0.5 ? 1 : 0;
+  const visibleIntervalIndices = new Set((detail?.demandPosterior ?? []).map((entry) => entry.intervalIndex));
+  const visibleRegimeHistory =
+    diagnostics?.regimeHistory.filter((entry) => visibleIntervalIndices.size === 0 || visibleIntervalIndices.has(entry.intervalIndex)) ?? [];
   const effectiveSelectedIndex =
     selectedIntervalIndex ?? detail?.demandPosterior.at(-1)?.intervalIndex ?? diagnostics?.regimeHistory.at(-1)?.intervalIndex ?? null;
   const interval =
     detail?.demandPosterior.find((entry) => entry.intervalIndex === effectiveSelectedIndex) ?? null;
   const intervalRegime =
-    diagnostics?.regimeHistory.find((entry) => entry.intervalIndex === effectiveSelectedIndex) ?? null;
+    visibleRegimeHistory.find((entry) => entry.intervalIndex === effectiveSelectedIndex) ?? null;
   const intervalPipeline =
     detail?.pipelinePosterior.find((entry) => entry.intervalIndex === effectiveSelectedIndex) ?? null;
 
@@ -426,11 +433,13 @@ export function deriveSenaSkuDetailViewModel({
         .map((entry) => entry.price),
     )
     .at(-1) ?? sku.productPrice;
-  const intervalPriceMarkers = deriveIntervalPriceMarkers({
-    intervals: diagnostics?.regimeHistory ?? [],
-    observations,
-    skuId,
-  });
+  const intervalPriceMarkers = sku.soldAsProduct
+    ? deriveIntervalPriceMarkers({
+        intervals: visibleRegimeHistory,
+        observations,
+        skuId,
+      })
+    : [];
 
   const receiptLabel =
     receipt.midpointDays != null && latestObservationAt
@@ -463,18 +472,21 @@ export function deriveSenaSkuDetailViewModel({
       { key: 'inTransit', label: 'In transit', value: formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language) },
       { key: 'demandPerDay', label: 'Demand / day', value: formatSenaQuantity(summary?.demandPerDayMean ?? null, language) },
       { key: 'nextReceipt', label: 'Next receipt', value: receiptLabel },
-      { key: 'priceNow', label: 'Price now', value: formatSenaCurrency(currentPrice, currency, language) },
       { key: 'serviceExposure', label: 'Service exposure', value: `${dependencyImpact.length}` },
-    ],
+    ].concat(
+      sku.soldAsProduct
+        ? [{ key: 'priceNow', label: 'Price now', value: formatSenaCurrency(currentPrice, currency, language) }]
+        : [],
+    ),
     selectedInterval: {
       index: effectiveSelectedIndex,
       label: interval ? `${formatSenaDate(interval.startAt, language)}-${formatSenaDate(interval.endAt, language)}` : 'Latest interval',
     },
     lanes: {
       regimePriceLane: {
-        intervals: diagnostics?.regimeHistory ?? [],
+        intervals: visibleRegimeHistory,
         priceMarkers: intervalPriceMarkers,
-        summary: `Regime history has ${(diagnostics?.regimeHistory ?? []).length} intervals and ${intervalPriceMarkers.length} retail price markers.`,
+        summary: `Regime history has ${visibleRegimeHistory.length} intervals and ${intervalPriceMarkers.length} retail price markers.`,
         currentPriceLabel: formatSenaCurrency(currentPrice, currency, language),
       },
       inventoryLane: {
@@ -533,7 +545,7 @@ export function deriveSenaSkuDetailViewModel({
       },
     },
     dependencyImpact,
-    evidence: extractEvidence(observations, skuId),
+    evidence: extractSkuEvidence(observations, skuId, sku.soldAsProduct),
     actionContext: {
       currentStock: currentStock ?? 0,
       costPerUnit: sku.costPerUnit,

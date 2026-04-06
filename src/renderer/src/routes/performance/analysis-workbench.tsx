@@ -1,37 +1,56 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type UIEvent } from 'react';
+import { Fragment, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type RefObject, type UIEvent, type WheelEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BadgePercent,
   ArrowUpRight,
   AudioLines,
+  Boxes,
+  ChartNoAxesColumnIncreasing,
   CircleGauge,
   CircleOff,
   Cog,
   FileSearch,
   Flame,
+  Grid3x3,
   ListTree,
   Map as MapIcon,
   MoonStar,
+  CalendarClock,
   PackageSearch,
   Package,
+  Radar,
   Radio,
   Rows3,
   SearchCheck,
   Store,
   Waypoints,
   Wrench,
+  Maximize2,
+  Minimize2,
+  Minus,
+  Plus,
+  Scan,
 } from 'lucide-react';
 import {
   AXIS_END_PADDING,
   AXIS_START_PADDING,
   clampScrollLeft,
   DEFAULT_SLOT_WIDTH,
+  deriveAnchoredZoomScrollLeft,
   derivePrependedScrollLeft,
   deriveAxisContentWidth,
+  deriveFreshMountIntervalScrollLeft,
+  deriveInitialViewportSlotWidth,
+  deriveLatestWindowScrollLeft,
   deriveSlotCenterX,
+  deriveSequentialOlderLoadBatchCount,
   deriveViewportPageScrollLeft,
+  handleIntervalChartWheel,
+  INTERVAL_LOAD_BATCH_SIZE,
+  INTERVAL_VISIBLE_COUNT,
   INTERVAL_PAGE_SIZE,
   IntervalStrip,
+  MAX_SLOT_WIDTH,
   MIN_SLOT_WIDTH,
   SCROLL_EDGE_TOLERANCE,
   shouldLoadOlderIntervals,
@@ -40,8 +59,12 @@ import {
   buildPointCoordinatesWithDomain,
   buildPolylineWithDomain,
   buildTrajectoryBandPath,
+  deriveProportionalChartGeometry,
+  deriveScaledVisualValue,
   deriveFlowStackHeights,
   deriveLabelGutterOffset,
+  deriveTouchingRangeBounds,
+  deriveTouchingSlotGlyphLayout,
   SelectedIntervalColumnOverlay,
 } from '@/components/system/timeline-chart';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
@@ -55,9 +78,12 @@ import {
   HeaderedTableMobileLabel,
   HeaderedTableRow,
 } from '@/components/system/headered-table';
+import { FloatingActionsIsland, useFloatingTitleActions, useObservedFloatingIslandWidth } from '@/components/system/floating-title-actions';
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
 import { statusPillClassName } from '@/lib/state-tones';
@@ -68,11 +94,13 @@ import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from '
 import type {
   AnalysisEntityPressureRow,
   AnalysisObservationLedgerRow,
+  AnalysisScope,
   AnalysisSection,
   AnalysisSelection,
   AnalysisWorkbenchViewModel,
 } from './analysis-view-model';
 import { PIPELINE_PILL_END_OFFSET, PIPELINE_PILL_START_OFFSET } from './analysis-view-model';
+import { ANALYSIS_TIMEFRAME_OPTIONS, type AnalysisTimeframe } from './analysis-timeframe';
 
 const pressureTableLayout = createHeaderedTableLayout({
   breakpoint: 'xl',
@@ -86,9 +114,9 @@ const NAV_OPTIONS: Array<{
   leading: ReactNode;
 }> = [
   { value: 'workbench', label: 'Workbench', leading: <Waypoints className="size-4" /> },
-  { value: 'pressure', label: 'Pressure', leading: <Rows3 className="size-4" /> },
-  { value: 'observations', label: 'Observations', leading: <SearchCheck className="size-4" /> },
-  { value: 'fragility', label: 'Fragility', leading: <MapIcon className="size-4" /> },
+  { value: 'pressure', label: 'Pressure', leading: <CircleGauge className="size-4" /> },
+  { value: 'observations', label: 'Observations', leading: <FileSearch className="size-4" /> },
+  { value: 'fragility', label: 'Fragility', leading: <Grid3x3 className="size-4" /> },
   { value: 'settings', label: 'Parameters', leading: <Cog className="size-4" /> },
 ];
 
@@ -197,6 +225,7 @@ function selectionsEqual(left: AnalysisSelection, right: AnalysisSelection) {
 }
 
 type IntervalRailSectionKey = 'observed-signals' | 'what-happened' | 'orders-transit-lead-time';
+type WorkbenchLaneKey = 'regime' | 'inventory' | 'pipeline' | 'lead-time';
 
 function regimeTint(regime: string) {
   const normalized = regime.trim().toLowerCase();
@@ -258,6 +287,26 @@ function regimeIcon(regime: string) {
   return <CircleGauge className="size-4" />;
 }
 
+function regimeInitials(regime: string) {
+  const normalized = regime.trim().toLowerCase();
+  if (normalized.includes('stockout')) {
+    return 'SC';
+  }
+  if (normalized.includes('promo')) {
+    return 'P';
+  }
+  if (normalized.includes('spike')) {
+    return 'S';
+  }
+  if (normalized.includes('lull')) {
+    return 'L';
+  }
+  if (normalized.includes('correction')) {
+    return 'C';
+  }
+  return 'N';
+}
+
 function HeaderTooltipLabel({
   children,
   tooltip,
@@ -271,8 +320,28 @@ function HeaderTooltipLabel({
 const LANE_LABEL_COLUMN = '14rem';
 const CHART_GUTTER_HEIGHT = 24;
 const CHART_VIEWBOX_HEIGHT = 42;
-const INVENTORY_CHART_CONTENT_HEIGHT = 156;
-const LEAD_TIME_CHART_CONTENT_HEIGHT = 96;
+const REGIME_CHART_MIN_HEIGHT = 92;
+const INVENTORY_CHART_PLOT_HEIGHT = 72;
+const INVENTORY_FLOW_SECTION_HEIGHT = 60;
+const LEAD_TIME_CHART_PLOT_HEIGHT = 72;
+const PIPELINE_ROW_HEIGHT = 28;
+const PIPELINE_PILL_HEIGHT = 20;
+const PIPELINE_TOP_PADDING = 18;
+const PIPELINE_MARKER_SIZE = 12;
+const REGIME_CUE_LABEL_MIN_SLOT_WIDTH = 88;
+const REGIME_ICON_MIN_SLOT_WIDTH = 22;
+const REGIME_INITIALS_MIN_SLOT_WIDTH = 20;
+const LINE_POINT_MARKER_MIN_SLOT_WIDTH = 20;
+const MAX_LINE_STROKE_WIDTH = 1;
+const MAX_POINT_MARKER_SIZE = 14;
+const MAX_BAND_MIN_THICKNESS = 6;
+const MAX_PIPELINE_ROW_HEIGHT = 46;
+const MAX_PIPELINE_PILL_HEIGHT = 28;
+const MAX_PIPELINE_MARKER_SIZE = 16;
+const MAX_PIPELINE_TOP_PADDING = 28;
+const MANUAL_ZOOM_STEP = 12;
+const FLOATING_ISLAND_BASE_RIGHT = 24;
+const FLOATING_ISLAND_GAP = 16;
 
 function LaneLabel({
   title,
@@ -292,6 +361,144 @@ function LaneLabel({
         <p className="text-sm leading-6 text-muted-foreground">{subtitle}</p>
       </div>
     </div>
+  );
+}
+
+function LaneExpandButton({
+  expanded,
+  title,
+  onClick,
+}: {
+  expanded: boolean;
+  title: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      aria-label={`${expanded ? 'Minimize' : 'Expand'} ${title}`}
+      className="h-8 rounded-full px-3 text-[0.68rem] font-medium"
+      size="sm"
+      type="button"
+      variant="outline"
+      onClick={onClick}
+    >
+      {expanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+      {expanded ? 'Minimize' : 'Expand'}
+    </Button>
+  );
+}
+
+function ChartZoomIsland({
+  className,
+  disabled,
+  onReset,
+  onZoomIn,
+  onZoomOut,
+}: {
+  className?: string;
+  disabled?: boolean;
+  onReset: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}) {
+  const buttonClassName =
+    'inline-flex size-9 items-center justify-center rounded-full text-foreground transition hover:bg-white/70 disabled:pointer-events-none disabled:opacity-45';
+  return (
+    <div className={cn("inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/95 p-1 shadow-[0_12px_28px_rgba(48,31,20,0.09)] backdrop-blur", className)}>
+      <button aria-label="Zoom out chart" className={buttonClassName} disabled={disabled} type="button" onClick={onZoomOut}>
+        <Minus className="size-4" />
+      </button>
+      <button aria-label="Reset chart zoom" className={buttonClassName} disabled={disabled} type="button" onClick={onReset}>
+        <Scan className="size-4" />
+      </button>
+      <button aria-label="Zoom in chart" className={buttonClassName} disabled={disabled} type="button" onClick={onZoomIn}>
+        <Plus className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+function TimeframeIsland({
+  disabled,
+  onValueChange,
+  value,
+}: {
+  disabled?: boolean;
+  onValueChange: (value: AnalysisTimeframe) => void;
+  value: AnalysisTimeframe;
+}) {
+  return (
+    <Select disabled={disabled} value={value} onValueChange={(nextValue) => onValueChange(nextValue as AnalysisTimeframe)}>
+      <SelectTrigger
+        aria-label="Select chart timeframe"
+        className="h-[48px] min-h-[48px] py-0 data-[size=default]:h-[48px] rounded-full border border-border/70 bg-background/95 px-4 text-sm font-medium leading-none shadow-[0_12px_28px_rgba(48,31,20,0.09)] backdrop-blur [&_svg]:text-foreground [&_svg]:opacity-100"
+      >
+        <span className="inline-flex items-center gap-2 text-foreground">
+          <CalendarClock className="size-4" />
+          <span>{`Timeframe: ${value}`}</span>
+        </span>
+      </SelectTrigger>
+      <SelectContent position="popper">
+        {ANALYSIS_TIMEFRAME_OPTIONS.map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function useObservedElementHeight(
+  ref: RefObject<HTMLDivElement | null>,
+  resetKey: string | null,
+) {
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) {
+      setHeight(0);
+      return;
+    }
+    const updateHeight = () => setHeight(node.clientHeight);
+    const observer = new ResizeObserver(() => updateHeight());
+    observer.observe(node);
+    updateHeight();
+    return () => observer.disconnect();
+  }, [ref, resetKey]);
+
+  return height;
+}
+
+function RegimeCueBadges({
+  priceCueCount,
+  stockoutCueCount,
+  showLabels,
+}: {
+  priceCueCount: number;
+  stockoutCueCount: number;
+  showLabels: boolean;
+}) {
+  if (!showLabels) {
+    return null;
+  }
+  if (priceCueCount === 0 && stockoutCueCount === 0) {
+    return <span className="text-[0.62rem] text-foreground/60">Quiet</span>;
+  }
+  return (
+    <>
+      {priceCueCount > 0 ? (
+        <span className="inline-flex shrink-0 items-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
+          {priceCueCount}P
+        </span>
+      ) : null}
+      {stockoutCueCount > 0 ? (
+        <span className="inline-flex shrink-0 items-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
+          {stockoutCueCount}S
+        </span>
+      ) : null}
+    </>
   );
 }
 
@@ -404,34 +611,130 @@ function InternalNav({
   );
 }
 
+function AnalysisSurfaceWireframe({ section }: { section: AnalysisSection }) {
+  if (section === 'workbench') {
+    return (
+      <div className="grid gap-6 p-6">
+        <Skeleton className="h-6 w-44 rounded-full" />
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={`wireframe-workbench:${index}`} className="grid gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <Skeleton className="h-28 rounded-[1.2rem]" />
+            <Skeleton className="h-28 rounded-[1.2rem]" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section === 'pressure') {
+    return (
+      <div className="grid gap-4 p-6">
+        <Skeleton className="h-6 w-56 rounded-full" />
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Skeleton key={`wireframe-pressure:${index}`} className="h-20 rounded-[1.2rem]" />
+        ))}
+      </div>
+    );
+  }
+
+  if (section === 'observations') {
+    return (
+      <div className="grid gap-4 p-6">
+        <Skeleton className="h-6 w-48 rounded-full" />
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Skeleton key={`wireframe-observations:${index}`} className="h-24 rounded-[1.2rem]" />
+        ))}
+      </div>
+    );
+  }
+
+  if (section === 'fragility') {
+    return (
+      <div className="grid gap-4 p-6">
+        <Skeleton className="h-6 w-40 rounded-full" />
+        <Skeleton className="h-16 rounded-[1.2rem]" />
+        <div className="grid min-h-[22rem] gap-2" style={{ gridTemplateColumns: '200px repeat(4, minmax(0, 1fr))' }}>
+          {Array.from({ length: 25 }).map((_, index) => (
+            <Skeleton key={`wireframe-fragility:${index}`} className="h-20 rounded-[1rem]" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 p-6">
+      <Skeleton className="h-6 w-44 rounded-full" />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 9 }).map((_, index) => (
+          <Skeleton key={`wireframe-settings:${index}`} className="h-24 rounded-[1.2rem]" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AnalysisRailWireframe() {
+  return (
+    <aside className={cn(RIGHT_RAIL_ASIDE_CLASS_NAME, ANALYSIS_RAIL_PANEL_CLASS_NAME, 'gap-4 px-4 py-4')}>
+      {Array.from({ length: 3 }).map((_, index) => (
+        <section key={`wireframe-rail:${index}`} className="rounded-[1.4rem] border border-border/60 bg-white/85 px-4 py-4">
+          <Skeleton className="h-5 w-32 rounded-full" />
+          <div className="mt-4 grid gap-3">
+            <Skeleton className="h-7 w-40 rounded-full" />
+            <Skeleton className="h-4 w-full rounded-full" />
+            <Skeleton className="h-4 w-4/5 rounded-full" />
+            <Skeleton className="h-12 rounded-[1rem]" />
+          </div>
+        </section>
+      ))}
+    </aside>
+  );
+}
+
 function SystemLedger({
+  chartZoomResetToken = 0,
   hasOlderIntervals,
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
+  onOlderLoadProgressChange,
+  onResetCharts,
+  onTimeframeChange,
   selectedIntervalIndex,
   setSelection,
   onIntervalChartLabelClick,
   showRightRailCards,
+  timeframe,
 }: {
+  chartZoomResetToken?: number;
   hasOlderIntervals: boolean;
   isLoadingOlderIntervals: boolean;
-  loadOlderIntervals: () => Promise<number>;
+  loadOlderIntervals: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
+  onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
+  onResetCharts?: () => Promise<void> | void;
+  onTimeframeChange: (value: AnalysisTimeframe) => void;
   selectedIntervalIndex: number | null;
   setSelection: (value: AnalysisSelection) => void;
   onIntervalChartLabelClick: (intervalIndex: number, section: IntervalRailSectionKey) => void;
   showRightRailCards: boolean;
+  timeframe: AnalysisTimeframe;
 }) {
-  const { language } = usePreferences();
+  const { language, showFloatingTitleActions } = usePreferences();
   const intervalScrollRef = useRef<HTMLDivElement | null>(null);
   const regimeScrollRef = useRef<HTMLDivElement | null>(null);
   const inventoryScrollRef = useRef<HTMLDivElement | null>(null);
   const pipelineScrollRef = useRef<HTMLDivElement | null>(null);
   const leadTimeScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef(false);
+  const loadingOlderRef = useRef(false);
+  const initializedLatestWindowRef = useRef(false);
+  const latestLoadedIntervalKeyRef = useRef<number | null>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [slotWidthPx, setSlotWidthPx] = useState<number | null>(null);
+  const [expandedLane, setExpandedLane] = useState<WorkbenchLaneKey | null>(null);
   const intervalEntries = model.intervals.map((interval) => ({
     intervalIndex: interval.intervalIndex,
     startAt: interval.startAt,
@@ -439,9 +742,26 @@ function SystemLedger({
   }));
   const itemCount = intervalEntries.length;
   const syncRefs = [intervalScrollRef, regimeScrollRef, inventoryScrollRef, pipelineScrollRef, leadTimeScrollRef];
-  const slotWidth = itemCount > 0 && viewportWidth > 0
-    ? Math.max(MIN_SLOT_WIDTH, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / Math.min(itemCount, INTERVAL_PAGE_SIZE))
-    : DEFAULT_SLOT_WIDTH;
+  const regimeViewportHeight = useObservedElementHeight(regimeScrollRef, expandedLane);
+  const inventoryViewportHeight = useObservedElementHeight(inventoryScrollRef, expandedLane);
+  const pipelineViewportHeight = useObservedElementHeight(pipelineScrollRef, expandedLane);
+  const leadTimeViewportHeight = useObservedElementHeight(leadTimeScrollRef, expandedLane);
+  const targetVisibleIntervalCount = timeframe === 'Recent'
+    ? INTERVAL_VISIBLE_COUNT
+    : Math.max(1, itemCount);
+  const slotWidth = Math.min(
+    MAX_SLOT_WIDTH,
+    Math.max(
+      MIN_SLOT_WIDTH,
+      slotWidthPx ?? deriveInitialViewportSlotWidth({
+        visibleCount: targetVisibleIntervalCount,
+        itemCount,
+        viewportWidth,
+        axisStartPadding: AXIS_START_PADDING,
+        axisEndPadding: AXIS_END_PADDING,
+      }),
+    ),
+  );
   const contentWidth = deriveAxisContentWidth({
     itemCount,
     slotWidth,
@@ -449,7 +769,24 @@ function SystemLedger({
     axisEndPadding: AXIS_END_PADDING,
   });
   const clampedScrollLeft = clampScrollLeft(scrollLeft, viewportWidth, contentWidth);
-  const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE;
+  const latestLoadedIntervalIndex = intervalEntries.at(-1)?.intervalIndex ?? null;
+  const { anchorRef: chartControlsAnchorRef, visible: floatingChartControlsVisible } = useFloatingTitleActions(showFloatingTitleActions);
+  const adjacentFloatingIslandWidth = useObservedFloatingIslandWidth({
+    enabled: showFloatingTitleActions && floatingChartControlsVisible,
+    selector: '[data-slot="floating-title-actions"]',
+  });
+  const floatingTimeframeIslandWidth = useObservedFloatingIslandWidth({
+    enabled: showFloatingTitleActions && floatingChartControlsVisible,
+    selector: '[data-slot="floating-timeframe-actions"]',
+  });
+  const floatingTimeframeIslandRightOffset = adjacentFloatingIslandWidth > 0
+    ? FLOATING_ISLAND_BASE_RIGHT + adjacentFloatingIslandWidth + FLOATING_ISLAND_GAP
+    : FLOATING_ISLAND_BASE_RIGHT;
+  const floatingChartIslandRightOffset =
+    floatingTimeframeIslandWidth > 0
+      ? floatingTimeframeIslandRightOffset + floatingTimeframeIslandWidth + FLOATING_ISLAND_GAP
+      : floatingTimeframeIslandRightOffset + FLOATING_ISLAND_GAP + 220;
+  const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE || hasOlderIntervals;
   const canScrollRight = clampedScrollLeft + viewportWidth < contentWidth - SCROLL_EDGE_TOLERANCE;
   const selectedIntervalPosition = selectedIntervalIndex == null
     ? null
@@ -464,6 +801,23 @@ function SystemLedger({
   const inventoryHighValues = inventoryPoints.map((point) => point.inventoryHigh);
   const inventoryDomainMin = inventoryLowValues.length > 0 ? Math.min(...inventoryLowValues) : 0;
   const inventoryDomainMax = inventoryHighValues.length > 0 ? Math.max(...inventoryHighValues) : 1;
+  const inventoryAvailableHeight = expandedLane === 'inventory' && inventoryViewportHeight > 0
+    ? Math.max(INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT, inventoryViewportHeight - CHART_GUTTER_HEIGHT - 4)
+    : INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT;
+  const inventoryGeometry = deriveProportionalChartGeometry({
+    collapsedPlotHeight: INVENTORY_CHART_PLOT_HEIGHT,
+    collapsedAuxHeight: INVENTORY_FLOW_SECTION_HEIGHT,
+    availableHeight: inventoryAvailableHeight,
+    baseStrokeWidth: 1.8,
+    maxStrokeWidth: MAX_LINE_STROKE_WIDTH,
+    baseMarkerSize: 12,
+    maxMarkerSize: MAX_POINT_MARKER_SIZE,
+    baseBandMinThickness: 2,
+    maxBandMinThickness: MAX_BAND_MIN_THICKNESS,
+  });
+  const inventoryPlotHeight = inventoryGeometry.plotHeight;
+  const inventoryFlowSectionHeight = inventoryGeometry.auxHeight;
+  const inventoryChartContentHeight = CHART_GUTTER_HEIGHT + inventoryPlotHeight + inventoryFlowSectionHeight;
   const inventoryPolyline = buildPolylineWithDomain(
     inventoryMeanValues,
     slotWidth,
@@ -487,7 +841,12 @@ function SystemLedger({
     CHART_VIEWBOX_HEIGHT,
     inventoryDomainMin,
     inventoryDomainMax,
-    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+    {
+      axisStartPadding: AXIS_START_PADDING,
+      topPadding: 5,
+      bottomPadding: 5,
+      minVisibleThickness: inventoryGeometry.bandMinThickness,
+    },
   );
   const leadTimePoints = model.workbench.leadTimeLane.points;
   const leadTimeMeanValues = leadTimePoints.map((point) => point.meanDays);
@@ -495,6 +854,21 @@ function SystemLedger({
   const leadTimeHighValues = leadTimePoints.map((point) => point.highDays);
   const leadTimeDomainMin = leadTimeLowValues.length > 0 ? Math.min(...leadTimeLowValues) : 0;
   const leadTimeDomainMax = leadTimeHighValues.length > 0 ? Math.max(...leadTimeHighValues) : 1;
+  const leadTimeAvailableHeight = expandedLane === 'lead-time' && leadTimeViewportHeight > 0
+    ? Math.max(LEAD_TIME_CHART_PLOT_HEIGHT, leadTimeViewportHeight - CHART_GUTTER_HEIGHT - 4)
+    : LEAD_TIME_CHART_PLOT_HEIGHT;
+  const leadTimeGeometry = deriveProportionalChartGeometry({
+    collapsedPlotHeight: LEAD_TIME_CHART_PLOT_HEIGHT,
+    availableHeight: leadTimeAvailableHeight,
+    baseStrokeWidth: 1.8,
+    maxStrokeWidth: MAX_LINE_STROKE_WIDTH,
+    baseMarkerSize: 12,
+    maxMarkerSize: MAX_POINT_MARKER_SIZE,
+    baseBandMinThickness: 2,
+    maxBandMinThickness: MAX_BAND_MIN_THICKNESS,
+  });
+  const leadTimePlotHeight = leadTimeGeometry.plotHeight;
+  const leadTimeChartContentHeight = CHART_GUTTER_HEIGHT + leadTimePlotHeight;
   const leadTimePolyline = buildPolylineWithDomain(
     leadTimeMeanValues,
     slotWidth,
@@ -518,11 +892,72 @@ function SystemLedger({
     CHART_VIEWBOX_HEIGHT,
     leadTimeDomainMin,
     leadTimeDomainMax,
-    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+    {
+      axisStartPadding: AXIS_START_PADDING,
+      topPadding: 5,
+      bottomPadding: 5,
+      minVisibleThickness: leadTimeGeometry.bandMinThickness,
+    },
   );
-  const pipelineRowHeight = 28;
-  const pipelineChartContentHeight = Math.max(122, 18 + Math.max(0, model.workbench.pipelineLane.rowCount - 1) * pipelineRowHeight + 28);
-  const pipelineLaneMinHeight = pipelineChartContentHeight;
+  const regimeAvailableHeight = expandedLane === 'regime' && regimeViewportHeight > 0
+    ? Math.max(REGIME_CHART_MIN_HEIGHT, regimeViewportHeight - 4)
+    : REGIME_CHART_MIN_HEIGHT;
+  const regimeChartMinHeight = regimeAvailableHeight;
+  const regimeTileHeight = Math.min(
+    92,
+    Math.round(66 * Math.max(1, regimeAvailableHeight / REGIME_CHART_MIN_HEIGHT) ** 0.45),
+  );
+  const regimeTileLayout = deriveTouchingSlotGlyphLayout({
+    slotWidth,
+    preferredInset: 4,
+  });
+  const inventoryFlowTop = CHART_GUTTER_HEIGHT + inventoryPlotHeight;
+  const inventoryFlowCellHeight = inventoryFlowSectionHeight;
+  const inventoryFlowMaxBarHeight = Math.max(24, Math.floor((inventoryFlowCellHeight - 12) / 2));
+  const inventoryFlowBarLayout = deriveTouchingSlotGlyphLayout({
+    slotWidth,
+    preferredInset: 6,
+  });
+  const inventoryLaneMinHeight = CHART_GUTTER_HEIGHT + INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT + 12;
+  const leadTimeLaneMinHeight = CHART_GUTTER_HEIGHT + LEAD_TIME_CHART_PLOT_HEIGHT + 36;
+  const pipelineCollapsedBodyHeight = PIPELINE_TOP_PADDING + Math.max(1, model.workbench.pipelineLane.rowCount - 1) * PIPELINE_ROW_HEIGHT + PIPELINE_PILL_HEIGHT + 28;
+  const pipelineAvailableHeight = expandedLane === 'pipeline' && pipelineViewportHeight > 0
+    ? Math.max(pipelineCollapsedBodyHeight, pipelineViewportHeight - 4)
+    : pipelineCollapsedBodyHeight;
+  const pipelineGeometry = deriveProportionalChartGeometry({
+    collapsedPlotHeight: pipelineCollapsedBodyHeight,
+    availableHeight: pipelineAvailableHeight,
+    baseStrokeWidth: 1.8,
+    maxStrokeWidth: MAX_LINE_STROKE_WIDTH,
+    baseMarkerSize: PIPELINE_MARKER_SIZE,
+    maxMarkerSize: MAX_PIPELINE_MARKER_SIZE,
+  });
+  const pipelineRowHeight = Math.round(deriveScaledVisualValue(PIPELINE_ROW_HEIGHT, pipelineGeometry.expandedHeightRatio, {
+    min: PIPELINE_ROW_HEIGHT,
+    max: MAX_PIPELINE_ROW_HEIGHT,
+    power: 0.9,
+  }));
+  const pipelinePillHeight = Math.round(deriveScaledVisualValue(PIPELINE_PILL_HEIGHT, pipelineGeometry.expandedHeightRatio, {
+    min: PIPELINE_PILL_HEIGHT,
+    max: MAX_PIPELINE_PILL_HEIGHT,
+    power: 0.8,
+  }));
+  const pipelineTopPadding = Math.round(deriveScaledVisualValue(PIPELINE_TOP_PADDING, pipelineGeometry.expandedHeightRatio, {
+    min: PIPELINE_TOP_PADDING,
+    max: MAX_PIPELINE_TOP_PADDING,
+    power: 0.8,
+  }));
+  const pipelineMarkerSize = deriveScaledVisualValue(PIPELINE_MARKER_SIZE, pipelineGeometry.expandedHeightRatio, {
+    min: PIPELINE_MARKER_SIZE,
+    max: MAX_PIPELINE_MARKER_SIZE,
+    power: 0.5,
+  });
+  const pipelineMarkerHalf = pipelineMarkerSize / 2;
+  const pipelineChartContentHeight = Math.max(
+    pipelineGeometry.plotHeight,
+    pipelineTopPadding + Math.max(0, model.workbench.pipelineLane.rowCount - 1) * pipelineRowHeight + pipelinePillHeight + 28,
+  );
+  const pipelineLaneMinHeight = pipelineCollapsedBodyHeight + 24;
   const selectedPipelineSpan = selectedIntervalIndex == null
     ? null
     : model.workbench.pipelineLane.spans.find((span) => span.intervalIndex === selectedIntervalIndex) ?? null;
@@ -537,20 +972,75 @@ function SystemLedger({
     ? null
     : deriveSlotCenterX({ index: selectedIntervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
   const maybeLoadOlder = async (nextScrollLeft: number) => {
-    if (!shouldLoadOlderIntervals({ hasOlder: hasOlderIntervals, isLoadingOlder: isLoadingOlderIntervals, scrollLeft: nextScrollLeft })) {
+    if (
+      loadingOlderRef.current ||
+      !shouldLoadOlderIntervals({ hasOlder: hasOlderIntervals, isLoadingOlder: isLoadingOlderIntervals, scrollLeft: nextScrollLeft })
+    ) {
       return;
     }
-    const prependedCount = await loadOlderIntervals();
-    if (prependedCount > 0) {
-      setScrollLeft((current) =>
-        derivePrependedScrollLeft({
-          currentScrollLeft: current,
+    loadingOlderRef.current = true;
+    try {
+      const sequentialBatchCount = deriveSequentialOlderLoadBatchCount({
+        batchSize: INTERVAL_LOAD_BATCH_SIZE,
+        slotWidth,
+        viewportWidth,
+      });
+      const loadCount = Math.max(1, sequentialBatchCount);
+      let nextAnchoredScrollLeft = nextScrollLeft;
+      for (let batchIndex = 0; batchIndex < loadCount; batchIndex += 1) {
+        onOlderLoadProgressChange?.({ current: batchIndex + 1, total: loadCount });
+        const prependedCount = await loadOlderIntervals(INTERVAL_LOAD_BATCH_SIZE);
+        if (prependedCount <= 0) {
+          break;
+        }
+        nextAnchoredScrollLeft = derivePrependedScrollLeft({
+          currentScrollLeft: nextAnchoredScrollLeft,
           prependedCount,
           slotWidth,
-        }),
-      );
+        });
+        setScrollLeft(nextAnchoredScrollLeft);
+      }
+    } finally {
+      onOlderLoadProgressChange?.(null);
+      loadingOlderRef.current = false;
     }
   };
+
+  useEffect(() => {
+    if (latestLoadedIntervalKeyRef.current !== latestLoadedIntervalIndex) {
+      latestLoadedIntervalKeyRef.current = latestLoadedIntervalIndex;
+      initializedLatestWindowRef.current = false;
+    }
+  }, [latestLoadedIntervalIndex]);
+
+  useEffect(() => {
+    setSlotWidthPx(null);
+    initializedLatestWindowRef.current = false;
+  }, [chartZoomResetToken]);
+
+  useLayoutEffect(() => {
+    if (initializedLatestWindowRef.current) {
+      return;
+    }
+    const nextScrollLeft = deriveFreshMountIntervalScrollLeft({
+      contentWidth,
+      itemCount,
+      visibleCount: targetVisibleIntervalCount,
+      viewportWidth,
+    });
+    if (nextScrollLeft == null) {
+      return;
+    }
+    if (intervalScrollRef.current) {
+      if (typeof intervalScrollRef.current.scrollTo === 'function') {
+        intervalScrollRef.current.scrollTo({ left: nextScrollLeft, behavior: 'auto' });
+      } else {
+        intervalScrollRef.current.scrollLeft = nextScrollLeft;
+      }
+    }
+    setScrollLeft(nextScrollLeft);
+    initializedLatestWindowRef.current = true;
+  }, [contentWidth, itemCount, targetVisibleIntervalCount, viewportWidth]);
 
   useEffect(() => {
     const node = intervalScrollRef.current;
@@ -597,6 +1087,10 @@ function SystemLedger({
   };
 
   const scrollByViewport = (direction: -1 | 1) => {
+    if (direction < 0 && clampedScrollLeft <= SCROLL_EDGE_TOLERANCE && hasOlderIntervals) {
+      void maybeLoadOlder(0);
+      return;
+    }
     setScrollLeft((current) =>
       deriveViewportPageScrollLeft({
         contentWidth,
@@ -608,17 +1102,116 @@ function SystemLedger({
     );
   };
 
+  const handleLaneWheel = (event: WheelEvent<HTMLDivElement>) => {
+    handleIntervalChartWheel({
+      axisEndPadding: AXIS_END_PADDING,
+      axisStartPadding: AXIS_START_PADDING,
+      contentWidth,
+      currentSlotWidth: slotWidth,
+      event,
+      hasOlder: hasOlderIntervals,
+      intervalCount: itemCount,
+      isLoadingOlder: isLoadingOlderIntervals,
+      onLoadOlder: () => {
+        void maybeLoadOlder(0);
+      },
+      onPan: (nextScrollLeft) => setScrollLeft(nextScrollLeft),
+      onZoom: ({ nextScrollLeft, nextSlotWidth }) => {
+        setSlotWidthPx(nextSlotWidth);
+        setScrollLeft(nextScrollLeft);
+      },
+      viewportWidth,
+    });
+  };
+
+  const adjustZoom = (direction: -1 | 1) => {
+    if (itemCount <= 0 || viewportWidth <= 0) {
+      return;
+    }
+    const nextSlotWidth = Math.min(MAX_SLOT_WIDTH, Math.max(MIN_SLOT_WIDTH, slotWidth + direction * MANUAL_ZOOM_STEP));
+    if (Math.abs(nextSlotWidth - slotWidth) < 0.5) {
+      return;
+    }
+    const nextContentWidth = deriveAxisContentWidth({
+      itemCount,
+      slotWidth: nextSlotWidth,
+      axisStartPadding: AXIS_START_PADDING,
+      axisEndPadding: AXIS_END_PADDING,
+    });
+    const nextScrollLeft = deriveAnchoredZoomScrollLeft({
+      contentWidth: nextContentWidth,
+      hoveredPointerX: viewportWidth / 2,
+      intervalCount: itemCount,
+      nextSlotWidth,
+      previousScrollLeft: clampedScrollLeft,
+      previousSlotWidth: slotWidth,
+      axisStartPadding: AXIS_START_PADDING,
+      viewportWidth,
+    });
+    setSlotWidthPx(nextSlotWidth);
+    setScrollLeft(nextScrollLeft);
+  };
+
   const laneGridStyle = { gridTemplateColumns: `${LANE_LABEL_COLUMN} minmax(0,1fr)` };
+  const showsRegimeCueLabels = slotWidth >= REGIME_CUE_LABEL_MIN_SLOT_WIDTH;
+  const showsRegimeIcons = slotWidth >= REGIME_ICON_MIN_SLOT_WIDTH;
+  const showsRegimeInitials = slotWidth >= REGIME_INITIALS_MIN_SLOT_WIDTH;
+  const showsLinePointMarkers = slotWidth >= LINE_POINT_MARKER_MIN_SLOT_WIDTH;
+  const laneOrder: WorkbenchLaneKey[] = ['regime', 'inventory', 'pipeline', 'lead-time'];
+  const visibleLaneOrder = expandedLane == null ? laneOrder : [expandedLane];
+  const laneRowsStyle = {
+    gridTemplateRows: visibleLaneOrder.map(() => 'minmax(0,1fr)').join(' '),
+  };
+  const isLaneExpanded = (laneKey: WorkbenchLaneKey) => expandedLane === laneKey;
+  const toggleLaneExpanded = (laneKey: WorkbenchLaneKey) => {
+    setExpandedLane((current) => (current === laneKey ? null : laneKey));
+  };
+  const renderChartZoomControls = () => (
+    <ChartZoomIsland
+      disabled={isLoadingOlderIntervals}
+      onReset={() => {
+        void onResetCharts?.();
+      }}
+      onZoomIn={() => adjustZoom(1)}
+      onZoomOut={() => adjustZoom(-1)}
+    />
+  );
+  const renderTimeframeControls = () => (
+    <TimeframeIsland
+      disabled={isLoadingOlderIntervals}
+      value={timeframe}
+      onValueChange={onTimeframeChange}
+    />
+  );
 
   return (
-    <PerformanceSectionShell
-      title="SENA system ledger"
-      tooltip="One synchronized ledger across regime, demand decomposition, pipeline posture, and latent lead-time drift."
-      description="Observation to inference to operational consequence in one canvas. Each interval stays aligned across regime, flow, pipeline, and lead-time lanes."
-      className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
-      contentClassName="px-0 py-0"
-    >
-      <div className="grid h-full gap-4 px-6 py-5 [grid-template-rows:auto_minmax(0,1fr)]">
+    <>
+      <FloatingActionsIsland
+        actions={renderTimeframeControls()}
+        slot="floating-timeframe-actions"
+        style={{ right: `${floatingTimeframeIslandRightOffset}px` }}
+        visible={showFloatingTitleActions && floatingChartControlsVisible}
+      />
+      <FloatingActionsIsland
+        actions={renderChartZoomControls()}
+        slot="floating-chart-actions"
+        style={{ right: `${floatingChartIslandRightOffset}px` }}
+        visible={showFloatingTitleActions && floatingChartControlsVisible}
+      />
+      <PerformanceSectionShell
+        title="SENA system ledger"
+        tooltip="One synchronized ledger across regime, demand decomposition, pipeline posture, and latent lead-time drift."
+        description="Observation to inference to operational consequence in one canvas. Each interval stays aligned across regime, flow, pipeline, and lead-time lanes."
+        headerActions={(
+          <div ref={chartControlsAnchorRef} className="flex items-center gap-3" data-analysis-chart-controls-anchor="true">
+            {renderChartZoomControls()}
+            {renderTimeframeControls()}
+          </div>
+        )}
+        className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
+        contentClassName="px-0 py-0"
+      >
+        <div className="grid h-full gap-4 px-6 py-5 [grid-template-rows:auto_minmax(0,1fr)]">
         <div className="grid gap-3" style={laneGridStyle}>
           <div />
           <IntervalStrip
@@ -638,42 +1231,46 @@ function SystemLedger({
           />
         </div>
 
-        <div className="grid min-h-0 gap-4 [grid-template-rows:repeat(4,minmax(0,1fr))]">
-          <div className="grid h-full min-h-0 gap-3" style={laneGridStyle}>
+        <div className="grid min-h-0 gap-4" style={laneRowsStyle}>
+          {visibleLaneOrder.includes('regime') ? <div className="grid h-full min-h-0 gap-3" data-lane="regime" style={laneGridStyle}>
             <LaneLabel
               subtitle="Continuous regime state with price and stockout cues carried as lightweight markers instead of interval cards."
               title="Regime + price lane"
               tooltip="The current system regime plus interval-level price and stockout evidence."
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
-              <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
-                {visibleRegimes.map((regime) => (
-                  <span key={regime} className="inline-flex items-center gap-2">
-                    <span className={cn('inline-flex size-5 items-center justify-center rounded-full border border-foreground/10', regimeTint(regime))}>
-                      {regimeIcon(regime)}
+              <div className="flex items-start justify-between gap-3 px-1">
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  {visibleRegimes.map((regime) => (
+                    <span key={regime} className="inline-flex items-center gap-2">
+                      <span className={cn('inline-flex size-5 items-center justify-center rounded-full border border-foreground/10', regimeTint(regime))}>
+                        {regimeIcon(regime)}
+                      </span>
+                      {regime}
                     </span>
-                    {regime}
+                  ))}
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
+                      P
+                    </span>
+                    Price cue count
                   </span>
-                ))}
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground shadow-sm">
-                    P
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
+                      S
+                    </span>
+                    Stockout cue count
                   </span>
-                  Price cue count
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground shadow-sm">
-                    S
-                  </span>
-                  Stockout cue count
-                </span>
+                </div>
+                <LaneExpandButton expanded={isLaneExpanded('regime')} title="Regime + price lane" onClick={() => toggleLaneExpanded('regime')} />
               </div>
               <div
                 ref={regimeScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleSharedScroll}
+                onWheel={handleLaneWheel}
               >
-                <div className="relative h-full min-h-[92px]" style={{ width: contentWidth }}>
+                <div className="relative h-full" style={{ width: contentWidth, minHeight: regimeChartMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -696,31 +1293,35 @@ function SystemLedger({
                         key={`regime:${interval.intervalIndex}`}
                         aria-label={`${interval.dominantRegime} regime, ${interval.cueSummary}`}
                         className={cn(
-                          'relative mx-1 h-[4.1rem] rounded-[1rem] border text-left transition-transform hover:-translate-y-0.5',
+                          'relative rounded-[1rem] border text-left transition-transform hover:-translate-y-0.5',
                           selectedIntervalIndex === interval.intervalIndex ? 'border-foreground/20 shadow-sm' : 'border-white/70',
                         )}
-                        style={{ backgroundColor: regimeFill(interval.dominantRegime) }}
+                        style={{
+                          backgroundColor: regimeFill(interval.dominantRegime),
+                          height: regimeTileHeight,
+                          width: regimeTileLayout.width,
+                          marginLeft: regimeTileLayout.inset,
+                          marginRight: regimeTileLayout.inset,
+                        }}
                         data-analysis-datalabel="true"
                         type="button"
                         onClick={() => onIntervalChartLabelClick(interval.intervalIndex, 'observed-signals')}
                       >
                         <span className="absolute left-1/2 top-[1.35rem] inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-foreground/75">
-                          {regimeIcon(interval.dominantRegime)}
+                          {showsRegimeIcons ? (
+                            regimeIcon(interval.dominantRegime)
+                          ) : showsRegimeInitials ? (
+                            <span className="text-[0.62rem] font-semibold tracking-[0.02em] text-foreground/80">
+                              {regimeInitials(interval.dominantRegime)}
+                            </span>
+                          ) : null}
                         </span>
-                        <span className="absolute inset-x-2.5 bottom-2 flex items-center gap-1.5">
-                          {interval.priceCueCount > 0 ? (
-                            <span className="inline-flex items-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
-                              {interval.priceCueCount}P
-                            </span>
-                          ) : null}
-                          {interval.stockoutCueCount > 0 ? (
-                            <span className="inline-flex items-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
-                              {interval.stockoutCueCount}S
-                            </span>
-                          ) : null}
-                          {interval.priceCueCount === 0 && interval.stockoutCueCount === 0 ? (
-                            <span className="text-[0.62rem] text-foreground/60">Quiet</span>
-                          ) : null}
+                        <span className="absolute inset-x-2.5 bottom-2 flex flex-nowrap items-center justify-center gap-1 whitespace-nowrap">
+                          <RegimeCueBadges
+                            priceCueCount={interval.priceCueCount}
+                            stockoutCueCount={interval.stockoutCueCount}
+                            showLabels={showsRegimeCueLabels}
+                          />
                         </span>
                       </button>
                     ))}
@@ -728,47 +1329,51 @@ function SystemLedger({
                 </div>
               </div>
             </div>
-          </div>
+          </div> : null}
 
-          <div className="grid h-full min-h-0 gap-3" style={laneGridStyle}>
+          {visibleLaneOrder.includes('inventory') ? <div className="grid h-full min-h-0 gap-3" data-lane="inventory" style={laneGridStyle}>
             <LaneLabel
               subtitle="Inventory trajectory stays continuous while service demand, retail demand, receipts, and adjustments remain interval-native."
               title="Inventory + demand lane"
               tooltip="The demand decomposition that turns sparse observations into a reconstructed stock story."
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
-              <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-2 w-6 rounded-[0.2rem] bg-foreground/12" />
-                  Inventory band
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-px w-7 bg-foreground" />
-                  Inventory mean
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-slate-500/70" />
-                  Service demand
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-slate-800/80" />
-                  Retail demand
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-emerald-600/80" />
-                  Receipts
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-amber-600/85" />
-                  Adjustments
-                </span>
+              <div className="flex items-start justify-between gap-3 px-1">
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2 w-6 rounded-[0.2rem] bg-foreground/12" />
+                    Inventory band
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-px w-7 bg-foreground" />
+                    Inventory mean
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-slate-500/70" />
+                    Service demand
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-slate-800/80" />
+                    Retail demand
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-emerald-600/80" />
+                    Receipts
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-amber-600/85" />
+                    Adjustments
+                  </span>
+                </div>
+                <LaneExpandButton expanded={isLaneExpanded('inventory')} title="Inventory + demand lane" onClick={() => toggleLaneExpanded('inventory')} />
               </div>
               <div
                 ref={inventoryScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20 px-0"
                 onScroll={handleSharedScroll}
+                onWheel={handleLaneWheel}
               >
-                <div className="relative flex h-full min-h-[168px] items-center" style={{ width: contentWidth }}>
+                <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: inventoryLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -778,16 +1383,23 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <div className="relative w-full" style={{ height: INVENTORY_CHART_CONTENT_HEIGHT }}>
+                  <div className="relative w-full self-stretch" data-analysis-chart="inventory" style={{ height: inventoryChartContentHeight }}>
                     <svg
                       aria-hidden="true"
                       className="absolute left-0 top-0 w-full"
                       preserveAspectRatio="none"
-                      style={{ height: 72, top: CHART_GUTTER_HEIGHT }}
+                      style={{ height: inventoryPlotHeight, top: CHART_GUTTER_HEIGHT }}
                       viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                     >
                       {inventoryBandPath ? <path d={inventoryBandPath} fill="currentColor" className="text-foreground/10" /> : null}
-                      <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth="1.8" className="text-foreground" />
+                      <polyline
+                        fill="none"
+                        points={inventoryPolyline}
+                        stroke="currentColor"
+                        strokeWidth={inventoryGeometry.strokeWidth}
+                        className="text-foreground"
+                        data-analysis-line="inventory"
+                      />
                     </svg>
                     {inventoryCoordinates.map((point, index) => {
                       const entry = inventoryPoints[index];
@@ -795,6 +1407,9 @@ function SystemLedger({
                         return null;
                       }
                       const isSelected = selectedIntervalIndex === entry.intervalIndex;
+                      if (!showsLinePointMarkers && !isSelected) {
+                        return null;
+                      }
                       return (
                         <button
                           key={`inventory-point:${entry.intervalIndex}`}
@@ -804,7 +1419,7 @@ function SystemLedger({
                             left: point.x,
                             top: deriveLabelGutterOffset({
                               plotY: point.y,
-                              plotHeight: 72,
+                              plotHeight: inventoryPlotHeight,
                               gutterHeight: CHART_GUTTER_HEIGHT,
                               viewBoxHeight: CHART_VIEWBOX_HEIGHT,
                             }),
@@ -818,13 +1433,17 @@ function SystemLedger({
                               {Math.round(entry.inventoryMean)}u
                             </span>
                           ) : null}
-                          <span className={cn('block size-3 rounded-full border-2', isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background')} />
+                          <span
+                            className={cn('block rounded-full border-2', isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background')}
+                            style={{ width: inventoryGeometry.markerSize, height: inventoryGeometry.markerSize }}
+                          />
                         </button>
                       );
                     })}
                     <div
-                      className="absolute left-0 top-[96px] grid"
+                      className="absolute left-0 grid"
                       style={{
+                        top: inventoryFlowTop,
                         paddingLeft: AXIS_START_PADDING,
                         paddingRight: AXIS_END_PADDING,
                         gridTemplateColumns: `repeat(${Math.max(itemCount, 1)}, ${slotWidth}px)`,
@@ -835,8 +1454,8 @@ function SystemLedger({
                           point,
                           model.workbench.inventoryDemandLane.maxFlowMagnitude,
                           {
-                            demandMaxHeight: 24,
-                            supplyMaxHeight: 24,
+                            demandMaxHeight: inventoryFlowMaxBarHeight,
+                            supplyMaxHeight: inventoryFlowMaxBarHeight,
                             minHeight: 2,
                           },
                         );
@@ -845,31 +1464,53 @@ function SystemLedger({
                           <button
                             key={`flow:${point.intervalIndex}`}
                             aria-label={`Service demand ${Math.round(point.serviceDemandMean)}, retail demand ${Math.round(point.retailDemandMean)}, receipts ${Math.round(point.receiptsMean)}, adjustments ${Math.round(point.adjustmentsMean)}`}
-                            className="relative h-[60px]"
+                            className="relative"
+                            style={{ height: inventoryFlowCellHeight }}
+                            data-analysis-flow-cell="inventory"
                             data-analysis-datalabel="true"
                             type="button"
                             onClick={() => onIntervalChartLabelClick(point.intervalIndex, 'what-happened')}
                           >
-                            <span className="absolute inset-x-1 top-1/2 h-px -translate-y-1/2 bg-border/80" />
+                            <span
+                              className="absolute top-1/2 h-px -translate-y-1/2 bg-border/80"
+                              style={{
+                                left: inventoryFlowBarLayout.inset,
+                                right: inventoryFlowBarLayout.inset,
+                              }}
+                            />
                             {flowStackHeights.supply.receiptsHeight > 0 ? (
-                              <span className="absolute bottom-1/2 left-1/2 w-[32%] -translate-x-1/2 rounded-none bg-emerald-600/80" style={{ height: flowStackHeights.supply.receiptsHeight }} />
+                              <span
+                                className="absolute bottom-1/2 left-1/2 -translate-x-1/2 rounded-none bg-emerald-600/80"
+                                style={{
+                                  width: inventoryFlowBarLayout.width,
+                                  height: flowStackHeights.supply.receiptsHeight,
+                                }}
+                              />
                             ) : null}
                             {flowStackHeights.supply.adjustmentHeight > 0 ? (
                               <span
-                                className="absolute left-1/2 w-[32%] -translate-x-1/2 rounded-none bg-amber-600/85"
+                                className="absolute left-1/2 -translate-x-1/2 rounded-none bg-amber-600/85"
                                 style={{
+                                  width: inventoryFlowBarLayout.width,
                                   bottom: `calc(50% + ${flowStackHeights.supply.adjustmentOffset}px)`,
                                   height: flowStackHeights.supply.adjustmentHeight,
                                 }}
                               />
                             ) : null}
                             {flowStackHeights.demand.serviceHeight > 0 ? (
-                              <span className="absolute left-1/2 top-1/2 w-[32%] -translate-x-1/2 rounded-none bg-slate-500/70" style={{ height: flowStackHeights.demand.serviceHeight }} />
+                              <span
+                                className="absolute left-1/2 top-1/2 -translate-x-1/2 rounded-none bg-slate-500/70"
+                                style={{
+                                  width: inventoryFlowBarLayout.width,
+                                  height: flowStackHeights.demand.serviceHeight,
+                                }}
+                              />
                             ) : null}
                             {flowStackHeights.demand.retailHeight > 0 ? (
                               <span
-                                className="absolute left-1/2 w-[32%] -translate-x-1/2 rounded-none bg-slate-800/80"
+                                className="absolute left-1/2 -translate-x-1/2 rounded-none bg-slate-800/80"
                                 style={{
+                                  width: inventoryFlowBarLayout.width,
                                   top: `calc(50% + ${flowStackHeights.demand.retailOffset}px)`,
                                   height: flowStackHeights.demand.retailHeight,
                                 }}
@@ -883,39 +1524,43 @@ function SystemLedger({
                 </div>
               </div>
             </div>
-          </div>
+          </div> : null}
 
-          <div className="grid h-full min-h-0 gap-3" style={laneGridStyle}>
+          {visibleLaneOrder.includes('pipeline') ? <div className="grid h-full min-h-0 gap-3" data-lane="pipeline" style={laneGridStyle}>
             <LaneLabel
               subtitle="Aggregate transit windows approximate the pipeline story now, with order and receipt activity pulled out as explicit markers."
               title="Pipeline lane"
               tooltip="Pipeline posterior across in-transit stock, order placement, receipt expectation, and transit age."
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
-              <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-3 w-8 rounded-full border border-emerald-700/25 bg-emerald-600/20" />
-                  In-transit window
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-3 w-8 rounded-full border border-rose-300/70 bg-rose-100/75" />
-                  Overdue window
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block size-2 rotate-45 rounded-[0.2rem] bg-sky-600/85" />
-                  Order cue
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block size-2 rounded-full bg-emerald-600/85" />
-                  Receipt cue
-                </span>
+              <div className="flex items-start justify-between gap-3 px-1">
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-3 w-8 rounded-full border border-emerald-700/25 bg-emerald-600/20" />
+                    In-transit window
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-3 w-8 rounded-full border border-rose-300/70 bg-rose-100/75" />
+                    Overdue window
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block size-2 rotate-45 rounded-[0.2rem] bg-sky-600/85" />
+                    Order cue
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block size-2 rounded-full bg-emerald-600/85" />
+                    Receipt cue
+                  </span>
+                </div>
+                <LaneExpandButton expanded={isLaneExpanded('pipeline')} title="Pipeline lane" onClick={() => toggleLaneExpanded('pipeline')} />
               </div>
               <div
                 ref={pipelineScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleSharedScroll}
+                onWheel={handleLaneWheel}
               >
-                <div className="relative flex h-full items-center" style={{ width: contentWidth, minHeight: pipelineLaneMinHeight }}>
+                <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: pipelineLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -925,7 +1570,7 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <div className="relative w-full" style={{ height: pipelineChartContentHeight }}>
+                  <div className="relative w-full self-stretch" data-analysis-chart="pipeline" style={{ height: pipelineChartContentHeight }}>
                     {selectedPipelineLabelX != null && selectedPipelineLabels.length > 0 ? (
                       <div
                         className="pointer-events-none absolute z-[3] flex -translate-x-1/2 flex-col items-center gap-1"
@@ -942,22 +1587,29 @@ function SystemLedger({
                       </div>
                     ) : null}
                     {model.workbench.pipelineLane.spans.map((span) => {
-                      const left = AXIS_START_PADDING + span.startPosition * slotWidth + slotWidth * PIPELINE_PILL_START_OFFSET;
-                      const right = AXIS_START_PADDING + span.endPosition * slotWidth + slotWidth * PIPELINE_PILL_END_OFFSET;
-                      const width = Math.max(slotWidth * 0.32, right - left);
-                      const top = 18 + span.row * pipelineRowHeight;
+                      const rangeStart = AXIS_START_PADDING + span.startPosition * slotWidth;
+                      const rangeEnd = AXIS_START_PADDING + span.endPosition * slotWidth + slotWidth;
+                      const spanBounds = deriveTouchingRangeBounds({
+                        start: rangeStart,
+                        end: rangeEnd,
+                        leadingGap: slotWidth * PIPELINE_PILL_START_OFFSET,
+                        trailingGap: slotWidth * (1 - PIPELINE_PILL_END_OFFSET),
+                        minWidth: slotWidth * 0.32,
+                      });
+                      const top = pipelineTopPadding + span.row * pipelineRowHeight;
 
                       return (
                         <button
                           key={span.key}
                           aria-label={`${Math.round(span.inTransitMean)} in transit, ${Math.round(span.orderQuantityMean)} ordered, ${Math.round(span.receiptQuantityMean)} expected receipt`}
                           className={cn(
-                            'absolute flex h-5 items-center rounded-full border px-2 text-[0.62rem] font-medium transition-colors',
+                            'absolute flex items-center rounded-full border px-2 text-[0.62rem] font-medium transition-colors',
                             span.overdue
                               ? 'border-rose-300/70 bg-rose-100/75 text-rose-900'
                               : 'border-emerald-700/20 bg-emerald-600/20 text-emerald-900',
                           )}
-                          style={{ left, top, width }}
+                          style={{ left: spanBounds.left, top, width: spanBounds.width, height: pipelinePillHeight }}
+                          data-analysis-pipeline-pill="true"
                           data-analysis-datalabel="true"
                           type="button"
                           onClick={() => onIntervalChartLabelClick(span.intervalIndex, 'orders-transit-lead-time')}
@@ -968,7 +1620,7 @@ function SystemLedger({
                     })}
                     {model.workbench.pipelineLane.markers.map((marker) => {
                       const x = deriveSlotCenterX({ index: marker.intervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
-                      const top = 18 + marker.row * pipelineRowHeight + (marker.kind === 'receipt' ? 2 : -7);
+                      const top = pipelineTopPadding + marker.row * pipelineRowHeight + (marker.kind === 'receipt' ? 2 : -pipelineMarkerHalf - 1);
                       return (
                         <button
                           key={marker.key}
@@ -981,9 +1633,10 @@ function SystemLedger({
                         >
                           <span
                             className={cn(
-                              'block size-3 border border-white shadow-sm',
+                              'block border border-white shadow-sm',
                               marker.kind === 'order' ? 'rotate-45 rounded-[0.25rem] bg-sky-600/85' : 'rounded-full bg-emerald-600/85',
                             )}
+                            style={{ width: pipelineMarkerSize, height: pipelineMarkerSize }}
                           />
                         </button>
                       );
@@ -992,31 +1645,35 @@ function SystemLedger({
                 </div>
               </div>
             </div>
-          </div>
+          </div> : null}
 
-          <div className="grid h-full min-h-0 gap-3" style={laneGridStyle}>
+          {visibleLaneOrder.includes('lead-time') ? <div className="grid h-full min-h-0 gap-3" data-lane="lead-time" style={laneGridStyle}>
             <LaneLabel
               subtitle="Lead-time drift reads as a trajectory with spread, while variability class stays available on selection instead of printed everywhere."
               title="Lead-time lane"
               tooltip="The latent lead-time state SENA is carrying at each interval."
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
-              <div className="flex flex-wrap gap-3 px-1 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-2 w-6 rounded-[0.2rem] bg-sky-600/14" />
-                  Spread band
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-px w-7 bg-sky-700/80" />
-                  Mean lead time
-                </span>
+              <div className="flex items-start justify-between gap-3 px-1">
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2 w-6 rounded-[0.2rem] bg-sky-600/14" />
+                    Spread band
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-px w-7 bg-sky-700/80" />
+                    Mean lead time
+                  </span>
+                </div>
+                <LaneExpandButton expanded={isLaneExpanded('lead-time')} title="Lead-time lane" onClick={() => toggleLaneExpanded('lead-time')} />
               </div>
               <div
                 ref={leadTimeScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleSharedScroll}
+                onWheel={handleLaneWheel}
               >
-                <div className="relative flex h-full min-h-[132px] items-center" style={{ width: contentWidth }}>
+                <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: leadTimeLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -1026,16 +1683,23 @@ function SystemLedger({
                     slotWidth={slotWidth}
                     className="inset-y-2"
                   />
-                  <div className="relative w-full" style={{ height: LEAD_TIME_CHART_CONTENT_HEIGHT }}>
+                  <div className="relative w-full self-stretch" data-analysis-chart="lead-time" style={{ height: leadTimeChartContentHeight }}>
                     <svg
                       aria-hidden="true"
                       className="absolute left-0 top-0 w-full"
                       preserveAspectRatio="none"
-                      style={{ height: 72, top: CHART_GUTTER_HEIGHT }}
+                      style={{ height: leadTimePlotHeight, top: CHART_GUTTER_HEIGHT }}
                       viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                     >
                       {leadTimeBandPath ? <path d={leadTimeBandPath} fill="currentColor" className="text-sky-600/14" /> : null}
-                      <polyline fill="none" points={leadTimePolyline} stroke="currentColor" strokeWidth="1.8" className="text-sky-700/80" />
+                      <polyline
+                        fill="none"
+                        points={leadTimePolyline}
+                        stroke="currentColor"
+                        strokeWidth={leadTimeGeometry.strokeWidth}
+                        className="text-sky-700/80"
+                        data-analysis-line="lead-time"
+                      />
                     </svg>
                     {leadTimeCoordinates.map((point, index) => {
                       const entry = leadTimePoints[index];
@@ -1044,6 +1708,9 @@ function SystemLedger({
                       }
                       const isSelected = selectedIntervalIndex === entry.intervalIndex;
                       const spreadDays = Math.max(0, (entry.highDays - entry.lowDays) / 2);
+                      if (!showsLinePointMarkers && !isSelected) {
+                        return null;
+                      }
                       return (
                         <button
                           key={`lead-time:${entry.intervalIndex}`}
@@ -1053,7 +1720,7 @@ function SystemLedger({
                             left: point.x,
                             top: deriveLabelGutterOffset({
                               plotY: point.y,
-                              plotHeight: 72,
+                              plotHeight: leadTimePlotHeight,
                               gutterHeight: CHART_GUTTER_HEIGHT,
                               viewBoxHeight: CHART_VIEWBOX_HEIGHT,
                             }),
@@ -1067,7 +1734,10 @@ function SystemLedger({
                               {`${entry.meanDays.toFixed(1)} ± ${spreadDays.toFixed(1)} Days`}
                             </span>
                           ) : null}
-                          <span className={cn('block size-3 rounded-full border-2', isSelected ? 'border-sky-700 bg-sky-700' : 'border-sky-700/55 bg-background')} />
+                          <span
+                            className={cn('block rounded-full border-2', isSelected ? 'border-sky-700 bg-sky-700' : 'border-sky-700/55 bg-background')}
+                            style={{ width: leadTimeGeometry.markerSize, height: leadTimeGeometry.markerSize }}
+                          />
                         </button>
                       );
                     })}
@@ -1075,10 +1745,11 @@ function SystemLedger({
                 </div>
               </div>
             </div>
-          </div>
+          </div> : null}
         </div>
-      </div>
-    </PerformanceSectionShell>
+        </div>
+      </PerformanceSectionShell>
+    </>
   );
 }
 
@@ -1315,6 +1986,12 @@ function SupplyFragilityMap({
   const measuredCellContentRefs = useRef(new Map<string, HTMLDivElement>());
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [sharedCellWidth, setSharedCellWidth] = useState(240);
+  const { anchorRef: serviceHeaderAnchorRef, visible: floatingServiceHeaderVisible } = useFloatingTitleActions(model.fragilityRows.length > 0);
+  const [floatingServiceHeaderFrame, setFloatingServiceHeaderFrame] = useState({
+    left: 0,
+    scrollLeft: 0,
+    width: 0,
+  });
 
   const setMeasuredCellRef = (key: string) => (node: HTMLDivElement | null) => {
     if (node) {
@@ -1385,14 +2062,89 @@ function SupplyFragilityMap({
     };
   }, [model.fragilityRows.length, transposedRows]);
 
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const viewportPadding = 24;
+    const columnGap = 8;
+    const islandPadding = 8;
+    const updateFrame = () => {
+      const rect = viewport.getBoundingClientRect();
+      const headerLeft = rect.left + viewportPadding + sharedCellWidth + columnGap - viewport.scrollLeft;
+      const headerWidth = model.fragilityRows.length > 0
+        ? model.fragilityRows.length * sharedCellWidth + Math.max(0, model.fragilityRows.length - 1) * columnGap
+        : 0;
+      const nextFrame = {
+        left: headerLeft - islandPadding,
+        scrollLeft: viewport.scrollLeft,
+        width: headerWidth + islandPadding * 2,
+      };
+
+      setFloatingServiceHeaderFrame((current) =>
+        current.left === nextFrame.left &&
+        current.scrollLeft === nextFrame.scrollLeft &&
+        current.width === nextFrame.width
+          ? current
+          : nextFrame,
+      );
+    };
+
+    updateFrame();
+    viewport.addEventListener('scroll', updateFrame, { passive: true });
+    window.addEventListener('scroll', updateFrame, { passive: true });
+    window.addEventListener('resize', updateFrame);
+
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateFrame) : null;
+    observer?.observe(viewport);
+
+    return () => {
+      viewport.removeEventListener('scroll', updateFrame);
+      window.removeEventListener('scroll', updateFrame);
+      window.removeEventListener('resize', updateFrame);
+      observer?.disconnect();
+    };
+  }, [model.fragilityRows.length, sharedCellWidth]);
+
   return (
     <PerformanceSectionShell
       title="Supply fragility map"
       tooltip="Linked SKUs against services, with contributor pressure and inbound relief in each cell."
-      description="The system-level sibling of the service contributor stack, transposed to show each SKU across the services it supports."
+      description="The percentage shows how strongly a service depends on that SKU. The Low through Critical label is a separate fragility rating that blends dependency strength with bottleneck risk, so a high percentage can still be Medium if the SKU is unlikely to be the limiter, while a lower percentage can be Critical when it is likely to be the bottleneck."
       className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       contentClassName="px-0 py-0"
     >
+      {floatingServiceHeaderVisible ? (
+        <div
+          className="pointer-events-none fixed top-4 z-40"
+          style={{ left: floatingServiceHeaderFrame.left, width: floatingServiceHeaderFrame.width }}
+          data-slot="floating-title-actions"
+        >
+          <div className="editorial-panel rounded-[1.5rem] border-white/70 bg-background/92 p-2 shadow-[var(--shadow-float)] backdrop-blur-[10px]">
+            <div
+              className="grid min-w-max gap-2"
+              style={{
+                gridTemplateColumns: `repeat(${model.fragilityRows.length}, ${sharedCellWidth}px)`,
+              }}
+            >
+              {model.fragilityRows.map((service, serviceIndex) => (
+                <button
+                  key={`floating:${service.entityId}`}
+                  className="pointer-events-auto flex items-center gap-2 rounded-[1.15rem] border border-border/70 bg-white px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-muted/30"
+                  style={{ gridColumnStart: serviceIndex + 1, gridRowStart: 1 }}
+                  type="button"
+                  onClick={() => setSelection({ type: 'entity', entityId: service.entityId, entityType: service.entityType })}
+                >
+                  <Store className="size-4 shrink-0" />
+                  <span>{service.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div ref={viewportRef} className="overflow-x-auto px-6 py-5">
         <div
           className="grid min-w-max gap-2"
@@ -1402,7 +2154,8 @@ function SupplyFragilityMap({
           {model.fragilityRows.map((service, serviceIndex) => (
             <button
               key={service.entityId}
-              className="flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              ref={serviceIndex === 0 ? serviceHeaderAnchorRef : undefined}
+              className="flex items-center gap-2 rounded-[1.15rem] border border-transparent bg-transparent px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               style={{ gridColumnStart: serviceIndex + 2, gridRowStart: 1 }}
               type="button"
               onClick={() => setSelection({ type: 'entity', entityId: service.entityId, entityType: service.entityType })}
@@ -1439,9 +2192,10 @@ function SupplyFragilityMap({
                   style={{ gridColumnStart: serviceColumnStart, gridRowStart: rowIndex + 2 }}
                 >
                   <div ref={setMeasuredCellContentRef(`${row.skuId}:${serviceId}`)} className="w-max max-w-none">
-                    <p className="text-sm font-medium text-foreground">{cell?.usageLabel ?? '—'}</p>
-                    <p className="mt-1 text-xs capitalize text-muted-foreground">{cell?.pressureLabel ?? '—'}</p>
-                    <p className="mt-2 text-xs text-muted-foreground">{cell?.reliefLabel ?? '—'}</p>
+                    <p className="text-sm font-semibold capitalize text-foreground">{cell?.pressureLabel ?? '—'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Usage: {cell?.usageLabel ?? '—'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Bottleneck: {cell?.bottleneckLabel ?? '—'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{cell?.reliefLabel ?? '—'}</p>
                     <p className="mt-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground lg:hidden">{serviceName}</p>
                   </div>
                 </div>
@@ -1592,7 +2346,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
 function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
   return (
     <>
-      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Current system state" tooltip="The default inspector summary when no interval or entity is selected.">
+      <AnalysisRailSection icon={<Radar className="size-4" />} title="Current system state" tooltip="The default inspector summary when no interval or entity is selected.">
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.inspectorOverview.dominantRegime}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
           <p>Change-point probability {model.inspectorOverview.changePointProbability}</p>
@@ -1600,7 +2354,7 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
         </div>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<Radio className="size-4" />} title="Strongest channels" tooltip="Which observation channels are most responsible for the current system inference.">
+      <AnalysisRailSection icon={<ChartNoAxesColumnIncreasing className="size-4" />} title="Strongest channels" tooltip="Which observation channels are most responsible for the current system inference.">
         <AnalysisRailList>
           {model.inspectorOverview.strongestChannels.map((entry, index) => (
             <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -1608,7 +2362,7 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
         </AnalysisRailList>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<ListTree className="size-4" />} title="Affected entities" tooltip="The current system actors carrying the most structural pressure.">
+      <AnalysisRailSection icon={<Boxes className="size-4" />} title="Affected entities" tooltip="The current system actors carrying the most structural pressure.">
         <AnalysisRailList>
           {model.inspectorOverview.affectedEntities.map((entry, index) => (
             <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -1726,35 +2480,50 @@ function InspectorRail({
 }
 
 function WorkbenchSurface({
+  chartZoomResetToken = 0,
   hasOlderIntervals,
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
+  onOlderLoadProgressChange,
+  onResetCharts,
+  onTimeframeChange,
   selectedIntervalIndex,
   setSelection,
   onIntervalChartLabelClick,
   showRightRailCards,
+  timeframe,
 }: {
+  chartZoomResetToken?: number;
   hasOlderIntervals: boolean;
   isLoadingOlderIntervals: boolean;
-  loadOlderIntervals: () => Promise<number>;
+  loadOlderIntervals: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
+  onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
+  onResetCharts?: () => Promise<void> | void;
+  onTimeframeChange: (value: AnalysisTimeframe) => void;
   selectedIntervalIndex: number | null;
   setSelection: (value: AnalysisSelection) => void;
   onIntervalChartLabelClick: (intervalIndex: number, section: IntervalRailSectionKey) => void;
   showRightRailCards: boolean;
+  timeframe: AnalysisTimeframe;
 }) {
   return (
     <div className="grid gap-6">
       <SystemLedger
+        chartZoomResetToken={chartZoomResetToken}
         hasOlderIntervals={hasOlderIntervals}
         isLoadingOlderIntervals={isLoadingOlderIntervals}
         loadOlderIntervals={loadOlderIntervals}
         model={model}
+        onOlderLoadProgressChange={onOlderLoadProgressChange}
+        onResetCharts={onResetCharts}
+        onTimeframeChange={onTimeframeChange}
         selectedIntervalIndex={selectedIntervalIndex}
         setSelection={setSelection}
         onIntervalChartLabelClick={onIntervalChartLabelClick}
         showRightRailCards={showRightRailCards}
+        timeframe={timeframe}
       />
     </div>
   );
@@ -1861,26 +2630,39 @@ function SettingsSurface({
 }
 
 export function AnalysisWorkbench({
+  chartZoomResetToken = 0,
   hasOlderIntervals,
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
+  onOlderLoadProgressChange,
+  onResetCharts,
   section,
   setSection,
+  setTimeframe,
   showRightRailCards,
+  timeframe,
 }: {
+  chartZoomResetToken?: number;
   hasOlderIntervals: boolean;
   isLoadingOlderIntervals: boolean;
-  loadOlderIntervals: () => Promise<number>;
+  loadOlderIntervals: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
+  onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
+  onResetCharts?: () => Promise<void> | void;
   section: AnalysisSection;
   setSection: (value: AnalysisSection) => void;
+  setTimeframe: (value: AnalysisTimeframe) => void;
   showRightRailCards: boolean;
+  timeframe: AnalysisTimeframe;
 }) {
   const [selection, setSelection] = useState<AnalysisSelection>({ type: 'overview' });
+  const [pendingSection, setPendingSection] = useState<AnalysisSection | null>(null);
   const [flashedIntervalSection, setFlashedIntervalSection] = useState<IntervalRailSectionKey | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
-  const railEnabled = showRightRailCards && sectionSupportsRightRail(section);
+  const activeSection = pendingSection ?? section;
+  const isSectionPending = pendingSection != null && pendingSection !== section;
+  const railEnabled = showRightRailCards && sectionSupportsRightRail(activeSection);
   const handleSelection = (nextSelection: AnalysisSelection) => {
     setSelection((current) => (selectionsEqual(current, nextSelection) ? current : nextSelection));
   };
@@ -1906,6 +2688,12 @@ export function AnalysisWorkbench({
   const selectedIntervalIndex = selection.type === 'interval' ? selection.intervalIndex : null;
   const selectedEntityId = selection.type === 'entity' ? selection.entityId : null;
   const selectedObservationId = selection.type === 'observation' ? selection.observationId : null;
+
+  useEffect(() => {
+    if (pendingSection === section) {
+      setPendingSection(null);
+    }
+  }, [pendingSection, section]);
 
   useEffect(() => {
     setSelection((current) => {
@@ -1936,21 +2724,21 @@ export function AnalysisWorkbench({
     if (target.closest('[data-analysis-inspector="true"]')) {
       return;
     }
-    if (section === 'workbench' && selection.type === 'interval') {
+    if (activeSection === 'workbench' && selection.type === 'interval') {
       if (target.closest('[data-analysis-datalabel="true"]')) {
         return;
       }
       clearIntervalSelection();
       return;
     }
-    if (section === 'pressure' && selection.type === 'entity') {
+    if (activeSection === 'pressure' && selection.type === 'entity') {
       if (target.closest('[data-pressure-cell="true"]')) {
         return;
       }
       handleSelection({ type: 'overview' });
       return;
     }
-    if (section === 'observations' && selection.type === 'observation') {
+    if (activeSection === 'observations' && selection.type === 'observation') {
       if (target.closest('[data-observation-cell="true"]')) {
         return;
       }
@@ -1960,6 +2748,9 @@ export function AnalysisWorkbench({
   };
 
   const surface = useMemo(() => {
+    if (isSectionPending) {
+      return <AnalysisSurfaceWireframe section={activeSection} />;
+    }
     if (section === 'pressure') {
       return <PressureSurface model={model} selectedEntityId={selectedEntityId} setSelection={handleSelection} showRightRailCards={railEnabled} />;
     }
@@ -1974,31 +2765,43 @@ export function AnalysisWorkbench({
     }
     return (
             <WorkbenchSurface
+              chartZoomResetToken={chartZoomResetToken}
               hasOlderIntervals={hasOlderIntervals}
               isLoadingOlderIntervals={isLoadingOlderIntervals}
               loadOlderIntervals={loadOlderIntervals}
               model={model}
+              onOlderLoadProgressChange={onOlderLoadProgressChange}
+              onResetCharts={onResetCharts}
+              onTimeframeChange={setTimeframe}
               selectedIntervalIndex={selectedIntervalIndex}
               setSelection={handleSelection}
-        onIntervalChartLabelClick={handleIntervalChartLabelClick}
-        showRightRailCards={railEnabled}
-      />
+              onIntervalChartLabelClick={handleIntervalChartLabelClick}
+              showRightRailCards={railEnabled}
+              timeframe={timeframe}
+            />
     );
-  }, [handleIntervalChartLabelClick, handleSelection, model, railEnabled, section, selectedEntityId, selectedIntervalIndex]);
+  }, [activeSection, chartZoomResetToken, handleIntervalChartLabelClick, handleSelection, isSectionPending, model, onOlderLoadProgressChange, onResetCharts, railEnabled, section, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
 
   return (
     <div className="grid gap-6" onPointerDown={handleWorkbenchPointerDown}>
       <DiagnosticStrip model={model} />
       <ChromeTabs
         className="relative gap-0"
-        value={section}
+        value={activeSection}
         onValueChange={(nextValue) => {
           if (nextValue) {
-            setSection(nextValue as AnalysisSection);
+            const nextSection = nextValue as AnalysisSection;
+            if (nextSection === activeSection) {
+              return;
+            }
+            setPendingSection(nextSection);
+            startTransition(() => {
+              setSection(nextSection);
+            });
           }
         }}
       >
-        <InternalNav section={section} showRightRailCards={railEnabled} />
+        <InternalNav section={activeSection} showRightRailCards={railEnabled} />
 
         <section
           className={ANALYSIS_BOARD_CLASS_NAME}
@@ -2010,7 +2813,11 @@ export function AnalysisWorkbench({
             <div className={cn('min-w-0 border-b border-border/60 lg:border-b-0', railEnabled && 'lg:border-r lg:rounded-r-none')}>
               <div className="grid min-h-full min-w-0 gap-6 px-0 py-0">{surface}</div>
             </div>
-            {railEnabled ? <InspectorRail flashedSection={flashedIntervalSection} model={model} section={section} selection={selectedObservationId ? selection : selection} /> : null}
+            {railEnabled ? (
+              isSectionPending
+                ? <AnalysisRailWireframe />
+                : <InspectorRail flashedSection={flashedIntervalSection} model={model} section={activeSection} selection={selectedObservationId ? selection : selection} />
+            ) : null}
           </div>
         </section>
       </ChromeTabs>

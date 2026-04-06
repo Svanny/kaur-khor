@@ -325,7 +325,7 @@ export function PerformanceRoute() {
   const [timeRange, setTimeRange] = useState<PerformanceTimeRange>('30d');
   const [scope, setScope] = useState<PerformanceScope>('all');
   const [compareMode, setCompareMode] = useState(true);
-  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration();
+  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
 
   const model = useMemo(() => {

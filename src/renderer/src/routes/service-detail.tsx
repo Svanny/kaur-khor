@@ -5,6 +5,7 @@ import type { SenaServiceDetail, SenaServiceDetailPage } from '@shared/sena';
 import { usePagedIntervalHistory } from '@/components/system/interval-history';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
+import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -118,6 +119,7 @@ export function ServiceDetailRoute() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selection, setSelection] = useState<ServiceInspectorSelection>({ type: 'overview' });
+  const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
 
   const catalogService = catalog?.services.find((entry) => entry.serviceId === serviceId) ?? null;
   const linkedSkuIds = useMemo(
@@ -141,7 +143,7 @@ export function ServiceDetailRoute() {
 
   const fetchPageData = useCallback(async () => {
     const [nextDetail, nextSnapshot, nextReports] = await Promise.all([
-      loadSenaServiceDetail(serviceId).catch(() => null),
+      loadSenaServiceDetail(serviceId, { limit: INTERVAL_PAGE_SIZE }).catch(() => null),
       snapshot ? Promise.resolve(snapshot) : loadInventorySnapshot(),
       reports.length > 0 ? Promise.resolve(reports) : listStockReports().catch(() => []),
     ]);
@@ -199,9 +201,9 @@ export function ServiceDetailRoute() {
     initialPage: detailPage,
     mergeDetails: mergeServiceDetailPages,
     onPageChange: setDetailPage,
-    fetchOlderPage: async (beforeIntervalIndex) =>
+    fetchOlderPage: async (beforeIntervalIndex, limit = INTERVAL_PAGE_SIZE) =>
       normalizeServiceDetailPage(
-        (await loadSenaServiceDetail(serviceId, { beforeIntervalIndex, limit: INTERVAL_PAGE_SIZE }).catch(() => null)) ?? null,
+        (await loadSenaServiceDetail(serviceId, { beforeIntervalIndex, limit }).catch(() => null)) ?? null,
       ),
   });
 
@@ -280,6 +282,11 @@ export function ServiceDetailRoute() {
 
   return (
     <WorkspacePage>
+      <LoadingMoreIntervalsIsland
+        currentBatch={olderLoadProgress?.current ?? null}
+        totalBatches={olderLoadProgress?.total ?? null}
+        visible={isLoadingOlder || olderLoadProgress != null}
+      />
       <div className="grid gap-6">
         {error ? (
           <div className="rounded-[1.4rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -299,6 +306,7 @@ export function ServiceDetailRoute() {
               isLoadingOlderIntervals={isLoadingOlder}
               loadOlderIntervals={loadOlder}
               model={model}
+              onOlderLoadProgressChange={setOlderLoadProgress}
               selection={selection}
               setSelection={setSelection}
             />

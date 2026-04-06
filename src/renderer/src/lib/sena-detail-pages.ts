@@ -10,7 +10,7 @@ export function isServiceDetailPage(value: SenaServiceDetail | SenaServiceDetail
 
 export function normalizeSkuDetailPage(
   value: SenaSkuDetail | SenaSkuDetailPage | null,
-  pageLimit = 10,
+  pageLimit = 20,
 ): SenaSkuDetailPage | null {
   if (!value) {
     return null;
@@ -29,7 +29,7 @@ export function normalizeSkuDetailPage(
 
 export function normalizeServiceDetailPage(
   value: SenaServiceDetail | SenaServiceDetailPage | null,
-  pageLimit = 10,
+  pageLimit = 20,
 ): SenaServiceDetailPage | null {
   if (!value) {
     return null;

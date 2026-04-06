@@ -30,7 +30,7 @@ pub struct SenaServiceDetailPage {
 }
 
 fn bounded_page_limit(limit: usize) -> usize {
-    limit.clamp(1, 10)
+    limit.clamp(1, 20)
 }
 
 fn page_bounds(

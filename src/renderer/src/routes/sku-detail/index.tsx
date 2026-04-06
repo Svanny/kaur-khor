@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { usePagedIntervalHistory } from '@/components/system/interval-history';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
+import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { Button } from '@/components/ui/button';
@@ -146,6 +147,7 @@ export function SkuDetailRoute() {
   const [bootstrap, setBootstrap] = useState<BootstrapSkuDetailResult | null>(() => emptyBootstrap());
   const [selectedIntervalIndex, setSelectedIntervalIndex] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
 
   async function loadPage() {
     setIsRefreshing(true);
@@ -176,8 +178,8 @@ export function SkuDetailRoute() {
   } = usePagedIntervalHistory({
     initialPage: bootstrap?.detailPage ?? null,
     mergeDetails: mergeSkuDetailPages,
-    fetchOlderPage: async (beforeIntervalIndex) =>
-      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { beforeIntervalIndex, limit: INTERVAL_PAGE_SIZE })),
+    fetchOlderPage: async (beforeIntervalIndex, limit = INTERVAL_PAGE_SIZE) =>
+      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { beforeIntervalIndex, limit })),
   });
 
   const model = useMemo(() => {
@@ -229,6 +231,11 @@ export function SkuDetailRoute() {
 
   return (
     <WorkspacePage>
+      <LoadingMoreIntervalsIsland
+        currentBatch={olderLoadProgress?.current ?? null}
+        totalBatches={olderLoadProgress?.total ?? null}
+        visible={isLoadingOlder || olderLoadProgress != null}
+      />
       <div className="grid gap-6">
         {bootstrap.uiState === 'running' || isRefreshing ? (
           <div className="rounded-[1.4rem] border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground">
@@ -258,6 +265,7 @@ export function SkuDetailRoute() {
               isLoadingOlderIntervals={isLoadingOlder}
               loadOlderIntervals={loadOlder}
               model={model}
+              onOlderLoadProgressChange={setOlderLoadProgress}
               selectedIntervalIndex={selectedIntervalIndex}
               setSelectedIntervalIndex={setSelectedIntervalIndex}
             />

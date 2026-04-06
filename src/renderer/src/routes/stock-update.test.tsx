@@ -1,7 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
-import { pillHoverClassName } from '@/lib/interactive-surface';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StockUpdateRoute } from './stock-update';
 
 const inventoryHook = vi.fn();
@@ -12,6 +11,7 @@ vi.mock('../state/inventory', () => ({
 
 vi.mock('../state/preferences', () => ({
   usePreferences: () => ({
+    language: 'en',
     t: (key: string) => {
       if (key === 'searchPlaceholder') {
         return 'Search name, description, or id…';
@@ -27,21 +27,6 @@ vi.mock('../state/preferences', () => ({
       }
       if (key === 'filterService') {
         return 'Services';
-      }
-      if (key === 'catalogSenaSkuEvidencePrevious') {
-        return 'Previous evidence page';
-      }
-      if (key === 'catalogSenaSkuEvidenceNext') {
-        return 'Next evidence page';
-      }
-      if (key === 'catalogSenaSkuEvidenceFirst') {
-        return 'First';
-      }
-      if (key === 'catalogSenaSkuEvidenceLast') {
-        return 'Last';
-      }
-      if (key === 'catalogSenaSkuEvidencePageLabel') {
-        return 'Page {current} of {total}';
       }
       return key;
     },
@@ -77,10 +62,10 @@ const sampleCatalog = {
 
 const sampleObservations = [
   {
-    observationId: 'obs-sku',
+    observationId: 'obs-sku-newest',
     ownerSub: 'desktop-owner',
     input: {
-      observedAt: '2026-04-03T08:00:00.000Z',
+      observedAt: '2026-04-03T12:00:00.000Z',
       stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 12, costPerUnit: 4, productPrice: 9 }],
       serviceRankings: [],
       retailRankings: [],
@@ -94,10 +79,27 @@ const sampleObservations = [
     },
   },
   {
+    observationId: 'obs-sku-same-day',
+    ownerSub: 'desktop-owner',
+    input: {
+      observedAt: '2026-04-03T12:30:00.000Z',
+      stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+      serviceRankings: [],
+      retailRankings: [],
+      serviceStockouts: [],
+      retailStockouts: [],
+      orderSignals: [{ skuId: 'sku-1', orderPlaced: true, receiptArrived: false, approximateOrderQuantity: 20, approximateReceiptQuantity: null }],
+      servicePrices: [],
+      retailPrices: [],
+      leadTimeHints: [],
+      notes: 'Supplier order logged',
+    },
+  },
+  {
     observationId: 'obs-service',
     ownerSub: 'desktop-owner',
     input: {
-      observedAt: '2026-04-02T08:00:00.000Z',
+      observedAt: '2026-04-02T12:00:00.000Z',
       stockSnapshot: [],
       serviceRankings: ['Haircut'],
       retailRankings: [],
@@ -110,41 +112,177 @@ const sampleObservations = [
       notes: 'Haircut price updated',
     },
   },
+  {
+    observationId: 'obs-old',
+    ownerSub: 'desktop-owner',
+    input: {
+      observedAt: '2025-03-01T12:00:00.000Z',
+      stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 8, costPerUnit: 4, productPrice: 9 }],
+      serviceRankings: [],
+      retailRankings: [],
+      serviceStockouts: [],
+      retailStockouts: [],
+      orderSignals: [],
+      servicePrices: [],
+      retailPrices: [],
+      leadTimeHints: [],
+      notes: 'Older snapshot',
+    },
+  },
 ];
 
-describe('StockUpdateRoute', () => {
-  it('renders the reusable logs title card and actions', () => {
-    inventoryHook.mockReturnValue({
-      catalog: sampleCatalog,
-      isSaving: false,
-      latestRun: null,
-      observations: sampleObservations,
-      retrySenaRun: vi.fn(),
-      triggerSenaRun: vi.fn(),
-      workspaceSummary: null,
-    });
+function makeObservation(observationId: string, observedAt: string, notes: string) {
+  return {
+    observationId,
+    ownerSub: 'desktop-owner',
+    input: {
+      observedAt,
+      stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 12, costPerUnit: 4, productPrice: 9 }],
+      serviceRankings: [],
+      retailRankings: [],
+      serviceStockouts: [],
+      retailStockouts: [],
+      orderSignals: [],
+      servicePrices: [],
+      retailPrices: [],
+      leadTimeHints: [],
+      notes,
+    },
+  };
+}
 
-    render(
-      <MemoryRouter>
-        <StockUpdateRoute />
-      </MemoryRouter>,
-    );
+function renderRoute(overrides?: Record<string, unknown>) {
+  inventoryHook.mockReturnValue({
+    catalog: sampleCatalog,
+    isLoading: false,
+    isSaving: false,
+    latestRun: null,
+    observations: sampleObservations,
+    retrySenaRun: vi.fn(),
+    triggerSenaRun: vi.fn(),
+    workspaceSummary: null,
+    ...overrides,
+  });
+
+  return render(
+    <MemoryRouter>
+      <StockUpdateRoute />
+    </MemoryRouter>,
+  );
+}
+
+describe('StockUpdateRoute', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-06T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it('renders the reusable logs title card, actions, and heatmap summary', () => {
+    renderRoute();
 
     expect(screen.getByText('Logs')).toBeInTheDocument();
     expect(screen.getByText('Internal Evidence')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Services' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New observation' })).toHaveAttribute('href', '/operations/session');
-    expect(screen.getByRole('button', { name: 'Run analysis' })).toBeInTheDocument();
-    expect(screen.getByText('Captured observations (2)')).toBeInTheDocument();
-    expect(screen.queryByText('Page 1 of 1')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Run analysis' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Re-run analysis' })).not.toBeInTheDocument();
+    expect(screen.getByText('3 contributions in 2025-2026')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous contribution year' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next contribution year' })).toBeDisabled();
   });
 
-  it('updates the captured observations title and list for scope and search filters', () => {
+  it('selects the newest active day by default and shows that day detail list', () => {
+    renderRoute();
+
+    expect(screen.getByText('Supplier order logged')).toBeInTheDocument();
+    expect(screen.getByText('Razor refill checked')).toBeInTheDocument();
+    expect(screen.queryByText('Haircut price updated')).not.toBeInTheDocument();
+  });
+
+  it('aggregates multiple observations on one day and updates details when another day is selected', () => {
+    const { container } = renderRoute();
+
+    const intenseCell = container.querySelector<HTMLButtonElement>('button[data-count="2"]');
+    expect(intenseCell).not.toBeNull();
+    expect(intenseCell).toHaveAttribute('data-count', '2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apr 2, 2026, 1 observation' }));
+
+    expect(screen.getByText('Haircut price updated')).toBeInTheDocument();
+    expect(screen.queryByText('Supplier order logged')).not.toBeInTheDocument();
+  });
+
+  it('applies scope and search filters to both the heatmap and selected-day details', () => {
+    const { container } = renderRoute();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Services' }));
+    fireEvent.click(container.querySelector<HTMLButtonElement>('button[data-count="1"]')!);
+
+    expect(screen.getByText('Haircut price updated')).toBeInTheDocument();
+    expect(screen.queryByText('Supplier order logged')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Search name, description, or id…'), {
+      target: { value: 'No such observation' },
+    });
+
+    expect(screen.getByText('0 contributions in 2025-2026')).toBeInTheDocument();
+    expect(screen.queryByText('Haircut price updated')).not.toBeInTheDocument();
+  });
+
+  it('navigates to older year windows and disables forward navigation at the newest window', () => {
+    renderRoute();
+
+    const previousYearButton = screen.getByRole('button', { name: 'Previous contribution year' });
+    const nextYearButton = screen.getByRole('button', { name: 'Next contribution year' });
+
+    fireEvent.click(previousYearButton);
+
+    expect(nextYearButton).not.toBeDisabled();
+    expect(screen.getByText('Older snapshot')).toBeInTheDocument();
+    expect(screen.getByText('1 contributions in 2025')).toBeInTheDocument();
+    expect(screen.getByText('Jan 1, 2025 to Dec 31, 2025')).toBeInTheDocument();
+
+    fireEvent.click(nextYearButton);
+
+    expect(nextYearButton).toBeDisabled();
+    expect(screen.getByText('Supplier order logged')).toBeInTheDocument();
+    expect(screen.queryByText('Older snapshot')).not.toBeInTheDocument();
+    expect(screen.getByText('3 contributions in 2025-2026')).toBeInTheDocument();
+    expect(screen.getByText('Apr 4, 2025 to Apr 3, 2026')).toBeInTheDocument();
+  });
+
+  it('shows an empty selected-day state when no observations exist', () => {
+    renderRoute({ observations: [] });
+
+    expect(screen.getByText('0 contributions in 2025-2026')).toBeInTheDocument();
+    expect(screen.getByText('No observations match the current filters in this visible year. Adjust the search, scope, or year window.')).toBeInTheDocument();
+
+    const heatmap = screen.getByLabelText('Observation contribution heatmap');
+    const cells = within(heatmap).getAllByRole('button', { hidden: true });
+    expect(cells.length).toBeGreaterThan(300);
+  });
+
+  it('keeps the stale heatmap and detail panel visible while observations are still loading', () => {
+    const loadingState = {
+      catalog: sampleCatalog,
+      isLoading: true,
+      isSaving: false,
+      latestRun: null,
+      observations: [],
+      retrySenaRun: vi.fn(),
+      triggerSenaRun: vi.fn(),
+      workspaceSummary: null,
+    };
+
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      isLoading: false,
       isSaving: false,
       latestRun: null,
       observations: sampleObservations,
@@ -153,114 +291,63 @@ describe('StockUpdateRoute', () => {
       workspaceSummary: null,
     });
 
-    render(
+    const view = render(
       <MemoryRouter>
         <StockUpdateRoute />
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('radio', { name: 'SKUs' }));
-    expect(screen.getByText('Captured observations for SKUs (1)')).toBeInTheDocument();
-    expect(screen.getByText('Razor refill checked')).toBeInTheDocument();
-    expect(screen.queryByText('Haircut price updated')).not.toBeInTheDocument();
+    expect(screen.getByText('Supplier order logged')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Services' }));
-    expect(screen.getByText('Captured observations for Services (2)')).toBeInTheDocument();
+    inventoryHook.mockReturnValue(loadingState);
+    view.rerender(
+      <MemoryRouter>
+        <StockUpdateRoute />
+      </MemoryRouter>,
+    );
 
-    fireEvent.change(screen.getByPlaceholderText('Search name, description, or id…'), {
-      target: { value: 'Haircut' },
-    });
-    expect(screen.getByText('Captured observations for Services (2)')).toBeInTheDocument();
-    expect(screen.getByText('Haircut price updated')).toBeInTheDocument();
-    expect(screen.getByText('Razor refill checked')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByPlaceholderText('Search name, description, or id…'), {
-      target: { value: 'price updated' },
-    });
-    expect(screen.getByText('Captured observations for Services (1)')).toBeInTheDocument();
-    expect(screen.getByText('Haircut price updated')).toBeInTheDocument();
-    expect(screen.queryByText('Razor refill checked')).not.toBeInTheDocument();
+    expect(screen.getByText('Supplier order logged')).toBeInTheDocument();
+    expect(screen.queryByText('Loading observations…')).not.toBeInTheDocument();
   });
 
-  it('orders captured observations from newest to oldest', () => {
-    inventoryHook.mockReturnValue({
-      catalog: sampleCatalog,
-      isSaving: false,
-      latestRun: null,
-      observations: [
-        sampleObservations[1],
-        sampleObservations[0],
-      ],
-      retrySenaRun: vi.fn(),
-      triggerSenaRun: vi.fn(),
-      workspaceSummary: null,
-    });
+  it('uses exact 1 and 2 buckets, then higher percentile buckets, and collapses unused legend levels', () => {
+    const bucketObservations = [
+      makeObservation('obs-a1', '2026-04-01T08:00:00.000Z', 'one input day'),
+      makeObservation('obs-b1', '2026-04-02T08:00:00.000Z', 'two input day a'),
+      makeObservation('obs-b2', '2026-04-02T09:00:00.000Z', 'two input day b'),
+      makeObservation('obs-c1', '2026-04-03T08:00:00.000Z', 'three input day a'),
+      makeObservation('obs-c2', '2026-04-03T09:00:00.000Z', 'three input day b'),
+      makeObservation('obs-c3', '2026-04-03T10:00:00.000Z', 'three input day c'),
+      makeObservation('obs-d1', '2026-04-04T08:00:00.000Z', 'five input day a'),
+      makeObservation('obs-d2', '2026-04-04T09:00:00.000Z', 'five input day b'),
+      makeObservation('obs-d3', '2026-04-04T10:00:00.000Z', 'five input day c'),
+      makeObservation('obs-d4', '2026-04-04T11:00:00.000Z', 'five input day d'),
+      makeObservation('obs-d5', '2026-04-04T12:00:00.000Z', 'five input day e'),
+    ];
 
-    render(
-      <MemoryRouter>
-        <StockUpdateRoute />
-      </MemoryRouter>,
-    );
+    const { container } = renderRoute({ observations: bucketObservations });
 
-    const renderedTimestamps = screen
-      .getAllByText(/2026-04-0[23]T08:00:00.000Z/)
-      .map((element) => element.textContent);
+    expect(container.querySelector('button[data-count="1"]')).not.toBeNull();
+    expect(container.querySelector('button[data-count="2"]')).not.toBeNull();
+    expect(container.querySelector('button[data-count="3"]')).not.toBeNull();
+    expect(container.querySelector('button[data-count="5"]')).not.toBeNull();
 
-    expect(renderedTimestamps).toEqual([
-      '2026-04-03T08:00:00.000Z',
-      '2026-04-02T08:00:00.000Z',
-    ]);
+    const legend = screen.getByText('Less').parentElement;
+    expect(legend).not.toBeNull();
+    expect(legend?.querySelectorAll('span[aria-hidden="true"]').length).toBe(5);
   });
 
-  it('reuses the evidence timeline pager only when report count exceeds one page', () => {
-    const pagedObservations = Array.from({ length: 6 }, (_, index) => ({
-      observationId: `obs-${index}`,
-      ownerSub: 'desktop-owner',
-      input: {
-        observedAt: `2026-04-${String(6 - index).padStart(2, '0')}T08:00:00.000Z`,
-        stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 10 + index, costPerUnit: 4, productPrice: 9 }],
-        serviceRankings: [],
-        retailRankings: [],
-        serviceStockouts: [],
-        retailStockouts: [],
-        orderSignals: [],
-        servicePrices: [],
-        retailPrices: [],
-        leadTimeHints: [],
-        notes: `Observation ${6 - index}`,
-      },
-    }));
+  it('collapses duplicate higher bands for sparse histories with only one-input days', () => {
+    const sparseObservations = [
+      makeObservation('obs-s1', '2026-04-01T08:00:00.000Z', 'day one'),
+      makeObservation('obs-s2', '2026-04-02T08:00:00.000Z', 'day two'),
+      makeObservation('obs-s3', '2026-04-03T08:00:00.000Z', 'day three'),
+    ];
 
-    inventoryHook.mockReturnValue({
-      catalog: sampleCatalog,
-      isSaving: false,
-      latestRun: null,
-      observations: pagedObservations,
-      retrySenaRun: vi.fn(),
-      triggerSenaRun: vi.fn(),
-      workspaceSummary: null,
-    });
+    renderRoute({ observations: sparseObservations });
 
-    render(
-      <MemoryRouter>
-        <StockUpdateRoute />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
-    expect(screen.getByText('Observation 6')).toBeInTheDocument();
-    expect(screen.getByText('Observation 2')).toBeInTheDocument();
-    expect(screen.queryByText('Observation 1')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByLabelText('Next evidence page'));
-
-    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
-    expect(screen.getByText('Observation 1')).toBeInTheDocument();
-    expect(screen.getByText('First').className).toContain(pillHoverClassName);
-
-    fireEvent.click(screen.getByText('First'));
-
-    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
-    expect(screen.getByText('Observation 6')).toBeInTheDocument();
+    const legend = screen.getByText('Less').parentElement;
+    expect(legend).not.toBeNull();
+    expect(legend?.querySelectorAll('span[aria-hidden="true"]').length).toBe(5);
   });
 });

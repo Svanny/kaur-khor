@@ -1,6 +1,151 @@
 import { cn } from '@/lib/utils';
 import { deriveSlotCenterX, deriveSlotLeftX } from './interval-strip';
 
+export interface ProportionalChartGeometry {
+  expandedHeightRatio: number;
+  plotHeight: number;
+  auxHeight: number;
+  strokeWidth: number;
+  markerSize: number;
+  bandMinThickness: number;
+}
+
+export interface TouchingSlotGlyphLayout {
+  width: number;
+  inset: number;
+}
+
+export function deriveTouchingSlotGlyphLayout({
+  slotWidth,
+  preferredInset,
+}: {
+  slotWidth: number;
+  preferredInset: number;
+}): TouchingSlotGlyphLayout {
+  const normalizedSlotWidth = Math.max(0, slotWidth);
+  const normalizedInset = Math.max(0, preferredInset);
+  const gapWidth = normalizedInset * 2;
+  const glyphWidth = Math.max(0, normalizedSlotWidth - gapWidth);
+
+  if (glyphWidth < gapWidth) {
+    return {
+      width: normalizedSlotWidth,
+      inset: 0,
+    };
+  }
+
+  return {
+    width: glyphWidth,
+    inset: normalizedInset,
+  };
+}
+
+export function deriveTouchingRangeBounds({
+  start,
+  end,
+  leadingGap,
+  trailingGap,
+  minWidth = 0,
+}: {
+  start: number;
+  end: number;
+  leadingGap: number;
+  trailingGap: number;
+  minWidth?: number;
+}) {
+  const rangeStart = Math.min(start, end);
+  const rangeEnd = Math.max(start, end);
+  const preferredWidth = Math.max(minWidth, rangeEnd - rangeStart - leadingGap - trailingGap);
+  const preferredGap = Math.max(0, leadingGap) + Math.max(0, trailingGap);
+
+  if (preferredWidth < preferredGap) {
+    return {
+      left: rangeStart,
+      width: Math.max(minWidth, rangeEnd - rangeStart),
+    };
+  }
+
+  return {
+    left: rangeStart + Math.max(0, leadingGap),
+    width: preferredWidth,
+  };
+}
+
+export function deriveScaledVisualValue(
+  baseValue: number,
+  ratio: number,
+  options?: {
+    min?: number;
+    max?: number;
+    power?: number;
+  },
+) {
+  const power = options?.power ?? 1;
+  const scaled = baseValue * Math.max(1, ratio) ** power;
+  const min = options?.min ?? baseValue;
+  const max = options?.max ?? Number.POSITIVE_INFINITY;
+  return Math.min(max, Math.max(min, scaled));
+}
+
+export function deriveProportionalChartGeometry({
+  collapsedPlotHeight,
+  collapsedAuxHeight = 0,
+  availableHeight,
+  baseStrokeWidth = 1.8,
+  maxStrokeWidth = 2.8,
+  baseMarkerSize = 12,
+  maxMarkerSize = 14,
+  baseBandMinThickness = 2,
+  maxBandMinThickness = 6,
+}: {
+  collapsedPlotHeight: number;
+  collapsedAuxHeight?: number;
+  availableHeight: number;
+  baseStrokeWidth?: number;
+  maxStrokeWidth?: number;
+  baseMarkerSize?: number;
+  maxMarkerSize?: number;
+  baseBandMinThickness?: number;
+  maxBandMinThickness?: number;
+}): ProportionalChartGeometry {
+  const collapsedTotal = Math.max(1, collapsedPlotHeight + collapsedAuxHeight);
+  const targetHeight = Math.max(collapsedTotal, Math.round(availableHeight));
+  const expandedHeightRatio = targetHeight / collapsedTotal;
+
+  if (collapsedAuxHeight <= 0) {
+    return {
+      expandedHeightRatio,
+      plotHeight: targetHeight,
+      auxHeight: 0,
+      strokeWidth: deriveScaledVisualValue(baseStrokeWidth, expandedHeightRatio, { min: baseStrokeWidth, max: maxStrokeWidth, power: 0.5 }),
+      markerSize: deriveScaledVisualValue(baseMarkerSize, expandedHeightRatio, { min: baseMarkerSize, max: maxMarkerSize, power: 0.45 }),
+      bandMinThickness: deriveScaledVisualValue(baseBandMinThickness, expandedHeightRatio, {
+        min: baseBandMinThickness,
+        max: maxBandMinThickness,
+        power: 0.85,
+      }),
+    };
+  }
+
+  const plotShare = collapsedPlotHeight / collapsedTotal;
+  const auxShare = collapsedAuxHeight / collapsedTotal;
+  const plotHeight = Math.max(collapsedPlotHeight, Math.round(targetHeight * plotShare));
+  const auxHeight = Math.max(collapsedAuxHeight, targetHeight - plotHeight);
+
+  return {
+    expandedHeightRatio,
+    plotHeight,
+    auxHeight,
+    strokeWidth: deriveScaledVisualValue(baseStrokeWidth, expandedHeightRatio, { min: baseStrokeWidth, max: maxStrokeWidth, power: 0.5 }),
+    markerSize: deriveScaledVisualValue(baseMarkerSize, expandedHeightRatio, { min: baseMarkerSize, max: maxMarkerSize, power: 0.45 }),
+    bandMinThickness: deriveScaledVisualValue(baseBandMinThickness, expandedHeightRatio, {
+      min: baseBandMinThickness,
+      max: maxBandMinThickness,
+      power: 0.85,
+    }),
+  };
+}
+
 export function deriveLabelGutterOffset({
   plotY,
   plotHeight = 120,
@@ -132,6 +277,7 @@ export function buildTrajectoryBandPath(
     axisStartPadding?: number;
     topPadding?: number;
     bottomPadding?: number;
+    minVisibleThickness?: number;
   },
 ) {
   if (lows.length === 0 || highs.length === 0 || lows.length !== highs.length) {
@@ -144,8 +290,32 @@ export function buildTrajectoryBandPath(
     return '';
   }
 
-  const upperPath = highCoordinates.map((point) => `${point.x},${point.y}`).join(' L ');
-  const lowerPath = [...lowCoordinates].reverse().map((point) => `${point.x},${point.y}`).join(' L ');
+  const topPadding = options?.topPadding ?? 0;
+  const bottomPadding = options?.bottomPadding ?? 0;
+  const minVisibleThickness = options?.minVisibleThickness ?? 2;
+  const minY = topPadding;
+  const maxY = Math.max(topPadding, height - bottomPadding);
+
+  const visibleBandCoordinates = highCoordinates.map((highPoint, index) => {
+    const lowPoint = lowCoordinates[index];
+    if (!lowPoint) {
+      return { highPoint, lowPoint: highPoint };
+    }
+    const currentThickness = Math.abs(lowPoint.y - highPoint.y);
+    if (currentThickness >= minVisibleThickness) {
+      return { highPoint, lowPoint };
+    }
+    const midpoint = (highPoint.y + lowPoint.y) / 2;
+    const adjustedHighY = Math.max(minY, midpoint - minVisibleThickness / 2);
+    const adjustedLowY = Math.min(maxY, midpoint + minVisibleThickness / 2);
+    return {
+      highPoint: { ...highPoint, y: adjustedHighY },
+      lowPoint: { ...lowPoint, y: adjustedLowY },
+    };
+  });
+
+  const upperPath = visibleBandCoordinates.map(({ highPoint }) => `${highPoint.x},${highPoint.y}`).join(' L ');
+  const lowerPath = [...visibleBandCoordinates].reverse().map(({ lowPoint }) => `${lowPoint.x},${lowPoint.y}`).join(' L ');
   return `M ${upperPath} L ${lowerPath} Z`;
 }
 

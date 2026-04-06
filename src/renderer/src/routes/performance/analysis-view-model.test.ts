@@ -209,6 +209,162 @@ const skuDetailsById: Record<string, SenaSkuDetail | null> = {
 };
 
 describe('deriveAnalysisViewModel', () => {
+  test('preserves all hydrated intervals instead of truncating to the latest ten', () => {
+    const longDiagnostics: SenaDiagnostics = {
+      ...diagnostics,
+      regimeHistory: Array.from({ length: 12 }, (_, index) => ({
+        dominantRegime: index % 2 === 0 ? 'normal' : 'promo',
+        endAt: `2026-04-${String(index + 1).padStart(2, '0')}T08:00:00.000Z`,
+        intervalIndex: index,
+        regimeProbabilities: index % 2 === 0 ? { normal: 0.7, promo: 0.3 } : { normal: 0.25, promo: 0.75 },
+        startAt: `2026-03-${String(index + 1).padStart(2, '0')}T08:00:00.000Z`,
+      })),
+    };
+    const longSkuDetailsById: Record<string, SenaSkuDetail | null> = {
+      'sku-razor': {
+        ...skuDetailsById['sku-razor']!,
+        demandPosterior: Array.from({ length: 12 }, (_, index) => ({
+          adjustmentsMean: index % 2,
+          deltaDays: 7,
+          endAt: `2026-04-${String(index + 1).padStart(2, '0')}T08:00:00.000Z`,
+          intervalIndex: index,
+          realizedConsumptionMean: 3 + index / 10,
+          receiptsMean: index % 3 === 0 ? 2 : 0,
+          retailDemandMean: 1,
+          serviceDemandMean: 2,
+          startAt: `2026-03-${String(index + 1).padStart(2, '0')}T08:00:00.000Z`,
+          unconstrainedDemandMean: 3 + index / 10,
+        })),
+        inventoryPosterior: Array.from({ length: 12 }, (_, index) => ({
+          at: `2026-04-${String(index + 1).padStart(2, '0')}T08:00:00.000Z`,
+          high: 14 + index,
+          low: 10 + index,
+          mean: 12 + index,
+        })),
+        leadTimePosterior: Array.from({ length: 12 }, (_, index) => ({
+          intervalIndex: index,
+          logMeanDays: 1.5,
+          logStdDays: 0.2,
+          meanDays: 5 + index / 10,
+          observedRelativeWidth: 0.2,
+          observedVariabilityClass: 'tight',
+          stdDays: 1,
+        })),
+        pipelinePosterior: Array.from({ length: 12 }, (_, index) => ({
+          ageDaysMean: 3,
+          inTransitMean: 6 + index,
+          intervalIndex: index,
+          orderProbability: 0.74,
+          orderQuantityMean: 10,
+          receiptQuantityMean: index % 3 === 0 ? 8 : 0,
+        })),
+      },
+    };
+
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics: longDiagnostics,
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: longSkuDetailsById,
+      workspaceSummary: { ...workspaceSummary, intervalCount: 12 },
+    });
+
+    expect(model.intervals).toHaveLength(12);
+    expect(model.workbench.regimePriceLane.intervals).toHaveLength(12);
+    expect(model.workbench.inventoryDemandLane.points).toHaveLength(12);
+  });
+
+  test('bounds workbench intervals to the currently hydrated detail window even when diagnostics are longer', () => {
+    const longDiagnostics: SenaDiagnostics = {
+      ...diagnostics,
+      regimeHistory: Array.from({ length: 40 }, (_, index) => ({
+        dominantRegime: index % 2 === 0 ? 'normal' : 'promo',
+        endAt: `2026-04-${String((index % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+        intervalIndex: index,
+        regimeProbabilities: index % 2 === 0 ? { normal: 0.7, promo: 0.3 } : { normal: 0.25, promo: 0.75 },
+        startAt: `2026-03-${String((index % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+      })),
+    };
+    const pagedSkuDetailsById: Record<string, SenaSkuDetail | null> = {
+      'sku-razor': {
+        ...skuDetailsById['sku-razor']!,
+        demandPosterior: Array.from({ length: 20 }, (_, offset) => {
+          const intervalIndex = 20 + offset;
+          return {
+            adjustmentsMean: offset % 2,
+            deltaDays: 7,
+            endAt: `2026-04-${String((offset % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+            intervalIndex,
+            realizedConsumptionMean: 3 + offset / 10,
+            receiptsMean: offset % 3 === 0 ? 2 : 0,
+            retailDemandMean: 1,
+            serviceDemandMean: 2,
+            startAt: `2026-03-${String((offset % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+            unconstrainedDemandMean: 3 + offset / 10,
+          };
+        }),
+        inventoryPosterior: Array.from({ length: 20 }, (_, offset) => ({
+          at: `2026-04-${String((offset % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+          high: 34 + offset,
+          low: 30 + offset,
+          mean: 32 + offset,
+        })),
+        leadTimePosterior: Array.from({ length: 20 }, (_, offset) => ({
+          intervalIndex: 20 + offset,
+          logMeanDays: 1.5,
+          logStdDays: 0.2,
+          meanDays: 5 + offset / 10,
+          observedRelativeWidth: 0.2,
+          observedVariabilityClass: 'tight',
+          stdDays: 1,
+        })),
+        pipelinePosterior: Array.from({ length: 20 }, (_, offset) => ({
+          ageDaysMean: 3,
+          inTransitMean: 16 + offset,
+          intervalIndex: 20 + offset,
+          orderProbability: 0.74,
+          orderQuantityMean: 10,
+          receiptQuantityMean: offset % 3 === 0 ? 8 : 0,
+        })),
+      },
+    };
+    const pagedServiceDetailsById: Record<string, SenaServiceDetail | null> = {
+      'service-haircut': {
+        ...serviceDetailsById['service-haircut']!,
+        regimeTimeline: Array.from({ length: 20 }, (_, offset) => ({
+          dominantRegime: offset % 2 === 0 ? 'normal' : 'promo',
+          endAt: `2026-04-${String((offset % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+          intervalIndex: 20 + offset,
+          regimeProbabilities: offset % 2 === 0 ? { normal: 0.7, promo: 0.3 } : { normal: 0.25, promo: 0.75 },
+          startAt: `2026-03-${String((offset % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+        })),
+      },
+    };
+
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics: longDiagnostics,
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: pagedServiceDetailsById,
+      skuDetailsById: pagedSkuDetailsById,
+      workspaceSummary: { ...workspaceSummary, intervalCount: 40 },
+    });
+
+    expect(model.intervals).toHaveLength(20);
+    expect(model.intervals[0]?.intervalIndex).toBe(20);
+    expect(model.intervals.at(-1)?.intervalIndex).toBe(39);
+    expect(model.workbench.regimePriceLane.intervals).toHaveLength(20);
+    expect(model.workbench.inventoryDemandLane.points).toHaveLength(20);
+    expect(model.workbench.leadTimeLane.points).toHaveLength(20);
+  });
+
   test('derives lane-oriented workbench data from the interval aggregates', () => {
     const model = deriveAnalysisViewModel({
       catalog,

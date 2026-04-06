@@ -856,7 +856,7 @@ async fn get_sena_sku_detail(
         &principal.sub,
         &sku_id,
         window.before_interval_index,
-        window.limit.unwrap_or(10),
+        window.limit.unwrap_or(20),
     )
     .await
     {
@@ -892,7 +892,7 @@ async fn get_sena_service_detail(
         &principal.sub,
         &service_id,
         window.before_interval_index,
-        window.limit.unwrap_or(10),
+        window.limit.unwrap_or(20),
     )
     .await
     {

@@ -267,17 +267,17 @@ export function SkuDetailActions({
           <PackageCheck className="size-4" />
           {t('catalogSenaSkuLogReceipt')}
         </Button>
-        <Button
-          disabled={!actionContext.soldAsProduct}
-          size="sm"
-          title={actionContext.soldAsProduct ? undefined : t('catalogSenaSkuPriceDisabledHint')}
-          type="button"
-          variant="outline"
-          onClick={() => resetForm('price')}
-        >
-          <Tags className="size-4" />
-          {t('catalogSenaSkuUpdatePrice')}
-        </Button>
+        {actionContext.soldAsProduct ? (
+          <Button
+            size="sm"
+            type="button"
+            variant="outline"
+            onClick={() => resetForm('price')}
+          >
+            <Tags className="size-4" />
+            {t('catalogSenaSkuUpdatePrice')}
+          </Button>
+        ) : null}
         <Button asChild size="sm" type="button" variant="outline">
           <Link to={`/catalog/skus/${skuId}/edit`}>
             <SquarePen className="size-4" />

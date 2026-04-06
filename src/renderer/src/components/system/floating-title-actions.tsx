@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 export function useFloatingTitleActions(enabled: boolean) {
@@ -39,13 +39,64 @@ export function useFloatingTitleActions(enabled: boolean) {
   };
 }
 
-export function FloatingTitleActionsIsland({
+export function useObservedFloatingIslandWidth({
+  enabled,
+  selector,
+}: {
+  enabled: boolean;
+  selector: string;
+}) {
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      setWidth(0);
+      return;
+    }
+
+    let observedElement: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const updateWidth = () => {
+      const nextElement = document.querySelector<HTMLElement>(selector);
+      if (nextElement !== observedElement) {
+        resizeObserver?.disconnect();
+        observedElement = nextElement;
+        if (observedElement && typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(updateWidth);
+          resizeObserver.observe(observedElement);
+        } else {
+          resizeObserver = null;
+        }
+      }
+      setWidth(observedElement?.getBoundingClientRect().width ?? 0);
+    };
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    window.addEventListener('scroll', updateWidth, { passive: true });
+
+    return () => {
+      window.removeEventListener('resize', updateWidth);
+      window.removeEventListener('scroll', updateWidth);
+      resizeObserver?.disconnect();
+    };
+  }, [enabled, selector]);
+
+  return width;
+}
+
+export function FloatingActionsIsland({
   actions,
   className,
+  slot = 'floating-title-actions',
+  style,
   visible,
 }: {
   actions?: ReactNode;
   className?: string;
+  slot?: string;
+  style?: CSSProperties;
   visible: boolean;
 }) {
   if (!visible || !actions) {
@@ -58,7 +109,8 @@ export function FloatingTitleActionsIsland({
         'fixed right-4 bottom-4 z-40 max-w-[calc(100vw-2rem)] md:right-6 md:bottom-6',
         className,
       )}
-      data-slot="floating-title-actions"
+      data-slot={slot}
+      style={style}
     >
       <div className="editorial-panel rounded-[1.5rem] border-white/70 bg-background/92 p-2 shadow-[var(--shadow-float)] backdrop-blur-[10px]">
         <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
@@ -67,4 +119,12 @@ export function FloatingTitleActionsIsland({
       </div>
     </div>
   );
+}
+
+export function FloatingTitleActionsIsland(props: {
+  actions?: ReactNode;
+  className?: string;
+  visible: boolean;
+}) {
+  return <FloatingActionsIsland {...props} />;
 }

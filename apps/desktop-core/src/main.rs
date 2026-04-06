@@ -162,7 +162,7 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
                 owner,
                 &request.sku_id,
                 request.before_interval_index,
-                request.limit.unwrap_or(10),
+                request.limit.unwrap_or(20),
             )?)?))
         }
         "sena.getServiceDetail" => {
@@ -172,7 +172,7 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
                 owner,
                 &request.service_id,
                 request.before_interval_index,
-                request.limit.unwrap_or(10),
+                request.limit.unwrap_or(20),
             )?)?))
         }
         "sena.getDiagnostics" => Ok(Some(serde_json::to_value(store::get_diagnostics(owner)?)?)),

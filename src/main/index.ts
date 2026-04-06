@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, nativeImage, session, shell } from 'electron';
-import { mkdir } from 'node:fs/promises';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, session, shell } from 'electron';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createManagedCoreController } from './core-manager';
@@ -37,6 +37,8 @@ const desktopDataPath = app.isPackaged
 
 const SENA_STORE_FILENAME = 'desktop-sena-store.sqlite3';
 const PREFERENCES_STORE_FILENAME = 'desktop-preferences.json';
+const SENA_READ_CACHE_FILENAME = 'desktop-sena-read-cache.json';
+const SENA_READ_CACHE_SCHEMA_VERSION = 1;
 
 let mainWindow: BrowserWindow | null = null;
 let desktopContext: DesktopAppContext = {
@@ -53,8 +55,75 @@ const managedCore = createManagedCoreController({
 
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
+const DEFAULT_ACTUAL_SIZE_ZOOM_LEVEL = -1;
 const senaReadCache = new Map<string, unknown>();
 const senaInflightReads = new Map<string, Promise<unknown>>();
+let senaObservationFingerprint: string | null = null;
+
+function senaReadCachePath() {
+  return join(desktopDataPath, SENA_READ_CACHE_FILENAME);
+}
+
+function serializeSenaReadCache() {
+  return {
+    schemaVersion: SENA_READ_CACHE_SCHEMA_VERSION,
+    observationFingerprint: senaObservationFingerprint,
+    entries: Object.fromEntries(senaReadCache.entries()),
+  };
+}
+
+async function persistSenaReadCache() {
+  await mkdir(desktopDataPath, { recursive: true });
+  await writeFile(senaReadCachePath(), JSON.stringify(serializeSenaReadCache()), 'utf8');
+}
+
+async function loadPersistedSenaReadCache() {
+  try {
+    const raw = await readFile(senaReadCachePath(), 'utf8');
+    const parsed = JSON.parse(raw) as {
+      schemaVersion?: number;
+      observationFingerprint?: string | null;
+      entries?: Record<string, unknown>;
+    };
+    if (parsed.schemaVersion !== SENA_READ_CACHE_SCHEMA_VERSION || !parsed.entries) {
+      return;
+    }
+    senaReadCache.clear();
+    for (const [key, value] of Object.entries(parsed.entries)) {
+      senaReadCache.set(key, value);
+    }
+    senaObservationFingerprint = parsed.observationFingerprint ?? null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn('[desktop-data] failed to load persisted SENA cache', error);
+    }
+  }
+}
+
+function deriveObservationFingerprint(observations: SenaObservationRecord[]) {
+  const latest = observations.reduce<SenaObservationRecord | null>((current, candidate) => {
+    if (!current) {
+      return candidate;
+    }
+    const currentAt = current.input.observedAt ?? '';
+    const candidateAt = candidate.input.observedAt ?? '';
+    if (candidateAt > currentAt) {
+      return candidate;
+    }
+    if (candidateAt < currentAt) {
+      return current;
+    }
+    return candidate.observationId > current.observationId ? candidate : current;
+  }, null);
+  return `${observations.length}:${latest?.input.observedAt ?? 'none'}:${latest?.observationId ?? 'none'}`;
+}
+
+async function readCurrentObservationFingerprint() {
+  const observations = await managedCore.invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
+    timeoutMs: SENA_READ_TIMEOUT_MS,
+  });
+  return deriveObservationFingerprint(observations);
+}
 
 function buildRendererContentSecurityPolicy() {
   const directives = [
@@ -91,12 +160,27 @@ function installRendererContentSecurityPolicy() {
   });
 }
 
-function invalidateSenaReadCache() {
+async function invalidateSenaReadCache() {
   senaReadCache.clear();
   senaInflightReads.clear();
+  senaObservationFingerprint = null;
+  await persistSenaReadCache();
+}
+
+async function ensureFreshSenaReadCache() {
+  const currentFingerprint = await readCurrentObservationFingerprint();
+  if (senaObservationFingerprint === currentFingerprint) {
+    return;
+  }
+  senaReadCache.clear();
+  senaInflightReads.clear();
+  senaObservationFingerprint = currentFingerprint;
+  await persistSenaReadCache();
 }
 
 async function loadCachedSenaRead<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  await ensureFreshSenaReadCache();
+
   if (senaReadCache.has(key)) {
     return senaReadCache.get(key) as T;
   }
@@ -110,6 +194,7 @@ async function loadCachedSenaRead<T>(key: string, loader: () => Promise<T>): Pro
     .then((value) => {
       senaReadCache.set(key, value);
       senaInflightReads.delete(key);
+      void persistSenaReadCache();
       return value;
     })
     .catch((error) => {
@@ -121,10 +206,106 @@ async function loadCachedSenaRead<T>(key: string, loader: () => Promise<T>): Pro
   return (await request) as T;
 }
 
+function setFocusedWindowToActualSize() {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.setZoomLevel(DEFAULT_ACTUAL_SIZE_ZOOM_LEVEL);
+}
+
+function installApplicationMenu() {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(process.platform === 'darwin'
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: 'File',
+      submenu: process.platform === 'darwin' ? [{ role: 'close' }] : [{ role: 'quit' }],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(process.platform === 'darwin'
+          ? [
+              { role: 'pasteAndMatchStyle' },
+              { role: 'delete' },
+              { role: 'selectAll' },
+            ]
+          : [
+              { role: 'delete' },
+              { type: 'separator' },
+              { role: 'selectAll' },
+            ]),
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+        { type: 'separator' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        {
+          label: 'Actual Size',
+          accelerator: 'CmdOrCtrl+0',
+          click: () => {
+            setFocusedWindowToActualSize();
+          },
+        },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: process.platform === 'darwin'
+        ? [
+            { role: 'minimize' },
+            { role: 'zoom' },
+            { type: 'separator' },
+            { role: 'front' },
+            { type: 'separator' },
+            { role: 'window' },
+          ]
+        : [{ role: 'minimize' }, { role: 'close' }],
+    },
+    {
+      label: 'Help',
+      submenu: [],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 async function createMainWindow() {
+  const { x, y, width, height } = screen.getPrimaryDisplay().workArea;
   mainWindow = new BrowserWindow({
-    width: 1420,
-    height: 920,
+    x,
+    y,
+    width,
+    height,
     minWidth: 1180,
     minHeight: 760,
     backgroundColor: '#f2e8d8',
@@ -144,6 +325,7 @@ async function createMainWindow() {
     await mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
+  mainWindow.webContents.setZoomLevel(DEFAULT_ACTUAL_SIZE_ZOOM_LEVEL);
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
   });
@@ -151,6 +333,8 @@ async function createMainWindow() {
 
 async function boot() {
   installRendererContentSecurityPolicy();
+  installApplicationMenu();
+  await loadPersistedSenaReadCache();
   if (!app.isPackaged) {
     const migratedFiles = await migrateLegacyDesktopData(
       desktopDataPath,
@@ -166,7 +350,7 @@ async function boot() {
         timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
       });
       if (seeded) {
-        invalidateSenaReadCache();
+        await invalidateSenaReadCache();
         console.log('[desktop-data] seeded local dev SENA workspace');
       }
     } catch (error) {
@@ -224,28 +408,28 @@ ipcMain.handle(IPC_CHANNELS.senaUpsertCatalog, async (_event, payload: SenaCatal
   const result = await managedCore.invoke<SenaCatalog>('sena.upsertCatalog', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
-  invalidateSenaReadCache();
+  await invalidateSenaReadCache();
   return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaObservationInput) => {
   const result = await managedCore.invoke<SenaObservationRecord>('sena.ingestObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
-  invalidateSenaReadCache();
+  await invalidateSenaReadCache();
   return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) => {
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
-  invalidateSenaReadCache();
+  await invalidateSenaReadCache();
   return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaRetryRun, async (_event, payload: SenaRunLookupPayload) => {
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.retryRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
-  invalidateSenaReadCache();
+  await invalidateSenaReadCache();
   return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaGetWorkspaceSummary, async () =>
@@ -256,11 +440,11 @@ ipcMain.handle(IPC_CHANNELS.senaGetWorkspaceSummary, async () =>
   ),
 );
 ipcMain.handle(IPC_CHANNELS.senaGetSkuDetail, async (_event, payload: SenaSkuLookupPayload) =>
-  loadCachedSenaRead(`sku-detail:${payload.skuId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 10}`, () =>
+  loadCachedSenaRead(`sku-detail:${payload.skuId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 20}`, () =>
     managedCore.invoke<SenaSkuDetailPage | null>('sena.getSkuDetail', {
       skuId: payload.skuId,
       beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
-      limit: payload.limit ?? 10,
+      limit: payload.limit ?? 20,
     }, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
@@ -276,11 +460,11 @@ ipcMain.handle(IPC_CHANNELS.senaGetDiagnostics, async () =>
 ipcMain.handle(
   IPC_CHANNELS.senaGetServiceDetail,
   async (_event, payload: SenaServiceLookupPayload) =>
-    loadCachedSenaRead(`service-detail:${payload.serviceId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 10}`, () =>
+    loadCachedSenaRead(`service-detail:${payload.serviceId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 20}`, () =>
       managedCore.invoke<SenaServiceDetailPage | null>('sena.getServiceDetail', {
         serviceId: payload.serviceId,
         beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
-        limit: payload.limit ?? 10,
+        limit: payload.limit ?? 20,
       }, {
         timeoutMs: SENA_READ_TIMEOUT_MS,
       }),

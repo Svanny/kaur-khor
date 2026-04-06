@@ -10,6 +10,7 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import type { AppLanguage } from '@shared/inventory';
+import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import type { InventoryContextValue } from '@/state/inventory';
 import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { hashSenaCatalog, projectInventorySnapshotFromSena, seedSenaCatalogFromSnapshot } from './catalog-seed';
@@ -40,6 +41,7 @@ type BootstrapInventory = Pick<
   | 'loadSenaDiagnostics'
   | 'loadSenaServiceDetail'
   | 'loadSenaSkuDetail'
+  | 'loadSenaRunStatus'
   | 'loadSenaWorkspaceSummary'
   | 'senaMeta'
   | 'triggerSenaRun'
@@ -102,17 +104,15 @@ export async function backfillLegacyReportsIntoSenaIfEmpty({
 }
 
 export function shouldTriggerBootstrapRun({
-  catalogHash,
-  cachedCatalogHash,
   detail,
   latestObservationAt,
+  latestRunObservationCount,
   observationCount,
   workspaceSummary,
 }: {
-  catalogHash: string;
-  cachedCatalogHash: string | null;
   detail: SenaSkuDetail | null;
   latestObservationAt: string | null;
+  latestRunObservationCount: number | null;
   observationCount: number;
   workspaceSummary: SenaWorkspaceSummary | null;
 }) {
@@ -125,10 +125,13 @@ export function shouldTriggerBootstrapRun({
   if (!detail) {
     return true;
   }
+  if (latestRunObservationCount != null && latestRunObservationCount < observationCount) {
+    return true;
+  }
   if (workspaceSummary.latestObservedAt && latestObservationAt && workspaceSummary.latestObservedAt < latestObservationAt) {
     return true;
   }
-  return cachedCatalogHash !== catalogHash;
+  return false;
 }
 
 async function loadLinkedServiceDetails(
@@ -138,7 +141,7 @@ async function loadLinkedServiceDetails(
 ) {
   const linkedServices = snapshot.services.filter((service) => service.skuIds.includes(skuId));
   const results = await Promise.all(
-    linkedServices.map((service) => inventory.loadSenaServiceDetail(service.serviceId).catch(() => null)),
+    linkedServices.map((service) => inventory.loadSenaServiceDetail(service.serviceId, { limit: INTERVAL_PAGE_SIZE }).catch(() => null)),
   );
   return results
     .map((detail) => normalizeServiceDetailPage(detail)?.detail ?? null)
@@ -155,7 +158,7 @@ export async function reloadSenaSkuData({
   snapshot: InventorySnapshot;
 }) {
   const workspaceSummary = await inventory.loadSenaWorkspaceSummary();
-  const detailPage = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId));
+  const detailPage = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit: INTERVAL_PAGE_SIZE }));
   const detail = detailPage?.detail ?? null;
   const diagnostics = await inventory.loadSenaDiagnostics();
   const observations = await inventory.listSenaObservations();
@@ -176,7 +179,6 @@ export async function bootstrapSkuDetail({
   const reports = existingCatalog ? [] : await inventory.listStockReports();
   const catalog = existingCatalog ?? seedSenaCatalogFromSnapshot(legacySnapshot);
   const catalogHash = hashSenaCatalog(catalog);
-  const cachedCatalogHash = inventory.senaMeta.catalogHash;
   if (!existingCatalog) {
     await inventory.upsertSenaCatalog(catalog);
   }
@@ -193,22 +195,26 @@ export async function bootstrapSkuDetail({
   let detail: SenaSkuDetail | null = null;
   let diagnostics: SenaDiagnostics | null = null;
   let linkedServiceDetails: SenaServiceDetail[] = [];
+  let latestRunObservationCount: number | null = null;
   let uiState: SkuDetailUiState = observations.length < 2 ? 'needs_observations' : 'bootstrapping';
   let error: string | null = null;
   let projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
 
   try {
     workspaceSummary = await inventory.loadSenaWorkspaceSummary();
-    detailPage = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId));
+    latestRunObservationCount =
+      workspaceSummary?.runId != null
+        ? (await inventory.loadSenaRunStatus(workspaceSummary.runId).catch(() => null))?.observationCount ?? null
+        : null;
+    detailPage = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit: INTERVAL_PAGE_SIZE }));
     detail = detailPage?.detail ?? null;
     diagnostics = await inventory.loadSenaDiagnostics();
 
     if (
       shouldTriggerBootstrapRun({
-        catalogHash,
-        cachedCatalogHash,
         detail,
         latestObservationAt: observations[observations.length - 1]?.input.observedAt ?? null,
+        latestRunObservationCount,
         observationCount: observations.length,
         workspaceSummary,
       })

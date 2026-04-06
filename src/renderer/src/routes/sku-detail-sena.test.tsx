@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaDiagnostics, SenaObservationRecord, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
+import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { SkuDetailRoute } from './sku-detail';
@@ -22,12 +23,13 @@ import {
   deriveSlotCenterX,
   deriveSlotLeftX,
   deriveVisibleWindow,
+  isPinchZoomGesture,
   intervalLabelForWidth,
   intervalTooltipLabel,
   regimeCompactLabel,
   responsivePillLabel,
 } from './sku-detail/ledger';
-import { backfillLegacyReportsIntoSenaIfEmpty, mapLegacyReportToSenaObservation, shouldTriggerBootstrapRun } from './sku-detail/bootstrap';
+import { backfillLegacyReportsIntoSenaIfEmpty, bootstrapSkuDetail, mapLegacyReportToSenaObservation, shouldTriggerBootstrapRun } from './sku-detail/bootstrap';
 import { hashSenaCatalog, seedSenaCatalogFromSnapshot } from './sku-detail/catalog-seed';
 import { deriveIntervalPriceMarkers, deriveRecommendedOrderBand, deriveSenaSkuDetailViewModel, extractEvidence, type SenaSkuDetailViewModel } from './sku-detail/view-model';
 
@@ -235,6 +237,10 @@ const workspace: SenaWorkspaceSummary = {
   skuSummaries: [detail.summary],
 };
 
+function sampleCatalogForBootstrap() {
+  return seedSenaCatalogFromSnapshot(snapshot);
+}
+
 function renderWithProviders(route: string, element: ReactNode, path: string) {
   return render(
     <MemoryRouter initialEntries={[route]}>
@@ -412,14 +418,45 @@ describe('SKU detail SENA helpers', () => {
   test('decides when the bootstrap should trigger a v2 run', () => {
     expect(
       shouldTriggerBootstrapRun({
-        catalogHash: 'catalog-next',
-        cachedCatalogHash: 'catalog-prev',
         detail,
         latestObservationAt: '2026-03-29T09:00:00Z',
+        latestRunObservationCount: 1,
         observationCount: 2,
         workspaceSummary: workspace,
       }),
     ).toBe(true);
+  });
+
+  test('bootstrap requests explicit preload limits for sku and linked service detail', async () => {
+    const inventory = {
+      ingestSenaObservation: vi.fn(async () => observations[0]),
+      listSenaObservations: vi.fn(async () => observations),
+      loadSenaCatalog: vi.fn(async () => sampleCatalogForBootstrap()),
+      loadInventorySnapshot: vi.fn(async () => snapshot),
+      listStockReports: vi.fn(async () => []),
+      loadSenaDiagnostics: vi.fn(async () => diagnostics),
+      loadSenaRunStatus: vi.fn(async () => null),
+      loadSenaServiceDetail: vi.fn(async () => ({
+        serviceId: 'service-1',
+        activityMean: 3,
+        activityIntervalLow: 2,
+        activityIntervalHigh: 4,
+        bottleneckProbability: 0.2,
+        contributors: [],
+        regimeTimeline: [],
+      })),
+      loadSenaSkuDetail: vi.fn(async () => detail),
+      loadSenaWorkspaceSummary: vi.fn(async () => workspace),
+      senaMeta: { catalogHash: hashSenaCatalog(sampleCatalogForBootstrap()), lastBootstrapSkuId: null, lastCompletedRunId: null },
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-1' })),
+      updateSenaMeta: vi.fn(),
+      upsertSenaCatalog: vi.fn(async (catalog) => catalog),
+    };
+
+    await bootstrapSkuDetail({ inventory, skuId: 'sku-1' });
+
+    expect(inventory.loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', { limit: INTERVAL_PAGE_SIZE });
+    expect(inventory.loadSenaServiceDetail).toHaveBeenCalledWith('service-1', { limit: INTERVAL_PAGE_SIZE });
   });
 
   test('falls back from full pill labels to compact labels without ellipsis', () => {
@@ -444,10 +481,12 @@ describe('SKU detail SENA helpers', () => {
     expect(deriveVisibleWindow(30, 1120, 480, 48, 8)).toEqual({ start: 20, end: 28 });
   });
 
-  test('classifies wheel gestures into pan vs zoom', () => {
-    expect(classifyWheelIntent(40, 10)).toBe('pan');
-    expect(classifyWheelIntent(10, 40)).toBe('zoom');
-    expect(classifyWheelIntent(16, 16)).toBe('pan');
+  test('uses pinch gestures for zoom and ignores plain vertical wheel movement', () => {
+    expect(classifyWheelIntent(40, 10, { isPinchZoom: false })).toBe('pan');
+    expect(classifyWheelIntent(0, 40, { isPinchZoom: false })).toBe('ignore');
+    expect(classifyWheelIntent(10, 40, { isPinchZoom: true })).toBe('zoom');
+    expect(isPinchZoomGesture({ ctrlKey: true })).toBe(true);
+    expect(isPinchZoomGesture({ ctrlKey: false, metaKey: false })).toBe(false);
   });
 
   test('anchors zoom to the hovered interval and clamps at the viewport bounds', () => {
@@ -796,17 +835,15 @@ describe('SKU detail SENA helpers', () => {
       });
       resizeCallbacks.forEach((callback) => callback());
 
-      intervalScroller!.scrollLeft = 144;
-      fireEvent.scroll(intervalScroller!);
-
       await waitFor(() => {
-        expect(intervalScroller!.scrollLeft).toBe(144);
+        expect(intervalScroller!.scrollLeft).toBeGreaterThan(0);
       });
+      const anchoredScrollLeft = intervalScroller!.scrollLeft;
 
       fireEvent.click(screen.getByLabelText('Mar 10'));
 
       await waitFor(() => {
-        expect(intervalScroller!.scrollLeft).toBe(144);
+        expect(intervalScroller!.scrollLeft).toBe(anchoredScrollLeft);
       });
     } finally {
       globalThis.ResizeObserver = originalResizeObserver;

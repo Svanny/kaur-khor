@@ -16,7 +16,7 @@ export function usePagedIntervalHistory<T>({
   initialPage: IntervalPageEnvelope<T> | null;
   mergeDetails: (older: T, newer: T) => T;
   onPageChange?: (page: IntervalPageEnvelope<T> | null) => void;
-  fetchOlderPage: (beforeIntervalIndex: number) => Promise<IntervalPageEnvelope<T> | null>;
+  fetchOlderPage: (beforeIntervalIndex: number, limit?: number) => Promise<IntervalPageEnvelope<T> | null>;
 }) {
   const [page, setPage] = useState<IntervalPageEnvelope<T> | null>(initialPage);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -34,13 +34,13 @@ export function usePagedIntervalHistory<T>({
     onPageChange?.(page);
   }, [onPageChange, page]);
 
-  const loadOlder = useCallback(async () => {
+  const loadOlder = useCallback(async (limit?: number) => {
     if (isLoadingOlder || !page?.hasOlder || page.nextBeforeIntervalIndex == null) {
       return null;
     }
     setIsLoadingOlder(true);
     try {
-      const olderPage = await fetchOlderPage(page.nextBeforeIntervalIndex);
+      const olderPage = await fetchOlderPage(page.nextBeforeIntervalIndex, limit);
       if (!olderPage) {
         setPage((current) =>
           current

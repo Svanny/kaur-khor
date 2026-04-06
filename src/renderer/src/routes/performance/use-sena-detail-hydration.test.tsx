@@ -1,0 +1,257 @@
+import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, test, vi } from 'vitest';
+import { useSenaDetailHydration } from './use-sena-detail-hydration';
+
+const inventoryHook = vi.fn();
+
+vi.mock('@/state/inventory', () => ({
+  useInventory: () => inventoryHook(),
+}));
+
+function makeDemandPosterior(start: number, count: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const intervalIndex = start + index;
+    return {
+      adjustmentsMean: 0,
+      deltaDays: 7,
+      endAt: `2026-03-${String((intervalIndex % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+      intervalIndex,
+      realizedConsumptionMean: 1,
+      receiptsMean: 0,
+      retailDemandMean: 1,
+      serviceDemandMean: 0,
+      startAt: `2026-02-${String((intervalIndex % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+      unconstrainedDemandMean: 1,
+    };
+  });
+}
+
+function makeSkuPage(start: number, count: number, nextBeforeIntervalIndex: number | null) {
+  return {
+    detail: {
+      demandPosterior: makeDemandPosterior(start, count),
+      inventoryPosterior: makeDemandPosterior(start, count).map((entry) => ({
+        at: entry.endAt,
+        high: 10,
+        low: 8,
+        mean: 9,
+      })),
+      leadTimePosterior: makeDemandPosterior(start, count).map((entry) => ({
+        intervalIndex: entry.intervalIndex,
+        logMeanDays: 1,
+        logStdDays: 0.1,
+        meanDays: 3,
+        observedRelativeWidth: 0.2,
+        observedVariabilityClass: 'tight',
+        stdDays: 1,
+      })),
+      pipelinePosterior: makeDemandPosterior(start, count).map((entry) => ({
+        ageDaysMean: 1,
+        inTransitMean: 2,
+        intervalIndex: entry.intervalIndex,
+        orderProbability: 0.5,
+        orderQuantityMean: 2,
+        receiptQuantityMean: 0,
+      })),
+      summary: {
+        credibleIntervalHigh: 12,
+        credibleIntervalLow: 6,
+        daysOfCover: 4,
+        demandPerDayMean: 1,
+        expectedLeadTimeDemand: 5,
+        latestPosteriorUnits: 9,
+        leadTimeMeanDays: 3,
+        leadTimeStdDays: 1,
+        reorderPoint: 7,
+        reorderTriggerProbability: 0.2,
+        regimeProbabilities: { normal: 1 },
+        safetyStock: 2,
+        skuId: 'sku-1',
+        stockoutRisk: 0.1,
+      },
+    },
+    hasOlder: nextBeforeIntervalIndex != null,
+    latestIntervalIndex: start + count - 1,
+    nextBeforeIntervalIndex,
+    pageLimit: count,
+  };
+}
+
+function TestHarness() {
+  const { loadOlderIntervals, skuDetailsById } = useSenaDetailHydration('1M');
+  const length = skuDetailsById['sku-1']?.demandPosterior.length ?? 0;
+
+  return (
+    <div>
+      <span data-testid="length">{length}</span>
+      <button
+        type="button"
+        onClick={() => {
+          void (async () => {
+            await loadOlderIntervals(10);
+            await loadOlderIntervals(10);
+          })();
+        }}
+      >
+        Load twice
+      </button>
+    </div>
+  );
+}
+
+function MaxHydrationHarness() {
+  const { isHydratingDetails, skuDetailsById, timeframeHydrationProgress } = useSenaDetailHydration('MAX');
+  const length = skuDetailsById['sku-1']?.demandPosterior.length ?? 0;
+
+  return (
+    <div>
+      <span data-testid="max-length">{length}</span>
+      <span data-testid="max-hydrating">{String(isHydratingDetails)}</span>
+      <span data-testid="max-progress">
+        {timeframeHydrationProgress ? `${timeframeHydrationProgress.current}/${timeframeHydrationProgress.total}` : 'idle'}
+      </span>
+    </div>
+  );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
+describe('useSenaDetailHydration', () => {
+  test('advances older-page cursors across sequential 10-interval loads in one gesture', async () => {
+    const loadSenaSkuDetail = vi.fn(async (_skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => {
+      if (options?.beforeIntervalIndex === 20) {
+        return makeSkuPage(10, 10, 10);
+      }
+      if (options?.beforeIntervalIndex === 10) {
+        return makeSkuPage(0, 10, null);
+      }
+      return makeSkuPage(20, 20, 20);
+    });
+
+    inventoryHook.mockReturnValue({
+      catalog: {
+        bundles: [],
+        schemaVersion: 1,
+        services: [],
+        sharingMask: [],
+        skus: [
+          {
+            costPerUnit: 1,
+            description: 'sku',
+            leadTimeMeanDaysHint: 1,
+            leadTimeStdDaysHint: 1,
+            name: 'sku',
+            productPrice: 1,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+        ],
+      },
+      loadSenaServiceDetail: vi.fn(),
+      loadSenaSkuDetail,
+      workspaceSummary: {
+        highRiskSkuIds: [],
+        intervalCount: 40,
+        latestObservedAt: '2026-03-21T08:00:00.000Z',
+        ownerSub: 'desktop-owner',
+        pendingReorderCount: 0,
+        runId: 'run-1',
+        serviceCount: 0,
+        skuCount: 1,
+        skuSummaries: [],
+        topRegime: 'normal',
+      },
+    });
+
+    const user = userEvent.setup();
+    render(<TestHarness />);
+
+    await waitFor(() => expect(screen.getByTestId('length')).toHaveTextContent('20'));
+
+    await user.click(screen.getByRole('button', { name: 'Load twice' }));
+
+    await waitFor(() => expect(screen.getByTestId('length')).toHaveTextContent('40'));
+    expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(1, 'sku-1', { limit: 20 });
+    expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(2, 'sku-1', { beforeIntervalIndex: 20, limit: 10 });
+    expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(3, 'sku-1', { beforeIntervalIndex: 10, limit: 10 });
+  });
+
+  test('publishes MAX timeframe hydration pages incrementally while progress advances', async () => {
+    const firstOlderPage = deferred<ReturnType<typeof makeSkuPage>>();
+    const secondOlderPage = deferred<ReturnType<typeof makeSkuPage>>();
+    const loadSenaSkuDetail = vi.fn(async (_skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => {
+      if (options?.beforeIntervalIndex === 20) {
+        return firstOlderPage.promise;
+      }
+      if (options?.beforeIntervalIndex === 10) {
+        return secondOlderPage.promise;
+      }
+      return makeSkuPage(20, 20, 20);
+    });
+
+    inventoryHook.mockReturnValue({
+      catalog: {
+        bundles: [],
+        schemaVersion: 1,
+        services: [],
+        sharingMask: [],
+        skus: [
+          {
+            costPerUnit: 1,
+            description: 'sku',
+            leadTimeMeanDaysHint: 1,
+            leadTimeStdDaysHint: 1,
+            name: 'sku',
+            productPrice: 1,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+        ],
+      },
+      loadSenaServiceDetail: vi.fn(),
+      loadSenaSkuDetail,
+      workspaceSummary: {
+        highRiskSkuIds: [],
+        intervalCount: 40,
+        latestObservedAt: '2026-03-21T08:00:00.000Z',
+        ownerSub: 'desktop-owner',
+        pendingReorderCount: 0,
+        runId: 'run-1',
+        serviceCount: 0,
+        skuCount: 1,
+        skuSummaries: [],
+        topRegime: 'normal',
+      },
+    });
+
+    render(<MaxHydrationHarness />);
+
+    await waitFor(() => expect(screen.getByTestId('max-length')).toHaveTextContent('20'));
+    expect(screen.getByTestId('max-progress')).toHaveTextContent('1/2');
+
+    await act(async () => {
+      firstOlderPage.resolve(makeSkuPage(10, 10, 10));
+      await firstOlderPage.promise;
+    });
+
+    await waitFor(() => expect(screen.getByTestId('max-length')).toHaveTextContent('30'));
+    expect(screen.getByTestId('max-progress')).toHaveTextContent('2/2');
+    expect(screen.getByTestId('max-hydrating')).toHaveTextContent('true');
+
+    await act(async () => {
+      secondOlderPage.resolve(makeSkuPage(0, 10, null));
+      await secondOlderPage.promise;
+    });
+
+    await waitFor(() => expect(screen.getByTestId('max-length')).toHaveTextContent('40'));
+    await waitFor(() => expect(screen.getByTestId('max-progress')).toHaveTextContent('idle'));
+    expect(screen.getByTestId('max-hydrating')).toHaveTextContent('false');
+  });
+});

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
 import { Package } from 'lucide-react';
 import type { SenaSkuDetailPage } from '@shared/sena';
 import {
@@ -11,8 +11,15 @@ import {
   deriveAnchoredZoomScrollLeft,
   deriveAxisContentWidth,
   deriveCenteredIntervalScrollLeft,
+  deriveFreshMountIntervalScrollLeft,
+  deriveInitialViewportSlotWidth,
+  deriveLatestWindowScrollLeft,
+  deriveSequentialOlderLoadBatchCount,
   deriveViewportPageScrollLeft,
   deriveVisibleWindow,
+  handleIntervalChartWheel,
+  INTERVAL_LOAD_BATCH_SIZE,
+  INTERVAL_VISIBLE_COUNT,
   INTERVAL_PAGE_SIZE,
   INTERVAL_PILL_GAP,
   IntervalStrip,
@@ -20,6 +27,7 @@ import {
   MIN_SLOT_WIDTH,
   SCROLL_EDGE_TOLERANCE,
   SHARED_PILL_MIN_WIDTH,
+  isPinchZoomGesture,
   shouldLoadOlderIntervals,
 } from '@/components/system/interval-strip';
 import {
@@ -44,6 +52,7 @@ export {
   deriveSlotCenterX,
   deriveSlotLeftX,
   deriveVisibleWindow,
+  isPinchZoomGesture,
   intervalLabelForWidth,
   intervalTooltipLabel,
   responsivePillLabel,
@@ -58,6 +67,7 @@ const CHART_PLOT_HEIGHT = 120;
 const CHART_VIEWBOX_HEIGHT = 42;
 const FLOW_LABEL_GUTTER_HEIGHT = 64;
 const FLOW_LANE_PLOT_HEIGHT = 112;
+const LINE_POINT_MARKER_MIN_SLOT_WIDTH = 20;
 
 function intervalEntries(model: SenaSkuDetailViewModel) {
   const entries = new Map<number, { intervalIndex: number; startAt: string | null; endAt: string | null }>();
@@ -250,13 +260,15 @@ export function SkuDetailLedger({
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
+  onOlderLoadProgressChange,
   selectedIntervalIndex,
   setSelectedIntervalIndex,
 }: {
   hasOlderIntervals: boolean;
   isLoadingOlderIntervals: boolean;
-  loadOlderIntervals: () => Promise<SenaSkuDetailPage | null>;
+  loadOlderIntervals: (limit?: number) => Promise<SenaSkuDetailPage | null>;
   model: SenaSkuDetailViewModel;
+  onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
   selectedIntervalIndex: number | null;
   setSelectedIntervalIndex: (index: number) => void;
 }) {
@@ -267,19 +279,24 @@ export function SkuDetailLedger({
   const flowScrollRef = useRef<HTMLDivElement | null>(null);
   const pipelineScrollRef = useRef<HTMLDivElement | null>(null);
   const intervals = intervalEntries(model);
+  const showsPriceSurfaces = model.identity.soldAsProduct;
   const visibleRegimes = presentRegimes(model.lanes.regimePriceLane.intervals.map((interval) => interval.dominantRegime));
   const indices = intervals.map((entry) => entry.intervalIndex);
   const syncRefs = [intervalScrollRef, priceScrollRef, inventoryScrollRef, flowScrollRef, pipelineScrollRef];
   const syncingScrollRef = useRef(false);
+  const initializedLatestWindowRef = useRef(false);
+  const latestLoadedIntervalKeyRef = useRef<number | null>(null);
+  const loadingOlderRef = useRef(false);
   const [viewportWidth, setViewportWidth] = useState(0);
-  const [slotWidthPx, setSlotWidthPx] = useState(DEFAULT_SLOT_WIDTH);
-  const effectiveSlotWidth = clamp(slotWidthPx, Math.max(SHARED_PILL_MIN_WIDTH, MIN_SLOT_WIDTH), MAX_SLOT_WIDTH);
-  const stretchedSlotWidth =
-    viewportWidth > 0 && indices.length > 0
-      ? Math.max(effectiveSlotWidth, (viewportWidth - AXIS_START_PADDING - AXIS_END_PADDING) / Math.min(indices.length, INTERVAL_PAGE_SIZE))
-      : effectiveSlotWidth;
+  const [slotWidthPx, setSlotWidthPx] = useState<number | null>(null);
+  const stretchedSlotWidth = clamp(
+    slotWidthPx ?? deriveInitialViewportSlotWidth({ itemCount: indices.length, viewportWidth }),
+    MIN_SLOT_WIDTH,
+    MAX_SLOT_WIDTH,
+  );
   const axisStartPadding = AXIS_START_PADDING;
   const axisEndPadding = AXIS_END_PADDING;
+  const showsLinePointMarkers = stretchedSlotWidth >= LINE_POINT_MARKER_MIN_SLOT_WIDTH;
   const contentWidth = deriveAxisContentWidth({
     itemCount: indices.length,
     slotWidth: stretchedSlotWidth,
@@ -288,8 +305,9 @@ export function SkuDetailLedger({
   });
   const [scrollLeft, setScrollLeft] = useState(0);
   const clampedScrollLeft = clampScrollLeft(scrollLeft, viewportWidth, contentWidth);
+  const latestLoadedIntervalIndex = indices.at(-1) ?? null;
   const visibleWindow = deriveVisibleWindow(indices.length, clampedScrollLeft, viewportWidth, stretchedSlotWidth, INTERVAL_PILL_GAP);
-  const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE;
+  const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE || hasOlderIntervals;
   const canScrollRight = clampedScrollLeft + viewportWidth < contentWidth - SCROLL_EDGE_TOLERANCE;
   const inventoryMeanValues = model.lanes.inventoryLane.points.map((point) => point.mean);
   const inventoryLowValues = model.lanes.inventoryLane.points.map((point) => point.low);
@@ -340,21 +358,70 @@ export function SkuDetailLedger({
     ]),
   );
   const maybeLoadOlderIntervals = async (nextScrollLeft: number) => {
-    if (!shouldLoadOlderIntervals({ hasOlder: hasOlderIntervals, isLoadingOlder: isLoadingOlderIntervals, scrollLeft: nextScrollLeft })) {
+    if (
+      loadingOlderRef.current ||
+      !shouldLoadOlderIntervals({ hasOlder: hasOlderIntervals, isLoadingOlder: isLoadingOlderIntervals, scrollLeft: nextScrollLeft })
+    ) {
       return;
     }
-    const olderPage = await loadOlderIntervals();
-    const prependedCount = olderPage?.detail?.demandPosterior?.length ?? 0;
-    if (prependedCount > 0) {
-      setScrollLeft((current) =>
-        derivePrependedScrollLeft({
-          currentScrollLeft: current,
+    loadingOlderRef.current = true;
+    try {
+      const sequentialBatchCount = deriveSequentialOlderLoadBatchCount({
+        batchSize: INTERVAL_LOAD_BATCH_SIZE,
+        slotWidth: stretchedSlotWidth,
+        viewportWidth,
+      });
+      const loadCount = Math.max(1, sequentialBatchCount);
+      let nextAnchoredScrollLeft = nextScrollLeft;
+      for (let batchIndex = 0; batchIndex < loadCount; batchIndex += 1) {
+        onOlderLoadProgressChange?.({ current: batchIndex + 1, total: loadCount });
+        const olderPage = await loadOlderIntervals(INTERVAL_LOAD_BATCH_SIZE);
+        const prependedCount = olderPage?.detail?.demandPosterior?.length ?? 0;
+        if (prependedCount <= 0) {
+          break;
+        }
+        nextAnchoredScrollLeft = derivePrependedScrollLeft({
+          currentScrollLeft: nextAnchoredScrollLeft,
           prependedCount,
           slotWidth: stretchedSlotWidth,
-        }),
-      );
+        });
+        setScrollLeft(nextAnchoredScrollLeft);
+      }
+    } finally {
+      onOlderLoadProgressChange?.(null);
+      loadingOlderRef.current = false;
     }
   };
+  useEffect(() => {
+    if (latestLoadedIntervalKeyRef.current !== latestLoadedIntervalIndex) {
+      latestLoadedIntervalKeyRef.current = latestLoadedIntervalIndex;
+      initializedLatestWindowRef.current = false;
+    }
+  }, [latestLoadedIntervalIndex]);
+
+  useLayoutEffect(() => {
+    if (initializedLatestWindowRef.current) {
+      return;
+    }
+    const nextScrollLeft = deriveFreshMountIntervalScrollLeft({
+      contentWidth,
+      itemCount: indices.length,
+      viewportWidth,
+    });
+    if (nextScrollLeft == null) {
+      return;
+    }
+    if (intervalScrollRef.current) {
+      if (typeof intervalScrollRef.current.scrollTo === 'function') {
+        intervalScrollRef.current.scrollTo({ left: nextScrollLeft, behavior: 'auto' });
+      } else {
+        intervalScrollRef.current.scrollLeft = nextScrollLeft;
+      }
+    }
+    setScrollLeft(nextScrollLeft);
+    initializedLatestWindowRef.current = true;
+  }, [contentWidth, indices.length, viewportWidth]);
+
   useEffect(() => {
     const node = intervalScrollRef.current;
     if (!node) {
@@ -400,6 +467,10 @@ export function SkuDetailLedger({
   };
 
   const scrollByViewport = (direction: -1 | 1) => {
+    if (direction < 0 && clampedScrollLeft <= SCROLL_EDGE_TOLERANCE && hasOlderIntervals) {
+      void maybeLoadOlderIntervals(0);
+      return;
+    }
     setScrollLeft((current) =>
       deriveViewportPageScrollLeft({
         contentWidth,
@@ -418,45 +489,24 @@ export function SkuDetailLedger({
       if (!node) {
         return;
       }
-      const intent = classifyWheelIntent(event.deltaX, event.deltaY);
-      if (intent === 'pan') {
-        if (Math.abs(event.deltaX) < 1 || contentWidth <= viewportWidth + 1) {
-          return;
-        }
-        event.preventDefault();
-        setScrollLeft((current) => clampScrollLeft(current + event.deltaX, viewportWidth, contentWidth));
-        return;
-      }
-      if (Math.abs(event.deltaY) < 1 || indices.length === 0) {
-        return;
-      }
-      event.preventDefault();
-      const rect = node.getBoundingClientRect();
-      const pointerX = clamp(event.clientX - rect.left, 0, node.clientWidth);
-      setSlotWidthPx((currentWidth) => {
-        const nextWidth = clamp(currentWidth - event.deltaY * 0.08, Math.max(SHARED_PILL_MIN_WIDTH, MIN_SLOT_WIDTH), MAX_SLOT_WIDTH);
-        if (Math.abs(nextWidth - currentWidth) < 0.5) {
-          return currentWidth;
-        }
-        const nextContentWidth = deriveAxisContentWidth({
-          itemCount: indices.length,
-          slotWidth: nextWidth,
-          axisStartPadding: axisPaddingStart,
-          axisEndPadding,
-        });
-        setScrollLeft((currentScrollLeft) =>
-          deriveAnchoredZoomScrollLeft({
-            contentWidth: nextContentWidth,
-            hoveredPointerX: pointerX,
-            intervalCount: indices.length,
-            nextSlotWidth: nextWidth,
-            previousScrollLeft: currentScrollLeft,
-            previousSlotWidth: currentWidth,
-            axisStartPadding: axisPaddingStart,
-            viewportWidth,
-          }),
-        );
-        return nextWidth;
+      handleIntervalChartWheel({
+        axisEndPadding,
+        axisStartPadding,
+        contentWidth,
+        currentSlotWidth: stretchedSlotWidth,
+        event,
+        hasOlder: hasOlderIntervals,
+        intervalCount: indices.length,
+        isLoadingOlder: isLoadingOlderIntervals,
+        onLoadOlder: () => {
+          void maybeLoadOlderIntervals(0);
+        },
+        onPan: (nextScrollLeft) => setScrollLeft(nextScrollLeft),
+        onZoom: ({ nextScrollLeft, nextSlotWidth }) => {
+          setSlotWidthPx(nextSlotWidth);
+          setScrollLeft(nextScrollLeft);
+        },
+        viewportWidth,
       });
     };
 
@@ -491,9 +541,8 @@ export function SkuDetailLedger({
       <div className="mt-5">
         <div className="pb-5">
           <LaneTitle
-            title={t('catalogSenaSkuRegimePriceLane')}
-            subtitle={model.lanes.regimePriceLane.currentPriceLabel}
-            tooltip={t('catalogSenaSkuRegimePriceLaneTooltip')}
+            title={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLane') : 'Regime lane'}
+            tooltip={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLaneTooltip') : 'Demand conditions across the active interval sequence.'}
           />
           <div className="grid gap-3">
             <div className="flex flex-wrap items-center gap-4 px-1 text-xs text-muted-foreground">
@@ -504,13 +553,15 @@ export function SkuDetailLedger({
                   {regimeLegendLabel(regime)}
                 </span>
               ))}
-              <span className="inline-flex items-center gap-2">
-                <span aria-hidden="true" className="relative inline-flex h-4 w-8 items-center">
-                  <span className="block h-px w-full bg-foreground/70" />
-                  <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/55 bg-background" />
+              {showsPriceSurfaces ? (
+                <span className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="relative inline-flex h-4 w-8 items-center">
+                    <span className="block h-px w-full bg-foreground/70" />
+                    <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/55 bg-background" />
+                  </span>
+                  Retail price line
                 </span>
-                Retail price line
-              </span>
+              ) : null}
             </div>
             <div ref={priceScrollRef} className="hidden-scrollbar overflow-x-auto overscroll-contain" onScroll={handleScrollerScroll} onWheel={handleLaneWheel(priceScrollRef, axisStartPadding)}>
               <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + CHART_PLOT_HEIGHT }}>
@@ -531,20 +582,25 @@ export function SkuDetailLedger({
                   style={{ height: CHART_PLOT_HEIGHT, top: LABEL_GUTTER_HEIGHT }}
                   viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                 >
-                  {pricePolylines.map((segment, index) => (
-                    <polyline
-                      key={`price-segment-${index}`}
-                      fill="none"
-                      points={segment}
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      className="text-foreground/70"
-                    />
-                  ))}
+                  {showsPriceSurfaces
+                    ? pricePolylines.map((segment, index) => (
+                        <polyline
+                          key={`price-segment-${index}`}
+                          fill="none"
+                          points={segment}
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          className="text-foreground/70"
+                        />
+                      ))
+                    : null}
                 </svg>
-                {priceCoordinates.map((point, index) => {
+                {showsPriceSurfaces ? priceCoordinates.map((point, index) => {
                   const marker = model.lanes.regimePriceLane.priceMarkers[index];
                   const isSelected = marker?.intervalIndex === selectedIntervalIndex;
+                  if (!showsLinePointMarkers && !isSelected) {
+                    return null;
+                  }
                 return (
                   <button
                     key={marker ? `${marker.observedAt}:${marker.intervalIndex}` : `price-${index}`}
@@ -565,10 +621,9 @@ export function SkuDetailLedger({
                       <span className={`block size-4 rounded-full border-2 ${isSelected ? 'border-foreground bg-foreground' : 'border-foreground/55 bg-background'}`} />
                   </button>
                 );
-              })}
+              }) : null}
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">{model.lanes.regimePriceLane.summary}</p>
           </div>
         </div>
 
@@ -626,6 +681,9 @@ export function SkuDetailLedger({
               {inventoryCoordinates.map((point, index) => {
                 const isSelected = selectedPointIndex === index;
                 const detailPoint = model.lanes.inventoryLane.points[index];
+                if (!showsLinePointMarkers && !isSelected) {
+                  return null;
+                }
                 return (
                   <button
                     key={detailPoint?.at ?? `inventory-${index}`}
@@ -646,7 +704,6 @@ export function SkuDetailLedger({
               })}
             </div>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">{model.lanes.inventoryLane.summary}</p>
         </div>
 
         <div className="border-t border-border/60 py-5">
@@ -751,7 +808,6 @@ export function SkuDetailLedger({
               })}
             </div>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">{model.lanes.flowLane.summary}</p>
         </div>
 
         <div className="border-t border-border/60 pt-5">
@@ -806,7 +862,6 @@ export function SkuDetailLedger({
               })}
             </div>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">{model.lanes.pipelineLane.summary}</p>
         </div>
       </div>
     </section>
