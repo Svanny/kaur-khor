@@ -838,8 +838,8 @@ fn seed_workspace(repo: &SqliteSenaRepository, owner_sub: &str) -> Result<()> {
         block_on(repo.insert_observation(owner_sub, &observation))?;
     }
 
-    let run = block_on(trigger_analysis_run(repo, owner_sub, "sena-analysis-v1"))?;
-    let _ = block_on(execute_analysis_run(repo, &run.run_id, "sena-analysis-v1"))?;
+    let run = block_on(trigger_analysis_run(repo, owner_sub, "sena-analysis-v3"))?;
+    let _ = block_on(execute_analysis_run(repo, &run.run_id, "sena-analysis-v3"))?;
     write_dev_seed_version()?;
     Ok(())
 }

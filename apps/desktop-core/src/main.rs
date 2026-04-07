@@ -59,7 +59,7 @@ struct ServiceLookupPayload {
 }
 
 fn default_algorithm_version() -> String {
-    "sena-analysis-v2".to_string()
+    "sena-analysis-v3".to_string()
 }
 
 fn main() -> Result<()> {
@@ -149,7 +149,7 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
                 serde_json::from_value(payload).context("invalid sena.retryRun payload")?;
             Ok(Some(serde_json::to_value(store::retry_run(
                 &request.run_id,
-                "sena-analysis-v2",
+                "sena-analysis-v3",
             )?)?))
         }
         "sena.getWorkspaceSummary" => Ok(Some(serde_json::to_value(

@@ -56,8 +56,8 @@ INSERT INTO app.job_algorithm_rollout_policy (
 )
 VALUES (
   'sena-analysis',
-  'sena-analysis-v1',
-  'sena-analysis-v2',
+  'sena-analysis-v3',
+  'sena-analysis-v3',
   0,
   'migration-0020',
   'Initial SENA rollout policy'

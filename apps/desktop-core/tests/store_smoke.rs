@@ -111,9 +111,9 @@ fn desktop_core_runs_sena_analysis_and_reads_summary() {
         .expect("first observation should save");
     store::ingest_observation(store::default_owner(), &observation("2026-04-08T00:00:00Z", 15.0, 11.0))
         .expect("second observation should save");
-    let run = store::trigger_run(store::default_owner(), "sena-analysis-v1")
+    let run = store::trigger_run(store::default_owner(), "sena-analysis-v3")
         .expect("run should complete");
-    assert_eq!(run.algorithm_version, "sena-analysis-v1");
+    assert_eq!(run.algorithm_version, "sena-analysis-v3");
 
     let summary = store::get_workspace_summary(store::default_owner())
         .expect("summary load should succeed")
@@ -135,19 +135,19 @@ fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
         .expect("first observation should save");
     store::ingest_observation(store::default_owner(), &observation("2026-04-10T00:00:00Z", 9.0, 7.0))
         .expect("second observation should save");
-    let run = store::trigger_run(store::default_owner(), "sena-analysis-v2")
+    let run = store::trigger_run(store::default_owner(), "sena-analysis-v3")
         .expect("run should complete");
 
-    let sku_detail = store::get_sku_detail(store::default_owner(), "sku-001")
+    let sku_detail = store::get_sku_detail(store::default_owner(), "sku-001", None, 20)
         .expect("sku detail should load")
         .expect("sku detail should exist");
-    assert!(!sku_detail.inventory_posterior.is_empty());
-    assert!(!sku_detail.pipeline_posterior.is_empty());
+    assert!(!sku_detail.detail.inventory_posterior.is_empty());
+    assert!(!sku_detail.detail.pipeline_posterior.is_empty());
 
-    let service_detail = store::get_service_detail(store::default_owner(), "service-001")
+    let service_detail = store::get_service_detail(store::default_owner(), "service-001", None, 20)
         .expect("service detail should load")
         .expect("service detail should exist");
-    assert!(!service_detail.contributors.is_empty());
+    assert!(!service_detail.detail.contributors.is_empty());
 
     let diagnostics = store::get_diagnostics(store::default_owner())
         .expect("diagnostics should load")
@@ -158,7 +158,7 @@ fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
     let run_status = store::get_run(&run.run_id)
         .expect("run status should load")
         .expect("run should exist");
-    assert_eq!(run_status.primary_artifact_key.as_deref(), Some("sena-analysis/desktop-owner/sena-analysis-v2/posterior-draws"));
+    assert_eq!(run_status.primary_artifact_key.as_deref(), Some("sena-analysis/desktop-owner/sena-analysis-v3/posterior-draws"));
 }
 
 #[test]

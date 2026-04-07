@@ -146,7 +146,7 @@ const sampleReport: StockReport = {
 const sampleRun: SenaAnalysisRunRecord = {
   runId: 'run-1',
   ownerSub: 'desktop-owner',
-  algorithmVersion: 'sena-analysis-v1',
+  algorithmVersion: 'sena-analysis-v3',
   status: 'succeeded',
   observationCount: 1,
   createdAt: '2026-04-02T00:00:00Z',
