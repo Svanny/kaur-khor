@@ -51,6 +51,9 @@ export interface SenaObservationInput {
   servicePrices: SenaServicePriceObservation[];
   retailPrices: SenaRetailPriceObservation[];
   leadTimeHints: SenaLeadTimeHint[];
+  regimeHint?: SenaObservationRegimeHint | null;
+  adjustmentSignals?: SenaAdjustmentSignal[];
+  recipeUsageHints?: SenaRecipeUsageHint[];
   notes: string | null;
 }
 
@@ -67,6 +70,9 @@ export interface SenaOrderSignal {
   receiptArrived: boolean;
   approximateOrderQuantity: number | null;
   approximateReceiptQuantity: number | null;
+  placementTimestamp?: string | null;
+  receiptTimestamp?: string | null;
+  leadTimeDaysHint?: number | null;
 }
 
 export interface SenaServicePriceObservation {
@@ -85,6 +91,28 @@ export interface SenaLeadTimeHint {
   lowDays: number | null;
   highDays: number | null;
   variabilityClass: SenaLeadTimeVariabilityClass | null;
+}
+
+export type SenaObservationRegimeHint =
+  | 'normal'
+  | 'spike'
+  | 'lull'
+  | 'stockout_constrained'
+  | 'promo'
+  | 'correction';
+
+export interface SenaAdjustmentSignal {
+  skuId: string;
+  quantityDelta: number;
+  reason: string;
+}
+
+export interface SenaRecipeUsageHint {
+  serviceId: string;
+  skuId: string;
+  usageProbability: number;
+  typicalUnitsPerInstance: number;
+  variability: number;
 }
 
 export type SenaLeadTimeVariabilityClass =

@@ -4,20 +4,21 @@ use crate::legacy_inventory::{
 };
 use anyhow::Result;
 use banji_sena_core::{
-    classify_relative_width, derive_relative_width,
-    execute_analysis_run, trigger_analysis_run, SenaAnalysisRunRecord, SenaBundle, SenaCatalog,
-    SenaDiagnostics, SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord,
-    SenaOrderSignal, SenaRepository, SenaRetailPriceObservation, SenaService,
+    classify_relative_width, derive_relative_width, execute_analysis_run, trigger_analysis_run,
+    SenaAdjustmentSignal, SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaDiagnostics,
+    SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord, SenaObservationRegimeHint,
+    SenaOrderSignal, SenaRecipeUsageHint, SenaRepository, SenaRetailPriceObservation, SenaService,
     SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
     SenaSkuDetail, SenaStockSnapshot, SenaWorkspaceSummary, SqliteSenaRepository,
 };
 use futures::executor::block_on;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::Serialize;
 use std::{env, fs, path::PathBuf};
 use time::{Date, Duration, Month, PrimitiveDateTime, Time};
 
 const DEFAULT_OWNER_SUB: &str = "desktop-owner";
-const DEV_SEED_VERSION: &str = "cambodian-clothing-v4";
+const DEV_SEED_VERSION: &str = "cambodian-clothing-v5";
 const DEV_SEED_OBSERVATION_COUNT: usize = 30;
 const LEGACY_DEV_SEED_NOTE: &str = "Seeded dev observation";
 
@@ -98,10 +99,16 @@ fn page_sku_detail(
     SenaSkuDetailPage {
         detail: SenaSkuDetail {
             summary: detail.summary,
-            inventory_posterior: detail.inventory_posterior[start..end.min(detail.inventory_posterior.len())].to_vec(),
+            inventory_posterior: detail.inventory_posterior
+                [start..end.min(detail.inventory_posterior.len())]
+                .to_vec(),
             demand_posterior: detail.demand_posterior[start..end].to_vec(),
-            pipeline_posterior: detail.pipeline_posterior[start..end.min(detail.pipeline_posterior.len())].to_vec(),
-            lead_time_posterior: detail.lead_time_posterior[start..end.min(detail.lead_time_posterior.len())].to_vec(),
+            pipeline_posterior: detail.pipeline_posterior
+                [start..end.min(detail.pipeline_posterior.len())]
+                .to_vec(),
+            lead_time_posterior: detail.lead_time_posterior
+                [start..end.min(detail.lead_time_posterior.len())]
+                .to_vec(),
         },
         page_limit: limit,
         has_older,
@@ -454,6 +461,52 @@ const SEED_SERVICES: [SeedServiceProfile; 10] = [
     },
 ];
 
+#[derive(Clone)]
+struct PendingOrder {
+    arrival_day: usize,
+    quantity: f64,
+    lead_time_days: f64,
+}
+
+#[derive(Clone)]
+struct SeedSkuRuntime {
+    on_hand: f64,
+    current_cost: f64,
+    recent_lead_time_days: f64,
+    last_order_day: Option<usize>,
+    pending_orders: Vec<PendingOrder>,
+}
+
+#[derive(Clone)]
+struct RecipeUsageProfile {
+    service_id: String,
+    sku_id: String,
+    usage_probability: f64,
+    typical_units_per_instance: f64,
+    variability: f64,
+}
+
+#[derive(Clone)]
+struct ServiceIntervalOutcome {
+    service_id: String,
+    rank_score: f64,
+    stockout: bool,
+    recipe_profiles: Vec<RecipeUsageProfile>,
+}
+
+#[derive(Clone)]
+struct SkuIntervalOutcome {
+    sku_id: String,
+    units_in_stock: f64,
+    cost_per_unit: f64,
+    product_price: Option<f64>,
+    retail_stockout: bool,
+    order_quantity: Option<f64>,
+    receipt_quantity: Option<f64>,
+    retail_rank_score: f64,
+    lost_demand: f64,
+}
+
 fn sample_catalog() -> SenaCatalog {
     let skus = SEED_SKUS
         .iter()
@@ -494,12 +547,15 @@ fn sample_catalog() -> SenaCatalog {
     let sharing_mask = SEED_SERVICES
         .iter()
         .flat_map(|profile| {
-            profile.mask.iter().map(move |(sku_id, usage_probability)| SenaServiceSkuMaskEntry {
-                service_id: profile.service_id.to_string(),
-                sku_id: (*sku_id).to_string(),
-                enabled: true,
-                usage_probability: Some(*usage_probability),
-            })
+            profile
+                .mask
+                .iter()
+                .map(move |(sku_id, usage_probability)| SenaServiceSkuMaskEntry {
+                    service_id: profile.service_id.to_string(),
+                    sku_id: (*sku_id).to_string(),
+                    enabled: true,
+                    usage_probability: Some(*usage_probability),
+                })
         })
         .collect();
 
@@ -553,200 +609,580 @@ fn looks_like_legacy_dev_seed(
     }
     !observations.is_empty()
         && observations.len() <= 14
-        && observations.iter().all(|observation| {
-            observation.input.notes.as_deref() == Some(LEGACY_DEV_SEED_NOTE)
-        })
+        && observations
+            .iter()
+            .all(|observation| observation.input.notes.as_deref() == Some(LEGACY_DEV_SEED_NOTE))
 }
 
-fn demand_multiplier(day_index: usize, date: Date) -> f64 {
+fn round2(value: f64) -> f64 {
+    (value * 100.0).round() / 100.0
+}
+
+fn stable_seed(label: &str, left: usize, right: usize) -> u64 {
+    let mut hash = 1469598103934665603_u64;
+    for byte in label.bytes() {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(1099511628211);
+    }
+    hash ^= left as u64;
+    hash = hash.wrapping_mul(1099511628211);
+    hash ^= right as u64;
+    hash = hash.wrapping_mul(1099511628211);
+    hash
+}
+
+fn seeded_rng(label: &str, left: usize, right: usize) -> StdRng {
+    StdRng::seed_from_u64(stable_seed(label, left, right))
+}
+
+fn scheduled_regime(day_index: usize) -> SenaObservationRegimeHint {
+    match day_index {
+        5..=7 => SenaObservationRegimeHint::Spike,
+        11..=14 => SenaObservationRegimeHint::Promo,
+        18..=20 => SenaObservationRegimeHint::Lull,
+        24..=26 => SenaObservationRegimeHint::Correction,
+        _ => SenaObservationRegimeHint::Normal,
+    }
+}
+
+fn regime_multiplier(regime: SenaObservationRegimeHint) -> f64 {
+    match regime {
+        SenaObservationRegimeHint::Normal => 1.0,
+        SenaObservationRegimeHint::Spike => 1.3,
+        SenaObservationRegimeHint::Lull => 0.72,
+        SenaObservationRegimeHint::StockoutConstrained => 1.08,
+        SenaObservationRegimeHint::Promo => 1.24,
+        SenaObservationRegimeHint::Correction => 0.94,
+    }
+}
+
+fn observation_timestamp_with_hour(date: Date, hour: u8) -> String {
+    PrimitiveDateTime::new(
+        date,
+        Time::from_hms(hour, 0, 0).expect("seed hours should be valid"),
+    )
+    .assume_utc()
+    .format(&time::format_description::well_known::Rfc3339)
+    .expect("seed timestamps should format")
+}
+
+fn observation_timestamp(date: Date) -> String {
+    observation_timestamp_with_hour(date, 9)
+}
+
+fn seasonal_multiplier(day_index: usize, date: Date) -> f64 {
     let weekly = match day_index % 7 {
-        4 => 1.06,
-        5 => 1.12,
-        6 => 1.16,
+        4 => 1.05,
+        5 => 1.1,
+        6 => 1.14,
         _ => 0.97,
     };
-    let payday = if date.day() >= 25 { 1.08 } else { 1.0 };
-    let hot_weather_bump = if matches!(date.month(), Month::March | Month::April) {
-        1.05
+    let payday = if date.day() >= 24 { 1.07 } else { 1.0 };
+    let weather = if matches!(date.month(), Month::March | Month::April) {
+        1.04
     } else {
         1.0
     };
-    weekly * payday * hot_weather_bump
+    weekly * payday * weather
 }
 
 fn service_promo_multiplier(service_id: &str, day_index: usize) -> f64 {
     match service_id {
-        "service-004" if (6..=8).contains(&day_index) => 1.22,
-        "service-006" if (12..=15).contains(&day_index) => 1.28,
-        "service-005" if (19..=21).contains(&day_index) => 1.18,
-        "service-007" if (24..=27).contains(&day_index) => 1.2,
+        "service-004" if (5..=8).contains(&day_index) => 1.15,
+        "service-006" if (11..=14).contains(&day_index) => 1.26,
+        "service-008" if (11..=14).contains(&day_index) => 1.18,
+        "service-009" if (24..=26).contains(&day_index) => 0.92,
+        "service-007" if (27..=29).contains(&day_index) => 1.16,
         _ => 1.0,
     }
 }
 
 fn retail_promo_multiplier(sku_id: &str, day_index: usize) -> f64 {
     match sku_id {
-        "sku-001" if (12..=15).contains(&day_index) => 1.1,
-        "sku-006" if (19..=21).contains(&day_index) => 1.14,
-        "sku-007" if (24..=27).contains(&day_index) => 1.16,
-        "sku-008" if (9..=11).contains(&day_index) => 1.12,
+        "sku-001" if (11..=14).contains(&day_index) => 1.12,
+        "sku-006" if (11..=14).contains(&day_index) => 1.09,
+        "sku-007" if (27..=29).contains(&day_index) => 1.15,
+        "sku-008" if (11..=14).contains(&day_index) => 1.11,
         _ => 1.0,
     }
 }
 
-fn observation_timestamp(date: Date) -> String {
-    PrimitiveDateTime::new(date, Time::MIDNIGHT)
-        .assume_utc()
-        .format(&time::format_description::well_known::Rfc3339)
-        .expect("seed timestamps should format")
-}
-
-fn maybe_discounted_price(base_price: Option<f64>, date: Date, sku_id: &str) -> Option<f64> {
+fn maybe_discounted_price(
+    base_price: Option<f64>,
+    date: Date,
+    sku_id: &str,
+    regime: SenaObservationRegimeHint,
+) -> Option<f64> {
     base_price.map(|price| {
-        let discount = match sku_id {
+        let date_discount = match sku_id {
             "sku-001" if date.day() >= 13 && date.day() <= 16 => 0.95,
             "sku-006" if date.day() >= 20 && date.day() <= 22 => 0.93,
             "sku-008" if date.day() >= 10 && date.day() <= 12 => 0.95,
             _ => 1.0,
         };
-        (price * discount * 100.0).round() / 100.0
+        let regime_factor = match regime {
+            SenaObservationRegimeHint::Promo => 0.94,
+            SenaObservationRegimeHint::Spike => 0.98,
+            SenaObservationRegimeHint::Correction => 1.0,
+            SenaObservationRegimeHint::Lull => 0.99,
+            SenaObservationRegimeHint::StockoutConstrained => 1.02,
+            SenaObservationRegimeHint::Normal => 1.0,
+        };
+        round2(price * date_discount * regime_factor)
     })
 }
 
-fn maybe_discounted_service_price(base_price: f64, date: Date, service_id: &str) -> f64 {
-    let discount = match service_id {
+fn maybe_discounted_service_price(
+    base_price: f64,
+    date: Date,
+    service_id: &str,
+    regime: SenaObservationRegimeHint,
+) -> f64 {
+    let date_discount = match service_id {
         "service-006" if date.day() >= 13 && date.day() <= 16 => 0.92,
         "service-005" if date.day() >= 20 && date.day() <= 22 => 0.95,
         "service-007" if date.day() >= 25 && date.day() <= 28 => 0.94,
         _ => 1.0,
     };
-    (base_price * discount * 100.0).round() / 100.0
+    let regime_factor = match regime {
+        SenaObservationRegimeHint::Promo => 0.96,
+        SenaObservationRegimeHint::Spike => 0.99,
+        SenaObservationRegimeHint::Correction => 1.0,
+        SenaObservationRegimeHint::Lull => 1.0,
+        SenaObservationRegimeHint::StockoutConstrained => 1.03,
+        SenaObservationRegimeHint::Normal => 1.0,
+    };
+    round2(base_price * date_discount * regime_factor)
+}
+
+fn service_base_activity(service: &SeedServiceProfile) -> f64 {
+    let bundle_lift = if service.bundle { 0.45 } else { 0.1 };
+    0.65 + service.mask.len() as f64 * 0.42 + bundle_lift
+}
+
+fn recipe_profile_for_interval(
+    service: &SeedServiceProfile,
+    day_index: usize,
+    link_index: usize,
+    regime: SenaObservationRegimeHint,
+) -> RecipeUsageProfile {
+    let mut rng = seeded_rng("recipe", day_index, link_index + service.name.len());
+    let (sku_id, base_probability) = service.mask[link_index];
+    let mut usage_probability = base_probability
+        + if service.bundle { 0.08 } else { 0.0 }
+        + if matches!(regime, SenaObservationRegimeHint::Promo) && service.bundle {
+            0.08
+        } else {
+            0.0
+        }
+        - if matches!(regime, SenaObservationRegimeHint::Lull) {
+            0.04
+        } else {
+            0.0
+        }
+        + rng.gen_range(-0.04..0.04);
+    usage_probability = usage_probability.clamp(0.18, 0.98);
+
+    let typical_units_per_instance = (0.55
+        + link_index as f64 * 0.18
+        + if service.bundle { 0.28 } else { 0.08 }
+        + if matches!(regime, SenaObservationRegimeHint::Promo) {
+            0.12
+        } else {
+            0.0
+        }
+        + rng.gen_range(-0.05..0.09))
+    .max(0.12);
+    let variability = (0.18 + link_index as f64 * 0.04 + rng.gen_range(0.0..0.08)).min(0.5);
+
+    RecipeUsageProfile {
+        service_id: service.service_id.to_string(),
+        sku_id: sku_id.to_string(),
+        usage_probability: round2(usage_probability),
+        typical_units_per_instance: round2(typical_units_per_instance),
+        variability: round2(variability),
+    }
+}
+
+fn build_lead_time_hint(profile: &SeedSkuProfile, state: &SeedSkuRuntime) -> SenaLeadTimeHint {
+    let typical_days = state.recent_lead_time_days.max(1.0);
+    let spread = (profile.lead_time_std_days_hint * 0.85).max(0.75);
+    let low_days = (typical_days - spread).max(1.0);
+    let high_days = typical_days + spread;
+    SenaLeadTimeHint {
+        sku_id: profile.sku_id.to_string(),
+        typical_days: Some(round2(typical_days)),
+        low_days: Some(round2(low_days)),
+        high_days: Some(round2(high_days)),
+        variability_class: derive_relative_width(Some(low_days), Some(high_days))
+            .and_then(classify_relative_width),
+    }
+}
+
+fn note_for_regime(
+    date: Date,
+    regime: SenaObservationRegimeHint,
+    stockout_count: usize,
+    adjustment_count: usize,
+) -> String {
+    let regime_note = match regime {
+        SenaObservationRegimeHint::Normal => "baseline trading flow",
+        SenaObservationRegimeHint::Spike => "event-driven demand spike",
+        SenaObservationRegimeHint::Lull => "quiet demand lull",
+        SenaObservationRegimeHint::StockoutConstrained => "stockout-constrained selling window",
+        SenaObservationRegimeHint::Promo => "promotion-led mix shift",
+        SenaObservationRegimeHint::Correction => "inventory reconciliation window",
+    };
+    let pressure = if stockout_count > 0 {
+        " stock pressure showed up across linked items."
+    } else {
+        ""
+    };
+    let correction = if adjustment_count > 0 {
+        " Recount and shrinkage adjustments were recorded."
+    } else {
+        ""
+    };
+    format!(
+        "Daily Phnom Penh storefront closeout for {date} with {regime_note}.{pressure}{correction}"
+    )
 }
 
 fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
-    let start = Date::from_calendar_date(2026, Month::March, 1)
-        .expect("seed start date should be valid");
-    let mut on_hand: Vec<f64> = SEED_SKUS.iter().map(|profile| profile.opening_units).collect();
-    let mut pipeline: Vec<Vec<(usize, f64)>> = vec![Vec::new(); SEED_SKUS.len()];
+    let start =
+        Date::from_calendar_date(2026, Month::March, 1).expect("seed start date should be valid");
+    let mut sku_states: Vec<SeedSkuRuntime> = SEED_SKUS
+        .iter()
+        .map(|profile| SeedSkuRuntime {
+            on_hand: profile.opening_units,
+            current_cost: profile.cost_per_unit,
+            recent_lead_time_days: profile.lead_time_mean_days_hint,
+            last_order_day: None,
+            pending_orders: Vec::new(),
+        })
+        .collect();
     let mut observations = Vec::with_capacity(DEV_SEED_OBSERVATION_COUNT);
 
     for day_index in 0..DEV_SEED_OBSERVATION_COUNT {
         let date = start + Duration::days(day_index as i64);
-        let timestamp = observation_timestamp(date);
-        let seasonal = demand_multiplier(day_index, date);
-        let mut order_signals = Vec::new();
-        let mut retail_rank_scores = Vec::<(String, f64)>::new();
-        let mut service_rank_scores = Vec::<(String, f64)>::new();
-        let mut retail_stockouts = Vec::new();
-        let mut service_stockouts = Vec::new();
-        let mut daily_receipts = vec![0.0_f64; SEED_SKUS.len()];
+        let observed_at = observation_timestamp(date);
+        let interval_multiplier = seasonal_multiplier(day_index, date);
+        let scheduled_regime = scheduled_regime(day_index);
+        let mut service_demand_by_sku = vec![0.0_f64; SEED_SKUS.len()];
+        let mut service_outcomes = Vec::<ServiceIntervalOutcome>::new();
+        let mut retail_latent_demand = vec![0.0_f64; SEED_SKUS.len()];
+        let mut receipts_by_sku = vec![0.0_f64; SEED_SKUS.len()];
+        let mut receipt_timestamps: Vec<Option<String>> = vec![None; SEED_SKUS.len()];
 
-        for (sku_index, _profile) in SEED_SKUS.iter().enumerate() {
-            let mut receipt_qty = 0.0;
-            pipeline[sku_index].retain(|(arrival_day, qty)| {
-                if *arrival_day == day_index {
-                    receipt_qty += *qty;
+        for (sku_index, state) in sku_states.iter_mut().enumerate() {
+            let mut arrivals = Vec::new();
+            state.pending_orders.retain(|order| {
+                if order.arrival_day == day_index {
+                    arrivals.push(order.clone());
                     false
                 } else {
                     true
                 }
             });
-            if receipt_qty > 0.0 {
-                on_hand[sku_index] += receipt_qty;
-                daily_receipts[sku_index] = receipt_qty;
+            if !arrivals.is_empty() {
+                let receipt_qty: f64 = arrivals.iter().map(|order| order.quantity).sum();
+                state.on_hand += receipt_qty;
+                receipts_by_sku[sku_index] = round2(receipt_qty);
+                receipt_timestamps[sku_index] = arrivals
+                    .first()
+                    .map(|_| observation_timestamp_with_hour(date, 16));
+                state.recent_lead_time_days = arrivals
+                    .iter()
+                    .map(|order| order.lead_time_days)
+                    .sum::<f64>()
+                    / arrivals.len() as f64;
             }
+        }
+
+        for (service_index, service) in SEED_SERVICES.iter().enumerate() {
+            let service_price = maybe_discounted_service_price(
+                service.price,
+                date,
+                service.service_id,
+                scheduled_regime,
+            );
+            let price_lift = (service.price / service_price.max(1.0)).powf(0.45);
+            let mut rng = seeded_rng("service", day_index, service_index);
+            let base_count = service_base_activity(service)
+                * interval_multiplier
+                * regime_multiplier(scheduled_regime)
+                * service_promo_multiplier(service.service_id, day_index)
+                * price_lift
+                * (1.0 + rng.gen_range(-0.12..0.14));
+            let service_count = base_count.max(0.0);
+
+            let mut recipe_profiles = Vec::new();
+            for link_index in 0..service.mask.len() {
+                let recipe_profile =
+                    recipe_profile_for_interval(service, day_index, link_index, scheduled_regime);
+                let sku_index = SEED_SKUS
+                    .iter()
+                    .position(|profile| profile.sku_id == recipe_profile.sku_id)
+                    .expect("seed sku should exist");
+                let usage_noise =
+                    1.0 + rng.gen_range(-recipe_profile.variability..recipe_profile.variability);
+                service_demand_by_sku[sku_index] += service_count
+                    * recipe_profile.usage_probability
+                    * recipe_profile.typical_units_per_instance
+                    * usage_noise.max(0.5);
+                recipe_profiles.push(recipe_profile);
+            }
+
+            let rank_score = service_count
+                * (if service.bundle { 1.08 } else { 0.94 })
+                * (1.0 + rng.gen_range(-0.08..0.08));
+            service_outcomes.push(ServiceIntervalOutcome {
+                service_id: service.service_id.to_string(),
+                rank_score: round2(rank_score.max(0.01)),
+                stockout: false,
+                recipe_profiles,
+            });
         }
 
         for (sku_index, profile) in SEED_SKUS.iter().enumerate() {
-            let promo = retail_promo_multiplier(profile.sku_id, day_index);
-            let phase = ((day_index as f64 / 6.0) + sku_index as f64 * 0.45).sin() * 0.08;
-            let retail_demand = if profile.sold_as_product {
-                (profile.base_daily_demand * seasonal * promo * (1.0 + phase)).clamp(0.05, 4.0)
-            } else {
-                0.0
-            };
-            let sold_units = retail_demand.min(on_hand[sku_index]);
-            on_hand[sku_index] = (on_hand[sku_index] - sold_units).max(0.0);
-            retail_rank_scores.push((profile.sku_id.to_string(), retail_demand));
-            if on_hand[sku_index] <= 2.0 {
+            if !profile.sold_as_product {
+                continue;
+            }
+            let retail_price = maybe_discounted_price(
+                profile.product_price,
+                date,
+                profile.sku_id,
+                scheduled_regime,
+            )
+            .unwrap_or(profile.product_price.unwrap_or(1.0));
+            let price_lift = profile
+                .product_price
+                .map(|base| (base / retail_price.max(0.5)).powf(0.55))
+                .unwrap_or(1.0);
+            let mut rng = seeded_rng("retail", day_index, sku_index);
+            let base_retail = profile.base_daily_demand
+                * interval_multiplier
+                * regime_multiplier(scheduled_regime)
+                * retail_promo_multiplier(profile.sku_id, day_index)
+                * price_lift
+                * (1.0 + rng.gen_range(-0.15..0.18));
+            retail_latent_demand[sku_index] = base_retail.max(0.0);
+        }
+
+        let mut sku_outcomes = Vec::<SkuIntervalOutcome>::new();
+        let mut retail_stockouts = Vec::new();
+        let mut adjustment_signals = Vec::new();
+        let mut order_signals = Vec::new();
+        let mut stockout_pressure_detected = false;
+
+        for (sku_index, profile) in SEED_SKUS.iter().enumerate() {
+            let mut rng = seeded_rng("sku", day_index, sku_index);
+            let state = &mut sku_states[sku_index];
+            let pipeline_units: f64 = state
+                .pending_orders
+                .iter()
+                .map(|order| order.quantity)
+                .sum();
+            let unconstrained_demand =
+                service_demand_by_sku[sku_index] + retail_latent_demand[sku_index];
+            let available_inventory = state.on_hand;
+
+            let order_age_days = state
+                .last_order_day
+                .map(|last_order_day| (day_index - last_order_day) as f64)
+                .unwrap_or((day_index + 1) as f64);
+            let inventory_gap =
+                (profile.reorder_target_units - (state.on_hand + pipeline_units)).max(0.0);
+            let order_score = 0.12
+                + (inventory_gap / profile.reorder_target_units.max(1.0)) * 0.74
+                + (order_age_days / profile.lead_time_mean_days_hint.max(1.0)) * 0.08
+                - (pipeline_units / profile.reorder_batch_units.max(1.0)) * 0.18
+                + if matches!(
+                    scheduled_regime,
+                    SenaObservationRegimeHint::Spike | SenaObservationRegimeHint::Promo
+                ) {
+                    0.05
+                } else {
+                    0.0
+                };
+            let order_probability = order_score.clamp(0.02, 0.92);
+
+            let mut order_quantity = None;
+            let mut placement_timestamp = None;
+            let mut lead_time_days_hint = None;
+            if rng.gen::<f64>() < order_probability {
+                let lead_time_days = (profile.lead_time_mean_days_hint
+                    + rng.gen_range(
+                        -profile.lead_time_std_days_hint..profile.lead_time_std_days_hint * 1.2,
+                    )
+                    + if matches!(
+                        scheduled_regime,
+                        SenaObservationRegimeHint::Promo | SenaObservationRegimeHint::Spike
+                    ) {
+                        0.6
+                    } else {
+                        0.0
+                    })
+                .max(1.0);
+                let quantity = (profile.reorder_batch_units
+                    * (0.86 + inventory_gap / profile.reorder_target_units.max(1.0) * 0.55)
+                    * (1.0 + rng.gen_range(-0.12..0.18)))
+                .max(6.0);
+                let placement = observation_timestamp_with_hour(date, 12);
+                let arrival_day = day_index + lead_time_days.ceil() as usize;
+                state.pending_orders.push(PendingOrder {
+                    arrival_day,
+                    quantity,
+                    lead_time_days,
+                });
+                state.last_order_day = Some(day_index);
+                order_quantity = Some(round2(quantity));
+                placement_timestamp = Some(placement);
+                lead_time_days_hint = Some(round2(lead_time_days));
+            }
+
+            let adjustment_delta =
+                if matches!(scheduled_regime, SenaObservationRegimeHint::Correction)
+                    && ((sku_index + day_index) % 3 == 0)
+                {
+                    let sign = if (sku_index + day_index) % 2 == 0 {
+                        -1.0
+                    } else {
+                        1.0
+                    };
+                    sign * round2(rng.gen_range(0.8..3.4))
+                } else if rng.gen::<f64>() < 0.04 {
+                    -round2(rng.gen_range(0.2..1.1))
+                } else {
+                    0.0
+                };
+
+            let realized_consumption = unconstrained_demand.min(available_inventory);
+            let lost_demand = (unconstrained_demand - realized_consumption).max(0.0);
+            state.on_hand =
+                (available_inventory + adjustment_delta - realized_consumption).max(0.0);
+
+            if receipts_by_sku[sku_index] > 0.0 {
+                state.current_cost = round2(
+                    state.current_cost
+                        * (1.0
+                            + if matches!(scheduled_regime, SenaObservationRegimeHint::Promo) {
+                                0.025
+                            } else if matches!(
+                                scheduled_regime,
+                                SenaObservationRegimeHint::Correction
+                            ) {
+                                0.01
+                            } else {
+                                0.0
+                            }
+                            + rng.gen_range(-0.008..0.016)),
+                )
+                .max(0.5);
+            }
+
+            let retail_stockout = lost_demand > 0.35
+                || (profile.sold_as_product
+                    && state.on_hand <= (profile.base_daily_demand * 1.8).max(2.0));
+            if retail_stockout {
                 retail_stockouts.push(profile.sku_id.to_string());
             }
-
-            let pipeline_units: f64 = pipeline[sku_index].iter().map(|(_, qty)| *qty).sum();
-            if on_hand[sku_index] + pipeline_units <= profile.reorder_target_units {
-                let expected_lead = profile.lead_time_mean_days_hint.round() as usize;
-                let jitter = (day_index + sku_index) % 3;
-                let arrival_day =
-                    (day_index + expected_lead.max(2) + jitter).min(DEV_SEED_OBSERVATION_COUNT + 14);
-                let quantity = profile.reorder_batch_units;
-                pipeline[sku_index].push((arrival_day, quantity));
-                order_signals.push(SenaOrderSignal {
+            if lost_demand > 0.35 {
+                stockout_pressure_detected = true;
+            }
+            if adjustment_delta != 0.0 {
+                adjustment_signals.push(SenaAdjustmentSignal {
                     sku_id: profile.sku_id.to_string(),
-                    order_placed: true,
-                    receipt_arrived: daily_receipts[sku_index] > 0.0,
-                    approximate_order_quantity: Some(quantity),
-                    approximate_receipt_quantity: if daily_receipts[sku_index] > 0.0 {
-                        Some(daily_receipts[sku_index])
+                    quantity_delta: adjustment_delta,
+                    reason: if adjustment_delta < 0.0 {
+                        "cycle_count_write_off".to_string()
                     } else {
-                        None
+                        "cycle_count_recount".to_string()
                     },
                 });
-            } else if daily_receipts[sku_index] > 0.0 {
+            }
+
+            if order_quantity.is_some() || receipts_by_sku[sku_index] > 0.0 {
                 order_signals.push(SenaOrderSignal {
                     sku_id: profile.sku_id.to_string(),
-                    order_placed: false,
-                    receipt_arrived: true,
-                    approximate_order_quantity: None,
-                    approximate_receipt_quantity: Some(daily_receipts[sku_index]),
+                    order_placed: order_quantity.is_some(),
+                    receipt_arrived: receipts_by_sku[sku_index] > 0.0,
+                    approximate_order_quantity: order_quantity,
+                    approximate_receipt_quantity: (receipts_by_sku[sku_index] > 0.0)
+                        .then_some(round2(receipts_by_sku[sku_index])),
+                    placement_timestamp,
+                    receipt_timestamp: receipt_timestamps[sku_index].clone(),
+                    lead_time_days_hint,
                 });
             }
-        }
 
-        for service in &SEED_SERVICES {
-            let promo = service_promo_multiplier(service.service_id, day_index);
-            let availability = service
-                .mask
-                .iter()
-                .map(|(sku_id, usage)| {
-                    let idx = SEED_SKUS
-                        .iter()
-                        .position(|profile| profile.sku_id == *sku_id)
-                        .expect("seed sku should exist");
-                    let stock_ratio =
-                        (on_hand[idx] / (SEED_SKUS[idx].opening_units * usage.max(0.35))).clamp(0.25, 1.4);
-                    stock_ratio
-                })
-                .sum::<f64>()
-                / service.mask.len().max(1) as f64;
-            let popularity = 1.0 + ((day_index as f64 / 7.0) + service.name.len() as f64).cos() * 0.08;
-            let rank_score = (promo
-                * popularity
-                * if service.bundle { 1.06 } else { 0.98 }
-                * availability)
-                .clamp(0.2, 2.5);
-            service_rank_scores.push((service.service_id.to_string(), rank_score));
-            if service.mask.iter().any(|(sku_id, _)| {
-                let idx = SEED_SKUS
-                    .iter()
-                    .position(|profile| profile.sku_id == *sku_id)
-                    .expect("seed sku should exist");
-                on_hand[idx] <= 1.0
-            }) {
-                service_stockouts.push(service.service_id.to_string());
-            }
-        }
-
-        retail_rank_scores.sort_by(|left, right| right.1.total_cmp(&left.1));
-        service_rank_scores.sort_by(|left, right| right.1.total_cmp(&left.1));
-
-        let stock_snapshot = SEED_SKUS
-            .iter()
-            .enumerate()
-            .map(|(sku_index, profile)| SenaStockSnapshot {
+            let retail_rank_score =
+                round2((retail_latent_demand[sku_index] + lost_demand * 0.25).max(0.0));
+            sku_outcomes.push(SkuIntervalOutcome {
                 sku_id: profile.sku_id.to_string(),
-                units_in_stock: on_hand[sku_index].round(),
-                cost_per_unit: Some(profile.cost_per_unit),
-                product_price: maybe_discounted_price(profile.product_price, date, profile.sku_id),
+                units_in_stock: state.on_hand.round(),
+                cost_per_unit: round2(state.current_cost),
+                product_price: maybe_discounted_price(
+                    profile.product_price,
+                    date,
+                    profile.sku_id,
+                    scheduled_regime,
+                ),
+                retail_stockout,
+                order_quantity,
+                receipt_quantity: (receipts_by_sku[sku_index] > 0.0)
+                    .then_some(round2(receipts_by_sku[sku_index])),
+                retail_rank_score,
+                lost_demand: round2(lost_demand),
+            });
+        }
+
+        let binding_stockouts = sku_outcomes
+            .iter()
+            .filter(|outcome| outcome.retail_stockout || outcome.lost_demand > 0.5)
+            .count();
+        let final_regime = if stockout_pressure_detected
+            && matches!(
+                scheduled_regime,
+                SenaObservationRegimeHint::Normal | SenaObservationRegimeHint::Lull
+            )
+            && binding_stockouts >= 2
+        {
+            SenaObservationRegimeHint::StockoutConstrained
+        } else {
+            scheduled_regime
+        };
+
+        for outcome in &mut service_outcomes {
+            let linked_stockout = SEED_SERVICES
+                .iter()
+                .find(|service| service.service_id == outcome.service_id)
+                .is_some_and(|service| {
+                    service.mask.iter().any(|(sku_id, _)| {
+                        sku_outcomes
+                            .iter()
+                            .find(|outcome| outcome.sku_id == *sku_id)
+                            .is_some_and(|outcome| {
+                                outcome.retail_stockout || outcome.lost_demand > 0.35
+                            })
+                    })
+                });
+            outcome.stockout = linked_stockout;
+        }
+
+        let service_stockouts: Vec<String> = service_outcomes
+            .iter()
+            .filter(|outcome| outcome.stockout)
+            .map(|outcome| outcome.service_id.clone())
+            .collect();
+
+        let stock_snapshot = sku_outcomes
+            .iter()
+            .map(|outcome| SenaStockSnapshot {
+                sku_id: outcome.sku_id.clone(),
+                units_in_stock: outcome.units_in_stock,
+                cost_per_unit: Some(outcome.cost_per_unit),
+                product_price: outcome.product_price,
             })
             .collect();
 
@@ -754,76 +1190,94 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
             .iter()
             .map(|service| SenaServicePriceObservation {
                 service_id: service.service_id.to_string(),
-                price: maybe_discounted_service_price(service.price, date, service.service_id),
+                price: maybe_discounted_service_price(
+                    service.price,
+                    date,
+                    service.service_id,
+                    final_regime,
+                ),
             })
             .collect();
 
-        let retail_prices = SEED_SKUS
+        let retail_prices = sku_outcomes
             .iter()
-            .filter_map(|profile| {
-                maybe_discounted_price(profile.product_price, date, profile.sku_id).map(|price| {
-                    SenaRetailPriceObservation {
-                        sku_id: profile.sku_id.to_string(),
+            .filter_map(|outcome| {
+                outcome
+                    .product_price
+                    .map(|price| SenaRetailPriceObservation {
+                        sku_id: outcome.sku_id.clone(),
                         price,
-                    }
-                })
+                    })
             })
             .collect();
 
-        let lead_time_hints = if day_index % 30 == 0 || matches!(date.month(), Month::April | Month::November) && date.day() == 1 {
-            SEED_SKUS
-                .iter()
-                .map(|profile| {
-                    let low_days =
-                        (profile.lead_time_mean_days_hint - profile.lead_time_std_days_hint).max(1.0);
-                    let high_days =
-                        profile.lead_time_mean_days_hint + profile.lead_time_std_days_hint + 1.0;
-                    SenaLeadTimeHint {
-                        sku_id: profile.sku_id.to_string(),
-                        typical_days: Some(profile.lead_time_mean_days_hint),
-                        low_days: Some(low_days),
-                        high_days: Some(high_days),
-                        variability_class: derive_relative_width(Some(low_days), Some(high_days))
-                            .and_then(classify_relative_width),
-                    }
-                })
-                .collect()
-        } else if day_index == 14 {
-            SEED_SKUS
-                .iter()
-                .map(|profile| {
-                    let low_days =
-                        (profile.lead_time_mean_days_hint - profile.lead_time_std_days_hint).max(1.0);
-                    let high_days =
-                        profile.lead_time_mean_days_hint + profile.lead_time_std_days_hint + 1.0;
-                    SenaLeadTimeHint {
-                        sku_id: profile.sku_id.to_string(),
-                        typical_days: Some(profile.lead_time_mean_days_hint),
-                        low_days: Some(low_days),
-                        high_days: Some(high_days),
-                        variability_class: derive_relative_width(Some(low_days), Some(high_days))
-                            .and_then(classify_relative_width),
-                    }
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let lead_time_hints = SEED_SKUS
+            .iter()
+            .enumerate()
+            .filter_map(|(sku_index, profile)| {
+                let state = &sku_states[sku_index];
+                let emit = day_index == 0
+                    || sku_outcomes[sku_index].order_quantity.is_some()
+                    || sku_outcomes[sku_index].receipt_quantity.is_some()
+                    || matches!(
+                        final_regime,
+                        SenaObservationRegimeHint::Promo | SenaObservationRegimeHint::Correction
+                    );
+                emit.then(|| build_lead_time_hint(profile, state))
+            })
+            .collect();
 
+        let mut service_rankings: Vec<(String, f64)> = service_outcomes
+            .iter()
+            .map(|outcome| (outcome.service_id.clone(), outcome.rank_score))
+            .collect();
+        let mut retail_rankings: Vec<(String, f64)> = sku_outcomes
+            .iter()
+            .map(|outcome| (outcome.sku_id.clone(), outcome.retail_rank_score))
+            .collect();
+        service_rankings.sort_by(|left, right| right.1.total_cmp(&left.1));
+        retail_rankings.sort_by(|left, right| right.1.total_cmp(&left.1));
+
+        let adjustment_count = adjustment_signals.len();
+        let stockout_count = retail_stockouts.len() + service_stockouts.len();
         observations.push(SenaObservationInput {
-            observed_at: timestamp,
+            observed_at,
             stock_snapshot,
-            service_rankings: service_rank_scores.iter().take(5).map(|(id, _)| id.clone()).collect(),
-            retail_rankings: retail_rank_scores.iter().take(5).map(|(id, _)| id.clone()).collect(),
+            service_rankings: service_rankings
+                .into_iter()
+                .take(5)
+                .map(|(id, _)| id)
+                .collect(),
+            retail_rankings: retail_rankings
+                .into_iter()
+                .filter(|(_, score)| *score > 0.0)
+                .take(5)
+                .map(|(id, _)| id)
+                .collect(),
             service_stockouts,
             retail_stockouts,
             order_signals,
             service_prices,
             retail_prices,
             lead_time_hints,
-            notes: Some(format!(
-                "Daily Phnom Penh storefront closeout for {}.",
-                date
+            regime_hint: Some(final_regime),
+            adjustment_signals,
+            recipe_usage_hints: service_outcomes
+                .iter()
+                .flat_map(|outcome| outcome.recipe_profiles.iter())
+                .map(|profile| SenaRecipeUsageHint {
+                    service_id: profile.service_id.clone(),
+                    sku_id: profile.sku_id.clone(),
+                    usage_probability: profile.usage_probability,
+                    typical_units_per_instance: profile.typical_units_per_instance,
+                    variability: profile.variability,
+                })
+                .collect(),
+            notes: Some(note_for_regime(
+                date,
+                final_regime,
+                stockout_count,
+                adjustment_count,
             )),
         });
     }
@@ -848,7 +1302,10 @@ pub fn upsert_catalog(owner_sub: &str, catalog: &SenaCatalog) -> Result<()> {
     block_on(repository()?.upsert_catalog(owner_sub, catalog))
 }
 
-pub fn ingest_observation(owner_sub: &str, observation: &SenaObservationInput) -> Result<SenaObservationRecord> {
+pub fn ingest_observation(
+    owner_sub: &str,
+    observation: &SenaObservationInput,
+) -> Result<SenaObservationRecord> {
     block_on(repository()?.insert_observation(owner_sub, observation))
 }
 
@@ -893,8 +1350,10 @@ pub fn get_service_detail(
     before_interval_index: Option<usize>,
     limit: usize,
 ) -> Result<Option<SenaServiceDetailPage>> {
-    Ok(block_on(repository()?.load_service_detail(owner_sub, service_id))?
-        .map(|detail| page_service_detail(detail, before_interval_index, limit)))
+    Ok(
+        block_on(repository()?.load_service_detail(owner_sub, service_id))?
+            .map(|detail| page_service_detail(detail, before_interval_index, limit)),
+    )
 }
 
 pub fn get_diagnostics(owner_sub: &str) -> Result<Option<SenaDiagnostics>> {
@@ -958,4 +1417,65 @@ pub fn ensure_dev_seed(owner_sub: &str) -> Result<bool> {
     block_on(repo.clear_owner(owner_sub))?;
     seed_workspace(&repo, owner_sub)?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{generate_dev_seed_observations, SenaObservationRegimeHint};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn dev_seed_observations_separate_orders_receipts_and_adjustments() {
+        let observations = generate_dev_seed_observations();
+        assert!(!observations.is_empty());
+        assert!(observations.iter().any(|observation| {
+            observation
+                .order_signals
+                .iter()
+                .any(|signal| signal.order_placed && !signal.receipt_arrived)
+        }));
+        assert!(observations.iter().any(|observation| {
+            observation
+                .order_signals
+                .iter()
+                .any(|signal| !signal.order_placed && signal.receipt_arrived)
+        }));
+        assert!(observations.iter().any(|observation| {
+            observation.regime_hint == Some(SenaObservationRegimeHint::Correction)
+                && !observation.adjustment_signals.is_empty()
+        }));
+    }
+
+    #[test]
+    fn dev_seed_observations_keep_pipeline_non_negative_and_stockouts_tight() {
+        let observations = generate_dev_seed_observations();
+        let mut pipeline_by_sku = BTreeMap::<String, f64>::new();
+
+        for observation in &observations {
+            let stock_by_sku = observation
+                .stock_snapshot
+                .iter()
+                .map(|snapshot| (snapshot.sku_id.clone(), snapshot.units_in_stock))
+                .collect::<BTreeMap<_, _>>();
+
+            for signal in &observation.order_signals {
+                let pipeline = pipeline_by_sku.entry(signal.sku_id.clone()).or_insert(0.0);
+                *pipeline += signal.approximate_order_quantity.unwrap_or(0.0);
+                *pipeline -= signal.approximate_receipt_quantity.unwrap_or(0.0);
+                assert!(
+                    *pipeline >= -1e-6,
+                    "pipeline dipped below zero for {}",
+                    signal.sku_id
+                );
+            }
+
+            for sku_id in &observation.retail_stockouts {
+                let units = stock_by_sku.get(sku_id).copied().unwrap_or(f64::INFINITY);
+                assert!(
+                    units <= 6.0,
+                    "stockout flag should correspond to tight stock for {sku_id}"
+                );
+            }
+        }
+    }
 }

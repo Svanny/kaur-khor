@@ -1,5 +1,9 @@
 use crate::{
-    inference::{run_analysis, AnalysisArtifacts},
+    inference::{
+        build_input_fingerprint, fingerprint_observation_prefix, preprocess_workspace,
+        run_preprocessed_analysis, AnalysisArtifacts, PreprocessedWorkspace,
+        SenaAnalysisCheckpoint,
+    },
     types::{
         SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaObservationInput,
         SenaObservationRecord,
@@ -33,6 +37,28 @@ pub trait SenaRepository {
         result: &SenaAnalysisResult,
         artifact_key: Option<&str>,
     ) -> Result<()>;
+    async fn load_preprocessed_workspace(
+        &self,
+        owner_sub: &str,
+        algorithm_version: &str,
+        catalog_fingerprint: &str,
+        observation_fingerprint: &str,
+    ) -> Result<Option<PreprocessedWorkspace>>;
+    async fn save_preprocessed_workspace(
+        &self,
+        owner_sub: &str,
+        algorithm_version: &str,
+        catalog_fingerprint: &str,
+        observation_fingerprint: &str,
+        workspace: &PreprocessedWorkspace,
+    ) -> Result<()>;
+    async fn list_analysis_checkpoints(
+        &self,
+        owner_sub: &str,
+        algorithm_version: &str,
+        catalog_fingerprint: &str,
+    ) -> Result<Vec<SenaAnalysisCheckpoint>>;
+    async fn save_analysis_checkpoint(&self, checkpoint: &SenaAnalysisCheckpoint) -> Result<()>;
     async fn mark_run_failed(&self, run_id: &str, error: &str) -> Result<()>;
     async fn load_workspace_summary(
         &self,
@@ -79,7 +105,52 @@ pub async fn execute_analysis_run<R: SenaRepository>(
         repo.mark_run_failed(run_id, "no observations").await?;
         return Err(anyhow!("no observations"));
     }
-    let (result, artifacts) = run_analysis(&run.owner_sub, &catalog, &observations, algorithm_version)?;
+    let fingerprints = build_input_fingerprint(&catalog, &observations, algorithm_version)?;
+    let preprocessed = match repo
+        .load_preprocessed_workspace(
+            &run.owner_sub,
+            algorithm_version,
+            &fingerprints.catalog_fingerprint,
+            &fingerprints.observation_fingerprint,
+        )
+        .await?
+    {
+        Some(cached) => cached,
+        None => {
+            let computed = preprocess_workspace(&catalog, &observations)?;
+            repo.save_preprocessed_workspace(
+                &run.owner_sub,
+                algorithm_version,
+                &fingerprints.catalog_fingerprint,
+                &fingerprints.observation_fingerprint,
+                &computed,
+            )
+            .await?;
+            computed
+        }
+    };
+    let resume_from = latest_reusable_checkpoint(
+        repo,
+        &run.owner_sub,
+        algorithm_version,
+        &fingerprints.catalog_fingerprint,
+        &observations,
+    )
+    .await?;
+    let output = run_preprocessed_analysis(
+        &run.owner_sub,
+        &catalog,
+        &observations,
+        algorithm_version,
+        &preprocessed,
+        resume_from.as_ref(),
+        Some(8),
+    )?;
+    for checkpoint in &output.checkpoints {
+        repo.save_analysis_checkpoint(checkpoint).await?;
+    }
+    let result = output.result;
+    let artifacts = output.artifacts;
     repo.persist_completed_run(run_id, &result, Some(&artifacts.primary_artifact_key))
         .await?;
     let completed = repo
@@ -87,6 +158,29 @@ pub async fn execute_analysis_run<R: SenaRepository>(
         .await?
         .ok_or_else(|| anyhow!("completed run disappeared"))?;
     Ok((completed, artifacts))
+}
+
+async fn latest_reusable_checkpoint<R: SenaRepository>(
+    repo: &R,
+    owner_sub: &str,
+    algorithm_version: &str,
+    catalog_fingerprint: &str,
+    observations: &[SenaObservationRecord],
+) -> Result<Option<SenaAnalysisCheckpoint>> {
+    let checkpoints = repo
+        .list_analysis_checkpoints(owner_sub, algorithm_version, catalog_fingerprint)
+        .await?;
+    for checkpoint in checkpoints {
+        if checkpoint.metadata.observation_count > observations.len() {
+            continue;
+        }
+        let prefix_fingerprint =
+            fingerprint_observation_prefix(observations, checkpoint.metadata.observation_count)?;
+        if checkpoint.metadata.observation_prefix_fingerprint == prefix_fingerprint {
+            return Ok(Some(checkpoint));
+        }
+    }
+    Ok(None)
 }
 
 pub fn now_rfc3339() -> String {

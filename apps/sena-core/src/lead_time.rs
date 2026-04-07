@@ -41,7 +41,9 @@ impl SenaLeadTimeVariabilityClass {
 pub fn validate_lead_time_range(low_days: Option<f64>, high_days: Option<f64>) -> Result<()> {
     if let (Some(low), Some(high)) = (low_days, high_days) {
         if high < low {
-            return Err(anyhow!("leadTimeHints[].highDays must be >= leadTimeHints[].lowDays"));
+            return Err(anyhow!(
+                "leadTimeHints[].highDays must be >= leadTimeHints[].lowDays"
+            ));
         }
     }
     Ok(())
@@ -96,10 +98,7 @@ pub fn derive_relative_width(low_days: Option<f64>, high_days: Option<f64>) -> O
     relative_width_from_range(low_days?, high_days?)
 }
 
-pub fn target_std_days(
-    mean_days: f64,
-    variability_class: SenaLeadTimeVariabilityClass,
-) -> f64 {
+pub fn target_std_days(mean_days: f64, variability_class: SenaLeadTimeVariabilityClass) -> f64 {
     let mean_days = mean_days.max(LEAD_TIME_FLOOR_DAYS);
     (variability_class.center_relative_width() * mean_days / 2.0).clamp(0.3, 7.0)
 }

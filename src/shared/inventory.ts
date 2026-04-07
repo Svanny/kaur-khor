@@ -46,6 +46,9 @@ export interface StockReportSkuObservation {
   previousProductPrice?: number | null;
   restockIncluded?: boolean;
   retailStockout?: boolean;
+  adjustmentDelta?: number | null;
+  approximateOrderQuantity?: number | null;
+  approximateReceiptQuantity?: number | null;
   notes?: string | null;
 }
 
@@ -71,6 +74,7 @@ export interface StockReport {
   servicePriceAdjustments: StockReportServicePriceAdjustment[];
   topServiceRanking: string[];
   topRetailRanking: string[];
+  regimeHint?: SistRegime | null;
   notes: string | null;
 }
 

@@ -1,7 +1,15 @@
 use banji_desktop_core::store;
-use banji_sena_core::{SenaCatalog, SenaObservationInput};
+use banji_sena_core::{
+    fingerprint_catalog, SenaCatalog, SenaObservationInput, SenaRepository, SqliteSenaRepository,
+};
+use futures::executor::block_on;
 use serde_json::json;
-use std::{env, path::PathBuf, sync::{Mutex, OnceLock}, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    env,
+    path::PathBuf,
+    sync::{Mutex, OnceLock},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 fn env_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -107,10 +115,16 @@ fn desktop_core_runs_sena_analysis_and_reads_summary() {
     env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
     store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
-    store::ingest_observation(store::default_owner(), &observation("2026-04-01T00:00:00Z", 24.0, 18.0))
-        .expect("first observation should save");
-    store::ingest_observation(store::default_owner(), &observation("2026-04-08T00:00:00Z", 15.0, 11.0))
-        .expect("second observation should save");
+    store::ingest_observation(
+        store::default_owner(),
+        &observation("2026-04-01T00:00:00Z", 24.0, 18.0),
+    )
+    .expect("first observation should save");
+    store::ingest_observation(
+        store::default_owner(),
+        &observation("2026-04-08T00:00:00Z", 15.0, 11.0),
+    )
+    .expect("second observation should save");
     let run = store::trigger_run(store::default_owner(), "sena-analysis-v3")
         .expect("run should complete");
     assert_eq!(run.algorithm_version, "sena-analysis-v3");
@@ -131,10 +145,16 @@ fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
     env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
     store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
-    store::ingest_observation(store::default_owner(), &observation("2026-04-01T00:00:00Z", 30.0, 22.0))
-        .expect("first observation should save");
-    store::ingest_observation(store::default_owner(), &observation("2026-04-10T00:00:00Z", 9.0, 7.0))
-        .expect("second observation should save");
+    store::ingest_observation(
+        store::default_owner(),
+        &observation("2026-04-01T00:00:00Z", 30.0, 22.0),
+    )
+    .expect("first observation should save");
+    store::ingest_observation(
+        store::default_owner(),
+        &observation("2026-04-10T00:00:00Z", 9.0, 7.0),
+    )
+    .expect("second observation should save");
     let run = store::trigger_run(store::default_owner(), "sena-analysis-v3")
         .expect("run should complete");
 
@@ -158,7 +178,10 @@ fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
     let run_status = store::get_run(&run.run_id)
         .expect("run status should load")
         .expect("run should exist");
-    assert_eq!(run_status.primary_artifact_key.as_deref(), Some("sena-analysis/desktop-owner/sena-analysis-v3/posterior-draws"));
+    assert_eq!(
+        run_status.primary_artifact_key.as_deref(),
+        Some("sena-analysis/desktop-owner/sena-analysis-v3/posterior-draws")
+    );
 }
 
 #[test]
@@ -177,9 +200,25 @@ fn desktop_core_dev_seed_is_idempotent_and_populates_workspace() {
     assert_eq!(catalog.services.len(), 10);
     assert!(catalog.bundles.len() >= 4);
 
-    let observations = store::list_observations(store::default_owner())
-        .expect("observations load should succeed");
+    let observations =
+        store::list_observations(store::default_owner()).expect("observations load should succeed");
     assert_eq!(observations.len(), 30);
+    assert!(observations
+        .iter()
+        .any(|observation| observation.input.regime_hint.is_some()));
+    assert!(observations
+        .iter()
+        .any(|observation| !observation.input.recipe_usage_hints.is_empty()));
+    assert!(observations
+        .iter()
+        .any(|observation| !observation.input.adjustment_signals.is_empty()));
+    assert!(observations.iter().any(|observation| {
+        observation
+            .input
+            .order_signals
+            .iter()
+            .any(|signal| signal.order_placed && !signal.receipt_arrived)
+    }));
 
     let summary = store::get_workspace_summary(store::default_owner())
         .expect("summary should load")
@@ -196,7 +235,8 @@ fn desktop_core_dev_seed_is_idempotent_and_populates_workspace() {
         .iter()
         .all(|sku| sku.demand_per_day_mean.is_finite() && sku.demand_per_day_mean <= 50.0));
 
-    let seeded_again = store::ensure_dev_seed(store::default_owner()).expect("second seed should succeed");
+    let seeded_again =
+        store::ensure_dev_seed(store::default_owner()).expect("second seed should succeed");
     assert!(!seeded_again);
 }
 
@@ -206,17 +246,22 @@ fn desktop_core_dev_seed_upgrades_legacy_seed_workspace() {
     let store_path = temp_store_path("legacy-seed-upgrade");
     env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
 
-    store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("legacy catalog should save");
+    store::upsert_catalog(store::default_owner(), &sample_catalog())
+        .expect("legacy catalog should save");
     for (at, sku1, sku2) in [
         ("2026-04-01T00:00:00Z", 24.0, 18.0),
         ("2026-04-08T00:00:00Z", 15.0, 11.0),
         ("2026-04-15T00:00:00Z", 12.0, 8.0),
     ] {
-        store::ingest_observation(store::default_owner(), &legacy_seed_observation(at, sku1, sku2))
-            .expect("legacy observation should save");
+        store::ingest_observation(
+            store::default_owner(),
+            &legacy_seed_observation(at, sku1, sku2),
+        )
+        .expect("legacy observation should save");
     }
 
-    let upgraded = store::ensure_dev_seed(store::default_owner()).expect("seed upgrade should succeed");
+    let upgraded =
+        store::ensure_dev_seed(store::default_owner()).expect("seed upgrade should succeed");
     assert!(upgraded);
 
     let catalog = store::get_catalog(store::default_owner())
@@ -225,8 +270,8 @@ fn desktop_core_dev_seed_upgrades_legacy_seed_workspace() {
     assert_eq!(catalog.skus.len(), 10);
     assert_eq!(catalog.services.len(), 10);
 
-    let observations = store::list_observations(store::default_owner())
-        .expect("observations load should succeed");
+    let observations =
+        store::list_observations(store::default_owner()).expect("observations load should succeed");
     assert_eq!(observations.len(), 30);
     assert!(observations.iter().all(|observation| {
         observation
@@ -235,4 +280,56 @@ fn desktop_core_dev_seed_upgrades_legacy_seed_workspace() {
             .as_deref()
             .is_some_and(|notes| notes.starts_with("Daily Phnom Penh storefront closeout"))
     }));
+}
+
+#[test]
+fn desktop_core_append_only_rerun_keeps_checkpoint_state_available() {
+    let _guard = env_lock().lock().expect("env lock should acquire");
+    let store_path = temp_store_path("append-rerun");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    let catalog = sample_catalog();
+    store::upsert_catalog(store::default_owner(), &catalog).expect("catalog should save");
+    for (at, sku1, sku2) in [
+        ("2026-04-01T00:00:00Z", 28.0, 19.0),
+        ("2026-04-02T00:00:00Z", 26.0, 18.0),
+        ("2026-04-03T00:00:00Z", 24.0, 17.0),
+        ("2026-04-04T00:00:00Z", 22.0, 16.0),
+        ("2026-04-05T00:00:00Z", 20.0, 15.0),
+        ("2026-04-06T00:00:00Z", 18.0, 14.0),
+        ("2026-04-07T00:00:00Z", 16.0, 13.0),
+        ("2026-04-08T00:00:00Z", 14.0, 12.0),
+        ("2026-04-09T00:00:00Z", 12.0, 10.0),
+    ] {
+        store::ingest_observation(store::default_owner(), &observation(at, sku1, sku2))
+            .expect("observation should save");
+    }
+
+    store::trigger_run(store::default_owner(), "sena-analysis-v3")
+        .expect("first run should complete");
+
+    let repo = SqliteSenaRepository::open(&store_path).expect("repo should open");
+    let checkpoints = block_on(repo.list_analysis_checkpoints(
+        store::default_owner(),
+        "sena-analysis-v3",
+        &fingerprint_catalog(&catalog).expect("catalog fingerprint should compute"),
+    ))
+    .expect("checkpoints should load");
+    assert!(checkpoints
+        .iter()
+        .any(|checkpoint| checkpoint.metadata.completed_interval_count == 8));
+
+    store::ingest_observation(
+        store::default_owner(),
+        &observation("2026-04-10T00:00:00Z", 10.0, 8.0),
+    )
+    .expect("appended observation should save");
+    let second_run = store::trigger_run(store::default_owner(), "sena-analysis-v3")
+        .expect("second run should complete");
+    assert_eq!(second_run.observation_count, 10);
+
+    let summary = store::get_workspace_summary(store::default_owner())
+        .expect("summary should load")
+        .expect("summary should exist");
+    assert_eq!(summary.interval_count, 9);
 }

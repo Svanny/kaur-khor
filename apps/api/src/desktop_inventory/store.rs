@@ -2,14 +2,14 @@
 mod analysis;
 
 use super::types::{
-    ApplyDesktopStockUpdatesRequest, DesktopInventoryResponse, DesktopRankingEntry,
-    DeleteStockReportRequest, DesktopRankingEntryType, DesktopServiceRecord, DesktopSkuRecord,
-    LeadTimeSummary, MONETARY_AMOUNT_MAX, SaveDesktopRankingRequest, SistAnalysisState,
-    SistAnalysisStatus, SistConfidence, SistOverview, SistRegime, SistServiceDetailResponse,
-    SistSettings, SistSkuDetailResponse, SistSkuInsight, SistSystemDetailResponse,
-    StockReportRecord, StockReportServicePriceAdjustment, StockReportSkuObservation, SubmitStockReportRequest,
+    ApplyDesktopStockUpdatesRequest, DeleteStockReportRequest, DesktopInventoryResponse,
+    DesktopRankingEntry, DesktopRankingEntryType, DesktopServiceRecord, DesktopSkuRecord,
+    LeadTimeSummary, SaveDesktopRankingRequest, SistAnalysisState, SistAnalysisStatus,
+    SistConfidence, SistOverview, SistRegime, SistServiceDetailResponse, SistSettings,
+    SistSkuDetailResponse, SistSkuInsight, SistSystemDetailResponse, StockReportRecord,
+    StockReportServicePriceAdjustment, StockReportSkuObservation, SubmitStockReportRequest,
     UpdateSistSettingsRequest, UpdateStockReportRequest, UpsertDesktopServiceRequest,
-    UpsertDesktopSkuRequest,
+    UpsertDesktopSkuRequest, MONETARY_AMOUNT_MAX,
 };
 use anyhow::{anyhow, Context, Result};
 use once_cell::sync::Lazy;
@@ -26,7 +26,8 @@ use std::{
 };
 use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
 
-static STORE_CACHE: Lazy<Mutex<StoreCacheState>> = Lazy::new(|| Mutex::new(StoreCacheState::default()));
+static STORE_CACHE: Lazy<Mutex<StoreCacheState>> =
+    Lazy::new(|| Mutex::new(StoreCacheState::default()));
 
 const STORE_SCHEMA_VERSION: u8 = 2;
 const SIST_SCHEMA_VERSION: u8 = 2;
@@ -339,7 +340,10 @@ fn build_seeded_skus() -> Vec<DesktopSkuRecord> {
 
 fn build_seeded_services(skus: &[DesktopSkuRecord]) -> Vec<DesktopServiceRecord> {
     let mut rng = StdRng::seed_from_u64(SEEDED_CATALOG_SEED);
-    let sku_ids = skus.iter().map(|sku| sku.sku_id.clone()).collect::<Vec<_>>();
+    let sku_ids = skus
+        .iter()
+        .map(|sku| sku.sku_id.clone())
+        .collect::<Vec<_>>();
     let mut services = Vec::with_capacity(10);
 
     for (index, (name, description)) in SEEDED_SERVICE_FLAVORS.iter().enumerate() {
@@ -390,9 +394,15 @@ fn build_seeded_stock_reports(
     let start_at = latest_at
         - Duration::days(SEEDED_HISTORY_INTERVAL_DAYS * (SEEDED_HISTORY_REPORT_COUNT as i64 - 1));
     let mut report_time = start_at;
-    let mut sku_units = skus.iter().map(|sku| sku.units_in_stock).collect::<Vec<_>>();
+    let mut sku_units = skus
+        .iter()
+        .map(|sku| sku.units_in_stock)
+        .collect::<Vec<_>>();
     let mut sku_costs = skus.iter().map(|sku| sku.cost_per_unit).collect::<Vec<_>>();
-    let mut service_prices = services.iter().map(|service| service.price).collect::<Vec<_>>();
+    let mut service_prices = services
+        .iter()
+        .map(|service| service.price)
+        .collect::<Vec<_>>();
     let retail_sku_ids = skus
         .iter()
         .filter(|sku| sku.sold_as_product && sku.product_price.is_some())
@@ -417,8 +427,8 @@ fn build_seeded_stock_reports(
             };
             let draw = (periodic_draw + seasonal_draw).max(2.0);
             let low_stock_threshold = 18.0 + sku_index as f64 * 1.8;
-            let restock_included =
-                sku_units[sku_index] <= low_stock_threshold || (report_index + sku_index * 3) % 17 == 0;
+            let restock_included = sku_units[sku_index] <= low_stock_threshold
+                || (report_index + sku_index * 3) % 17 == 0;
             let restock_units = if restock_included {
                 36.0 + sku_index as f64 * 5.0 + rng.gen_range(0.0..22.0)
             } else {
@@ -458,8 +468,9 @@ fn build_seeded_stock_reports(
 
         if report_index % 9 == 0 {
             let service_index = (report_index / 9) % services.len();
-            service_prices[service_index] =
-                (service_prices[service_index] + rng.gen_range(15.0..85.0)).min(MONETARY_AMOUNT_MAX / 10.0);
+            service_prices[service_index] = (service_prices[service_index]
+                + rng.gen_range(15.0..85.0))
+            .min(MONETARY_AMOUNT_MAX / 10.0);
             service_price_adjustments.push(super::types::StockReportServicePriceAdjustment {
                 service_id: services[service_index].service_id.clone(),
                 price: service_prices[service_index],
@@ -471,9 +482,11 @@ fn build_seeded_stock_reports(
             .iter()
             .filter_map(|service| {
                 let linked_low = service.sku_ids.iter().any(|sku_id| {
-                    skus.iter().position(|sku| &sku.sku_id == sku_id).map_or(false, |position| {
-                        retail_stockout_flags[position] || sku_units[position] <= 12.0
-                    })
+                    skus.iter()
+                        .position(|sku| &sku.sku_id == sku_id)
+                        .map_or(false, |position| {
+                            retail_stockout_flags[position] || sku_units[position] <= 12.0
+                        })
                 });
                 if linked_low || (report_index + service.sku_ids.len()) % 23 == 0 {
                     Some(super::types::StockReportServiceSignal {
@@ -531,7 +544,11 @@ fn ranked_service_ids_for_report(
 ) -> Vec<String> {
     let service_count = services.len().min(3);
     (0..service_count)
-        .map(|offset| services[(report_index + offset) % services.len()].service_id.clone())
+        .map(|offset| {
+            services[(report_index + offset) % services.len()]
+                .service_id
+                .clone()
+        })
         .collect()
 }
 
@@ -620,8 +637,11 @@ pub fn create_sku(owner_sub: &str, request: UpsertDesktopSkuRequest) -> Result<D
             lead_time_std_days: request.lead_time_std_days,
         };
         owner.catalog.skus.push(record.clone());
-        owner.merchandising.ranking =
-            normalize_ranking(&owner.merchandising.ranking, &owner.catalog.skus, &owner.catalog.services);
+        owner.merchandising.ranking = normalize_ranking(
+            &owner.merchandising.ranking,
+            &owner.catalog.skus,
+            &owner.catalog.services,
+        );
         recompute_analysis(owner_sub, owner);
         Ok(record)
     })
@@ -676,8 +696,11 @@ pub fn update_sku(
                 .sku_ids
                 .retain(|linked_sku_id| valid_sku_ids.contains(linked_sku_id));
         }
-        owner.merchandising.ranking =
-            normalize_ranking(&owner.merchandising.ranking, &owner.catalog.skus, &owner.catalog.services);
+        owner.merchandising.ranking = normalize_ranking(
+            &owner.merchandising.ranking,
+            &owner.catalog.skus,
+            &owner.catalog.services,
+        );
         recompute_analysis(owner_sub, owner);
         Ok(owner.catalog.skus[existing_index].clone())
     })
@@ -706,8 +729,11 @@ pub fn create_service(
             sku_ids: request.sku_ids,
         };
         owner.catalog.services.push(record.clone());
-        owner.merchandising.ranking =
-            normalize_ranking(&owner.merchandising.ranking, &owner.catalog.skus, &owner.catalog.services);
+        owner.merchandising.ranking = normalize_ranking(
+            &owner.merchandising.ranking,
+            &owner.catalog.skus,
+            &owner.catalog.services,
+        );
         recompute_analysis(owner_sub, owner);
         Ok(record)
     })
@@ -747,8 +773,11 @@ pub fn update_service(
         if next_service_id != service_id {
             rewrite_service_references(owner, service_id, &next_service_id);
         }
-        owner.merchandising.ranking =
-            normalize_ranking(&owner.merchandising.ranking, &owner.catalog.skus, &owner.catalog.services);
+        owner.merchandising.ranking = normalize_ranking(
+            &owner.merchandising.ranking,
+            &owner.catalog.skus,
+            &owner.catalog.services,
+        );
         recompute_analysis(owner_sub, owner);
         Ok(owner.catalog.services[existing_index].clone())
     })
@@ -792,9 +821,13 @@ pub fn submit_stock_report(
     with_store_mut(|store| {
         let owner = ensure_owner(store, owner_sub);
         validate_report_against_catalog(owner, &request)?;
-        let sku_observations = enrich_sku_price_baselines(&owner.catalog.skus, None, request.sku_observations);
-        let service_price_adjustments =
-            enrich_service_price_baselines(&owner.catalog.services, None, request.service_price_adjustments);
+        let sku_observations =
+            enrich_sku_price_baselines(&owner.catalog.skus, None, request.sku_observations);
+        let service_price_adjustments = enrich_service_price_baselines(
+            &owner.catalog.services,
+            None,
+            request.service_price_adjustments,
+        );
 
         trace_store(format!(
             "submit_stock_report owner={} reported_at={} sku_price_observations={}",
@@ -826,7 +859,10 @@ pub fn submit_stock_report(
         };
 
         owner.sist.stock_reports.push(record.clone());
-        owner.sist.stock_reports.sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
+        owner
+            .sist
+            .stock_reports
+            .sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
         rebuild_catalog_from_report_history(owner);
         recompute_analysis(owner_sub, owner);
         Ok(record)
@@ -884,7 +920,10 @@ pub fn update_stock_report(
         };
 
         owner.sist.stock_reports[existing_index] = record.clone();
-        owner.sist.stock_reports.sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
+        owner
+            .sist
+            .stock_reports
+            .sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
         rebuild_catalog_from_report_history(owner);
         recompute_analysis(owner_sub, owner);
         Ok(record)
@@ -905,7 +944,10 @@ pub fn delete_stock_report(owner_sub: &str, request: DeleteStockReportRequest) -
         }
 
         owner.sist.stock_reports.remove(existing_index);
-        owner.sist.stock_reports.sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
+        owner
+            .sist
+            .stock_reports
+            .sort_by(|left, right| left.reported_at.cmp(&right.reported_at));
         rebuild_catalog_from_report_history(owner);
         recompute_analysis(owner_sub, owner);
         Ok(())
@@ -957,8 +999,11 @@ pub fn load_ranking(owner_sub: &str) -> Result<Vec<DesktopRankingEntry>> {
     with_store_read(|store| {
         let owner_created = !store.owners.contains_key(owner_sub);
         let owner = ensure_owner(store, owner_sub);
-        let normalized =
-            normalize_ranking(&owner.merchandising.ranking, &owner.catalog.skus, &owner.catalog.services);
+        let normalized = normalize_ranking(
+            &owner.merchandising.ranking,
+            &owner.catalog.skus,
+            &owner.catalog.services,
+        );
         let changed = owner_created || normalized != owner.merchandising.ranking;
         if changed {
             owner.merchandising.ranking = normalized;
@@ -1007,7 +1052,10 @@ fn snapshot_from_owner(owner: &OwnerInventory) -> DesktopInventoryResponse {
     }
 }
 
-fn ensure_owner<'a>(store: &'a mut DesktopInventoryStore, owner_sub: &str) -> &'a mut OwnerInventory {
+fn ensure_owner<'a>(
+    store: &'a mut DesktopInventoryStore,
+    owner_sub: &str,
+) -> &'a mut OwnerInventory {
     store
         .owners
         .entry(owner_sub.to_string())
@@ -1017,7 +1065,8 @@ fn ensure_owner<'a>(store: &'a mut DesktopInventoryStore, owner_sub: &str) -> &'
 fn normalize_owner(owner: &mut OwnerInventory) -> bool {
     let mut changed = false;
     if owner.merchandising.ranking.is_empty() {
-        owner.merchandising.ranking = build_default_ranking(&owner.catalog.skus, &owner.catalog.services);
+        owner.merchandising.ranking =
+            build_default_ranking(&owner.catalog.skus, &owner.catalog.services);
         changed = true;
         trace_store("normalize_owner rebuilt empty merchandising ranking");
     }
@@ -1214,7 +1263,10 @@ fn rewrite_service_references(
     }
 }
 
-fn validate_report_against_catalog(owner: &OwnerInventory, request: &SubmitStockReportRequest) -> Result<()> {
+fn validate_report_against_catalog(
+    owner: &OwnerInventory,
+    request: &SubmitStockReportRequest,
+) -> Result<()> {
     let valid_service_ids = owner
         .catalog
         .services
@@ -1237,7 +1289,10 @@ fn validate_report_against_catalog(owner: &OwnerInventory, request: &SubmitStock
 
     for signal in &request.service_signals {
         if !valid_service_ids.contains(signal.service_id.as_str()) {
-            return Err(anyhow!("serviceSignals references unknown service '{}'", signal.service_id));
+            return Err(anyhow!(
+                "serviceSignals references unknown service '{}'",
+                signal.service_id
+            ));
         }
     }
 
@@ -1252,19 +1307,26 @@ fn validate_report_against_catalog(owner: &OwnerInventory, request: &SubmitStock
 
     for sku_id in &request.top_retail_ranking {
         if !rankable_sku_ids.contains(sku_id.as_str()) {
-            return Err(anyhow!("topRetailRanking references unknown or unrankable sku '{sku_id}'"));
+            return Err(anyhow!(
+                "topRetailRanking references unknown or unrankable sku '{sku_id}'"
+            ));
         }
     }
 
     for service_id in &request.top_service_ranking {
         if !valid_service_ids.contains(service_id.as_str()) {
-            return Err(anyhow!("topServiceRanking references unknown service '{service_id}'"));
+            return Err(anyhow!(
+                "topServiceRanking references unknown service '{service_id}'"
+            ));
         }
     }
 
     for observation in &request.sku_observations {
         if !valid_sku_ids.contains(observation.sku_id.as_str()) {
-            return Err(anyhow!("skuObservations references unknown sku '{}'", observation.sku_id));
+            return Err(anyhow!(
+                "skuObservations references unknown sku '{}'",
+                observation.sku_id
+            ));
         }
     }
 
@@ -1414,7 +1476,10 @@ fn validate_ranking_entries(owner: &OwnerInventory, entries: &[DesktopRankingEnt
         match entry.entry_type {
             DesktopRankingEntryType::Service => {
                 if !valid_service_ids.contains(entry.entry_id.as_str()) {
-                    return Err(anyhow!("ranking references unknown service '{}'", entry.entry_id));
+                    return Err(anyhow!(
+                        "ranking references unknown service '{}'",
+                        entry.entry_id
+                    ));
                 }
             }
             DesktopRankingEntryType::Sku => {
@@ -1429,7 +1494,9 @@ fn validate_ranking_entries(owner: &OwnerInventory, entries: &[DesktopRankingEnt
     }
 
     if received_keys != expected_keys {
-        return Err(anyhow!("ranking must contain every rankable service and sku exactly once"));
+        return Err(anyhow!(
+            "ranking must contain every rankable service and sku exactly once"
+        ));
     }
 
     Ok(())
@@ -1626,19 +1693,16 @@ fn analyze_sku(
             strong_restock_events += 1;
         }
         if current.retail_stockout
-            || current_report
-                .service_signals
-                .iter()
-                .any(|signal| {
-                    signal.stockout
-                        && owner
-                            .catalog
-                            .services
-                            .iter()
-                            .find(|service| service.service_id == signal.service_id)
-                            .map(|service| service.sku_ids.contains(&sku.sku_id))
-                            .unwrap_or(false)
-                })
+            || current_report.service_signals.iter().any(|signal| {
+                signal.stockout
+                    && owner
+                        .catalog
+                        .services
+                        .iter()
+                        .find(|service| service.service_id == signal.service_id)
+                        .map(|service| service.sku_ids.contains(&sku.sku_id))
+                        .unwrap_or(false)
+            })
         {
             stockout_signals += 1;
         }
@@ -1678,12 +1742,13 @@ fn analyze_sku(
 
     for _ in 0..particle_count {
         let shock = sample_standard_normal(&mut rng) * drift_sigma;
-        let demand_rate = (base_demand * (1.0 + shock)).max(0.02) * stockout_factor * ranking_factor;
+        let demand_rate =
+            (base_demand * (1.0 + shock)).max(0.02) * stockout_factor * ranking_factor;
         let inventory_noise = sample_standard_normal(&mut rng) * obs_noise;
         let posterior = (latest_units + inventory_noise).max(0.0);
         let lead_draw = (lead_time.mean_days
             + sample_standard_normal(&mut rng) * lead_time.std_days.max(0.5))
-            .max(1.0);
+        .max(1.0);
         let lead_time_demand =
             (demand_rate * lead_draw * (1.0 + sample_standard_normal(&mut rng) * 0.2)).max(0.0);
         let regime = pick_regime(
@@ -1710,8 +1775,11 @@ fn analyze_sku(
 
     let latest_posterior_units = mean(&posterior_units).max(0.0);
     let expected_demand_per_day = mean(&demand_draws).max(0.01);
-    let reorder_point =
-        quantile(&lead_time_demand_draws, owner.sist.settings.target_service_level).max(0.0);
+    let reorder_point = quantile(
+        &lead_time_demand_draws,
+        owner.sist.settings.target_service_level,
+    )
+    .max(0.0);
     let mean_lead_time_demand = mean(&lead_time_demand_draws).max(0.0);
     let safety_stock = (reorder_point - mean_lead_time_demand).max(0.0);
     let days_of_cover = if expected_demand_per_day > 0.01 {
@@ -1769,15 +1837,18 @@ fn ranking_signal_boost(
         .iter()
         .enumerate()
         .filter_map(|(index, service_id)| {
-            owner.catalog.services.iter().find(|service| service.service_id == *service_id).and_then(
-                |service| {
+            owner
+                .catalog
+                .services
+                .iter()
+                .find(|service| service.service_id == *service_id)
+                .and_then(|service| {
                     if service.sku_ids.contains(&sku.sku_id) {
                         Some((3.0 - index as f64).max(0.0) * 0.04)
                     } else {
                         None
                     }
-                },
-            )
+                })
         })
         .sum::<f64>();
     let retail_boost = report
@@ -1932,7 +2003,9 @@ fn with_store_mut<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<T>) ->
         "with_store_mut start path={} exists={} bytes={}",
         path.display(),
         path.exists(),
-        fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0)
+        fs::metadata(&path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0)
     ));
     let save_started_at = Instant::now();
     let (result, owner_count) = {
@@ -1952,7 +2025,9 @@ fn with_store_mut<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<T>) ->
     Ok(result)
 }
 
-fn with_store_read<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<(T, bool)>) -> Result<T> {
+fn with_store_read<T>(
+    f: impl FnOnce(&mut DesktopInventoryStore) -> Result<(T, bool)>,
+) -> Result<T> {
     let mut cache = STORE_CACHE.lock().expect("desktop inventory lock poisoned");
     let path = store_path();
     let request_started_at = Instant::now();
@@ -1960,7 +2035,9 @@ fn with_store_read<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<(T, b
         "with_store_read start path={} exists={} bytes={}",
         path.display(),
         path.exists(),
-        fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0)
+        fs::metadata(&path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0)
     ));
     let save_started_at = Instant::now();
     let (result, changed, owner_count) = {
@@ -1989,9 +2066,15 @@ fn with_store_read<T>(f: impl FnOnce(&mut DesktopInventoryStore) -> Result<(T, b
     Ok(result)
 }
 
-fn load_cached_store<'a>(cache: &'a mut StoreCacheState, path: &Path) -> Result<&'a mut DesktopInventoryStore> {
+fn load_cached_store<'a>(
+    cache: &'a mut StoreCacheState,
+    path: &Path,
+) -> Result<&'a mut DesktopInventoryStore> {
     let current_metadata = store_file_metadata(path);
-    let cache_hit = cache.path.as_ref().is_some_and(|cached_path| cached_path == path)
+    let cache_hit = cache
+        .path
+        .as_ref()
+        .is_some_and(|cached_path| cached_path == path)
         && cache.store.is_some()
         && cached_store_is_fresh(cache.metadata.as_ref(), current_metadata.as_ref());
     if cache_hit {
@@ -2031,19 +2114,31 @@ fn load_store_from_disk(path: &Path) -> Result<DesktopInventoryStore> {
     if !path.exists() {
         return Ok(DesktopInventoryStore::default());
     }
-    let raw = fs::read_to_string(path)
-        .with_context(|| format!("failed to read desktop inventory store at {}", path.display()))?;
+    let raw = fs::read_to_string(path).with_context(|| {
+        format!(
+            "failed to read desktop inventory store at {}",
+            path.display()
+        )
+    })?;
     if raw.trim().is_empty() {
         return Ok(DesktopInventoryStore::default());
     }
 
-    let value: serde_json::Value = serde_json::from_str(&raw)
-        .with_context(|| format!("failed to parse desktop inventory store at {}", path.display()))?;
+    let value: serde_json::Value = serde_json::from_str(&raw).with_context(|| {
+        format!(
+            "failed to parse desktop inventory store at {}",
+            path.display()
+        )
+    })?;
     if value.get("schemaVersion").is_some() {
         let decode_started_at = Instant::now();
-        let mut store: DesktopInventoryStore = serde_json::from_value(value).with_context(|| {
-            format!("failed to decode v2 desktop inventory store at {}", path.display())
-        })?;
+        let mut store: DesktopInventoryStore =
+            serde_json::from_value(value).with_context(|| {
+                format!(
+                    "failed to decode v2 desktop inventory store at {}",
+                    path.display()
+                )
+            })?;
         trace_store(format!(
             "load_store decoded_v2 path={} owners={} elapsed_ms={}",
             path.display(),
@@ -2069,7 +2164,10 @@ fn load_store_from_disk(path: &Path) -> Result<DesktopInventoryStore> {
     }
 
     let legacy: LegacyDesktopInventoryStore = serde_json::from_value(value).with_context(|| {
-        format!("failed to decode legacy desktop inventory store at {}", path.display())
+        format!(
+            "failed to decode legacy desktop inventory store at {}",
+            path.display()
+        )
     })?;
     Ok(migrate_legacy_store(legacy))
 }
@@ -2126,8 +2224,12 @@ fn save_store(path: &Path, store: &DesktopInventoryStore) -> Result<()> {
     }
     let tmp_path = path.with_extension("tmp");
     let contents = serde_json::to_vec_pretty(store)?;
-    fs::write(&tmp_path, contents)
-        .with_context(|| format!("failed to write temporary store file {}", tmp_path.display()))?;
+    fs::write(&tmp_path, contents).with_context(|| {
+        format!(
+            "failed to write temporary store file {}",
+            tmp_path.display()
+        )
+    })?;
     fs::rename(&tmp_path, path)
         .with_context(|| format!("failed to replace store file {}", path.display()))?;
     Ok(())

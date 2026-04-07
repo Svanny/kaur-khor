@@ -4,7 +4,8 @@ use std::collections::HashSet;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 const CONTROL_CHARS: &str = "\u{0000}\u{0001}\u{0002}\u{0003}\u{0004}\u{0005}\u{0006}\u{0007}\u{0008}\u{000B}\u{000C}\u{000E}\u{000F}\u{0010}\u{0011}\u{0012}\u{0013}\u{0014}\u{0015}\u{0016}\u{0017}\u{0018}\u{0019}\u{001A}\u{001B}\u{001C}\u{001D}\u{001E}\u{001F}\u{007F}";
-const BIDI_CONTROL_CHARS: &str = "\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}";
+const BIDI_CONTROL_CHARS: &str =
+    "\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}";
 
 pub const SKU_NAME_MAX_LENGTH: usize = 80;
 pub const SKU_DESCRIPTION_MAX_LENGTH: usize = 250;
@@ -589,8 +590,16 @@ impl SubmitStockReportRequest {
         let mut seen_skus = HashSet::new();
         for observation in &mut self.sku_observations {
             validate_entry_id("skuId", &observation.sku_id)?;
-            validate_non_negative("unitsInStock", observation.units_in_stock, INVENTORY_UNITS_MAX)?;
-            validate_non_negative("costPerUnit", observation.cost_per_unit, MONETARY_AMOUNT_MAX)?;
+            validate_non_negative(
+                "unitsInStock",
+                observation.units_in_stock,
+                INVENTORY_UNITS_MAX,
+            )?;
+            validate_non_negative(
+                "costPerUnit",
+                observation.cost_per_unit,
+                MONETARY_AMOUNT_MAX,
+            )?;
             if let Some(product_price) = observation.product_price {
                 validate_non_negative("productPrice", product_price, MONETARY_AMOUNT_MAX)?;
             }
@@ -606,7 +615,9 @@ impl SubmitStockReportRequest {
         for signal in &self.service_signals {
             validate_entry_id("serviceId", &signal.service_id)?;
             if !seen_services.insert(signal.service_id.clone()) {
-                return Err(anyhow!("serviceSignals must not contain duplicate serviceIds"));
+                return Err(anyhow!(
+                    "serviceSignals must not contain duplicate serviceIds"
+                ));
             }
         }
 
@@ -700,7 +711,9 @@ pub fn normalize_text(input: &str, max_length: usize) -> Result<String> {
         return Err(anyhow!("text fields are required"));
     }
     if normalized.len() > max_length {
-        return Err(anyhow!("text fields must be at most {max_length} characters"));
+        return Err(anyhow!(
+            "text fields must be at most {max_length} characters"
+        ));
     }
     Ok(normalized)
 }
@@ -751,7 +764,9 @@ pub fn validate_reported_at(reported_at: &str) -> Result<OffsetDateTime> {
 
 fn normalize_ranking_ids(field_name: &str, values: &mut Vec<String>) -> Result<()> {
     if values.len() > TOP_RANKING_MAX {
-        return Err(anyhow!("{field_name} must contain at most {TOP_RANKING_MAX} entries"));
+        return Err(anyhow!(
+            "{field_name} must contain at most {TOP_RANKING_MAX} entries"
+        ));
     }
     let mut normalized = Vec::with_capacity(values.len());
     let mut seen = HashSet::new();

@@ -9,7 +9,7 @@ import math
 import os
 import random
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -44,6 +44,9 @@ class SkuState:
     reorder_discipline: float
     review_period_days: float
     promo_affinity: float
+    pending_orders: list["PendingOrder"] = field(default_factory=list)
+    last_order_report: int | None = None
+    recent_lead_days: float = 0.0
 
 
 @dataclass
@@ -62,6 +65,14 @@ class RegimeWindow:
     end: int
     regime: str
     intensity: float
+
+
+@dataclass(frozen=True)
+class PendingOrder:
+    arrival_index: int
+    quantity: float
+    lead_time_days: float
+    placement_timestamp: str
 
 
 def stable_seed(*parts: object) -> int:
@@ -122,11 +133,10 @@ def build_regime_windows(report_count: int, rng: random.Random) -> list[RegimeWi
     cursor = 0
     regimes = [
         ("normal", 1.0),
-        ("promo", 1.28),
-        ("lull", 0.74),
-        ("supply_crunch", 0.92),
-        ("festival", 1.42),
-        ("correction", 0.84),
+        ("spike", 1.32),
+        ("promo", 1.24),
+        ("lull", 0.72),
+        ("correction", 0.9),
     ]
     while cursor < report_count:
         span = min(report_count - cursor, rng.randint(6, 22))
@@ -142,6 +152,59 @@ def regime_for_report(report_index: int, windows: list[RegimeWindow]) -> RegimeW
         if window.start <= report_index < window.end:
             return window
     return windows[-1]
+
+
+def round_units(value: float) -> float:
+    return round(value + 1e-9, 4)
+
+
+def regime_multiplier(regime: str) -> float:
+    return {
+        "normal": 1.0,
+        "spike": 1.3,
+        "lull": 0.72,
+        "promo": 1.24,
+        "correction": 0.92,
+        "stockout_constrained": 1.08,
+    }.get(regime, 1.0)
+
+
+def interval_timestamp(day_at: datetime, hour: int) -> str:
+    return isoformat_z(day_at.replace(hour=hour, minute=0, second=0, microsecond=0))
+
+
+def recipe_profiles_for_service(
+    service: dict[str, Any],
+    report_index: int,
+    regime: str,
+) -> list[dict[str, Any]]:
+    profiles: list[dict[str, Any]] = []
+    for link_index, sku_id in enumerate(service.get("skuIds", [])):
+        rng = random.Random(stable_seed("recipe", service["serviceId"], report_index, link_index))
+        base_probability = clamp(0.82 - link_index * 0.12 + rng.uniform(-0.04, 0.05), 0.22, 0.96)
+        if service.get("bundle"):
+            base_probability = clamp(base_probability + 0.08, 0.22, 0.98)
+        if regime == "promo" and service.get("bundle"):
+            base_probability = clamp(base_probability + 0.07, 0.22, 0.98)
+        if regime == "lull":
+            base_probability = clamp(base_probability - 0.05, 0.18, 0.98)
+        typical_units = max(
+            0.12,
+            0.55 + link_index * 0.18 + (0.28 if service.get("bundle") else 0.08) + rng.uniform(-0.05, 0.1),
+        )
+        if regime == "promo":
+            typical_units += 0.1
+        variability = clamp(0.18 + link_index * 0.04 + rng.uniform(0.0, 0.08), 0.08, 0.48)
+        profiles.append(
+            {
+                "serviceId": service["serviceId"],
+                "skuId": sku_id,
+                "usageProbability": round(clamp(base_probability, 0.18, 0.98), 2),
+                "typicalUnitsPerInstance": round(typical_units, 2),
+                "variability": round(variability, 2),
+            }
+        )
+    return profiles
 
 
 def reorder_policy_for_strategy(
@@ -171,26 +234,22 @@ def reorder_policy_for_strategy(
     return reorder_point, reorder_target, reorder_batch, discipline, review_period_days
 
 
-def build_report_note(regime: str, restock_count: int, retail_stockout_count: int, service_stockout_count: int) -> str | None:
-    fragments: list[str] = []
-    if regime in {"promo", "festival"}:
-        fragments.append("Promo traffic changed the selling mix.")
-    elif regime == "lull":
-        fragments.append("Demand softened across the floor.")
-    elif regime == "supply_crunch":
-        fragments.append("Supplier timing looked uneven this cycle.")
-    elif regime == "correction":
-        fragments.append("Buyers rotated into a different assortment pocket.")
-
-    if restock_count >= 3:
-        fragments.append("Several replenishments landed together.")
-    if retail_stockout_count >= 2:
-        fragments.append("A few retail shelves still ran lean by close.")
-    if service_stockout_count >= 2:
-        fragments.append("Bundle availability tightened across multiple looks.")
-
-    if not fragments:
-        return None
+def build_report_note(regime: str, restock_count: int, retail_stockout_count: int, service_stockout_count: int, adjustment_count: int) -> str:
+    regime_note = {
+        "normal": "baseline trading flow",
+        "spike": "event-driven demand spike",
+        "lull": "quiet demand lull",
+        "promo": "promotion-led mix shift",
+        "correction": "inventory reconciliation window",
+        "stockout_constrained": "stockout-constrained selling window",
+    }.get(regime, "baseline trading flow")
+    fragments = [f"Synthetic Phnom Penh operating interval with {regime_note}."]
+    if restock_count >= 2:
+        fragments.append("Receipts and replenishment decisions shaped the interval.")
+    if retail_stockout_count >= 1 or service_stockout_count >= 1:
+        fragments.append("Stock pressure surfaced across linked selling paths.")
+    if adjustment_count >= 1:
+        fragments.append("Cycle-count adjustments were recorded.")
     return " ".join(fragments)
 
 
@@ -246,6 +305,7 @@ def build_sku_states(skus: list[dict[str, Any]], services: list[dict[str, Any]])
                 reorder_discipline=reorder_discipline,
                 review_period_days=review_period_days,
                 promo_affinity=rng.uniform(0.7, 1.45),
+                recent_lead_days=lead_mean,
             )
         )
     return states
@@ -288,117 +348,180 @@ def generate_reports(
     for report_index in range(report_count):
         report_at = start_at + timedelta(days=report_index * interval_days)
         day_of_year = report_at.timetuple().tm_yday
-        regime_window = regime_for_report(report_index, regime_windows)
+        scheduled_regime = regime_for_report(report_index, regime_windows)
         macro_wave = 1.0 + 0.08 * math.sin(report_index / 11.0) + 0.05 * math.cos(report_index / 19.0)
-        sku_observations: list[dict[str, Any]] = []
-        service_price_adjustments: list[dict[str, Any]] = []
         service_demand_scores: dict[str, float] = {}
         retail_demand_scores: dict[str, float] = {}
+        service_profiles = {service["serviceId"]: recipe_profiles_for_service(service, report_index, scheduled_regime.regime) for service in catalog_services}
+
+        receipts_by_sku: dict[str, float] = {}
+        receipt_timestamps: dict[str, str] = {}
+        for state in sku_states:
+            arriving = [order for order in state.pending_orders if order.arrival_index == report_index]
+            state.pending_orders = [order for order in state.pending_orders if order.arrival_index != report_index]
+            if arriving:
+                receipts_by_sku[state.sku_id] = round_money(sum(order.quantity for order in arriving))
+                receipt_timestamps[state.sku_id] = interval_timestamp(report_at, 16)
+                state.stock += receipts_by_sku[state.sku_id]
+                state.recent_lead_days = sum(order.lead_time_days for order in arriving) / len(arriving)
+
+        service_demand_by_sku: dict[str, float] = {state.sku_id: 0.0 for state in sku_states}
+        for service_index, service in enumerate(service_states):
+            service_rng = random.Random(stable_seed("service-report", report_index, service.service_id))
+            activity = service.base_activity * (1.0 + 0.16 * math.sin((day_of_year / 365.25) * math.tau + service.phase))
+            activity *= macro_wave * scheduled_regime.intensity * regime_multiplier(scheduled_regime.regime)
+            if scheduled_regime.regime == "promo":
+                activity *= service.promo_affinity
+            elif scheduled_regime.regime == "lull":
+                activity *= service_rng.uniform(0.72, 0.92)
+            elif scheduled_regime.regime == "spike":
+                activity *= service_rng.uniform(1.12, 1.32)
+            elif scheduled_regime.regime == "correction":
+                activity *= service_rng.uniform(0.86, 1.02)
+            if (report_index + service_index) % 11 == 0:
+                activity *= 1.0 + service_rng.uniform(0.12, 0.28)
+            service_count = max(0.0, activity)
+            service_demand_scores[service.service_id] = service_count
+
+            for profile in service_profiles.get(service.service_id, []):
+                sku_rng = random.Random(stable_seed("recipe-draw", report_index, service_index + len(profile["skuId"])))
+                usage_noise = max(0.55, 1.0 + sku_rng.uniform(-profile["variability"], profile["variability"]))
+                service_demand_by_sku[profile["skuId"]] += (
+                    service_count
+                    * profile["usageProbability"]
+                    * profile["typicalUnitsPerInstance"]
+                    * usage_noise
+                )
+
+        sku_observations: list[dict[str, Any]] = []
         low_stock_flags: dict[str, bool] = {}
+        lost_demand_by_sku: dict[str, float] = {}
         restock_count = 0
         retail_stockout_count = 0
+        adjustment_count = 0
 
         for sku_index, state in enumerate(sku_states):
             sku_rng = random.Random(stable_seed("report", report_index, state.sku_id))
             seasonality = 1.0 + 0.22 * math.sin((day_of_year / 365.25) * math.tau + state.phase)
             month_wave = 1.0 + 0.06 * math.sin(report_index / 4.5 + state.phase / 2.0)
             long_trend = 1.0 + state.trend_slope * report_index + 0.07 * math.sin(report_index / 28.0 + state.trend_bias)
-            regime_multiplier = regime_window.intensity
-            if regime_window.regime in {"promo", "festival"}:
-                regime_multiplier *= state.promo_affinity
-            if regime_window.regime == "lull":
-                regime_multiplier *= clamp(1.0 - state.service_links * 0.015, 0.82, 1.0)
-            promo_spike = 1.0
-            if sku_rng.random() < (0.055 * state.promo_affinity if regime_window.regime in {"promo", "festival"} else 0.018):
-                promo_spike += sku_rng.uniform(0.18, 0.55)
-            correction_drag = 1.0
-            if regime_window.regime == "correction" and sku_rng.random() < 0.2:
-                correction_drag -= sku_rng.uniform(0.08, 0.22)
-            volatility = sku_rng.uniform(0.86, 1.16)
-            draw = max(
-                0.5,
-                state.base_daily_demand
-                * interval_days
-                * seasonality
-                * month_wave
-                * macro_wave
-                * long_trend
-                * regime_multiplier
-                * promo_spike
-                * correction_drag
-                * volatility,
-            )
-
-            low_stock_projection = state.stock - draw
-            forced_review = report_index == 0 or (report_index * interval_days) % state.review_period_days < interval_days
-            restock_trigger = low_stock_projection <= state.reorder_point
-            opportunistic_restock = forced_review and sku_rng.random() < (0.08 + (1.0 - state.reorder_discipline) * 0.32)
-            restock_included = restock_trigger or opportunistic_restock
-            restock_units = 0.0
-            if restock_included:
-                restock_multiple = (
-                    sku_rng.uniform(0.72, 1.1)
-                    if state.reorder_strategy == "lean"
-                    else sku_rng.uniform(0.9, 1.55)
-                    if state.reorder_strategy == "bulk"
-                    else sku_rng.uniform(0.82, 1.3)
+            retail_draw = 0.0
+            if state.sold_as_product and state.price is not None:
+                retail_draw = max(
+                    0.0,
+                    state.base_daily_demand
+                    * interval_days
+                    * seasonality
+                    * month_wave
+                    * long_trend
+                    * macro_wave
+                    * regime_multiplier(scheduled_regime.regime)
+                    * (state.promo_affinity if scheduled_regime.regime in {"promo", "spike"} else 1.0)
+                    * sku_rng.uniform(0.82, 1.18),
                 )
-                if regime_window.regime == "supply_crunch":
-                    restock_multiple *= sku_rng.uniform(0.35, 0.88)
-                restock_units = max(6.0, state.reorder_batch * restock_multiple)
-                restock_count += 1
-            next_stock = max(0.0, state.stock + restock_units - draw)
+            unconstrained_demand = max(0.0, service_demand_by_sku[state.sku_id] + retail_draw)
+            retail_demand_scores[state.sku_id] = retail_draw / max(interval_days, 1.0) if state.sold_as_product else 0.0
 
-            cost_shift = 1.0 + sku_rng.uniform(-0.01, 0.012)
-            if restock_included:
-                cost_shift += sku_rng.uniform(0.004, 0.035)
-            if regime_window.regime == "supply_crunch":
-                cost_shift += sku_rng.uniform(0.01, 0.045)
-            elif regime_window.regime == "lull":
-                cost_shift -= sku_rng.uniform(0.0, 0.01)
+            inventory_position_gap = max(0.0, state.reorder_target - (state.stock + sum(order.quantity for order in state.pending_orders)))
+            age_days = (report_index - state.last_order_report) * interval_days if state.last_order_report is not None else (report_index + 1) * interval_days
+            order_probability = clamp(
+                0.1
+                + (inventory_position_gap / max(state.reorder_target, 1.0)) * 0.74
+                + (age_days / max(state.lead_mean_days, 1.0)) * 0.06
+                - sum(order.quantity for order in state.pending_orders) / max(state.reorder_batch, 1.0) * 0.18
+                + (0.05 if scheduled_regime.regime in {"promo", "spike"} else 0.0),
+                0.02,
+                0.92,
+            )
+            order_quantity: float | None = None
+            placement_timestamp: str | None = None
+            lead_time_days_hint: float | None = None
+            if sku_rng.random() < order_probability:
+                lead_time_days = max(
+                    1.0,
+                    state.lead_mean_days
+                    + sku_rng.uniform(-state.lead_std_days, state.lead_std_days * 1.25)
+                    + (0.6 if scheduled_regime.regime in {"promo", "spike"} else 0.0),
+                )
+                order_quantity = round_money(
+                    max(
+                        6.0,
+                        state.reorder_batch
+                        * (0.86 + inventory_position_gap / max(state.reorder_target, 1.0) * 0.55)
+                        * sku_rng.uniform(0.88, 1.18),
+                    )
+                )
+                placement_timestamp = interval_timestamp(report_at, 12)
+                lead_time_days_hint = round(lead_time_days, 2)
+                state.pending_orders.append(
+                    PendingOrder(
+                        arrival_index=report_index + max(1, math.ceil(lead_time_days / max(interval_days, 0.5))),
+                        quantity=order_quantity,
+                        lead_time_days=lead_time_days,
+                        placement_timestamp=placement_timestamp,
+                    )
+                )
+                state.last_order_report = report_index
+                restock_count += 1
+
+            adjustment_delta = 0.0
+            if scheduled_regime.regime == "correction" and (report_index + sku_index) % 3 == 0:
+                adjustment_delta = (-1 if (report_index + sku_index) % 2 == 0 else 1) * round_money(sku_rng.uniform(0.8, 3.3))
+            elif sku_rng.random() < 0.035:
+                adjustment_delta = -round_money(sku_rng.uniform(0.2, 1.1))
+            if adjustment_delta != 0.0:
+                adjustment_count += 1
+
+            realized_consumption = min(unconstrained_demand, state.stock)
+            lost_demand = max(0.0, unconstrained_demand - realized_consumption)
+            lost_demand_by_sku[state.sku_id] = lost_demand
+            next_stock = max(0.0, state.stock + adjustment_delta - realized_consumption)
+
+            cost_shift = 1.0 + sku_rng.uniform(-0.008, 0.015)
+            if receipts_by_sku.get(state.sku_id, 0.0) > 0:
+                cost_shift += 0.012 if scheduled_regime.regime == "promo" else 0.006
             next_cost = round_money(max(0.2, state.cost * cost_shift))
 
             next_price = state.price
             previous_price = state.price
             if next_price is not None:
                 should_reprice = (
-                    (report_index + sku_index) % 14 == 0
-                    or (restock_included and sku_rng.random() < 0.15)
-                    or (regime_window.regime in {"promo", "festival"} and sku_rng.random() < 0.12)
+                    report_index == 0
+                    or order_quantity is not None
+                    or scheduled_regime.regime in {"promo", "spike", "correction"}
+                    or (report_index + sku_index) % 13 == 0
                 )
                 if should_reprice:
-                    price_shift = sku_rng.uniform(-0.025, 0.06)
-                    if regime_window.regime in {"promo", "festival"} and sku_rng.random() < 0.45:
-                        price_shift -= sku_rng.uniform(0.03, 0.09)
-                    if regime_window.regime == "supply_crunch":
-                        price_shift += sku_rng.uniform(0.02, 0.08)
+                    price_shift = sku_rng.uniform(-0.025, 0.05)
+                    if scheduled_regime.regime == "promo":
+                        price_shift -= sku_rng.uniform(0.03, 0.08)
+                    elif scheduled_regime.regime == "stockout_constrained":
+                        price_shift += sku_rng.uniform(0.02, 0.05)
                     next_price = round_money(max(next_cost * 1.35, next_price * (1.0 + price_shift)))
 
-            retail_stockout = state.sold_as_product and next_stock <= max(3.0, state.base_daily_demand * 2.2)
+            retail_stockout = state.sold_as_product and (
+                lost_demand > 0.35 or next_stock <= max(2.0, state.base_daily_demand * 1.8)
+            )
             if retail_stockout:
                 retail_stockout_count += 1
-            low_stock_flags[state.sku_id] = next_stock <= max(8.0, state.reorder_point * 0.55)
-
-            retail_demand_scores[state.sku_id] = draw / interval_days if state.sold_as_product else 0.0
-
-            notes: str | None = None
-            if restock_included and retail_stockout:
-                notes = "Replenishment arrived after a tight selling window."
-            elif restock_included:
-                notes = "Planned replenishment landed before close."
-            elif retail_stockout:
-                notes = "Shelf stock ran lean by close."
+            low_stock_flags[state.sku_id] = next_stock <= max(6.0, state.reorder_point * 0.5)
 
             sku_observations.append(
                 {
                     "skuId": state.sku_id,
-                    "unitsInStock": round(next_stock, 4),
+                    "unitsInStock": round_units(next_stock),
                     "costPerUnit": next_cost,
                     "productPrice": next_price,
                     "previousProductPrice": previous_price,
-                    "restockIncluded": restock_included,
+                    "restockIncluded": receipts_by_sku.get(state.sku_id, 0.0) > 0,
                     "retailStockout": retail_stockout,
-                    "notes": notes,
+                    "adjustmentDelta": adjustment_delta if adjustment_delta != 0.0 else None,
+                    "approximateOrderQuantity": order_quantity,
+                    "approximateReceiptQuantity": receipts_by_sku.get(state.sku_id),
+                    "placementTimestamp": placement_timestamp,
+                    "receiptTimestamp": receipt_timestamps.get(state.sku_id),
+                    "leadTimeDaysHint": lead_time_days_hint or round(state.recent_lead_days, 2),
+                    "notes": "Cycle count adjustment applied." if adjustment_delta != 0.0 else None,
                 }
             )
 
@@ -406,29 +529,27 @@ def generate_reports(
             state.cost = next_cost
             state.price = next_price
 
-        service_signals: list[dict[str, Any]] = []
-        for service_index, service in enumerate(service_states):
-            service_rng = random.Random(stable_seed("service-report", report_index, service.service_id))
-            linked_pressure = sum(1 for sku_id in service.sku_ids if low_stock_flags.get(sku_id))
-            activity = service.base_activity * (1.0 + 0.16 * math.sin((day_of_year / 365.25) * math.tau + service.phase))
-            activity *= macro_wave * regime_window.intensity
-            if regime_window.regime in {"promo", "festival"}:
-                activity *= service.promo_affinity
-            if regime_window.regime == "lull":
-                activity *= service_rng.uniform(0.72, 0.94)
-            if (report_index + service_index) % 10 == 0:
-                activity *= 1.0 + service_rng.uniform(0.15, 0.35)
-            service_demand_scores[service.service_id] = activity + linked_pressure * 0.35
+        final_regime = (
+            "stockout_constrained"
+            if scheduled_regime.regime in {"normal", "lull"}
+            and sum(1 for value in lost_demand_by_sku.values() if value > 0.5) >= 2
+            else scheduled_regime.regime
+        )
 
-            if (report_index + service_index) % 12 == 0 or (
-                regime_window.regime in {"promo", "festival", "supply_crunch"} and service_rng.random() < 0.08
-            ):
+        service_signals: list[dict[str, Any]] = []
+        service_price_adjustments: list[dict[str, Any]] = []
+        for service_index, service in enumerate(service_states):
+            service_rng = random.Random(stable_seed("service-reprice", report_index, service_index))
+            linked_pressure = sum(1 for sku_id in service.sku_ids if low_stock_flags.get(sku_id) or lost_demand_by_sku.get(sku_id, 0.0) > 0.35)
+            service_demand_scores[service.service_id] += linked_pressure * 0.35
+
+            if report_index == 0 or final_regime in {"promo", "spike", "correction"} or (report_index + service_index) % 12 == 0:
                 previous_price = service.price
-                price_delta = service_rng.uniform(-0.03, 0.07)
-                if regime_window.regime in {"promo", "festival"} and service_rng.random() < 0.5:
-                    price_delta -= service_rng.uniform(0.04, 0.1)
-                if regime_window.regime == "supply_crunch":
-                    price_delta += service_rng.uniform(0.02, 0.07)
+                price_delta = service_rng.uniform(-0.03, 0.05)
+                if final_regime == "promo":
+                    price_delta -= service_rng.uniform(0.04, 0.09)
+                elif final_regime == "stockout_constrained":
+                    price_delta += service_rng.uniform(0.02, 0.05)
                 service.price = round_money(max(1.0, service.price * (1.0 + price_delta)))
                 service_price_adjustments.append(
                     {
@@ -440,35 +561,24 @@ def generate_reports(
 
             linked_low = linked_pressure > 0
             if linked_low or (report_index + len(service.sku_ids) + service_index) % 23 == 0:
-                service_signals.append(
-                    {
-                        "serviceId": service.service_id,
-                        "stockout": linked_low,
-                    }
-                )
+                service_signals.append({"serviceId": service.service_id, "stockout": linked_low})
 
         top_service_ranking = [
             service_id
-            for service_id, _ in sorted(
-                service_demand_scores.items(),
-                key=lambda item: (-item[1], item[0]),
-            )[: min(4, len(service_demand_scores))]
-        ] if report_index % 2 == 0 else []
-
+            for service_id, _ in sorted(service_demand_scores.items(), key=lambda item: (-item[1], item[0]))[: min(4, len(service_demand_scores))]
+        ]
         top_retail_ranking = [
             sku_id
             for sku_id, _ in sorted(
                 ((sku_id, score) for sku_id, score in retail_demand_scores.items() if score > 0),
                 key=lambda item: (-item[1], item[0]),
             )[: min(4, len(retail_sku_ids))]
-        ] if report_index % 3 == 0 else []
+        ]
 
         service_stockout_count = sum(1 for signal in service_signals if signal.get("stockout"))
-        notes = build_report_note(regime_window.regime, restock_count, retail_stockout_count, service_stockout_count)
+        notes = build_report_note(final_regime, restock_count, retail_stockout_count, service_stockout_count, adjustment_count)
         if report_index == 0:
             notes = "Synthetic historical baseline generated for the current desktop catalog."
-        elif report_index % 9 == 0 and notes is None:
-            notes = "Synthetic twice-weekly operating snapshot."
 
         reports.append(
             {
@@ -480,6 +590,8 @@ def generate_reports(
                 "servicePriceAdjustments": service_price_adjustments,
                 "topServiceRanking": top_service_ranking,
                 "topRetailRanking": top_retail_ranking,
+                "regimeHint": final_regime,
+                "recipeUsageHints": [profile for profiles in service_profiles.values() for profile in profiles],
                 "notes": notes,
             }
         )
@@ -546,7 +658,7 @@ def build_sena_catalog(skus: list[dict[str, Any]], services: list[dict[str, Any]
                 "name": service["name"],
                 "description": service["description"],
                 "price": service["price"],
-                "bundle": True,
+                "bundle": bool(service.get("bundle")) or len(service.get("skuIds", [])) > 1,
             }
             for service in services
         ],
@@ -570,33 +682,33 @@ def build_sena_observations(
 
         order_signals = []
         for sku_observation in report["skuObservations"]:
-            previous = previous_units.get(sku_observation["skuId"], sku_observation["unitsInStock"])
-            receipt_qty = None
-            if sku_observation.get("restockIncluded"):
-                receipt_qty = round(max(8.0, sku_observation["unitsInStock"] - previous + 12.0), 2)
             order_signals.append(
                 {
                     "skuId": sku_observation["skuId"],
-                    "orderPlaced": bool(sku_observation.get("restockIncluded")),
+                    "orderPlaced": sku_observation.get("approximateOrderQuantity") is not None,
                     "receiptArrived": bool(sku_observation.get("restockIncluded")),
-                    "approximateOrderQuantity": receipt_qty,
-                    "approximateReceiptQuantity": receipt_qty,
+                    "approximateOrderQuantity": sku_observation.get("approximateOrderQuantity"),
+                    "approximateReceiptQuantity": sku_observation.get("approximateReceiptQuantity"),
+                    "placementTimestamp": sku_observation.get("placementTimestamp"),
+                    "receiptTimestamp": sku_observation.get("receiptTimestamp"),
+                    "leadTimeDaysHint": sku_observation.get("leadTimeDaysHint"),
                 }
             )
             previous_units[sku_observation["skuId"]] = float(sku_observation["unitsInStock"])
 
         lead_time_hints = []
         for sku_observation in report["skuObservations"]:
-            lead_mean = None
+            lead_mean = sku_observation.get("leadTimeDaysHint")
             lead_std = None
-            # The latest catalog already carries the canonical hints by sku id.
+            if lead_mean is not None:
+                lead_std = max(0.75, float(lead_mean) * 0.22)
             lead_time_hints.append(
                 {
                     "skuId": sku_observation["skuId"],
                     "typicalDays": lead_mean,
-                    "lowDays": lead_std,
-                    "highDays": lead_std,
-                    "variabilityClass": None,
+                    "lowDays": max(1.0, float(lead_mean) - float(lead_std)) if lead_mean is not None and lead_std is not None else None,
+                    "highDays": float(lead_mean) + float(lead_std) if lead_mean is not None and lead_std is not None else None,
+                    "variabilityClass": derive_variability_class(float(lead_mean), float(lead_std)) if lead_mean is not None and lead_std is not None else None,
                 }
             )
 
@@ -635,6 +747,17 @@ def build_sena_observations(
                     if item.get("productPrice") is not None
                 ],
                 "leadTimeHints": lead_time_hints,
+                "regimeHint": report.get("regimeHint"),
+                "adjustmentSignals": [
+                    {
+                        "skuId": item["skuId"],
+                        "quantityDelta": item["adjustmentDelta"],
+                        "reason": item.get("notes") or ("cycle_count_write_off" if item["adjustmentDelta"] < 0 else "cycle_count_recount"),
+                    }
+                    for item in report["skuObservations"]
+                    if item.get("adjustmentDelta") not in {None, 0}
+                ],
+                "recipeUsageHints": report.get("recipeUsageHints", []),
                 "notes": report.get("notes"),
             }
         )
@@ -648,6 +771,10 @@ def enrich_lead_time_hints(observations: list[dict[str, Any]], skus: list[dict[s
         hints = []
         for snapshot in observation["stockSnapshot"]:
             sku = sku_lookup[snapshot["skuId"]]
+            current_hint = next((hint for hint in observation.get("leadTimeHints", []) if hint["skuId"] == sku["skuId"]), None)
+            if current_hint and current_hint.get("typicalDays") is not None:
+                hints.append(current_hint)
+                continue
             typical = sku.get("leadTimeMeanDays")
             std = sku.get("leadTimeStdDays")
             if typical is None and std is None:

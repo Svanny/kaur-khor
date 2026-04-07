@@ -127,15 +127,18 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
             Ok(Some(serde_json::to_value(catalog)?))
         }
         "sena.ingestObservation" => {
-            let observation: SenaObservationInput =
-                serde_json::from_value(payload).context("invalid sena.ingestObservation payload")?;
+            let observation: SenaObservationInput = serde_json::from_value(payload)
+                .context("invalid sena.ingestObservation payload")?;
             observation.validate()?;
-            Ok(Some(serde_json::to_value(store::ingest_observation(owner, &observation)?)?))
+            Ok(Some(serde_json::to_value(store::ingest_observation(
+                owner,
+                &observation,
+            )?)?))
         }
         "sena.getCatalog" => Ok(Some(serde_json::to_value(store::get_catalog(owner)?)?)),
-        "sena.listObservations" => Ok(Some(serde_json::to_value(
-            store::list_observations(owner)?,
-        )?)),
+        "sena.listObservations" => Ok(Some(serde_json::to_value(store::list_observations(
+            owner,
+        )?)?)),
         "sena.triggerRun" => {
             let request: TriggerRunPayload =
                 serde_json::from_value(payload).context("invalid sena.triggerRun payload")?;
@@ -179,19 +182,23 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
         "sena.getRunStatus" => {
             let request: RunLookupPayload =
                 serde_json::from_value(payload).context("invalid sena.getRunStatus payload")?;
-            Ok(Some(serde_json::to_value(store::get_run(&request.run_id)?)?))
+            Ok(Some(serde_json::to_value(store::get_run(
+                &request.run_id,
+            )?)?))
         }
         "inventory.loadSnapshot" => Ok(Some(serde_json::to_value(
             store::load_inventory_snapshot(owner)?,
         )?)),
-        "inventory.listReports" => Ok(Some(serde_json::to_value(
-            store::list_stock_reports(owner)?,
-        )?)),
+        "inventory.listReports" => Ok(Some(serde_json::to_value(store::list_stock_reports(
+            owner,
+        )?)?)),
         "inventory.submitReport" => {
-            let mut request: SubmitStockReportRequest =
-                serde_json::from_value(payload).context("invalid inventory.submitReport payload")?;
+            let mut request: SubmitStockReportRequest = serde_json::from_value(payload)
+                .context("invalid inventory.submitReport payload")?;
             request.validate()?;
-            Ok(Some(serde_json::to_value(store::submit_stock_report(owner, request)?)?))
+            Ok(Some(serde_json::to_value(store::submit_stock_report(
+                owner, request,
+            )?)?))
         }
         other => anyhow::bail!("unknown desktop core command '{other}'"),
     }

@@ -1,4 +1,6 @@
-use crate::lead_time::{derive_variability_class, validate_lead_time_range, SenaLeadTimeVariabilityClass};
+use crate::lead_time::{
+    derive_variability_class, validate_lead_time_range, SenaLeadTimeVariabilityClass,
+};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -82,6 +84,12 @@ pub struct SenaObservationInput {
     pub retail_prices: Vec<SenaRetailPriceObservation>,
     #[serde(default)]
     pub lead_time_hints: Vec<SenaLeadTimeHint>,
+    #[serde(default)]
+    pub regime_hint: Option<SenaObservationRegimeHint>,
+    #[serde(default)]
+    pub adjustment_signals: Vec<SenaAdjustmentSignal>,
+    #[serde(default)]
+    pub recipe_usage_hints: Vec<SenaRecipeUsageHint>,
     pub notes: Option<String>,
 }
 
@@ -104,6 +112,12 @@ pub struct SenaOrderSignal {
     pub receipt_arrived: bool,
     pub approximate_order_quantity: Option<f64>,
     pub approximate_receipt_quantity: Option<f64>,
+    #[serde(default)]
+    pub placement_timestamp: Option<String>,
+    #[serde(default)]
+    pub receipt_timestamp: Option<String>,
+    #[serde(default)]
+    pub lead_time_days_hint: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -128,6 +142,35 @@ pub struct SenaLeadTimeHint {
     pub low_days: Option<f64>,
     pub high_days: Option<f64>,
     pub variability_class: Option<SenaLeadTimeVariabilityClass>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaObservationRegimeHint {
+    Normal,
+    Spike,
+    Lull,
+    StockoutConstrained,
+    Promo,
+    Correction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaAdjustmentSignal {
+    pub sku_id: String,
+    pub quantity_delta: f64,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaRecipeUsageHint {
+    pub service_id: String,
+    pub sku_id: String,
+    pub usage_probability: f64,
+    pub typical_units_per_instance: f64,
+    pub variability: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -349,7 +392,10 @@ impl SenaCatalog {
                 ));
             }
             if !sku_ids.contains(&entry.sku_id) {
-                return Err(anyhow!("sharingMask references unknown skuId '{}'", entry.sku_id));
+                return Err(anyhow!(
+                    "sharingMask references unknown skuId '{}'",
+                    entry.sku_id
+                ));
             }
             if let Some(probability) = entry.usage_probability {
                 if !(0.0..=1.0).contains(&probability) {
@@ -366,8 +412,11 @@ impl SenaObservationInput {
         if self.stock_snapshot.is_empty() {
             return Err(anyhow!("stockSnapshot must include at least one sku"));
         }
-        OffsetDateTime::parse(&self.observed_at, &time::format_description::well_known::Rfc3339)
-            .map_err(|err| anyhow!("observedAt must be RFC3339: {err}"))?;
+        OffsetDateTime::parse(
+            &self.observed_at,
+            &time::format_description::well_known::Rfc3339,
+        )
+        .map_err(|err| anyhow!("observedAt must be RFC3339: {err}"))?;
         let mut seen = HashSet::new();
         for snapshot in &self.stock_snapshot {
             validate_identifier("skuId", &snapshot.sku_id)?;
@@ -375,7 +424,10 @@ impl SenaObservationInput {
                 return Err(anyhow!("unitsInStock must be >= 0"));
             }
             if !seen.insert(snapshot.sku_id.clone()) {
-                return Err(anyhow!("duplicate stockSnapshot skuId '{}'", snapshot.sku_id));
+                return Err(anyhow!(
+                    "duplicate stockSnapshot skuId '{}'",
+                    snapshot.sku_id
+                ));
             }
         }
         for hint in &self.lead_time_hints {
@@ -403,6 +455,66 @@ impl SenaObservationInput {
                 return Err(anyhow!(
                     "leadTimeHints[] must include typicalDays, variabilityClass, or low/high range"
                 ));
+            }
+        }
+        for signal in &self.order_signals {
+            validate_identifier("orderSignals[].skuId", &signal.sku_id)?;
+            if let Some(quantity) = signal.approximate_order_quantity {
+                if !quantity.is_finite() || quantity < 0.0 {
+                    return Err(anyhow!(
+                        "orderSignals[].approximateOrderQuantity must be >= 0"
+                    ));
+                }
+            }
+            if let Some(quantity) = signal.approximate_receipt_quantity {
+                if !quantity.is_finite() || quantity < 0.0 {
+                    return Err(anyhow!(
+                        "orderSignals[].approximateReceiptQuantity must be >= 0"
+                    ));
+                }
+            }
+            if let Some(days) = signal.lead_time_days_hint {
+                if !days.is_finite() || days < 0.0 {
+                    return Err(anyhow!("orderSignals[].leadTimeDaysHint must be >= 0"));
+                }
+            }
+            if let Some(timestamp) = &signal.placement_timestamp {
+                OffsetDateTime::parse(timestamp, &time::format_description::well_known::Rfc3339)
+                    .map_err(|err| {
+                        anyhow!("orderSignals[].placementTimestamp must be RFC3339: {err}")
+                    })?;
+            }
+            if let Some(timestamp) = &signal.receipt_timestamp {
+                OffsetDateTime::parse(timestamp, &time::format_description::well_known::Rfc3339)
+                    .map_err(|err| {
+                        anyhow!("orderSignals[].receiptTimestamp must be RFC3339: {err}")
+                    })?;
+            }
+        }
+        for signal in &self.adjustment_signals {
+            validate_identifier("adjustmentSignals[].skuId", &signal.sku_id)?;
+            validate_non_empty("adjustmentSignals[].reason", &signal.reason)?;
+            if !signal.quantity_delta.is_finite() {
+                return Err(anyhow!("adjustmentSignals[].quantityDelta must be finite"));
+            }
+        }
+        for hint in &self.recipe_usage_hints {
+            validate_identifier("recipeUsageHints[].serviceId", &hint.service_id)?;
+            validate_identifier("recipeUsageHints[].skuId", &hint.sku_id)?;
+            if !hint.usage_probability.is_finite() || !(0.0..=1.0).contains(&hint.usage_probability)
+            {
+                return Err(anyhow!(
+                    "recipeUsageHints[].usageProbability must be between 0 and 1"
+                ));
+            }
+            if !hint.typical_units_per_instance.is_finite() || hint.typical_units_per_instance < 0.0
+            {
+                return Err(anyhow!(
+                    "recipeUsageHints[].typicalUnitsPerInstance must be >= 0"
+                ));
+            }
+            if !hint.variability.is_finite() || hint.variability < 0.0 {
+                return Err(anyhow!("recipeUsageHints[].variability must be >= 0"));
             }
         }
         Ok(())
@@ -453,6 +565,9 @@ mod tests {
                 high_days: None,
                 variability_class: Some(SenaLeadTimeVariabilityClass::Wide),
             }],
+            regime_hint: None,
+            adjustment_signals: Vec::new(),
+            recipe_usage_hints: Vec::new(),
             notes: None,
         };
 
@@ -483,12 +598,88 @@ mod tests {
                 high_days: None,
                 variability_class: None,
             }],
+            regime_hint: None,
+            adjustment_signals: Vec::new(),
+            recipe_usage_hints: Vec::new(),
             notes: None,
         };
 
         let error = observation.validate().expect_err("validation should fail");
+        assert!(error.to_string().contains(
+            "leadTimeHints[] must include typicalDays, variabilityClass, or low/high range"
+        ));
+    }
+
+    #[test]
+    fn observation_validation_accepts_rich_optional_signals() {
+        let observation = serde_json::from_str::<SenaObservationInput>(
+            r#"{
+              "observedAt": "2026-04-03T00:00:00Z",
+              "stockSnapshot": [{"skuId": "sku-1", "unitsInStock": 10, "costPerUnit": 2, "productPrice": 4}],
+              "serviceRankings": ["service-1"],
+              "retailRankings": ["sku-1"],
+              "serviceStockouts": [],
+              "retailStockouts": [],
+              "orderSignals": [{
+                "skuId": "sku-1",
+                "orderPlaced": true,
+                "receiptArrived": false,
+                "approximateOrderQuantity": 8,
+                "approximateReceiptQuantity": null,
+                "placementTimestamp": "2026-04-02T12:00:00Z",
+                "receiptTimestamp": null,
+                "leadTimeDaysHint": 4
+              }],
+              "servicePrices": [],
+              "retailPrices": [],
+              "leadTimeHints": [],
+              "regimeHint": "promo",
+              "adjustmentSignals": [{"skuId": "sku-1", "quantityDelta": -1.5, "reason": "write_off"}],
+              "recipeUsageHints": [{
+                "serviceId": "service-1",
+                "skuId": "sku-1",
+                "usageProbability": 0.85,
+                "typicalUnitsPerInstance": 1.4,
+                "variability": 0.22
+              }],
+              "notes": "Synthetic promo interval"
+            }"#,
+        )
+        .expect("observation should parse");
+
+        observation.validate().expect("observation should validate");
+    }
+
+    #[test]
+    fn observation_validation_rejects_invalid_recipe_usage_probability() {
+        let observation = serde_json::from_str::<SenaObservationInput>(
+            r#"{
+              "observedAt": "2026-04-03T00:00:00Z",
+              "stockSnapshot": [{"skuId": "sku-1", "unitsInStock": 10, "costPerUnit": 2, "productPrice": 4}],
+              "serviceRankings": [],
+              "retailRankings": [],
+              "serviceStockouts": [],
+              "retailStockouts": [],
+              "orderSignals": [],
+              "servicePrices": [],
+              "retailPrices": [],
+              "leadTimeHints": [],
+              "adjustmentSignals": [],
+              "recipeUsageHints": [{
+                "serviceId": "service-1",
+                "skuId": "sku-1",
+                "usageProbability": 1.4,
+                "typicalUnitsPerInstance": 1.4,
+                "variability": 0.22
+              }],
+              "notes": null
+            }"#,
+        )
+        .expect("observation should parse");
+
+        let error = observation.validate().expect_err("validation should fail");
         assert!(error
             .to_string()
-            .contains("leadTimeHints[] must include typicalDays, variabilityClass, or low/high range"));
+            .contains("recipeUsageHints[].usageProbability must be between 0 and 1"));
     }
 }

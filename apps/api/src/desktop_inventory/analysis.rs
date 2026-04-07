@@ -1,15 +1,15 @@
-use crate::types::{
-    SistAnalysisMetadata, SistConfidence, SistDisruptionWindow,
-    SistDriftDiagnostics, SistIntervalDemandBreakdown, SistModelHealthSummary, SistOverview,
-    SistRegime, SistRegimePosteriorPoint, SistReorderPolicyBreakdown, SistReportEvidenceSummary,
-    SistRiskEntity, SistServiceContributor, SistServiceDetailResponse, SistSettings,
-    SistSignalIntakeSummary, SistSkuDetailResponse, SistSkuInsight, SistSystemDetailResponse,
-    SistTrajectoryPoint, StockReportRecord, SistAnalysisState, SistAnalysisStatus,
-};
 use super::{
     cmp_f64, confidence_for_report_count, demand_hint_for_sku, infer_lead_time, mean,
     parse_report_time, quantile, sample_standard_normal, stable_seed, DesktopServiceRecord,
     DesktopSkuRecord, OwnerInventory,
+};
+use crate::types::{
+    SistAnalysisMetadata, SistAnalysisState, SistAnalysisStatus, SistConfidence,
+    SistDisruptionWindow, SistDriftDiagnostics, SistIntervalDemandBreakdown,
+    SistModelHealthSummary, SistOverview, SistRegime, SistRegimePosteriorPoint,
+    SistReorderPolicyBreakdown, SistReportEvidenceSummary, SistRiskEntity, SistServiceContributor,
+    SistServiceDetailResponse, SistSettings, SistSignalIntakeSummary, SistSkuDetailResponse,
+    SistSkuInsight, SistSystemDetailResponse, SistTrajectoryPoint, StockReportRecord,
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -77,7 +77,10 @@ struct ServiceAccumulator {
     evidence_timeline: Vec<SistReportEvidenceSummary>,
 }
 
-pub(super) fn compute_sist_analysis(owner_sub: &str, owner: &OwnerInventory) -> ComputedSistAnalysis {
+pub(super) fn compute_sist_analysis(
+    owner_sub: &str,
+    owner: &OwnerInventory,
+) -> ComputedSistAnalysis {
     let intervals = build_intervals(owner);
     let report_count = owner.sist.stock_reports.len();
     let confidence = confidence_for_report_count(report_count);
@@ -89,7 +92,14 @@ pub(super) fn compute_sist_analysis(owner_sub: &str, owner: &OwnerInventory) -> 
         .min(report_count.max(1));
     let analysis_timestamp = OffsetDateTime::now_utc()
         .format(&Rfc3339)
-        .unwrap_or_else(|_| owner.sist.stock_reports.last().map(|r| r.reported_at.clone()).unwrap_or_default());
+        .unwrap_or_else(|_| {
+            owner
+                .sist
+                .stock_reports
+                .last()
+                .map(|r| r.reported_at.clone())
+                .unwrap_or_default()
+        });
     let seasonality_active = intervals.len() >= 6;
     let weekday_effects = weekday_effects(&intervals, seasonality_active);
 
@@ -139,7 +149,8 @@ pub(super) fn compute_sist_analysis(owner_sub: &str, owner: &OwnerInventory) -> 
     let mut recent_change_point_probability = 0.0;
 
     for interval in &intervals {
-        signal_intake.ranking_observations += interval.service_ranking_positions.len() + interval.retail_ranking_positions.len();
+        signal_intake.ranking_observations +=
+            interval.service_ranking_positions.len() + interval.retail_ranking_positions.len();
         signal_intake.restock_flags += interval
             .sku_observations
             .values()
@@ -157,7 +168,8 @@ pub(super) fn compute_sist_analysis(owner_sub: &str, owner: &OwnerInventory) -> 
         let change_point_probability = regime_change_point_probability(interval);
         recent_change_point_probability = change_point_probability;
 
-        let mut rng = StdRng::seed_from_u64(stable_seed(&(owner_sub, interval.index, particle_count)));
+        let mut rng =
+            StdRng::seed_from_u64(stable_seed(&(owner_sub, interval.index, particle_count)));
         let mut weights = Vec::with_capacity(particles.len());
         let mut interval_states = Vec::with_capacity(particles.len());
         let mut evolved_particles = Vec::with_capacity(particles.len());
@@ -275,7 +287,8 @@ pub(super) fn compute_sist_analysis(owner_sub: &str, owner: &OwnerInventory) -> 
                     target_service_level: owner.sist.settings.target_service_level,
                     lead_time_days_mean: insight.lead_time.mean_days,
                     lead_time_days_std: insight.lead_time.std_days,
-                    expected_lead_time_demand: insight.expected_demand_per_day * insight.lead_time.mean_days,
+                    expected_lead_time_demand: insight.expected_demand_per_day
+                        * insight.lead_time.mean_days,
                     reorder_point: insight.reorder_point,
                     safety_stock: insight.safety_stock,
                     reorder_trigger_probability: insight.reorder_trigger_probability,
@@ -319,7 +332,9 @@ pub(super) fn compute_sist_analysis(owner_sub: &str, owner: &OwnerInventory) -> 
         })
         .collect::<Vec<_>>();
     for service in &owner.catalog.services {
-        let accumulator = service_accumulators.remove(&service.service_id).unwrap_or_default();
+        let accumulator = service_accumulators
+            .remove(&service.service_id)
+            .unwrap_or_default();
         let detail = build_service_detail(
             service,
             owner,
@@ -336,13 +351,22 @@ pub(super) fn compute_sist_analysis(owner_sub: &str, owner: &OwnerInventory) -> 
         });
         service_details.insert(service.service_id.clone(), detail);
     }
-    top_risky_entities.sort_by(|left, right| right.risk_score.partial_cmp(&left.risk_score).unwrap_or(std::cmp::Ordering::Equal));
+    top_risky_entities.sort_by(|left, right| {
+        right
+            .risk_score
+            .partial_cmp(&left.risk_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     top_risky_entities.truncate(6);
 
     let overview = SistOverview {
         status: final_state.status,
         settings: owner.sist.settings.clone(),
-        as_of: owner.sist.stock_reports.last().map(|report| report.reported_at.clone()),
+        as_of: owner
+            .sist
+            .stock_reports
+            .last()
+            .map(|report| report.reported_at.clone()),
         top_regime,
         pending_reorder_count,
         high_risk_sku_ids,
@@ -365,8 +389,12 @@ pub(super) fn compute_sist_analysis(owner_sub: &str, owner: &OwnerInventory) -> 
             seasonality_active,
             change_point_active: metadata.change_point_active,
             recent_change_point_probability,
-            service_drift_scale: (1.5 / effective_smoothing_window.max(1) as f64).sqrt().max(0.08),
-            retail_drift_scale: (2.0 / effective_smoothing_window.max(1) as f64).sqrt().max(0.1),
+            service_drift_scale: (1.5 / effective_smoothing_window.max(1) as f64)
+                .sqrt()
+                .max(0.08),
+            retail_drift_scale: (2.0 / effective_smoothing_window.max(1) as f64)
+                .sqrt()
+                .max(0.1),
         },
         metadata: Some(metadata),
     };
@@ -402,9 +430,10 @@ fn finalize_state(
                 interval_index: regime.interval_index,
                 start_at: regime.start_at.clone(),
                 end_at: regime.end_at.clone(),
-                duration_days: ((parse_report_time(&regime.end_at) - parse_report_time(&regime.start_at))
-                    .whole_seconds()
-                    .max(86_400) as f64)
+                duration_days: ((parse_report_time(&regime.end_at)
+                    - parse_report_time(&regime.start_at))
+                .whole_seconds()
+                .max(86_400) as f64)
                     / 86_400.0,
                 service_demand_mean: 0.0,
                 retail_demand_mean: 0.0,
@@ -542,10 +571,13 @@ fn initialize_particles(
 
     let mut particles = Vec::with_capacity(particle_count);
     for particle_index in 0..particle_count {
-        let mut rng = StdRng::seed_from_u64(stable_seed(&(owner_sub, "particle-init", particle_index)));
+        let mut rng =
+            StdRng::seed_from_u64(stable_seed(&(owner_sub, "particle-init", particle_index)));
         let inventory = initial_inventory
             .iter()
-            .map(|units| (units + sample_standard_normal(&mut rng) * (units.sqrt() * 0.08 + 0.5)).max(0.0))
+            .map(|units| {
+                (units + sample_standard_normal(&mut rng) * (units.sqrt() * 0.08 + 0.5)).max(0.0)
+            })
             .collect();
         let service_log_intensity = owner
             .catalog
@@ -617,10 +649,12 @@ fn evolve_particle(
             .map(|_| 0.08)
             .unwrap_or(0.0);
         let drift = sample_standard_normal(rng) * if change_point { 0.32 } else { 0.12 };
-        next.service_log_intensity[service_idx] += drift + seasonality + ranking_shift + stockout_shift + price_shift;
-        let mean_count =
-            (next.service_log_intensity[service_idx].exp() * regime_multiplier(regime) * interval.duration_days)
-                .max(0.02);
+        next.service_log_intensity[service_idx] +=
+            drift + seasonality + ranking_shift + stockout_shift + price_shift;
+        let mean_count = (next.service_log_intensity[service_idx].exp()
+            * regime_multiplier(regime)
+            * interval.duration_days)
+            .max(0.02);
         let sampled_count = sample_non_negative(mean_count, 0.45, rng);
         service_activity[service_idx] = sampled_count;
         let sku_links = &service_links[service_idx];
@@ -629,7 +663,12 @@ fn evolve_particle(
             for sku_idx in sku_links {
                 let usage = sampled_count
                     * base_usage
-                    * (1.0 + interval.retail_ranking_positions.get(&owner.catalog.skus[*sku_idx].sku_id).map(|position| ordinal_signal(*position) * 0.08).unwrap_or(0.0));
+                    * (1.0
+                        + interval
+                            .retail_ranking_positions
+                            .get(&owner.catalog.skus[*sku_idx].sku_id)
+                            .map(|position| ordinal_signal(*position) * 0.08)
+                            .unwrap_or(0.0));
                 service_demand[*sku_idx] += usage.max(0.0);
             }
         }
@@ -644,14 +683,22 @@ fn evolve_particle(
         let stockout_shift = interval
             .sku_observations
             .get(&sku.sku_id)
-            .map(|observation| if observation.retail_stockout { -0.16 } else { 0.0 })
+            .map(|observation| {
+                if observation.retail_stockout {
+                    -0.16
+                } else {
+                    0.0
+                }
+            })
             .unwrap_or(0.0);
         let drift = sample_standard_normal(rng) * if change_point { 0.28 } else { 0.1 };
         if sku.sold_as_product {
-            next.retail_log_intensity[sku_idx] += drift + seasonality * 0.8 + ranking_shift + stockout_shift;
-            let retail_mean =
-                (next.retail_log_intensity[sku_idx].exp() * regime_multiplier(regime) * interval.duration_days)
-                    .max(0.0);
+            next.retail_log_intensity[sku_idx] +=
+                drift + seasonality * 0.8 + ranking_shift + stockout_shift;
+            let retail_mean = (next.retail_log_intensity[sku_idx].exp()
+                * regime_multiplier(regime)
+                * interval.duration_days)
+                .max(0.0);
             retail_demand[sku_idx] = sample_non_negative(retail_mean, 0.35, rng);
         }
 
@@ -661,10 +708,13 @@ fn evolve_particle(
             .unwrap_or(0.0);
         let restock_prob_base: f64 = observation
             .map(|entry| {
-                0.03
-                    + if entry.restock_included { 0.55 } else { 0.0 }
+                0.03 + if entry.restock_included { 0.55 } else { 0.0 }
                     + if positive_jump > 2.0 { 0.18 } else { 0.0 }
-                    + if entry.observed_units < entry.previous_units * 0.4 { 0.08 } else { 0.0 }
+                    + if entry.observed_units < entry.previous_units * 0.4 {
+                        0.08
+                    } else {
+                        0.0
+                    }
             })
             .unwrap_or(0.03);
         let restock_prob = restock_prob_base.max(0.0).min(0.95);
@@ -682,7 +732,8 @@ fn evolve_particle(
             .map(|entry| entry.observed_units - predicted_without_correction)
             .unwrap_or(0.0);
         let correction_value = if correction_target.abs() > 1.0 {
-            correction_target * 0.55 + sample_standard_normal(rng) * correction_target.abs().max(1.0) * 0.1
+            correction_target * 0.55
+                + sample_standard_normal(rng) * correction_target.abs().max(1.0) * 0.1
         } else {
             sample_standard_normal(rng) * 0.25
         };
@@ -726,11 +777,19 @@ fn resample_particles(
 ) -> (Vec<Particle>, Vec<ParticleIntervalState>, f64) {
     let weight_sum = weights.iter().sum::<f64>();
     let normalized = if weight_sum.is_finite() && weight_sum > 0.0 {
-        weights.iter().map(|weight| weight / weight_sum).collect::<Vec<_>>()
+        weights
+            .iter()
+            .map(|weight| weight / weight_sum)
+            .collect::<Vec<_>>()
     } else {
         vec![1.0 / weights.len().max(1) as f64; weights.len()]
     };
-    let ess = 1.0 / normalized.iter().map(|weight| weight.powi(2)).sum::<f64>().max(1e-9);
+    let ess = 1.0
+        / normalized
+            .iter()
+            .map(|weight| weight.powi(2))
+            .sum::<f64>()
+            .max(1e-9);
     let mut cumulative = Vec::with_capacity(normalized.len());
     let mut running = 0.0;
     for weight in &normalized {
@@ -763,54 +822,88 @@ fn summarize_interval(
     dominant_regime: SistRegime,
 ) {
     for (sku_idx, sku) in owner.catalog.skus.iter().enumerate() {
-        let inventory_values = interval_states.iter().map(|state| state.inventory[sku_idx]).collect::<Vec<_>>();
-        let service_values = interval_states.iter().map(|state| state.service_demand[sku_idx]).collect::<Vec<_>>();
-        let retail_values = interval_states.iter().map(|state| state.retail_demand[sku_idx]).collect::<Vec<_>>();
-        let restock_values = interval_states.iter().map(|state| state.restock[sku_idx]).collect::<Vec<_>>();
-        let correction_values = interval_states.iter().map(|state| state.correction[sku_idx]).collect::<Vec<_>>();
+        let inventory_values = interval_states
+            .iter()
+            .map(|state| state.inventory[sku_idx])
+            .collect::<Vec<_>>();
+        let service_values = interval_states
+            .iter()
+            .map(|state| state.service_demand[sku_idx])
+            .collect::<Vec<_>>();
+        let retail_values = interval_states
+            .iter()
+            .map(|state| state.retail_demand[sku_idx])
+            .collect::<Vec<_>>();
+        let restock_values = interval_states
+            .iter()
+            .map(|state| state.restock[sku_idx])
+            .collect::<Vec<_>>();
+        let correction_values = interval_states
+            .iter()
+            .map(|state| state.correction[sku_idx])
+            .collect::<Vec<_>>();
         if let Some(accumulator) = sku_accumulators.get_mut(&sku.sku_id) {
             let mut sorted_inventory = inventory_values.clone();
             sorted_inventory.sort_by(cmp_f64);
-            accumulator.posterior_inventory_trajectory.push(SistTrajectoryPoint {
-                at: interval.end_at.clone(),
-                mean: mean(&inventory_values),
-                low: quantile(&sorted_inventory, 0.1),
-                high: quantile(&sorted_inventory, 0.9),
-            });
-            accumulator.interval_demand.push(SistIntervalDemandBreakdown {
-                interval_index: interval.index,
-                start_at: interval.start_at.clone(),
-                end_at: interval.end_at.clone(),
-                duration_days: interval.duration_days,
-                service_demand_mean: mean(&service_values),
-                retail_demand_mean: mean(&retail_values),
-                total_demand_mean: mean(&service_values) + mean(&retail_values),
-                restock_mean: mean(&restock_values),
-                correction_mean: mean(&correction_values),
-                observed_units: interval.sku_observations.get(&sku.sku_id).map(|entry| entry.observed_units),
-                posterior_units_mean: mean(&inventory_values),
-            });
+            accumulator
+                .posterior_inventory_trajectory
+                .push(SistTrajectoryPoint {
+                    at: interval.end_at.clone(),
+                    mean: mean(&inventory_values),
+                    low: quantile(&sorted_inventory, 0.1),
+                    high: quantile(&sorted_inventory, 0.9),
+                });
+            accumulator
+                .interval_demand
+                .push(SistIntervalDemandBreakdown {
+                    interval_index: interval.index,
+                    start_at: interval.start_at.clone(),
+                    end_at: interval.end_at.clone(),
+                    duration_days: interval.duration_days,
+                    service_demand_mean: mean(&service_values),
+                    retail_demand_mean: mean(&retail_values),
+                    total_demand_mean: mean(&service_values) + mean(&retail_values),
+                    restock_mean: mean(&restock_values),
+                    correction_mean: mean(&correction_values),
+                    observed_units: interval
+                        .sku_observations
+                        .get(&sku.sku_id)
+                        .map(|entry| entry.observed_units),
+                    posterior_units_mean: mean(&inventory_values),
+                });
             if let Some(observation) = interval.sku_observations.get(&sku.sku_id) {
                 let correction_signal = (observation.observed_units
-                    - (observation.previous_units + mean(&restock_values) - mean(&service_values) - mean(&retail_values)))
-                    .abs();
+                    - (observation.previous_units + mean(&restock_values)
+                        - mean(&service_values)
+                        - mean(&retail_values)))
+                .abs();
                 if correction_signal > 2.0 {
                     signal_intake.correction_signals += 1;
                 }
-                accumulator.evidence_summary.push(SistReportEvidenceSummary {
-                    report_id: interval.end_report.report_id.clone(),
-                    reported_at: interval.end_at.clone(),
-                    ranking_evidence: interval
-                        .retail_ranking_positions
-                        .get(&sku.sku_id)
-                        .map(|position| ordinal_signal(*position))
-                        .unwrap_or(0.0),
-                    restock_evidence: if observation.restock_included { 1.0 } else { 0.0 },
-                    stockout_evidence: if observation.retail_stockout { 1.0 } else { 0.0 },
-                    price_adjustment_evidence: 0.0,
-                    correction_evidence: correction_signal,
-                    notes_present: interval.notes_present,
-                });
+                accumulator
+                    .evidence_summary
+                    .push(SistReportEvidenceSummary {
+                        report_id: interval.end_report.report_id.clone(),
+                        reported_at: interval.end_at.clone(),
+                        ranking_evidence: interval
+                            .retail_ranking_positions
+                            .get(&sku.sku_id)
+                            .map(|position| ordinal_signal(*position))
+                            .unwrap_or(0.0),
+                        restock_evidence: if observation.restock_included {
+                            1.0
+                        } else {
+                            0.0
+                        },
+                        stockout_evidence: if observation.retail_stockout {
+                            1.0
+                        } else {
+                            0.0
+                        },
+                        price_adjustment_evidence: 0.0,
+                        correction_evidence: correction_signal,
+                        notes_present: interval.notes_present,
+                    });
             }
         }
     }
@@ -822,32 +915,34 @@ fn summarize_interval(
                 .map(|state| state.service_activity[service_idx])
                 .collect::<Vec<_>>();
             accumulator.activity_by_interval.push(mean(&activity));
-            accumulator.evidence_timeline.push(SistReportEvidenceSummary {
-                report_id: interval.end_report.report_id.clone(),
-                reported_at: interval.end_at.clone(),
-                ranking_evidence: interval
-                    .service_ranking_positions
-                    .get(&service.service_id)
-                    .map(|position| ordinal_signal(*position))
-                    .unwrap_or(0.0),
-                restock_evidence: service_links[service_idx].len() as f64 * 0.1,
-                stockout_evidence: if interval.service_stockouts.contains(&service.service_id) {
-                    1.0
-                } else {
-                    0.0
-                },
-                price_adjustment_evidence: interval
-                    .service_price_adjustments
-                    .get(&service.service_id)
-                    .map(|_| 1.0)
-                    .unwrap_or(0.0),
-                correction_evidence: if dominant_regime == SistRegime::Correction {
-                    0.6
-                } else {
-                    0.0
-                },
-                notes_present: interval.notes_present,
-            });
+            accumulator
+                .evidence_timeline
+                .push(SistReportEvidenceSummary {
+                    report_id: interval.end_report.report_id.clone(),
+                    reported_at: interval.end_at.clone(),
+                    ranking_evidence: interval
+                        .service_ranking_positions
+                        .get(&service.service_id)
+                        .map(|position| ordinal_signal(*position))
+                        .unwrap_or(0.0),
+                    restock_evidence: service_links[service_idx].len() as f64 * 0.1,
+                    stockout_evidence: if interval.service_stockouts.contains(&service.service_id) {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                    price_adjustment_evidence: interval
+                        .service_price_adjustments
+                        .get(&service.service_id)
+                        .map(|_| 1.0)
+                        .unwrap_or(0.0),
+                    correction_evidence: if dominant_regime == SistRegime::Correction {
+                        0.6
+                    } else {
+                        0.0
+                    },
+                    notes_present: interval.notes_present,
+                });
         }
     }
 }
@@ -972,7 +1067,9 @@ fn build_service_detail(
         .iter()
         .map(|insight| SistServiceContributor {
             sku_id: insight.sku_id.clone(),
-            pressure_probability: insight.stockout_risk.max(insight.reorder_trigger_probability),
+            pressure_probability: insight
+                .stockout_risk
+                .max(insight.reorder_trigger_probability),
             expected_days_of_cover: insight.days_of_cover,
         })
         .collect::<Vec<_>>();
@@ -981,7 +1078,11 @@ fn build_service_detail(
     SistServiceDetailResponse {
         service_id: service.service_id.clone(),
         service_name: service.name.clone(),
-        estimated_activity_per_interval: accumulator.activity_by_interval.last().copied().unwrap_or(0.0),
+        estimated_activity_per_interval: accumulator
+            .activity_by_interval
+            .last()
+            .copied()
+            .unwrap_or(0.0),
         bottleneck_probability,
         viability_forecast,
         contributors,
@@ -1012,7 +1113,8 @@ fn forecast_system(
         let mut rng = StdRng::seed_from_u64(stable_seed(&(owner_sub, "forecast", day)));
         for particle in &mut forecast_particles {
             for service_idx in 0..owner.catalog.services.len() {
-                particle.service_log_intensity[service_idx] += sample_standard_normal(&mut rng) * 0.04;
+                particle.service_log_intensity[service_idx] +=
+                    sample_standard_normal(&mut rng) * 0.04;
             }
             for sku_idx in 0..owner.catalog.skus.len() {
                 particle.retail_log_intensity[sku_idx] += sample_standard_normal(&mut rng) * 0.03;
@@ -1034,7 +1136,8 @@ fn forecast_system(
                 } else {
                     0.0
                 };
-                particle.inventory[sku_idx] = (particle.inventory[sku_idx] - (service_demand + retail_demand)).max(0.0);
+                particle.inventory[sku_idx] =
+                    (particle.inventory[sku_idx] - (service_demand + retail_demand)).max(0.0);
             }
         }
         for sku in &owner.catalog.skus {
@@ -1097,7 +1200,9 @@ fn forecast_service_viability(
                         high: 0.0,
                     });
                 let insight = sku_insights.iter().find(|entry| entry.sku_id == sku.sku_id);
-                let demand = insight.map(|entry| entry.expected_demand_per_day.max(0.2)).unwrap_or(0.2);
+                let demand = insight
+                    .map(|entry| entry.expected_demand_per_day.max(0.2))
+                    .unwrap_or(0.2);
                 (
                     (point.mean / (demand + point.mean + 1.0)).clamp(0.0, 1.0),
                     (point.low / (demand + point.low + 1.0)).clamp(0.0, 1.0),
@@ -1105,9 +1210,18 @@ fn forecast_service_viability(
                 )
             })
             .collect::<Vec<_>>();
-        let mean_value = viability_scores.iter().map(|entry| entry.0).fold(1.0, f64::min);
-        let low_value = viability_scores.iter().map(|entry| entry.1).fold(1.0, f64::min);
-        let high_value = viability_scores.iter().map(|entry| entry.2).fold(1.0, f64::min);
+        let mean_value = viability_scores
+            .iter()
+            .map(|entry| entry.0)
+            .fold(1.0, f64::min);
+        let low_value = viability_scores
+            .iter()
+            .map(|entry| entry.1)
+            .fold(1.0, f64::min);
+        let high_value = viability_scores
+            .iter()
+            .map(|entry| entry.2)
+            .fold(1.0, f64::min);
         points.push(SistTrajectoryPoint {
             at: format!("day-{}", index + 1),
             mean: mean_value,
@@ -1119,8 +1233,17 @@ fn forecast_service_viability(
 }
 
 fn disruption_window(points: &[SistTrajectoryPoint]) -> SistDisruptionWindow {
-    let start = points.iter().find(|point| point.mean < 0.5).map(|point| point.at.clone());
-    let end = start.as_ref().and_then(|_| points.iter().rev().find(|point| point.mean < 0.65).map(|point| point.at.clone()));
+    let start = points
+        .iter()
+        .find(|point| point.mean < 0.5)
+        .map(|point| point.at.clone());
+    let end = start.as_ref().and_then(|_| {
+        points
+            .iter()
+            .rev()
+            .find(|point| point.mean < 0.65)
+            .map(|point| point.at.clone())
+    });
     let probability = points
         .iter()
         .map(|point| 1.0 - point.mean)
@@ -1136,7 +1259,15 @@ fn weekday_effects(intervals: &[ModelInterval], active: bool) -> [f64; 7] {
     if !active {
         return [0.0; 7];
     }
-    let mut weekday_signal = [Vec::<f64>::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+    let mut weekday_signal = [
+        Vec::<f64>::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    ];
     for interval in intervals {
         let weekday = parse_report_time(&interval.end_at)
             .weekday()
@@ -1146,7 +1277,10 @@ fn weekday_effects(intervals: &[ModelInterval], active: bool) -> [f64; 7] {
             + interval.service_stockouts.len() as f64 * 0.06;
         weekday_signal[weekday].push(signal);
     }
-    let all_values = weekday_signal.iter().flat_map(|values| values.iter().copied()).collect::<Vec<_>>();
+    let all_values = weekday_signal
+        .iter()
+        .flat_map(|values| values.iter().copied())
+        .collect::<Vec<_>>();
     let global_mean = mean(&all_values);
     let mut effects = [0.0; 7];
     for (index, values) in weekday_signal.iter().enumerate() {
@@ -1200,11 +1334,13 @@ fn regime_probabilities(interval: &ModelInterval) -> BTreeMap<SistRegime, f64> {
         .sum::<f64>();
 
     *weights.get_mut(&SistRegime::Spike).unwrap() += ranking_pressure * 0.6;
-    *weights.get_mut(&SistRegime::Lull).unwrap() += if ranking_pressure < 0.2 { 0.35 } else { 0.0 } + restock_count * 0.05;
+    *weights.get_mut(&SistRegime::Lull).unwrap() +=
+        if ranking_pressure < 0.2 { 0.35 } else { 0.0 } + restock_count * 0.05;
     *weights.get_mut(&SistRegime::StockoutConstrained).unwrap() += stockout_count * 0.85;
     *weights.get_mut(&SistRegime::Promo).unwrap() += price_changes * 0.5 + ranking_pressure * 0.25;
     *weights.get_mut(&SistRegime::Correction).unwrap() += correction_signal * 0.9;
-    *weights.get_mut(&SistRegime::Normal).unwrap() += (1.0 - stockout_count.min(1.0) * 0.2).max(0.1);
+    *weights.get_mut(&SistRegime::Normal).unwrap() +=
+        (1.0 - stockout_count.min(1.0) * 0.2).max(0.1);
 
     normalize_regime_weights(weights)
 }
@@ -1224,7 +1360,7 @@ fn regime_change_point_probability(interval: &ModelInterval) -> f64 {
         + jump_signal * 0.22
         + interval.service_price_adjustments.len() as f64 * 0.08
         + if interval.notes_present { 0.03 } else { 0.0 })
-        .clamp(0.0, 0.8)
+    .clamp(0.0, 0.8)
 }
 
 fn regime_probabilities_from_states(states: &[ParticleIntervalState]) -> BTreeMap<SistRegime, f64> {
@@ -1249,7 +1385,11 @@ fn regime_probabilities_from_states(states: &[ParticleIntervalState]) -> BTreeMa
 fn dominant_regime(weights: &BTreeMap<SistRegime, f64>) -> SistRegime {
     weights
         .iter()
-        .max_by(|left, right| left.1.partial_cmp(right.1).unwrap_or(std::cmp::Ordering::Equal))
+        .max_by(|left, right| {
+            left.1
+                .partial_cmp(right.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .map(|(regime, _)| *regime)
         .unwrap_or(SistRegime::Normal)
 }
