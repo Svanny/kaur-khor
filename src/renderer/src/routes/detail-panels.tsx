@@ -33,28 +33,43 @@ function PanelFrame({
 }
 
 export function PagedPanelNavigation({
+  firstLabel,
   className,
+  nextAriaLabel,
   pageCount,
   pageIndex,
+  pageLabel,
+  previousAriaLabel,
   setPageIndex,
+  lastLabel,
 }: {
+  firstLabel?: string;
   className?: string;
+  nextAriaLabel?: string;
   pageCount: number;
   pageIndex: number;
+  pageLabel?: string;
+  previousAriaLabel?: string;
   setPageIndex: (value: number | ((current: number) => number)) => void;
+  lastLabel?: string;
 }) {
   const { t } = usePreferences();
+  const resolvedPageLabel =
+    pageLabel ??
+    t('catalogSenaSkuEvidencePageLabel')
+      .replace('{current}', String(pageIndex + 1))
+      .replace('{total}', String(pageCount));
+  const resolvedPreviousAriaLabel = previousAriaLabel ?? t('catalogSenaSkuEvidencePrevious');
+  const resolvedNextAriaLabel = nextAriaLabel ?? t('catalogSenaSkuEvidenceNext');
+  const resolvedFirstLabel = firstLabel ?? t('catalogSenaSkuEvidenceFirst');
+  const resolvedLastLabel = lastLabel ?? t('catalogSenaSkuEvidenceLast');
 
   return (
     <div className={cn('flex w-full items-center justify-between border-t border-border/60 px-6 py-3', className)}>
-      <p className="text-sm text-muted-foreground">
-        {t('catalogSenaSkuEvidencePageLabel')
-          .replace('{current}', String(pageIndex + 1))
-          .replace('{total}', String(pageCount))}
-      </p>
+      <p className="text-sm text-muted-foreground">{resolvedPageLabel}</p>
       <div className="flex items-center gap-2">
         <button
-          aria-label={t('catalogSenaSkuEvidencePrevious')}
+          aria-label={resolvedPreviousAriaLabel}
           className={`rounded-full border border-border/70 p-2 text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
           data-slot="paged-panel-nav-pill"
           disabled={pageIndex === 0}
@@ -70,7 +85,7 @@ export function PagedPanelNavigation({
           type="button"
           onClick={() => setPageIndex(0)}
         >
-          {t('catalogSenaSkuEvidenceFirst')}
+          {resolvedFirstLabel}
         </button>
         <button
           className={`rounded-full border border-border/70 px-3 py-1 text-sm text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
@@ -79,10 +94,10 @@ export function PagedPanelNavigation({
           type="button"
           onClick={() => setPageIndex(pageCount - 1)}
         >
-          {t('catalogSenaSkuEvidenceLast')}
+          {resolvedLastLabel}
         </button>
         <button
-          aria-label={t('catalogSenaSkuEvidenceNext')}
+          aria-label={resolvedNextAriaLabel}
           className={`rounded-full border border-border/70 p-2 text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
           data-slot="paged-panel-nav-pill"
           disabled={pageIndex >= pageCount - 1}
