@@ -101,7 +101,7 @@ export function AnalysisContent({
         await inventory.retrySenaRun({ runId: inventory.workspaceSummary.runId });
         return;
       }
-      await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v1' });
+      await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
     } finally {
       setIsRunningAnalysis(false);
     }

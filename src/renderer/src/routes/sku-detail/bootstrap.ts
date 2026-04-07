@@ -220,7 +220,7 @@ export async function bootstrapSkuDetail({
       })
     ) {
       uiState = 'running';
-      await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v2' });
+      await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
       projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
       const reloaded = await reloadSenaSkuData({ inventory, skuId, snapshot: projectedSnapshot });
       workspaceSummary = reloaded.workspaceSummary;

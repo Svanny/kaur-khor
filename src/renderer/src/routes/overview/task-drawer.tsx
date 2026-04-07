@@ -399,7 +399,7 @@ export function OverviewTaskDrawer({
         await submitLegacyReport(legacyPayload);
       }
       await ingestSenaObservation(senaPayload);
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v2' });
+      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
       onOpenChange(false);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Banji could not save this update. Try again.');

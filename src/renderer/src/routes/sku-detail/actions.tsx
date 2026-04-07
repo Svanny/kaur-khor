@@ -235,7 +235,7 @@ export function SkuDetailActions({
         await submitLegacyReport(legacyPayload);
       }
       await ingestSenaObservation(senaPayload);
-        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v2' });
+        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
         await onComplete();
         setMode(null);
     } catch (nextError) {

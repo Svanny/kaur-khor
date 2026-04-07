@@ -583,7 +583,7 @@ function createMockState(): BrowserMockState {
   const latestRun: SenaAnalysisRunRecord = {
     runId: MOCK_RUN_ID,
     ownerSub: MOCK_OWNER_SUB,
-    algorithmVersion: 'sena-analysis-v2',
+    algorithmVersion: 'sena-analysis-v3',
     status: 'succeeded',
     observationCount: mockObservations.length,
     createdAt: '2026-04-03T08:05:00.000Z',
@@ -713,7 +713,7 @@ function installBrowserDesktopBridge() {
         browserMockState.latestRun = {
           runId,
           ownerSub: MOCK_OWNER_SUB,
-          algorithmVersion: payload?.algorithmVersion ?? 'sena-analysis-v2',
+          algorithmVersion: payload?.algorithmVersion ?? 'sena-analysis-v3',
           status: 'succeeded',
           observationCount: browserMockState.observations.length,
           createdAt: nowIso(),
