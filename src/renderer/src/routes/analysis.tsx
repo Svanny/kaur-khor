@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
+import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scroll';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -166,6 +167,10 @@ export function AnalysisRoute() {
   const isPreparingInitialAnalysis =
     (!hasCatalog && inventory.isLoading) ||
     (hasCatalog && hasWorkspaceSummary && expectedHydratedEntityCount > 0 && hydratedEntityCount === 0);
+
+  useLayoutEffect(() => {
+    scrollWorkspaceViewportToTop();
+  }, []);
 
   useEffect(() => {
     if (hasCatalog && hasWorkspaceSummary) {

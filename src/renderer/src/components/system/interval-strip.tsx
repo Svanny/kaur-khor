@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { RefObject, UIEvent, WheelEvent } from 'react';
+import type { RefObject, UIEvent } from 'react';
 import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDate, formatSenaWideIntervalDate } from '@/routes/sku-detail/format';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -16,6 +16,16 @@ export const INTERVAL_PAGE_SIZE = 20;
 export const INTERVAL_LOAD_BATCH_SIZE = 10;
 export const LOAD_OLDER_SCROLL_THRESHOLD_PX = 24;
 export const PINCH_ZOOM_SENSITIVITY = 0.16;
+
+export interface IntervalChartWheelEvent {
+  clientX: number;
+  ctrlKey: boolean;
+  currentTarget: HTMLDivElement;
+  deltaX: number;
+  deltaY: number;
+  metaKey: boolean;
+  preventDefault: () => void;
+}
 
 export interface IntervalStripEntry {
   intervalIndex: number;
@@ -373,7 +383,7 @@ export function handleIntervalChartWheel({
   axisStartPadding?: number;
   contentWidth: number;
   currentSlotWidth: number;
-  event: WheelEvent<HTMLDivElement>;
+  event: IntervalChartWheelEvent;
   hasOlder: boolean;
   intervalCount: number;
   isLoadingOlder: boolean;
@@ -457,33 +467,31 @@ function ResponsivePillButton({
   const accessibleLabel = ariaLabel ?? tooltipLabel ?? fullLabel;
 
   return (
-    <TooltipProvider delayDuration={0}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            aria-label={accessibleLabel}
-            className={className}
-            data-active={active ? 'true' : 'false'}
-            style={width != null ? { width } : undefined}
-            type="button"
-            onClick={onClick}
-          >
-            <span aria-hidden="true" className="block overflow-hidden whitespace-nowrap">
-              {visibleLabel}
-            </span>
-          </button>
-        </TooltipTrigger>
-        {tooltipLabel ? (
-          <TooltipContent
-            className="rounded-[1.2rem] border border-[rgba(73,48,33,0.16)] bg-[rgba(51,31,20,0.98)] px-4 py-2 text-sm font-medium text-[rgba(255,248,241,0.98)] shadow-[0_18px_40px_rgba(48,31,20,0.24)]"
-            side="top"
-            sideOffset={12}
-          >
-            {tooltipLabel}
-          </TooltipContent>
-        ) : null}
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={accessibleLabel}
+          className={className}
+          data-active={active ? 'true' : 'false'}
+          style={width != null ? { width } : undefined}
+          type="button"
+          onClick={onClick}
+        >
+          <span aria-hidden="true" className="block overflow-hidden whitespace-nowrap">
+            {visibleLabel}
+          </span>
+        </button>
+      </TooltipTrigger>
+      {tooltipLabel ? (
+        <TooltipContent
+          className="rounded-[1.2rem] border border-[rgba(73,48,33,0.16)] bg-[rgba(51,31,20,0.98)] px-4 py-2 text-sm font-medium text-[rgba(255,248,241,0.98)] shadow-[0_18px_40px_rgba(48,31,20,0.24)]"
+          side="top"
+          sideOffset={12}
+        >
+          {tooltipLabel}
+        </TooltipContent>
+      ) : null}
+    </Tooltip>
   );
 }
 
@@ -526,58 +534,60 @@ export function IntervalStrip({
   });
   const labelMode = deriveUniformPillLabelMode(pillLabels, slotWidth - 8);
   return (
-    <div className="relative mt-4 min-h-12">
-      {canScrollLeft ? (
-        <button
-          aria-label="Scroll intervals left"
-          className="absolute left-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
-          type="button"
-          onClick={() => scrollByViewport(-1)}
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-      ) : null}
-      <div ref={scrollRef} className="hidden-scrollbar max-w-full overflow-x-auto overscroll-contain px-1 py-1" onScroll={onScroll}>
-        <div
-          className="grid min-w-full"
-          style={{
-            width: axisContentWidth,
-            paddingLeft: axisStartPadding,
-            paddingRight: axisEndPadding,
-            gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, ${slotWidth}px)`,
-          }}
-        >
-          {intervals.map((interval) => {
-            const tooltipLabel = intervalTooltipLabel(interval.endAt, interval.intervalIndex, language);
-            const compactDate = formatSenaCompactIntervalDate(interval.endAt);
-            const compactDay = formatSenaCompactIntervalDay(interval.endAt);
-            return (
-              <div key={interval.intervalIndex} className="flex min-h-10 items-center justify-center px-1">
-                <ResponsivePillButton
-                  active={activeIndex === interval.intervalIndex}
-                  ariaLabel={tooltipLabel}
-                  className={`w-full rounded-full border px-2 py-2 text-center text-sm leading-none ${activeIndex === interval.intervalIndex ? 'border-foreground bg-foreground text-background' : 'border-border/70 bg-background text-foreground'}`}
-                  compactLabel={compactDate !== '—' ? compactDay : String(interval.intervalIndex + 1)}
-                  fullLabel={compactDate !== '—' ? compactDate : `Interval ${interval.intervalIndex + 1}`}
-                  labelMode={labelMode}
-                  tooltipLabel={tooltipLabel}
-                  onClick={() => onSelect(interval.intervalIndex)}
-                />
-              </div>
-            );
-          })}
+    <TooltipProvider delayDuration={0}>
+      <div className="relative mt-4 min-h-12">
+        {canScrollLeft ? (
+          <button
+            aria-label="Scroll intervals left"
+            className="absolute left-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
+            type="button"
+            onClick={() => scrollByViewport(-1)}
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+        ) : null}
+        <div ref={scrollRef} className="hidden-scrollbar max-w-full overflow-x-auto overscroll-contain px-1 py-1" onScroll={onScroll}>
+          <div
+            className="grid min-w-full"
+            style={{
+              width: axisContentWidth,
+              paddingLeft: axisStartPadding,
+              paddingRight: axisEndPadding,
+              gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, ${slotWidth}px)`,
+            }}
+          >
+            {intervals.map((interval) => {
+              const tooltipLabel = intervalTooltipLabel(interval.endAt, interval.intervalIndex, language);
+              const compactDate = formatSenaCompactIntervalDate(interval.endAt);
+              const compactDay = formatSenaCompactIntervalDay(interval.endAt);
+              return (
+                <div key={interval.intervalIndex} className="flex min-h-10 items-center justify-center px-1">
+                  <ResponsivePillButton
+                    active={activeIndex === interval.intervalIndex}
+                    ariaLabel={tooltipLabel}
+                    className={`w-full rounded-full border px-2 py-2 text-center text-sm leading-none ${activeIndex === interval.intervalIndex ? 'border-foreground bg-foreground text-background' : 'border-border/70 bg-background text-foreground'}`}
+                    compactLabel={compactDate !== '—' ? compactDay : String(interval.intervalIndex + 1)}
+                    fullLabel={compactDate !== '—' ? compactDate : `Interval ${interval.intervalIndex + 1}`}
+                    labelMode={labelMode}
+                    tooltipLabel={tooltipLabel}
+                    onClick={() => onSelect(interval.intervalIndex)}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
+        {canScrollRight ? (
+          <button
+            aria-label="Scroll intervals right"
+            className="absolute right-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
+            type="button"
+            onClick={() => scrollByViewport(1)}
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        ) : null}
       </div>
-      {canScrollRight ? (
-        <button
-          aria-label="Scroll intervals right"
-          className="absolute right-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
-          type="button"
-          onClick={() => scrollByViewport(1)}
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      ) : null}
-    </div>
+    </TooltipProvider>
   );
 }

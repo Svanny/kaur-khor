@@ -2,6 +2,7 @@ import {
   Fragment,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type RefObject,
@@ -28,16 +29,18 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import {
+  buildPointCoordinatesWithDomain,
+  buildPolylineWithDomain,
+  buildSparsePolylineSegments,
   ClampedChartDataLabel,
+  deriveLabelGutterOffset,
   deriveExpandedChartVisualStyle,
   deriveProportionalChartGeometry,
 } from '@/components/system/timeline-chart';
 import {
-  buildSparsePolylineSegments,
   classifyWheelIntent,
   deriveAnchoredZoomScrollLeft,
   deriveAxisContentWidth,
-  deriveLabelGutterOffset,
   deriveSlotCenterX,
   isPinchZoomGesture,
 } from '@/routes/sku-detail/ledger';
@@ -184,53 +187,6 @@ function intervalTooltipLabel(endAt: string | null, intervalIndex: number, langu
     return fullDate;
   }
   return `Interval ${intervalIndex + 1}`;
-}
-
-function buildPointCoordinatesWithDomain(
-  values: number[],
-  slotWidth: number,
-  height: number,
-  domainMin: number,
-  domainMax: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  if (values.length === 0) {
-    return [];
-  }
-  const min = Math.min(domainMin, domainMax);
-  const max = Math.max(domainMin, domainMax);
-  const range = max - min || 1;
-  const axisStartPadding = options?.axisStartPadding ?? 0;
-  const topPadding = options?.topPadding ?? 0;
-  const bottomPadding = options?.bottomPadding ?? 0;
-  const drawableHeight = Math.max(1, height - topPadding - bottomPadding);
-
-  return values.map((value, index) => ({
-    x: deriveSlotCenterX({ index, slotWidth, axisStartPadding }),
-    y: topPadding + drawableHeight - ((value - min) / range) * drawableHeight,
-    value,
-  }));
-}
-
-function buildPolylineWithDomain(
-  values: number[],
-  slotWidth: number,
-  height: number,
-  domainMin: number,
-  domainMax: number,
-  options?: {
-    axisStartPadding?: number;
-    topPadding?: number;
-    bottomPadding?: number;
-  },
-) {
-  return buildPointCoordinatesWithDomain(values, slotWidth, height, domainMin, domainMax, options)
-    .map((point) => `${point.x},${point.y}`)
-    .join(' ');
 }
 
 function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: string; tooltip: string }) {
@@ -475,8 +431,26 @@ export function ServiceDetailLedger({
   const laneBodyRef = useRef<HTMLDivElement | null>(null);
   const intervals = model.intervals;
   const selectedIntervalIndex = selectedIntervalIndexFromSelection(model, selection);
-  const indices = intervals.map((entry) => entry.intervalIndex);
-  const visibleRegimes = presentRegimes(intervals.map((interval) => interval.dominantRegime));
+  const indices = useMemo(() => intervals.map((entry) => entry.intervalIndex), [intervals]);
+  const visibleRegimes = useMemo(
+    () => presentRegimes(intervals.map((interval) => interval.dominantRegime)),
+    [intervals],
+  );
+  const intervalsByIndex = useMemo(
+    () => new Map(intervals.map((interval) => [interval.intervalIndex, interval])),
+    [intervals],
+  );
+  const intervalStripEntries = useMemo(
+    () => intervals.map((interval) => ({ intervalIndex: interval.intervalIndex, endAt: interval.endAt })),
+    [intervals],
+  );
+  const regimeOverlayIntervals = useMemo(
+    () => intervals.map((interval) => ({
+      intervalIndex: interval.intervalIndex,
+      dominantRegime: interval.dominantRegime,
+    })),
+    [intervals],
+  );
   const syncRefs = [intervalScrollRef, priceScrollRef, flowScrollRef];
   const [expandedLane, setExpandedLane] = useState<'regime' | 'flow' | 'contributors' | 'restoration' | null>(null);
   const latestLoadedIntervalIndex = indices.at(-1) ?? null;
@@ -487,7 +461,6 @@ export function ServiceDetailLedger({
     canScrollRight,
     clampedScrollLeft,
     contentWidth,
-    createWheelHandler,
     handleScrollerScroll,
     scrollByViewport,
     slotWidth: stretchedSlotWidth,
@@ -506,7 +479,7 @@ export function ServiceDetailLedger({
     targetVisibleIntervalCount,
   });
   const { floatingIslands: floatingChartControlIslands, headerActions: chartHeaderActions } = useChartWorkspaceControls({
-    disabled: isHydratingDetails || isLoadingOlderIntervals,
+    disabled: isLoadingOlderIntervals,
     onReset: onResetCharts,
     onTimeframeChange,
     onZoomIn: () => adjustZoom(1),
@@ -517,19 +490,28 @@ export function ServiceDetailLedger({
   const axisEndPadding = AXIS_END_PADDING;
   const showsLinePointMarkers = stretchedSlotWidth >= LINE_POINT_MARKER_MIN_SLOT_WIDTH;
   const renderWidth = Math.max(contentWidth, viewportWidth || 0);
-  const priceMarkers = intervals.map((interval) => ({
-    intervalIndex: interval.intervalIndex,
-    price: interval.priceValue,
-    observedAt: interval.endAt ?? `interval-${interval.intervalIndex}`,
-  }));
-  const { points: priceCoordinates, segments: pricePolylines } = buildSparsePolylineSegments(
-    priceMarkers,
-    indices,
-    stretchedSlotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+  const priceMarkers = useMemo(
+    () => intervals.map((interval) => ({
+      intervalIndex: interval.intervalIndex,
+      price: interval.priceValue,
+      observedAt: interval.endAt ?? `interval-${interval.intervalIndex}`,
+    })),
+    [intervals],
   );
-  const gapValues = intervals.map((interval) => interval.sellableValue - interval.demandValue);
+  const priceChart = useMemo(
+    () => buildSparsePolylineSegments(
+      priceMarkers,
+      indices,
+      stretchedSlotWidth,
+      CHART_VIEWBOX_HEIGHT,
+      { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+    ),
+    [axisStartPadding, indices, priceMarkers, stretchedSlotWidth],
+  );
+  const gapValues = useMemo(
+    () => intervals.map((interval) => interval.sellableValue - interval.demandValue),
+    [intervals],
+  );
   const maxGapMagnitude = Math.max(1, ...gapValues.map((value) => Math.abs(value)));
   const laneOrder = ['regime', 'flow', 'contributors', 'restoration'] as const;
   const visibleLaneOrder = expandedLane == null ? laneOrder : [expandedLane];
@@ -592,7 +574,7 @@ export function ServiceDetailLedger({
         axisStartPadding={axisStartPadding}
         canScrollLeft={canScrollLeft}
         canScrollRight={canScrollRight}
-        intervals={intervals.map((interval) => ({ intervalIndex: interval.intervalIndex, endAt: interval.endAt }))}
+        intervals={intervalStripEntries}
         language={language}
         onSelect={(index) => setSelection({ type: 'interval', intervalIndex: index })}
         onScroll={handleScrollerScroll}
@@ -610,7 +592,7 @@ export function ServiceDetailLedger({
         <div className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
           <LaneTitle
             title="Regime + price lane"
-            subtitle={intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.priceLabel ?? intervals.at(-1)?.priceLabel}
+            subtitle={selectedIntervalIndex == null ? intervals.at(-1)?.priceLabel : intervalsByIndex.get(selectedIntervalIndex)?.priceLabel ?? intervals.at(-1)?.priceLabel}
             tooltip="Demand regime and service price context across the selected intervals."
           />
           <div className={cn('grid gap-3', isLaneExpanded('regime') && 'min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
@@ -637,7 +619,6 @@ export function ServiceDetailLedger({
               ref={priceScrollRef}
               className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('regime') && 'min-h-0 h-full')}
               onScroll={handleScrollerScroll}
-              onWheel={createWheelHandler(priceScrollRef)}
             >
               <div className="relative overflow-visible" style={{ width: renderWidth, height: LABEL_GUTTER_HEIGHT + expandedLinePlotHeight }}>
                 <TooltipProvider>
@@ -646,10 +627,7 @@ export function ServiceDetailLedger({
                     axisContentWidth={renderWidth}
                     axisEndPadding={axisEndPadding}
                     axisStartPadding={axisStartPadding}
-                    intervals={intervals.map((interval) => ({
-                      intervalIndex: interval.intervalIndex,
-                      dominantRegime: interval.dominantRegime,
-                    }))}
+                    intervals={regimeOverlayIntervals}
                     onSelect={(index) => setSelection({ type: 'interval', intervalIndex: index })}
                   />
                 </TooltipProvider>
@@ -660,7 +638,7 @@ export function ServiceDetailLedger({
                   style={{ height: expandedLinePlotHeight, top: LABEL_GUTTER_HEIGHT }}
                   viewBox={`0 0 ${Math.max(renderWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                 >
-                  {pricePolylines.map((segment, index) => (
+                  {priceChart.segments.map((segment, index) => (
                     <polyline
                       key={`service-price-segment-${index}`}
                       fill="none"
@@ -671,7 +649,7 @@ export function ServiceDetailLedger({
                     />
                   ))}
                 </svg>
-                {priceCoordinates.map((point, index) => {
+                {priceChart.points.map((point, index) => {
                   const marker = priceMarkers[index];
                   const isSelected = marker?.intervalIndex === selectedIntervalIndex;
                   if (!showsLinePointMarkers && !isSelected) {
@@ -750,7 +728,6 @@ export function ServiceDetailLedger({
             ref={flowScrollRef}
             className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('flow') && 'min-h-0 h-full')}
             onScroll={handleScrollerScroll}
-            onWheel={createWheelHandler(flowScrollRef)}
           >
             <div
               className="relative grid rounded-md bg-muted/20 pb-3 pt-2"

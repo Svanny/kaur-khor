@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type UIEvent, type WheelEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type UIEvent } from 'react';
 import { CalendarClock, Maximize2, Minimize2, Minus, Plus, Scan } from 'lucide-react';
 import {
   AXIS_END_PADDING,
@@ -13,6 +13,7 @@ import {
   deriveViewportPageScrollLeft,
   handleIntervalChartWheel,
   INTERVAL_LOAD_BATCH_SIZE,
+  type IntervalChartWheelEvent,
   MAX_SLOT_WIDTH,
   MIN_SLOT_WIDTH,
   SCROLL_EDGE_TOLERANCE,
@@ -234,9 +235,13 @@ export function useChartWorkspace<TLoadResult>({
   targetVisibleIntervalCount: number;
 }) {
   const syncingScrollRef = useRef(false);
+  const syncUnlockFrameRef = useRef<number | null>(null);
+  const scrollCommitFrameRef = useRef<number | null>(null);
   const initializedLatestWindowRef = useRef(false);
   const latestLoadedIntervalKeyRef = useRef<number | null>(null);
   const loadingOlderRef = useRef(false);
+  const pendingScrollLeftRef = useRef<number | null>(null);
+  const scrollLeftRef = useRef(0);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [slotWidthPx, setSlotWidthPx] = useState<number | null>(null);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -263,6 +268,73 @@ export function useChartWorkspace<TLoadResult>({
   const clampedScrollLeft = clampScrollLeft(scrollLeft, viewportWidth, contentWidth);
   const canScrollLeft = clampedScrollLeft > SCROLL_EDGE_TOLERANCE || hasOlderIntervals;
   const canScrollRight = clampedScrollLeft + viewportWidth < contentWidth - SCROLL_EDGE_TOLERANCE;
+
+  const updateScrollSyncLock = useCallback(() => {
+    if (syncUnlockFrameRef.current != null) {
+      cancelAnimationFrame(syncUnlockFrameRef.current);
+    }
+    syncUnlockFrameRef.current = requestAnimationFrame(() => {
+      syncingScrollRef.current = false;
+      syncUnlockFrameRef.current = null;
+    });
+  }, []);
+
+  const synchronizedNodes = useCallback(() => (
+    Array.from(
+      new Set(
+        [intervalScrollRef.current, ...syncRefs.map((ref) => ref.current)].filter(
+          (node): node is HTMLDivElement => node instanceof HTMLDivElement,
+        ),
+      ),
+    )
+  ), [intervalScrollRef, syncRefs]);
+
+  const syncScrollNodes = useCallback((nextScrollLeft: number, sourceNode?: HTMLDivElement | null) => {
+    syncingScrollRef.current = true;
+    for (const node of synchronizedNodes()) {
+      if (Math.abs(node.scrollLeft - nextScrollLeft) > 1) {
+        node.scrollLeft = nextScrollLeft;
+      }
+    }
+    updateScrollSyncLock();
+  }, [synchronizedNodes, updateScrollSyncLock]);
+
+  const commitScrollLeft = useCallback((nextScrollLeft: number, options?: {
+    sourceNode?: HTMLDivElement | null;
+    syncNodes?: boolean;
+  }) => {
+    const clampedNextScrollLeft = clampScrollLeft(nextScrollLeft, viewportWidth, contentWidth);
+    scrollLeftRef.current = clampedNextScrollLeft;
+    pendingScrollLeftRef.current = null;
+    if (options?.syncNodes !== false) {
+      syncScrollNodes(clampedNextScrollLeft, options?.sourceNode);
+    }
+    setScrollLeft((current) => (Math.abs(current - clampedNextScrollLeft) > 0.5 ? clampedNextScrollLeft : current));
+    return clampedNextScrollLeft;
+  }, [contentWidth, syncScrollNodes, viewportWidth]);
+
+  const scheduleScrollLeftCommit = useCallback((nextScrollLeft: number, options?: {
+    sourceNode?: HTMLDivElement | null;
+  }) => {
+    const clampedNextScrollLeft = clampScrollLeft(nextScrollLeft, viewportWidth, contentWidth);
+    scrollLeftRef.current = clampedNextScrollLeft;
+    pendingScrollLeftRef.current = clampedNextScrollLeft;
+    syncScrollNodes(clampedNextScrollLeft, options?.sourceNode);
+    if (scrollCommitFrameRef.current != null) {
+      return clampedNextScrollLeft;
+    }
+    scrollCommitFrameRef.current = requestAnimationFrame(() => {
+      scrollCommitFrameRef.current = null;
+      syncingScrollRef.current = false;
+      const pendingScrollLeft = pendingScrollLeftRef.current;
+      if (pendingScrollLeft == null) {
+        return;
+      }
+      pendingScrollLeftRef.current = null;
+      setScrollLeft((current) => (Math.abs(current - pendingScrollLeft) > 0.5 ? pendingScrollLeft : current));
+    });
+    return clampedNextScrollLeft;
+  }, [contentWidth, syncScrollNodes, viewportWidth]);
 
   const maybeLoadOlderIntervals = useCallback(async (nextScrollLeft: number) => {
     if (
@@ -296,13 +368,13 @@ export function useChartWorkspace<TLoadResult>({
           prependedCount,
           slotWidth,
         });
-        setScrollLeft(nextAnchoredScrollLeft);
+        commitScrollLeft(nextAnchoredScrollLeft);
       }
     } finally {
       onOlderLoadProgressChange?.(null);
       loadingOlderRef.current = false;
     }
-  }, [getPrependedCount, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals, onOlderLoadProgressChange, slotWidth, viewportWidth]);
+  }, [commitScrollLeft, getPrependedCount, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals, onOlderLoadProgressChange, slotWidth, viewportWidth]);
 
   useEffect(() => {
     if (latestLoadedIntervalKeyRef.current !== latestLoadedIntervalIndex) {
@@ -338,110 +410,133 @@ export function useChartWorkspace<TLoadResult>({
         intervalScrollRef.current.scrollLeft = nextScrollLeft;
       }
     }
-    setScrollLeft(nextScrollLeft);
+    commitScrollLeft(nextScrollLeft, { sourceNode: intervalScrollRef.current });
     initializedLatestWindowRef.current = true;
-  }, [contentWidth, intervalCount, intervalScrollRef, slotWidthPx, targetVisibleIntervalCount, viewportWidth]);
+  }, [commitScrollLeft, contentWidth, intervalCount, intervalScrollRef, slotWidthPx, targetVisibleIntervalCount, viewportWidth]);
 
   useEffect(() => {
-    const measuredNodes = Array.from(
-      new Set(
-        [intervalScrollRef.current, ...syncRefs.map((ref) => ref.current)].filter(
-          (node): node is HTMLDivElement => node instanceof HTMLDivElement,
-        ),
-      ),
-    );
-    if (measuredNodes.length === 0) {
+    const primaryViewportNode = intervalScrollRef.current ?? syncRefs.find((ref) => ref.current instanceof HTMLDivElement)?.current ?? null;
+    if (!(primaryViewportNode instanceof HTMLDivElement)) {
       return;
     }
     const updateViewportWidth = () => {
-      const nextViewportWidth = measuredNodes.reduce((maxWidth, node) => Math.max(maxWidth, node.clientWidth), 0);
-      setViewportWidth(nextViewportWidth);
+      const nextViewportWidth = primaryViewportNode.clientWidth;
+      setViewportWidth((current) => (current === nextViewportWidth ? current : nextViewportWidth));
     };
     const observer = new ResizeObserver(() => updateViewportWidth());
-    for (const node of measuredNodes) {
-      observer.observe(node);
-    }
+    observer.observe(primaryViewportNode);
+    window.addEventListener('resize', updateViewportWidth);
     updateViewportWidth();
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateViewportWidth);
+    };
   }, [intervalScrollRef, syncRefs]);
 
   useEffect(() => {
-    if (scrollLeft === clampedScrollLeft) {
+    const nextScrollLeft = clampScrollLeft(scrollLeftRef.current, viewportWidth, contentWidth);
+    if (Math.abs(nextScrollLeft - scrollLeftRef.current) <= 0.5) {
       return;
     }
-    setScrollLeft(clampedScrollLeft);
-  }, [clampedScrollLeft, scrollLeft]);
+    commitScrollLeft(nextScrollLeft);
+  }, [commitScrollLeft, contentWidth, viewportWidth]);
+
+  useEffect(() => () => {
+    if (syncUnlockFrameRef.current != null) {
+      cancelAnimationFrame(syncUnlockFrameRef.current);
+    }
+    if (scrollCommitFrameRef.current != null) {
+      cancelAnimationFrame(scrollCommitFrameRef.current);
+    }
+  }, []);
 
   useEffect(() => {
-    syncingScrollRef.current = true;
-    for (const ref of syncRefs) {
-      const node = ref.current;
-      if (!node) {
-        continue;
+    const bindings = syncRefs
+      .map((ref) => {
+        const node = ref.current;
+        if (!node) {
+          return null;
+        }
+        const handleWheel = (event: globalThis.WheelEvent) => {
+          handleIntervalChartWheel({
+            axisEndPadding,
+            axisStartPadding,
+            contentWidth,
+            currentSlotWidth: slotWidth,
+            event: {
+              clientX: event.clientX,
+              ctrlKey: event.ctrlKey,
+              currentTarget: node,
+              deltaX: event.deltaX,
+              deltaY: event.deltaY,
+              metaKey: event.metaKey,
+              preventDefault: () => event.preventDefault(),
+            } satisfies IntervalChartWheelEvent,
+            hasOlder: hasOlderIntervals,
+            intervalCount,
+            isLoadingOlder: isLoadingOlderIntervals,
+            maxSlotWidth,
+            minSlotWidth,
+            onLoadOlder: () => {
+              void maybeLoadOlderIntervals(0);
+            },
+            onPan: (nextScrollLeft) => {
+              scheduleScrollLeftCommit(nextScrollLeft, { sourceNode: node });
+            },
+            onZoom: ({ nextScrollLeft, nextSlotWidth }) => {
+              setSlotWidthPx(nextSlotWidth);
+              scheduleScrollLeftCommit(nextScrollLeft, { sourceNode: node });
+            },
+            viewportWidth,
+          });
+        };
+        node.addEventListener('wheel', handleWheel, { passive: false });
+        return { handleWheel, node };
+      })
+      .filter((binding): binding is { handleWheel: (event: globalThis.WheelEvent) => void; node: HTMLDivElement } => binding != null);
+
+    return () => {
+      for (const { handleWheel, node } of bindings) {
+        node.removeEventListener('wheel', handleWheel);
       }
-      if (Math.abs(node.scrollLeft - clampedScrollLeft) > 1) {
-        node.scrollLeft = clampedScrollLeft;
-      }
-    }
-    requestAnimationFrame(() => {
-      syncingScrollRef.current = false;
-    });
-  }, [clampedScrollLeft, syncRefs]);
+    };
+  }, [
+    axisEndPadding,
+    axisStartPadding,
+    contentWidth,
+    hasOlderIntervals,
+    intervalCount,
+    isLoadingOlderIntervals,
+    maxSlotWidth,
+    maybeLoadOlderIntervals,
+    minSlotWidth,
+    slotWidth,
+    syncRefs,
+    viewportWidth,
+  ]);
 
   const handleScrollerScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     if (syncingScrollRef.current) {
       return;
     }
     const nextScrollLeft = event.currentTarget.scrollLeft;
-    setScrollLeft(nextScrollLeft);
+    scheduleScrollLeftCommit(nextScrollLeft, { sourceNode: event.currentTarget });
     void maybeLoadOlderIntervals(nextScrollLeft);
-  }, [maybeLoadOlderIntervals]);
+  }, [maybeLoadOlderIntervals, scheduleScrollLeftCommit]);
 
   const scrollByViewport = useCallback((direction: -1 | 1) => {
     if (direction < 0 && clampedScrollLeft <= SCROLL_EDGE_TOLERANCE && hasOlderIntervals) {
       void maybeLoadOlderIntervals(0);
       return;
     }
-    setScrollLeft((current) =>
-      deriveViewportPageScrollLeft({
-        contentWidth,
-        currentScrollLeft: current,
-        direction,
-        slotWidth,
-        viewportWidth,
-      }),
-    );
-  }, [clampedScrollLeft, contentWidth, hasOlderIntervals, maybeLoadOlderIntervals, slotWidth, viewportWidth]);
-
-  const createWheelHandler = useCallback(
-    (scrollRef: RefObject<HTMLDivElement | null>) => (event: WheelEvent<HTMLDivElement>) => {
-      if (!scrollRef.current) {
-        return;
-      }
-      handleIntervalChartWheel({
-        axisEndPadding,
-        axisStartPadding,
-        contentWidth,
-        currentSlotWidth: slotWidth,
-        event,
-        hasOlder: hasOlderIntervals,
-        intervalCount,
-        isLoadingOlder: isLoadingOlderIntervals,
-        minSlotWidth,
-        maxSlotWidth,
-        onLoadOlder: () => {
-          void maybeLoadOlderIntervals(0);
-        },
-        onPan: (nextScrollLeft) => setScrollLeft(nextScrollLeft),
-        onZoom: ({ nextScrollLeft, nextSlotWidth }) => {
-          setSlotWidthPx(nextSlotWidth);
-          setScrollLeft(nextScrollLeft);
-        },
-        viewportWidth,
-      });
-    },
-    [axisEndPadding, axisStartPadding, contentWidth, hasOlderIntervals, intervalCount, isLoadingOlderIntervals, maxSlotWidth, maybeLoadOlderIntervals, minSlotWidth, slotWidth, viewportWidth],
-  );
+    commitScrollLeft(deriveViewportPageScrollLeft({
+      contentWidth,
+      currentScrollLeft: scrollLeftRef.current,
+      direction,
+      slotWidth,
+      viewportWidth,
+    }));
+  }, [clampedScrollLeft, commitScrollLeft, contentWidth, hasOlderIntervals, maybeLoadOlderIntervals, slotWidth, viewportWidth]);
 
   const adjustZoom = useCallback((direction: -1 | 1) => {
     if (intervalCount <= 0 || viewportWidth <= 0) {
@@ -462,14 +557,14 @@ export function useChartWorkspace<TLoadResult>({
       hoveredPointerX: viewportWidth / 2,
       intervalCount,
       nextSlotWidth,
-      previousScrollLeft: clampedScrollLeft,
+      previousScrollLeft: clampScrollLeft(scrollLeftRef.current, viewportWidth, contentWidth),
       previousSlotWidth: slotWidth,
       axisStartPadding,
       viewportWidth,
     });
     setSlotWidthPx(nextSlotWidth);
-    setScrollLeft(nextScrollLeft);
-  }, [axisEndPadding, axisStartPadding, clampedScrollLeft, intervalCount, maxSlotWidth, minSlotWidth, slotWidth, viewportWidth]);
+    commitScrollLeft(nextScrollLeft);
+  }, [axisEndPadding, axisStartPadding, commitScrollLeft, contentWidth, intervalCount, maxSlotWidth, minSlotWidth, slotWidth, viewportWidth]);
 
   return {
     canScrollLeft,
@@ -478,7 +573,6 @@ export function useChartWorkspace<TLoadResult>({
     contentWidth,
     handleScrollerScroll,
     scrollByViewport,
-    createWheelHandler,
     adjustZoom,
     slotWidth,
     viewportWidth,

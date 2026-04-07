@@ -241,11 +241,10 @@ export function ClampedChartDataLabel({
       ));
     };
 
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(node);
     updateSize();
-    return () => observer.disconnect();
-  }, [children]);
+    const frame = requestAnimationFrame(updateSize);
+    return () => cancelAnimationFrame(frame);
+  }, [children, className, style]);
 
   const position = deriveClampedChartDataLabelPosition({
     anchorX,

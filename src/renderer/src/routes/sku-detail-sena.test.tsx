@@ -12,6 +12,7 @@ import { buildLeadTimeHintFromInputs } from './sku-detail/actions';
 import { SkuDetailEvidence } from './sku-detail/evidence';
 import { SkuDetailExposure } from './sku-detail/exposure';
 import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay } from './sku-detail/format';
+import { ribbonGridClassName } from './sku-detail/hero';
 import { SkuDetailLedger } from './sku-detail/ledger';
 import {
   buildSparsePolylineSegments,
@@ -106,12 +107,17 @@ const report: StockReport = {
       productPrice: 10,
       restockIncluded: true,
       retailStockout: true,
+      adjustmentDelta: -1,
+      approximateOrderQuantity: 8,
+      approximateReceiptQuantity: 6,
+      notes: 'Cycle count write-off.',
     },
   ],
   serviceSignals: [{ serviceId: 'service-1', stockout: true }],
   servicePriceAdjustments: [],
   topServiceRanking: ['service-1'],
   topRetailRanking: ['sku-1'],
+  regimeHint: 'stockout_constrained',
   notes: 'Front shelf was restocked.',
 };
 
@@ -404,6 +410,19 @@ describe('SKU detail SENA helpers', () => {
     expect(mapped.serviceStockouts).toEqual(['service-1']);
     expect(mapped.retailStockouts).toEqual(['sku-1']);
     expect(mapped.orderSignals[0]?.receiptArrived).toBe(true);
+    expect(mapped.orderSignals[0]?.approximateReceiptQuantity).toBe(6);
+    expect(mapped.orderSignals[0]?.receiptTimestamp).toBe(report.reportedAt);
+    expect(mapped.regimeHint).toBe('stockout_constrained');
+    expect(mapped.adjustmentSignals).toEqual([{ skuId: 'sku-1', quantityDelta: -1, reason: 'Cycle count write-off.' }]);
+    expect(mapped.recipeUsageHints).toEqual([
+      {
+        serviceId: 'service-1',
+        skuId: 'sku-1',
+        usageProbability: 0.7,
+        typicalUnitsPerInstance: 1,
+        variability: 0.2,
+      },
+    ]);
 
     const result = await backfillLegacyReportsIntoSenaIfEmpty({
       reports: [report],
@@ -551,6 +570,13 @@ describe('SKU detail SENA helpers', () => {
     expect(regimeCompactLabel('spike')).toBe('S');
     expect(regimeCompactLabel('normal')).toBe('N');
     expect(regimeCompactLabel('stockout-constrained')).toBe('SC');
+  });
+
+  test('sizes the operational ribbon grid to the rendered metric count', () => {
+    expect(ribbonGridClassName(5)).toBe('xl:grid-cols-5');
+    expect(ribbonGridClassName(6)).toBe('xl:grid-cols-6');
+    expect(ribbonGridClassName(0)).toBe('xl:grid-cols-1');
+    expect(ribbonGridClassName(9)).toBe('xl:grid-cols-6');
   });
 
   test('maps retail price markers to interval slots without drawing an extra regime point', () => {

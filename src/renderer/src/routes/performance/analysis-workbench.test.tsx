@@ -346,6 +346,56 @@ describe('AnalysisWorkbench', () => {
     expect(container.querySelectorAll('[data-analysis-datalabel="true"]').length).toBeGreaterThan(0);
   });
 
+  test('horizontal trackpad wheel scrolling moves the synchronized chart lanes', async () => {
+    const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).classList.contains('hidden-scrollbar') ? 120 : 720;
+      },
+    });
+
+    try {
+      render(
+        <AnalysisWorkbench
+          hasOlderIntervals={false}
+          isLoadingOlderIntervals={false}
+          loadOlderIntervals={vi.fn(async () => 0)}
+          model={buildModel()}
+          section="workbench"
+          setSection={vi.fn()}
+          showRightRailCards={false}
+        />,
+      );
+
+      const regimePoint = screen.getByRole('button', { name: /normal regime/i });
+      const regimeScroller = regimePoint.closest('.hidden-scrollbar') as HTMLDivElement | null;
+      expect(regimeScroller).not.toBeNull();
+      if (!regimeScroller?.firstElementChild) {
+        return;
+      }
+
+      const content = regimeScroller.firstElementChild as HTMLElement;
+      const beforeWidth = Number.parseFloat(content.style.width);
+
+      fireEvent.wheel(regimeScroller, { clientX: 60, ctrlKey: true, deltaX: 0, deltaY: -500 });
+
+      await waitFor(() => {
+        expect(Number.parseFloat(content.style.width)).toBeGreaterThan(beforeWidth);
+      });
+
+      fireEvent.wheel(regimeScroller!, { clientX: 60, ctrlKey: false, deltaX: 80, deltaY: 0 });
+
+      await waitFor(() => {
+        expect(regimeScroller!.scrollLeft).toBeGreaterThan(0);
+      });
+    } finally {
+      if (originalClientWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidth);
+      }
+    }
+  });
+
   test('moves chart controls into a separate floating island left of the title actions island when the header scrolls away', async () => {
     preferenceState.showFloatingTitleActions = true;
 

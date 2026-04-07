@@ -498,6 +498,15 @@ describe('PerformanceRoute', () => {
     expect(screen.getByRole('tab', { name: /Workbench/i })).toHaveAttribute('data-state', 'active');
   });
 
+  test('scrolls the analysis route back to the top on entry', async () => {
+    window.scrollTo = vi.fn();
+
+    renderAnalysisRoute();
+
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+  });
+
   test('runs analysis from the analysis page header', async () => {
     const user = userEvent.setup();
     const retrySenaRun = vi.fn(async () => ({ runId: 'run-1' }));

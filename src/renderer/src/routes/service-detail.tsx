@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaServiceDetail, SenaServiceDetailPage } from '@shared/sena';
@@ -6,12 +6,14 @@ import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { type ChartTimeframe } from '@/components/system/chart-timeframe';
 import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
+import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scroll';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
+import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 import { ServiceDependencyImpact } from './service-detail/dependency-impact';
@@ -32,6 +34,10 @@ function mergeServiceDetailPages(older: SenaServiceDetail, newer: SenaServiceDet
 function ServiceDetailLoadingState({ showRightRailCards }: { showRightRailCards: boolean }) {
   return (
     <div className="grid gap-6">
+      <div className="rounded-[1.4rem] border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground">
+        Preparing SENA view
+      </div>
+
       <section className="rounded-[2rem] border border-border/60 bg-white px-6 py-5 shadow-[0_16px_44px_rgba(48,31,20,0.08)]">
         <div className="flex flex-col gap-4 border-b border-border/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="grid gap-4">
@@ -126,12 +132,24 @@ export function ServiceDetailRoute() {
   const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
 
+  useLayoutEffect(() => {
+    if (!serviceId) {
+      return;
+    }
+
+    scrollWorkspaceViewportToTop();
+  }, [serviceId]);
+
   const catalogService = catalog?.services.find((entry) => entry.serviceId === serviceId) ?? null;
+  const projectedSnapshot = useMemo(
+    () => (catalog ? projectInventorySnapshotFromSena(catalog, observations) : null),
+    [catalog, observations],
+  );
   const linkedSkuIds = useMemo(
     () => (catalog ? linkedSkuIdsForService(catalog, serviceId) : []),
     [catalog, serviceId],
   );
-  const activeSnapshot = snapshot ?? loadedSnapshot;
+  const activeSnapshot = snapshot ?? loadedSnapshot ?? projectedSnapshot;
   const activeReports = reports.length > 0 ? reports : loadedReports ?? [];
   const snapshotService = activeSnapshot?.services.find((entry) => entry.serviceId === serviceId) ?? null;
   const service =
@@ -149,7 +167,7 @@ export function ServiceDetailRoute() {
   const fetchPageData = useCallback(async () => {
     const [nextDetail, nextSnapshot, nextReports] = await Promise.all([
       loadSenaServiceDetail(serviceId, { limit: INTERVAL_PAGE_SIZE }).catch(() => null),
-      snapshot ? Promise.resolve(snapshot) : loadInventorySnapshot(),
+      snapshot ? Promise.resolve(snapshot) : projectedSnapshot ? Promise.resolve(projectedSnapshot) : loadInventorySnapshot(),
       reports.length > 0 ? Promise.resolve(reports) : listStockReports().catch(() => []),
     ]);
     return {
@@ -157,7 +175,7 @@ export function ServiceDetailRoute() {
       nextReports,
       nextSnapshot: nextSnapshot ?? null,
     };
-  }, [listStockReports, loadInventorySnapshot, loadSenaServiceDetail, reports, serviceId, snapshot]);
+  }, [listStockReports, loadInventorySnapshot, loadSenaServiceDetail, projectedSnapshot, reports, serviceId, snapshot]);
 
   const refreshPage = useCallback(async () => {
     setError(null);

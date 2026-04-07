@@ -1,8 +1,10 @@
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type {
+  SenaAdjustmentSignal,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaRecipeUsageHint,
   SenaServiceDetail,
   SenaServiceDetailPage,
   SenaSkuDetail,
@@ -50,6 +52,24 @@ type BootstrapInventory = Pick<
 >;
 
 export function mapLegacyReportToSenaObservation(report: StockReport): SenaObservationInput {
+  const adjustmentSignals: SenaAdjustmentSignal[] = report.skuObservations
+    .filter((observation) => observation.adjustmentDelta != null && observation.adjustmentDelta !== 0)
+    .map((observation) => ({
+      skuId: observation.skuId,
+      quantityDelta: observation.adjustmentDelta ?? 0,
+      reason: observation.notes?.trim() || 'legacy_report_adjustment',
+    }));
+
+  const recipeUsageHints: SenaRecipeUsageHint[] = report.serviceSignals.flatMap((signal) =>
+    report.skuObservations.map((observation) => ({
+      serviceId: signal.serviceId,
+      skuId: observation.skuId,
+      usageProbability: observation.retailStockout ? 0.7 : 0.55,
+      typicalUnitsPerInstance: 1,
+      variability: 0.2,
+    })),
+  );
+
   return {
     observedAt: report.reportedAt,
     stockSnapshot: report.skuObservations.map((observation) => ({
@@ -68,8 +88,11 @@ export function mapLegacyReportToSenaObservation(report: StockReport): SenaObser
         skuId: observation.skuId,
         orderPlaced: false,
         receiptArrived: true,
-        approximateOrderQuantity: null,
-        approximateReceiptQuantity: null,
+        approximateOrderQuantity: observation.approximateOrderQuantity ?? null,
+        approximateReceiptQuantity: observation.approximateReceiptQuantity ?? null,
+        placementTimestamp: null,
+        receiptTimestamp: report.reportedAt,
+        leadTimeDaysHint: null,
       })),
     servicePrices: report.servicePriceAdjustments.map((adjustment) => ({
       serviceId: adjustment.serviceId,
@@ -82,6 +105,9 @@ export function mapLegacyReportToSenaObservation(report: StockReport): SenaObser
         price: observation.productPrice ?? 0,
       })),
     leadTimeHints: [],
+    regimeHint: report.regimeHint ?? null,
+    adjustmentSignals,
+    recipeUsageHints,
     notes: report.notes,
   };
 }

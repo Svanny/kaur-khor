@@ -635,11 +635,11 @@ function SystemLedger({
   const pipelineScrollRef = useRef<HTMLDivElement | null>(null);
   const leadTimeScrollRef = useRef<HTMLDivElement | null>(null);
   const [expandedLane, setExpandedLane] = useState<WorkbenchLaneKey | null>(null);
-  const intervalEntries = model.intervals.map((interval) => ({
+  const intervalEntries = useMemo(() => model.intervals.map((interval) => ({
     intervalIndex: interval.intervalIndex,
     startAt: interval.startAt,
     endAt: interval.endAt,
-  }));
+  })), [model.intervals]);
   const itemCount = intervalEntries.length;
   const syncRefs = [intervalScrollRef, regimeScrollRef, inventoryScrollRef, pipelineScrollRef, leadTimeScrollRef];
   const regimeViewportHeight = useObservedElementHeight(regimeScrollRef, expandedLane);
@@ -656,7 +656,6 @@ function SystemLedger({
     canScrollRight,
     clampedScrollLeft,
     contentWidth,
-    createWheelHandler,
     handleScrollerScroll,
     scrollByViewport,
     slotWidth,
@@ -684,19 +683,19 @@ function SystemLedger({
     onZoomOut: () => adjustZoom(-1),
     timeframe,
   });
-  const selectedIntervalPosition = selectedIntervalIndex == null
-    ? null
-    : model.workbench.regimePriceLane.intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.intervalPosition ?? null;
+  const regimeIntervalsByIndex = useMemo(
+    () => new Map(model.workbench.regimePriceLane.intervals.map((interval) => [interval.intervalIndex, interval])),
+    [model.workbench.regimePriceLane.intervals],
+  );
+  const selectedIntervalPosition = useMemo(
+    () => (selectedIntervalIndex == null ? null : regimeIntervalsByIndex.get(selectedIntervalIndex)?.intervalPosition ?? null),
+    [regimeIntervalsByIndex, selectedIntervalIndex],
+  );
   const visibleRegimes = useMemo(
     () => [...new Map(model.workbench.regimePriceLane.intervals.map((interval) => [interval.dominantRegime, interval.dominantRegime])).values()],
     [model.workbench.regimePriceLane.intervals],
   );
   const inventoryPoints = model.workbench.inventoryDemandLane.points;
-  const inventoryMeanValues = inventoryPoints.map((point) => point.inventoryMean);
-  const inventoryLowValues = inventoryPoints.map((point) => point.inventoryLow);
-  const inventoryHighValues = inventoryPoints.map((point) => point.inventoryHigh);
-  const inventoryDomainMin = inventoryLowValues.length > 0 ? Math.min(...inventoryLowValues) : 0;
-  const inventoryDomainMax = inventoryHighValues.length > 0 ? Math.max(...inventoryHighValues) : 1;
   const inventoryAvailableHeight = expandedLane === 'inventory' && inventoryViewportHeight > 0
     ? Math.max(INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT, inventoryViewportHeight - CHART_GUTTER_HEIGHT - 4)
     : INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT;
@@ -714,42 +713,52 @@ function SystemLedger({
   const inventoryPlotHeight = inventoryGeometry.plotHeight;
   const inventoryFlowSectionHeight = inventoryGeometry.auxHeight;
   const inventoryChartContentHeight = CHART_GUTTER_HEIGHT + inventoryPlotHeight + inventoryFlowSectionHeight;
-  const inventoryPolyline = buildPolylineWithDomain(
-    inventoryMeanValues,
-    slotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    inventoryDomainMin,
-    inventoryDomainMax,
-    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
-  );
-  const inventoryCoordinates = buildPointCoordinatesWithDomain(
-    inventoryMeanValues,
-    slotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    inventoryDomainMin,
-    inventoryDomainMax,
-    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
-  );
-  const inventoryBandPath = buildTrajectoryBandPath(
-    inventoryLowValues,
-    inventoryHighValues,
-    slotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    inventoryDomainMin,
-    inventoryDomainMax,
-    {
-      axisStartPadding: AXIS_START_PADDING,
-      topPadding: 5,
-      bottomPadding: 5,
-      minVisibleThickness: inventoryGeometry.bandMinThickness,
-    },
-  );
+  const inventoryChart = useMemo(() => {
+    const meanValues = inventoryPoints.map((point) => point.inventoryMean);
+    const lowValues = inventoryPoints.map((point) => point.inventoryLow);
+    const highValues = inventoryPoints.map((point) => point.inventoryHigh);
+    const domainMin = lowValues.length > 0 ? Math.min(...lowValues) : 0;
+    const domainMax = highValues.length > 0 ? Math.max(...highValues) : 1;
+
+    return {
+      meanValues,
+      lowValues,
+      highValues,
+      domainMin,
+      domainMax,
+      polyline: buildPolylineWithDomain(
+        meanValues,
+        slotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+      ),
+      coordinates: buildPointCoordinatesWithDomain(
+        meanValues,
+        slotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+      ),
+      bandPath: buildTrajectoryBandPath(
+        lowValues,
+        highValues,
+        slotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        {
+          axisStartPadding: AXIS_START_PADDING,
+          topPadding: 5,
+          bottomPadding: 5,
+          minVisibleThickness: inventoryGeometry.bandMinThickness,
+        },
+      ),
+    };
+  }, [inventoryGeometry.bandMinThickness, inventoryPoints, slotWidth]);
   const leadTimePoints = model.workbench.leadTimeLane.points;
-  const leadTimeMeanValues = leadTimePoints.map((point) => point.meanDays);
-  const leadTimeLowValues = leadTimePoints.map((point) => point.lowDays);
-  const leadTimeHighValues = leadTimePoints.map((point) => point.highDays);
-  const leadTimeDomainMin = leadTimeLowValues.length > 0 ? Math.min(...leadTimeLowValues) : 0;
-  const leadTimeDomainMax = leadTimeHighValues.length > 0 ? Math.max(...leadTimeHighValues) : 1;
   const leadTimeAvailableHeight = expandedLane === 'lead-time' && leadTimeViewportHeight > 0
     ? Math.max(LEAD_TIME_CHART_PLOT_HEIGHT, leadTimeViewportHeight - CHART_GUTTER_HEIGHT - 4)
     : LEAD_TIME_CHART_PLOT_HEIGHT;
@@ -765,36 +774,51 @@ function SystemLedger({
   });
   const leadTimePlotHeight = leadTimeGeometry.plotHeight;
   const leadTimeChartContentHeight = CHART_GUTTER_HEIGHT + leadTimePlotHeight;
-  const leadTimePolyline = buildPolylineWithDomain(
-    leadTimeMeanValues,
-    slotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    leadTimeDomainMin,
-    leadTimeDomainMax,
-    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
-  );
-  const leadTimeCoordinates = buildPointCoordinatesWithDomain(
-    leadTimeMeanValues,
-    slotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    leadTimeDomainMin,
-    leadTimeDomainMax,
-    { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
-  );
-  const leadTimeBandPath = buildTrajectoryBandPath(
-    leadTimeLowValues,
-    leadTimeHighValues,
-    slotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    leadTimeDomainMin,
-    leadTimeDomainMax,
-    {
-      axisStartPadding: AXIS_START_PADDING,
-      topPadding: 5,
-      bottomPadding: 5,
-      minVisibleThickness: leadTimeGeometry.bandMinThickness,
-    },
-  );
+  const leadTimeChart = useMemo(() => {
+    const meanValues = leadTimePoints.map((point) => point.meanDays);
+    const lowValues = leadTimePoints.map((point) => point.lowDays);
+    const highValues = leadTimePoints.map((point) => point.highDays);
+    const domainMin = lowValues.length > 0 ? Math.min(...lowValues) : 0;
+    const domainMax = highValues.length > 0 ? Math.max(...highValues) : 1;
+
+    return {
+      meanValues,
+      lowValues,
+      highValues,
+      domainMin,
+      domainMax,
+      polyline: buildPolylineWithDomain(
+        meanValues,
+        slotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+      ),
+      coordinates: buildPointCoordinatesWithDomain(
+        meanValues,
+        slotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        { axisStartPadding: AXIS_START_PADDING, topPadding: 5, bottomPadding: 5 },
+      ),
+      bandPath: buildTrajectoryBandPath(
+        lowValues,
+        highValues,
+        slotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        {
+          axisStartPadding: AXIS_START_PADDING,
+          topPadding: 5,
+          bottomPadding: 5,
+          minVisibleThickness: leadTimeGeometry.bandMinThickness,
+        },
+      ),
+    };
+  }, [leadTimeGeometry.bandMinThickness, leadTimePoints, slotWidth]);
   const regimeAvailableHeight = expandedLane === 'regime' && regimeViewportHeight > 0
     ? Math.max(REGIME_CHART_MIN_HEIGHT, regimeViewportHeight - 4)
     : REGIME_CHART_MIN_HEIGHT;
@@ -854,42 +878,58 @@ function SystemLedger({
     pipelineTopPadding + Math.max(0, model.workbench.pipelineLane.rowCount - 1) * pipelineRowHeight + pipelinePillHeight + 28,
   );
   const pipelineLaneMinHeight = pipelineCollapsedBodyHeight + 24;
-  const selectedPipelineSpan = selectedIntervalIndex == null
-    ? null
-    : model.workbench.pipelineLane.spans.find((span) => span.intervalIndex === selectedIntervalIndex) ?? null;
-  const selectedPipelineMarkers = selectedIntervalIndex == null
-    ? []
-    : model.workbench.pipelineLane.markers.filter((marker) => marker.intervalIndex === selectedIntervalIndex);
-  const selectedPipelineLabels = [
-    ...(selectedPipelineSpan ? [`${Math.round(selectedPipelineSpan.orderProbability * 100)}% order probability`] : []),
-    ...selectedPipelineMarkers.map((marker) => `${marker.kind === 'order' ? 'Order' : 'Receipt'} ${Math.round(marker.quantityMean)}`),
-  ];
+  const pipelineSpanByIntervalIndex = useMemo(
+    () => new Map(model.workbench.pipelineLane.spans.map((span) => [span.intervalIndex, span])),
+    [model.workbench.pipelineLane.spans],
+  );
+  const pipelineMarkersByIntervalIndex = useMemo(() => {
+    const markersByIntervalIndex = new Map<number, typeof model.workbench.pipelineLane.markers>();
+    for (const marker of model.workbench.pipelineLane.markers) {
+      const current = markersByIntervalIndex.get(marker.intervalIndex);
+      if (current) {
+        current.push(marker);
+      } else {
+        markersByIntervalIndex.set(marker.intervalIndex, [marker]);
+      }
+    }
+    return markersByIntervalIndex;
+  }, [model.workbench.pipelineLane.markers]);
+  const selectedPipeline = useMemo(() => {
+    const span = selectedIntervalIndex == null ? null : pipelineSpanByIntervalIndex.get(selectedIntervalIndex) ?? null;
+    const markers = selectedIntervalIndex == null ? [] : pipelineMarkersByIntervalIndex.get(selectedIntervalIndex) ?? [];
+    const labels = [
+      ...(span ? [`${Math.round(span.orderProbability * 100)}% order probability`] : []),
+      ...markers.map((marker) => `${marker.kind === 'order' ? 'Order' : 'Receipt'} ${Math.round(marker.quantityMean)}`),
+    ];
+    return { labels, markers, span };
+  }, [pipelineMarkersByIntervalIndex, pipelineSpanByIntervalIndex, selectedIntervalIndex]);
   const selectedPipelineLabelX = selectedIntervalPosition == null
     ? null
     : deriveSlotCenterX({ index: selectedIntervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
   const selectedPipelineLabelY = (() => {
-    if (selectedPipelineSpan) {
-      return pipelineTopPadding + selectedPipelineSpan.row * pipelineRowHeight;
+    if (selectedPipeline.span) {
+      return pipelineTopPadding + selectedPipeline.span.row * pipelineRowHeight;
     }
-    if (selectedPipelineMarkers.length > 0) {
+    if (selectedPipeline.markers.length > 0) {
       return Math.min(
-        ...selectedPipelineMarkers.map((marker) => (
+        ...selectedPipeline.markers.map((marker) => (
           pipelineTopPadding + marker.row * pipelineRowHeight + (marker.kind === 'receipt' ? 2 : -pipelineMarkerHalf - 1)
         )),
       );
     }
     return null;
   })();
-  const laneGridStyle = { gridTemplateColumns: `${LANE_LABEL_COLUMN} minmax(0,1fr)` };
+  const laneGridStyle = useMemo(() => ({ gridTemplateColumns: `${LANE_LABEL_COLUMN} minmax(0,1fr)` }), []);
   const showsRegimeCueLabels = slotWidth >= REGIME_CUE_LABEL_MIN_SLOT_WIDTH;
   const showsRegimeIcons = slotWidth >= REGIME_ICON_MIN_SLOT_WIDTH;
   const showsRegimeInitials = slotWidth >= REGIME_INITIALS_MIN_SLOT_WIDTH;
   const showsLinePointMarkers = slotWidth >= LINE_POINT_MARKER_MIN_SLOT_WIDTH;
   const laneOrder: WorkbenchLaneKey[] = ['regime', 'inventory', 'pipeline', 'lead-time'];
   const visibleLaneOrder = expandedLane == null ? laneOrder : [expandedLane];
-  const laneRowsStyle = {
-    gridTemplateRows: visibleLaneOrder.map(() => 'minmax(0,1fr)').join(' '),
-  };
+  const laneRowsStyle = useMemo(
+    () => ({ gridTemplateRows: visibleLaneOrder.map(() => 'minmax(0,1fr)').join(' ') }),
+    [visibleLaneOrder],
+  );
   const isLaneExpanded = (laneKey: WorkbenchLaneKey) => expandedLane === laneKey;
   const toggleLaneExpanded = (laneKey: WorkbenchLaneKey) => {
     setExpandedLane((current) => (current === laneKey ? null : laneKey));
@@ -962,7 +1002,6 @@ function SystemLedger({
                 ref={regimeScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleScrollerScroll}
-                onWheel={createWheelHandler(regimeScrollRef)}
               >
                 <div className="relative h-full" style={{ width: contentWidth, minHeight: regimeChartMinHeight }}>
                   <SelectedIntervalColumnOverlay
@@ -1065,7 +1104,6 @@ function SystemLedger({
                 ref={inventoryScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20 px-0"
                 onScroll={handleScrollerScroll}
-                onWheel={createWheelHandler(inventoryScrollRef)}
               >
                 <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: inventoryLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
@@ -1085,17 +1123,17 @@ function SystemLedger({
                       style={{ height: inventoryPlotHeight, top: CHART_GUTTER_HEIGHT }}
                       viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                     >
-                      {inventoryBandPath ? <path d={inventoryBandPath} fill="currentColor" className="text-foreground/10" /> : null}
+                      {inventoryChart.bandPath ? <path d={inventoryChart.bandPath} fill="currentColor" className="text-foreground/10" /> : null}
                       <polyline
                         fill="none"
-                        points={inventoryPolyline}
+                        points={inventoryChart.polyline}
                         stroke="currentColor"
                         strokeWidth={inventoryGeometry.strokeWidth}
                         className="text-foreground"
                         data-analysis-line="inventory"
                       />
                     </svg>
-                    {inventoryCoordinates.map((point, index) => {
+                    {inventoryChart.coordinates.map((point, index) => {
                       const entry = inventoryPoints[index];
                       if (!entry) {
                         return null;
@@ -1260,7 +1298,6 @@ function SystemLedger({
                 ref={pipelineScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleScrollerScroll}
-                onWheel={createWheelHandler(pipelineScrollRef)}
               >
                 <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: pipelineLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
@@ -1273,7 +1310,7 @@ function SystemLedger({
                     className="inset-y-2"
                   />
                   <div className="relative w-full self-stretch" data-analysis-chart="pipeline" style={{ height: pipelineChartContentHeight }}>
-                    {selectedPipelineLabelX != null && selectedPipelineLabelY != null && selectedPipelineLabels.length > 0 ? (
+                    {selectedPipelineLabelX != null && selectedPipelineLabelY != null && selectedPipeline.labels.length > 0 ? (
                       <ClampedChartDataLabel
                         anchorX={selectedPipelineLabelX}
                         anchorY={selectedPipelineLabelY}
@@ -1282,7 +1319,7 @@ function SystemLedger({
                         gap={8}
                         className="flex flex-col items-center gap-1"
                       >
-                        {selectedPipelineLabels.map((label, index) => (
+                        {selectedPipeline.labels.map((label, index) => (
                           <span
                             key={`${label}:${index}`}
                             className="whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm"
@@ -1377,7 +1414,6 @@ function SystemLedger({
                 ref={leadTimeScrollRef}
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleScrollerScroll}
-                onWheel={createWheelHandler(leadTimeScrollRef)}
               >
                 <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: leadTimeLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
@@ -1397,17 +1433,17 @@ function SystemLedger({
                       style={{ height: leadTimePlotHeight, top: CHART_GUTTER_HEIGHT }}
                       viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                     >
-                      {leadTimeBandPath ? <path d={leadTimeBandPath} fill="currentColor" className="text-sky-600/14" /> : null}
+                      {leadTimeChart.bandPath ? <path d={leadTimeChart.bandPath} fill="currentColor" className="text-sky-600/14" /> : null}
                       <polyline
                         fill="none"
-                        points={leadTimePolyline}
+                        points={leadTimeChart.polyline}
                         stroke="currentColor"
                         strokeWidth={leadTimeGeometry.strokeWidth}
                         className="text-sky-700/80"
                         data-analysis-line="lead-time"
                       />
                     </svg>
-                    {leadTimeCoordinates.map((point, index) => {
+                    {leadTimeChart.coordinates.map((point, index) => {
                       const entry = leadTimePoints[index];
                       if (!entry) {
                         return null;

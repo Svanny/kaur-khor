@@ -56,6 +56,7 @@ const managedCore = createManagedCoreController({
 
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
+const INVENTORY_READ_TIMEOUT_MS = 60_000;
 const DEFAULT_ACTUAL_SIZE_ZOOM_LEVEL = -1;
 const senaReadCache = new Map<string, unknown>();
 const senaInflightReads = new Map<string, Promise<unknown>>();
@@ -400,10 +401,14 @@ ipcMain.handle(IPC_CHANNELS.systemOpenLocalDataFolder, async () => {
 });
 
 ipcMain.handle(IPC_CHANNELS.inventoryLoadSnapshot, async () =>
-  managedCore.invoke<InventorySnapshot>('inventory.loadSnapshot'),
+  managedCore.invoke<InventorySnapshot>('inventory.loadSnapshot', undefined, {
+    timeoutMs: INVENTORY_READ_TIMEOUT_MS,
+  }),
 );
 ipcMain.handle(IPC_CHANNELS.inventoryListReports, async () =>
-  managedCore.invoke<StockReport[]>('inventory.listReports'),
+  managedCore.invoke<StockReport[]>('inventory.listReports', undefined, {
+    timeoutMs: INVENTORY_READ_TIMEOUT_MS,
+  }),
 );
 ipcMain.handle(IPC_CHANNELS.inventorySubmitReport, async (_event, payload: StockReportSubmission) =>
   managedCore.invoke<StockReport>('inventory.submitReport', payload),

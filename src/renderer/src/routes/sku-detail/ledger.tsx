@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
 import { Package } from 'lucide-react';
 import type { SenaSkuDetailPage } from '@shared/sena';
 import type { ChartTimeframe } from '@/components/system/chart-timeframe';
@@ -337,8 +337,11 @@ export function SkuDetailLedger({
   const laneBodyRef = useRef<HTMLDivElement | null>(null);
   const intervals = intervalEntries(model);
   const showsPriceSurfaces = model.identity.soldAsProduct;
-  const visibleRegimes = presentRegimes(model.lanes.regimePriceLane.intervals.map((interval) => interval.dominantRegime));
-  const indices = intervals.map((entry) => entry.intervalIndex);
+  const visibleRegimes = useMemo(
+    () => presentRegimes(model.lanes.regimePriceLane.intervals.map((interval) => interval.dominantRegime)),
+    [model.lanes.regimePriceLane.intervals],
+  );
+  const indices = useMemo(() => intervals.map((entry) => entry.intervalIndex), [intervals]);
   const syncRefs = [intervalScrollRef, priceScrollRef, inventoryScrollRef, flowScrollRef, pipelineScrollRef];
   const [expandedLane, setExpandedLane] = useState<'regime' | 'inventory' | 'flow' | 'pipeline' | null>(null);
   const latestLoadedIntervalIndex = indices.at(-1) ?? null;
@@ -351,7 +354,6 @@ export function SkuDetailLedger({
     canScrollRight,
     clampedScrollLeft,
     contentWidth,
-    createWheelHandler,
     handleScrollerScroll,
     scrollByViewport,
     slotWidth: stretchedSlotWidth,
@@ -370,7 +372,7 @@ export function SkuDetailLedger({
     targetVisibleIntervalCount,
   });
   const { floatingIslands: floatingChartControlIslands, headerActions: chartHeaderActions } = useChartWorkspaceControls({
-    disabled: isHydratingDetails || isLoadingOlderIntervals,
+    disabled: isLoadingOlderIntervals,
     onReset: onResetCharts,
     onTimeframeChange,
     onZoomIn: () => adjustZoom(1),
@@ -381,45 +383,64 @@ export function SkuDetailLedger({
   const axisEndPadding = AXIS_END_PADDING;
   const showsLinePointMarkers = stretchedSlotWidth >= LINE_POINT_MARKER_MIN_SLOT_WIDTH;
   const visibleWindow = deriveVisibleWindow(indices.length, clampedScrollLeft, viewportWidth, stretchedSlotWidth, INTERVAL_PILL_GAP);
-  const inventoryMeanValues = model.lanes.inventoryLane.points.map((point) => point.mean);
-  const inventoryLowValues = model.lanes.inventoryLane.points.map((point) => point.low);
-  const inventoryHighValues = model.lanes.inventoryLane.points.map((point) => point.high);
-  const inventoryDomainMin = Math.min(...inventoryLowValues);
-  const inventoryDomainMax = Math.max(...inventoryHighValues);
-  const inventoryPolyline = buildPolylineWithDomain(
-    inventoryMeanValues,
-    stretchedSlotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    inventoryDomainMin,
-    inventoryDomainMax,
-    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+  const inventoryChart = useMemo(() => {
+    const meanValues = model.lanes.inventoryLane.points.map((point) => point.mean);
+    const lowValues = model.lanes.inventoryLane.points.map((point) => point.low);
+    const highValues = model.lanes.inventoryLane.points.map((point) => point.high);
+    const domainMin = Math.min(...lowValues);
+    const domainMax = Math.max(...highValues);
+
+    return {
+      meanValues,
+      lowValues,
+      highValues,
+      domainMin,
+      domainMax,
+      polyline: buildPolylineWithDomain(
+        meanValues,
+        stretchedSlotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+      ),
+      coordinates: buildPointCoordinatesWithDomain(
+        meanValues,
+        stretchedSlotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+      ),
+      bandPath: buildTrajectoryBandPath(
+        lowValues,
+        highValues,
+        stretchedSlotWidth,
+        CHART_VIEWBOX_HEIGHT,
+        domainMin,
+        domainMax,
+        { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+      ),
+    };
+  }, [axisStartPadding, model.lanes.inventoryLane.points, stretchedSlotWidth]);
+  const priceChart = useMemo(
+    () => buildSparsePolylineSegments(
+      model.lanes.regimePriceLane.priceMarkers,
+      indices,
+      stretchedSlotWidth,
+      CHART_VIEWBOX_HEIGHT,
+      { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+    ),
+    [axisStartPadding, indices, model.lanes.regimePriceLane.priceMarkers, stretchedSlotWidth],
   );
-  const inventoryCoordinates = buildPointCoordinatesWithDomain(
-    inventoryMeanValues,
-    stretchedSlotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    inventoryDomainMin,
-    inventoryDomainMax,
-    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+  const regimeIntervalsByIndex = useMemo(
+    () => new Map(model.lanes.regimePriceLane.intervals.map((interval) => [interval.intervalIndex, interval])),
+    [model.lanes.regimePriceLane.intervals],
   );
-  const inventoryBandPath = buildTrajectoryBandPath(
-    inventoryLowValues,
-    inventoryHighValues,
-    stretchedSlotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    inventoryDomainMin,
-    inventoryDomainMax,
-    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
+  const selectedPointIndex = useMemo(
+    () => (selectedIntervalIndex != null ? Math.max(0, indices.indexOf(selectedIntervalIndex)) : null),
+    [indices, selectedIntervalIndex],
   );
-  const { points: priceCoordinates, segments: pricePolylines } = buildSparsePolylineSegments(
-    model.lanes.regimePriceLane.priceMarkers,
-    indices,
-    stretchedSlotWidth,
-    CHART_VIEWBOX_HEIGHT,
-    { axisStartPadding, topPadding: 6, bottomPadding: 6 },
-  );
-  const selectedPointIndex =
-    selectedIntervalIndex != null ? Math.max(0, indices.indexOf(selectedIntervalIndex)) : null;
   const maxPipelineInTransit = Math.max(0, ...model.lanes.pipelineLane.intervals.map((interval) => interval.inTransitMean));
   const maxFlowMagnitude = Math.max(
     1,
@@ -558,7 +579,7 @@ export function SkuDetailLedger({
               </div>
               <LaneExpandButton expanded={isLaneExpanded('regime')} title={showsPriceSurfaces ? 'Regime + price lane' : 'Regime lane'} onClick={() => toggleLaneExpanded('regime')} />
             </div>
-            <div ref={priceScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('regime') && 'min-h-0 h-full')} onScroll={handleScrollerScroll} onWheel={createWheelHandler(priceScrollRef)}>
+            <div ref={priceScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('regime') && 'min-h-0 h-full')} onScroll={handleScrollerScroll}>
               <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + expandedLinePlotHeight }}>
                 <TooltipProvider>
                   <RegimeChartHighlightOverlay
@@ -578,7 +599,7 @@ export function SkuDetailLedger({
                   viewBox={`0 0 ${Math.max(contentWidth, 1)} ${CHART_VIEWBOX_HEIGHT}`}
                 >
                   {showsPriceSurfaces
-                    ? pricePolylines.map((segment, index) => (
+                    ? priceChart.segments.map((segment, index) => (
                         <polyline
                           key={`price-segment-${index}`}
                           fill="none"
@@ -590,7 +611,7 @@ export function SkuDetailLedger({
                       ))
                     : null}
                 </svg>
-                {showsPriceSurfaces ? priceCoordinates.map((point, index) => {
+                {showsPriceSurfaces ? priceChart.points.map((point, index) => {
                   const marker = model.lanes.regimePriceLane.priceMarkers[index];
                   const isSelected = marker?.intervalIndex === selectedIntervalIndex;
                   if (!showsLinePointMarkers && !isSelected) {
@@ -621,7 +642,7 @@ export function SkuDetailLedger({
                           className="whitespace-nowrap uppercase tracking-[0.14em] text-muted-foreground"
                           style={{ fontSize: Math.max(9, regimeVisual.dataLabelFontSize - 1) }}
                         >
-                          {formatRegimeLabel(model.lanes.regimePriceLane.intervals.find((interval) => interval.intervalIndex === marker?.intervalIndex)?.dominantRegime ?? '')}
+                          {formatRegimeLabel(marker == null ? '' : regimeIntervalsByIndex.get(marker.intervalIndex)?.dominantRegime ?? '')}
                         </span>
                         <span className="whitespace-nowrap">{marker ? `$${marker.price}` : ''}</span>
                       </ClampedChartDataLabel>
@@ -689,7 +710,7 @@ export function SkuDetailLedger({
             </div>
             <LaneExpandButton expanded={isLaneExpanded('inventory')} title="Inventory posterior lane" onClick={() => toggleLaneExpanded('inventory')} />
           </div>
-          <div ref={inventoryScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain rounded-md bg-muted/25 px-2 py-3', isLaneExpanded('inventory') && 'min-h-0 h-full')} onScroll={handleScrollerScroll} onWheel={createWheelHandler(inventoryScrollRef)}>
+          <div ref={inventoryScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain rounded-md bg-muted/25 px-2 py-3', isLaneExpanded('inventory') && 'min-h-0 h-full')} onScroll={handleScrollerScroll}>
               <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + expandedLinePlotHeight }}>
                 <svg
                   aria-hidden="true"
@@ -698,15 +719,15 @@ export function SkuDetailLedger({
                   style={{ height: expandedLinePlotHeight, top: LABEL_GUTTER_HEIGHT }}
                   viewBox={`0 0 ${Math.max(contentWidth, 1)} 42`}
                 >
-                {inventoryBandPath ? (
+                {inventoryChart.bandPath ? (
                   <path
-                    d={inventoryBandPath}
+                    d={inventoryChart.bandPath}
                     fill="currentColor"
                     className="text-foreground/10"
                   />
                 ) : null}
                 <path d={`M${axisStartPadding} 24 H${Math.max(contentWidth - axisEndPadding, 1)}`} strokeDasharray={inventoryVisual.secondaryDashArray} stroke="currentColor" strokeWidth={inventoryVisual.dashedStrokeWidth} className="text-muted-foreground/50" />
-                <polyline fill="none" points={inventoryPolyline} stroke="currentColor" strokeWidth={inventoryVisual.strokeWidth} className="text-foreground" />
+                <polyline fill="none" points={inventoryChart.polyline} stroke="currentColor" strokeWidth={inventoryVisual.strokeWidth} className="text-foreground" />
               </svg>
               <div
                 aria-hidden="true"
@@ -726,7 +747,7 @@ export function SkuDetailLedger({
                   />
                 ))}
               </div>
-              {inventoryCoordinates.map((point, index) => {
+              {inventoryChart.coordinates.map((point, index) => {
                 const isSelected = selectedPointIndex === index;
                 const detailPoint = model.lanes.inventoryLane.points[index];
                 if (!showsLinePointMarkers && !isSelected) {
@@ -803,7 +824,7 @@ export function SkuDetailLedger({
             </div>
             <LaneExpandButton expanded={isLaneExpanded('flow')} title="Flow decomposition lane" onClick={() => toggleLaneExpanded('flow')} />
           </div>
-          <div ref={flowScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('flow') && 'min-h-0 h-full')} onScroll={handleScrollerScroll} onWheel={createWheelHandler(flowScrollRef)}>
+          <div ref={flowScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('flow') && 'min-h-0 h-full')} onScroll={handleScrollerScroll}>
             <div
               className="relative grid rounded-md bg-muted/20 pb-3 pt-2"
               style={{
@@ -907,7 +928,7 @@ export function SkuDetailLedger({
           <div className="-mt-1 mb-3 flex justify-end">
             <LaneExpandButton expanded={isLaneExpanded('pipeline')} title="Pipeline lane" onClick={() => toggleLaneExpanded('pipeline')} />
           </div>
-          <div ref={pipelineScrollRef} className={cn('hidden-scrollbar overflow-x-auto overflow-y-visible overscroll-contain', isLaneExpanded('pipeline') && 'min-h-0 h-full')} onScroll={handleScrollerScroll} onWheel={createWheelHandler(pipelineScrollRef)}>
+          <div ref={pipelineScrollRef} className={cn('hidden-scrollbar overflow-x-auto overflow-y-visible overscroll-contain', isLaneExpanded('pipeline') && 'min-h-0 h-full')} onScroll={handleScrollerScroll}>
             <div
               className="relative grid rounded-md bg-muted/20 pb-2 pt-2"
               style={{

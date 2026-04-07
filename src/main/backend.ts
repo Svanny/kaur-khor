@@ -17,9 +17,19 @@ interface CoreResponseEnvelope {
 }
 
 interface PendingRequest {
+  startedAt: number;
   reject: (error: Error) => void;
   resolve: (payload: unknown) => void;
   timeout: ReturnType<typeof setTimeout>;
+}
+
+interface QueuedRequest<T> {
+  commandName: string;
+  envelope: CoreRequestEnvelope;
+  payloadSummary: string;
+  resolvePromise: (value: T | PromiseLike<T>) => void;
+  rejectPromise: (reason?: unknown) => void;
+  timeoutMs: number;
 }
 
 const DEFAULT_CORE_TIMEOUT_MS = 15_000;
@@ -130,11 +140,19 @@ export async function startManagedCore(
   });
   traceIpc(`spawn command=${command} args=${JSON.stringify(args)} dataPath=${env.BANJI_DESKTOP_DATA_PATH ?? 'unset'}`);
   const pending = new Map<number, PendingRequest>();
+  const queuedRequests: QueuedRequest<unknown>[] = [];
   const stderr: string[] = [];
   let nextId = 1;
   let stopped = false;
+  let activeRequestId: number | null = null;
 
   const stdoutInterface = createInterface({ input: child.stdout });
+
+  const rejectQueued = (error: Error) => {
+    while (queuedRequests.length > 0) {
+      queuedRequests.shift()?.rejectPromise(error);
+    }
+  };
 
   const rejectPending = (error: Error) => {
     for (const request of pending.values()) {
@@ -142,6 +160,65 @@ export async function startManagedCore(
       request.reject(error);
     }
     pending.clear();
+    activeRequestId = null;
+    rejectQueued(error);
+  };
+
+  const dispatchNext = () => {
+    if (stopped || child.killed || activeRequestId != null) {
+      return;
+    }
+
+    const next = queuedRequests.shift();
+    if (!next) {
+      return;
+    }
+
+    const id = next.envelope.id;
+    const startedAt = Date.now();
+    const timeout = setTimeout(() => {
+      pending.delete(id);
+      activeRequestId = null;
+      traceIpc(`timeout id=${id} command=${next.commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size}`);
+      next.rejectPromise(new Error(`desktop core timed out while handling ${next.commandName}`));
+      dispatchNext();
+    }, next.timeoutMs);
+
+    pending.set(id, {
+      startedAt,
+      resolve: (payloadValue) => {
+        traceIpc(
+          `resolve id=${id} command=${next.commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} payload=${summarizePayload(payloadValue)}`,
+        );
+        next.resolvePromise(payloadValue as never);
+      },
+      reject: (error) => {
+        traceIpc(
+          `reject id=${id} command=${next.commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} error=${error.message}`,
+        );
+        next.rejectPromise(error);
+      },
+      timeout,
+    });
+    activeRequestId = id;
+    traceIpc(
+      `invoke id=${id} command=${next.commandName} pending=${pending.size} queued=${queuedRequests.length} payload=${next.payloadSummary}`,
+    );
+
+    child.stdin.write(`${JSON.stringify(next.envelope)}\n`, (error) => {
+      if (!error) {
+        return;
+      }
+
+      clearTimeout(timeout);
+      pending.delete(id);
+      activeRequestId = null;
+      traceIpc(
+        `stdin-error id=${id} command=${next.commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} error=${error.message}`,
+      );
+      next.rejectPromise(error);
+      dispatchNext();
+    });
   };
 
   stdoutInterface.on('line', (line) => {
@@ -163,16 +240,21 @@ export async function startManagedCore(
 
     clearTimeout(request.timeout);
     pending.delete(response.id);
+    if (activeRequestId === response.id) {
+      activeRequestId = null;
+    }
     traceIpc(
-      `response id=${response.id} ok=${response.ok} pending=${pending.size} payload=${summarizePayload(response.payload)}`,
+      `response id=${response.id} ok=${response.ok} elapsedMs=${Date.now() - request.startedAt} pending=${pending.size} payload=${summarizePayload(response.payload)}`,
     );
 
     if (response.ok) {
       request.resolve(response.payload as unknown);
+      dispatchNext();
       return;
     }
 
     request.reject(new Error(response.error ?? 'desktop core command failed'));
+    dispatchNext();
   });
 
   child.stderr.on('data', (chunk) => {
@@ -212,46 +294,16 @@ export async function startManagedCore(
     };
 
     return new Promise<T>((resolvePromise, rejectPromise) => {
-      const startedAt = Date.now();
-      const timeout = setTimeout(() => {
-        pending.delete(id);
-        traceIpc(
-          `timeout id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size}`,
-        );
-        rejectPromise(new Error(`desktop core timed out while handling ${commandName}`));
-      }, timeoutMs);
-
-      pending.set(id, {
-        resolve: (payloadValue) => {
-          traceIpc(
-            `resolve id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} payload=${summarizePayload(payloadValue)}`,
-          );
-          resolvePromise(payloadValue as T);
-        },
-        reject: (error) => {
-          traceIpc(
-            `reject id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} error=${error.message}`,
-          );
-          rejectPromise(error);
-        },
-        timeout,
+      queuedRequests.push({
+        commandName,
+        envelope,
+        payloadSummary: summarizePayload(payload),
+        resolvePromise,
+        rejectPromise,
+        timeoutMs,
       });
-      traceIpc(
-        `invoke id=${id} command=${commandName} pending=${pending.size} payload=${summarizePayload(payload)}`,
-      );
-
-      child.stdin.write(`${JSON.stringify(envelope)}\n`, (error) => {
-        if (!error) {
-          return;
-        }
-
-        clearTimeout(timeout);
-        pending.delete(id);
-        traceIpc(
-          `stdin-error id=${id} command=${commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} error=${error.message}`,
-        );
-        rejectPromise(error);
-      });
+      traceIpc(`queue id=${id} command=${commandName} queued=${queuedRequests.length}`);
+      dispatchNext();
     });
   };
 
