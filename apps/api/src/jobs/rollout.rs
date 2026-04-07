@@ -59,7 +59,7 @@ const ITEM_CREATED_ENTRY: JobAlgorithmRegistryEntry = JobAlgorithmRegistryEntry 
 
 const SENA_ANALYSIS_ENTRY: JobAlgorithmRegistryEntry = JobAlgorithmRegistryEntry {
     job_type: "sena-analysis",
-    supported_versions: &["sena-analysis-v1", "sena-analysis-v2"],
+    supported_versions: &["sena-analysis-v1", "sena-analysis-v2", "sena-analysis-v3"],
 };
 
 const WRITE_DEMO_ENTRY: JobAlgorithmRegistryEntry = JobAlgorithmRegistryEntry {

@@ -183,8 +183,11 @@ export interface SenaIntervalPosterior {
   retailDemandMean: number;
   unconstrainedDemandMean: number;
   realizedConsumptionMean: number;
+  lostDemandMean?: number;
   adjustmentsMean: number;
   receiptsMean: number;
+  preClampInventoryMean?: number;
+  inventoryPositionMean?: number;
 }
 
 export interface SenaPipelinePosteriorPoint {
@@ -200,8 +203,11 @@ export interface SenaLeadTimePosteriorPoint {
   intervalIndex: number;
   logMeanDays: number;
   logStdDays: number;
+  logVarianceDaysSquared?: number;
   meanDays: number;
   stdDays: number;
+  varianceDaysSquared?: number;
+  shapeSigma?: number;
   observedVariabilityClass: SenaLeadTimeVariabilityClass | null;
   observedRelativeWidth: number | null;
 }
@@ -211,6 +217,7 @@ export interface SenaDiagnostics {
   resamplingCount: number;
   smoothingEnabled: boolean;
   changePointProbability: number;
+  latestChangePointProbability?: number;
   seasonalityActive: boolean;
   posteriorPredictiveErrorMean: number;
   coverageEstimate: number;

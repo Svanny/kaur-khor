@@ -659,7 +659,7 @@ struct SenaDetailWindowQuery {
 }
 
 fn default_sena_algorithm_version() -> String {
-    "sena-analysis-v1".to_string()
+    "sena-analysis-v3".to_string()
 }
 
 async fn upsert_sena_catalog(

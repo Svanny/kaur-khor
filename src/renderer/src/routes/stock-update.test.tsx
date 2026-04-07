@@ -5,6 +5,18 @@ import { StockUpdateRoute } from './stock-update';
 
 const inventoryHook = vi.fn();
 
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+}
+
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+}
+
+if (!Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {};
+}
+
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
 }));
@@ -189,12 +201,53 @@ describe('StockUpdateRoute', () => {
     expect(screen.getByText('Internal Evidence')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Select log view' })).toBeInTheDocument();
+    expect(screen.getByText('View: Heatmap')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New observation' })).toHaveAttribute('href', '/operations/session');
     expect(screen.queryByRole('button', { name: 'Run analysis' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Re-run analysis' })).not.toBeInTheDocument();
     expect(screen.getByText('3 contributions in 2025-2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous contribution year' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next contribution year' })).toBeDisabled();
+  });
+
+  it('switches to the all view and paginates observations in groups of five', () => {
+    const paginatedObservations = [
+      makeObservation('obs-1', '2026-04-06T12:00:00.000Z', 'Observation 1'),
+      makeObservation('obs-2', '2026-04-05T12:00:00.000Z', 'Observation 2'),
+      makeObservation('obs-3', '2026-04-04T12:00:00.000Z', 'Observation 3'),
+      makeObservation('obs-4', '2026-04-03T12:00:00.000Z', 'Observation 4'),
+      makeObservation('obs-5', '2026-04-02T12:00:00.000Z', 'Observation 5'),
+      makeObservation('obs-6', '2026-04-01T12:00:00.000Z', 'Observation 6'),
+      makeObservation('obs-7', '2026-03-31T12:00:00.000Z', 'Observation 7'),
+    ];
+
+    renderRoute({ observations: paginatedObservations });
+
+    const viewSelect = screen.getByRole('combobox', { name: 'Select log view' });
+    viewSelect.focus();
+    fireEvent.keyDown(viewSelect, { key: 'ArrowDown', code: 'ArrowDown' });
+    const allLabels = screen.getAllByText('All');
+    fireEvent.click(allLabels[allLabels.length - 1]!);
+
+    expect(screen.getByRole('combobox', { name: 'Select log view' })).toHaveTextContent('View: All');
+    expect(screen.queryByLabelText('Observation contribution heatmap')).not.toBeInTheDocument();
+    expect(screen.getByText('All observations (7)')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1-5 of 7 filtered observations.')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('First')).toBeInTheDocument();
+    expect(screen.getByText('Last')).toBeInTheDocument();
+    expect(screen.getByText('Observation 1')).toBeInTheDocument();
+    expect(screen.getByText('Observation 5')).toBeInTheDocument();
+    expect(screen.queryByText('Observation 6')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Next report page'));
+
+    expect(screen.getByText('Showing 6-7 of 7 filtered observations.')).toBeInTheDocument();
+    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Observation 6')).toBeInTheDocument();
+    expect(screen.getByText('Observation 7')).toBeInTheDocument();
+    expect(screen.queryByText('Observation 1')).not.toBeInTheDocument();
   });
 
   it('selects the newest active day by default and shows that day detail list', () => {

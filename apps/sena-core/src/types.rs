@@ -234,6 +234,7 @@ pub struct SenaDiagnostics {
     pub resampling_count: usize,
     pub smoothing_enabled: bool,
     pub change_point_probability: f64,
+    pub latest_change_point_probability: f64,
     pub seasonality_active: bool,
     pub posterior_predictive_error_mean: f64,
     pub coverage_estimate: f64,
@@ -270,8 +271,11 @@ pub struct SenaIntervalPosterior {
     pub retail_demand_mean: f64,
     pub unconstrained_demand_mean: f64,
     pub realized_consumption_mean: f64,
+    pub lost_demand_mean: f64,
     pub adjustments_mean: f64,
     pub receipts_mean: f64,
+    pub pre_clamp_inventory_mean: f64,
+    pub inventory_position_mean: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -291,8 +295,11 @@ pub struct SenaLeadTimePosteriorPoint {
     pub interval_index: usize,
     pub log_mean_days: f64,
     pub log_std_days: f64,
+    pub log_variance_days_squared: f64,
     pub mean_days: f64,
     pub std_days: f64,
+    pub variance_days_squared: f64,
+    pub shape_sigma: f64,
     pub observed_variability_class: Option<SenaLeadTimeVariabilityClass>,
     pub observed_relative_width: Option<f64>,
 }

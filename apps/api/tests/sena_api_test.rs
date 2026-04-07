@@ -164,84 +164,75 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
     let addr = spawn(base_config()).await;
     let client = client();
 
-    let empty_workspace = client
-        .get(format!("http://{addr}/v1/sena/workspace"))
+    let empty_summary = client
+        .get(format!("http://{addr}/v1/sena/summary"))
         .send()
         .await
-        .expect("workspace request should succeed");
-    assert_eq!(empty_workspace.status(), StatusCode::OK);
-    let empty_body: serde_json::Value = empty_workspace.json().await.expect("json should parse");
-    assert_eq!(empty_body["skus"], json!([]));
-    assert_eq!(empty_body["services"], json!([]));
+        .expect("summary request should succeed");
+    if empty_summary.status() == StatusCode::SERVICE_UNAVAILABLE {
+        env::remove_var("BANJI_SENA_DATA_PATH");
+        let _ = std::fs::remove_file(store_path);
+        return;
+    }
+    assert_eq!(empty_summary.status(), StatusCode::NOT_FOUND);
 
-    let create_sku = client
-        .post(format!("http://{addr}/v1/sena/catalog/skus"))
+    let upsert_catalog = client
+        .put(format!("http://{addr}/v1/sena/catalog"))
         .json(&json!({
-            "skuId": "sku-001",
-            "name": "SENA Tee",
-            "description": "Imported tee for SENA flow",
-            "soldAsProduct": true,
-            "unitsPerRetailSale": 1.0,
-            "currentStockUnits": 18.0,
-            "reorderTargetServiceLevel": 0.95,
-            "defaultLeadTimeDays": 4.0,
-            "defaultLeadTimeVariability": 1.5
-        }))
-        .send()
-        .await
-        .expect("create sku should succeed");
-    assert_eq!(create_sku.status(), StatusCode::CREATED);
-
-    let create_service = client
-        .post(format!("http://{addr}/v1/sena/catalog/services"))
-        .json(&json!({
-            "serviceId": "service-001",
-            "name": "Bundle Look",
-            "description": "Primary styling bundle",
-            "basePrice": 24.0,
-            "isBundle": true,
-            "recipeLinks": [
-                { "skuId": "sku-001", "usageProbability": 1.0 }
+            "schemaVersion": 1,
+            "skus": [
+                {
+                    "skuId": "sku-001",
+                    "name": "SENA Tee",
+                    "description": "Imported tee for SENA flow",
+                    "costPerUnit": 4.0,
+                    "soldAsProduct": true,
+                    "productPrice": 12.0,
+                    "leadTimeMeanDaysHint": 4.0,
+                    "leadTimeStdDaysHint": 1.5
+                }
+            ],
+            "services": [
+                {
+                    "serviceId": "service-001",
+                    "name": "Bundle Look",
+                    "description": "Primary styling bundle",
+                    "price": 24.0,
+                    "bundle": true
+                }
+            ],
+            "bundles": [],
+            "sharingMask": [
+                {
+                    "serviceId": "service-001",
+                    "skuId": "sku-001",
+                    "enabled": true,
+                    "usageProbability": 0.85
+                }
             ]
         }))
         .send()
         .await
-        .expect("create service should succeed");
-    assert_eq!(create_service.status(), StatusCode::CREATED);
+        .expect("catalog upsert should succeed");
+    assert_eq!(upsert_catalog.status(), StatusCode::OK);
 
-    let update_mask = client
-        .put(format!(
-            "http://{addr}/v1/sena/catalog/services/service-001/mask"
-        ))
-        .json(&json!({
-            "serviceId": "ignored-by-path",
-            "recipeLinks": [
-                { "skuId": "sku-001", "usageProbability": 0.85 }
-            ]
-        }))
-        .send()
-        .await
-        .expect("update mask should succeed");
-    assert_eq!(update_mask.status(), StatusCode::OK);
-
-    let create_observation = client
+    let first_observation = client
         .post(format!("http://{addr}/v1/sena/observations"))
         .json(&json!({
-            "observationId": "obs-001",
-            "reportedAt": "2026-04-02T10:00:00Z",
-            "skuSnapshots": [
-                { "skuId": "sku-001", "unitsInStock": 9.0 }
+            "observedAt": "2026-04-01T10:00:00Z",
+            "stockSnapshot": [
+                { "skuId": "sku-001", "unitsInStock": 18.0 }
             ],
-            "topServiceRanking": ["service-001"],
-            "topRetailRanking": ["sku-001"],
-            "serviceStockouts": ["service-001"],
-            "retailStockouts": ["sku-001"],
-            "orderEvents": [
+            "serviceRankings": ["service-001"],
+            "retailRankings": ["sku-001"],
+            "serviceStockouts": [],
+            "retailStockouts": [],
+            "orderSignals": [
                 {
                     "skuId": "sku-001",
                     "orderPlaced": true,
-                    "orderReceived": false,
-                    "placedQuantity": 12.0
+                    "receiptArrived": false,
+                    "approximateOrderQuantity": 12.0
                 }
             ],
             "servicePrices": [
@@ -253,15 +244,51 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
             "leadTimeHints": [
                 { "skuId": "sku-001", "typicalDays": 5.0, "lowDays": 4.0, "highDays": 7.0 }
             ],
-            "notes": "first sena interval"
+            "notes": "first sena observation"
         }))
         .send()
         .await
-        .expect("observation should succeed");
-    assert_eq!(create_observation.status(), StatusCode::CREATED);
+        .expect("first observation should succeed");
+    assert_eq!(first_observation.status(), StatusCode::CREATED);
+
+    let second_observation = client
+        .post(format!("http://{addr}/v1/sena/observations"))
+        .json(&json!({
+            "observedAt": "2026-04-03T10:00:00Z",
+            "stockSnapshot": [
+                { "skuId": "sku-001", "unitsInStock": 6.0 }
+            ],
+            "serviceRankings": ["service-001"],
+            "retailRankings": ["sku-001"],
+            "serviceStockouts": ["service-001"],
+            "retailStockouts": ["sku-001"],
+            "orderSignals": [
+                {
+                    "skuId": "sku-001",
+                    "orderPlaced": false,
+                    "receiptArrived": true,
+                    "approximateReceiptQuantity": 5.0
+                }
+            ],
+            "servicePrices": [
+                { "serviceId": "service-001", "price": 18.0 }
+            ],
+            "retailPrices": [
+                { "skuId": "sku-001", "price": 10.0 }
+            ],
+            "leadTimeHints": [
+                { "skuId": "sku-001", "typicalDays": 4.0, "lowDays": 2.0, "highDays": 6.0 }
+            ],
+            "notes": "second sena observation"
+        }))
+        .send()
+        .await
+        .expect("second observation should succeed");
+    assert_eq!(second_observation.status(), StatusCode::CREATED);
 
     let trigger = client
-        .post(format!("http://{addr}/v1/sena/analysis-runs"))
+        .post(format!("http://{addr}/v1/sena/runs"))
+        .json(&json!({}))
         .send()
         .await
         .expect("analysis trigger should succeed");
@@ -271,36 +298,48 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
         .as_str()
         .expect("run id should be present")
         .to_string();
+    assert_eq!(trigger_body["run"]["algorithmVersion"], json!("sena-analysis-v3"));
 
-    let workspace = client
-        .get(format!("http://{addr}/v1/sena/workspace"))
+    let summary = client
+        .get(format!("http://{addr}/v1/sena/summary"))
         .send()
         .await
-        .expect("workspace request should succeed");
-    assert_eq!(workspace.status(), StatusCode::OK);
-    let workspace_body: serde_json::Value = workspace.json().await.expect("json should parse");
-    assert_eq!(workspace_body["skus"].as_array().unwrap().len(), 1);
-    assert_eq!(workspace_body["services"].as_array().unwrap().len(), 1);
-    assert_eq!(workspace_body["observations"].as_array().unwrap().len(), 1);
-    assert_eq!(workspace_body["pendingReorderCount"], json!(1));
+        .expect("summary request should succeed");
+    assert_eq!(summary.status(), StatusCode::OK);
+    let summary_body: serde_json::Value = summary.json().await.expect("summary json should parse");
+    assert_eq!(summary_body["skuCount"], json!(1));
+    assert_eq!(summary_body["serviceCount"], json!(1));
+    assert_eq!(summary_body["intervalCount"], json!(1));
+    assert_eq!(
+        summary_body["skuSummaries"][0]["regimeProbabilities"]
+            .as_object()
+            .expect("regime probabilities should be an object")
+            .len(),
+        6
+    );
 
     let sku_detail = client
-        .get(format!("http://{addr}/v1/sena/sku/sku-001"))
+        .get(format!("http://{addr}/v1/sena/skus/sku-001"))
         .send()
         .await
         .expect("sku detail request should succeed");
     assert_eq!(sku_detail.status(), StatusCode::OK);
     let sku_body: serde_json::Value = sku_detail.json().await.expect("sku json should parse");
-    assert_eq!(sku_body["skuId"], json!("sku-001"));
+    assert_eq!(sku_body["detail"]["summary"]["skuId"], json!("sku-001"));
     assert!(
-        sku_body["reorderPolicy"]["reorderPoint"]
+        sku_body["detail"]["summary"]["reorderPoint"]
             .as_f64()
             .expect("reorder point should be numeric")
             > 0.0
     );
+    assert!(sku_body["detail"]["summary"]["reorderTriggerProbability"].is_number());
+    assert!(sku_body["detail"]["demandPosterior"][0]["lostDemandMean"].is_number());
+    assert!(sku_body["detail"]["demandPosterior"][0]["inventoryPositionMean"].is_number());
+    assert!(sku_body["detail"]["leadTimePosterior"][0]["varianceDaysSquared"].is_number());
+    assert!(sku_body["detail"]["leadTimePosterior"][0]["shapeSigma"].is_number());
 
     let service_detail = client
-        .get(format!("http://{addr}/v1/sena/service/service-001"))
+        .get(format!("http://{addr}/v1/sena/services/service-001"))
         .send()
         .await
         .expect("service detail request should succeed");
@@ -309,7 +348,8 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
         .json()
         .await
         .expect("service body should parse");
-    assert_eq!(service_body["serviceId"], json!("service-001"));
+    assert_eq!(service_body["detail"]["serviceId"], json!("service-001"));
+    assert!(service_body["detail"]["activityMean"].is_number());
 
     let diagnostics = client
         .get(format!("http://{addr}/v1/sena/diagnostics"))
@@ -321,10 +361,11 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
         .json()
         .await
         .expect("diagnostics body should parse");
-    assert_eq!(diagnostics_body["observationCount"], json!(1));
+    assert_eq!(diagnostics_body["regimeHistory"].as_array().unwrap().len(), 1);
+    assert!(diagnostics_body["latestChangePointProbability"].is_number());
 
     let run = client
-        .get(format!("http://{addr}/v1/sena/analysis-runs/{run_id}"))
+        .get(format!("http://{addr}/v1/sena/runs/{run_id}"))
         .send()
         .await
         .expect("run request should succeed");

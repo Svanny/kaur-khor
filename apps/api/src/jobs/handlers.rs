@@ -78,7 +78,7 @@ pub async fn handle_job(
         KnownJob::SenaAnalysisV1(payload) => {
             if !matches!(
                 ctx.algorithm_version.as_str(),
-                "sena-analysis-v1" | "sena-analysis-v2"
+                "sena-analysis-v1" | "sena-analysis-v2" | "sena-analysis-v3"
             ) {
                 return Err(anyhow!(
                     "unsupported_rollout_version: sena-analysis algorithm version {} is not implemented",
