@@ -802,6 +802,53 @@ describe('SKU detail SENA helpers', () => {
     expect(document.querySelectorAll('button[data-regime-slot="true"][data-selected="true"]').length).toBe(1);
   });
 
+  test('renders the reorder point legend with a three-dot marker', async () => {
+    inventoryHook.mockReturnValue({
+      snapshot,
+      reports: [report],
+      catalog: seedSenaCatalogFromSnapshot(snapshot),
+      diagnostics,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations,
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      workspaceSummary: workspace,
+      reload: vi.fn(),
+      loadInventorySnapshot: vi.fn(async () => snapshot),
+      listStockReports: vi.fn(async () => [report]),
+      submitLegacyReport: vi.fn(async () => report),
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+      loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
+      ingestSenaObservation: vi.fn(async () => observations[0]),
+      listSenaObservations: vi.fn(async () => observations),
+      loadSenaObservations: vi.fn(async () => observations),
+      triggerSenaRun: vi.fn(),
+      retrySenaRun: vi.fn(),
+      loadSenaWorkspaceSummary: vi.fn(async () => workspace),
+      loadSenaSkuDetail: vi.fn(async () => detail),
+      loadSenaServiceDetail: vi.fn(async () => null),
+      loadSenaDiagnostics: vi.fn(async () => diagnostics),
+      loadSenaRunStatus: vi.fn(async () => null),
+      updateSenaMeta: vi.fn(),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
+
+    const legendLabel = await screen.findByText((content) => content.startsWith('Reorder point:'));
+    const legendItem = legendLabel.closest('span');
+    const marker = legendItem?.querySelector('span[aria-hidden="true"]');
+    const dots = marker?.querySelectorAll('span');
+
+    expect(marker).toHaveClass('inline-flex');
+    expect(dots).toHaveLength(3);
+    dots?.forEach((dot) => {
+      expect(dot).toHaveClass('size-2', 'rounded-full');
+      expect(dot).not.toHaveClass('h-px', 'w-7');
+    });
+  });
+
   test('keeps the current scroll position after selecting a different interval', async () => {
     const resizeCallbacks: Array<() => void> = [];
     const originalResizeObserver = globalThis.ResizeObserver;

@@ -662,17 +662,18 @@ export function SkuDetailLedger({
                 />
                 Uncertainty band
               </span>
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    aria-hidden="true"
-                    className="inline-block h-px w-7 opacity-70"
-                    style={{
-                    backgroundImage: 'radial-gradient(circle, currentColor 1.2px, transparent 1.4px)',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'repeat-x',
-                    backgroundSize: '6px 2px',
-                  }}
-                />
+              <span className="inline-flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="inline-flex items-center gap-1"
+                >
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <span
+                      key={`inventory-reorder-legend-dot-${index}`}
+                      className="block size-2 rounded-full bg-muted-foreground/70"
+                    />
+                  ))}
+                </span>
                 {t('catalogSenaSkuReorderPoint')}: {model.lanes.inventoryLane.reorderPointLabel}
               </span>
               <span className="inline-flex items-center gap-2">
