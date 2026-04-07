@@ -11,7 +11,7 @@ export function ServiceDependencyImpact({
     <MeasuredPagedDetailPanel
       items={rows}
       title="Dependency impact"
-      tooltip="Linked SKUs ranked by current service role, days of cover, and the recovery note that restores service capacity."
+      tooltip="Linked SKUs ranked by service role, cover, and recovery impact."
       renderItem={(row) => (
         <div className="grid gap-3 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">

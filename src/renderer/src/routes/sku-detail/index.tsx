@@ -267,7 +267,7 @@ export function SkuDetailRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title={t('catalogSkuDetailNotFoundTitle')}
-          description={t('catalogSkuDetailNotFoundDescription')}
+          hint={t('catalogSkuDetailNotFoundDescription')}
           action={
           <Button asChild variant="outline">
               <Link to="/catalog">{t('backToCatalog')}</Link>

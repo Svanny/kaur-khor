@@ -53,9 +53,9 @@ export function SettingsRoute() {
       <WorkspaceTitleCard
         eyebrow="Settings"
         title="Desktop preferences"
-        description="These controls tune the local Banji shell and its on-device SENA workspace storage."
+        descriptor="Choose how much optional guidance Banji shows and how the desktop shell behaves on this device."
       />
-      <WorkspacePanel title="Preferences controls" description="These preferences affect only the local desktop shell.">
+      <WorkspacePanel title="Preferences controls" descriptor="These settings change only this desktop workspace.">
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm">
             <span>Language</span>
@@ -95,15 +95,15 @@ export function SettingsRoute() {
         <div className="mt-4 divide-y divide-border/60">
           <CheckboxRow
             checked={showExplanatoryTooltips}
-            description="Hide helper tooltips and explanatory guidance across the desktop UI."
+            helper="Show tooltips, section descriptors, and optional hints. Required field guidance stays visible."
             icon={<BadgeHelp className="size-4" />}
-            label="Show explanatory tooltips"
+            label="Show optional help"
             variant="flat"
             onCheckedChange={setShowExplanatoryTooltips}
           />
           <CheckboxRow
             checked={showFloatingTitleActions}
-            description="When a page hero scrolls out of view, pin its action buttons and toggles in a floating island near the top-right corner."
+            helper="Keep page actions visible after the header scrolls off screen."
             icon={<PanelsTopLeft className="size-4" />}
             label="Show floating title actions"
             variant="flat"
@@ -111,7 +111,7 @@ export function SettingsRoute() {
           />
           <CheckboxRow
             checked={showRightRailCards}
-            description="Show the contextual right-side insight and summary blocks across performance and detail pages."
+            helper="Show the right-side context panels on analysis, performance, and detail pages."
             icon={<PanelRight className="size-4" />}
             label="Show right rail cards"
             variant="flat"
@@ -126,7 +126,7 @@ export function SettingsRoute() {
         </WorkspaceActionRow>
       </WorkspacePanel>
 
-      <WorkspacePanel title="Local workspace storage" description="The desktop shell now stores SENA data in a local SQLite workspace.">
+      <WorkspacePanel title="Local workspace storage" descriptor="Banji stores workspace data locally in SQLite on this device.">
         {localDataInfo ? (
           <div className="grid gap-4">
             <div>

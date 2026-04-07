@@ -8,7 +8,7 @@ describe('CheckboxRow', () => {
     const { container } = render(
       <CheckboxRow
         checked
-        description="Helpful copy"
+        helper="Helpful copy"
         label="Show tooltips"
         onCheckedChange={vi.fn()}
       />,

@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DescriptionText } from '@/components/system/description-text';
 import { Label } from '@/components/ui/label';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
@@ -7,7 +8,8 @@ import { cn } from '@/lib/utils';
 export function CheckboxRow({
   checked,
   className,
-  description,
+  helper,
+  hint,
   icon,
   label,
   onCheckedChange,
@@ -15,7 +17,8 @@ export function CheckboxRow({
 }: {
   checked: boolean;
   className?: string;
-  description?: ReactNode;
+  helper?: ReactNode;
+  hint?: ReactNode;
   icon?: ReactNode;
   label: ReactNode;
   onCheckedChange: (checked: boolean) => void;
@@ -56,7 +59,8 @@ export function CheckboxRow({
         <Label className="flex min-h-5 items-center font-medium leading-5 text-foreground" htmlFor={checkboxId}>
           {label}
         </Label>
-        {description ? <div className="text-muted-foreground">{description}</div> : null}
+        {helper ? <div className="text-muted-foreground">{helper}</div> : null}
+        {hint ? <DescriptionText className="text-muted-foreground">{hint}</DescriptionText> : null}
       </div>
     </div>
   );

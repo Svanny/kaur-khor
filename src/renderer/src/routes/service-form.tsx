@@ -306,12 +306,12 @@ export function ServiceFormRoute() {
       >
         <WorkspacePanel
           className={editorPanelClassName}
-          description={editing ? t('catalogServiceEditorIdentifierDescription') : t('catalogServiceEditorDescriptionNew')}
+          descriptor={t('catalogServiceEditorDetailsDescriptor')}
           title={<SectionTitle title={t('editorDetailsTitle')} tooltip={t('catalogServiceEditorDetailsTooltip')} />}
         >
           <div className="grid items-start gap-4 md:grid-cols-2">
             <EditorField
-              hint={editing ? t('catalogServiceEditorIdentifierDescription') : undefined}
+              helper={editing ? t('catalogServiceEditorIdentifierDescription') : t('catalogServiceEditorIdentifierHelper')}
               label={t('fieldId')}
               tooltip={t('catalogServiceEditorDetailsTooltip')}
             >
@@ -323,7 +323,11 @@ export function ServiceFormRoute() {
                 onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))}
               />
             </EditorField>
-            <EditorField label={t('fieldName')} tooltip={t('catalogServiceEditorDetailsTooltip')}>
+            <EditorField
+              helper={t('catalogServiceEditorNameHelper')}
+              label={t('fieldName')}
+              tooltip={t('catalogServiceEditorDetailsTooltip')}
+            >
               <input
                 className={editorInputClassName}
                 required
@@ -333,7 +337,11 @@ export function ServiceFormRoute() {
             </EditorField>
           </div>
 
-          <EditorField label={t('fieldDescription')} tooltip={t('catalogServiceEditorDetailsTooltip')}>
+          <EditorField
+            helper={t('catalogServiceEditorDescriptionHelper')}
+            label={t('fieldDescription')}
+            tooltip={t('catalogServiceEditorDetailsTooltip')}
+          >
             <textarea
               className={editorTextareaClassName}
               value={form.description}
@@ -344,9 +352,14 @@ export function ServiceFormRoute() {
 
         <WorkspacePanel
           className={editorPanelClassName}
+          descriptor={t('catalogServiceEditorPricingDescriptor')}
           title={<SectionTitle title={t('editorPricingTitle')} tooltip={t('catalogServiceEditorPricingTooltip')} />}
         >
-          <EditorField label={t('fieldPrice')} tooltip={t('catalogServiceEditorPriceTooltip')}>
+          <EditorField
+            helper={t('catalogServiceEditorPriceHelper')}
+            label={t('fieldPrice')}
+            tooltip={t('catalogServiceEditorPriceTooltip')}
+          >
             <input
               className={editorInputClassName}
               min="0"
@@ -361,7 +374,8 @@ export function ServiceFormRoute() {
 
         <WorkspacePanel
           className={editorPanelClassName}
-          description={t('fieldSkuSelectionHint')}
+          descriptor={t('catalogServiceEditorLinkedSkusDescriptor')}
+          hint={t('catalogServiceEditorLinkedSkusHelper')}
           title={<SectionTitle title={t('editorSelectionTitle')} tooltip={t('catalogServiceEditorLinkedSkusTooltip')} />}
         >
           <SearchInput

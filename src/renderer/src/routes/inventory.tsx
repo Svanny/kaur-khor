@@ -82,7 +82,7 @@ export function InventoryRoute() {
         <WorkspaceTitleCard
           eyebrow="Catalog"
           title="Build the SENA catalog"
-          description="SKUs, services, bundles, and sharing masks now live in one SENA catalog. Start by adding the first SKU."
+          descriptor="Start with the first SKU. Banji uses the catalog to connect stock, services, and planning."
           actions={
             <Button asChild>
               <Link to="/catalog/skus/new">
@@ -94,7 +94,7 @@ export function InventoryRoute() {
         />
         <WorkspaceEmpty
           title="No catalog loaded yet"
-          description="Create the first SKU to initialize the local SENA workspace catalog."
+          hint="Create the first SKU to initialize the local catalog."
           action={
             <Button asChild variant="outline">
               <Link to="/catalog/skus/new">Create first SKU</Link>
@@ -124,7 +124,7 @@ export function InventoryRoute() {
       <WorkspaceTitleCard
         eyebrow="Catalog"
         title="SENA Integrated"
-        description="Catalog editing is now SENA-native. Services link to SKUs through the sharing mask rather than the old snapshot recipe model."
+        descriptor="Browse the catalog, search by name or id, and jump straight into the next edit."
         actions={
           <WorkspaceActionRow>
             <Button asChild>
@@ -189,7 +189,7 @@ export function InventoryRoute() {
       {!hasResults ? (
         <WorkspaceEmpty
           title="No matching catalog items"
-          description="Try clearing the current filters or create a new item that fits this search."
+          hint="Try another search or create a new item that fits this view."
           action={
             <WorkspaceActionRow>
               <Button
@@ -210,7 +210,7 @@ export function InventoryRoute() {
       {showSkus && filteredSkus.length > 0 ? (
         <WorkspacePanel
           title={`SKUs (${filteredSkus.length})`}
-          description="Canonical SENA stock-carrying entities."
+          descriptor="Stock-carrying items Banji tracks directly."
         >
         <div className="grid gap-3">
           {filteredSkus.map((sku) => {
@@ -260,7 +260,7 @@ export function InventoryRoute() {
       {showServices && filteredServices.length > 0 ? (
         <WorkspacePanel
           title={`Services (${filteredServices.length})`}
-          description="Demand-facing services and their SKU mask coverage."
+          descriptor="Sellable services and the SKUs that support them."
         >
         <div className="grid gap-3">
           {filteredServices.map((service) => {

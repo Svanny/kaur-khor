@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { PreferencesProvider } from '@/state/preferences';
 import { WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from './workspace';
 import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
@@ -61,6 +62,18 @@ describe('WorkspacePanel', () => {
     );
 
     expect(screen.getByText('Visible helper copy')).toBeInTheDocument();
+  });
+
+  test('hides optional hints when optional help is disabled', () => {
+    render(
+      <DescriptionTextVisibilityProvider visible={false}>
+        <WorkspacePanel hint="Optional next step" title="Panel title">
+          <div>Panel body</div>
+        </WorkspacePanel>
+      </DescriptionTextVisibilityProvider>,
+    );
+
+    expect(screen.queryByText('Optional next step')).not.toBeInTheDocument();
   });
 
   test('shows a floating action island when a title card with actions scrolls out of view', async () => {

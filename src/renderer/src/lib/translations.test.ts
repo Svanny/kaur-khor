@@ -1,15 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { currencyLabel, getTranslation } from './translations';
+import { describe, expect, test } from 'vitest';
+import { getTranslation } from './translations';
 
-describe('translations', () => {
-  it('falls back to English when Khmer is missing a key', () => {
-    expect(getTranslation('km', 'overviewSupportPromptBody')).toBe(
-      'Overview stays focused on the next operational decision. Detailed editing, reporting, and planning live in their own sections.',
+describe('getTranslation', () => {
+  test('falls back to English for newer semantic help keys when Khmer is missing them', () => {
+    expect(getTranslation('km', 'catalogSkuEditorNameHelper')).toBe(
+      'Name the SKU the way staff will search for it.',
     );
-  });
-
-  it('formats currency labels through the same fallback path', () => {
-    expect(currencyLabel('km', 'USD')).toBe('ដុល្លារ ($)');
-    expect(currencyLabel('km', 'KHR')).toBe('រៀល (៛)');
+    expect(getTranslation('km', 'catalogServiceEditorLinkedSkusDescriptor')).toBe(
+      'Link the SKUs this service consumes so Banji can track coverage and blockers.',
+    );
   });
 });

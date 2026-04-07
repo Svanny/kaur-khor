@@ -22,12 +22,12 @@
 \maketitle
 
 \begin{abstract}
-SENA (Sparse-stock Estimation with Nonstationary Adaptation) is a Bayesian generative model for settings with a single business entity where services (and optionally retail SKUs) are sold but inventory is recorded intermittently. From sparse stock snapshots, SENA infers a plausible latent ledger of service demand, retail demand, order placements, receipts, and adjustments, while adapting to drift, seasonality, promotions, and occasional change points.
+SENA (Sparse-stock Estimation with Nonstationary Adaptation) is a proposed Bayesian generative model for settings with a single business entity where services (and optionally retail SKUs) are sold but inventory is recorded intermittently. From sparse stock snapshots, SENA is designed to infer a plausible latent ledger of service demand, retail demand, order placements, receipts, and adjustments, while adapting to drift, seasonality, promotions, and occasional change points.
 
 The model is designed to work with minimal inputs (inventory reports), but can optionally incorporate user-supplied time series and low-effort signals to improve identifiability.
 Examples include prices, lead-time typical values and uncertainty ranges, optional order placed/received logs, ranked lists of top services/SKUs, service--SKU sharing masks, and stockout flags.
 
-Primary outputs are posterior inventory trajectories with uncertainty, demand-rate estimates and forecasts, stockout risk, and reorder policies (including safety stock and reorder points) under explicit service-level targets.
+Its intended outputs are posterior inventory trajectories with uncertainty, demand-rate estimates and forecasts, stockout risk, and reorder policies (including safety stock and reorder points) under explicit service-level targets.
 \end{abstract}
 
 \vspace{1em}
@@ -45,13 +45,13 @@ No cross-business pooling is assumed.
 
 \textbf{Contribution summary.}
 \begin{enumerate}
-  \item A Bayesian state-space model for a single business entity that reconstructs latent demand, order placements, receipts, and corrections from sparse stock snapshots.
-  \item A practical identifiability strategy that can absorb user-supplied optional signals (rankings, order placed/received logs, sharing masks, stockout flags, observed price series, and noisy lead-time inputs).
-  \item A planning layer that maps posterior latent demand and latent lead-time dynamics into stockout-risk, days-of-cover, and reorder-policy outputs.
-  \item A drift-aware design (gradual, seasonal, abrupt) that adapts to behavior change without pooling across different businesses.
+  \item A proposed Bayesian state-space specification for a single business entity that reconstructs latent demand, order placements, receipts, and corrections from sparse stock snapshots.
+  \item A practical identifiability strategy designed to absorb user-supplied optional signals (rankings, order placed/received logs, sharing masks, stockout flags, observed price series, and noisy lead-time inputs).
+  \item A planning layer that maps posterior latent demand and latent lead-time dynamics into intended stockout-risk, days-of-cover, and reorder-policy outputs.
+  \item A drift-aware design (gradual, seasonal, abrupt) intended to adapt to behavior change without pooling across different businesses.
 \end{enumerate}
 
-\textbf{Content.} The next sections define the generative model, optional observation channels, prior defaults, and posterior outputs; later sections outline evaluation expectations and practical inference workflows.
+\textbf{Content.} The next sections define the proposed generative model, optional observation channels, prior defaults, and posterior outputs; later sections outline evaluation expectations and practical inference workflows needed before publication-ready empirical claims can be made.
 
 \subsection*{High-level diagram}
 
@@ -132,9 +132,9 @@ For irregular intervals, stochastic state increments are scaled by $\sqrt{\Delta
   \item Interval-indexed transition events $(D_{k,i},G_{k,i},O_{k,i},s_{k,i},R_{k,i},C_{k,i},A^{\mathrm{adj}}_{k,i})$ are defined for $k=2,\dots,K$ only; at $k=1$ only report-indexed states (e.g., $x_{1,i},B_{1,i}$) are defined.
   \item Initial states at the first report ($k=1$):
   \[
-    x_{1,i}=x^{\mathrm{init}}_i,\qquad B_{1,i}=B^{\mathrm{init}}_i,\qquad x^{\mathrm{init}}_i\ge 0,\ B^{\mathrm{init}}_i\ge 0.
+    x_{1,i}=x^{\mathrm{init}}_i,\qquad B_{1,i}=B^{\mathrm{init}}_i=0,\qquad x^{\mathrm{init}}_i\ge 0.
   \]
-  A practical default when pre-$t_1$ order history is unavailable is $B^{\mathrm{init}}_i=0$.
+  This is an enforced model assumption: SENA does not represent latent pre-$t_1$ outstanding orders, and receipts are generated only from order batches placed in transition intervals $u=2,\dots,K$.
   Treat $x^{\mathrm{init}}_i$ as latent with a data-independent prior
   \[
     x^{\mathrm{init}}_i\sim \text{Normal}^+(m^{x0}_i,(s^{x0}_i)^2),\qquad m^{x0}_i\ge 0,\ s^{x0}_i>0.
@@ -210,6 +210,7 @@ Report-indexed states use $k=1,\dots,K$; transition-event quantities use $k=2,\d
   \item $G_{k,i},O_{k,i},s_{k,i},R_{k,i}$: placement event, placed quantity, placement timestamp, and received quantity (defined on transition intervals $k=2,\dots,K$)
   \item $m^L_{k,i}, v^L_{k,i}$: latent lead-time mean (days) and latent lead-time variance state (days$^2$)
   \item Order-policy states: dynamic baseline/slope coefficients $\alpha_{k,i}, \beta_{k,i}$ and static sensitivities $\gamma_i, \xi_i$
+  \item Order-size parameters: target inventory position $T^{\mathrm{ord}}_i$ and log-size coefficients $\alpha^{O}_i, \beta^{O}_i$
   \item $\text{age}_{k,i}$: time-since-last-order state (days) used in the placement policy
 \end{enumerate}
 
@@ -226,7 +227,7 @@ Report-indexed states use $k=1,\dots,K$; transition-event quantities use $k=2,\d
     \item $p^{\mathrm{ret}}_{k,i}$: price for retail SKU $i$ during interval $k$
     \item $\tilde m^L_{k,i}$: user-provided typical lead time (days) for SKU $i$ near interval $k$ (noisy and possibly delayed)
     \item $[\tilde L^{\mathrm{lo}}_{k,i},\tilde L^{\mathrm{hi}}_{k,i}]$: user-provided plausible lead-time range (days)
-    \item $\tilde c^L_{k,i}\in\{1,\dots,C\}$ (optional): user-selected variability class derived from the range (e.g., very stable, moderate, volatile)
+    \item $\tilde c^L_{k,i}\in\{1,\dots,C\}$ (optional): user-selected relative-variability class derived from the range (e.g., very stable, moderate, volatile)
   \end{enumerate}
 
   \item Ranked lists per interval $k$ (no quantities):
@@ -257,8 +258,7 @@ Report-indexed states use $k=1,\dots,K$; transition-event quantities use $k=2,\d
 
 \section{Inventory dynamics}
 
-For each SKU $i$, with initial states $(x_{1,i},B_{1,i})$ and transitions over $k=2,\dots,K$:
-For all recursions in this section, $k=2,\dots,K$ unless otherwise stated.
+For each SKU $i$, with initial states $(x_{1,i},B_{1,i})$ and enforced zero initial pipeline $B_{1,i}=0$, the transition recursions below apply for $k=2,\dots,K$ unless otherwise stated.
 \begin{enumerate}
   \item Let $D_{k,i}\ge 0$ denote latent (unconstrained) demand/usage in the interval.
   \item Let $G_{k,i}\in\{0,1\}$ denote whether an order is placed, with placed quantity $O_{k,i}\ge0$ and placement timestamp $s_{k,i}\in[t_{k-1},t_k]$.
@@ -422,6 +422,17 @@ Define the age state (in days) at report time $t_k$ as elapsed time since the mo
 Thus the placement policy for interval $k$ uses $\text{age}_{k-1,i}$, the start-of-interval age.
 Default initialization uses $a^{\text{init}}_i=0$ when no historical placement timestamp is available; otherwise set $a^{\text{init}}_i$ to time since the last known order at $t_1$.
 
+To make order size reproducible, define the start-of-interval inventory-position gap
+\[
+  g^{O}_{k,i}=\bigl(T^{\mathrm{ord}}_i-x_{k-1,i}-B_{k-1,i}\bigr)_+,\qquad T^{\mathrm{ord}}_i>0,\qquad k=2,\dots,K,
+\]
+where $T^{\mathrm{ord}}_i$ is a SKU-specific target inventory position.
+Then define the LogNormal location parameter by
+\[
+  \mu^{O}_{k,i}=\alpha^{O}_i+\beta^{O}_i\,g^{O}_{k,i},\qquad \beta^{O}_i\ge 0,\qquad k=2,\dots,K.
+\]
+Thus, conditional on placing an order, larger shortfalls between the target inventory position and the current inventory position $x_{k-1,i}+B_{k-1,i}$ imply larger expected order sizes on the log scale.
+
 Placed quantity is
 \[
   O_{k,i} \sim
@@ -471,6 +482,7 @@ Define arrival time
 \[
   a_{u,i}=s_{u,i}+L^{\mathrm{ord}}_{u,i},\qquad u=2,\dots,K.
 \]
+Under this baseline specification, only post-$t_1$ order batches can generate receipts, so the initial in-transit pipeline is fixed at $B_{1,i}=0$ rather than modeled through latent pre-$t_1$ pseudo-orders.
 Received quantity in interval $k$ is then assigned by Eq.~\eqref{eq:receipt-assignment}:
 \begin{equation}\label{eq:receipt-assignment}
   R_{k,i}=\sum_{u=2}^{k} O_{u,i}\,\mathbf{1}\{t_{k-1}<a_{u,i}\le t_k\},\qquad k=2,\dots,K.
@@ -531,7 +543,8 @@ Each bundle $b$ is treated as a service with its own latent count $S_{k,b}$, pri
   \item \textbf{Interpretability:} the inferred $S_{k,b}$ provides a direct estimate of promo uptake (with uncertainty), which is often more actionable than changes in individual $\lambda_{k,j}$ alone.
 \end{enumerate}
 
-In this formulation, explicit bundles are expected to improve identifiability and interpretability; Section~\ref{sec:eval-protocol} specifies ablations to test this claim.
+In this formulation, explicit bundles are expected to improve identifiability and interpretability.
+Section~\ref{sec:eval-protocol} specifies ablations to test this claim.
 
 \section{Drift handling: gradual, seasonal, abrupt}\label{sec:drift-handling}
 
@@ -632,14 +645,56 @@ If the data repeatedly show higher inferred demand on (say) weekends for service
 \subsection{Abrupt drift via occasional change points}
 
 Abrupt drift handles rare structural breaks (new menu, staff changes, supplier changes).
-We introduce a change-point indicator:
+We introduce a shared transition-interval change-point indicator:
 \[
-  c_k \sim \text{Bernoulli}(p_c),
+  c_k \sim \text{Bernoulli}(p_c),\qquad k=2,\dots,K,
 \]
 
 where $p_c\in(0,1)$ is the per-interval change-point probability.
-If $c_k = 1$, the model allows a partial reset or jump in intensities and/or recipe parameters toward their priors (or toward a new regime-specific baseline).
-If $c_k = 0$, parameters continue under the gradual drift/seasonal dynamics.
+The same $c_k$ is shared across services and SKUs in interval $k$, while component-specific reset weights determine which latent states actually jump.
+
+For service intensities, replace the gradual-drift update with the mixture transition
+\begin{equation}\label{eq:cp-service}
+  \log \lambda_{k,j}=
+  \begin{cases}
+    \log \lambda_{k-1,j} + \sqrt{\Delta t_k}\,\epsilon_{k,j} + \beta^{\mathrm{svc}}_j\,\tilde p^{\mathrm{svc}}_{k,j}, & c_k=0,\\
+    (1-\omega^{\mathrm{cp}}_{\lambda,j})\bigl(\log \lambda_{k-1,j} + \beta^{\mathrm{svc}}_j\,\tilde p^{\mathrm{svc}}_{k,j}\bigr) + \omega^{\mathrm{cp}}_{\lambda,j} b^{\lambda}_j + \zeta^{\lambda}_{k,j}, & c_k=1,
+  \end{cases}
+\end{equation}
+with
+\[
+  \zeta^{\lambda}_{k,j}\sim\text{Normal}(0,(\sigma^{\mathrm{cp}}_{\lambda,j})^2),\qquad \omega^{\mathrm{cp}}_{\lambda,j}\in[0,1].
+\]
+Here $b^{\lambda}_j$ is a component-specific post-change baseline, $\omega^{\mathrm{cp}}_{\lambda,j}=0$ disables jumps for service $j$, and $\omega^{\mathrm{cp}}_{\lambda,j}=1$ gives a full reset to the new baseline up to change-point noise.
+
+If retail intensity drift is enabled, use the analogous change-point transition
+\begin{equation}\label{eq:cp-retail}
+  \log \mu_{k,i}=
+  \begin{cases}
+    \log \mu_{k-1,i} + \sqrt{\Delta t_k}\,\epsilon^{\mathrm{ret}}_{k,i} + \beta^{\mathrm{ret}}_i\,\tilde p^{\mathrm{ret}}_{k,i}, & c_k=0,\\
+    (1-\omega^{\mathrm{cp}}_{\mu,i})\bigl(\log \mu_{k-1,i} + \beta^{\mathrm{ret}}_i\,\tilde p^{\mathrm{ret}}_{k,i}\bigr) + \omega^{\mathrm{cp}}_{\mu,i} b^{\mu}_i + \zeta^{\mu}_{k,i}, & c_k=1,
+  \end{cases}
+\end{equation}
+with
+\[
+  \zeta^{\mu}_{k,i}\sim\text{Normal}(0,(\sigma^{\mathrm{cp}}_{\mu,i})^2),\qquad \omega^{\mathrm{cp}}_{\mu,i}\in[0,1].
+\]
+
+If recipe-mean drift is enabled, use
+\begin{equation}\label{eq:cp-recipe}
+  \mu^{\mathrm{use}}_{k,j,i}=
+  \begin{cases}
+    \mu^{\mathrm{use}}_{k-1,j,i}+\sqrt{\Delta t_k}\,\eta_{k,j,i}, & c_k=0,\\
+    (1-\omega^{\mathrm{cp}}_{\mathrm{use},j,i})\mu^{\mathrm{use}}_{k-1,j,i} + \omega^{\mathrm{cp}}_{\mathrm{use},j,i} b^{\mathrm{use}}_{j,i} + \zeta^{\mathrm{use}}_{k,j,i}, & c_k=1,
+  \end{cases}
+\end{equation}
+with
+\[
+  \zeta^{\mathrm{use}}_{k,j,i}\sim\text{Normal}(0,(\sigma^{\mathrm{cp}}_{\mathrm{use},j,i})^2),\qquad \omega^{\mathrm{cp}}_{\mathrm{use},j,i}\in[0,1].
+\]
+
+Seasonal covariates continue to enter through the same additive terms after these state updates, so change points capture structural level shifts rather than recurring calendar effects.
+If a block should not jump, fix its corresponding reset weights $\omega^{\mathrm{cp}}$ to $0$.
 
 \section{Observation model for sparse stock reports}
 
@@ -747,6 +802,18 @@ Stockout flags help the model distinguish these cases.
   \item If $o^{\mathrm{ret}}_{k,i}=0$, downweight trajectories that would require SKU $i$ to be at (or near) zero for extended periods.
 \end{enumerate}
 
+\textbf{Default within-interval approximation.}
+For stockout flags and stockout-risk summaries only, let $x_i(t)$ denote the auxiliary within-interval inventory path on $t\in[t_{k-1},t_k]$, defined by
+\begin{equation}\label{eq:stockout-path}
+  x_i(t)=
+  \begin{cases}
+    \max\!\left\{0,\ x_{k-1,i}+\sum_{u=2}^{k} O_{u,i}\,\mathbf{1}\{t_{k-1}<a_{u,i}\le t\}-\dfrac{t-t_{k-1}}{\Delta t_k}D_{k,i}\right\}, & t\in[t_{k-1},t_k),\\
+    \max\!\left\{0,\ x_i(t_k^-)+A^{\mathrm{adj}}_{k,i}\right\}, & t=t_k.
+  \end{cases}
+\end{equation}
+Thus latent demand is spread uniformly through the interval at rate $D_{k,i}/\Delta t_k$, receipts arrive as upward jumps at their explicit timestamps $a_{u,i}$, and the signed correction $A^{\mathrm{adj}}_{k,i}$ is applied as a single bookkeeping jump at report time $t_k$.
+All statements in the bullets above about a SKU ``hitting zero during $\Delta t_k$'' are evaluated using Eq.~\eqref{eq:stockout-path}; the report-indexed transition recursion in Eqs.~\eqref{eq:inv-pipeline}--\eqref{eq:inv-clamp-update} remains unchanged.
+
 In effect, the flags provide a qualitative observation about within-interval availability that is otherwise unidentifiable from sparse snapshot data.
 
 \textbf{(v) Price and lead-time observations (noisy and delayed)}
@@ -766,12 +833,17 @@ Define a relative range width
 \[
   w_{k,i}=\frac{\tilde L^{\mathrm{hi}}_{k,i}-\tilde L^{\mathrm{lo}}_{k,i}}{\max\!\left\{\frac{\tilde L^{\mathrm{hi}}_{k,i}+\tilde L^{\mathrm{lo}}_{k,i}}{2},\ \epsilon_L\right\}}.
 \]
-where $\epsilon_L>0$ is a fixed lead-time floor in day units (default $\epsilon_L=0.5$ day).
+Here, $\epsilon_L>0$ denotes a fixed lead-time floor in day units, with default value $\epsilon_L=0.5$ day.
 Map $w_{k,i}$ to an ordinal class $\tilde c^L_{k,i}\in\{1,\dots,C\}$ using thresholds $\rho_1<\dots<\rho_{C-1}$.
 
 \textbf{Observation model for latent lead-time states.}
 
 Let latent states be $\ell_{k,i}=\log m^L_{k,i}$ and $\psi_{k,i}=\log v^L_{k,i}$, where $v^L_{k,i}$ is lead-time variance (days$^2$).
+Define the induced scale-free LogNormal shape parameter
+\[
+  \sigma_{L,k,i}=\sqrt{\log\!\left(1+\frac{v^L_{k,i}}{(m^L_{k,i})^2}\right)}.
+\]
+This quantity depends on relative rather than absolute lead-time spread, so it matches the scale-free range summary $w_{k,i}$.
 Allow delayed updates via lag variables $\delta^{m}_{k,i},\delta^{c}_{k,i}\in\{0,1,\dots,D\}$.
 Use clamped lag indices to avoid out-of-range references in early intervals:
 \[
@@ -785,10 +857,15 @@ Typical lead-time entry:
 \]
 Ordinal uncertainty entry:
 \[
-  \tilde c^L_{k,i}\sim\text{OrderedLogit}\!\bigl(a_{0,i}+a_{1,i}\psi_{k^{c,\star}_{k,i},i},\ \kappa_{1:C-1}\bigr),\quad a_{1,i}>0.
+  \tilde c^L_{k,i}\sim\text{OrderedLogit}\!\bigl(a_{0,i}+a_{1,i}\sigma_{L,k^{c,\star}_{k,i},i},\ \kappa_{1:C-1}\bigr),\quad a_{1,i}>0.
 \]
+Equivalently, one could use the exact LogNormal-compatible predictor
+\[
+  \log\!\left(1+\frac{v^L_{k^{c,\star}_{k,i},i}}{(m^L_{k^{c,\star}_{k,i},i})^2}\right)=\sigma^2_{L,k^{c,\star}_{k,i},i},
+\]
+which is a monotone reparameterization of the same scale-free latent variability.
 
-Thus, users do not need to provide variance directly; range entries become an interpretable ordinal signal for latent lead-time variance.
+Thus, users do not need to provide variance directly; range entries become an interpretable ordinal signal for latent relative lead-time variability rather than raw lead-time variance.
 
 \subsubsection*{Hyperparameters and default priors}\label{sec:hyperparams}
 
@@ -874,7 +951,7 @@ Default: set $s_{\text{obs}}=5$ in raw ``units'' (or $s_{\text{obs}}=1$ after sc
 
 Recall the signed inventory-correction component
 $A^{\mathrm{adj}}_{k,i} \sim \text{Normal}\bigl(m^{\mathrm{adj}}_{r,i}\,\Delta t_k,(s^{\mathrm{adj}}_{r,i})^2\,\Delta t_k\bigr)$ with $r=z_k$.
-Here $s^{\mathrm{adj}}_{r,i}>0$ is the unit-time correction noise scale (in SKU units) for SKU $i$ in regime $r$.
+Here $s^{\mathrm{adj}}_{r,i}>0$ is the unit-time diffusion scale for corrections; over interval $\Delta t_k$, the correction standard deviation is $s^{\mathrm{adj}}_{r,i}\sqrt{\Delta t_k}$.
 
 Default: initialize $s^{\mathrm{adj}}_{r,i}=1$ after scaling (or to a small number of physical units if unscaled).
 Prior: $s^{\mathrm{adj}}_{r,i} \sim \text{Half-}t_{4}(0,\ s_{\text{adj}})$.
@@ -898,21 +975,54 @@ Interpretation: $\alpha_{k,i}$ is a time-varying baseline log-odds; $\beta_{k,i}
 
 \textbf{Order size model}
 
+The LogNormal location is defined through a pipeline-aware inventory-position gap:
+\[
+  g^{O}_{k,i}=\bigl(T^{\mathrm{ord}}_i-x_{k-1,i}-B_{k-1,i}\bigr)_+,
+  \qquad
+  \mu^{O}_{k,i}=\alpha^{O}_i+\beta^{O}_i\,g^{O}_{k,i},
+\]
+with $T^{\mathrm{ord}}_i>0$ and $\beta^{O}_i\ge 0$.
+Here $T^{\mathrm{ord}}_i$ is a SKU-specific target inventory position, $\alpha^{O}_i$ is a baseline log-order-size intercept, and $\beta^{O}_i$ controls how strongly order size increases when inventory position falls below target.
+For scaled inventory-position inputs, use weakly informative priors
+\[
+  \alpha^{O}_i \sim \text{Student-}t_3(0,2.5),\qquad
+  \beta^{O}_i \sim \text{Half-}t_4(0,\ s_{\beta O}),\qquad
+  \log T^{\mathrm{ord}}_i \sim \text{Normal}(0,\ s_T^2).
+\]
+Defaults after scaling: initialize $\alpha^{O}_i=0$, $\beta^{O}_i=1$, and $T^{\mathrm{ord}}_i=1$, with $s_{\beta O}=1$ and $s_T=1$.
+
 Order size noise: $\sigma^{O}_i > 0$.
 This parameter appears in the LogNormal order-size model
-$O_{k,i}\mid(G_{k,i}=1)\sim\text{LogNormal}(\mu^O_{k,i},\sigma^O_i)$ and controls multiplicative variability in placed order sizes.
+$O_{k,i}\mid(G_{k,i}=1)\sim\text{LogNormal}(\mu^{O}_{k,i},\sigma^{O}_i)$ and controls multiplicative variability around the gap-based mean order size.
 
-Default: initialize $\sigma^{O}_i=0.3$ (on the log scale) after scaling; smaller values imply more consistent order sizes.
+Default: initialize $\sigma^{O}_i=0.3$ (on the log scale) after scaling; smaller values imply more consistent order sizes for a given inventory-position gap.
 Prior: $\sigma^{O}_i \sim \text{Half-}t_{4}(0,\ s_O)$.
 Default: set $s_O=1$ after scaling.
 
 \textbf{Change-point probability}
 
 $p_c \in (0,1)$ is the per-interval change-point probability in
-$c_k\sim\text{Bernoulli}(p_c)$.
+$c_k\sim\text{Bernoulli}(p_c)$ for transition intervals $k=2,\dots,K$.
 
 Default: small (e.g. $0.01$ per interval), corresponding to an expected change-point spacing of about $1/p_c=100$ intervals.
 Prior: $p_c \sim \text{Beta}(1,1)$.
+
+\textbf{Change-point reset parameters}
+
+When abrupt drift is enabled, each potentially jumping block has a reset weight $\omega^{\mathrm{cp}}\in[0,1]$, a post-change baseline $b$, and a change-point noise scale $\sigma^{\mathrm{cp}}>0$.
+For the enabled blocks, a practical default is
+\[
+  \omega^{\mathrm{cp}}_{\lambda,j},\ \omega^{\mathrm{cp}}_{\mu,i},\ \omega^{\mathrm{cp}}_{\mathrm{use},j,i} \sim \text{Beta}(2,2),
+\]
+\[
+  b^{\lambda}_j\sim\text{Normal}(m_{\lambda,j},s_{\lambda,j}^2),\qquad
+  b^{\mu}_i\sim\text{Normal}(m_{\mu,i},s_{\mu,i}^2),\qquad
+  b^{\mathrm{use}}_{j,i}\sim\text{Normal}(m_{\mathrm{use},j,i},s_{\mathrm{use},j,i}^2),
+\]
+\[
+  \sigma^{\mathrm{cp}}_{\lambda,j},\ \sigma^{\mathrm{cp}}_{\mu,i},\ \sigma^{\mathrm{cp}}_{\mathrm{use},j,i} \sim \text{Half-}t_{4}(0,1).
+\]
+These defaults favor partial rather than deterministic full resets while keeping post-change baselines anchored to the same weakly informative centers used at $k=1$.
 
 \textbf{Price elasticity hyperparameters}
 
@@ -952,7 +1062,7 @@ For noisy user observations, use:
   $k^{m,\star}_{k,i}=\max\{1,k-\delta^m_{k,i}\}$,
   with prior $\tau_m\sim\text{HalfNormal}(0,1)$.
   \item Ordered-logit cutpoints $\kappa_{1:C-1}$ and slope $a_{1,i}>0$ for ordinal range class observations,
-  using $k^{c,\star}_{k,i}=\max\{1,k-\delta^c_{k,i}\}$ in the lagged state index.
+  using $k^{c,\star}_{k,i}=\max\{1,k-\delta^c_{k,i}\}$ in the lagged state index and the scale-free predictor $\sigma_{L,k^{c,\star}_{k,i},i}$ (equivalently $\log(1+v^L/(m^L)^2)$).
   \item Lag distributions for delayed updates, e.g. $\delta^m_{k,i},\delta^c_{k,i}\sim\text{Categorical}(\omega_i)$.
 \end{enumerate}
 
@@ -1048,10 +1158,11 @@ and model parameters.
 
   \item \textbf{Stockout risk and days-of-cover}
   \begin{enumerate}
-    \item Interval stockout probability (approximated via simulated within-interval trajectories):
+    \item Interval stockout probability under the within-interval approximation in Eq.~\eqref{eq:stockout-path}:
     \[
       \text{SOR}_{k,i} \equiv P\Bigl(\min_{t\in[t_{k-1},t_k]} x_i(t)=0\ \Big|\ \text{data}\Bigr).
     \]
+    This is the same auxiliary path used to interpret stockout flags, so stockout-risk outputs and stockout-flag likelihoods share one explicit timing convention.
     \item Days of cover at report $k$:
     \[
       \text{DoC}_{k,i} \equiv \frac{x_{k,i}}{\hat d_{k,i}},
@@ -1065,7 +1176,7 @@ and model parameters.
   \[
     m^L_{k,i}=\exp(\ell_{k,i}),\qquad v^L_{k,i}=\exp(\psi_{k,i}).
   \]
-  SENA outputs posterior summaries for $m^L_{k,i}$ (mean, days) and $v^L_{k,i}$ (variance, days$^2$), and for induced lead-time draws under the same LogNormal default (using Eqs.~\eqref{eq:leadtime-map} and~\eqref{eq:leadtime-draw}):
+  SENA outputs posterior summaries for $m^L_{k,i}$ (mean, days), $v^L_{k,i}$ (variance, days$^2$), and the induced scale-free shape summary $\sigma_{L,k,i}$, and for induced lead-time draws under the same LogNormal default (using Eqs.~\eqref{eq:leadtime-map} and~\eqref{eq:leadtime-draw}):
   \[
     \sigma_{L,k,i}=\sqrt{\log\!\left(1+\frac{v^L_{k,i}}{(m^L_{k,i})^2}\right)},\qquad
     \mu_{L,k,i}=\log m^L_{k,i}-\tfrac{1}{2}\sigma^2_{L,k,i},
@@ -1077,7 +1188,7 @@ and model parameters.
 
   \item \textbf{Time-varying safety stock, reorder point, and reorder triggers}
 
-  Fix a target cycle service level $\beta$ (e.g., $0.95$) and let $z_{\beta}$ be the corresponding Normal quantile.
+  Fix a target cycle service level $p_{\mathrm{SL}}$ (e.g., $0.95$) and let $z_{p_{\mathrm{SL}}}$ be the corresponding Normal quantile.
 
   Using posterior draws of demand rate and latent lead time, approximate demand during lead time at report $k$ as
   \begin{equation}\label{eq:lt-demand-approx}
@@ -1114,11 +1225,109 @@ and model parameters.
   \end{equation}
   where $Q_{\beta}$ is the posterior quantile computed directly from draws of $d_{k,i}$ and $L_{k,i}$.
 
+  Define the inventory position at report $k$ for SKU $i$ as
+  \begin{equation}\label{eq:ip-def}
+    IP_{k,i} \equiv x_{k,i} + B_{k,i},
+  \end{equation}
+  where $x_{k,i}$ is on-hand inventory and $B_{k,i}$ is in-transit pipeline inventory.
+
   Reorder trigger probability at report $k$:
   \begin{equation}\label{eq:rop-trigger}
-    P\bigl(x_{k,i} \le \text{ROP}_{k,i}\mid\text{data}\bigr).
+    P\bigl(IP_{k,i} \le \text{ROP}_{k,i}\mid\text{data}\bigr).
   \end{equation}
-  Equations~\eqref{eq:lt-demand-approx}--\eqref{eq:rop-trigger} summarize the default planning definitions used for safety stock and reorder decisions.
+  This default trigger is therefore pipeline-aware: an SKU is flagged for replenishment only when on-hand plus already-ordered stock is insufficient relative to the reorder point.
+  Equations~\eqref{eq:lt-demand-approx}--\eqref{eq:rop-trigger} summarize the default planning definitions used for safety-stock buffers and reorder-timing decisions.
+
+  \item \textbf{Bayesian reorder quantity from posterior inventory position}
+
+  Equation~\eqref{eq:rop-quantile} answers \emph{when} replenishment risk becomes material.
+  To recommend \emph{how much} to order, use the same inventory position $IP_{k,i}$ from Eq.~\eqref{eq:ip-def}.
+
+  Let $\Delta^{\mathrm{rev}}_{k,i}\ge 0$ denote the time until the next realistic reorder opportunity.
+  Under continuous review, take $\Delta^{\mathrm{rev}}_{k,i}=0$.
+  For posterior draw $s$, define the protection horizon
+  \begin{equation}\label{eq:protection-horizon}
+    H^{(s)}_{k,i} \equiv L^{(s)}_{k,i} + \Delta^{\mathrm{rev}}_{k,i},
+  \end{equation}
+  where $L^{(s)}_{k,i}$ is a draw from the posterior lead-time distribution.
+
+  Define posterior-predictive demand over the protection horizon by
+  \begin{equation}\label{eq:protection-demand}
+    D^{H,(s)}_{k,i}
+    \equiv
+    \int_{0}^{H^{(s)}_{k,i}} d^{(s)}_{i}(t_k+u)\,du,
+  \end{equation}
+  where $d^{(s)}_{i}(t_k+u)$ is the draw-specific future latent demand-rate path.
+  A local approximation is
+  \begin{equation}\label{eq:protection-demand-approx}
+    D^{H,(s)}_{k,i} \approx d^{(s)}_{k,i}\,H^{(s)}_{k,i}.
+  \end{equation}
+
+  For each posterior draw, define the order-gap random variable
+  \begin{equation}\label{eq:order-gap-draw}
+    g^{(s)}_{k,i}
+    \equiv
+    \bigl(D^{H,(s)}_{k,i} - IP^{(s)}_{k,i}\bigr)_+,
+    \qquad
+    IP^{(s)}_{k,i}=x^{(s)}_{k,i}+B^{(s)}_{k,i},
+  \end{equation}
+  where $(a)_+ \equiv \max\{a,0\}$.
+  Equation~\eqref{eq:order-gap-draw} is the fully Bayesian reorder-quantity object: in each posterior draw, it computes how much additional stock is required to cover protection-horizon demand after accounting for both on-hand and already-ordered inventory.
+
+  The posterior probability that a positive order is needed is
+  \begin{equation}\label{eq:order-need-prob}
+    p^{\mathrm{need}}_{k,i}
+    \equiv
+    P\!\left(g_{k,i}>0 \mid \text{data}\right)
+    =
+    P\!\left(D^H_{k,i} > IP_{k,i} \mid \text{data}\right).
+  \end{equation}
+
+  A point recommendation for reorder quantity is then defined as a posterior summary of $g_{k,i}$:
+  \begin{equation}\label{eq:reorder-quantity-rec}
+    q^{\mathrm{rec}}_{k,i}(\eta)
+    \equiv
+    Q_{\eta}\!\left(g_{k,i}\mid\text{data}\right),
+  \end{equation}
+  where $Q_{\eta}$ denotes the posterior $\eta$-quantile.
+  Practical defaults include the posterior median ($\eta=0.5$) and more conservative service-level-oriented choices with $\eta\in[0.7,0.9]$.
+
+  For a chosen tail level $\alpha\in(0,1)$, an uncertainty interval for the recommended reorder quantity may be reported as
+  \begin{equation}\label{eq:reorder-quantity-ci}
+    \bigl[q^{\mathrm{lo}}_{k,i},\,q^{\mathrm{hi}}_{k,i}\bigr]
+    \equiv
+    \left[
+      Q_{\alpha/2}\!\left(g_{k,i}\mid\text{data}\right),\,
+      Q_{1-\alpha/2}\!\left(g_{k,i}\mid\text{data}\right)
+    \right].
+  \end{equation}
+
+  If a probability gate is desired before issuing an order recommendation, define
+  \begin{equation}\label{eq:reorder-gate}
+    \chi^{\mathrm{rec}}_{k,i}
+    \equiv
+    \mathbf{1}\!\left\{
+      p^{\mathrm{need}}_{k,i} > \tau
+    \right\},
+  \end{equation}
+  for a chosen threshold $\tau\in(0,1)$, and set the final recommendation to
+  \begin{equation}\label{eq:reorder-quantity-final}
+    \hat q^{\mathrm{rec}}_{k,i}
+    \equiv
+    \chi^{\mathrm{rec}}_{k,i}\,
+    q^{\mathrm{rec}}_{k,i}(\eta).
+  \end{equation}
+
+  Equivalently, one may define a draw-specific target stock level
+  \[
+    T^{(s)}_{k,i}\equiv D^{H,(s)}_{k,i},
+  \]
+  so that Eq.~\eqref{eq:order-gap-draw} becomes
+  \[
+    g^{(s)}_{k,i} = \bigl(T^{(s)}_{k,i} - IP^{(s)}_{k,i}\bigr)_+.
+  \]
+  This makes explicit that the Bayesian reorder quantity is a posterior top-up gap, not a fixed batch size.
+  A practical default is to display $q^{\mathrm{rec}}_{k,i}(0.5)$, report $[q^{\mathrm{lo}}_{k,i},q^{\mathrm{hi}}_{k,i}]$ as a credible range, and optionally require $p^{\mathrm{need}}_{k,i}>\tau$ before issuing a nonzero recommendation.
 
   \item \textbf{Promo/regime diagnostics and drift alerts}
   \begin{enumerate}
@@ -1156,7 +1365,7 @@ This evaluation plan is intentionally aligned with deployment goals: uncertainty
 \begin{enumerate}
   \item \textbf{Discrete units / pack sizes.} The default recipe layer models per-instance usage as positive real-valued and heavy-tailed (e.g., log-Student-$t$). For SKUs that are inherently discrete (bottles, packets) or sold in fixed pack sizes, a quantized/rounded usage model may be more appropriate.
 
-  \item \textbf{Within-interval timing is collapsed.} SENA models net effects over each reporting interval $\Delta t_k$. If placements, receipts, and consumption interleave within an interval, exact stockout timing and lost-sales duration can be weakly identified without finer-grained event data.
+  \item \textbf{Within-interval timing is collapsed.} SENA models net effects over each reporting interval $\Delta t_k$. Stockout-related quantities use the auxiliary path in Eq.~\eqref{eq:stockout-path}, but exact stockout timing and lost-sales duration can still be weakly identified without finer-grained event data.
 
   \item \textbf{Censoring is stylized.} The cap $C_{k,i}=\min\{D_{k,i},x_{k-1,i}+R_{k,i}\}$ enforces feasibility at the interval level, but it is still an approximation to true censoring/lost-sales processes that depend on the path $x_i(t)$ inside $\Delta t_k$.
 

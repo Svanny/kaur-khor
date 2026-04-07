@@ -17,7 +17,7 @@ vi.mock('../state/preferences', () => ({
     currency: 'USD',
     language: 'en',
     showExplanatoryTooltips: true,
-    showFloatingTitleActions: true,
+    showFloatingTitleActions: false,
     showRightRailCards: true,
     t: (key: string) => getTranslation('en', key as never),
   }),
@@ -69,6 +69,8 @@ describe('SkuFormRoute', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Edit SKU' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Core details' })).toBeInTheDocument();
+    expect(screen.getByText('Name the SKU the way staff will search for it.')).toBeInTheDocument();
+    expect(screen.getByText('Enter the current landed cost per unit.')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /sell as product/i })).toBeChecked();
     expect(screen.getByDisplayValue('sku-1')).toBeDisabled();
     expect(screen.getByDisplayValue('5')).toHaveValue(5);
@@ -86,10 +88,10 @@ describe('SkuFormRoute', () => {
 
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
     fireEvent.change(screen.getByDisplayValue('5'), { target: { value: '7' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Lead time variability' }), { target: { value: 'wide' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save changes' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => {
       expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);

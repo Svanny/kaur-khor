@@ -21,7 +21,7 @@ export function ServiceEvidenceTimeline({
     <PagedEvidenceTimelinePanel
       items={evidence}
       title="Evidence timeline"
-      tooltip="Stock reports, receipts, blocker shifts, and price changes that made the service sellability story true."
+      tooltip="Saved events that explain why this service is currently sellable or blocked."
       emptyState={
         <div className="py-4 text-sm leading-6 text-muted-foreground">
           Evidence chips will appear after stock reports, receipts, or price changes are recorded for this service and its linked SKUs.

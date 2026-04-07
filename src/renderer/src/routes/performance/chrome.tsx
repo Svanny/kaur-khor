@@ -10,6 +10,7 @@ export const PERFORMANCE_RAIL_BLOCK_CLASS_NAME = `${cardFrameClassName} ${cardSu
 export function PerformanceSectionShell({
   title,
   tooltip,
+  descriptor,
   description,
   headerActions,
   children,
@@ -18,6 +19,7 @@ export function PerformanceSectionShell({
 }: {
   title: string;
   tooltip: string;
+  descriptor?: string;
   description?: string;
   headerActions?: ReactNode;
   children: ReactNode;
@@ -25,7 +27,8 @@ export function PerformanceSectionShell({
   contentClassName?: string;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
-  const showDescription = hasDescriptionText(description, descriptionVisible);
+  const resolvedDescriptor = descriptor ?? description;
+  const showDescription = hasDescriptionText(resolvedDescriptor, descriptionVisible);
 
   return (
     <section className={cn(PERFORMANCE_HEADER_SURFACE_CLASS_NAME, 'flex h-full flex-col', className)}>
@@ -35,7 +38,7 @@ export function PerformanceSectionShell({
             <SectionTitle title={title} tooltip={tooltip} />
             {showDescription ? (
               <DescriptionText className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                {description}
+                {resolvedDescriptor}
               </DescriptionText>
             ) : null}
           </div>

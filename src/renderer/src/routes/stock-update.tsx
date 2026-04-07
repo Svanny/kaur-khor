@@ -538,7 +538,7 @@ export function StockUpdateRoute() {
       <WorkspaceTitleCard
         eyebrow="Logs"
         title="Internal Evidence"
-        description="Logs now record SENA observation packages instead of stock snapshot mutations."
+        descriptor="Search saved observations, see when activity happened, and open the day you want to inspect."
         actions={
           <WorkspaceActionRow>
             <Button asChild>
@@ -592,7 +592,7 @@ export function StockUpdateRoute() {
             ? 'Loading contributions…'
             : heatmapTitle(visibleHeatmapWindow)
         }
-        description="Review the filtered observation activity footprint across the last 365 days, then pick a day to inspect its saved evidence."
+        descriptor="Review the activity footprint across the last 365 days, then pick a day to inspect."
         action={
           <WorkspaceActionRow className="gap-2">
             <Button
@@ -696,7 +696,7 @@ export function StockUpdateRoute() {
       </WorkspacePanel>
       <WorkspacePanel
         title={selectedDayTitle}
-        description={selectedDayDescription}
+        descriptor={selectedDayDescription}
       >
         {selectedDay ? (
           selectedDayObservations.length > 0 ? (

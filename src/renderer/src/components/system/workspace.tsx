@@ -60,6 +60,7 @@ export function WorkspacePageTitle({
 interface WorkspaceTitleCardProps {
   eyebrow?: string;
   title: ReactNode;
+  descriptor?: string;
   description?: string;
   actions?: ReactNode;
   floatingActions?: ReactNode;
@@ -70,6 +71,7 @@ interface WorkspaceTitleCardProps {
 export function WorkspaceTitleCard({
   eyebrow,
   title,
+  descriptor,
   description,
   actions,
   floatingActions,
@@ -77,7 +79,8 @@ export function WorkspaceTitleCard({
   className,
 }: WorkspaceTitleCardProps) {
   const descriptionVisible = useDescriptionTextVisible();
-  const showDescription = hasDescriptionText(description, descriptionVisible);
+  const resolvedDescriptor = descriptor ?? description;
+  const showDescription = hasDescriptionText(resolvedDescriptor, descriptionVisible);
   const { showFloatingTitleActions } = usePreferences();
   const resolvedFloatingActions = floatingActions ?? actions;
   const { anchorRef, visible } = useFloatingTitleActions(Boolean(resolvedFloatingActions) && showFloatingTitleActions);
@@ -100,7 +103,7 @@ export function WorkspaceTitleCard({
               {showDescription ? (
                 <CardDescription className="min-w-0 max-w-none text-sm leading-6 sm:text-base">
                   <DescriptionText as="div">
-                    {description}
+                    {resolvedDescriptor}
                   </DescriptionText>
                 </CardDescription>
               ) : null}
@@ -228,6 +231,8 @@ export function MetricStripItem({
 
 export function WorkspacePanel({
   title,
+  descriptor,
+  hint,
   description,
   action,
   children,
@@ -237,6 +242,8 @@ export function WorkspacePanel({
   forceDescription = false,
 }: {
   title?: ReactNode;
+  descriptor?: ReactNode;
+  hint?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
   children?: ReactNode;
@@ -246,9 +253,11 @@ export function WorkspacePanel({
   forceDescription?: boolean;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
+  const resolvedDescriptor = descriptor ?? description;
   const showDescription = forceDescription
-    ? description != null && description !== false && (typeof description !== 'string' || description.trim().length > 0)
-    : hasDescriptionText(description, descriptionVisible);
+    ? resolvedDescriptor != null && resolvedDescriptor !== false && (typeof resolvedDescriptor !== 'string' || resolvedDescriptor.trim().length > 0)
+    : hasDescriptionText(resolvedDescriptor, descriptionVisible);
+  const showHint = hasDescriptionText(hint, descriptionVisible);
   const hasHeader = Boolean(title || showDescription || action);
   const hasContent = children != null;
 
@@ -259,7 +268,7 @@ export function WorkspacePanel({
           {title ? <CardTitle>{title}</CardTitle> : null}
           {showDescription ? (
             <CardDescription>
-              {forceDescription ? description : <DescriptionText as="div">{description}</DescriptionText>}
+              {forceDescription ? resolvedDescriptor : <DescriptionText as="div">{resolvedDescriptor}</DescriptionText>}
             </CardDescription>
           ) : null}
           {action ? <CardAction>{action}</CardAction> : null}
@@ -268,6 +277,7 @@ export function WorkspacePanel({
       {hasContent ? (
         <CardContent className={cn('flex flex-col gap-6', !showDescription && hasHeader && 'pt-0', contentClassName)}>
           {children}
+          {showHint ? <DescriptionText as="div" className="-mt-2 text-sm text-muted-foreground">{hint}</DescriptionText> : null}
         </CardContent>
       ) : null}
       {footer ? <CardFooter className="border-t border-border/60">{footer}</CardFooter> : null}
@@ -305,15 +315,18 @@ export function WorkspaceBanner({
 
 export function WorkspaceEmpty({
   title,
+  hint,
   description,
   action,
 }: {
   title: string;
-  description: string;
+  hint?: string;
+  description?: string;
   action?: ReactNode;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
-  const showDescription = hasDescriptionText(description, descriptionVisible);
+  const resolvedHint = hint ?? description;
+  const showDescription = hasDescriptionText(resolvedHint, descriptionVisible);
 
   return (
     <Empty className={cn('border-border/80 bg-card/45', !showDescription && 'gap-3 p-10')}>
@@ -324,7 +337,7 @@ export function WorkspaceEmpty({
         <EmptyTitle>{title}</EmptyTitle>
         {showDescription ? (
           <EmptyDescription>
-            <DescriptionText as="div">{description}</DescriptionText>
+            <DescriptionText as="div">{resolvedHint}</DescriptionText>
           </EmptyDescription>
         ) : null}
       </EmptyHeader>

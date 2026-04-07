@@ -438,6 +438,16 @@ describe('PerformanceRoute', () => {
     );
   }
 
+  function renderAnalysisRouteWithDescriptionVisibility(visible: boolean) {
+    return render(
+      <DescriptionTextVisibilityProvider visible={visible}>
+        <MemoryRouter initialEntries={['/analysis']}>
+          <AnalysisRoute />
+        </MemoryRouter>
+      </DescriptionTextVisibilityProvider>,
+    );
+  }
+
   function renderRouteWithDescriptionVisibility(visible: boolean) {
     return render(
       <DescriptionTextVisibilityProvider visible={visible}>
@@ -452,13 +462,13 @@ describe('PerformanceRoute', () => {
     renderRoute();
 
     expect(screen.getByText('Performance')).toBeInTheDocument();
-    expect(screen.getByText('Demand, capacity, pipeline, and pricing in one business view')).toBeInTheDocument();
+    expect(screen.getByText('Demand, capacity, pipeline, and pricing in one business view.')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Move now' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Demand × capacity board' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Cash and profit efficiency' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Business timeline' })).toBeInTheDocument();
     expect(
-      screen.getByText('A compact temporal read of what has been changing in the business posture.'),
+      screen.getByText('A compact read of what has been changing in the business posture.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Demand momentum')).toBeInTheDocument();
     expect(screen.getByText('Revenue at risk')).toBeInTheDocument();
@@ -707,7 +717,16 @@ describe('PerformanceRoute', () => {
     expect(await screen.findByRole('heading', { name: 'Business timeline' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Business timeline help' })).not.toBeInTheDocument();
     expect(
-      screen.queryByText('A compact temporal read of what has been changing in the business posture.'),
+      screen.queryByText('A compact read of what has been changing in the business posture.'),
+    ).not.toBeInTheDocument();
+  });
+
+  test('hides analysis page descriptors when explanatory text is disabled', async () => {
+    renderAnalysisRouteWithDescriptionVisibility(false);
+
+    expect(await screen.findByText('Analysis')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.'),
     ).not.toBeInTheDocument();
   });
 

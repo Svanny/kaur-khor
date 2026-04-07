@@ -3,7 +3,6 @@ import type { StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass, SenaObservationInput } from '@shared/sena';
 import {
   deriveLeadTimeVariabilityClass,
-  leadTimeVariabilityDescription,
   leadTimeVariabilityLabel,
   leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
@@ -121,10 +120,10 @@ const DRAWER_MODE_OPTIONS: Array<{
   title: string;
   description: string;
 }> = [
-  { value: 'not_ordered', title: 'Not ordered yet', description: 'Keep the task visible' },
-  { value: 'ordered_waiting', title: 'Ordered, waiting', description: 'Log the open order' },
-  { value: 'eta_changed', title: 'ETA changed', description: 'Refresh the arrival window' },
-  { value: 'goods_received', title: 'Goods received', description: 'Confirm the inventory event' },
+  { value: 'not_ordered', title: 'Not ordered yet', description: 'Leave this task open' },
+  { value: 'ordered_waiting', title: 'Ordered, waiting', description: 'Record the open order' },
+  { value: 'eta_changed', title: 'ETA changed', description: 'Update the arrival date' },
+  { value: 'goods_received', title: 'Goods received', description: 'Log the receipt' },
 ];
 
 const DRAWER_MIN_WIDTH = 640;
@@ -159,13 +158,13 @@ function drawerModeLabel(mode: OverviewTaskDrawerMode) {
 function drawerModeSummary(mode: OverviewTaskDrawerMode) {
   switch (mode) {
     case 'goods_received':
-      return '1 inventory event will be logged.';
+      return 'Banji will log the receipt and update stock.';
     case 'ordered_waiting':
-      return '1 open order signal and an updated arrival window will be recorded.';
+      return 'Banji will save the order signal and the current arrival window.';
     case 'eta_changed':
-      return 'The arrival window will be refreshed for this task.';
+      return 'Banji will refresh the arrival window for this task.';
     case 'not_ordered':
-      return 'Banji will keep the task visible until the order state changes.';
+      return 'Banji will keep this task open until the order state changes.';
   }
 }
 
@@ -403,7 +402,7 @@ export function OverviewTaskDrawer({
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v2' });
       onOpenChange(false);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Task update failed.');
+      setError(nextError instanceof Error ? nextError.message : 'Banji could not save this update. Try again.');
     }
   }
 
@@ -575,7 +574,10 @@ export function OverviewTaskDrawer({
 
               <DrawerBand bandId="timing" className="mt-6" title={mode === 'goods_received' ? 'Receipt timing' : 'Timing'}>
                 <div className={cn(mode === 'goods_received' || mode === 'not_ordered' ? 'grid gap-5' : 'grid gap-5 md:grid-cols-2')}>
-                  <ActionSheetField label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}>
+                  <ActionSheetField
+                    description={mode === 'goods_received' ? 'Choose when the receipt was confirmed.' : 'Choose when you confirmed this update.'}
+                    label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}
+                  >
                     <Input
                       aria-label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}
                       className={actionSheetInputClassName}
@@ -587,7 +589,7 @@ export function OverviewTaskDrawer({
                   </ActionSheetField>
 
                   {(mode === 'ordered_waiting' || mode === 'eta_changed') ? (
-                    <ActionSheetField label="Expected arrival date">
+                    <ActionSheetField description="Use the supplier's current best estimate." label="Expected arrival date">
                       <Input
                         aria-label="Expected arrival date"
                         className={actionSheetInputClassName}
@@ -604,7 +606,7 @@ export function OverviewTaskDrawer({
                 <>
                   <DrawerBand bandId="order_shape" title="Order shape">
                     <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)]">
-                      <ActionSheetField label="Ordered quantity">
+                      <ActionSheetField description="Enter the quantity already ordered." label="Ordered quantity">
                         <Input
                           aria-label="Ordered quantity"
                           className={actionSheetInputClassName}
@@ -615,7 +617,7 @@ export function OverviewTaskDrawer({
                           onChange={(event) => setOrderedQuantity(event.target.value)}
                         />
                       </ActionSheetField>
-                      <ActionSheetField label="Uncertainty ± days">
+                      <ActionSheetField description="Add the likely plus/minus range around the arrival date." label="Uncertainty ± days">
                         <Input
                           aria-label="Uncertainty ± days"
                           className={actionSheetInputClassName}
@@ -627,11 +629,7 @@ export function OverviewTaskDrawer({
                         />
                       </ActionSheetField>
                       <ActionSheetField
-                        description={
-                          variabilityClass
-                            ? leadTimeVariabilityDescription(variabilityClass)
-                            : 'Capture whether supplier timing is tight or drifting.'
-                        }
+                        description="Choose how steady or variable supplier timing has been."
                         label="Variability"
                       >
                         <Select
@@ -663,7 +661,7 @@ export function OverviewTaskDrawer({
                         className="mt-0.5"
                         onCheckedChange={(checked) => setUseLeadTimeEstimate(checked === true)}
                       />
-                      <span>Use this to improve lead time estimate.</span>
+                      <span>Use this update to refine future lead-time estimates.</span>
                     </label>
                   </DrawerBand>
                 </>
@@ -673,7 +671,7 @@ export function OverviewTaskDrawer({
                 <>
                   <DrawerBand bandId="receipt_details" title="Receipt details">
                     <div className="grid gap-5 md:grid-cols-2">
-                      <ActionSheetField label="Received quantity">
+                      <ActionSheetField description="Enter the units that actually arrived." label="Received quantity">
                         <Input
                           aria-label="Received quantity"
                           className={actionSheetInputClassName}
@@ -684,7 +682,7 @@ export function OverviewTaskDrawer({
                           onChange={(event) => setReceivedQuantity(event.target.value)}
                         />
                       </ActionSheetField>
-                      <ActionSheetField label="Received cost if changed">
+                      <ActionSheetField description="Only update this if the landed cost changed." label="Received cost if changed">
                         <Input
                           aria-label="Received cost if changed"
                           className={actionSheetInputClassName}
@@ -700,7 +698,7 @@ export function OverviewTaskDrawer({
 
                   <DrawerBand bandId="preview" title="Preview">
                     <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50/85 px-4 py-4 text-sm leading-6 text-emerald-900">
-                      Banji will add +{receiptPreviewQuantity || 0} units and close the open receipt task. Inventory will move to {receiptPreviewNextStock} units.
+                      Banji will add +{receiptPreviewQuantity || 0} units, close this receipt task, and move inventory to {receiptPreviewNextStock} units.
                     </div>
                   </DrawerBand>
                 </>
@@ -708,6 +706,11 @@ export function OverviewTaskDrawer({
 
               <DrawerBand bandId="note" title={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}>
                 <DrawerBandField
+                  description={
+                    mode === 'ordered_waiting' || mode === 'eta_changed'
+                      ? 'Add context only if it changes the supplier follow-up.'
+                      : 'Add context only if someone will need it later.'
+                  }
                   label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}
                   showLabel={false}
                 >

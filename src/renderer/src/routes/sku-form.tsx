@@ -6,7 +6,6 @@ import {
   classifyLeadTimeVariability,
   compatibilityStdDaysForClass,
   impliedLeadTimeRangeFromMeanStd,
-  leadTimeVariabilityDescription,
   leadTimeVariabilityLabel,
   leadTimeVariabilityOptions,
   relativeLeadTimeWidth,
@@ -107,7 +106,7 @@ export function SkuFormRoute() {
         <div className="grid min-w-0 gap-6">
           <WorkspacePanel
             className={editorPanelClassName}
-            description={editing ? t('catalogSkuEditorIdentifierDescription') : t('catalogSkuEditorDescriptionNew')}
+            descriptor={t('catalogSkuEditorDetailsDescriptor')}
             title={
               <SectionTitle
                 title={t('editorDetailsTitle')}
@@ -117,7 +116,7 @@ export function SkuFormRoute() {
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
               <EditorField
-                hint={editing ? t('catalogSkuEditorIdentifierDescription') : undefined}
+                helper={editing ? t('catalogSkuEditorIdentifierDescription') : t('catalogSkuEditorIdentifierHelper')}
                 label={t('fieldId')}
                 tooltip={t('catalogSkuEditorDetailsTooltip')}
               >
@@ -129,7 +128,7 @@ export function SkuFormRoute() {
                   onChange={(event) => setForm((current) => ({ ...current, skuId: event.target.value }))}
                 />
               </EditorField>
-              <EditorField label={t('fieldName')}>
+              <EditorField helper={t('catalogSkuEditorNameHelper')} label={t('fieldName')}>
                 <input
                   className={editorInputClassName}
                   required
@@ -139,7 +138,7 @@ export function SkuFormRoute() {
               </EditorField>
             </div>
 
-            <EditorField label={t('fieldDescription')}>
+            <EditorField helper={t('catalogSkuEditorDescriptionHelper')} label={t('fieldDescription')}>
               <textarea
                 className={editorTextareaClassName}
                 value={form.description}
@@ -150,10 +149,11 @@ export function SkuFormRoute() {
 
           <WorkspacePanel
             className={editorPanelClassName}
+            descriptor={t('catalogSkuEditorPricingDescriptor')}
             title={<SectionTitle title={t('editorPricingTitle')} tooltip={t('catalogSkuEditorPricingTooltip')} />}
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
-              <EditorField label={t('fieldCostPerUnit')}>
+              <EditorField helper={t('catalogSkuEditorCostHelper')} label={t('fieldCostPerUnit')}>
                 <input
                   className={editorInputClassName}
                   min="0"
@@ -167,7 +167,11 @@ export function SkuFormRoute() {
                 />
               </EditorField>
 
-              <EditorField label={t('fieldProductPrice')} tooltip={t('catalogSkuEditorRetailPriceTooltip')}>
+              <EditorField
+                helper={t('catalogSkuEditorRetailPriceHelper')}
+                label={t('fieldProductPrice')}
+                tooltip={t('catalogSkuEditorRetailPriceTooltip')}
+              >
                 <input
                   className={editorInputClassName}
                   disabled={!form.soldAsProduct}
@@ -187,6 +191,7 @@ export function SkuFormRoute() {
 
             <CheckboxRow
               checked={form.soldAsProduct}
+              helper={t('catalogSkuEditorSellAsProductHelper')}
               label={
                 <SectionLabel tooltip={t('catalogSkuEditorSellAsProductTooltip')}>
                   {t('fieldSoldAsProduct')}
@@ -205,10 +210,14 @@ export function SkuFormRoute() {
 
         <WorkspacePanel
           className={editorPanelClassName}
-          description={t('catalogSkuPlanningInputsDescription')}
+          descriptor={t('catalogSkuEditorPlanningDescriptor')}
           title={<SectionTitle title={t('catalogSkuPlanningInputsTitle')} tooltip={t('catalogSkuEditorPlanningTooltip')} />}
         >
-          <EditorField label={t('fieldLeadTimeMeanDays')} tooltip={t('catalogSkuEditorLeadTimeMeanTooltip')}>
+          <EditorField
+            helper={t('catalogSkuEditorLeadTimeMeanHelper')}
+            label={t('fieldLeadTimeMeanDays')}
+            tooltip={t('catalogSkuEditorLeadTimeMeanTooltip')}
+          >
             <input
               className={editorInputClassName}
               min="0"
@@ -225,11 +234,8 @@ export function SkuFormRoute() {
           </EditorField>
 
           <EditorField
-            hint={
-              leadTimeVariability
-                ? leadTimeVariabilityDescription(leadTimeVariability)
-                : t('catalogSkuEditorLeadTimeVariabilityHint')
-            }
+            helper={t('catalogSkuEditorLeadTimeVariabilityHelper')}
+            hint={t('catalogSkuEditorLeadTimeVariabilityHint')}
             label={t('fieldLeadTimeVariability')}
             tooltip={t('catalogSkuEditorLeadTimeVariabilityTooltip')}
           >

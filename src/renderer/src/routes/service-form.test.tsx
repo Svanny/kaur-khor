@@ -18,7 +18,7 @@ vi.mock('../state/preferences', () => ({
     currency: 'USD',
     language: 'en',
     showExplanatoryTooltips: true,
-    showFloatingTitleActions: true,
+    showFloatingTitleActions: false,
     showRightRailCards: true,
     t: (key: string) => getTranslation('en', key as never),
   }),
@@ -112,6 +112,8 @@ describe('ServiceFormRoute', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Core details' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Commercial setup' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Linked SKUs' })).toBeInTheDocument();
+    expect(screen.getByText('Name the service the way staff and customers recognize it.')).toBeInTheDocument();
+    expect(screen.getByText('Choose every SKU normally consumed when this service is sold.')).toBeInTheDocument();
     expect(screen.getByDisplayValue('service-1')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search linked SKUs by name or id…')).toBeInTheDocument();

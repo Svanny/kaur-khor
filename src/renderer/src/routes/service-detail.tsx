@@ -309,7 +309,7 @@ export function ServiceDetailRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title="Service not found"
-          description="This service is not present in the current SENA catalog."
+          hint="This service is not present in the current catalog."
           action={
             <Button asChild variant="outline">
               <Link to="/catalog">Return to catalog</Link>
@@ -333,7 +333,7 @@ export function ServiceDetailRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title="SENA service detail unavailable"
-          description={error ?? 'No service viability detail is available for this service yet.'}
+          hint={error ?? 'No service viability detail is available for this service yet.'}
           action={
             <Button asChild variant="outline">
               <Link to="/catalog">Return to catalog</Link>

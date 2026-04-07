@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SenaSkuDetail } from '@shared/sena';
+import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { DashboardRoute } from './dashboard';
 
@@ -323,6 +324,16 @@ function renderRoute() {
   );
 }
 
+function renderRouteWithOptionalHelp(visible: boolean) {
+  return render(
+    <DescriptionTextVisibilityProvider visible={visible}>
+      <MemoryRouter>
+        <DashboardRoute />
+      </MemoryRouter>
+    </DescriptionTextVisibilityProvider>,
+  );
+}
+
 describe('DashboardRoute', () => {
   beforeEach(() => {
     preferenceState.showRightRailCards = true;
@@ -479,5 +490,23 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('heading', { level: 2, name: 'In transit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'Recent receipts' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'SENA signals' })).not.toBeInTheDocument();
+  });
+
+  test('hides overview descriptors and empty-state hints when optional help is disabled', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: null,
+      observations: [],
+      workspaceSummary: null,
+      loadSenaSkuDetail: vi.fn(),
+      submitLegacyReport: vi.fn(),
+      ingestSenaObservation: vi.fn(),
+      triggerSenaRun: vi.fn(),
+      isSaving: false,
+    });
+
+    renderRouteWithOptionalHelp(false);
+
+    expect(await screen.findByText('Overview needs the catalog first')).toBeInTheDocument();
+    expect(screen.queryByText('Create the first SKU so Banji can build an action list from real stock work.')).not.toBeInTheDocument();
   });
 });

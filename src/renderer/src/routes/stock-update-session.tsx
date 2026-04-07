@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SenaStockSnapshot } from '@shared/sena';
+import { TextAreaField, TextInputField } from '@/components/system/form-fields';
 import { PageTitleWithBack } from '@/components/system/page-navigation';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
@@ -48,19 +49,18 @@ export function StockUpdateSessionRoute() {
       <PageTitleWithBack>New observation</PageTitleWithBack>
       <WorkspacePanel
         title="Observation package"
-        description="Capture one interval evidence package with a stock snapshot and optional notes. Additional signals can be layered in later."
+        descriptor="Record the stock picture you have now. Banji can layer in more signals later."
       >
         <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
-          <label className="grid gap-2 text-sm">
-            <span>Observed at</span>
-            <input
-              className="rounded-xl border border-border bg-background px-3 py-2"
-              required
-              type="datetime-local"
-              value={observedAt}
-              onChange={(event) => setObservedAt(event.target.value)}
-            />
-          </label>
+          <TextInputField
+            helper="Choose when this stock picture was observed."
+            id="observation-observed-at"
+            label="Observed at"
+            required
+            type="datetime-local"
+            value={observedAt}
+            onChange={(event) => setObservedAt(event.target.value)}
+          />
 
           <div className="grid gap-3">
             {rows.map((row, index) => {
@@ -142,14 +142,13 @@ export function StockUpdateSessionRoute() {
             })}
           </div>
 
-          <label className="grid gap-2 text-sm">
-            <span>Notes</span>
-            <textarea
-              className="min-h-24 rounded-xl border border-border bg-background px-3 py-2"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-            />
-          </label>
+          <TextAreaField
+            helper="Add context only if someone reviewing the observation will need it."
+            id="observation-notes"
+            label="Notes"
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+          />
           <WorkspaceActionRow>
             <Button disabled={isSaving || rows.length === 0} type="submit">
               Save observation

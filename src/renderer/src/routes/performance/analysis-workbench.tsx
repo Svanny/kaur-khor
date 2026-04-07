@@ -123,55 +123,55 @@ const ANALYSIS_SETTINGS_FIELDS = [
   {
     key: 'run-id',
     label: 'Run ID',
-    tooltip: 'Unique identifier for the analysis run that produced the current posterior and diagnostics.',
+    tooltip: 'Unique identifier for the current analysis run.',
     valueKey: 'runId',
   },
   {
     key: 'latest-observed',
     label: 'Latest observed',
-    tooltip: 'Most recent observation timestamp included in this analysis window.',
+    tooltip: 'Most recent observation included in this analysis window.',
     valueKey: 'latestObservedAt',
   },
   {
     key: 'observations-used',
     label: 'Observations used',
-    tooltip: 'Count of observation records that remained after scope and coverage filtering.',
+    tooltip: 'Number of saved observations included after filtering.',
     valueKey: 'observationsUsed',
   },
   {
     key: 'intervals-in-view',
     label: 'Intervals in view',
-    tooltip: 'Number of modeled intervals currently represented in the workbench and diagnostics.',
+    tooltip: 'Number of modeled intervals currently shown.',
     valueKey: 'intervalCount',
   },
   {
     key: 'smoothing',
     label: 'Smoothing',
-    tooltip: 'Whether smoothing is applied to reduce noise before diagnostics and posterior summaries are shown.',
+    tooltip: 'Whether smoothing was applied before the summaries were shown.',
     valueKey: 'smoothingLabel',
   },
   {
     key: 'effective-sample-size',
     label: 'Effective sample size',
-    tooltip: 'Estimate of how much independent evidence the posterior behaves as if it contains after weighting and resampling.',
+    tooltip: 'Estimate of how much independent evidence the posterior behaves as if it contains.',
     valueKey: 'effectiveSampleSize',
   },
   {
     key: 'predictive-error',
     label: 'Predictive error',
-    tooltip: 'Average gap between observed outcomes and what the posterior predictive distribution expected.',
+    tooltip: 'Average gap between observed outcomes and model expectations.',
     valueKey: 'predictiveError',
   },
   {
     key: 'coverage-estimate',
     label: 'Coverage estimate',
-    tooltip: 'Share of the expected evidence surface that was actually observed across the current analysis window.',
+    tooltip: 'Share of the expected evidence surface that was actually observed.',
     valueKey: 'coverageEstimate',
   },
   {
     key: 'scope',
     label: 'Scope',
-    tooltip: 'Entity slice included in this run, such as all entities, SKU-only, service-only, or a mixed system scan.',
+    tooltip: 'Entity slice included in this run.',
     valueKey: 'scopeSummary',
   },
 ] as const;
@@ -899,8 +899,8 @@ function SystemLedger({
       {floatingChartControlIslands}
       <PerformanceSectionShell
         title="SENA system ledger"
-        tooltip="One synchronized ledger across regime, demand decomposition, pipeline posture, and latent lead-time drift."
-        description="Observation to inference to operational consequence in one canvas. Each interval stays aligned across regime, flow, pipeline, and lead-time lanes."
+        tooltip="Interval-by-interval analysis across regime, inventory, pipeline, and lead time."
+        descriptor="Inspect how observations turned into the current system reading."
         headerActions={chartHeaderActions}
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
@@ -930,7 +930,7 @@ function SystemLedger({
             <LaneLabel
               subtitle="Continuous regime state with price and stockout cues carried as lightweight markers instead of interval cards."
               title="Regime + price lane"
-              tooltip="The current system regime plus interval-level price and stockout evidence."
+              tooltip="Dominant regime in each interval, with price and stockout cues."
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
@@ -1029,7 +1029,7 @@ function SystemLedger({
             <LaneLabel
               subtitle="Inventory trajectory stays continuous while service demand, retail demand, receipts, and adjustments remain interval-native."
               title="Inventory + demand lane"
-              tooltip="The demand decomposition that turns sparse observations into a reconstructed stock story."
+              tooltip="Reconstructed inventory with demand, receipts, and adjustments by interval."
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
@@ -1232,7 +1232,7 @@ function SystemLedger({
             <LaneLabel
               subtitle="Aggregate transit windows approximate the pipeline story now, with order and receipt activity pulled out as explicit markers."
               title="Pipeline lane"
-              tooltip="Pipeline posterior across in-transit stock, order placement, receipt expectation, and transit age."
+              tooltip="Estimated inbound pipeline, order timing, receipts, and transit age by interval."
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
@@ -1357,7 +1357,7 @@ function SystemLedger({
             <LaneLabel
               subtitle="Lead-time drift reads as a trajectory with spread, while variability class stays available on selection instead of printed everywhere."
               title="Lead-time lane"
-              tooltip="The latent lead-time state SENA is carrying at each interval."
+              tooltip="Estimated lead-time level and spread across intervals."
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
@@ -1536,27 +1536,27 @@ function EntityPressureTable({
       <div className={pressureTableLayout.containerClassName} style={pressureTableLayout.style}>
         <HeaderedTableHeader className={pressureTableLayout.headerClassName}>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip="The service or SKU carrying the pressure signal. The icon shows which subsystem it comes from: package for SKUs and storefront for services.">
+            <HeaderTooltipLabel tooltip="The service or SKU carrying the pressure signal.">
               Item
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="The composite pressure score for the entity on a 0 to 100 scale. Higher values mean stronger evidence that demand, pipeline, lead time, or price conditions are creating operational pressure.">
+            <HeaderTooltipLabel tooltip="Composite pressure score from 0 to 100. Higher means stronger operational pressure.">
               Pressure score
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="How much inbound timing and pipeline posture are contributing to the entity's risk. Typical states range from Low through High to Critical when in-transit relief is missing, late, or unreliable.">
+            <HeaderTooltipLabel tooltip="How much inbound timing and pipeline posture are driving pressure.">
               Pipeline risk
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="How much lead-time uncertainty is contributing to pressure on the entity. Higher risk means longer or more variable lead times are making replenishment less dependable.">
+            <HeaderTooltipLabel tooltip="How much lead-time delay or variability is driving pressure.">
               Lead time risk
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="A read on whether pricing conditions are materially contributing to pressure. Higher sensitivity means price posture is likely changing demand quality, margin quality, or both.">
+            <HeaderTooltipLabel tooltip="How much pricing conditions appear to be affecting pressure.">
               Price sensitivity
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
@@ -1639,17 +1639,17 @@ function ObservationLedgerCompact({
       <HeaderedTable>
         <HeaderedTableHeader className={observationLedgerGridClassName}>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip="The observation record itself: title, observed timestamp, and the short narrative detail explaining what landed in that row.">
+            <HeaderTooltipLabel tooltip="The saved observation record: when it was captured and what it said.">
               Observed
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip="The raw evidence channels present in the selected observation, such as stock snapshots, rankings, stockout flags, orders, receipts, price inputs, lead-time hints, and notes.">
+            <HeaderTooltipLabel tooltip="Which evidence types were present in this observation.">
               Observation channels
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip="The named services or SKUs that were resolved from the observation. When none are listed, the observation was not tied to a specific entity.">
+            <HeaderTooltipLabel tooltip="Services or SKUs tied to this observation.">
               Affected entities
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
@@ -1825,8 +1825,8 @@ function SupplyFragilityMap({
   return (
     <PerformanceSectionShell
       title="Supply fragility map"
-      tooltip="Linked SKUs against services, with contributor pressure and inbound relief in each cell."
-      description="The percentage shows how strongly a service depends on that SKU. The Low through Critical label is a separate fragility rating that blends dependency strength with bottleneck risk, so a high percentage can still be Medium if the SKU is unlikely to be the limiter, while a lower percentage can be Critical when it is likely to be the bottleneck."
+      tooltip="Matrix of services and linked SKUs, with contributor pressure in each cell."
+      descriptor="See which linked SKUs are most likely to limit each service."
       className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       contentClassName="px-0 py-0"
     >
@@ -1925,17 +1925,17 @@ function SupplyFragilityMap({
 function SelectedObservationRail({ row }: { row: AnalysisObservationLedgerRow }) {
   return (
     <>
-      <AnalysisRailSection icon={<FileSearch className="size-4" />} title="Observation" tooltip="The raw observation row currently selected from the evidence ledger.">
+      <AnalysisRailSection icon={<FileSearch className="size-4" />} title="Observation" tooltip="The saved observation currently selected.">
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{row.title}</p>
         <p className="text-sm text-muted-foreground">{row.observedAt}</p>
         <p className="text-sm leading-6 text-muted-foreground">{row.detail}</p>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<Radio className="size-4" />} title="Channels" tooltip="Every observation channel present in this record.">
+      <AnalysisRailSection icon={<Radio className="size-4" />} title="Channels" tooltip="Evidence types present in this observation.">
         <ObservationChannels row={row} />
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<ListTree className="size-4" />} title="Affected entities" tooltip="Named services or SKUs that appear in this observation.">
+      <AnalysisRailSection icon={<ListTree className="size-4" />} title="Affected entities" tooltip="Services or SKUs linked to this observation.">
         <AnalysisRailList>
           {row.affectedEntityLabels.length > 0 ? row.affectedEntityLabels.map((label) => (
             <AnalysisRailRow key={`${row.id}:${label}`} primary={<span className="text-muted-foreground">{label}</span>} />
@@ -1955,7 +1955,7 @@ function IntervalRail({
 }) {
   return (
     <>
-      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Interval explanation" tooltip="What SENA thinks happened in the currently selected interval.">
+      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Interval explanation" tooltip="Banji's summary of the selected interval.">
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{interval.dateLabel}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
           <p>{interval.dominantRegime} regime</p>
@@ -1968,7 +1968,7 @@ function IntervalRail({
         flash={flashedSection === 'observed-signals'}
         icon={<Radio className="size-4" />}
         title="Observed signals"
-        tooltip="The raw observation channels that touched this interval."
+        tooltip="Observed evidence that touched this interval."
       >
         <SignalsWrap values={interval.observedSignals} />
         <AnalysisRailList className="mt-3">
@@ -1982,7 +1982,7 @@ function IntervalRail({
         flash={flashedSection === 'what-happened'}
         icon={<AudioLines className="size-4" />}
         title="What happened"
-        tooltip="The dominant causal explanation in the selected interval."
+        tooltip="The main demand and inventory movements in this interval."
       >
         <AnalysisRailList>
           <AnalysisRailRow primary={<span className="text-muted-foreground">Service demand</span>} secondary={interval.serviceDemandLabel} />
@@ -1996,7 +1996,7 @@ function IntervalRail({
         flash={flashedSection === 'orders-transit-lead-time'}
         icon={<Waypoints className="size-4" />}
         title="Orders, transit, lead time"
-        tooltip="Inbound order placement, pipeline state, and lead-time conditions for the selected interval."
+        tooltip="Order, inbound, and lead-time conditions in this interval."
       >
         <AnalysisRailList>
           <AnalysisRailRow primary={<span className="text-muted-foreground">In transit</span>} secondary={interval.inTransitLabel} />
@@ -2019,7 +2019,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
       <AnalysisRailSection
         icon={row.entityType === 'sku' ? <PackageSearch className="size-4" /> : <Store className="size-4" />}
         title={row.entityType === 'sku' ? 'Selected SKU' : 'Selected service'}
-        tooltip="The currently selected SKU or service."
+        tooltip="The entity currently selected in the analysis."
       >
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{row.name}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
@@ -2035,7 +2035,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
         </Button>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Posterior state" tooltip="Posterior units, demand, reorder posture, and pipeline exposure for the selected entity.">
+      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Posterior state" tooltip="Current modeled state for demand, stock, reorder posture, and inbound exposure.">
         <AnalysisRailList>
           <AnalysisRailRow primary={<span className="text-muted-foreground">Posterior units</span>} secondary={row.posteriorUnitsLabel} />
           <AnalysisRailRow primary={<span className="text-muted-foreground">Demand per day</span>} secondary={row.demandPerDayLabel} />
@@ -2046,7 +2046,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
         </AnalysisRailList>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<ListTree className="size-4" />} title="Contributor stack" tooltip="The strongest linked contributors or dependent services behind the selected entity.">
+      <AnalysisRailSection icon={<ListTree className="size-4" />} title="Contributor stack" tooltip="The strongest linked contributors behind this entity.">
         <AnalysisRailList>
           {row.contributorStack.length > 0 ? row.contributorStack.map((entry) => (
             <AnalysisRailRow key={`${row.id}:${entry}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -2060,7 +2060,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
 function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
   return (
     <>
-      <AnalysisRailSection icon={<Radar className="size-4" />} title="Current system state" tooltip="The default inspector summary when no interval or entity is selected.">
+      <AnalysisRailSection icon={<Radar className="size-4" />} title="Current system state" tooltip="Summary of the current system when nothing specific is selected.">
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.inspectorOverview.dominantRegime}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
           <p>Change-point probability {model.inspectorOverview.changePointProbability}</p>
@@ -2068,7 +2068,7 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
         </div>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<ChartNoAxesColumnIncreasing className="size-4" />} title="Strongest channels" tooltip="Which observation channels are most responsible for the current system inference.">
+      <AnalysisRailSection icon={<ChartNoAxesColumnIncreasing className="size-4" />} title="Strongest channels" tooltip="Evidence channels contributing most to the current system read.">
         <AnalysisRailList>
           {model.inspectorOverview.strongestChannels.map((entry, index) => (
             <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -2076,7 +2076,7 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
         </AnalysisRailList>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<Boxes className="size-4" />} title="Affected entities" tooltip="The current system actors carrying the most structural pressure.">
+      <AnalysisRailSection icon={<Boxes className="size-4" />} title="Affected entities" tooltip="Entities currently carrying the most structural pressure.">
         <AnalysisRailList>
           {model.inspectorOverview.affectedEntities.map((entry, index) => (
             <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -2258,8 +2258,8 @@ function PressureSurface({
     <div className="grid gap-6">
       <PerformanceSectionShell
         title="Entity pressure explorer"
-        tooltip="A ranked mixed table across SKUs and services showing where structural pressure is coming from."
-        description="Compare whether pressure is demand-led, pipeline-led, lead-time-led, or price-sensitive across entities in one surface."
+        tooltip="Ranked table of entities showing where structural pressure comes from."
+        descriptor="Compare whether pressure is coming from demand, pipeline, lead time, or price."
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
       >
@@ -2282,8 +2282,8 @@ function ObservationsSurface({
     <div className="grid gap-6">
       <PerformanceSectionShell
         title="Observation ledger"
-        tooltip="The compact trust surface for which evidence channels were present in each observation."
-        description="Stock snapshots, rankings, stockout flags, order and receipt events, price inputs, lead-time hints, and notes."
+        tooltip="Ledger of saved observations and the evidence channels each one carried."
+        descriptor="Review which observation channels were present in each saved record."
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
       >
@@ -2320,8 +2320,8 @@ function SettingsSurface({
     <div className="grid gap-6">
       <PerformanceSectionShell
         title="Analysis Parameters"
-        tooltip="Read-only model state and evidence coverage for the current analysis window."
-        description="The least important surface in the analysis stack. It exposes current model status without competing with the workbench."
+        tooltip="Read-only model and evidence metadata for the current analysis window."
+        descriptor="Check the run settings and evidence coverage behind this analysis."
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

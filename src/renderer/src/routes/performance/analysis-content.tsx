@@ -152,7 +152,7 @@ export function AnalysisContent({
       <WorkspaceTitleCard
         eyebrow="Analysis"
         title="Deep Review"
-        description="Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations."
+        descriptor="Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations."
         actions={(
           <WorkspaceActionRow className="justify-end">
             {section === 'fragility' ? null : (

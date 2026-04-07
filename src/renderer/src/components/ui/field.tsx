@@ -122,10 +122,15 @@ function FieldTitle({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
+function FieldDescription({
+  className,
+  'data-optional': dataOptional,
+  ...props
+}: React.ComponentProps<'p'>) {
+  const optional = dataOptional !== 'false';
   const descriptionVisible = useDescriptionTextVisible();
 
-  if (!hasDescriptionText(props.children, descriptionVisible)) {
+  if (!hasDescriptionText(props.children, optional ? descriptionVisible : true)) {
     return null;
   }
 
@@ -135,6 +140,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
         'text-left text-sm leading-normal font-normal text-muted-foreground [[data-variant=legend]+&]:-mt-1.5 [&>a]:underline [&>a]:underline-offset-4',
         className,
       )}
+      data-optional={optional ? 'true' : 'false'}
       data-slot="field-description"
       {...props}
     />

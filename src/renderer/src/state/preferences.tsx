@@ -10,10 +10,6 @@ import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { currencyLabel, getTranslation, type TranslationKey } from '../lib/translations';
 
-function isDescriptionTranslationKey(key: TranslationKey) {
-  return key.endsWith('Body') || key.endsWith('Description');
-}
-
 interface PreferencesContextValue {
   language: AppLanguage;
   currency: AppCurrency;
@@ -170,13 +166,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         showExplanatoryTooltips !== persistedShowExplanatoryTooltips ||
         showFloatingTitleActions !== persistedShowFloatingTitleActions ||
         showRightRailCards !== persistedShowRightRailCards,
-      t: (key) => {
-        if (!showExplanatoryTooltips && isDescriptionTranslationKey(key)) {
-          return '';
-        }
-
-        return getTranslation(language, key);
-      },
+      t: (key) => getTranslation(language, key),
       rawT: (key) => getTranslation(language, key),
       currencyLabel: (next) => currencyLabel(language, next),
     }),

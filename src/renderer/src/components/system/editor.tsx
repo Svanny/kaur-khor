@@ -12,6 +12,7 @@ export function EditorHeader({
   saveLabel,
   title,
   titleMeta,
+  descriptor,
   description,
   statusDetail,
   statusLabel,
@@ -29,6 +30,7 @@ export function EditorHeader({
   saveLabel: string;
   title?: string;
   titleMeta?: ReactNode;
+  descriptor?: string;
   description?: string;
   statusDetail?: string;
   statusLabel?: string;
@@ -42,7 +44,8 @@ export function EditorHeader({
   onSave?: () => void;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
-  const showDescription = hasDescriptionText(description, descriptionVisible);
+  const resolvedDescriptor = descriptor ?? description;
+  const showDescription = hasDescriptionText(resolvedDescriptor, descriptionVisible);
 
   return (
     <div className="px-4 py-4">
@@ -62,7 +65,7 @@ export function EditorHeader({
           </div>
           {showDescription ? (
             <DescriptionText className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              {description}
+              {resolvedDescriptor}
             </DescriptionText>
           ) : null}
         </div>
@@ -95,20 +98,23 @@ export function EditorHeader({
 
 export function EditorRail({
   title,
+  descriptor,
   description,
   children,
 }: {
   title: string;
+  descriptor?: string;
   description?: string;
   children: ReactNode;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
+  const resolvedDescriptor = descriptor ?? description;
   return (
     <Card className="border-white/70">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        {hasDescriptionText(description, descriptionVisible) ? (
-          <DescriptionText className="text-sm text-muted-foreground">{description}</DescriptionText>
+        {hasDescriptionText(resolvedDescriptor, descriptionVisible) ? (
+          <DescriptionText className="text-sm text-muted-foreground">{resolvedDescriptor}</DescriptionText>
         ) : null}
       </CardHeader>
       <CardContent>{children}</CardContent>

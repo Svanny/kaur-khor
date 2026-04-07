@@ -4,7 +4,6 @@ import type { StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass, SenaObservationInput } from '@shared/sena';
 import {
   compatibilityRangeForClass,
-  leadTimeVariabilityDescription,
   leadTimeVariabilityLabel,
   leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
@@ -374,11 +373,7 @@ export function SkuDetailActions({
                   />
                 </ActionSheetField>
                 <ActionSheetField
-                  description={
-                    leadTimeVariability
-                      ? leadTimeVariabilityDescription(leadTimeVariability)
-                      : t('catalogSenaSkuLeadTimeVariabilityHint')
-                  }
+                  description={t('catalogSenaSkuLeadTimeVariabilityHint')}
                   label={t('catalogSenaSkuLeadTimeVariability')}
                 >
                   <Select

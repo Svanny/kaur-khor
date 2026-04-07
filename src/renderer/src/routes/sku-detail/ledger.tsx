@@ -534,7 +534,7 @@ export function SkuDetailLedger({
         <div className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
           <LaneTitle
             title={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLane') : 'Regime lane'}
-            tooltip={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLaneTooltip') : 'Demand conditions across the active interval sequence.'}
+            tooltip={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLaneTooltip') : 'Dominant demand regime across the visible intervals.'}
           />
           <div className={cn('grid gap-3', isLaneExpanded('regime') && 'min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
             <div className="flex items-start justify-between gap-3 px-1">

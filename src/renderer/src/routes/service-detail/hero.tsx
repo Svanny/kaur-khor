@@ -31,7 +31,7 @@ export function ServiceDetailHero({
       <div className="mt-7 grid gap-6">
         <div className="grid gap-3 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            <SectionLabel tooltip="Service sellability combines demand, contributor fragility, receipts, and stock evidence.">
+            <SectionLabel tooltip="Banji's read of how likely this service can be fulfilled right now.">
               Sellability truth
             </SectionLabel>
           </p>
@@ -46,7 +46,7 @@ export function ServiceDetailHero({
         <div className="overflow-hidden rounded-[1rem] border border-border/70 bg-white shadow-[0_10px_24px_rgba(48,31,20,0.06)]">
           <div className="border-b border-border/60 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              <SectionLabel tooltip="A compact service scan across sellability, demand pressure, bottlenecks, and restoration timing.">
+              <SectionLabel tooltip="Compact summary of sellability, demand pressure, bottlenecks, and recovery timing.">
                 Operational ribbon
               </SectionLabel>
             </p>

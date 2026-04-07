@@ -186,7 +186,7 @@ export function AnalysisRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title="Analysis needs the catalog first"
-          description="Build the SENA catalog so Banji can reconstruct the operational ledger across demand, pipeline, and lead time."
+          hint="Create the first SKU so Analysis has real entities to inspect."
           action={
             <Button asChild>
               <Link to="/catalog/skus/new">Create first SKU</Link>
@@ -202,7 +202,7 @@ export function AnalysisRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title="Analysis needs the first SENA run"
-          description="Capture a live observation or trigger a fresh run so Banji can expose how sparse observations became the current system story."
+          hint="Capture a live observation so Analysis can explain how sparse signals became the current system story."
           action={
             <WorkspaceActionRow>
               <Button asChild>

@@ -113,7 +113,9 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('false');
     expect(screen.getByTestId('pending').textContent).toBe('true');
     expect(screen.getByTestId('translation').textContent).toBe('ការកំណត់');
-    expect(screen.getByTestId('description-translation').textContent).toBe('');
+    expect(screen.getByTestId('description-translation').textContent).toBe(
+      'Preview workspace preferences live, keep advanced model tuning tucked away until needed, and save everything from one page action row.',
+    );
     expect(savePreferences).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText('reset'));

@@ -263,22 +263,22 @@ function MoveNowTable({ rows }: { rows: PerformanceMoveRow[] }) {
       <div className={moveNowTableLayout.containerClassName} style={moveNowTableLayout.style}>
         <HeaderedTableHeader className={moveNowTableLayout.headerClassName}>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip="The commercial intervention Banji is recommending, distinct from the operational queue in Overview. Typical move states are push when demand and support are healthy, recover when revenue is blocked, review pricing when price or margin is weakening, and clear when slow stock is trapping cash.">
+            <HeaderTooltipLabel tooltip="Banji's recommended business move for this row.">
               Move
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip="The business conditions making the move timely right now. Reasons usually combine demand direction, capacity or cover state, inbound timing, and margin posture such as demand up plus capacity holding, blocked by supply with late inbound, or margin pressure after a price move.">
+            <HeaderTooltipLabel tooltip="The business conditions making this move timely right now.">
               Why now
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip="The business outcome Banji expects if the owner takes this move now. Effects typically read as capture upside, restore sellable capacity, recover blocked revenue, protect margin, or free cash from slow inventory.">
+            <HeaderTooltipLabel tooltip="The business result Banji expects if you act now.">
               Expected effect
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="The next destination in the SENA workflow. Open queue sends the user to operational follow-up in Overview, Open SKU goes to inventory and pipeline control, Open service goes to sellability and bottlenecks, and See evidence would jump into scoped analysis.">
+            <HeaderTooltipLabel tooltip="Where to go in Banji to follow up on this row.">
               Action
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
@@ -365,7 +365,7 @@ export function PerformanceRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title="Performance needs the catalog first"
-          description="Build the SENA catalog so Banji can turn inventory, services, and pricing into a business steering surface."
+          hint="Create the first SKU so Banji can compare demand, coverage, and price in one business view."
           action={
             <Button asChild>
               <Link to="/catalog/skus/new">Create first SKU</Link>
@@ -381,7 +381,7 @@ export function PerformanceRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title="Performance needs the first SENA run"
-          description="Capture a live observation or trigger a fresh run so Banji can translate demand, capacity, pipeline, and pricing into business posture."
+          hint="Capture a live observation so Banji can read demand, capacity, pipeline, and price together."
           action={
             <WorkspaceActionRow>
               <Button asChild>
@@ -402,7 +402,7 @@ export function PerformanceRoute() {
       <WorkspaceTitleCard
         eyebrow="Performance"
         title="Business Health"
-        description="Demand, capacity, pipeline, and pricing in one business view"
+        descriptor="Demand, capacity, pipeline, and pricing in one business view."
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <ToggleGroup
@@ -490,8 +490,8 @@ export function PerformanceRoute() {
         <div className="grid min-w-0 gap-6">
           <PerformanceSectionShell
             title="Move now"
-            tooltip="Commercial interventions belong here. Overview owns the operational queue; Performance owns the business move."
-            description="The highest-value commercial moves across services and SKUs, ordered by where Banji sees the next steering intervention."
+            tooltip="The current queue of commercial moves Banji recommends."
+            descriptor="Business moves worth making now, ranked by urgency and upside."
             contentClassName="px-0 py-0"
           >
             <MoveNowTable rows={model.moves} />
@@ -499,40 +499,40 @@ export function PerformanceRoute() {
 
           <PerformanceSectionShell
             title="Demand × capacity board"
-            tooltip="Demand alone is not enough. Capacity, pipeline support, and margin posture change the real business picture."
-            description="A mixed scan across services and SKUs so the owner can read the portfolio in one pass rather than splitting by subsystem."
+            tooltip="A mixed portfolio view of demand, support, pipeline, and margin posture."
+            descriptor="Scan services and SKUs together in one pass."
             contentClassName="px-0 py-0"
           >
             <HeaderedTable>
               <div className={demandCapacityBoardLayout.containerClassName} style={demandCapacityBoardLayout.style}>
                 <HeaderedTableHeader className={demandCapacityBoardLayout.headerClassName}>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip="The service or SKU Banji is evaluating in the mixed business scan. The icon shows which subsystem it comes from: storefront icon for services and package icon for SKUs.">
+                    <HeaderTooltipLabel tooltip="The service or SKU in this portfolio scan.">
                       Item
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell className="px-2">
-                    <HeaderTooltipLabel tooltip="A compact demand read for the selected window. In normal mode the sparkline shows the recent shape and the label resolves to Soft, Steady, or Strong. In compare mode the split sparkline shows previous plus current interval, and the label reads as a transition such as Soft to Steady or Steady to Strong.">
+                    <HeaderTooltipLabel tooltip="Recent demand direction for the selected window.">
                       Demand trend
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip="How much of current demand is actually sellable or coverable once supply and service constraints are considered. Common states are Capacity holding when service demand is largely coverable, Partially coverable when pressure is rising but not fully blocked, Blocked by supply when the item is materially constrained, and cover up or cover down compare text when the situation improved or worsened against the prior window.">
+                    <HeaderTooltipLabel tooltip="How much current demand can actually be fulfilled with current support.">
                       Sellable / support
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip="Inbound orders, receipts, and timing signals that may relieve pressure or restore capacity. Typical states are No inbound relief, Due soon, In transit, Overdue, and Partial received. In compare mode the secondary line explains whether inbound is new, unchanged, slipped, or already closed by a receipt landing.">
+                    <HeaderTooltipLabel tooltip="Whether inbound supply is likely to relieve pressure soon.">
                       Pipeline support
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip="A commercial read on price posture and margin quality. Primary states include Healthy margin, Stable margin, Margin pressure, and price annotations such as price up or price drag. In compare mode the secondary line explains whether margin recovered, price drag worsened, a new price move appeared, or the posture was unchanged.">
+                    <HeaderTooltipLabel tooltip="Whether pricing and margin conditions are helping, neutral, or under pressure.">
                       Price / margin tone
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell align="center" className="px-2">
-                    <HeaderTooltipLabel tooltip="Banji's steering recommendation for the row. The main pill resolves to Push when upside should be pressed, Unblock when stock or capacity is suppressing revenue, Review price when pricing or margin needs intervention, Clear when slow stock is tying up cash, and Steady when no major action is needed. In compare mode the status cell shows a direct transition from the previous pill to the current pill.">
+                    <HeaderTooltipLabel tooltip="Banji's current steering recommendation for this row.">
                       Status
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
@@ -639,24 +639,24 @@ export function PerformanceRoute() {
 
           <PerformanceSectionShell
             title="Cash and profit efficiency"
-            tooltip="SKU and service truths become portfolio decisions here: where to press, where profit is blocked, and where cash is trapped."
-            description="Three business bands for deciding what to push, what to recover, and what to clear before it weighs on the next period."
+            tooltip="Portfolio grouping by upside capture, blocked profit, and trapped cash."
+            descriptor="Where to push, recover, or clear inventory next."
           >
             <div className="grid gap-6 xl:grid-cols-3">
               <CashBandColumn
                 rows={model.winners}
                 title="Winners"
-                tooltip="High demand, healthy margin, and strong support."
+                tooltip="Rows with healthy demand, healthy margin, and enough support to capture upside."
               />
               <CashBandColumn
                 rows={model.blockedProfit}
                 title="Blocked profit"
-                tooltip="Demand is present but stock, capacity, or inbound timing is holding back revenue."
+                tooltip="Rows where demand exists but revenue is blocked by stock, capacity, or inbound timing."
               />
               <CashBandColumn
                 rows={model.cashTraps}
                 title="Cash traps"
-                tooltip="Weak demand with inventory or inbound weight that is tying up cash."
+                tooltip="Rows where weak demand is tying up inventory or inbound cash."
               />
             </div>
           </PerformanceSectionShell>
@@ -666,7 +666,7 @@ export function PerformanceRoute() {
           <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
           <PerformanceRightRailBlock
             title="Operational drag"
-            tooltip="A short bridge back to Overview: the operational constraints that are currently holding the business back."
+            tooltip="Operational constraints currently limiting business performance."
           >
             <div className="space-y-3">
               {model.operationalDrag.map((line) => (
@@ -679,7 +679,7 @@ export function PerformanceRoute() {
 
           <PerformanceRightRailBlock
             title="Recovery pipeline"
-            tooltip="Inbound events already in motion that can restore sellable capacity or ease a bottleneck."
+            tooltip="Inbound events already underway that could restore capacity or ease a bottleneck."
           >
             <div className="divide-y divide-border/60">
               {model.recoveryPipeline.map((row) => (
@@ -693,7 +693,7 @@ export function PerformanceRoute() {
 
           <PerformanceRightRailBlock
             title="Price and margin watch"
-            tooltip="Commercial entities where margin pressure or price-response signals deserve a closer read."
+            tooltip="Rows where price or margin conditions may need attention."
           >
             <div className="divide-y divide-border/60">
               {model.priceWatch.map((row) => (
@@ -707,7 +707,7 @@ export function PerformanceRoute() {
 
           <PerformanceRightRailBlock
             title="Confidence / coverage"
-            tooltip="Quiet trust context: signal coverage, evidence freshness, and where the page is least certain."
+            tooltip="How much evidence supports this view and where it is weakest."
           >
             <div className="space-y-3">
               <p className="text-sm leading-6 text-muted-foreground">Signal coverage {model.confidence.coverageLabel}</p>
@@ -721,8 +721,8 @@ export function PerformanceRoute() {
 
       <PerformanceSectionShell
         title="Business timeline"
-        tooltip="A business memory lane, not a technical evidence ledger. Demand shifts, pricing moves, stock episodes, and recovery moments sit together here."
-        description="A compact temporal read of what has been changing in the business posture."
+        tooltip="The main shifts that shaped the current business posture."
+        descriptor="What has been changing across the business posture."
       >
         <div className="flex flex-wrap gap-y-3 pt-2">
           {model.timeline.map((event, index) => (

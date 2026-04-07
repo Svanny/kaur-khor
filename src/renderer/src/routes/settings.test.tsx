@@ -48,7 +48,7 @@ describe('SettingsRoute', () => {
     };
   });
 
-  it('renders and saves the explanatory tooltip preference', async () => {
+  it('renders and saves the optional help preference', async () => {
     render(
       <MemoryRouter>
         <PreferencesProvider>
@@ -60,7 +60,7 @@ describe('SettingsRoute', () => {
     expect(await screen.findByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('Desktop preferences')).toBeInTheDocument();
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show explanatory tooltips/i });
+    const checkbox = await screen.findByRole('checkbox', { name: /show optional help/i });
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);

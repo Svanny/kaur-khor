@@ -30,69 +30,69 @@ const en = {
   workspaceStarting: 'Starting the desktop core and loading the latest SENA state.',
   workspaceComputingTitle: 'SENA is computing your workspace',
   workspaceComputingBody:
-    'Banji is loading cached posterior summaries, interval evidence, and catalog state for the local workspace.',
+    'Banji is loading your catalog, recent evidence, and the latest local analysis.',
   workspaceComputingHint:
-    'The first launch after seeding or reanalysis can take a little longer while computed features and read models are prepared.',
+    'First launch after a reset or reanalysis can take longer while Banji rebuilds local views.',
   workspaceUnavailable: 'The local SENA workspace is unavailable.',
   overviewHeading: 'Overview',
   overviewBody:
-    'See what needs attention now, what changed recently, and which workflow should happen next.',
+    'See what needs attention now, what changed recently, and what to do next.',
   overviewLoading: 'Loading the latest overview context…',
   overviewPrimaryCardLabel: 'Recommended next move',
   overviewDecisionSupportLabel: 'Why this action now',
   overviewLatestChangeLabel: 'Latest change',
   overviewSupportPromptLabel: 'What this page is for',
   overviewSupportPromptBody:
-    'Overview stays focused on the next operational decision. Detailed editing, reporting, and planning live in their own sections.',
+    'Overview is for the next operational move. Editing, logs, and planning live elsewhere.',
   overviewDecisionSupportCatalogTitle: 'Planning starts after the catalog exists',
   overviewDecisionSupportCatalogBody:
-    'Add the first SKU so stock sessions, services, and merchandising order have something real to work with.',
+    'Add the first SKU so Banji can build tasks from real stock and service activity.',
   overviewDecisionSupportRiskTitle: 'Current risk summary',
   overviewDecisionSupportRiskBody:
-    'Planning is the next move because high-risk SKUs and reorder pressure are already building together.',
+    'Planning is next because stock risk and reorder pressure are building together.',
   overviewDecisionSupportReorderTitle: 'Pressure is building before risk peaks',
   overviewDecisionSupportReorderBody:
-    'Reorder pressure is rising even without a top-risk SKU, so Planning should confirm priorities before urgency spreads.',
+    'Reorder pressure is rising. Review priorities now before more SKUs turn urgent.',
   overviewDecisionSupportFirstReportTitle: 'The catalog needs its first live update',
   overviewDecisionSupportFirstReportBody:
-    'Catalog structure is in place, but logs still need a captured stock session before recent changes can be trusted.',
+    'The catalog is ready, but Banji still needs a live observation before it can trust the current picture.',
   overviewDecisionSupportSteadyTitle: 'The latest picture looks steady',
   overviewDecisionSupportSteadyBody:
-    'Nothing urgent is crowding the queue, so the next guided update session is the best way to keep Overview current.',
+    'Nothing urgent is waiting. The best next step is to log the next stock update and keep Overview current.',
   overviewPrimaryAddFirstSku: 'Add first SKU',
   overviewPrimaryAddFirstSkuDescription:
-    'Start the catalog with the first SKU so planning, services, and stock updates have something to build on.',
+    'Create the first SKU so Banji can start tracking stock, services, and planning.',
   overviewPrimaryStartFirstUpdate: 'Start first update session',
   overviewPrimaryStartFirstUpdateDescription:
-    'Capture the first stock report so logs and planning have recent evidence to work from.',
+    'Capture the first stock update so Banji can build tasks from recent evidence.',
   overviewPrimaryReviewReorderPriorities: 'Review reorder priorities',
   overviewPrimaryReviewReorderPrioritiesDescription:
-    'High-risk SKUs need planning attention before the next stock decision falls behind.',
+    'Review the highest-pressure SKUs before the next stock decision falls behind.',
   overviewPrimaryStartUpdateSession: 'Start update session',
   overviewPrimaryStartUpdateSessionDescription:
-    'Open the guided stock session to capture the next report and keep the inventory picture current.',
+    'Open the guided update flow to record the next stock picture.',
   overviewOpenCatalog: 'Open catalog',
-  overviewOpenCatalogDescription: 'Browse the current SKU and service structure or add new entries.',
+  overviewOpenCatalogDescription: 'Review the catalog or add a new SKU or service.',
   overviewOpenOperations: 'Open logs',
-  overviewOpenOperationsDescription: 'Review saved stock reports or jump into a new update session.',
+  overviewOpenOperationsDescription: 'Review saved updates or start a new one.',
   overviewOpenPlanning: 'Open planning',
-  overviewOpenPlanningDescription: 'Review merchandising and reorder priorities on the planning surface.',
+  overviewOpenPlanningDescription: 'Review sales priority and reorder pressure together.',
   overviewOpenReorderQueue: 'Open reorder queue',
   overviewReviewRecentActivity: 'Review recent activity',
   overviewReviewRecentActivityDescription:
-    'Open logs to inspect saved reports and continue from the latest logged activity.',
+    'Open logs to inspect the latest saved update and continue from there.',
   overviewNeedsAttentionTitle: 'Needs attention',
   overviewNeedsAttentionDescription:
-    'Surface the strongest reorder and stockout signals first so the next decision is obvious.',
+    'Put the strongest stock and reorder risks first so the next decision is obvious.',
   overviewPlanningQueueTitle: 'Planning queue',
   overviewPlanningQueueDescription:
-    'Use this queue to decide what needs review next, why it matters now, and which SKU should move first.',
+    'Use this queue to see what needs review next, why it matters now, and which SKU should move first.',
   overviewQueueSummaryReorderCandidates: 'reorder candidates',
   overviewQueueSummaryHighRisk: 'high risk',
   overviewQueueSummaryDueSoon: 'due within 48h',
   overviewQueueSummaryRemaining: '{count} more waiting in queue.',
   overviewQueueFilterLabel: 'Planning queue filters',
-  overviewQueueFilterDescription: 'Keep the list short and switch issue types locally without leaving Overview.',
+  overviewQueueFilterDescription: 'Filter the queue so you can focus on one kind of issue at a time.',
   overviewQueueFilterReorderNow: 'Reorder now',
   overviewQueueFilterHighRisk: 'High risk',
   overviewQueueFilterServiceImpact: 'Service impact',
@@ -118,23 +118,23 @@ const en = {
     'Try another issue type to bring the next decision back into view.',
   overviewQueueReorderPressureTitle: 'Reorder pressure still needs review',
   overviewQueueReorderPressureDescription:
-    'Planning signals are active even without a visible lead row. Open the reorder queue to confirm priorities.',
+    'Planning signals are active even without a top row. Open the reorder queue to confirm what moves first.',
   overviewReorderPressure: 'Reorder pressure',
   overviewHighRiskSkuCount: 'High-risk SKUs',
   overviewUrgentBadge: 'Urgent',
   overviewDaysOfCoverSuffix: 'days of cover',
   overviewHealthyStateTitle: 'No urgent planning signals',
   overviewHealthyStateDescription:
-    'Reorder pressure is calm right now. Keep logs moving or continue shaping the catalog.',
+    'Nothing urgent is waiting. Keep logs moving or keep shaping the catalog.',
   overviewQueueHealthyTitle: 'Planning queue is clear',
   overviewQueueHealthyDescription:
-    'No immediate reorder or service-impact decisions are waiting right now. Keep logs moving or continue shaping the catalog.',
+    'No urgent reorder or service-impact decisions are waiting. Keep logs moving or keep shaping the catalog.',
   overviewReorderPressureOnlyTitle: 'Reorder pressure is rising',
   overviewReorderPressureOnlyDescription:
-    'Reorder pressure is rising even though no SKU is in the current top risk list.',
+    'Reorder pressure is rising even though no SKU is in the top risk list yet.',
   overviewRecentActivityTitle: 'Recent activity',
   overviewRecentActivityDescription:
-    'The latest stock reports show what changed most recently across observations, pricing, and ranking.',
+    'See what changed most recently across stock updates, price changes, and ranking signals.',
   overviewRecentActivityLoading: 'Loading recent activity…',
   overviewRecentActivityFallback:
     'Recent activity could not be loaded right now. The rest of Overview is still available.',
@@ -142,16 +142,16 @@ const en = {
     'No stock reports have been captured yet. Start the first update session when inventory is ready.',
   overviewQuickActionsTitle: 'Quick actions',
   overviewQuickActionsDescription:
-    'Keep this list short so Overview stays action-first instead of turning back into a control panel.',
+    'Keep this list short so Overview stays focused on action, not setup.',
   overviewQuickActionOperationsDescription:
-    'Capture the next stock update through the guided logs session.',
+    'Capture the next stock update.',
   overviewQuickActionCatalogDescription:
-    'Review catalog structure, item details, and create new SKU records.',
+    'Review the catalog or create a new item.',
   overviewQuickActionPlanningDescription:
-    'Check ranking and reorder context without leaving the planning workflow.',
+    'Review sales priority and reorder context.',
   overviewSupportMetricsTitle: 'Support metrics',
   overviewSupportMetricsDescription:
-    'Use these as passive context after the action sections, not as the primary decision surface.',
+    'Use these as background context after the action sections, not as the main decision surface.',
   overviewSupportMetricsValueDetail: 'Estimated value of units currently on hand.',
   overviewSupportMetricsSaleReadyDetail: 'Sellable SKUs currently available to the storefront.',
   overviewSupportMetricsServicesDetail: 'Service bundles currently defined in the catalog.',
@@ -159,7 +159,7 @@ const en = {
   dashboardEyebrow: 'Warm, local-first retail logs',
   dashboardHeading: 'Daily control for inventory, stock moves, and storefront priorities',
   dashboardBody:
-    'Banji keeps your catalog, ranking, and stock changes on this Mac so the team can run logs without waiting on a cloud connection.',
+    'Banji keeps catalog, ranking, and stock work on this Mac so the team can keep moving without waiting on the cloud.',
   dashboardTotalValue: 'Inventory value',
   dashboardSaleReady: 'Sale-ready SKUs',
   dashboardServices: 'Service bundles',
@@ -168,25 +168,25 @@ const en = {
   dashboardMarginMix: 'Catalog coverage',
   dashboardHealthTitle: 'Local runtime',
   dashboardHealthDescription:
-    'Electron owns the shell, while the Rust API persists inventory data in the desktop user-data directory.',
+    'Shows whether the local desktop shell and workspace store are ready for work.',
   dashboardHealthReady: 'Connected and ready for edits',
   dashboardHealthStarting: 'Starting the desktop core and loading the latest SENA state',
   dashboardHealthFailed: 'The local API needs attention before changes can be saved',
   dashboardRecent: 'Current featured order',
   dashboardRecentDescription:
-    'Review the first items the storefront team will surface, then jump to merchandising to reorder them.',
+    'Review what the storefront team is likely to surface first, then adjust merchandising if needed.',
   dashboardQuickCreateTitle: 'Quick capture',
-  dashboardQuickCreateDescription: 'Add a SKU, define a service, or move straight into stock adjustments.',
+  dashboardQuickCreateDescription: 'Add a SKU, define a service, or jump straight into a stock update.',
   dashboardRiskTitle: 'SIST planning pulse',
   dashboardRiskDescription:
-    'Track how the sparse-inventory model reads the latest reports, which SKUs are at risk, and where reorder pressure is building.',
+    'See which SKUs are at risk and where reorder pressure is building.',
   dashboardReorderCount: 'Reorders likely',
   dashboardTopRegime: 'Dominant regime',
   dashboardReportFreshness: 'Analysis freshness',
   dashboardHighRisk: 'High-risk SKUs',
   dashboardNoRisk: 'No urgent reorder signals yet.',
   inventoryBody:
-    'Browse the full catalog, search by id or name, and move directly into editing, stock work, or merchandising.',
+    'Browse the catalog, search by id or name, and jump straight into the next edit.',
   allItemsTitle: 'Catalog',
   searchItems: 'Search and segment',
   searchPlaceholder: 'Search name, description, or id…',
@@ -227,21 +227,21 @@ const en = {
   inventoryNoResultsDescription: 'Try another query or add a new SKU to start shaping the catalog.',
   catalogNoResultsTitle: 'No matching catalog items',
   catalogNoResultsDescription:
-    'Try clearing the current filters or create a new item that fits this search.',
+    'Try another search or create a new item that belongs here.',
   catalogNoResultsClearAction: 'Clear filters',
   catalogNoResultsCreateAction: 'Create new SKU',
   catalogEmptyTitle: 'Start the catalog',
   catalogEmptyDescription:
-    'Create the first SKU or service so the desktop catalog has something to browse and compare.',
+    'Create the first SKU or service so Banji has something to browse and compare.',
   catalogEmptyPrimaryAction: 'Create first SKU',
   catalogAllSkusDescription:
-    'Preview the first SKU matches here, then switch into the dedicated SKU comparison table.',
+    'Start here to compare SKUs and jump into the next edit.',
   catalogAllServicesDescription:
-    'Preview the first service matches here, then switch into the dedicated service comparison table.',
-  catalogServicesDescription: 'Bundled services assembled from the current SKU set.',
-  catalogSkusDescription: 'Every stock keeping unit tracked by the desktop app.',
-  catalogCollapsedServicesHint: 'Expand to inspect service pricing, sellable units, and linked SKU coverage.',
-  catalogCollapsedSkusHint: 'Expand to inspect SKU economics, cover, and risk details.',
+    'Start here to compare services and jump into the next edit.',
+  catalogServicesDescription: 'Services Banji tracks for sellability and coverage.',
+  catalogSkusDescription: 'Stock-carrying items Banji tracks directly.',
+  catalogCollapsedServicesHint: 'Expand to review service price, coverage, and linked SKUs.',
+  catalogCollapsedSkusHint: 'Expand to review SKU economics, cover, and current risk.',
   catalogDaysOfCover: 'Days of cover',
   catalogStockoutRisk: 'Stockout risk',
   catalogReorderPoint: 'Reorder point',
@@ -250,45 +250,45 @@ const en = {
   catalogSkuDetailTitle: 'SKU detail',
   catalogSenaSkuHeroTitle: 'SENA heartbeat',
   catalogSenaSkuHeroTooltip:
-    'SENA treats inventory as a latent state reconstructed from sparse stock snapshots plus optional signals such as prices, lead-time hints, order logs, rankings, sharing masks, and stockout flags. This heartbeat summarizes the current posterior on-hand state, its uncertainty, days of cover, reorder pressure, and active receipt exposure in one operational sentence.',
+    'The heartbeat is SENA’s current read of this SKU. It summarizes stock on hand, uncertainty, days of cover, reorder pressure, and open receipt exposure.',
   catalogSenaSkuOperationalRibbon: 'Operational ribbon',
   catalogSenaSkuRibbonTooltip:
-    'This ribbon surfaces the six SENA outputs that matter most for immediate control decisions: posterior on-hand stock, in-transit pipeline inventory, inferred demand rate, current receipt window, observed retail price, and linked service exposure. It is intentionally a single strip so the page stays one operational surface rather than a stack of disconnected cards.',
+    'The ribbon shows the six signals that matter most for the next control decision. It keeps stock, pipeline, demand, price, and service exposure in one place.',
   catalogSenaSkuRecordStock: 'Record stock',
   catalogSenaSkuLogOrder: 'Log order',
   catalogSenaSkuLogReceipt: 'Log receipt',
   catalogSenaSkuUpdatePrice: 'Update price',
   catalogSenaSkuLedgerTitle: 'SENA ledger',
   catalogSenaSkuLedgerTooltip:
-    'In SENA, the ledger is a posterior view of the latent inventory process across reporting intervals. It links regime state, demand-side activity, realized inventory movement, order placement, receipt arrival, and corrections so you can inspect one synchronized causal chain instead of separate forecast, statistics, and history tabs.',
+    'The ledger is SENA’s interval-by-interval view of what likely happened. It lines up regime, demand, inventory movement, orders, receipts, and corrections in one timeline.',
   catalogSenaSkuDependencyImpact: 'Dependency impact',
   catalogSenaSkuDependencyImpactTooltip:
-    'SENA uses the service-to-SKU sharing mask to constrain which services can consume this SKU. This section shows the downstream blast radius of the current posterior inventory state by ranking linked services according to usage probability and bottleneck risk.',
+    'Dependency impact shows which services depend on this SKU. It matters because a weak SKU can block more than one service at once.',
   catalogSenaSkuEvidenceTimeline: 'Evidence timeline',
   catalogSenaSkuEvidenceTimelineTooltip:
-    'SENA is anchored by sparse observations, not direct full-fidelity transaction logs. This timeline shows the observation channels and event signals that informed the posterior, including stock snapshots, price entries, order or receipt signals, stockout cues, lead-time hints, and operator notes.',
+    'The evidence timeline shows which observations informed SENA’s current read. It includes stock snapshots, price signals, order and receipt signals, stockout cues, lead-time hints, and notes.',
   catalogSenaSkuSelectedInterval: 'Selected interval',
   catalogSenaSkuSelectedIntervalTooltip:
-    'This block summarizes the currently selected reporting interval from the ledger. It combines the dominant regime label with interval-level service demand, retail demand, receipts, and adjustments so the right rail always reflects the same slice of time shown in the ledger.',
+    'Selected interval summarizes the time slice you are inspecting right now. It keeps the rail aligned with the same interval shown in the ledger.',
   catalogSenaSkuActNow: 'Act now',
   catalogSenaSkuActNowTooltip:
-    'SENA maps posterior demand, lead-time uncertainty, stockout risk, and reorder-policy outputs into an action recommendation. This block explains whether the current posterior favors immediate reorder, waiting for in-transit stock, or continued monitoring, along with the quantity band implied by reorder point and safety stock logic.',
+    'Act now is Banji’s recommended next move for this SKU. It tells you whether to reorder, wait for inbound stock, or keep watching.',
   catalogSenaSkuOpenPipeline: 'Open pipeline',
   catalogSenaSkuOpenPipelineTooltip:
-    'SENA explicitly separates order placement from receipt arrival. This block therefore focuses on inferred in-transit exposure, order probability, receipt timing, and the recent observation-derived order or receipt signals that constrain the latent pipeline state, without fabricating purchase-order objects the backend does not expose.',
+    'Open pipeline shows what is likely still inbound for this SKU. It focuses on in-transit stock, order probability, and receipt timing.',
   catalogSenaSkuExposure: 'Exposure',
   catalogSenaSkuRailExposureTooltip:
-    'Exposure is the service-side view of this SKU. It uses the sharing mask and service detail posteriors to show where this SKU is currently limiting service output, where it is becoming risky, and where it is simply linked but not yet binding.',
+    'Exposure is the service-side view of this SKU. It shows where this SKU is already limiting service output and where it is becoming risky.',
   catalogSenaSkuNextTouch: 'Next touch',
   catalogSenaSkuNextTouchTooltip:
-    'Next touch converts the current posterior into a follow-up checkpoint. The suggested date and reason are derived from reorder pressure, active receipt windows, observation recency, and estimated days of cover so the page can tell you when this SKU should be reviewed again.',
+    'Next touch shows when Banji expects this SKU will need attention again. It is based on pressure, inbound timing, recency, and days of cover.',
   catalogSenaSkuPreparing: 'Preparing SENA view',
   catalogSenaSkuNeedsObservations: 'SENA needs at least two observations',
   catalogSenaSkuRefreshing: 'Refreshing SENA analysis',
   catalogSenaSkuDegraded: 'SENA detail is degraded, but SKU controls remain available.',
   catalogSenaSkuMutationFailed: 'Mutation failed.',
-  catalogSenaSkuPriceDisabledHint: 'This SKU is not sold directly at retail.',
-  catalogSenaSkuDialogDescription: 'Capture one SKU-local observation and refresh the SENA posterior.',
+  catalogSenaSkuPriceDisabledHint: 'This SKU is not sold directly to customers.',
+  catalogSenaSkuDialogDescription: 'Log one SKU-specific observation, then refresh the current SENA view.',
   catalogSenaSkuObservedAt: 'Observed at',
   catalogSenaSkuUnitsInStock: 'Units in stock',
   catalogSenaSkuCostPerUnit: 'Cost per unit',
@@ -297,7 +297,7 @@ const en = {
   catalogSenaSkuTypicalLeadTimeDays: 'Typical lead time days',
   catalogSenaSkuLeadTimeVariability: 'Lead time variability',
   catalogSenaSkuLeadTimeVariabilityHint:
-    'Capture the supplier timing band for this order observation.',
+    'Choose the timing band that best matches this supplier update.',
   catalogSenaSkuApproximateReceiptQuantity: 'Approximate receipt quantity',
   catalogSenaSkuNotes: 'Notes',
   catalogSenaSkuSaving: 'Saving…',
@@ -305,18 +305,18 @@ const en = {
   catalogSenaSkuOpenPipelineEmpty: 'No recent order or receipt signals.',
   catalogSenaSkuRegimePriceLane: 'Regime + price lane',
   catalogSenaSkuRegimePriceLaneTooltip:
-    'SENA uses a discrete regime state to explain intervals such as normal, spike, lull, promo, stockout-constrained, or correction. This lane aligns those regime intervals with observed price markers so you can see when inventory behavior is more plausibly explained by promotions, drift, censored demand, or bookkeeping corrections instead of a generic trend line.',
+    'This lane shows the current regime alongside price cues. It helps explain whether behavior looks normal, promotional, constrained, or corrective.',
   catalogSenaSkuInventoryLane: 'Inventory posterior lane',
   catalogSenaSkuInventoryLaneTooltip:
-    'This lane shows the posterior on-hand inventory trajectory for the visible interval window, including central tendency and uncertainty. The reorder point and safety stock overlays come from SENA’s planning layer, which turns latent demand and latent lead-time states into stockout-risk and replenishment thresholds under an explicit service-level target.',
+    'This lane shows SENA’s stock-on-hand estimate across the visible window. It includes uncertainty plus reorder point and safety stock guides.',
   catalogSenaSkuReorderPoint: 'Reorder point',
   catalogSenaSkuSafetyStock: 'Safety stock',
   catalogSenaSkuFlowLane: 'Flow decomposition lane',
   catalogSenaSkuFlowLaneTooltip:
-    'SENA decomposes interval inventory movement into service-driven latent demand, retail-driven latent demand, receipts, and signed adjustments. This lane answers where inventory likely went in each interval, while preserving the distinction between demand-side activity and the realized inventory transition used in the state update.',
+    'This lane shows what likely moved inventory in each interval. It separates service demand, retail demand, receipts, and adjustments.',
   catalogSenaSkuPipelineLane: 'Order pipeline lane',
   catalogSenaSkuPipelineLaneTooltip:
-    'The pipeline lane visualizes SENA’s explicit replenishment model, where order placement, in-transit exposure, and receipt arrival are separate latent quantities. Lead-time uncertainty affects the inventory transition through received quantity and remaining pipeline stock, so this lane is the operational view of what has been ordered but not yet received.',
+    'This lane shows what SENA thinks is still in the replenishment pipeline. It separates order placement, in-transit stock, and receipts.',
   catalogSenaSkuEvidencePrevious: 'Previous evidence page',
   catalogSenaSkuEvidenceNext: 'Next evidence page',
   catalogSenaSkuEvidenceFirst: 'First',
@@ -324,16 +324,16 @@ const en = {
   catalogSenaSkuEvidencePageLabel: 'Page {current} of {total}',
   catalogSkuDetailNotFoundTitle: 'SKU not found',
   catalogSkuDetailNotFoundDescription:
-    'This SKU is no longer in the current snapshot. Return to the catalog to choose another record.',
+    'This SKU is not in the current catalog. Return to Catalog to choose another record.',
   catalogServiceDetailTitle: 'Service detail',
   catalogServiceDetailNotFoundTitle: 'Service not found',
   catalogServiceDetailNotFoundDescription:
-    'This service is no longer in the current snapshot. Return to the catalog to choose another record.',
+    'This service is not in the current catalog. Return to Catalog to choose another record.',
   catalogSkuDetailOverviewTitle: 'SKU overview',
   catalogSkuDetailOverviewDescription:
-    'See the stock, cost, and sellability profile for this SKU before editing it.',
+    'Review stock, cost, and sellability before editing this SKU.',
   catalogSkuOverviewIdentityDescription:
-    'Use this as the product record for identity, stock context, and the next operational handoff.',
+    'This is the main operating record for this SKU.',
   catalogSkuEditAction: 'Edit SKU',
   catalogSkuStockAction: 'Record stock update',
   catalogSkuDirectSellStatus: 'Direct sell status',
@@ -349,18 +349,18 @@ const en = {
   catalogSkuOperationalLinkedServicePlural: 'linked services depend on this SKU',
   catalogServiceDetailOverviewTitle: 'Service overview',
   catalogServiceDetailOverviewDescription:
-    'Review price, sellable coverage, and current availability for this service.',
+    'Review price, coverage, and current availability for this service.',
   catalogServiceDetailIdentityDescription:
-    'Monitor operational state, current constraints, dependency health, and the latest evidence for this service.',
+    'Use this page to track the current state, blockers, and latest evidence for this service.',
   catalogServiceEditAction: 'Edit service',
   catalogServiceAdjustPriceAction: 'Adjust price',
   catalogServiceOperationsAction: 'Review this service in logs',
   catalogServiceCommercialSetupTitle: 'Commercial setup',
   catalogServiceCommercialSetupDescription:
-    'Keep the selling price and linked SKU footprint clear before opening the editor.',
+    'Review selling price and linked SKUs before editing.',
   catalogServiceFulfillmentTitle: 'Fulfillment coverage',
   catalogServiceFulfillmentDescription:
-    'Derived coverage combines linked SKU stock and planning risk to show whether this service is blocked or at risk.',
+    'Coverage combines linked SKU stock and risk so you can see whether this service is blocked or at risk.',
   catalogServiceFulfillmentStatusTitle: 'Service heartbeat',
   catalogServiceHeartbeatTitle: 'Service heartbeat',
   catalogServiceHeartbeatHealthyHint: 'No active limiter',
@@ -387,7 +387,7 @@ const en = {
   catalogServiceCoverageStateAtRisk: 'At risk because a linked SKU has a current high-risk planning signal.',
   catalogLinkedServicesTitle: 'Service impact',
   catalogLinkedServicesDescription:
-    'These services currently depend on this SKU, so changes here affect their fulfillability.',
+    'These services depend on this SKU, so changes here can affect whether they stay sellable.',
   catalogLinkedServicesEmpty: 'No services currently depend on this SKU.',
   catalogLinkedServicesAffectedSingular: 'affected service',
   catalogLinkedServicesAffectedPlural: 'affected services',
@@ -407,7 +407,7 @@ const en = {
     'Detailed planning context could not be loaded. Showing the latest snapshot values instead.',
   catalogSkuDetailLoaderTitle: 'SIST detail',
   catalogSkuDetailLoaderDescription:
-    'Load the richer SIST detail when it is available without making it a requirement for this page.',
+    'Load richer SIST detail when it is available without blocking the page.',
   catalogSkuDetailLoaderLoading: 'Loading richer SIST detail…',
   catalogSkuDetailLoaderFallback: 'Richer SIST detail is not available right now.',
   catalogSkuDetailReports: 'Supporting reports',
@@ -427,7 +427,7 @@ const en = {
   catalogSkuParametersCoverageStable: 'Coverage is stable',
   catalogSkuRecentReportsTitle: 'Recent reports',
   catalogSkuRecentReportsDescription:
-    'Review the latest report evidence tied to this SKU before making stock or pricing changes.',
+    'Review the latest updates tied to this SKU before changing stock or price.',
   catalogSkuRecentReportsEmpty: 'No recent report history is available for this SKU yet.',
   catalogSkuRecentReportsFallback:
     'Recent report history could not be loaded right now. The rest of the SKU page is still available.',
@@ -440,36 +440,58 @@ const en = {
   catalogSkuEditorTitleEdit: 'Edit SKU',
   catalogSkuEditorDetailsTitleEdit: 'Edit SKU details',
   catalogSkuEditorDescriptionNew:
-    'Create a new SKU record, then land on its detail page for follow-up planning and stock work.',
+    'Create the SKU first. You can handle follow-up planning and stock work from its detail page.',
   catalogSkuEditorDescriptionEdit:
-    'Update the SKU name, stock, cost, pricing, and planning inputs.',
+    'Update the SKU details Banji uses for catalog, pricing, and planning.',
   catalogSkuEditorIdentifierDescription:
-    'The identifier is fixed for this SKU.',
+    'This SKU id is locked after creation.',
+  catalogSkuEditorDetailsDescriptor:
+    'Set the SKU name and internal description Banji will use across the app.',
+  catalogSkuEditorIdentifierHelper:
+    'Enter a stable SKU id. You cannot change it after saving.',
+  catalogSkuEditorNameHelper:
+    'Name the SKU the way staff will search for it.',
+  catalogSkuEditorDescriptionHelper:
+    'Add short context staff may need when identifying this SKU.',
   catalogSkuPlanningInputsTitle: 'Planning inputs',
   catalogSkuPlanningInputsDescription:
-    'Optional lead-time observations. Update them when supplier timing assumptions need a refresh.',
+    'Optional supplier timing inputs. Update them when the lead-time picture changes.',
+  catalogSkuEditorPricingDescriptor:
+    'Set the cost and direct-sell setup Banji should use for this SKU.',
+  catalogSkuEditorCostHelper:
+    'Enter the current landed cost per unit.',
+  catalogSkuEditorRetailPriceHelper:
+    'Enter a retail price only if customers buy this SKU directly.',
+  catalogSkuEditorSellAsProductHelper:
+    'Turn this on when customers can buy this SKU directly.',
+  catalogSkuEditorPlanningDescriptor:
+    'Add supplier timing only when it will improve the next replenishment decision.',
+  catalogSkuEditorLeadTimeMeanHelper:
+    'Enter the supplier’s best average lead time in days.',
+  catalogSkuEditorLeadTimeVariabilityHelper:
+    'Choose how wide supplier timing usually swings around that average.',
   catalogSkuEditorDetailsTooltip:
-    'Edit the canonical SKU identity fields here. The identifier stays fixed once the SKU already exists.',
+    'Identity fields define how Banji names and finds this SKU across catalog, logs, and planning.',
   catalogSkuEditorPricingTooltip:
-    'Use this section for unit cost and whether the SKU is sold directly with a retail price.',
+    'Pricing defines the unit economics for this SKU and whether it has a direct retail offer.',
   catalogSkuEditorPlanningTooltip:
-    'Planning inputs help SENA estimate replenishment timing when historical evidence is limited or changing. Variability is tracked as a time series of ordinal observations, not a fixed standard deviation setting.',
+    'Planning inputs describe supplier timing so Banji can estimate replenishment windows.',
   catalogSkuEditorSellAsProductTooltip:
-    'Enable this when the SKU is sold directly to customers instead of only supporting services or bundles.',
+    'Sold as product means customers can buy this SKU directly rather than only through a service.',
   catalogSkuEditorRetailPriceTooltip:
-    'Retail price is only relevant when this SKU is sold as a product.',
+    'Retail price is the direct selling price for this SKU when it is sold on its own.',
   catalogSkuEditorLeadTimeMeanTooltip:
-    'Enter the expected average supplier lead time in days.',
+    'Lead time mean is the typical number of days between placing the order and receiving it.',
   catalogSkuEditorLeadTimeVariabilityTooltip:
-    'Choose how widely supplier timing usually moves around the typical lead time.',
+    'Lead-time variability describes how wide the receipt window usually is around the typical lead time.',
   catalogSkuEditorLeadTimeVariabilityHint:
-    'Pick the class that best matches recent supplier timing spread.',
+    'Pick the class that best matches recent supplier timing.',
   catalogSkuLeadTimeVariabilityPlaceholder: 'Select variability',
   catalogSkuPlanningInputsShow: 'Show inputs',
   catalogSkuPlanningInputsHide: 'Hide inputs',
   catalogServiceLinkedSkusTitle: 'Dependency contributors',
   catalogServiceLinkedSkusDescription:
-    'These SKUs determine how many units of this service can be sold.',
+    'These SKUs determine how many times this service can be sold.',
   catalogServiceLinkedSkusEmpty: 'No SKUs are linked to this service yet.',
   catalogServiceLinkedSkuStatusLabel: 'Status',
   catalogServiceLinkedSkuHealthyBadge: 'Healthy',
@@ -482,7 +504,7 @@ const en = {
   catalogServiceAvailabilityUnlinked: 'Unlinked',
   catalogServiceRecentActivityTitle: 'Evidence timeline',
   catalogServiceRecentActivityDescription:
-    'Recent stock reports that mention this service help explain price changes, service stockouts, or ranking movement.',
+    'Recent updates tied to this service help explain price changes, stockouts, and ranking movement.',
   catalogServiceRecentActivityEmpty: 'No recent service-related updates were found.',
   catalogServiceRecentActivityFallback:
     'Recent service activity could not be loaded right now. The rest of the service page is still available.',
@@ -510,25 +532,41 @@ const en = {
   catalogServiceEditorTitleNew: 'New service',
   catalogServiceEditorTitleEdit: 'Edit service',
   catalogServiceEditorDescriptionNew:
-    'Create a new service record, then land on its detail page for follow-up fulfillment and logs review.',
+    'Create the service first. You can review fulfillment and logs from its detail page.',
   catalogServiceEditorDescriptionEdit:
-    'Update the service name, price, description, and linked SKUs.',
+    'Update the service details Banji uses for catalog, pricing, and coverage.',
   catalogServiceEditorIdentifierDescription:
-    'The identifier is fixed for this service.',
+    'This service id is locked after creation.',
+  catalogServiceEditorDetailsDescriptor:
+    'Set the service name and description Banji will show across the app.',
+  catalogServiceEditorIdentifierHelper:
+    'Use a stable service id. You cannot change it after saving.',
+  catalogServiceEditorNameHelper:
+    'Name the service the way staff and customers recognize it.',
+  catalogServiceEditorDescriptionHelper:
+    'Add short context about what this service includes or promises.',
   catalogServiceEditorDetailsTooltip:
-    'Edit the canonical service identity fields here. The identifier stays fixed once the service already exists.',
+    'Identity fields define how Banji names and finds this service across catalog, logs, and analysis.',
   catalogServiceEditorPricingTooltip:
-    'Use this section for the customer-facing service price that Catalog and service detail surfaces will show.',
+    'Pricing defines the customer-facing amount Banji shows for this service.',
+  catalogServiceEditorPricingDescriptor:
+    'Set the customer-facing price Banji should use for this service.',
   catalogServiceEditorLinkedSkusTooltip:
-    'Choose which SKUs are consumed whenever this service is sold so availability and bottlenecks are calculated correctly.',
+    'Linked SKUs are the stock inputs Banji checks before marking this service as sellable.',
+  catalogServiceEditorLinkedSkusDescriptor:
+    'Link the SKUs this service consumes so Banji can track coverage and blockers.',
+  catalogServiceEditorLinkedSkusHelper:
+    'Choose every SKU normally consumed when this service is sold.',
   catalogServiceEditorPriceTooltip:
     'Service price is the amount charged when this service is sold.',
+  catalogServiceEditorPriceHelper:
+    'Enter the price charged when this service is sold.',
   stockChangesTitle: 'Logs',
   stockUpdateBody:
-    'Capture timestamped stock reports, optional service updates, and the ranking context the desktop workflow uses for the next planning pass.',
+    'Capture stock updates, optional service changes, and selling-order signals in one saved log.',
   operationsTitle: 'Logs',
   operationsBody:
-    'Start the next stock session quickly, scan recent updates quickly, and inspect the saved log breakdown only when needed.',
+    'Start the next update fast, scan recent activity fast, and open details only when needed.',
   operationsStartSession: 'Start update session',
   operationsResumeSession: 'Resume update session',
   operationsResumeDetails: 'Resume details',
@@ -545,7 +583,7 @@ const en = {
   operationsSummaryNone: 'No saved updates yet',
   operationsHistoryTitle: 'Recent activity',
   operationsHistoryDescription:
-    'Review the latest operational updates, filter history quickly, and inspect row-level report detail without leaving this page.',
+    'Review recent updates, filter history quickly, and open row-level detail without leaving this page.',
   operationsHistoryIncludes: 'Includes',
   operationsResultsShowing: 'Showing',
   operationsResultsNoneMatch: 'No reports match',
@@ -555,10 +593,10 @@ const en = {
   operationsHistoryLoading: 'Loading recent activity…',
   operationsHistoryEmptyTitle: 'No saved updates yet',
   operationsHistoryEmptyDescription:
-    'Start the first update session to capture timestamped SKU observations and optional service changes.',
+    'Start the first update to capture SKU observations and any optional service changes.',
   operationsHistoryNoResultsTitle: 'No matching updates',
   operationsHistoryNoResultsDescription:
-    'Try clearing the current search or source filter to see more saved log history.',
+    'Try another search or clear the filter to see more saved log history.',
   operationsHistoryEditAction: 'Edit report',
   operationsHistoryDeleteAction: 'Delete report',
   operationsHistoryDeletePrompt: 'Type this exactly to permanently delete the report:',
@@ -572,14 +610,14 @@ const en = {
   operationsFilterPriceChanges: 'Price changes',
   operationsInspectAction: 'Inspect',
   operationsInspectHide: 'Hide',
-  stockUpdateHint: 'Only rows you edit become part of the submitted stock report.',
+  stockUpdateHint: 'Only rows you change will be saved in this update.',
   stockTableTitle: 'SKU observations',
   stockHistoryTitle: 'Recent activity',
   stockHistoryDescription:
-    'Review saved inventory updates and merchandising signals before starting the next report.',
+    'Review saved updates and selling signals before starting the next one.',
   stockHistoryEmptyTitle: 'No saved updates yet',
   stockHistoryEmptyDescription:
-    'Start the first update to capture SKU observations, service stockouts, and storefront ordering in one place.',
+    'Start the first update to capture SKU observations, service stockouts, and recent selling order in one place.',
   stockHistoryViewDetails: 'View details',
   stockHistoryHideDetails: 'Hide details',
   stockHistorySourceManual: 'Manual update',
@@ -600,31 +638,31 @@ const en = {
   stockAddUpdate: 'Start update session',
   stockComposerTitle: 'New update session',
   stockComposerDescription:
-    'Capture one operational update with stock observations, optional service changes, and a final review before submit.',
+    'Capture one update with stock observations, optional service changes, and a final review before submit.',
   stockComposerCancel: 'Cancel session',
   stockSessionEyebrow: 'Logs session',
   stockSessionTitle: 'Review and submit one logs update',
   stockSessionDescription:
-    'Timestamp the update, capture at least one SKU observation, optionally add service changes and a sales signal, then submit from the final review.',
+    'Set the time, capture at least one SKU change, optionally add service changes and a selling signal, then submit from review.',
   stockSessionProgress: 'sections ready',
   stockSessionIncomplete: 'Session incomplete',
   stockSessionReady: 'Ready to submit',
   stockSessionStepLabel: 'Step',
   stockSessionStepDetails: 'Details',
   stockSessionStepDetailsDescription:
-    'Set the report timestamp and add optional notes before moving into observations.',
+    'Set when the update was observed and add notes if they will help later.',
   stockSessionStepObservations: 'SKU observations',
   stockSessionStepObservationsDescription:
-    'Record at least one changed SKU row. This is the core required surface for the session.',
+    'Record at least one changed SKU row. This is the required part of the session.',
   stockSessionStepServices: 'Service updates',
   stockSessionStepServicesDescription:
-    'Optional service stockouts and price overrides live here so they do not block the rest of logs.',
+    'Capture service stockouts and price overrides here when they matter.',
   stockSessionStepSalesSignal: 'Sales signal',
   stockSessionStepSalesSignalDescription:
     'Capture the recent selling order Banji should use as a demand signal.',
   stockSessionStepReview: 'Review & submit',
   stockSessionStepReviewDescription:
-    'Confirm the required details, review optional changes, and submit the final payload from here.',
+    'Confirm the required details, review optional changes, and submit from here.',
   stockSessionStepRequired: 'Complete the required sections before submitting this update.',
   stockSessionBack: 'Back',
   stockSessionNext: 'Next',
@@ -639,13 +677,13 @@ const en = {
   stockStepStatusNeedsAttention: 'Needs attention',
   stockSessionNotesOptional: 'Notes are optional and only saved when they are non-empty.',
   stockSessionServicesOptionalDescription:
-    'Skip this section when there are no service stockouts or service price changes to capture.',
+    'Skip this section when there are no service stockouts or service price changes to log.',
   stockSalesSignalPanelTitle: 'Recent selling order',
   stockSalesSignalSupportCopy:
     'Rank services and sellable SKUs by recent observed demand/popularity. Noisy estimates are okay!',
   stockSalesSignalExplainerTitle: 'Why this signal matters',
   stockSalesSignalExplainerBody:
-    'Use recent selling order to help Banji interpret demand. This is not a priority list or push list. Rank what sold first or most often recently so Banji can read current demand patterns.',
+    'Use recent selling order to help Banji read demand. Rank what sold first or most often recently. This is a demand signal, not a push list.',
   stockSalesSignalUnsavedBadge: 'Unsaved changes',
   stockSalesSignalEntrySingular: 'entry in scope',
   stockSalesSignalEntryPlural: 'entries in scope',
@@ -653,7 +691,7 @@ const en = {
   stockSalesSignalHelperNote: 'Only update this when recent selling order changed meaningfully.',
   stockSalesSignalEmptyTitle: 'No recent selling order to capture',
   stockSalesSignalEmptyDescription:
-    'Add a service or a sellable SKU before using this step as a demand signal.',
+    'Add a service or a sellable SKU before using this step.',
   stockServiceSummaryEmpty:
     'No service stockouts or override prices are queued right now. Skip this section unless something needs review.',
   stockServiceSummaryChangedPreview:
@@ -678,10 +716,10 @@ const en = {
   stockObservationsSearchEmpty: 'No SKU rows match the current search.',
   stockObservationsChangedBadge: 'Changed',
   stockFocusedBadge: 'Focused',
-  stockFocusSkuHint: 'Opened from SKU detail',
-  stockFocusServiceHint: 'Opened from service detail',
+  stockFocusSkuHint: 'Opened from this SKU',
+  stockFocusServiceHint: 'Opened from this service',
   stockServiceStockoutToggle: 'Mark stockout',
-  stockServicePriceHint: 'Current catalog price',
+  stockServicePriceHint: 'Using the current catalog price',
   stockServiceSummaryFlagSingular: 'service flag',
   stockServiceSummaryFlagPlural: 'service flags',
   stockServiceSummaryPriceSingular: 'price edit',
@@ -690,7 +728,7 @@ const en = {
   stockSummaryTitle: 'Pending change set',
   stockReviewTitle: 'Review & submit',
   stockReviewDescription:
-    'Confirm the timestamp, changed SKU rows, optional service updates, sales signal, and notes before saving.',
+    'Confirm the timestamp, changed SKU rows, optional service updates, selling signal, and notes before saving.',
   stockReviewMissingTimestamp: 'Add a valid timestamp before submitting.',
   stockReviewNoNotes: 'No notes will be included with this update.',
   stockReviewNoServiceChanges: 'No optional service updates will be sent with this report.',
@@ -708,16 +746,16 @@ const en = {
   stockDone: 'Save update',
   stockPhaseEditing: 'Editing',
   stockPhaseReview: 'Review',
-  validationStockChanges: 'Change at least one SKU before saving.',
+  validationStockChanges: 'Change at least one SKU row before saving.',
   stockReportedAt: 'Reported at',
   stockReportNotes: 'Report notes',
   stockObservationRowNotesLabel: 'SKU notes',
   stockObservationRowNotesPlaceholder: 'Capture any row-specific exception or context.',
   stockObservationShowNotes: 'Show SKU notes',
   stockObservationHideNotes: 'Hide SKU notes',
-  stockObservationAddNoteTooltip: 'Add note',
+  stockObservationAddNoteTooltip: 'Open notes for this SKU row.',
   stockObservationResetRow: 'Reset SKU row',
-  stockObservationResetTooltip: 'Reset',
+  stockObservationResetTooltip: 'Reset this SKU row to the saved state.',
   stockRestockIncluded: 'Restock included',
   stockRetailStockout: 'Retail stockout',
   stockObservationsClearAction: 'Clear SKU changes',
@@ -729,14 +767,14 @@ const en = {
   stockRankingTitle: 'Ranking Signals',
   stockTopServiceRanking: 'Observed top services',
   stockTopRetailRanking: 'Observed top retail SKUs',
-  stockRankingHint: 'Use comma-separated ids in order of observed activity.',
-  stockSignalsHint: 'Optional low-effort signals help SIST separate demand, restocks, and stockouts.',
+  stockRankingHint: 'Enter ids in observed selling order, separated by commas.',
+  stockSignalsHint: 'Optional signals help Banji separate demand, restocks, and stockouts.',
   stockNoServiceSignals: 'No service flags selected for this report.',
   productRankingTitle: 'Recent selling order',
   rankingBody:
-    'Set the order in which services and sellable SKUs are promoted inside the desktop storefront flow.',
+    'Set the order in which services and sellable SKUs should be shown or pushed first.',
   planningBody:
-    'Set the sales priority order your team uses on the floor, then review the supporting signals before saving.',
+    'Set the sales priority order your team uses, then review the supporting signals before saving.',
   planningOperationsSource:
     'You opened Planning from logs review. Finalize the order here, then return to review.',
   planningReturnToOperationsReview: 'Return to logs review',
@@ -744,27 +782,27 @@ const en = {
   planningLeadSpotlight: 'Top of list preview',
   planningLeadSpotlightEmpty: 'No ranked entries yet.',
   planningCoverageTitle: 'Ranking coverage',
-  planningCoverageDescription: 'Entries currently in scope for merchandising decisions.',
+  planningCoverageDescription: 'Shows how many items are currently in scope for this ranking.',
   planningCoverageBadge: 'entries in scope',
   planningContextTitle: 'Decision context',
-  planningContextDescription: 'Use these signals to pressure-test the order above.',
+  planningContextDescription: 'Use these signals to check whether the order above still makes sense.',
   planningRankingWorkspaceTitle: 'Set sales priority order',
   planningRankingWorkspaceDescription:
-    'Rank the services and sellable SKUs by how strongly they tend to sell or how strongly your team pushes them. Highest priority means first to push, first to assume demand for when evidence is thin.',
+    'Rank the services and sellable SKUs by what tends to sell first or what your team should push first. Highest priority means first to assume demand when evidence is thin.',
   planningUnsavedBadge: 'You have unsaved changes',
   planningExplainerTitle: 'Why this order matters',
   planningExplainerTeamLabel: 'For your team',
-  planningExplainerTeamBody: 'Shows what should be pushed or is most likely to sell first.',
+  planningExplainerTeamBody: 'Shows what the team should push first or expects to sell first.',
   planningExplainerSistLabel: 'For SIST',
   planningExplainerSistBody:
-    'Helps Banji estimate hidden demand patterns when direct stock signals are incomplete.',
+    'Helps Banji estimate demand when direct stock signals are incomplete.',
   planningExplainerFooter: 'Treat this as a business signal, not a strict sales report.',
   planningDemandPressureTitle: 'Demand pressure',
   planningDemandPressureLabel: 'Reorder pressure',
   planningDemandPressureEmpty: 'No high-risk SKUs right now.',
   planningEmptyTitle: 'Planning needs rankable items',
   planningEmptyDescription:
-    'Add a service or a sellable SKU before setting the sales priority order.',
+    'Add a service or a sellable SKU before setting sales priority.',
   planningEmptyAction: 'Open catalog',
   merchandisingTopThreeTitle: 'Top of list preview',
   merchandisingTopThreeDescription:
@@ -781,17 +819,17 @@ const en = {
   rankHeaderPrice: 'Price',
   settingsTitle: 'Settings',
   settingsBody:
-    'Preview workspace preferences live, keep advanced model tuning tucked away until needed, and save everything from one page action row.',
+    'Adjust local shell behavior, optional help, and workspace preferences from one page.',
   settingsStorage:
     'Language and currency are stored locally in the renderer; inventory data stays in the desktop app data directory.',
   settingsStorageTitle: 'Local-only storage',
   settingsDisclaimer: 'This workstation remains the source of truth for the current prototype.',
   settingsWorkspacePreferencesTitle: 'Workspace preferences',
   settingsWorkspacePreferencesDescription:
-    'Language and currency preview immediately across the current workspace, but they are only persisted when you save.',
+    'Language and currency preview immediately, but they are only saved when you save preferences.',
   settingsAdvancedTitle: 'Advanced settings',
   settingsAdvancedDescription:
-    'These SIST tuning inputs stay collapsed by default so workspace preferences remain the primary settings task.',
+    'Keep advanced model tuning tucked away unless you are actively changing it.',
   settingsAdvancedShow: 'Show advanced settings',
   settingsAdvancedHide: 'Hide advanced settings',
   settingsAdvancedUnsaved: 'Unsaved',
@@ -805,7 +843,7 @@ const en = {
   settingsSaveSuccess: 'Changes saved.',
   settingsLocalDataTitle: 'Local data',
   settingsLocalDataDescription:
-    'Banji stores its raw working data on this device in JSON files. Use CSV export when you want to inspect the data in Excel or Numbers.',
+    'Banji stores its working data on this device. Open the folder when you need the local files.',
   settingsLocalDataFolderLabel: 'Data folder',
   settingsLocalDataRawFiles: 'Raw files',
   settingsLocalDataRawFormatNote:
@@ -830,10 +868,10 @@ const en = {
   currencyKhr: 'KHR (៛)',
   preferencesRegionalTitle: 'Regional formatting',
   preferencesRegionalDescription:
-    'Choose how Banji formats language and currency across the dashboard, catalog, and editors.',
+    'Choose how Banji formats language and currency across the app.',
   preferencesSistTitle: 'SIST defaults',
   preferencesSistDescription:
-    'Tune the local sparse-inventory model target service level, forecast horizon, and particle budget for this desktop workspace.',
+    'Tune the local model only when you need different planning behavior for this workspace.',
   skuEditorTitle: 'SKU editor',
   serviceEditorTitle: 'Service editor',
   fieldId: 'Identifier',
@@ -848,16 +886,16 @@ const en = {
   fieldLeadTimeStdDays: 'Lead time std. dev. (days)',
   fieldPrice: 'Service price',
   fieldLinkedSkus: 'Linked SKUs',
-  fieldSkuSelectionHint: 'Select the SKUs consumed whenever this service is sold.',
+  fieldSkuSelectionHint: 'Select the SKUs this service normally consumes.',
   serviceEditorDetailsTitle: 'Service details',
   skuEditorDetailsTitle: 'SKU details',
   skuEditorStockSellingTitle: 'Stock and selling',
   skuEditorDetailsDescription:
-    'Set the SKU name and description so the record is easy to identify in catalog and logs views.',
+    'Set the SKU name and description so staff can recognize it quickly.',
   skuEditorStockSellingDescription:
-    'Adjust stock on hand, unit cost, and direct-sell setup together so sellability is clear at a glance.',
+    'Adjust stock, unit cost, and direct-sell setup together so sellability stays clear.',
   skuEditorSellAsProductDescription:
-    'Turn this on only when the SKU can be sold directly and should carry its own selling price.',
+    'Turn this on only when the SKU can be sold directly and needs its own selling price.',
   skuEditorImpactTitle: 'Change impact',
   skuEditorImpactSellableEnabled:
     'Catalog and Planning will treat this SKU as sellable after you save.',
@@ -897,12 +935,12 @@ const en = {
   cancel: 'Cancel',
   savedState: 'Saved',
   unsavedChanges: 'You have unsaved changes.',
-  validationRequired: 'This field is required.',
-  validationNonNegative: 'Enter a non-negative number.',
-  validationPositive: 'Enter a value greater than zero.',
-  validationSelection: 'Select at least one linked SKU.',
-  validationProductPrice: 'Selling price is required when the SKU is sold as a product.',
-  validationTimestamp: 'Enter a valid report timestamp.',
+  validationRequired: 'Enter a value for this field.',
+  validationNonNegative: 'Enter zero or a higher number.',
+  validationPositive: 'Enter a number greater than zero.',
+  validationSelection: 'Select at least one linked SKU before saving.',
+  validationProductPrice: 'Enter a selling price or turn off Sell as product.',
+  validationTimestamp: 'Enter a valid date and time.',
   apiUnavailable: 'The local SENA workspace is unavailable.',
   serviceLabel: 'Service',
   skuLabel: 'SKU',
@@ -911,13 +949,13 @@ const en = {
   settingsParticleCount: 'Particle count',
   settingsSmoothingWindow: 'Smoothing window (reports)',
   settingsTargetServiceLevelTooltip:
-    'Sets the reorder-point service target SIST should protect. Higher values reduce stockout risk but usually recommend more stock.',
+    'Target service level is the stock-availability goal Banji plans around. Higher targets usually mean carrying more stock.',
   settingsForecastHorizonTooltip:
-    'Controls how far ahead SIST projects demand and stock risk from the latest report.',
+    'Forecast horizon is how far ahead Banji projects demand and stock risk.',
   settingsParticleCountTooltip:
-    'Sets how many particle samples SIST uses during inference. Higher counts are steadier but take longer to compute.',
+    'Particle count controls how much sampling Banji uses during inference. Higher counts are steadier but slower.',
   settingsSmoothingWindowTooltip:
-    'Controls how many recent reports SIST emphasizes when smoothing sparse observations and drift.',
+    'Smoothing window controls how many recent reports Banji emphasizes when smoothing sparse observations.',
   sistStateReady: 'Ready',
   sistStateRunning: 'Refreshing',
   sistStateStale: 'Stale',

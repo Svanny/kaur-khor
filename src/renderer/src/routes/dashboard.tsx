@@ -187,7 +187,7 @@ export function DashboardRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title="Overview needs the catalog first"
-          description="Create the first SKU so Banji can turn SENA signals into a working task ledger."
+          hint="Create the first SKU so Banji can build an action list from real stock work."
           action={
             <Button asChild>
               <Link to="/catalog/skus/new">Create first SKU</Link>
@@ -203,7 +203,7 @@ export function DashboardRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title="Overview needs the first SENA run"
-          description="Capture a live observation or log a SKU action so Banji can build the order, receipt, and follow-up queue."
+          hint="Capture a live observation so Banji can build the order, receipt, and follow-up queue."
           action={
             <WorkspaceActionRow>
               <Button asChild>
@@ -224,7 +224,7 @@ export function DashboardRoute() {
       <WorkspaceTitleCard
         eyebrow="Overview"
         title="Mission Control"
-        description="What needs attention next, what is already in motion, and when Banji will check back."
+        descriptor="See what needs attention next, what is already in motion, and when Banji will check back."
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
           <div className="w-full max-w-xl">

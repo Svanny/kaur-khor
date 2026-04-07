@@ -576,7 +576,7 @@ export function ServiceDetailLedger({
           <div className="mt-1">
             <SectionTitle
               title="Service viability ledger"
-              tooltip="A service-native ledger for regime shifts, demand versus sellability, contributor pressure, and restoration signals."
+              tooltip="Interval-by-interval view of service sellability, contributor pressure, and recovery signals."
             />
           </div>
         </div>
@@ -611,7 +611,7 @@ export function ServiceDetailLedger({
           <LaneTitle
             title="Regime + price lane"
             subtitle={intervals.find((interval) => interval.intervalIndex === selectedIntervalIndex)?.priceLabel ?? intervals.at(-1)?.priceLabel}
-            tooltip="Demand conditions and service price context across the active interval sequence."
+            tooltip="Demand regime and service price context across the selected intervals."
           />
           <div className={cn('grid gap-3', isLaneExpanded('regime') && 'min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
             <div className="flex items-start justify-between gap-3 px-1">
@@ -735,7 +735,7 @@ export function ServiceDetailLedger({
         <div className={cn('border-t border-border/60 py-5', isLaneExpanded('flow') && 'grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)]')}>
           <LaneTitle
             title="Demand and sellability lane"
-            tooltip="Sellable capacity minus demand, using a single service margin bar around the midline."
+            tooltip="Gap between demand and sellable capacity in each interval."
           />
           <div className="mb-3 flex items-start justify-between gap-3 px-2">
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -826,7 +826,7 @@ export function ServiceDetailLedger({
         <div className="border-t border-border/60 py-5">
           <LaneTitle
             title="Contributor pressure lane"
-            tooltip="Linked SKUs ranked by days of cover, bottleneck probability, and service pressure."
+            tooltip="Linked SKUs ranked by how strongly they limit this service."
           />
           <div className="-mt-1 mb-3 flex justify-end">
             <LaneExpandButton expanded={isLaneExpanded('contributors')} title="Contributor pressure lane" onClick={() => toggleLaneExpanded('contributors')} />
@@ -884,7 +884,7 @@ export function ServiceDetailLedger({
         <div className="border-t border-border/60 pt-5">
           <LaneTitle
             title="Restoration pipeline lane"
-            tooltip="Inbound linked-SKU events and confirmed receipts that restore service capacity."
+            tooltip="Inbound linked-SKU events that can restore service capacity."
           />
           <div className="-mt-1 mb-3 flex justify-end">
             <LaneExpandButton expanded={isLaneExpanded('restoration')} title="Restoration pipeline lane" onClick={() => toggleLaneExpanded('restoration')} />
@@ -908,7 +908,7 @@ export function ServiceDetailLedger({
             </div>
           ) : (
             <div className="rounded-[1.2rem] border border-dashed border-border/70 bg-background/70 px-4 py-5 text-sm leading-6 text-muted-foreground">
-              No open restoration signal is visible yet. Use linked SKU updates to refresh the service recovery path.
+              No restoration event is visible yet. Log linked SKU orders or receipts to refresh the recovery path.
             </div>
           )}
         </div>
