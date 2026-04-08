@@ -356,6 +356,9 @@ export function DashboardRoute() {
                             </HeaderedTableMobileLabel>
                             <p className="font-medium text-foreground">{task.whyNow}</p>
                             <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
+                            {task.reorderRecommendation.compactLabel ? (
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.reorderRecommendation.compactLabel}</p>
+                            ) : null}
                           </div>
 
                           <div className="min-w-0">

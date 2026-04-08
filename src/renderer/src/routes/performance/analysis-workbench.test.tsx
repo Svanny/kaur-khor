@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { SenaCatalog, SenaDiagnostics, SenaObservationRecord, SenaServiceDetail, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { AnalysisWorkbench } from './analysis-workbench';
@@ -65,6 +66,19 @@ const workspaceSummary: SenaWorkspaceSummary = {
       leadTimeStdDays: 1.5,
       reorderPoint: 14,
       reorderTriggerProbability: 0.68,
+      reorderQuantity: {
+        recommendedUnits: 14.2,
+        ungatedRecommendedUnits: 14.2,
+        likelyRangeLow: 10,
+        likelyRangeHigh: 18,
+        needProbability: 0.78,
+        recommendationIssued: true,
+        recommendationQuantile: 0.7,
+        intervalLowQuantile: 0.1,
+        intervalHighQuantile: 0.9,
+        needProbabilityGate: 0.5,
+        reviewDelayDays: 0,
+      },
       regimeProbabilities: { normal: 0.35, promo: 0.65 },
       safetyStock: 4,
       skuId: 'sku-razor',
@@ -291,6 +305,29 @@ describe('AnalysisWorkbench', () => {
     render(<AnalysisWorkbench model={buildModel()} section="observations" setSection={vi.fn()} showRightRailCards={false} />);
 
     expect(screen.queryByRole('button', { name: /latest observation/i })).toBeNull();
+  });
+
+  test('shows reorder policy in the selected SKU inspector', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <AnalysisWorkbench model={buildModel()} section="pressure" setSection={vi.fn()} showRightRailCards />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /Razor Refill/i }));
+
+    expect(screen.getAllByText('Reorder policy').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('15 units').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('10-18 units').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('78%').length).toBeGreaterThan(0);
+
+    const protectionHorizon = screen
+      .getAllByText('lead time + 0d review delay')
+      .find((node) => node.className.includes('[overflow-wrap:anywhere]'));
+    expect(protectionHorizon).toBeTruthy();
+    expect(protectionHorizon).toHaveClass('min-w-0', 'break-words', 'text-right');
   });
 
   test('does not mount the inspector rail on the fragility tab', () => {

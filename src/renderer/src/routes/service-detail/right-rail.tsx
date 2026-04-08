@@ -4,6 +4,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
+import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
 function RailBlock({
@@ -49,6 +50,17 @@ export function ServiceDetailRightRail({
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
+      <RailBlock title="Act now">
+        <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.overviewTitle}</p>
+        <div className="mt-4 space-y-2">
+          {model.rail.overviewReason.map((line, index) => (
+            <p key={`${index}:${line}`} className="text-sm leading-6 text-muted-foreground">
+              {line}
+            </p>
+          ))}
+        </div>
+      </RailBlock>
+
       {contributor ? (
         <RailBlock title="Selected contributor">
           <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{contributor.name}</p>
@@ -58,6 +70,7 @@ export function ServiceDetailRightRail({
             <p>{contributor.probabilityLabel} limiting probability</p>
             <p>{contributor.stockLabel}</p>
             <p>{contributor.inboundLabel}</p>
+            {contributor.restockGuidance ? <p>{contributor.restockGuidance}</p> : null}
           </div>
           <Button asChild className="mt-4 w-full">
             <Link to={contributor.openSkuHref}>
@@ -70,30 +83,19 @@ export function ServiceDetailRightRail({
 
       {interval ? (
         <RailBlock title="Selected interval">
-          <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{interval.changeHeadline}</p>
-          <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
-            <p>{interval.label} · {interval.dominantRegime}</p>
-            <p>Demand {interval.demandLabel} · Sellable {interval.sellableLabel}</p>
-            <p>Binding SKU {interval.bindingLabel}</p>
-          </div>
-          <div className="mt-4 space-y-2">
-            {interval.changeLines.map((line) => (
-              <p key={line} className="text-sm leading-6 text-muted-foreground">{line}</p>
-            ))}
-          </div>
+          <SelectedIntervalBrief
+            headline={interval.changeHeadline}
+            meta={[interval.label, interval.dominantRegime]}
+            metrics={[
+              { label: 'Demand', value: interval.demandLabel },
+              { label: 'Sellable', value: interval.sellableLabel },
+              { label: 'Binding SKU', value: interval.bindingLabel, wide: true },
+              { label: 'Gap', value: interval.gapLabel },
+            ]}
+            notes={interval.changeLines}
+          />
         </RailBlock>
       ) : null}
-
-      <RailBlock title="Act now">
-        <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.overviewTitle}</p>
-        <div className="mt-4 space-y-2">
-          {model.rail.overviewReason.map((line, index) => (
-            <p key={`${index}:${line}`} className="text-sm leading-6 text-muted-foreground">
-              {line}
-            </p>
-          ))}
-        </div>
-      </RailBlock>
 
       <RailBlock title="Bottleneck stack">
         <div className="divide-y divide-border/60">

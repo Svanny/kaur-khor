@@ -9,6 +9,11 @@ import type {
 } from '@shared/sena';
 import { deriveLeadTimeVariabilityClass } from '@shared/sena-lead-time';
 import { formatWholeNumber } from '@/lib/format';
+import {
+  formatSenaReorderQuantity,
+  isSenaReorderQuantityIssued,
+  type SenaReorderQuantityDisplay,
+} from '@/lib/sena-reorder-quantity';
 import { formatSenaDate, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
 
 export type OverviewTaskFilter =
@@ -80,6 +85,7 @@ export interface OverviewTask {
   regimeLabel: string;
   stockoutRisk: number;
   reorderTriggerProbability: number;
+  reorderRecommendation: SenaReorderQuantityDisplay;
   daysOfCover: number | null;
 }
 
@@ -399,7 +405,7 @@ function taskPriority(value: Exclude<OverviewTaskFilter, 'all'>) {
   }
 }
 
-function recommendedOrderQuantity(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
+function fallbackRecommendedOrderQuantity(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
   const inTransit = detail?.pipelinePosterior.at(-1)?.inTransitMean ?? 0;
   const lowGap = summary.reorderPoint - summary.credibleIntervalHigh - inTransit;
   const highGap = summary.reorderPoint + summary.safetyStock - summary.credibleIntervalLow - inTransit;
@@ -554,6 +560,10 @@ function deriveTaskState({
     return 'received_today';
   }
 
+  if (isSenaReorderQuantityIssued(summary.reorderQuantity)) {
+    return 'to_order';
+  }
+
   if (hasOpenOrder || receiptWindow != null) {
     if (receiptWindow?.overdue) {
       return 'follow_up_today';
@@ -615,6 +625,12 @@ function buildTask({
   }
 
   const linkedServiceNames = enabledLinkedServices(catalog, summary.skuId);
+  const fallbackOrderQuantity = fallbackRecommendedOrderQuantity(summary, detail);
+  const reorderRecommendation = formatSenaReorderQuantity(
+    summary.reorderQuantity,
+    language,
+    fallbackOrderQuantity,
+  );
   const narrative = taskNarrative({
     linkedServiceNames,
     receiptWindow,
@@ -689,7 +705,7 @@ function buildTask({
     leadTimeMeanDays: detail?.leadTimePosterior.at(-1)?.meanDays ?? summary.leadTimeMeanDays,
     leadTimeStdDays: detail?.leadTimePosterior.at(-1)?.stdDays ?? summary.leadTimeStdDays,
     variabilityClass,
-    suggestedOrderQuantity: recommendedOrderQuantity(summary, detail),
+    suggestedOrderQuantity: reorderRecommendation.recommendedUnits,
     recentOrderQuantity: observationSignals.latestOrderQuantity,
     recentReceiptQuantity: observationSignals.latestReceiptQuantity,
     latestObservationAt: observationSignals.latestObservationAt,
@@ -698,6 +714,7 @@ function buildTask({
     regimeLabel: titleCase(dominantRegime),
     stockoutRisk: summary.stockoutRisk,
     reorderTriggerProbability: summary.reorderTriggerProbability,
+    reorderRecommendation,
     daysOfCover: summary.daysOfCover,
   } satisfies OverviewTask;
 }
@@ -842,6 +859,8 @@ export function taskMatchesQuery(task: OverviewTask, query: string) {
     task.serviceImpact,
     task.whyNow,
     task.whyDetail,
+    task.reorderRecommendation.compactLabel ?? '',
+    task.reorderRecommendation.recommendedOrderLabel,
     task.etaLabel,
     task.stateLabel,
     ...task.linkedServiceNames,

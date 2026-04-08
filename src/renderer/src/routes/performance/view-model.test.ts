@@ -69,6 +69,19 @@ const workspaceSummary = {
       leadTimeStdDays: 1,
       reorderPoint: 14,
       reorderTriggerProbability: 0.88,
+      reorderQuantity: {
+        recommendedUnits: 14.2,
+        ungatedRecommendedUnits: 14.2,
+        likelyRangeLow: 10,
+        likelyRangeHigh: 18,
+        needProbability: 0.78,
+        recommendationIssued: true,
+        recommendationQuantile: 0.7,
+        intervalLowQuantile: 0.1,
+        intervalHighQuantile: 0.9,
+        needProbabilityGate: 0.5,
+        reviewDelayDays: 0,
+      },
       regimeProbabilities: { normal: 0.4, promo: 0.6 },
       safetyStock: 4,
       skuId: 'sku-razor',
@@ -197,6 +210,8 @@ describe('derivePerformanceViewModel', () => {
     expect(model.boardRows.every((row) => row.compareEnabled === false)).toBe(true);
     expect(model.ribbon.find((metric) => metric.key === 'demand')?.trendSignal?.points.length).toBeGreaterThan(0);
     expect(model.boardRows.every((row) => row.demandTrendSignal?.points.length)).toBe(true);
+    expect(model.moves.find((row) => row.id === 'sku-razor')?.expectedEffect).toContain('Order 15u');
+    expect(model.boardRows.find((row) => row.id === 'sku-razor')?.restockGuidance).toBe('Order 15u');
   });
 
   test('produces compare text and sorts changed rows to the top when compare mode is on', () => {

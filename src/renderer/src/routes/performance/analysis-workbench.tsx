@@ -474,10 +474,18 @@ function AnalysisRailRow({
   primary: ReactNode;
   secondary?: ReactNode;
 }) {
+  if (!secondary) {
+    return (
+      <div className="rounded-[1rem] px-3 py-3">
+        <div className="min-w-0 break-words text-sm text-foreground">{primary}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[1rem] px-3 py-3">
-      <div className="min-w-0 pr-3 text-sm text-foreground">{primary}</div>
-      {secondary ? <div className="shrink-0 text-sm text-muted-foreground">{secondary}</div> : null}
+    <div className="grid grid-cols-[minmax(6.5rem,0.85fr)_minmax(0,1.15fr)] items-start gap-3 rounded-[1rem] px-3 py-3">
+      <div className="min-w-0 break-words text-sm text-foreground">{primary}</div>
+      <div className="min-w-0 break-words text-right text-sm text-muted-foreground [overflow-wrap:anywhere]">{secondary}</div>
     </div>
   );
 }
@@ -2081,6 +2089,18 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
           <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time spread</span>} secondary={row.leadTimeSpreadLabel} />
         </AnalysisRailList>
       </AnalysisRailSection>
+
+      {row.entityType === 'sku' && row.reorderPolicyLabels ? (
+        <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Reorder policy" tooltip="Shows the posterior order recommendation after current stock, inbound pipeline, demand, and lead time are accounted for.">
+          <AnalysisRailList>
+            <AnalysisRailRow primary={<span className="text-muted-foreground">Need probability</span>} secondary={row.reorderPolicyLabels.needProbability} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">Recommended order</span>} secondary={row.reorderPolicyLabels.recommendedOrder} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">Likely range</span>} secondary={row.reorderPolicyLabels.likelyRange} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">Protection horizon</span>} secondary={row.reorderPolicyLabels.protectionHorizon} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">Policy basis</span>} secondary={row.reorderPolicyLabels.policyBasis} />
+          </AnalysisRailList>
+        </AnalysisRailSection>
+      ) : null}
 
       <AnalysisRailSection icon={<ListTree className="size-4" />} title="Contributor stack" tooltip="The strongest linked contributors behind this entity.">
         <AnalysisRailList>

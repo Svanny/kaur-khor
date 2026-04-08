@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
+import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -31,17 +32,6 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
-      <RailBlock title={t('catalogSenaSkuSelectedInterval')} tooltip={t('catalogSenaSkuSelectedIntervalTooltip')}>
-        <p className="font-medium text-foreground">{model.rail.selectedIntervalSummary.label}</p>
-        <div className="mt-3 grid gap-1">
-          <p className="text-sm text-muted-foreground">Regime {model.rail.selectedIntervalSummary.dominantRegime}</p>
-          <p className="text-sm text-muted-foreground">Service demand {model.rail.selectedIntervalSummary.serviceDemand}</p>
-          <p className="text-sm text-muted-foreground">Retail demand {model.rail.selectedIntervalSummary.retailDemand}</p>
-          <p className="text-sm text-muted-foreground">Receipts {model.rail.selectedIntervalSummary.receipts}</p>
-          <p className="text-sm text-muted-foreground">Adjustments {model.rail.selectedIntervalSummary.adjustments}</p>
-        </div>
-      </RailBlock>
-
       <RailBlock title={t('catalogSenaSkuActNow')} tooltip={t('catalogSenaSkuActNowTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.actNow.headline}</p>
         <p className="mt-2 text-lg font-medium text-foreground">{model.rail.actNow.quantityBand}</p>
@@ -52,6 +42,20 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
             </p>
           ))}
         </div>
+      </RailBlock>
+
+      <RailBlock title={t('catalogSenaSkuSelectedInterval')} tooltip={t('catalogSenaSkuSelectedIntervalTooltip')}>
+        <SelectedIntervalBrief
+          headline={model.rail.selectedIntervalSummary.headline}
+          meta={[model.rail.selectedIntervalSummary.label, model.rail.selectedIntervalSummary.dominantRegime]}
+          metrics={[
+            { label: 'Service', value: model.rail.selectedIntervalSummary.serviceDemand },
+            { label: 'Retail', value: model.rail.selectedIntervalSummary.retailDemand },
+            { label: 'Receipts', value: model.rail.selectedIntervalSummary.receipts },
+            { label: 'Adjustments', value: model.rail.selectedIntervalSummary.adjustments },
+          ]}
+          notes={model.rail.selectedIntervalSummary.notes}
+        />
       </RailBlock>
 
       <RailBlock title={t('catalogSenaSkuOpenPipeline')} tooltip={t('catalogSenaSkuOpenPipelineTooltip')}>

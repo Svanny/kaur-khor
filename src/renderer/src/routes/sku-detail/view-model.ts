@@ -10,6 +10,11 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { deriveLeadTimeVariabilityClass, leadTimeVariabilityLabel } from '@shared/sena-lead-time';
+import {
+  formatSenaReorderQuantity,
+  isSenaReorderQuantityIssued,
+  type SenaReorderQuantityDisplay,
+} from '@/lib/sena-reorder-quantity';
 import { formatSenaCurrency, formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity, formatSenaUnits } from './format';
 
 export type SkuStatusTone = 'neutral' | 'success' | 'warning' | 'danger';
@@ -64,12 +69,14 @@ export interface SenaSkuDetailViewModel {
   };
   rail: {
     selectedIntervalSummary: {
+      headline: string;
       label: string;
       dominantRegime: string;
       serviceDemand: string;
       retailDemand: string;
       receipts: string;
       adjustments: string;
+      notes: string[];
     };
     actNow: {
       headline: string;
@@ -113,6 +120,8 @@ export interface SenaSkuDetailViewModel {
     productPrice: number | null;
     latestObservationAt: string | null;
     soldAsProduct: boolean;
+    recommendedOrderQuantity: number;
+    reorderRecommendation: SenaReorderQuantityDisplay;
   };
   uiState: 'ready' | 'bootstrapping' | 'running' | 'needs_observations' | 'degraded';
 }
@@ -199,7 +208,10 @@ function deriveStatus(detail: SenaSkuDetail | null) {
   if (!summary) {
     return { label: 'Degraded', tone: 'neutral' as SkuStatusTone };
   }
-  if (summary.reorderTriggerProbability >= 0.5) {
+  if (
+    isSenaReorderQuantityIssued(summary.reorderQuantity) ||
+    (summary.reorderQuantity == null && summary.reorderTriggerProbability >= 0.5)
+  ) {
     return { label: 'Reorder', tone: 'danger' as SkuStatusTone };
   }
   if ((latestPipeline?.inTransitMean ?? 0) > 0.5) {
@@ -209,6 +221,58 @@ function deriveStatus(detail: SenaSkuDetail | null) {
     return { label: 'Healthy', tone: 'success' as SkuStatusTone };
   }
   return { label: 'Watch', tone: 'warning' as SkuStatusTone };
+}
+
+function selectedIntervalHeadline(interval: SenaSkuDetail['demandPosterior'][number] | null) {
+  if (!interval) {
+    return 'No interval selected';
+  }
+
+  const serviceDemand = interval.serviceDemandMean ?? 0;
+  const retailDemand = interval.retailDemandMean ?? 0;
+  const receipts = interval.receiptsMean ?? 0;
+  const adjustments = Math.abs(interval.adjustmentsMean ?? 0);
+  const totalDemand = serviceDemand + retailDemand;
+
+  if (receipts > totalDemand && receipts > 0) {
+    return 'Receipts replenished this interval';
+  }
+  if (adjustments > Math.max(totalDemand, receipts)) {
+    return 'Adjustments drove this interval';
+  }
+  if (serviceDemand > retailDemand * 1.5 && serviceDemand > 0) {
+    return 'Service demand led this interval';
+  }
+  if (retailDemand > serviceDemand * 1.5 && retailDemand > 0) {
+    return 'Retail demand led this interval';
+  }
+  if (totalDemand > 0) {
+    return 'Demand moved through this interval';
+  }
+  return 'No demand recorded in this interval';
+}
+
+function selectedIntervalNotes(interval: SenaSkuDetail['demandPosterior'][number] | null, language: AppLanguage) {
+  if (!interval) {
+    return ['Select an interval in the ledger to inspect its flow.'];
+  }
+
+  const notes: string[] = [];
+  const receipts = interval.receiptsMean ?? 0;
+  const adjustments = interval.adjustmentsMean ?? 0;
+  const totalDemand = (interval.serviceDemandMean ?? 0) + (interval.retailDemandMean ?? 0);
+
+  if (receipts > 0 || Math.abs(adjustments) > 0) {
+    notes.push(`Receipts ${formatSenaQuantity(receipts, language)} · adjustments ${formatSenaQuantity(adjustments, language)}.`);
+  } else {
+    notes.push('No receipts or adjustments recorded in this interval.');
+  }
+
+  if (totalDemand > 0) {
+    notes.push(`Total demand ${formatSenaQuantity(totalDemand, language)} across service and retail flow.`);
+  }
+
+  return notes;
 }
 
 export function extractEvidence(observations: SenaObservationRecord[], skuId: string) {
@@ -343,6 +407,11 @@ export function deriveSenaSkuDetailViewModel({
   const status = deriveStatus(detail);
   const receipt = receiptWindow(latestPipeline, latestLeadTime);
   const orderBand = deriveRecommendedOrderBand(detail);
+  const reorderRecommendation = formatSenaReorderQuantity(
+    summary?.reorderQuantity,
+    language,
+    orderBand.high,
+  );
   const openPipelineCount = (latestPipeline?.inTransitMean ?? 0) > 0.5 ? 1 : 0;
   const visibleIntervalIndices = new Set((detail?.demandPosterior ?? []).map((entry) => entry.intervalIndex));
   const visibleRegimeHistory =
@@ -359,7 +428,7 @@ export function deriveSenaSkuDetailViewModel({
   const actNowHeadline =
     observations.length < 2
       ? 'Capture one more observation'
-      : (summary?.reorderTriggerProbability ?? 0) >= 0.5
+      : reorderRecommendation.recommendationIssued
         ? 'Reorder now'
         : (latestPipeline?.inTransitMean ?? 0) > 0.5
           ? 'Await incoming stock'
@@ -506,20 +575,22 @@ export function deriveSenaSkuDetailViewModel({
     },
     rail: {
       selectedIntervalSummary: {
+        headline: selectedIntervalHeadline(interval),
         label: interval ? `${formatSenaDate(interval.startAt, language)}-${formatSenaDate(interval.endAt, language)}` : 'No interval selected',
         dominantRegime: intervalRegime?.dominantRegime ?? '—',
         serviceDemand: formatSenaQuantity(interval?.serviceDemandMean ?? null, language),
         retailDemand: formatSenaQuantity(interval?.retailDemandMean ?? null, language),
         receipts: formatSenaQuantity(interval?.receiptsMean ?? null, language),
         adjustments: formatSenaQuantity(interval?.adjustmentsMean ?? null, language),
+        notes: selectedIntervalNotes(interval, language),
       },
       actNow: {
         headline: actNowHeadline,
-        quantityBand: `${formatSenaUnits(orderBand.low, language)}-${formatSenaUnits(orderBand.high, language)} units`,
+        quantityBand: reorderRecommendation.recommendedOrderLabel,
         rationale: [
-          `Cover ${summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—'} and stockout risk ${formatSenaPercent(summary?.stockoutRisk ?? null, language)}.`,
-          `Trigger ${formatSenaPercent(summary?.reorderTriggerProbability ?? null, language)} with pipeline ${formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language)} in transit.`,
-          `Regime ${topRegime(summary, diagnostics)} with latest touch ${formatSenaDate(latestObservationAt, language)}.`,
+          reorderRecommendation.likelyRangeLabel,
+          reorderRecommendation.needProbabilityLabel,
+          `Why: ${summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—'} cover with ${formatSenaUnits(latestPipeline?.inTransitMean ?? 0, language)} in transit.`,
         ],
       },
       openPipeline: {
@@ -553,6 +624,8 @@ export function deriveSenaSkuDetailViewModel({
       productPrice: sku.productPrice,
       latestObservationAt,
       soldAsProduct: sku.soldAsProduct,
+      recommendedOrderQuantity: reorderRecommendation.recommendedUnits,
+      reorderRecommendation,
     },
     uiState,
   };

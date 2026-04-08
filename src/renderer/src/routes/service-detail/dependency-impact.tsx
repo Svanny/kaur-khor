@@ -29,6 +29,7 @@ export function ServiceDependencyImpact({
           <div className="grid gap-1 text-sm text-muted-foreground">
             <p>{row.status}</p>
             <p>{row.inboundRecoveryNote}</p>
+            {row.restockGuidance ? <p>{row.restockGuidance}</p> : null}
           </div>
         </div>
       )}

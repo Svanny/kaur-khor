@@ -112,7 +112,11 @@ export function SkuDetailActions({
     setUnitsInStock(String(Math.round(actionContext.currentStock)));
     setCostPerUnit(String(actionContext.costPerUnit));
     setProductPrice(actionContext.productPrice != null ? String(actionContext.productPrice) : '');
-    setApproximateOrderQuantity('');
+    setApproximateOrderQuantity(
+      nextMode === 'order' && actionContext.recommendedOrderQuantity > 0
+        ? String(actionContext.recommendedOrderQuantity)
+        : '',
+    );
     setApproximateReceiptQuantity('');
     setTypicalLeadTimeDays('');
     setLeadTimeVariability(actionContext.leadTimeVariability ?? '');
@@ -352,7 +356,14 @@ export function SkuDetailActions({
 
             {mode === 'order' ? (
               <>
-                <ActionSheetField label={t('catalogSenaSkuApproximateOrderQuantity')}>
+                <ActionSheetField
+                  description={
+                    actionContext.reorderRecommendation.recommendationIssued
+                      ? `${actionContext.reorderRecommendation.likelyRangeLabel}. ${actionContext.reorderRecommendation.needProbabilityLabel}.`
+                      : actionContext.reorderRecommendation.quietLabel
+                  }
+                  label={t('catalogSenaSkuApproximateOrderQuantity')}
+                >
                   <Input
                     className={actionSheetInputClassName}
                     min="0"

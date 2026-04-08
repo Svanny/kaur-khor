@@ -259,6 +259,37 @@ function DrawerModeTile({
   );
 }
 
+function RecommendedOrderPanel({ task }: { task: OverviewTask }) {
+  const recommendation = task.reorderRecommendation;
+
+  return (
+    <div className="mt-5 rounded-[1.35rem] border border-border/65 bg-background/75 px-4 py-4 shadow-[0_1px_0_rgba(255,255,255,0.85)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Recommended order
+          </p>
+          <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
+            {recommendation.recommendationIssued || recommendation.optionalOrderLabel
+              ? recommendation.recommendedUnitsLabel
+              : recommendation.quietLabel}
+          </p>
+        </div>
+        {recommendation.recommendationIssued ? (
+          <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            {recommendation.needProbabilityValueLabel} likely
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-3 grid gap-1 text-sm leading-6 text-muted-foreground">
+        <p>{recommendation.likelyRangeLabel}</p>
+        {recommendation.recommendationIssued ? <p>{recommendation.needProbabilityLabel}</p> : null}
+        <p>Based on on hand + in transit + lead time.</p>
+      </div>
+    </div>
+  );
+}
+
 export function OverviewTaskDrawer({
   open,
   task,
@@ -572,6 +603,8 @@ export function OverviewTaskDrawer({
                 />
               </div>
 
+              <RecommendedOrderPanel task={task} />
+
               <DrawerBand bandId="timing" className="mt-6" title={mode === 'goods_received' ? 'Receipt timing' : 'Timing'}>
                 <div className={cn(mode === 'goods_received' || mode === 'not_ordered' ? 'grid gap-5' : 'grid gap-5 md:grid-cols-2')}>
                   <ActionSheetField
@@ -606,7 +639,16 @@ export function OverviewTaskDrawer({
                 <>
                   <DrawerBand bandId="order_shape" title="Order shape">
                     <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)]">
-                      <ActionSheetField description="Enter the quantity already ordered." label="Ordered quantity">
+                      <ActionSheetField
+                        description={
+                          task.reorderRecommendation.recommendationIssued
+                            ? `${task.reorderRecommendation.recommendedOrderLabel}. Edit if the supplier batch differs.`
+                            : task.reorderRecommendation.optionalOrderLabel
+                              ? `${task.reorderRecommendation.quietLabel}. Edit if the supplier batch differs.`
+                            : 'Enter the quantity already ordered.'
+                        }
+                        label="Ordered quantity"
+                      >
                         <Input
                           aria-label="Ordered quantity"
                           className={actionSheetInputClassName}

@@ -186,7 +186,6 @@ export function AnalysisContent({
               aria-busy={isRunningAnalysis}
               disabled={inventory.isSaving || isRunningAnalysis}
               type="button"
-              variant="outline"
               onClick={() => void handleRun()}
             >
               <span aria-hidden="true" className={isRunningAnalysis ? 'inline-flex animate-spin' : 'inline-flex'}>

@@ -139,6 +139,19 @@ const sampleWorkspaceSummary = {
       safetyStock: 5,
       reorderPoint: 18,
       reorderTriggerProbability: 0.67,
+      reorderQuantity: {
+        recommendedUnits: 14.2,
+        ungatedRecommendedUnits: 14.2,
+        likelyRangeLow: 10,
+        likelyRangeHigh: 18,
+        needProbability: 0.78,
+        recommendationIssued: true,
+        recommendationQuantile: 0.7,
+        intervalLowQuantile: 0.1,
+        intervalHighQuantile: 0.9,
+        needProbabilityGate: 0.5,
+        reviewDelayDays: 0,
+      },
       leadTimeMeanDays: 5,
       leadTimeStdDays: 1,
       regimeProbabilities: { normal: 1 },
@@ -382,6 +395,7 @@ describe('DashboardRoute', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Awaiting receipt' }).querySelector('.lucide-clipboard-clock')).not.toBeNull();
     expect(screen.getAllByRole('button', { name: 'Log order' }).length).toBeGreaterThan(0);
+    expect(screen.getByText('Rec. 15u · likely 78%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Update ETA' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Update ETA' }).querySelector('.lucide-calendar-clock')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
@@ -399,6 +413,99 @@ describe('DashboardRoute', () => {
       expect(screen.queryAllByRole('button', { name: 'Update ETA' })).toHaveLength(0);
       expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
     });
+  });
+
+  test('prefills the drawer order quantity from the SENA reorder recommendation', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByText('Recommended order')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('15 units')).toBeInTheDocument();
+    expect(screen.getByText('Recommended range 10-18 units')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Ordered, waiting/i }));
+
+    expect(screen.getByLabelText('Ordered quantity')).toHaveValue(15);
+  });
+
+  test('keeps issued reorder recommendations in To order even when an order is already open', async () => {
+    const user = userEvent.setup();
+    const workspaceSummary = structuredClone(sampleWorkspaceSummary);
+    const hairDyeSummary = workspaceSummary.skuSummaries.find((summary) => summary.skuId === 'sku-2');
+    expect(hairDyeSummary).toBeTruthy();
+    hairDyeSummary!.reorderQuantity = {
+      recommendedUnits: 9.1,
+      ungatedRecommendedUnits: 9.1,
+      likelyRangeLow: 7,
+      likelyRangeHigh: 12,
+      needProbability: 1,
+      recommendationIssued: true,
+      recommendationQuantile: 0.7,
+      intervalLowQuantile: 0.1,
+      intervalHighQuantile: 0.9,
+      needProbabilityGate: 0.5,
+      reviewDelayDays: 0,
+    };
+
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      workspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      submitLegacyReport: vi.fn(async (payload) => payload),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    renderRoute();
+
+    await user.click(screen.getByRole('tab', { name: 'To order' }));
+
+    expect(screen.getByText('Hair dye black')).toBeInTheDocument();
+    expect(screen.getByText('Rec. 10u · likely 100%')).toBeInTheDocument();
+  });
+
+  test('does not put high-need SKUs in To order when the Q70 order quantity is zero', async () => {
+    const user = userEvent.setup();
+    const workspaceSummary = structuredClone(sampleWorkspaceSummary);
+    const hairDyeSummary = workspaceSummary.skuSummaries.find((summary) => summary.skuId === 'sku-2');
+    expect(hairDyeSummary).toBeTruthy();
+    hairDyeSummary!.reorderQuantity = {
+      recommendedUnits: 0,
+      ungatedRecommendedUnits: 0,
+      likelyRangeLow: 0,
+      likelyRangeHigh: 0,
+      needProbability: 1,
+      recommendationIssued: true,
+      recommendationQuantile: 0.7,
+      intervalLowQuantile: 0.1,
+      intervalHighQuantile: 0.9,
+      needProbabilityGate: 0.5,
+      reviewDelayDays: 0,
+    };
+
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      workspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      submitLegacyReport: vi.fn(async (payload) => payload),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    const { container } = renderRoute();
+
+    await user.click(screen.getByRole('tab', { name: 'To order' }));
+
+    const taskRows = Array.from(container.querySelectorAll('[data-slot="overview-task-row"]'));
+    expect(taskRows.some((row) => row.textContent?.includes('Hair dye black'))).toBe(false);
   });
 
   test('filters overview tasks by services even without a search query', async () => {

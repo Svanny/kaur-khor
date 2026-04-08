@@ -9,6 +9,7 @@ import {
   type RankedContributor,
 } from '@/lib/service-control-panel';
 import { formatCurrency, formatNumber, formatWholeNumber } from '@/lib/format';
+import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import { formatSenaDate, formatSenaDays, formatSenaPercent } from '@/routes/sku-detail/format';
 
 type ServiceIntervalTone = 'safe' | 'tight' | 'blocked';
@@ -55,6 +56,7 @@ export interface ServiceContributorViewModel {
   inboundLabel: string;
   recentSignal: string;
   recoveryNote: string;
+  restockGuidance: string | null;
   limitingProbability: number;
   orderRank: number;
   openSkuHref: string;
@@ -88,6 +90,7 @@ export interface ServiceDependencyImpactRow {
   daysOfCover: string;
   limitingProbability: string;
   inboundRecoveryNote: string;
+  restockGuidance: string | null;
   openSkuHref: string;
 }
 
@@ -490,6 +493,13 @@ export function deriveServiceDetailViewModel({
   const contributors = rankedContributors.map<ServiceContributorViewModel>((entry, index) => {
     const relatedInbound = restoration.find((event) => event.skuId === entry.sku.skuId && event.state === 'open');
     const relatedReceipt = restoration.find((event) => event.skuId === entry.sku.skuId && event.state === 'logged');
+    const contributorDetail = detail?.contributors.find((contributor) => contributor.skuId === entry.sku.skuId) ?? null;
+    const reorderRecommendation = formatSenaReorderQuantity(contributorDetail?.reorderQuantity, language);
+    const restockGuidance = reorderRecommendation.recommendationIssued
+      ? `${entry.sku.name} · order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
+      : reorderRecommendation.optionalOrderLabel
+        ? `${entry.sku.name} · keep watching · optional order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
+      : null;
     const roleLabel = entry.isBottleneck
       ? 'Limiting now'
       : index === 1
@@ -501,8 +511,8 @@ export function deriveServiceDetailViewModel({
       name: entry.sku.name,
       statusLabel: roleLabel,
       roleLabel,
-      probabilityLabel: formatSenaPercent(entry.insight?.stockoutRisk ?? entry.insight?.reorderTriggerProbability ?? detail?.contributors.find((contributor) => contributor.skuId === entry.sku.skuId)?.bottleneckProbability ?? 0, language),
-      usageLabel: formatSenaPercent(detail?.contributors.find((contributor) => contributor.skuId === entry.sku.skuId)?.usageProbability ?? 0, language),
+      probabilityLabel: formatSenaPercent(entry.insight?.stockoutRisk ?? entry.insight?.reorderTriggerProbability ?? contributorDetail?.bottleneckProbability ?? 0, language),
+      usageLabel: formatSenaPercent(contributorDetail?.usageProbability ?? 0, language),
       daysOfCoverLabel: entry.insight?.daysOfCover != null ? formatSenaDays(entry.insight.daysOfCover, language) : 'Coverage pending',
       stockLabel: `${formatWholeNumber(entry.sku.unitsInStock, language)} in stock`,
       healthLabel: serviceStateLabel(fragility.currentState),
@@ -515,10 +525,9 @@ export function deriveServiceDetailViewModel({
         (entry.isBottleneck
           ? 'Recording stock or confirming the next receipt will change sellability fastest.'
           : 'Keep this SKU monitored behind the current bottleneck.'),
+      restockGuidance,
       limitingProbability: clamp(
-        detail?.contributors.find((contributor) => contributor.skuId === entry.sku.skuId)?.bottleneckProbability ??
-          entry.insight?.stockoutRisk ??
-          0,
+        contributorDetail?.bottleneckProbability ?? entry.insight?.stockoutRisk ?? 0,
         0,
         1,
       ),
@@ -630,6 +639,7 @@ export function deriveServiceDetailViewModel({
     daysOfCover: entry.daysOfCoverLabel,
     limitingProbability: entry.probabilityLabel,
     inboundRecoveryNote: entry.inboundLabel,
+    restockGuidance: entry.restockGuidance,
     openSkuHref: entry.openSkuHref,
   }));
 
@@ -645,6 +655,9 @@ export function deriveServiceDetailViewModel({
       : 'No open inbound is visible for the current bottleneck chain.',
   ];
   const nextTouchDate = restoration.find((entry) => entry.state === 'open')?.timingLabel ?? null;
+  const restockRecoveryPath = contributors
+    .filter((entry) => entry.restockGuidance)
+    .map((entry) => entry.restockGuidance as string);
 
   return {
     identity: {
@@ -713,9 +726,14 @@ export function deriveServiceDetailViewModel({
         role: entry.roleLabel,
       })),
       recoveryPath:
-        restoration.length > 0
-          ? restoration.slice(0, 3).map((entry) => `${entry.headline} · ${entry.timingLabel}`)
-          : contributors.slice(0, 3).map((entry) => `${entry.name} · ${entry.daysOfCoverLabel}`),
+        restockRecoveryPath.length > 0
+          ? [
+              ...restockRecoveryPath,
+              ...restoration.map((entry) => `${entry.headline} · ${entry.timingLabel}`),
+            ].slice(0, 3)
+          : restoration.length > 0
+            ? restoration.slice(0, 3).map((entry) => `${entry.headline} · ${entry.timingLabel}`)
+            : contributors.slice(0, 3).map((entry) => `${entry.name} · ${entry.daysOfCoverLabel}`),
       nextTouch: {
         dateLabel: relativeDayLabel(nextTouchDate, language),
         reason:

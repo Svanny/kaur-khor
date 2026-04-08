@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, BadgeDollarSign, GitCompareArrows, Layers3, Package, PiggyBank, RefreshCw, Store, Trophy, TrendingUp, Truck, TriangleAlert } from 'lucide-react';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
@@ -18,7 +18,7 @@ import { CompactSparkline } from '@/components/ui/compact-sparkline';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
-import { statusPillClassName, surfacePillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
+import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -58,36 +58,17 @@ function SteeringPill({
   children: ReactNode;
   onClick: () => void;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [suppressHoverUntilLeave, setSuppressHoverUntilLeave] = useState(false);
-  const previousActiveRef = useRef(active);
-
-  useEffect(() => {
-    if (previousActiveRef.current && !active && isHovered) {
-      setSuppressHoverUntilLeave(true);
-    }
-    previousActiveRef.current = active;
-  }, [active, isHovered]);
-
-  const idleClassName = 'border-border/70 bg-background/70 text-muted-foreground';
-
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`inline-flex h-[48px] items-center justify-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors ${
-        active ? surfacePillClassName('selected') : suppressHoverUntilLeave ? idleClassName : surfacePillClassName('default')
-      }`}
-      data-hover-suppressed={suppressHoverUntilLeave ? 'true' : 'false'}
+      className="h-12 rounded-full px-4"
+      data-hover-suppressed="false"
       type="button"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => {
-        setIsHovered(false);
-        setSuppressHoverUntilLeave(false);
-      }}
+      variant={active ? 'default' : 'outline'}
       onClick={onClick}
     >
       <span className="inline-flex items-center gap-1.5">{children}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -450,7 +431,7 @@ export function PerformanceRoute() {
 
             <SteeringPill active={compareMode} onClick={() => setCompareMode((current) => !current)}>
               <GitCompareArrows className="size-4" />
-              Compare
+              {compareMode ? 'Compare View' : 'Single View'}
             </SteeringPill>
           </div>
         }
@@ -594,7 +575,16 @@ export function PerformanceRoute() {
                         Pipeline support
                       </HeaderedTableMobileLabel>
                       <HeaderedTableCellStack
-                        primary={row.pipelineSupport}
+                        primary={
+                          <span className="inline-flex min-w-0 flex-wrap items-center gap-2">
+                            <span>{row.pipelineSupport}</span>
+                            {row.restockGuidance ? (
+                              <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[0.7rem] font-medium text-primary">
+                                {row.restockGuidance}
+                              </span>
+                            ) : null}
+                          </span>
+                        }
                         secondary={row.compareEnabled ? row.pipelineCompareText : undefined}
                         primaryClassName="text-sm"
                       />

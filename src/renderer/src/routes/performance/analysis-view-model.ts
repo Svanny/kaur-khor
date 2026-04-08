@@ -11,6 +11,7 @@ import type {
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { formatWholeNumber } from '@/lib/format';
+import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import { formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity } from '@/routes/sku-detail/format';
 
 export type AnalysisScope = 'all' | 'skus' | 'services';
@@ -88,6 +89,13 @@ export interface AnalysisEntityPressureRow {
   inTransitExposureLabel: string;
   leadTimeMeanLabel: string;
   leadTimeSpreadLabel: string;
+  reorderPolicyLabels: {
+    needProbability: string;
+    recommendedOrder: string;
+    likelyRange: string;
+    protectionHorizon: string;
+    policyBasis: string;
+  } | null;
 }
 
 export interface AnalysisObservationLedgerRow {
@@ -1062,6 +1070,7 @@ export function deriveAnalysisViewModel({
     const pipelineRiskScore = clamp(summary.reorderTriggerProbability * 0.72 + ((pipeline?.inTransitMean ?? 0) > 0 ? 0.14 : 0), 0, 1);
     const pressureScore = clamp(summary.stockoutRisk * 0.42 + pipelineRiskScore * 0.32 + leadTimeRiskScore * 0.16 + priceSensitivityScore * 0.1, 0, 1);
     const tone = coverTone(pressureScore);
+    const reorderRecommendation = formatSenaReorderQuantity(summary.reorderQuantity, language);
 
     entityRows.push({
       id: sku.skuId,
@@ -1093,6 +1102,17 @@ export function deriveAnalysisViewModel({
       inTransitExposureLabel: formatSenaQuantity(pipeline?.inTransitMean ?? 0, language),
       leadTimeMeanLabel: formatSenaDays(leadTime?.meanDays ?? summary.leadTimeMeanDays, language),
       leadTimeSpreadLabel: formatSenaDays(leadTime?.stdDays ?? summary.leadTimeStdDays, language),
+      reorderPolicyLabels: reorderRecommendation.hasBackendRecommendation
+        ? {
+            needProbability: reorderRecommendation.needProbabilityValueLabel,
+            recommendedOrder: reorderRecommendation.recommendationIssued
+              ? reorderRecommendation.recommendedUnitsLabel
+              : reorderRecommendation.quietLabel,
+            likelyRange: reorderRecommendation.likelyRangeValueLabel,
+            protectionHorizon: reorderRecommendation.protectionHorizonLabel.replace(/^Protection horizon: /, ''),
+            policyBasis: reorderRecommendation.policyBasisLabel.replace(/^Policy basis: /, ''),
+          }
+        : null,
     });
   }
 
@@ -1152,6 +1172,7 @@ export function deriveAnalysisViewModel({
           Math.max(linkedSkuIds.length, 1),
         language,
       ),
+      reorderPolicyLabels: null,
     });
   }
 

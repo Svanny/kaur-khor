@@ -11,6 +11,10 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
+import {
+  formatSenaReorderQuantity,
+  type SenaReorderQuantityDisplay,
+} from '@/lib/sena-reorder-quantity';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { formatSenaDate, formatSenaDays, formatSenaPercent } from '@/routes/sku-detail/format';
 
@@ -58,6 +62,8 @@ interface SkuBusinessRow {
   pipelineLabel: string;
   priceSignal: PriceSignal | null;
   receiptSignal: ReceiptSignal | null;
+  reorderRecommendation: SenaReorderQuantityDisplay;
+  restockGuidance: string | null;
   revenueAtRisk: number;
   status: BusinessStatus;
   statusLabel: string;
@@ -110,6 +116,7 @@ export interface PerformanceMoveRow {
   moveVerb: string;
   whyNow: string;
   expectedEffect: string;
+  restockGuidance: string | null;
   ctaLabel: 'Open queue' | 'Open SKU' | 'Open service' | 'See evidence';
   ctaHref: string;
   tone: StatusPillTone;
@@ -124,6 +131,7 @@ export interface PerformanceBoardRow {
   demandTrendSignal?: PerformanceTrendSignal;
   supportStatus: string;
   pipelineSupport: string;
+  restockGuidance: string | null;
   priceMarginTone: string;
   statusLabel: string;
   statusTone: StatusPillTone;
@@ -605,6 +613,7 @@ function statusForSku({
   marginRatio,
   priceSignal,
   receiptSignal,
+  reorderRecommendationIssued = false,
   stockoutRisk,
   units,
 }: {
@@ -614,13 +623,14 @@ function statusForSku({
   marginRatio: number | null;
   priceSignal: PriceSignal | null;
   receiptSignal: ReceiptSignal | null;
+  reorderRecommendationIssued?: boolean;
   stockoutRisk: number;
   units: number;
 }): { status: BusinessStatus; label: string; tone: StatusPillTone } {
   const priceDrag = priceSignal != null && priceSignal.delta < 0;
   const slowMover = demandPerDay <= 1.2 && units >= 12;
 
-  if (stockoutRisk >= 0.65 || (daysOfCover != null && daysOfCover <= 3 && linkedServiceRevenue > 0)) {
+  if (reorderRecommendationIssued || stockoutRisk >= 0.65 || (daysOfCover != null && daysOfCover <= 3 && linkedServiceRevenue > 0)) {
     return { status: 'unblock', label: 'Unblock', tone: 'danger' };
   }
   if (priceDrag || (marginRatio != null && marginRatio < 0.4)) {
@@ -848,6 +858,7 @@ function toBoardRow(
     demandTrendSignal,
     supportStatus: row.supportLabel,
     pipelineSupport: row.pipelineLabel,
+    restockGuidance: row.type === 'sku' ? row.restockGuidance : null,
     priceMarginTone: row.type === 'service' ? row.grossMarginLabel : row.marginLabel,
     statusLabel: row.statusLabel,
     statusTone: row.statusTone,
@@ -890,6 +901,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
         move: `Push ${row.name}`,
         whyNow: `${row.trendLabel.toLowerCase()} demand, ${row.supportLabel.toLowerCase()}, ${row.grossMarginLabel.toLowerCase()}`,
         expectedEffect: 'Capture upside while capacity is still holding',
+        restockGuidance: null,
       };
     }
     if (row.status === 'unblock') {
@@ -900,6 +912,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
         move: `Recover ${row.name}`,
         whyNow: `${row.supportLabel.toLowerCase()} with ${row.pipelineLabel.toLowerCase()}`,
         expectedEffect: 'Restore sellable capacity and recover blocked revenue',
+        restockGuidance: null,
       };
     }
     return {
@@ -909,6 +922,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
       move: `Review ${row.name} pricing`,
       whyNow: `${row.grossMarginLabel.toLowerCase()} and ${row.trendLabel.toLowerCase()} demand`,
       expectedEffect: 'Protect margin without stalling service demand',
+      restockGuidance: null,
     };
   }
 
@@ -919,7 +933,10 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
       moveVerb: 'Restock',
       move: `Restock ${row.name}`,
       whyNow: `${row.supportLabel.toLowerCase()} with ${row.pipelineLabel.toLowerCase()}`,
-      expectedEffect: 'Restore service capacity and stop revenue leakage',
+      expectedEffect: row.restockGuidance
+        ? `Restore service capacity and stop revenue leakage · ${row.restockGuidance}`
+        : 'Restore service capacity and stop revenue leakage',
+      restockGuidance: row.restockGuidance,
     };
   }
   if (row.status === 'review') {
@@ -930,6 +947,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
       move: `Review ${row.name} pricing`,
       whyNow: `${row.marginLabel.toLowerCase()} while ${row.trendLabel.toLowerCase()} demand is visible`,
       expectedEffect: 'Recover velocity or margin before the drag hardens',
+      restockGuidance: null,
     };
   }
   if (row.status === 'clear') {
@@ -940,6 +958,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
       move: `Clear ${row.name}`,
       whyNow: `${row.trendLabel.toLowerCase()} demand with ${row.unitsLabel.toLowerCase()}`,
       expectedEffect: 'Free cash tied up in slow-moving stock',
+      restockGuidance: null,
     };
   }
   return {
@@ -949,6 +968,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
     move: `Push ${row.name}`,
     whyNow: `${row.trendLabel.toLowerCase()} demand with ${row.marginLabel.toLowerCase()}`,
     expectedEffect: 'Capture stronger retail or service-led demand',
+    restockGuidance: null,
   };
 }
 
@@ -1076,6 +1096,12 @@ export function derivePerformanceViewModel({
     const trend = trendFromScore(regimeMomentum(summary) + ((summary?.demandPerDayMean ?? 0) >= 2.8 ? 0.12 : 0));
     const linkedServiceRevenue = linkedServices.reduce((sum, service) => sum + service.price, 0);
     const units = summary?.latestPosteriorUnits ?? 0;
+    const reorderRecommendation = formatSenaReorderQuantity(summary?.reorderQuantity, language);
+    const restockGuidance = reorderRecommendation.recommendationIssued
+      ? `Order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
+      : reorderRecommendation.optionalOrderLabel
+        ? `Keep watching · optional order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
+      : null;
     const revenueAtRisk =
       Math.max(0, (summary?.expectedLeadTimeDemand ?? 0) - units) * (sku.productPrice ?? 0) +
       (linkedServices.length > 0 ? linkedServices.length * (summary?.stockoutRisk ?? 0) * 12 : 0);
@@ -1090,6 +1116,7 @@ export function derivePerformanceViewModel({
       marginRatio,
       priceSignal,
       receiptSignal,
+      reorderRecommendationIssued: reorderRecommendation.recommendationIssued,
       stockoutRisk: summary?.stockoutRisk ?? 0,
       units,
     });
@@ -1109,6 +1136,8 @@ export function derivePerformanceViewModel({
       pipelineLabel: formatPipelineSupport(receiptSignal, language),
       priceSignal,
       receiptSignal,
+      reorderRecommendation,
+      restockGuidance,
       revenueAtRisk,
       status: status.status,
       statusLabel: status.label,
@@ -1201,6 +1230,7 @@ export function derivePerformanceViewModel({
       moveVerb: description.moveVerb,
       whyNow: description.whyNow,
       expectedEffect: description.expectedEffect,
+      restockGuidance: description.restockGuidance,
       ctaHref: action.href,
       ctaLabel: action.label,
       tone: row.statusTone,

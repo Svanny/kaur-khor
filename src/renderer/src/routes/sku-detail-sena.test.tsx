@@ -169,6 +169,19 @@ const detail: SenaSkuDetail = {
     safetyStock: 4,
     reorderPoint: 8,
     reorderTriggerProbability: 0.61,
+    reorderQuantity: {
+      recommendedUnits: 14.2,
+      ungatedRecommendedUnits: 14.2,
+      likelyRangeLow: 10,
+      likelyRangeHigh: 18,
+      needProbability: 0.78,
+      recommendationIssued: true,
+      recommendationQuantile: 0.7,
+      intervalLowQuantile: 0.1,
+      intervalHighQuantile: 0.9,
+      needProbabilityGate: 0.5,
+      reviewDelayDays: 0,
+    },
     leadTimeMeanDays: 5,
     leadTimeStdDays: 1.5,
     regimeProbabilities: { spike: 0.55, normal: 0.3, lull: 0.15 },
@@ -673,7 +686,80 @@ describe('SKU detail SENA helpers', () => {
     expect(model.heartbeat.headlineUnits).toContain('11 units likely on hand');
     expect(model.heartbeat.heroSentence).toContain('reorder trigger');
     expect(model.rail.selectedIntervalSummary.dominantRegime).toBe('spike');
+    expect(model.rail.actNow.headline).toBe('Reorder now');
+    expect(model.rail.actNow.quantityBand).toBe('Recommended order 15 units');
+    expect(model.rail.actNow.rationale).toContain('Recommended range 10-18 units');
     expect(deriveRecommendedOrderBand(detail)).toEqual({ low: 0, high: 0 });
+  });
+
+  test('keeps a quiet order quantity available when the reorder gate is not triggered', () => {
+    const quietDetail: SenaSkuDetail = {
+      ...detail,
+      summary: {
+        ...detail.summary,
+        stockoutRisk: 0.18,
+        reorderTriggerProbability: 0.24,
+        reorderQuantity: {
+          ...detail.summary.reorderQuantity!,
+          recommendedUnits: 0,
+          ungatedRecommendedUnits: 7.2,
+          likelyRangeLow: 4,
+          likelyRangeHigh: 9,
+          needProbability: 0.34,
+          recommendationIssued: false,
+        },
+      },
+      pipelinePosterior: [],
+    };
+    const model = deriveSenaSkuDetailViewModel({
+      currency: 'USD',
+      diagnostics,
+      observations,
+      linkedServiceDetails: [],
+      selectedIntervalIndex: 0,
+      skuId: 'sku-1',
+      snapshot,
+      detail: quietDetail,
+      uiState: 'ready',
+      workspaceSummary: workspace,
+      language: 'en',
+    });
+
+    expect(model.rail.actNow.headline).toBe('Monitor');
+    expect(model.rail.actNow.quantityBand).toBe('No order quantity recommended · optional order 8 units');
+    expect(model.actionContext.recommendedOrderQuantity).toBe(8);
+    expect(model.actionContext.reorderRecommendation.quietLabel).toBe('Keep watching · optional order 8 units · order likelihood 34%');
+  });
+
+  test('gives manual order guidance when no reorder backend field is available', () => {
+    const uncachedDetail: SenaSkuDetail = {
+      ...detail,
+      summary: {
+        ...detail.summary,
+        stockoutRisk: 0.18,
+        reorderPoint: 3,
+        reorderTriggerProbability: 0.24,
+        reorderQuantity: undefined,
+      },
+      pipelinePosterior: [],
+    };
+    const model = deriveSenaSkuDetailViewModel({
+      currency: 'USD',
+      diagnostics,
+      observations,
+      linkedServiceDetails: [],
+      selectedIntervalIndex: 0,
+      skuId: 'sku-1',
+      snapshot,
+      detail: uncachedDetail,
+      uiState: 'ready',
+      workspaceSummary: workspace,
+      language: 'en',
+    });
+
+    expect(model.rail.actNow.quantityBand).toBe('No order quantity recommended');
+    expect(model.actionContext.recommendedOrderQuantity).toBe(0);
+    expect(model.actionContext.reorderRecommendation.quietLabel).toBe('Recommendation pending · enter quantity manually');
   });
 
   test('extracts normalized evidence rows from observations', () => {
@@ -1011,6 +1097,8 @@ describe('SKU detail route', () => {
       expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
     });
 
+    expect(screen.getByDisplayValue('15')).toBeInTheDocument();
+    expect(screen.getAllByText('Recommended range 10-18 units. Order likelihood 78%.').length).toBeGreaterThan(0);
     expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toBeInTheDocument();
     expect(document.querySelector('select')).toBeNull();
   });

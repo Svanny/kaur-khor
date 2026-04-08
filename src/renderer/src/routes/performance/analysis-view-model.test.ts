@@ -50,6 +50,19 @@ const workspaceSummary: SenaWorkspaceSummary = {
       leadTimeStdDays: 1.5,
       reorderPoint: 14,
       reorderTriggerProbability: 0.68,
+      reorderQuantity: {
+        recommendedUnits: 14.2,
+        ungatedRecommendedUnits: 14.2,
+        likelyRangeLow: 10,
+        likelyRangeHigh: 18,
+        needProbability: 0.78,
+        recommendationIssued: true,
+        recommendationQuantile: 0.7,
+        intervalLowQuantile: 0.1,
+        intervalHighQuantile: 0.9,
+        needProbabilityGate: 0.5,
+        reviewDelayDays: 0,
+      },
       regimeProbabilities: { normal: 0.35, promo: 0.65 },
       safetyStock: 4,
       skuId: 'sku-razor',
@@ -528,6 +541,27 @@ describe('deriveAnalysisViewModel', () => {
     expect(model.fragilityRows[0]).toMatchObject({
       entityId: 'service-haircut',
       name: 'Haircut',
+    });
+  });
+
+  test('adds reorder policy labels to SKU entity pressure rows', () => {
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics,
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    expect(model.entityRows.find((row) => row.id === 'sku-razor')?.reorderPolicyLabels).toMatchObject({
+      needProbability: '78%',
+      recommendedOrder: '15 units',
+      likelyRange: '10-18 units',
+      policyBasis: 'on hand + in transit',
     });
   });
 
