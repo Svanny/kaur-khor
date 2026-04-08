@@ -52,11 +52,16 @@ export function StepWizard({
         </div>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-5">
+      <div
+        className={cn(
+          'grid gap-2',
+          steps.length === 5 ? 'md:grid-cols-5' : 'md:grid-cols-6',
+        )}
+      >
         {steps.map((step, index) => {
           const isCurrent = step.id === currentStepId;
           const isUnlocked = index < clampedUnlockedCount;
-          const isComplete = Boolean(step.complete);
+          const isComplete = Boolean(step.complete) && index <= currentIndex;
 
           return (
             <WizardStepButton

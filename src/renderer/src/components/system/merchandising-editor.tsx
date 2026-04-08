@@ -30,20 +30,36 @@ import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { clampOverlayTransformToBoundary } from '@/routes/ranking-drag';
 import { buildRankingEntryId, reorderRankingEntries } from '@/routes/ranking-order';
+import {
+  createHeaderedTableLayout,
+  HeaderedTable,
+  HeaderedTableBody,
+  HeaderedTableHeader,
+  HeaderedTableHeaderCell,
+  HeaderedTableMobileLabel,
+  HeaderedTableRow,
+} from './headered-table';
 
 type RankingRowModel = {
   id: string;
   index: number;
+  costText: string;
   label: string;
   kindIcon: LucideIcon;
   kindLabel: string;
   movedFromBaseline: boolean;
+  rankChangeDirection: 'up' | 'down' | null;
   priceChangeDirection: 'up' | 'down' | null;
   priceText: string;
 };
 
 const rankingGridClassName =
-  'grid grid-cols-[128px_minmax(0,1.45fr)_minmax(120px,0.65fr)_minmax(168px,0.85fr)] gap-4';
+  'grid grid-cols-[max-content_max-content_24px_minmax(0,1fr)_max-content_max-content] gap-4';
+const rankingTableLayout = createHeaderedTableLayout({
+  breakpoint: 'lg',
+  columns: 'max-content max-content 24px minmax(0,1fr) max-content max-content',
+  gap: 4,
+});
 
 const dropAnimation = {
   duration: 160,
@@ -127,7 +143,7 @@ export function MerchandisingEditor({
   helperText,
   priceByEntryKey,
   priceChangeByEntryKey,
-  movedByEntryKey,
+  rankChangeByEntryKey,
 }: {
   entries: RankingEntry[];
   snapshot: InventorySnapshot;
@@ -136,12 +152,11 @@ export function MerchandisingEditor({
   helperText?: string;
   priceByEntryKey?: Record<string, number>;
   priceChangeByEntryKey?: Record<string, 'up' | 'down' | null>;
-  movedByEntryKey?: Record<string, boolean>;
+  rankChangeByEntryKey?: Record<string, 'up' | 'down' | null>;
 }) {
-  const { currency, language, t } = usePreferences();
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeWidth, setActiveWidth] = useState<number | undefined>(undefined);
-  const [suppressedHandleId, setSuppressedHandleId] = useState<string | null>(null);
   const dragBoundaryRef = useRef<HTMLDivElement | null>(null);
 
   const sensors = useSensors(
@@ -159,25 +174,33 @@ export function MerchandisingEditor({
     return entries.map((entry, index) => {
       const label = rankLabel(entry, snapshot.skus, snapshot.services);
       const entryKey = `${entry.entryType}:${entry.entryId}`;
-      const fallbackPrice =
+      const service = entry.entryType === 'service' ? snapshot.services.find((candidate) => candidate.serviceId === entry.entryId) : null;
+      const sku = entry.entryType === 'sku' ? snapshot.skus.find((candidate) => candidate.skuId === entry.entryId) : null;
+      const cost =
         entry.entryType === 'service'
-          ? snapshot.services.find((service) => service.serviceId === entry.entryId)?.price ?? 0
-          : snapshot.skus.find((sku) => sku.skuId === entry.entryId)?.costPerUnit ?? 0;
+          ? (service?.skuIds ?? []).reduce(
+              (sum, skuId) => sum + (snapshot.skus.find((candidate) => candidate.skuId === skuId)?.costPerUnit ?? 0),
+              0,
+            )
+          : (sku?.costPerUnit ?? 0);
+      const fallbackPrice = entry.entryType === 'service' ? (service?.price ?? 0) : (sku?.productPrice ?? 0);
       const price = priceByEntryKey?.[entryKey] ?? fallbackPrice;
       const KindIcon = rankingEntryTypeIconMap[entry.entryType];
 
       return {
         id: buildRankingEntryId(entry),
         index,
+        costText: formatCurrency(cost, currency, language, usdToKhrExchangeRate),
         label,
         kindIcon: KindIcon,
         kindLabel: entry.entryType === 'service' ? t('serviceLabel') : t('skuLabel'),
-        movedFromBaseline: Boolean(movedByEntryKey?.[entryKey]),
+        movedFromBaseline: (rankChangeByEntryKey?.[entryKey] ?? null) !== null,
+        rankChangeDirection: rankChangeByEntryKey?.[entryKey] ?? null,
         priceChangeDirection: priceChangeByEntryKey?.[entryKey] ?? null,
-        priceText: formatCurrency(price, currency, language),
+        priceText: formatCurrency(price, currency, language, usdToKhrExchangeRate),
       };
     });
-  }, [currency, entries, language, movedByEntryKey, priceByEntryKey, priceChangeByEntryKey, snapshot.services, snapshot.skus, t]);
+  }, [currency, entries, language, priceByEntryKey, priceChangeByEntryKey, rankChangeByEntryKey, snapshot.services, snapshot.skus, t, usdToKhrExchangeRate]);
 
   const activeRow = rowModels.find((row) => row.id === activeId) ?? null;
   const overlayModifiers = useMemo<Modifier[]>(
@@ -196,7 +219,6 @@ export function MerchandisingEditor({
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
     setActiveWidth(event.active.rect.current.initial?.width);
-    setSuppressedHandleId(null);
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -204,7 +226,6 @@ export function MerchandisingEditor({
 
     setActiveId(null);
     setActiveWidth(undefined);
-    setSuppressedHandleId(String(over?.id ?? active.id));
 
     if (!over) {
       return;
@@ -215,43 +236,33 @@ export function MerchandisingEditor({
 
   return (
     <div className="overflow-x-auto">
-      <div
-        aria-label={titleLabel ?? t('productRankingTitle')}
+      <HeaderedTable
         className="min-w-[860px]"
-        role="table"
+        variant="framed"
       >
         {helperText ? (
           <p className="mb-3 text-sm text-muted-foreground">{helperText}</p>
         ) : null}
-        <div className="border-b border-border/60 pb-3" role="rowgroup">
-          <div
-            className={cn(rankingGridClassName, 'px-3 text-sm font-medium text-foreground md:px-4')}
-            role="row"
-          >
-            <div className="px-2" role="columnheader">
-              <div className="grid grid-cols-[1.75rem_auto] items-center gap-3">
-                <span aria-hidden="true" className="block size-7" />
-                <span>{t('rankHeaderRank')}</span>
-              </div>
-            </div>
-            <div className="px-2" role="columnheader">
-              {t('rankHeaderName')}
-            </div>
-            <div className="px-2 text-center" role="columnheader">
-              {t('rankHeaderType')}
-            </div>
-            <div className="px-2 text-center" role="columnheader">
-              {t('rankHeaderPrice')}
-            </div>
-          </div>
-        </div>
+        <div
+          aria-label={titleLabel ?? t('productRankingTitle')}
+          className={rankingTableLayout.containerClassName}
+          role="table"
+          style={rankingTableLayout.style}
+        >
+          <HeaderedTableHeader className={rankingTableLayout.headerClassName}>
+            <HeaderedTableHeaderCell aria-hidden="true" />
+            <HeaderedTableHeaderCell align="center">{t('rankHeaderRank')}</HeaderedTableHeaderCell>
+            <HeaderedTableHeaderCell aria-hidden="true" />
+            <HeaderedTableHeaderCell align="left" className="pl-4">Item</HeaderedTableHeaderCell>
+            <HeaderedTableHeaderCell align="center">Cost</HeaderedTableHeaderCell>
+            <HeaderedTableHeaderCell align="center">{t('rankHeaderPrice')}</HeaderedTableHeaderCell>
+          </HeaderedTableHeader>
 
         <DndContext
           collisionDetection={closestCenter}
           onDragCancel={() => {
             setActiveId(null);
             setActiveWidth(undefined);
-            setSuppressedHandleId(null);
           }}
           onDragEnd={handleDragEnd}
           onDragStart={handleDragStart}
@@ -261,8 +272,8 @@ export function MerchandisingEditor({
             items={rowModels.map((row) => row.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div
-              className="divide-y divide-border/60"
+            <HeaderedTableBody
+              className={rankingTableLayout.bodyClassName}
               data-testid="ranking-list"
               ref={dragBoundaryRef}
               role="rowgroup"
@@ -271,20 +282,19 @@ export function MerchandisingEditor({
                 <SortableRankingRow
                   id={row.id}
                   index={row.index}
+                  costText={row.costText}
                   key={row.id}
                   kindIcon={row.kindIcon}
                   kindLabel={row.kindLabel}
                   label={row.label}
+                  rankChangeDirection={row.rankChangeDirection}
+                  rowClassName={rankingTableLayout.rowClassName}
                   movedFromBaseline={row.movedFromBaseline}
                   priceChangeDirection={row.priceChangeDirection}
                   priceText={row.priceText}
-                  suppressedHandle={suppressedHandleId === row.id}
-                  onHandleReset={() => {
-                    setSuppressedHandleId((current) => (current === row.id ? null : current));
-                  }}
                 />
               ))}
-            </div>
+            </HeaderedTableBody>
           </SortableContext>
 
           {typeof document !== 'undefined'
@@ -294,9 +304,11 @@ export function MerchandisingEditor({
                     <RankingRowCard
                       handle={<StaticGripHandle />}
                       index={activeRow.index}
+                      costText={activeRow.costText}
                       kindIcon={activeRow.kindIcon}
                       kindLabel={activeRow.kindLabel}
                       label={activeRow.label}
+                      rankChangeDirection={activeRow.rankChangeDirection}
                       movedFromBaseline={activeRow.movedFromBaseline}
                       overlay
                       priceChangeDirection={activeRow.priceChangeDirection}
@@ -309,7 +321,8 @@ export function MerchandisingEditor({
               )
             : null}
         </DndContext>
-      </div>
+        </div>
+      </HeaderedTable>
     </div>
   );
 }
@@ -317,17 +330,17 @@ export function MerchandisingEditor({
 function SortableRankingRow({
   id,
   index,
+  costText,
   kindIcon,
   label,
   kindLabel,
   movedFromBaseline,
+  rankChangeDirection,
   priceChangeDirection,
   priceText,
-  suppressedHandle,
-  onHandleReset,
+  rowClassName,
 }: RankingRowModel & {
-  suppressedHandle: boolean;
-  onHandleReset: () => void;
+  rowClassName: string;
 }) {
   const {
     attributes,
@@ -342,15 +355,13 @@ function SortableRankingRow({
   return (
     <RankingRowCard
       dragging={isDragging}
-      onPointerLeave={onHandleReset}
       handle={
         <button
           {...attributes}
           {...listeners}
           aria-label={`Reorder ${label}`}
-          className="flex size-8 touch-none items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[background-color,color,transform,opacity] duration-150 ease-out group-hover/row:opacity-100 data-[dragging=true]:opacity-100 data-[suppressed=true]:opacity-0 hover:bg-accent/60 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 active:cursor-grabbing motion-reduce:transition-none"
+          className="flex size-8 touch-none items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[background-color,color,transform,opacity] duration-150 ease-out group-hover/row:opacity-100 data-[dragging=true]:opacity-100 hover:bg-accent/60 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 active:cursor-grabbing motion-reduce:transition-none"
           data-dragging={isDragging || undefined}
-          data-suppressed={suppressedHandle || undefined}
           ref={setActivatorNodeRef}
           type="button"
         >
@@ -358,9 +369,12 @@ function SortableRankingRow({
         </button>
       }
       index={index}
+      costText={costText}
       kindIcon={kindIcon}
       kindLabel={kindLabel}
       label={label}
+      rankChangeDirection={rankChangeDirection}
+      rowClassName={rowClassName}
       movedFromBaseline={movedFromBaseline}
       priceChangeDirection={priceChangeDirection}
       priceText={priceText}
@@ -377,13 +391,16 @@ type RankingRowCardProps = HTMLAttributes<HTMLDivElement> & {
   dragging?: boolean;
   handle: ReactNode;
   index: number;
+  costText: string;
   kindIcon: LucideIcon;
   kindLabel: string;
   label: string;
   movedFromBaseline: boolean;
   overlay?: boolean;
+  rankChangeDirection: 'up' | 'down' | null;
   priceChangeDirection: 'up' | 'down' | null;
   priceText: string;
+  rowClassName?: string;
 };
 
 const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function RankingRowCard(
@@ -392,23 +409,26 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
     dragging = false,
     handle,
     index,
+    costText,
     kindIcon: KindIcon,
     kindLabel,
     label,
     movedFromBaseline,
     overlay = false,
+    rankChangeDirection,
     priceChangeDirection,
     priceText,
+    rowClassName,
     style,
     ...props
   },
   ref,
 ) {
   return (
-    <div
+    <HeaderedTableRow
       {...props}
       className={cn(
-        rankingGridClassName,
+        overlay ? rankingGridClassName : rowClassName,
         'group/row px-3 py-4 transition-[background-color,box-shadow,opacity] duration-150 ease-out motion-reduce:transition-none md:px-4',
         overlay
           ? 'pointer-events-none rounded-2xl border border-border/70 bg-background/95 shadow-[0_24px_80px_-28px_rgba(39,27,18,0.35)] backdrop-blur-[2px]'
@@ -425,27 +445,42 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
         willChange: 'transform',
       }}
     >
-      <div className="px-2" role="cell">
-        <div className="grid grid-cols-[1.75rem_auto] items-center gap-3">
-          <div className="flex items-center justify-center">{handle}</div>
-          <div className="text-lg font-medium tracking-tight text-foreground tabular-nums">
-            #{index + 1}
-          </div>
+      <div className="pr-1" role="cell">
+        <div className="flex min-h-8 items-center justify-center">{handle}</div>
+      </div>
+      <div className="px-1 text-center" role="cell">
+        <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Rank</HeaderedTableMobileLabel>
+        <div className="flex min-h-8 items-center justify-center gap-1.5 text-center text-lg font-medium tracking-tight text-foreground tabular-nums">
+          <span>#{index + 1}</span>
+          {rankChangeDirection ? (
+            <Triangle
+              aria-hidden="true"
+              className={cn(
+                'rank-change-triangle !size-2 fill-current',
+                rankChangeDirection === 'up' ? 'text-emerald-600' : 'rotate-180 text-red-600',
+              )}
+            />
+          ) : null}
         </div>
       </div>
-      <div className="min-w-0 px-2" role="cell">
-        <p className="truncate text-[1.05rem] font-medium tracking-tight text-foreground">{label}</p>
-      </div>
-      <div className="px-2 text-center" role="cell">
-        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="inline-flex size-8 items-center justify-center rounded-full border border-border/70 bg-background text-primary">
-            <KindIcon aria-hidden="true" className="size-3.5" />
+      <div aria-hidden="true" role="presentation" />
+      <div className="min-w-0 px-2 pl-4 text-left" role="cell">
+        <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Item</HeaderedTableMobileLabel>
+        <div className="flex min-w-0 items-center justify-start gap-2.5">
+          <span className="shrink-0 text-muted-foreground">
+            <KindIcon aria-hidden="true" className="size-4" />
+            <span className="sr-only">{kindLabel}</span>
           </span>
-          <span>{kindLabel}</span>
+          <p className="min-w-0 truncate text-[1.05rem] font-medium tracking-tight text-foreground">{label}</p>
         </div>
       </div>
       <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums" role="cell">
-        <div className="grid grid-cols-[0.75rem_auto_0.75rem] items-center">
+        <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Cost</HeaderedTableMobileLabel>
+        <p className="text-center">{costText}</p>
+      </div>
+      <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums" role="cell">
+        <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Price</HeaderedTableMobileLabel>
+        <div className="grid grid-cols-[0.75rem_auto_0.75rem] items-center justify-center">
           <span aria-hidden="true" />
           <span className="text-center">{priceText}</span>
           <span className="flex justify-end">
@@ -453,6 +488,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
               <Triangle
                 aria-hidden="true"
                 className={cn(
+                  'price-change-triangle',
                   '!size-3 fill-current',
                   priceChangeDirection === 'up' ? 'text-emerald-600' : 'rotate-180 text-red-600',
                 )}
@@ -461,7 +497,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
           </span>
         </div>
       </div>
-    </div>
+    </HeaderedTableRow>
   );
 });
 

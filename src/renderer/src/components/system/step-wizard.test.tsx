@@ -44,4 +44,24 @@ describe('StepWizard', () => {
 
     expect(screen.getByRole('button', { name: /Stock count/i })).toHaveAttribute('aria-current', 'step');
   });
+
+  it('does not show future steps as complete before the user reaches them', () => {
+    render(
+      <StepWizard
+        currentStepId="context"
+        percentComplete={20}
+        steps={[
+          { id: 'context', title: 'Interval and context', complete: true },
+          { id: 'stock', title: 'Stock count', complete: true },
+          { id: 'events', title: 'Real-world events' },
+        ]}
+        unlockedStepCount={1}
+        onStepSelect={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Interval and context/i })).toHaveTextContent('Interval and context');
+    expect(screen.getByRole('button', { name: /Stock count/i })).toHaveTextContent('2');
+    expect(screen.getByRole('button', { name: /Stock count/i })).not.toHaveTextContent('check');
+  });
 });

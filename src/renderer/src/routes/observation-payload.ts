@@ -12,6 +12,7 @@ export interface ObservationSignalCounts {
   leadTimeHints: number;
   adjustments: number;
   recipeUsageHints: number;
+  regime: number;
   notes: number;
 }
 
@@ -52,6 +53,7 @@ export function observationSignalCounts(input: SenaObservationInput): Observatio
     leadTimeHints: input.leadTimeHints.length,
     adjustments: input.adjustmentSignals?.length ?? 0,
     recipeUsageHints: input.recipeUsageHints?.length ?? 0,
+    regime: input.regimeHint ? 1 : 0,
     notes: input.notes?.trim() ? 1 : 0,
   };
 }
@@ -69,7 +71,8 @@ export function hasStructuredObservationSignal(input: SenaObservationInput) {
     counts.retailPrices > 0 ||
     counts.leadTimeHints > 0 ||
     counts.adjustments > 0 ||
-    counts.recipeUsageHints > 0
+    counts.recipeUsageHints > 0 ||
+    counts.regime > 0
   );
 }
 
@@ -105,6 +108,9 @@ export function observationCompositionParts(input: SenaObservationInput) {
   }
   if (counts.adjustments > 0) {
     parts.push(`${counts.adjustments} correction${counts.adjustments === 1 ? '' : 's'}`);
+  }
+  if (counts.regime > 0) {
+    parts.push('regime');
   }
   if (counts.notes > 0) {
     parts.push('note');
