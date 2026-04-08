@@ -16,6 +16,7 @@ import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
+import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from './loading-wireframes';
 import { ServiceDependencyImpact } from './service-detail/dependency-impact';
 import { ServiceEvidenceTimeline } from './service-detail/evidence';
 import { ServiceDetailActions } from './service-detail/actions';
@@ -31,45 +32,18 @@ function mergeServiceDetailPages(older: SenaServiceDetail, newer: SenaServiceDet
   };
 }
 
-function ServiceDetailLoadingState({ showRightRailCards }: { showRightRailCards: boolean }) {
+function ServiceDetailLoadingState({
+  showRightRailCards,
+  title,
+}: {
+  showRightRailCards: boolean;
+  title: string;
+}) {
   return (
     <div className="grid gap-6">
-      <div className="rounded-[1.4rem] border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground">
-        Preparing SENA view
-      </div>
+      <DetailHeroWireframe headlineWidthClassName="w-[30rem]" summaryWidthClassName="w-[40rem]" title={title} />
 
-      <section className="rounded-[2rem] border border-border/60 bg-white px-6 py-5 shadow-[0_16px_44px_rgba(48,31,20,0.08)]">
-        <div className="flex flex-col gap-4 border-b border-border/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="grid gap-4">
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-9 w-9 rounded-full" />
-              <Skeleton className="h-7 w-56 rounded-full" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-7 w-20 rounded-full" />
-              <Skeleton className="h-7 w-20 rounded-full" />
-              <Skeleton className="h-7 w-32 rounded-full" />
-            </div>
-            <Skeleton className="h-12 w-[30rem] max-w-full rounded-full" />
-            <Skeleton className="h-5 w-[40rem] max-w-full rounded-full" />
-          </div>
-          <div className="grid grid-cols-2 gap-2 lg:w-[25rem]">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={`service-action-${index}`} className="h-10 rounded-full" />
-            ))}
-          </div>
-        </div>
-        <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[1.4rem] border border-border/60 bg-border/50 md:grid-cols-3 xl:grid-cols-6">
-          {Array.from({ length: 6 }, (_, index) => (
-            <div key={`service-ribbon-${index}`} className="bg-white px-4 py-3">
-              <Skeleton className="h-4 w-20 rounded-full" />
-              <Skeleton className="mt-2 h-6 w-16 rounded-full" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className={rightRailLayoutClassName(showRightRailCards)}>
+      <WireframeRightRailLayout railCount={4} showRightRailCards={showRightRailCards}>
         <section className="rounded-[2rem] border border-border/60 bg-white px-6 py-5 shadow-[0_16px_44px_rgba(48,31,20,0.08)]">
           <Skeleton className="h-8 w-64 rounded-full" />
           <Skeleton className="mt-3 h-5 w-4/5 rounded-full" />
@@ -79,30 +53,10 @@ function ServiceDetailLoadingState({ showRightRailCards }: { showRightRailCards:
             ))}
           </div>
           <div className="mt-6 space-y-5">
-            {Array.from({ length: 4 }, (_, index) => (
-              <div key={`service-lane-${index}`} className="space-y-3 border-t border-border/60 pt-5 first:border-t-0 first:pt-0">
-                <Skeleton className="h-6 w-44 rounded-full" />
-                <Skeleton className="h-32 w-full rounded-[1.4rem]" />
-              </div>
-            ))}
+            {WireframeRows({ chartHeightClassName: 'h-32', rowCount: 4 })}
           </div>
         </section>
-
-        {showRightRailCards ? (
-          <section className="rounded-[2rem] border border-border/60 bg-white p-4 shadow-[0_16px_44px_rgba(48,31,20,0.08)]">
-            <div className="space-y-4">
-              {Array.from({ length: 4 }, (_, index) => (
-                <div key={`service-rail-${index}`} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4">
-                  <Skeleton className="h-4 w-28 rounded-full" />
-                  <Skeleton className="mt-4 h-6 w-40 rounded-full" />
-                  <Skeleton className="mt-2 h-4 w-full rounded-full" />
-                  <Skeleton className="mt-2 h-4 w-4/5 rounded-full" />
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
-      </div>
+      </WireframeRightRailLayout>
     </div>
   );
 }
@@ -339,9 +293,13 @@ export function ServiceDetailRoute() {
   }
 
   if (!model && (isLoading || !activeSnapshot)) {
+    const loadingTitle = service?.name ?? catalogService?.name ?? serviceId ?? 'Service detail';
     return (
       <WorkspacePage>
-        <ServiceDetailLoadingState showRightRailCards={showRightRailCards} />
+        <ServiceDetailLoadingState
+          showRightRailCards={showRightRailCards}
+          title={loadingTitle}
+        />
       </WorkspacePage>
     );
   }

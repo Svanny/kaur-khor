@@ -5,9 +5,9 @@ import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scro
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+import { WireframeRightRailLayout, WireframeRows, WorkspaceTitleCardWireframe } from './loading-wireframes';
 import {
   type AnalysisScope,
   type AnalysisSection,
@@ -29,58 +29,27 @@ const AnalysisContent = lazy(async () => {
   return { default: module.AnalysisContent };
 });
 
-function AnalysisLoadingRailCards() {
-  return Array.from({ length: 4 }, (_, index) => (
-    <div
-      key={`analysis-loading-rail-${index}`}
-      className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_12px_28px_rgba(48,31,20,0.07)]"
-    >
-      <Skeleton className="h-4 w-28 rounded-full" />
-      <Skeleton className="mt-4 h-6 w-40 rounded-full" />
-      <Skeleton className="mt-2 h-4 w-full rounded-full" />
-      <Skeleton className="mt-2 h-4 w-4/5 rounded-full" />
-    </div>
-  ));
-}
-
-function AnalysisLoadingPanelRows({ rowCount }: { rowCount: number }) {
-  return Array.from({ length: rowCount }, (_, index) => (
-    <div key={`analysis-loading-row-${index}`} className="space-y-3 border-t border-border/60 pt-5 first:border-t-0 first:pt-0">
-      <div className="flex items-center justify-between gap-3">
-        <Skeleton className="h-5 w-40 rounded-full" />
-        <Skeleton className="h-4 w-24 rounded-full" />
-      </div>
-      <Skeleton className="h-28 w-full rounded-[1.4rem]" />
-    </div>
-  ));
-}
-
 function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: boolean }) {
   return (
     <div className="grid gap-6">
-      <div className="rounded-[1.4rem] border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground">
-        Preparing analysis workbench
-      </div>
-
-      <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[2rem] px-6 py-5`}>
-        <div className="flex flex-col gap-4 border-b border-border/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="grid gap-4">
-            <Skeleton className="h-4 w-20 rounded-full" />
-            <Skeleton className="h-10 w-48 rounded-full" />
-            <Skeleton className="h-5 w-[40rem] max-w-full rounded-full" />
-          </div>
+      <WorkspaceTitleCardWireframe
+        actions={
           <div className="grid grid-cols-3 gap-2 lg:w-[22rem]">
             {Array.from({ length: 3 }, (_, index) => (
               <Skeleton key={`analysis-loading-scope-${index}`} className="h-10 rounded-full" />
             ))}
           </div>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-3">
+        }
+        descriptor="Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations."
+        eyebrow="Analysis"
+        title="Deep Review"
+      >
+        <div className="mt-1 flex flex-wrap gap-3">
           <Skeleton className="h-5 w-32 rounded-full" />
           <Skeleton className="h-5 w-36 rounded-full" />
           <Skeleton className="h-5 w-44 rounded-full" />
         </div>
-      </section>
+      </WorkspaceTitleCardWireframe>
 
       <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[2rem] px-5 py-5`}>
         <div className="hidden-scrollbar overflow-x-auto pb-2">
@@ -91,8 +60,7 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
           </div>
         </div>
 
-        <div className={rightRailLayoutClassName(showRightRailCards)}>
-          <div className="grid min-w-0 gap-6">
+        <WireframeRightRailLayout railCount={4} showRightRailCards={showRightRailCards}>
             <section className="rounded-[1.7rem] border border-border/60 bg-white/95 px-6 py-5 shadow-[0_18px_38px_rgba(48,31,20,0.08)]">
               <div className="flex items-end justify-between gap-4 border-b border-border/60 pb-4">
                 <div className="grid gap-2">
@@ -107,7 +75,7 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
                 ))}
               </div>
               <div className="mt-6 space-y-6">
-                <AnalysisLoadingPanelRows rowCount={4} />
+                {WireframeRows({ rowCount: 4 })}
               </div>
             </section>
 
@@ -120,21 +88,12 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
                   <Skeleton className="h-4 w-24 rounded-full" />
                   <Skeleton className="mt-3 h-8 w-44 rounded-full" />
                   <div className="mt-5 space-y-4">
-                    <AnalysisLoadingPanelRows rowCount={3} />
+                    {WireframeRows({ rowCount: 3 })}
                   </div>
                 </section>
               ))}
             </div>
-          </div>
-
-          {showRightRailCards ? (
-            <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[2rem] p-4`}>
-              <div className="space-y-4">
-                <AnalysisLoadingRailCards />
-              </div>
-            </section>
-          ) : null}
-        </div>
+        </WireframeRightRailLayout>
       </section>
     </div>
   );

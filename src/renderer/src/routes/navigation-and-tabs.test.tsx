@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
@@ -268,6 +268,225 @@ describe('SENA routes', () => {
     expect(screen.getByRole('link', { name: 'Service 1' })).toHaveAttribute('href', '/catalog/services/service-1');
     expect(screen.getByText('1 linked services · sellable · price $9.00 · cost $4.00')).toBeInTheDocument();
     expect(screen.getByText('1 linked SKUs · price $15.00')).toBeInTheDocument();
+  });
+
+  test('renders the catalog wireframe while the catalog is still loading', () => {
+    const baseState = inventoryHook();
+    inventoryHook.mockReturnValue({
+      ...baseState,
+      catalog: null,
+      isLoading: true,
+      workspaceSummary: null,
+    });
+
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    expect(screen.getByText('SENA Integrated')).toBeInTheDocument();
+    expect(screen.getByText('SKUs')).toBeInTheDocument();
+    expect(screen.getByText('Services')).toBeInTheDocument();
+    expect(screen.queryByText('No catalog loaded yet')).not.toBeInTheDocument();
+  });
+
+  test('renders inline catalog actions for SKU and service rows', async () => {
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    expect(skuRow).not.toBeNull();
+    fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
+
+    expect(within(skuRow!).getByRole('button', { name: 'Record stock' })).toBeInTheDocument();
+    expect(within(skuRow!).getByRole('button', { name: 'Log order' })).toBeInTheDocument();
+    expect(within(skuRow!).getByRole('button', { name: 'Log receipt' })).toBeInTheDocument();
+  });
+
+  test('preloads visible service actions without repeatedly rehydrating the same service detail', async () => {
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    await waitFor(() => {
+      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledTimes(1);
+    });
+    expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
+  });
+
+  test('opens the SKU action flow in catalog without showing the inline detail rail', async () => {
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    expect(skuRow).not.toBeNull();
+    fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
+    fireEvent.click(within(skuRow!).getByRole('button', { name: 'Log order' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Log order for SKU 1')).toBeInTheDocument();
+
+    expect(screen.queryByText('Open pipeline')).not.toBeInTheDocument();
+    expect(screen.queryByText('Next touch')).not.toBeInTheDocument();
+
+    expect(screen.queryByRole('heading', { name: 'Ledger' })).not.toBeInTheDocument();
+  });
+
+  test('opens the service action flow in catalog without showing the inline detail rail', async () => {
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    expect(serviceRow).not.toBeNull();
+
+    await waitFor(() => {
+      fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
+      expect(within(serviceRow!).getByRole('button', { name: 'Update price' })).toBeEnabled();
+    });
+
+    fireEvent.click(within(serviceRow!).getByRole('button', { name: 'Update price' }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('15')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Update price for Service 1')).toBeInTheDocument();
+
+    expect(screen.queryByText('Recovery path')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bottleneck stack')).not.toBeInTheDocument();
+
+    expect(screen.queryByRole('heading', { name: 'Service viability ledger' })).not.toBeInTheDocument();
+  });
+
+  test('omits the SKU price action for non-sellable catalog rows', async () => {
+    const baseState = inventoryHook();
+    inventoryHook.mockReturnValue({
+      ...baseState,
+      catalog: {
+        ...sampleCatalog,
+        skus: [
+          ...sampleCatalog.skus,
+          {
+            costPerUnit: 3,
+            description: 'Backroom supply',
+            leadTimeMeanDaysHint: 7,
+            leadTimeStdDaysHint: 2,
+            name: 'SKU 2',
+            productPrice: null,
+            skuId: 'sku-2',
+            soldAsProduct: false,
+          },
+        ],
+      },
+      snapshot: {
+        ...baseState.snapshot,
+        skus: [
+          ...baseState.snapshot.skus,
+          {
+            skuId: 'sku-2',
+            name: 'SKU 2',
+            description: 'Backroom supply',
+            unitsInStock: 5,
+            costPerUnit: 3,
+            soldAsProduct: false,
+            productPrice: null,
+            leadTimeMeanDays: 7,
+            leadTimeStdDays: 2,
+          },
+        ],
+      },
+      workspaceSummary: {
+        ...baseState.workspaceSummary,
+        skuCount: 2,
+      },
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => ({
+        summary: {
+          skuId,
+          latestPosteriorUnits: skuId === 'sku-2' ? 5 : 9,
+          credibleIntervalLow: 4,
+          credibleIntervalHigh: 12,
+          demandPerDayMean: 2,
+          stockoutRisk: 0.4,
+          daysOfCover: 4,
+          expectedLeadTimeDemand: 8,
+          safetyStock: 3,
+          reorderPoint: 7,
+          reorderTriggerProbability: 0.55,
+          leadTimeMeanDays: 5,
+          leadTimeStdDays: 1,
+          regimeProbabilities: { normal: 1 },
+        },
+        inventoryPosterior: [],
+        demandPosterior: [],
+        pipelinePosterior: [],
+        leadTimePosterior: [],
+      })),
+    });
+
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest('div.group');
+    expect(unsellableRow).not.toBeNull();
+    fireEvent.click(within(unsellableRow!).getByRole('button', { name: 'More actions for SKU 2' }));
+    expect(within(unsellableRow!).queryByRole('button', { name: 'Update price' })).not.toBeInTheDocument();
+  });
+
+  test('disables catalog service stock mutations when no active bottleneck exists', async () => {
+    const baseState = inventoryHook();
+    inventoryHook.mockReturnValue({
+      ...baseState,
+      snapshot: {
+        ...baseState.snapshot,
+        sist: {
+          ...baseState.snapshot.sist,
+          highRiskSkuIds: [],
+        },
+      },
+      loadInventorySnapshot: vi.fn(async () => ({
+        ...baseState.snapshot,
+        sist: {
+          ...baseState.snapshot.sist,
+          highRiskSkuIds: [],
+        },
+      })),
+      loadSenaServiceDetail: vi.fn(async () => ({
+        serviceId: 'service-1',
+        activityMean: 3,
+        activityIntervalLow: 2,
+        activityIntervalHigh: 4,
+        bottleneckProbability: 0,
+        contributors: [
+          {
+            skuId: 'sku-1',
+            usageProbability: 0.2,
+            bottleneckProbability: 0,
+          },
+        ],
+        regimeTimeline: [
+          {
+            intervalIndex: 0,
+            startAt: '2026-04-01T00:00:00Z',
+            endAt: '2026-04-01T23:59:00Z',
+            dominantRegime: 'normal',
+            regimeProbabilities: { normal: 1 },
+          },
+        ],
+      })),
+    });
+
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    await waitFor(() => {
+      const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+      expect(serviceRow).not.toBeNull();
+      fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
+      const serviceLogReceiptButton = within(serviceRow!).getByRole('button', { name: 'Log receipt' });
+      expect(serviceLogReceiptButton).toBeDisabled();
+      expect(within(serviceRow!).getByRole('button', { name: 'Record stock' })).toBeDisabled();
+    });
+
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    const disabledLogReceiptButton = within(serviceRow!).getByRole('button', { name: 'Log receipt' });
+    fireEvent.click(disabledLogReceiptButton.parentElement as HTMLElement);
+
+    await waitFor(() => {
+      expect(screen.getByRole('tooltip', { name: 'No limiting contributor is active right now.' })).toBeInTheDocument();
+    });
   });
 
   test('filters the catalog route from the title-card search and toggle pill', () => {

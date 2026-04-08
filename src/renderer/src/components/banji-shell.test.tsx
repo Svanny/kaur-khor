@@ -204,6 +204,50 @@ describe('BanjiShell', () => {
     expect(screen.getByText('Computing hint')).toBeInTheDocument();
     expect(screen.queryByText('Overview screen')).not.toBeInTheDocument();
   });
+
+  test('renders catalog route content while inventory is still loading', () => {
+    inventoryHook.mockReturnValue({
+      error: null,
+      isLoading: true,
+      latestRun: null,
+      reload: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Catalog screen</div>} path="/catalog" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+    expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
+  });
+
+  test('keeps the full-screen computing state when a SENA run is active', () => {
+    inventoryHook.mockReturnValue({
+      error: null,
+      isLoading: true,
+      latestRun: { status: 'running' },
+      reload: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Catalog screen</div>} path="/catalog" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
+    expect(screen.queryByText('Catalog screen')).not.toBeInTheDocument();
+  });
 });
 
 function setViewport({ width, isMobile }: { width: number; isMobile: boolean }) {

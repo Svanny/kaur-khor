@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
+import { DetailHeroWireframe } from './loading-wireframes';
 import { SkuPageHero } from './sku-page-hero';
 import { SectionTitle } from './sku-detail/section-heading';
 
@@ -164,22 +165,10 @@ function ServiceSkuGridTile({
   );
 }
 
-function ServiceFormLoadingState() {
+function ServiceFormLoadingState({ title }: { title: string }) {
   return (
     <WorkspacePage>
-      <section className="editorial-panel overflow-hidden rounded-[2rem] border border-border/70 bg-white shadow-[0_16px_40px_rgba(48,31,20,0.08)]">
-        <div className="border-b border-border/60 px-6 py-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <Skeleton className="h-9 w-9 rounded-full" />
-              <Skeleton className="h-7 w-44 rounded-full" />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Skeleton className="h-10 w-36 rounded-full" />
-            </div>
-          </div>
-        </div>
-      </section>
+      <DetailHeroWireframe actionCount={1} badgeCount={0} showBody={false} title={title} />
 
       <div className="grid gap-6">
         <WorkspacePanel
@@ -282,7 +271,7 @@ export function ServiceFormRoute() {
   );
 
   if (isLoading && !catalog) {
-    return <ServiceFormLoadingState />;
+    return <ServiceFormLoadingState title={editing ? t('catalogServiceEditorTitleEdit') : t('catalogServiceEditorTitleNew')} />;
   }
 
   return (

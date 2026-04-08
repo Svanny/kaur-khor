@@ -1141,7 +1141,7 @@ describe('SKU detail route', () => {
 
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
-    expect(screen.getByText('Preparing SENA view')).toBeInTheDocument();
+    expect(screen.getByText('sku-1')).toBeInTheDocument();
     expect(screen.queryByText('SKU not found')).not.toBeInTheDocument();
 
     resolveSnapshot?.(snapshot);

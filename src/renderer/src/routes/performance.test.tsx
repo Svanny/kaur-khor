@@ -480,7 +480,7 @@ describe('PerformanceRoute', () => {
   test('renders the dedicated analysis workbench route', async () => {
     renderAnalysisRoute();
 
-    expect(await screen.findByText('Deep Review')).toBeInTheDocument();
+    expect(screen.getByText('Deep Review')).toBeInTheDocument();
     expect(
       screen.getByText('Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.'),
     ).toBeInTheDocument();
@@ -532,7 +532,7 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(screen.getByText('Preparing analysis workbench')).toBeInTheDocument();
+    expect(screen.getByText('Deep Review')).toBeInTheDocument();
     expect(screen.queryByText('Analysis needs the catalog first')).not.toBeInTheDocument();
     expect(screen.queryByText('Analysis needs the first SENA run')).not.toBeInTheDocument();
   });
@@ -545,7 +545,7 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(screen.getByText('Preparing analysis workbench')).toBeInTheDocument();
+    expect(screen.getByText('Deep Review')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
     expect(screen.queryByText('Analysis needs the first SENA run')).not.toBeInTheDocument();
   });
@@ -729,7 +729,7 @@ describe('PerformanceRoute', () => {
   test('hides analysis page descriptors when explanatory text is disabled', async () => {
     renderAnalysisRouteWithDescriptionVisibility(false);
 
-    expect(await screen.findByText('Deep Review')).toBeInTheDocument();
+    expect(screen.getByText('Deep Review')).toBeInTheDocument();
     expect(
       screen.queryByText('Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.'),
     ).not.toBeInTheDocument();

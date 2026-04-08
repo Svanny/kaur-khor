@@ -54,6 +54,10 @@ function matchesSection(pathname: string, sectionRoot: string) {
   return pathname === sectionRoot || pathname.startsWith(`${sectionRoot}/`);
 }
 
+function routeSupportsLocalLoadingState(pathname: string) {
+  return matchesSection(pathname, '/catalog') || matchesSection(pathname, '/analysis');
+}
+
 const PRIMARY_SECTIONS: ShellSectionConfig[] = [
   {
     id: 'overview',
@@ -170,8 +174,11 @@ export function BanjiShell({
 function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { applyDisplayViewMode, displayViewMode, t } = usePreferences();
-  const { error, isLoading, reload } = useInventory();
+  const { error, isLoading, latestRun, reload } = useInventory();
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
+  const isWorkspaceComputing = latestRun?.status === 'queued' || latestRun?.status === 'running';
+  const showGlobalLoadingScreen =
+    isWorkspaceComputing || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
 
   function handleSidebarNavigation() {
     if (isMobile) {
@@ -348,7 +355,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   tone="destructive"
                 />
               ) : null}
-              {isLoading ? (
+              {showGlobalLoadingScreen ? (
                 <div
                   className="hero-mesh editorial-panel flex min-h-[68svh] w-full items-center justify-center rounded-[2rem] px-6 py-10"
                   data-testid="workspace-computing-screen"
