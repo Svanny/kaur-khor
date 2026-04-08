@@ -125,11 +125,82 @@ describe('StockUpdateSessionRoute', () => {
     vi.clearAllMocks();
   });
 
-  it('submits only SKUs marked as counted', async () => {
+  it('shows step 1 with progress, preserves state, and blocks locked future steps', () => {
     renderRoute();
 
+    expect(screen.getByRole('button', { name: /Interval and context/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '20');
+    expect(screen.getByRole('button', { name: /Review and save/i })).toBeDisabled();
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Busy Friday shift' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByRole('button', { name: /Stock count/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getAllByLabelText('Units in stock')).toHaveLength(2);
+    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '40');
+
+    fireEvent.click(screen.getByRole('button', { name: /Interval and context/i }));
+    expect(screen.getByRole('textbox')).toHaveValue('Busy Friday shift');
+  });
+
+  it('keeps future steps locked until the user advances through the wizard', () => {
+    renderRoute();
+
+    expect(screen.getByRole('button', { name: /Real-world events/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('button', { name: /Real-world events/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('button', { name: /Real-world events/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: 'Price changed' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Review and save/i })).toBeDisabled();
+  });
+
+  it('blocks the first observation on stock count until at least one SKU is counted', () => {
+    renderRoute([]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByRole('button', { name: /Stock count/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByText('Count at least one SKU before continuing so Banji can anchor the first update.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+
+    fireEvent.click(screen.getAllByRole('checkbox')[0]!);
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+  });
+
+  it('allows a later price-only update without adding a fake stock snapshot', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('button', { name: /Real-world events/i })).toHaveAttribute('aria-current', 'step');
+    fireEvent.click(screen.getByRole('button', { name: 'Price changed' }));
+    fireEvent.change(screen.getByPlaceholderText('New price'), { target: { value: '15' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('button', { name: /Review and save/i })).toHaveAttribute('aria-current', 'step');
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockSnapshot: [],
+        servicePrices: [{ serviceId: 'service-1', price: 15 }],
+      }),
+    );
+  });
+
+  it('submits only SKUs marked as counted after progressing through the wizard', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getAllByRole('checkbox')[0]!);
     fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
@@ -148,31 +219,5 @@ describe('StockUpdateSessionRoute', () => {
       expect.arrayContaining([expect.objectContaining({ skuId: 'sku-2' })]),
     );
     expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
-  });
-
-  it('allows a later price-only update without adding a fake stock snapshot', async () => {
-    renderRoute();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Price changed' }));
-    fireEvent.change(screen.getByPlaceholderText('New price'), { target: { value: '15' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
-
-    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
-    expect(ingestSenaObservation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stockSnapshot: [],
-        servicePrices: [{ serviceId: 'service-1', price: 15 }],
-      }),
-    );
-  });
-
-  it('keeps the first observation anchored to at least one stock row', () => {
-    renderRoute([]);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Price changed' }));
-    fireEvent.change(screen.getByPlaceholderText('New price'), { target: { value: '15' } });
-
-    expect(screen.getByRole('button', { name: 'Save update' })).toBeDisabled();
-    expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 });
