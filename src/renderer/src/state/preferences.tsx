@@ -8,6 +8,7 @@ import {
 } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import {
+  DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeDesktopPreferenceTimestamp,
   normalizeSenaEngineParameters,
   senaEngineParametersEqual,
@@ -19,6 +20,7 @@ import { currencyLabel, getTranslation, type TranslationKey } from '../lib/trans
 interface PreferencesContextValue {
   language: AppLanguage;
   currency: AppCurrency;
+  usdToKhrExchangeRate: number;
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
@@ -27,6 +29,7 @@ interface PreferencesContextValue {
   displayViewMode: 'minimal' | 'maximal';
   persistedLanguage: AppLanguage;
   persistedCurrency: AppCurrency;
+  persistedUsdToKhrExchangeRate: number;
   persistedShowExplanatoryTooltips: boolean;
   persistedShowFloatingTitleActions: boolean;
   persistedShowRightRailCards: boolean;
@@ -34,6 +37,7 @@ interface PreferencesContextValue {
   persistedOverviewStaleUpdateReminderSnoozeUntil: string | null;
   setLanguage: (value: AppLanguage) => void;
   setCurrency: (value: AppCurrency) => void;
+  setUsdToKhrExchangeRate: (value: number) => void;
   setShowExplanatoryTooltips: (value: boolean) => void;
   setShowFloatingTitleActions: (value: boolean) => void;
   setShowRightRailCards: (value: boolean) => void;
@@ -45,6 +49,7 @@ interface PreferencesContextValue {
   savePreferences: (overrides?: Partial<{
     language: AppLanguage;
     currency: AppCurrency;
+    usdToKhrExchangeRate: number;
     showExplanatoryTooltips: boolean;
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
@@ -74,9 +79,16 @@ function resolveDisplayViewMode({
     : 'minimal';
 }
 
+function normalizeUsdToKhrExchangeRate(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
+}
+
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>('en');
   const [currency, setCurrencyState] = useState<AppCurrency>('USD');
+  const [usdToKhrExchangeRate, setUsdToKhrExchangeRateState] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
   const [showExplanatoryTooltips, setShowExplanatoryTooltipsState] = useState(true);
   const [showFloatingTitleActions, setShowFloatingTitleActionsState] = useState(true);
   const [showRightRailCards, setShowRightRailCardsState] = useState(true);
@@ -87,6 +99,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     useState<string | null>(null);
   const [persistedLanguage, setPersistedLanguage] = useState<AppLanguage>('en');
   const [persistedCurrency, setPersistedCurrency] = useState<AppCurrency>('USD');
+  const [persistedUsdToKhrExchangeRate, setPersistedUsdToKhrExchangeRate] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
   const [persistedShowExplanatoryTooltips, setPersistedShowExplanatoryTooltips] = useState(true);
   const [persistedShowFloatingTitleActions, setPersistedShowFloatingTitleActions] = useState(true);
   const [persistedShowRightRailCards, setPersistedShowRightRailCards] = useState(true);
@@ -110,6 +123,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
         setLanguageState(preferences.language);
         setCurrencyState(preferences.currency);
+        const nextUsdToKhrExchangeRate = normalizeUsdToKhrExchangeRate(preferences.usdToKhrExchangeRate);
+
+        setUsdToKhrExchangeRateState(nextUsdToKhrExchangeRate);
         setShowExplanatoryTooltipsState(preferences.showExplanatoryTooltips);
         setShowFloatingTitleActionsState(preferences.showFloatingTitleActions);
         setShowRightRailCardsState(preferences.showRightRailCards);
@@ -119,6 +135,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         );
         setPersistedLanguage(preferences.language);
         setPersistedCurrency(preferences.currency);
+        setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
         setPersistedShowExplanatoryTooltips(preferences.showExplanatoryTooltips);
         setPersistedShowFloatingTitleActions(preferences.showFloatingTitleActions);
         setPersistedShowRightRailCards(preferences.showRightRailCards);
@@ -139,6 +156,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   async function savePreferencesPatch(next: Partial<{
     language: AppLanguage;
     currency: AppCurrency;
+    usdToKhrExchangeRate: number;
     showExplanatoryTooltips: boolean;
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
@@ -152,6 +170,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     );
     setLanguageState(nextPreferences.language);
     setCurrencyState(nextPreferences.currency);
+    const nextUsdToKhrExchangeRate = normalizeUsdToKhrExchangeRate(nextPreferences.usdToKhrExchangeRate);
+    setUsdToKhrExchangeRateState(nextUsdToKhrExchangeRate);
     setShowExplanatoryTooltipsState(nextPreferences.showExplanatoryTooltips);
     setShowFloatingTitleActionsState(nextPreferences.showFloatingTitleActions);
     setShowRightRailCardsState(nextPreferences.showRightRailCards);
@@ -159,6 +179,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setOverviewStaleUpdateReminderSnoozeUntilState(nextOverviewStaleUpdateReminderSnoozeUntil);
     setPersistedLanguage(nextPreferences.language);
     setPersistedCurrency(nextPreferences.currency);
+    setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
     setPersistedShowExplanatoryTooltips(nextPreferences.showExplanatoryTooltips);
     setPersistedShowFloatingTitleActions(nextPreferences.showFloatingTitleActions);
     setPersistedShowRightRailCards(nextPreferences.showRightRailCards);
@@ -171,6 +192,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     () => ({
       language,
       currency,
+      usdToKhrExchangeRate,
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,
@@ -183,6 +205,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       }),
       persistedLanguage,
       persistedCurrency,
+      persistedUsdToKhrExchangeRate,
       persistedShowExplanatoryTooltips,
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
@@ -190,6 +213,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedOverviewStaleUpdateReminderSnoozeUntil,
       setLanguage: setLanguageState,
       setCurrency: setCurrencyState,
+      setUsdToKhrExchangeRate: setUsdToKhrExchangeRateState,
       setShowExplanatoryTooltips: setShowExplanatoryTooltipsState,
       setShowFloatingTitleActions: setShowFloatingTitleActionsState,
       setShowRightRailCards: setShowRightRailCardsState,
@@ -218,6 +242,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         await savePreferencesPatch({
           language: overrides?.language ?? language,
           currency: overrides?.currency ?? currency,
+          usdToKhrExchangeRate: overrides?.usdToKhrExchangeRate ?? usdToKhrExchangeRate,
           showExplanatoryTooltips: overrides?.showExplanatoryTooltips ?? showExplanatoryTooltips,
           showFloatingTitleActions: overrides?.showFloatingTitleActions ?? showFloatingTitleActions,
           showRightRailCards: overrides?.showRightRailCards ?? showRightRailCards,
@@ -229,6 +254,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       resetPreferences: () => {
         setLanguageState(persistedLanguage);
         setCurrencyState(persistedCurrency);
+        setUsdToKhrExchangeRateState(persistedUsdToKhrExchangeRate);
         setShowExplanatoryTooltipsState(persistedShowExplanatoryTooltips);
         setShowFloatingTitleActionsState(persistedShowFloatingTitleActions);
         setShowRightRailCardsState(persistedShowRightRailCards);
@@ -240,6 +266,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       hasPendingChanges:
         language !== persistedLanguage ||
         currency !== persistedCurrency ||
+        usdToKhrExchangeRate !== persistedUsdToKhrExchangeRate ||
         showExplanatoryTooltips !== persistedShowExplanatoryTooltips ||
         showFloatingTitleActions !== persistedShowFloatingTitleActions ||
         showRightRailCards !== persistedShowRightRailCards ||
@@ -252,6 +279,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     [
       currency,
       language,
+      persistedUsdToKhrExchangeRate,
       persistedCurrency,
       persistedLanguage,
       persistedShowExplanatoryTooltips,
@@ -261,6 +289,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedOverviewStaleUpdateReminderSnoozeUntil,
       senaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil,
+      usdToKhrExchangeRate,
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,

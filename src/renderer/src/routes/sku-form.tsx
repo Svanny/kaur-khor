@@ -1,5 +1,5 @@
 import { ChevronDown, Save } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SenaLeadTimeVariabilityClass, SenaSku } from '@shared/sena';
 import {
@@ -13,8 +13,11 @@ import {
 import { CheckboxRow } from '@/components/system/checkbox-row';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
+import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
+import { displayMoneyFromUsd, moneyInputStep, usdMoneyFromDisplay } from '@/lib/format';
 import { emptySenaCatalog, upsertSenaSku } from '@/lib/sena-catalog';
 import { useInventory } from '@/state/inventory';
+import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { SkuPageHero } from './sku-page-hero';
@@ -36,6 +39,19 @@ function emptySku(skuId = ''): SenaSku {
 const nativeSelectClassName =
   'h-14 w-full appearance-none rounded-xl border border-border bg-background px-3 pr-12 text-base shadow-none outline-none';
 
+function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTimeVariabilityClass | '') {
+  return {
+    skuId: sku.skuId.trim(),
+    name: sku.name.trim(),
+    description: sku.description.trim(),
+    costPerUnit: sku.costPerUnit,
+    soldAsProduct: sku.soldAsProduct,
+    productPrice: sku.productPrice,
+    leadTimeMeanDaysHint: sku.leadTimeMeanDaysHint,
+    leadTimeVariability: variabilityClass,
+  };
+}
+
 function parseOptionalNumber(value: string) {
   return value.trim() ? Number(value) : null;
 }
@@ -52,49 +68,88 @@ export function SkuFormRoute() {
   const navigate = useNavigate();
   const { skuId } = useParams();
   const { catalog, isSaving, upsertSenaCatalog } = useInventory();
-  const { t } = usePreferences();
+  const { canGoBack, goBack } = useNavigationHistory();
+  const { currency, t, usdToKhrExchangeRate } = usePreferences();
   const [form, setForm] = useState<SenaSku>(() => emptySku(skuId));
   const [leadTimeVariability, setLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>('');
   const editing = Boolean(skuId);
   const formId = 'sku-editor-form';
+  const existingSku = useMemo(
+    () => catalog?.skus.find((entry) => entry.skuId === skuId) ?? null,
+    [catalog?.skus, skuId],
+  );
 
   useEffect(() => {
-    const existing = catalog?.skus.find((entry) => entry.skuId === skuId);
-    if (existing) {
-      setForm(existing);
-      setLeadTimeVariability(deriveCatalogVariabilityClass(existing) ?? '');
+    if (existingSku) {
+      setForm(existingSku);
+      setLeadTimeVariability(deriveCatalogVariabilityClass(existingSku) ?? '');
     } else if (!editing) {
       setForm(emptySku(''));
       setLeadTimeVariability('');
     }
-  }, [catalog, editing, skuId]);
+  }, [editing, existingSku]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const baseCatalog = catalog ?? emptySenaCatalog();
-    const normalized = {
+  const normalizedBaseline = useMemo(() => existingSku ?? emptySku(editing ? (skuId ?? '') : ''), [editing, existingSku, skuId]);
+  const baselineLeadTimeVariability = useMemo(
+    () => deriveCatalogVariabilityClass(normalizedBaseline) ?? '',
+    [normalizedBaseline],
+  );
+  const normalizedDraft = useMemo(() => {
+    const leadTimeStdDaysHint =
+      form.leadTimeMeanDaysHint === normalizedBaseline.leadTimeMeanDaysHint &&
+      leadTimeVariability === baselineLeadTimeVariability
+        ? normalizedBaseline.leadTimeStdDaysHint
+        : compatibilityStdDaysForClass(form.leadTimeMeanDaysHint, leadTimeVariability || null);
+
+    return {
       ...form,
       skuId: form.skuId.trim(),
       name: form.name.trim(),
       description: form.description.trim(),
-      leadTimeStdDaysHint: compatibilityStdDaysForClass(form.leadTimeMeanDaysHint, leadTimeVariability || null),
+      leadTimeStdDaysHint,
     };
-    const nextCatalog = upsertSenaSku(baseCatalog, normalized);
+  }, [baselineLeadTimeVariability, form, leadTimeVariability, normalizedBaseline]);
+  const draftDirtySnapshot = useMemo(
+    () => normalizedSkuDirtySnapshot(form, leadTimeVariability),
+    [form, leadTimeVariability],
+  );
+  const baselineDirtySnapshot = useMemo(
+    () => normalizedSkuDirtySnapshot(normalizedBaseline, baselineLeadTimeVariability),
+    [baselineLeadTimeVariability, normalizedBaseline],
+  );
+  const hasUnsavedSkuChanges = JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot);
+  function resetSkuDraft() {
+    setForm(normalizedBaseline);
+    setLeadTimeVariability(baselineLeadTimeVariability);
+  }
+
+  const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
+    enabled: hasUnsavedSkuChanges,
+    description: 'You have unsaved SKU changes. Leave this page and discard the current draft?',
+    onDiscard: resetSkuDraft,
+  });
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const baseCatalog = catalog ?? emptySenaCatalog();
+    const nextCatalog = upsertSenaSku(baseCatalog, normalizedDraft);
     await upsertSenaCatalog(nextCatalog);
-    await navigate(`/catalog/skus/${normalized.skuId}`);
+    await navigate(`/catalog/skus/${normalizedDraft.skuId}`);
   }
 
   return (
     <WorkspacePage>
+      {discardConfirmDialog}
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
-            <Button disabled={isSaving} form={formId} type="submit">
+            <Button disabled={!hasUnsavedSkuChanges || isSaving} form={formId} type="submit">
               <Save data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}
             </Button>
           </WorkspaceActionRow>
         }
+        onBack={canGoBack ? () => confirmLeave(goBack) : undefined}
         title={editing ? t('catalogSkuEditorTitleEdit') : t('catalogSkuEditorTitleNew')}
       />
 
@@ -158,11 +213,14 @@ export function SkuFormRoute() {
                   className={editorInputClassName}
                   min="0"
                   required
-                  step="0.01"
+                  step={moneyInputStep(currency)}
                   type="number"
-                  value={form.costPerUnit}
+                  value={displayMoneyFromUsd(form.costPerUnit, currency, usdToKhrExchangeRate)}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, costPerUnit: Number(event.target.value) }))
+                    setForm((current) => ({
+                      ...current,
+                      costPerUnit: usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate),
+                    }))
                   }
                 />
               </EditorField>
@@ -176,13 +234,16 @@ export function SkuFormRoute() {
                   className={editorInputClassName}
                   disabled={!form.soldAsProduct}
                   min="0"
-                  step="0.01"
+                  step={moneyInputStep(currency)}
                   type="number"
-                  value={form.productPrice ?? ''}
+                  value={form.productPrice == null ? '' : displayMoneyFromUsd(form.productPrice, currency, usdToKhrExchangeRate)}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      productPrice: parseOptionalNumber(event.target.value),
+                      productPrice:
+                        event.target.value.trim().length > 0
+                          ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate)
+                          : null,
                     }))
                   }
                 />

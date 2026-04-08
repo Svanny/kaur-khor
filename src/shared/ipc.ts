@@ -32,6 +32,7 @@ export interface DesktopLocalDataInfo {
 export interface DesktopPreferences {
   language: AppLanguage;
   currency: AppCurrency;
+  usdToKhrExchangeRate: number;
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
@@ -138,6 +139,8 @@ export const IPC_CHANNELS = {
   preferencesGet: 'banji:preferences:get',
   preferencesSave: 'banji:preferences:save',
 } as const;
+
+export const DEFAULT_USD_TO_KHR_EXCHANGE_RATE = 4000;
 
 export const DEFAULT_SENA_ENGINE_PARAMETERS: SenaEngineParameters = {
   algorithmVersion: 'sena-analysis-v3',

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import {
   DEFAULT_SENA_ENGINE_PARAMETERS,
+  DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeSenaEngineParameters,
   senaEngineParametersEqual,
   type DesktopLocalDataInfo,
@@ -24,6 +25,7 @@ import { HelpTooltip } from '@/components/system/help-tooltip';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
 
@@ -418,12 +420,15 @@ export function SettingsRoute() {
     currency,
     hasPendingChanges,
     language,
+    usdToKhrExchangeRate,
     applySenaEngineParameters,
     persistedSenaEngineParameters,
+    resetPreferences,
     savePreferences,
     senaEngineParameters,
     setCurrency,
     setLanguage,
+    setUsdToKhrExchangeRate,
     setSenaEngineParameters,
     setShowExplanatoryTooltips,
     setShowFloatingTitleActions,
@@ -439,6 +444,7 @@ export function SettingsRoute() {
   const [senaExportFormat, setSenaExportFormat] = useState<ExportFormat>('csv');
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [creditsOpen, setCreditsOpen] = useState(false);
+  const [exchangeRateDraft, setExchangeRateDraft] = useState(() => String(usdToKhrExchangeRate));
   const [senaEngineNumberDrafts, setSenaEngineNumberDrafts] = useState<SenaEngineNumberDrafts>(() =>
     createSenaEngineNumberDrafts(senaEngineParameters),
   );
@@ -451,11 +457,38 @@ export function SettingsRoute() {
     pendingSenaEngineParameters,
     persistedSenaEngineParameters,
   );
+  const exchangeRateValue = Number(exchangeRateDraft);
+  const exchangeRateError =
+    exchangeRateDraft.trim().length === 0
+      ? 'Enter an exchange rate.'
+      : !Number.isFinite(exchangeRateValue) || exchangeRateValue <= 0
+        ? 'Exchange rate must be greater than 0.'
+        : null;
+  const exchangeRateChanged = exchangeRateDraft !== String(usdToKhrExchangeRate);
+  const hasUnsavedSettingsChanges = hasPendingChanges || senaParametersChanged || exchangeRateChanged;
+
+  function handleDiscardSettingsChanges() {
+    resetPreferences();
+    setExchangeRateDraft(String(usdToKhrExchangeRate));
+    setSenaEngineNumberDrafts(createSenaEngineNumberDrafts(persistedSenaEngineParameters));
+    setSenaEngineNumberErrors({});
+    setSenaRunStatus(null);
+  }
+
+  const { discardConfirmDialog } = useRouteLeaveConfirm({
+    enabled: hasUnsavedSettingsChanges,
+    description: 'You have unsaved settings changes. Leave this page and discard the current draft?',
+    onDiscard: handleDiscardSettingsChanges,
+  });
 
   useEffect(() => {
     setSenaEngineNumberDrafts(createSenaEngineNumberDrafts(senaEngineParameters));
     setSenaEngineNumberErrors({});
   }, [senaEngineParameters]);
+
+  useEffect(() => {
+    setExchangeRateDraft(String(usdToKhrExchangeRate));
+  }, [usdToKhrExchangeRate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -492,11 +525,20 @@ export function SettingsRoute() {
       setSenaRunStatus('Fix the highlighted SENA parameters before saving.');
       return;
     }
+    if (exchangeRateError) {
+      setSenaRunStatus('Fix the highlighted preference before saving.');
+      return;
+    }
     const nextSenaEngineParameters = pendingSenaEngineParameters;
+    const nextUsdToKhrExchangeRate = exchangeRateValue || DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
     const shouldRerunSena = senaParametersChanged;
     setSenaRunStatus(null);
     setSenaEngineParameters(nextSenaEngineParameters);
-    await savePreferences({ senaEngineParameters: nextSenaEngineParameters });
+    setUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
+    await savePreferences({
+      senaEngineParameters: nextSenaEngineParameters,
+      usdToKhrExchangeRate: nextUsdToKhrExchangeRate,
+    });
     if (shouldRerunSena) {
       try {
         await rerunSenaWithParameters(nextSenaEngineParameters);
@@ -590,6 +632,7 @@ export function SettingsRoute() {
 
   return (
     <WorkspacePage>
+      {discardConfirmDialog}
       <WorkspaceTitleCard
         eyebrow="Settings"
         title="Desktop preferences"
@@ -597,7 +640,7 @@ export function SettingsRoute() {
         actions={
           <WorkspaceActionRow className="justify-end">
             <Button
-              disabled={hasSenaParameterErrors || (!hasPendingChanges && !senaParametersChanged)}
+              disabled={Boolean(exchangeRateError) || hasSenaParameterErrors || (!hasPendingChanges && !senaParametersChanged && !exchangeRateChanged)}
               type="button"
               onClick={() => void handleSavePreferences()}
             >
@@ -608,8 +651,8 @@ export function SettingsRoute() {
         }
       />
       <WorkspacePanel title="Preferences controls" descriptor="These settings change only this desktop workspace.">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(16rem,0.8fr)]">
+          <label className="grid content-start gap-2 text-sm">
             <span>Language</span>
             <div className="relative">
               <select
@@ -626,7 +669,7 @@ export function SettingsRoute() {
               />
             </div>
           </label>
-          <label className="grid gap-2 text-sm">
+          <label className="grid content-start gap-2 text-sm">
             <span>Currency</span>
             <div className="relative">
               <select
@@ -643,10 +686,38 @@ export function SettingsRoute() {
               />
             </div>
           </label>
+          <label className="grid content-start gap-2 text-sm">
+            <span>Exchange rate</span>
+            <div className="flex h-14 items-center overflow-hidden rounded-xl border border-border bg-background text-base shadow-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+              <span className="shrink-0 border-r border-border/70 px-3 text-muted-foreground">$1 =</span>
+              <input
+                aria-label="Exchange rate for 1 USD in KHR"
+                className="h-full min-w-0 flex-1 bg-transparent px-3 outline-none"
+                min="1"
+                step="1"
+                type="number"
+                value={exchangeRateDraft}
+                onChange={(event) => setExchangeRateDraft(event.target.value)}
+              />
+              <span className="shrink-0 border-l border-border/70 px-3 text-muted-foreground">៛</span>
+            </div>
+            {exchangeRateError ? (
+              <span className="text-xs leading-5 text-destructive">{exchangeRateError}</span>
+            ) : (
+              <span className="text-xs leading-5 text-muted-foreground">Used only when formatting KHR; saved values stay in USD.</span>
+            )}
+          </label>
         </div>
-        <div className="mt-4 divide-y divide-border/60">
+        <div className="mt-4 grid gap-1">
+          <p className="font-heading text-base font-medium tracking-[-0.02em] text-foreground">Interface visibility</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            These toggles define the sidebar view mode: all on is Maximal, and turning any off switches to Minimal.
+          </p>
+        </div>
+        <div className="divide-y divide-border/60">
           <CheckboxRow
             checked={showExplanatoryTooltips}
+            className="pt-2"
             helper="Show tooltips, section descriptors, and optional hints. Required field guidance stays visible."
             icon={<BadgeHelp className="size-4" />}
             label="Show optional help"

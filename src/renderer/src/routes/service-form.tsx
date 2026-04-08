@@ -7,10 +7,13 @@ import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
+import { displayMoneyFromUsd, moneyInputStep, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService } from '@/lib/sena-catalog';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
+import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { DetailHeroWireframe } from './loading-wireframes';
@@ -29,6 +32,15 @@ function emptyService(serviceId = ''): SenaService {
 
 function normalizeSearchValue(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizedServiceDirtySnapshot(service: SenaService) {
+  return {
+    ...service,
+    serviceId: service.serviceId.trim(),
+    name: service.name.trim(),
+    description: service.description.trim(),
+  };
 }
 
 function getSkuSearchScore(sku: { skuId: string; name: string; description: string }, query: string) {
@@ -210,37 +222,71 @@ export function ServiceFormRoute() {
   const navigate = useNavigate();
   const { serviceId } = useParams();
   const { catalog, isLoading, isSaving, upsertSenaCatalog } = useInventory();
-  const { t } = usePreferences();
+  const { canGoBack, goBack } = useNavigationHistory();
+  const { currency, t, usdToKhrExchangeRate } = usePreferences();
   const [form, setForm] = useState<SenaService>(() => emptyService(serviceId));
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
   const [skuSearch, setSkuSearch] = useState('');
   const deferredSkuSearch = useDeferredValue(skuSearch);
   const editing = Boolean(serviceId);
   const formId = 'service-editor-form';
+  const existingService = useMemo(
+    () => catalog?.services.find((entry) => entry.serviceId === serviceId) ?? null,
+    [catalog?.services, serviceId],
+  );
+  const baselineSelectedSkuIds = useMemo(
+    () => (catalog && existingService ? linkedSkuIdsForService(catalog, existingService.serviceId) : []),
+    [catalog, existingService],
+  );
 
   useEffect(() => {
-    const existing = catalog?.services.find((entry) => entry.serviceId === serviceId);
-    if (existing && catalog) {
-      setForm(existing);
-      setSelectedSkuIds(linkedSkuIdsForService(catalog, existing.serviceId));
+    if (existingService && catalog) {
+      setForm(existingService);
+      setSelectedSkuIds(baselineSelectedSkuIds);
     } else if (!editing) {
       setForm(emptyService(''));
       setSelectedSkuIds([]);
     }
-  }, [catalog, editing, serviceId]);
+  }, [baselineSelectedSkuIds, catalog, editing, existingService]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const baseCatalog = catalog ?? emptySenaCatalog();
-    const normalized = {
+  const normalizedDraft = useMemo(
+    () => ({
       ...form,
       serviceId: form.serviceId.trim(),
       name: form.name.trim(),
       description: form.description.trim(),
-    };
-    const nextCatalog = upsertSenaService(baseCatalog, normalized, selectedSkuIds);
+    }),
+    [form],
+  );
+  const normalizedBaseline = useMemo(
+    () => existingService ?? emptyService(editing ? (serviceId ?? '') : ''),
+    [editing, existingService, serviceId],
+  );
+  const draftDirtySnapshot = useMemo(() => normalizedServiceDirtySnapshot(form), [form]);
+  const baselineDirtySnapshot = useMemo(
+    () => normalizedServiceDirtySnapshot(normalizedBaseline),
+    [normalizedBaseline],
+  );
+  const hasUnsavedServiceChanges =
+    JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
+    JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...baselineSelectedSkuIds].sort());
+  function resetServiceDraft() {
+    setForm(normalizedBaseline);
+    setSelectedSkuIds(baselineSelectedSkuIds);
+  }
+
+  const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
+    enabled: hasUnsavedServiceChanges,
+    description: 'You have unsaved service changes. Leave this page and discard the current draft?',
+    onDiscard: resetServiceDraft,
+  });
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const baseCatalog = catalog ?? emptySenaCatalog();
+    const nextCatalog = upsertSenaService(baseCatalog, normalizedDraft, selectedSkuIds);
     await upsertSenaCatalog(nextCatalog);
-    await navigate(`/catalog/services/${normalized.serviceId}`);
+    await navigate(`/catalog/services/${normalizedDraft.serviceId}`);
   }
 
   const filteredSkus = useMemo(() => {
@@ -276,15 +322,17 @@ export function ServiceFormRoute() {
 
   return (
     <WorkspacePage>
+      {discardConfirmDialog}
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
-            <Button disabled={isSaving} form={formId} type="submit">
+            <Button disabled={!hasUnsavedServiceChanges || isSaving} form={formId} type="submit">
               <Save data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}
             </Button>
           </WorkspaceActionRow>
         }
+        onBack={canGoBack ? () => confirmLeave(goBack) : undefined}
         title={editing ? t('catalogServiceEditorTitleEdit') : t('catalogServiceEditorTitleNew')}
       />
 
@@ -353,10 +401,15 @@ export function ServiceFormRoute() {
               className={editorInputClassName}
               min="0"
               required
-              step="0.01"
+              step={moneyInputStep(currency)}
               type="number"
-              value={form.price}
-              onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))}
+              value={displayMoneyFromUsd(form.price, currency, usdToKhrExchangeRate)}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  price: usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate),
+                }))
+              }
             />
           </EditorField>
         </WorkspacePanel>

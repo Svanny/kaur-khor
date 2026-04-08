@@ -328,6 +328,33 @@ describe('SENA routes', () => {
     expect(screen.queryByRole('heading', { name: 'Ledger' })).not.toBeInTheDocument();
   });
 
+  test('asks before closing a dirty SKU action sheet', async () => {
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    expect(skuRow).not.toBeNull();
+    fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
+    fireEvent.click(within(skuRow!).getByRole('button', { name: 'Log order' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Approximate order quantity'), { target: { value: '22' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText('Approximate order quantity')).toHaveValue(22);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Approximate order quantity')).not.toBeInTheDocument();
+    });
+  });
+
   test('opens the service action flow in catalog without showing the inline detail rail', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
@@ -351,6 +378,38 @@ describe('SENA routes', () => {
     expect(screen.queryByText('Bottleneck stack')).not.toBeInTheDocument();
 
     expect(screen.queryByRole('heading', { name: 'Service viability ledger' })).not.toBeInTheDocument();
+  });
+
+  test('asks before closing a dirty service action sheet', async () => {
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    expect(serviceRow).not.toBeNull();
+
+    await waitFor(() => {
+      fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
+      expect(within(serviceRow!).getByRole('button', { name: 'Update price' })).toBeEnabled();
+    });
+
+    fireEvent.click(within(serviceRow!).getByRole('button', { name: 'Update price' }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('15')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByDisplayValue('15'), { target: { value: '18' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('18')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Update price for Service 1')).not.toBeInTheDocument();
+    });
   });
 
   test('omits the SKU price action for non-sellable catalog rows', async () => {

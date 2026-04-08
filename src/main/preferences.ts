@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   DEFAULT_SENA_ENGINE_PARAMETERS,
+  DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeDesktopPreferenceTimestamp,
   normalizeSenaEngineParameters,
   type DesktopPreferences,
@@ -10,6 +11,7 @@ import {
 const DEFAULT_PREFERENCES: DesktopPreferences = {
   language: 'en',
   currency: 'USD',
+  usdToKhrExchangeRate: DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   showExplanatoryTooltips: true,
   showFloatingTitleActions: true,
   showRightRailCards: true,
@@ -22,10 +24,17 @@ function preferencesPath(userDataPath: string) {
   return join(userDataPath, 'desktop-preferences.json');
 }
 
+function normalizeUsdToKhrExchangeRate(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
+}
+
 function normalizePreferences(value: Partial<DesktopPreferences> | null | undefined): DesktopPreferences {
   return {
     language: value?.language === 'km' ? 'km' : 'en',
     currency: value?.currency === 'KHR' ? 'KHR' : 'USD',
+    usdToKhrExchangeRate: normalizeUsdToKhrExchangeRate(value?.usdToKhrExchangeRate),
     showExplanatoryTooltips: value?.showExplanatoryTooltips ?? true,
     showFloatingTitleActions: value?.showFloatingTitleActions ?? true,
     showRightRailCards: value?.showRightRailCards ?? true,

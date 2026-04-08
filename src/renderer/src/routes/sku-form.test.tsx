@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
@@ -16,6 +16,7 @@ vi.mock('../state/preferences', () => ({
   usePreferences: () => ({
     currency: 'USD',
     language: 'en',
+    usdToKhrExchangeRate: 4000,
     showExplanatoryTooltips: true,
     showFloatingTitleActions: false,
     showRightRailCards: true,
@@ -48,6 +49,7 @@ function renderWithProviders(route: string, element: ReactNode, path: string) {
       <NavigationHistoryProvider>
         <Routes>
           <Route element={element} path={path} />
+          <Route element={<div>Catalog destination</div>} path="/catalog" />
           <Route element={<div>SKU detail destination</div>} path="/catalog/skus/:skuId" />
         </Routes>
       </NavigationHistoryProvider>
@@ -57,6 +59,7 @@ function renderWithProviders(route: string, element: ReactNode, path: string) {
 
 describe('SkuFormRoute', () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isSaving: false,
@@ -68,6 +71,7 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     expect(screen.getByRole('heading', { level: 1, name: 'Edit SKU' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
     expect(screen.getByRole('heading', { level: 2, name: 'Core details' })).toBeInTheDocument();
     expect(screen.getByText('Name the SKU the way staff will search for it.')).toBeInTheDocument();
     expect(screen.getByText('Enter the current landed cost per unit.')).toBeInTheDocument();
@@ -89,6 +93,7 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
     fireEvent.change(screen.getByDisplayValue('5'), { target: { value: '7' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Lead time variability' }), { target: { value: 'wide' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
@@ -115,6 +120,57 @@ describe('SkuFormRoute', () => {
 
     await waitFor(() => {
       expect(screen.getByText('SKU detail destination')).toBeInTheDocument();
+    });
+  });
+
+  test('asks before leaving with unsaved SKU changes', async () => {
+    renderWithProviders(
+      '/catalog/skus/sku-1/edit',
+      <>
+        <Link to="/catalog">Catalog</Link>
+        <SkuFormRoute />
+      </>,
+      '/catalog/skus/:skuId/edit',
+    );
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('SKU 1 Updated')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  test('asks before using the edit page back button with unsaved SKU changes', async () => {
+    window.sessionStorage.setItem(
+      'banji.navigation-history',
+      JSON.stringify([
+        { key: 'catalog', to: '/catalog' },
+        { key: 'sku-edit', to: '/catalog/skus/sku-1/edit' },
+      ]),
+    );
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('SKU 1 Updated')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
     });
   });
 });

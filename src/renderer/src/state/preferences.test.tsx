@@ -10,6 +10,7 @@ function PreferencesProbe() {
     language,
     persistedCurrency,
     persistedLanguage,
+    persistedUsdToKhrExchangeRate,
     persistedShowExplanatoryTooltips,
     persistedShowFloatingTitleActions,
     persistedShowRightRailCards,
@@ -17,6 +18,7 @@ function PreferencesProbe() {
     savePreferences,
     setCurrency,
     setLanguage,
+    setUsdToKhrExchangeRate,
     setShowExplanatoryTooltips,
     setShowFloatingTitleActions,
     setShowRightRailCards,
@@ -24,14 +26,17 @@ function PreferencesProbe() {
     showRightRailCards,
     showExplanatoryTooltips,
     t,
+    usdToKhrExchangeRate,
   } = usePreferences();
 
   return (
     <div>
       <div data-testid="language">{language}</div>
       <div data-testid="currency">{currency}</div>
+      <div data-testid="exchange-rate">{usdToKhrExchangeRate}</div>
       <div data-testid="persisted-language">{persistedLanguage}</div>
       <div data-testid="persisted-currency">{persistedCurrency}</div>
+      <div data-testid="persisted-exchange-rate">{persistedUsdToKhrExchangeRate}</div>
       <div data-testid="show-explanatory-tooltips">{String(showExplanatoryTooltips)}</div>
       <div data-testid="persisted-show-explanatory-tooltips">{String(persistedShowExplanatoryTooltips)}</div>
       <div data-testid="show-floating-title-actions">{String(showFloatingTitleActions)}</div>
@@ -46,6 +51,9 @@ function PreferencesProbe() {
       </button>
       <button type="button" onClick={() => setCurrency('KHR')}>
         preview-currency
+      </button>
+      <button type="button" onClick={() => setUsdToKhrExchangeRate(4100)}>
+        preview-exchange-rate
       </button>
       <button type="button" onClick={() => setShowExplanatoryTooltips(false)}>
         hide-explanatory-tooltips
@@ -73,8 +81,8 @@ describe('preferences state', () => {
   beforeEach(() => {
     getPreferences.mockReset();
     savePreferences.mockReset();
-    getPreferences.mockResolvedValue({ language: 'en', currency: 'USD', showExplanatoryTooltips: true, showFloatingTitleActions: true, showRightRailCards: true, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
-    savePreferences.mockResolvedValue({ language: 'km', currency: 'KHR', showExplanatoryTooltips: false, showFloatingTitleActions: false, showRightRailCards: false, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
+    getPreferences.mockResolvedValue({ language: 'en', currency: 'USD', usdToKhrExchangeRate: 4000, showExplanatoryTooltips: true, showFloatingTitleActions: true, showRightRailCards: true, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
+    savePreferences.mockResolvedValue({ language: 'km', currency: 'KHR', usdToKhrExchangeRate: 4100, showExplanatoryTooltips: false, showFloatingTitleActions: false, showRightRailCards: false, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
     window.banjiDesktop = {
       ...window.banjiDesktop,
       preferences: {
@@ -101,6 +109,7 @@ describe('preferences state', () => {
 
     fireEvent.click(screen.getByText('preview-language'));
     fireEvent.click(screen.getByText('preview-currency'));
+    fireEvent.click(screen.getByText('preview-exchange-rate'));
     fireEvent.click(screen.getByText('hide-explanatory-tooltips'));
     fireEvent.click(screen.getByText('hide-floating-title-actions'));
     fireEvent.click(screen.getByText('hide-right-rail-cards'));
@@ -109,6 +118,7 @@ describe('preferences state', () => {
       expect(screen.getByTestId('language').textContent).toBe('km');
     });
     expect(screen.getByTestId('currency').textContent).toBe('KHR');
+    expect(screen.getByTestId('exchange-rate').textContent).toBe('4100');
     expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('false');
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('false');
@@ -122,12 +132,14 @@ describe('preferences state', () => {
     fireEvent.click(screen.getByText('reset'));
     expect(screen.getByTestId('language').textContent).toBe('en');
     expect(screen.getByTestId('currency').textContent).toBe('USD');
+    expect(screen.getByTestId('exchange-rate').textContent).toBe('4000');
     expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('true');
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('true');
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('true');
 
     fireEvent.click(screen.getByText('preview-language'));
     fireEvent.click(screen.getByText('preview-currency'));
+    fireEvent.click(screen.getByText('preview-exchange-rate'));
     fireEvent.click(screen.getByText('hide-explanatory-tooltips'));
     fireEvent.click(screen.getByText('hide-floating-title-actions'));
     fireEvent.click(screen.getByText('hide-right-rail-cards'));
@@ -137,6 +149,7 @@ describe('preferences state', () => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'km',
         currency: 'KHR',
+        usdToKhrExchangeRate: 4100,
         showExplanatoryTooltips: false,
         showFloatingTitleActions: false,
         showRightRailCards: false,
@@ -145,6 +158,7 @@ describe('preferences state', () => {
     });
     expect(screen.getByTestId('persisted-language').textContent).toBe('km');
     expect(screen.getByTestId('persisted-currency').textContent).toBe('KHR');
+    expect(screen.getByTestId('persisted-exchange-rate').textContent).toBe('4100');
     expect(screen.getByTestId('persisted-show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-floating-title-actions').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-right-rail-cards').textContent).toBe('false');

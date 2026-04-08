@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { writeFile as realWriteFile } from 'node:fs/promises';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -36,6 +36,7 @@ describe('desktop preferences store', () => {
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'en',
       currency: 'USD',
+      usdToKhrExchangeRate: 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -55,6 +56,7 @@ describe('desktop preferences store', () => {
     ).resolves.toEqual({
       language: 'km',
       currency: 'USD',
+      usdToKhrExchangeRate: 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -65,6 +67,7 @@ describe('desktop preferences store', () => {
     await expect(
       saveDesktopPreferences(userDataPath, {
         currency: 'KHR',
+        usdToKhrExchangeRate: 4100,
         showExplanatoryTooltips: false,
         showRightRailCards: false,
         overviewStaleUpdateReminderSnoozeUntil: '2026-04-05T17:00:00.000Z',
@@ -72,6 +75,7 @@ describe('desktop preferences store', () => {
     ).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
+      usdToKhrExchangeRate: 4100,
       showExplanatoryTooltips: false,
       showFloatingTitleActions: true,
       showRightRailCards: false,
@@ -82,6 +86,7 @@ describe('desktop preferences store', () => {
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
+      usdToKhrExchangeRate: 4100,
       showExplanatoryTooltips: false,
       showFloatingTitleActions: true,
       showRightRailCards: false,
@@ -93,6 +98,7 @@ describe('desktop preferences store', () => {
     expect(JSON.parse(raw)).toEqual({
       language: 'km',
       currency: 'KHR',
+      usdToKhrExchangeRate: 4100,
       showExplanatoryTooltips: false,
       showFloatingTitleActions: true,
       showRightRailCards: false,
@@ -148,6 +154,7 @@ describe('desktop preferences store', () => {
     await expect(firstSave).resolves.toEqual({
       language: 'km',
       currency: 'USD',
+      usdToKhrExchangeRate: 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -157,6 +164,7 @@ describe('desktop preferences store', () => {
     await expect(secondSave).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
+      usdToKhrExchangeRate: 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -166,11 +174,33 @@ describe('desktop preferences store', () => {
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
       currency: 'KHR',
+      usdToKhrExchangeRate: 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: null,
     });
+  });
+
+  it('normalizes invalid exchange rates back to the default', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
+
+    await writeFile(
+      join(userDataPath, 'desktop-preferences.json'),
+      JSON.stringify({ language: 'km', currency: 'KHR', usdToKhrExchangeRate: -1 }),
+      'utf8',
+    );
+
+    await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual(expect.objectContaining({
+      language: 'km',
+      currency: 'KHR',
+      usdToKhrExchangeRate: 4000,
+    }));
+
+    await expect(saveDesktopPreferences(userDataPath, { usdToKhrExchangeRate: Number.NaN })).resolves.toEqual(
+      expect.objectContaining({ usdToKhrExchangeRate: 4000 }),
+    );
   });
 });

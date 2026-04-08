@@ -1,12 +1,16 @@
 import {
   formatDurationAuto,
+  displayMoneyFromUsd,
+  formatCurrency,
   formatEditableDecimal,
+  formatEditableMoneyFromUsd,
   sanitizeEditableWholeNumber,
   formatEditableWholeNumber,
   formatEditableMoney,
   formatQuantityForDisplay,
   formatWholeNumber,
   sanitizeWholeNumberForDisplay,
+  usdMoneyFromDisplay,
 } from './format';
 
 describe('format helpers', () => {
@@ -14,6 +18,14 @@ describe('format helpers', () => {
     expect(formatEditableMoney(5.159090909090909)).toBe('5.16');
     expect(formatEditableMoney(12)).toBe('12');
     expect(formatEditableMoney(7.5)).toBe('7.5');
+  });
+
+  it('converts USD-backed money for KHR display and inputs', () => {
+    expect(formatCurrency(2, 'USD', 'en', 4000)).toBe('$2.00');
+    expect(formatCurrency(2, 'KHR', 'en', 4000)).toBe('KHR 8,000');
+    expect(displayMoneyFromUsd(2, 'KHR', 4100)).toBe(8200);
+    expect(formatEditableMoneyFromUsd(2, 'KHR', 4000)).toBe('8000');
+    expect(usdMoneyFromDisplay(8000, 'KHR', 4000)).toBe(2);
   });
 
   it('trims trailing zeros after rounding editable decimals', () => {

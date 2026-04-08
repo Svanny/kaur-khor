@@ -609,6 +609,7 @@ function createMockState(): BrowserMockState {
     preferences: {
       language: 'en',
       currency: 'USD',
+      usdToKhrExchangeRate: 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,

@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useState } from 'react';
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import type { StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
@@ -34,6 +34,8 @@ import {
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
+import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { overviewDrawerBandIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { statusPillClassName } from '@/lib/state-tones';
@@ -46,6 +48,7 @@ import {
 } from '@/routes/detail-action-sheet';
 import { createEmptyObservationInput, hasStructuredObservationSignal } from '@/routes/observation-payload';
 import { useInventory } from '@/state/inventory';
+import { usePreferences } from '@/state/preferences';
 import type { OverviewDrawerBandId, OverviewSkuTask, OverviewTaskDrawerMode } from './view-model';
 
 function initialObservedAt(value: string | null) {
@@ -301,6 +304,7 @@ export function OverviewTaskDrawer({
   onOpenChange: (open: boolean) => void;
 }) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
+  const { currency, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useState<OverviewTaskDrawerMode>('not_ordered');
   const [observedAt, setObservedAt] = useState(initialObservedAt(null));
   const [notes, setNotes] = useState('');
@@ -313,6 +317,7 @@ export function OverviewTaskDrawer({
   const [receivedCost, setReceivedCost] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(() => clampDrawerWidth(DRAWER_DEFAULT_WIDTH));
+  const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
 
   useEffect(() => {
     if (!task) {
@@ -327,9 +332,27 @@ export function OverviewTaskDrawer({
     setVariabilityClass(task.variabilityClass ?? '');
     setUseLeadTimeEstimate(true);
     setReceivedQuantity(task.recentReceiptQuantity != null ? String(Math.round(task.recentReceiptQuantity)) : '');
-    setReceivedCost(task.costPerUnit ? String(task.costPerUnit) : '');
+    setReceivedCost(task.costPerUnit ? formatEditableMoneyFromUsd(task.costPerUnit, currency, usdToKhrExchangeRate) : '');
     setError(null);
   }, [task]);
+
+  useEffect(() => {
+    const previous = previousMoneyPreferencesRef.current;
+    if (previous.currency === currency && previous.usdToKhrExchangeRate === usdToKhrExchangeRate) {
+      return;
+    }
+
+    setReceivedCost((current) =>
+      reformatMoneyDraftValue({
+        value: current,
+        previousCurrency: previous.currency,
+        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
+        nextCurrency: currency,
+        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
+      }),
+    );
+    previousMoneyPreferencesRef.current = { currency, usdToKhrExchangeRate };
+  }, [currency, usdToKhrExchangeRate]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -341,6 +364,56 @@ export function OverviewTaskDrawer({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  function drawerDraftSnapshot() {
+    return {
+      mode,
+      observedAt,
+      notes,
+      orderedQuantity,
+      expectedArrivalDate,
+      uncertaintyDays,
+      variabilityClass,
+      useLeadTimeEstimate,
+      receivedQuantity,
+      receivedCost,
+    };
+  }
+
+  function drawerBaselineSnapshot(nextTask: OverviewSkuTask) {
+    const nextMode = nextTask.defaultDrawerMode;
+    return {
+      mode: nextMode,
+      observedAt: initialObservedAt(nextMode === 'goods_received' ? null : nextTask.latestObservationAt),
+      notes: '',
+      orderedQuantity:
+        nextTask.recentOrderQuantity != null
+          ? String(Math.round(nextTask.recentOrderQuantity))
+          : String(nextTask.suggestedOrderQuantity || ''),
+      expectedArrivalDate: initialExpectedArrivalDate(nextTask.expectedArrivalDate),
+      uncertaintyDays: nextTask.leadTimeStdDays != null ? String(Math.max(1, Math.round(nextTask.leadTimeStdDays))) : '2',
+      variabilityClass: nextTask.variabilityClass ?? '',
+      useLeadTimeEstimate: true,
+      receivedQuantity: nextTask.recentReceiptQuantity != null ? String(Math.round(nextTask.recentReceiptQuantity)) : '',
+      receivedCost: nextTask.costPerUnit ? formatEditableMoneyFromUsd(nextTask.costPerUnit, currency, usdToKhrExchangeRate) : '',
+    };
+  }
+
+  const hasUnsavedDrawerChanges =
+    open && task != null && JSON.stringify(drawerDraftSnapshot()) !== JSON.stringify(drawerBaselineSnapshot(task));
+  const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
+    enabled: hasUnsavedDrawerChanges,
+    description: 'You have unsaved task changes. Close this drawer and discard the current draft?',
+    onDiscard: () => setError(null),
+  });
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+    requestDiscard(() => onOpenChange(false));
+  }
 
   if (!task) {
     return null;
@@ -386,7 +459,9 @@ export function OverviewTaskDrawer({
     if (mode === 'goods_received') {
       const receivedUnits = Number(receivedQuantity);
       const updatedUnitsInStock = Math.max(0, Math.round(activeTask.currentStock) + receivedUnits);
-      const nextCost = receivedCost ? Number(receivedCost) : activeTask.costPerUnit;
+      const nextCost = receivedCost
+        ? usdMoneyFromDisplay(Number(receivedCost), currency, usdToKhrExchangeRate)
+        : activeTask.costPerUnit;
       legacyPayload = {
         reportedAt: observedAtIso,
         skuObservations: [
@@ -489,12 +564,14 @@ export function OverviewTaskDrawer({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         className="w-full max-w-none gap-0 overflow-hidden border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]"
         showCloseButton={false}
         style={{ width: `${drawerWidth}px`, maxWidth: `calc(100vw - ${DRAWER_VIEWPORT_GUTTER}px)` }}
       >
+        {discardConfirmDialog}
         <div
           aria-label="Resize drawer"
           className="absolute inset-y-0 left-0 z-30 w-5 cursor-ew-resize touch-none"
@@ -726,7 +803,7 @@ export function OverviewTaskDrawer({
                           aria-label="Received cost if changed"
                           className={actionSheetInputClassName}
                           min="0"
-                          step="0.01"
+                          step={moneyInputStep(currency)}
                           type="number"
                           value={receivedCost}
                           onChange={(event) => setReceivedCost(event.target.value)}
@@ -808,5 +885,6 @@ export function OverviewTaskDrawer({
         </SheetFooter>
       </SheetContent>
     </Sheet>
+    </>
   );
 }

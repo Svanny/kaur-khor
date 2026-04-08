@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
@@ -8,20 +8,14 @@ import { ServiceFormRoute } from './service-form';
 import { deriveMeasuredGridColumnCount } from './service-form-layout';
 
 const inventoryHook = vi.fn();
+const preferencesHook = vi.fn();
 
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
 }));
 
 vi.mock('../state/preferences', () => ({
-  usePreferences: () => ({
-    currency: 'USD',
-    language: 'en',
-    showExplanatoryTooltips: true,
-    showFloatingTitleActions: false,
-    showRightRailCards: true,
-    t: (key: string) => getTranslation('en', key as never),
-  }),
+  usePreferences: () => preferencesHook(),
 }));
 
 const sampleCatalog = {
@@ -74,6 +68,7 @@ function renderWithProviders(route: string, element: ReactNode, path: string) {
       <NavigationHistoryProvider>
         <Routes>
           <Route element={element} path={path} />
+          <Route element={<div>Catalog destination</div>} path="/catalog" />
           <Route element={<div>Service detail destination</div>} path="/catalog/services/:serviceId" />
         </Routes>
       </NavigationHistoryProvider>
@@ -83,6 +78,16 @@ function renderWithProviders(route: string, element: ReactNode, path: string) {
 
 describe('ServiceFormRoute', () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'en',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('en', key as never),
+    });
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isLoading: false,
@@ -101,7 +106,7 @@ describe('ServiceFormRoute', () => {
 
     renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 
-    expect(screen.queryByRole('heading', { level: 1, name: 'Edit service' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Edit service' })).toBeInTheDocument();
     expect(document.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
   });
 
@@ -109,6 +114,7 @@ describe('ServiceFormRoute', () => {
     renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 
     expect(screen.getByRole('heading', { level: 1, name: 'Edit service' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
     expect(screen.getByRole('heading', { level: 2, name: 'Core details' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Commercial setup' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Linked SKUs' })).toBeInTheDocument();
@@ -156,6 +162,7 @@ describe('ServiceFormRoute', () => {
     renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 
     fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
     fireEvent.change(screen.getByDisplayValue('24'), { target: { value: '29' } });
     fireEvent.click(screen.getByRole('checkbox', { name: 'SKU 2' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
@@ -182,6 +189,87 @@ describe('ServiceFormRoute', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Service detail destination')).toBeInTheDocument();
+    });
+  });
+
+  test('accepts KHR price input while saving USD internally', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    preferencesHook.mockReturnValue({
+      currency: 'KHR',
+      language: 'en',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('en', key as never),
+    });
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('96000'), { target: { value: '8000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].price).toBe(2);
+  });
+
+  test('asks before leaving with unsaved service changes', async () => {
+    renderWithProviders(
+      '/catalog/services/service-1/edit',
+      <>
+        <Link to="/catalog">Catalog</Link>
+        <ServiceFormRoute />
+      </>,
+      '/catalog/services/:serviceId/edit',
+    );
+
+    fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('Service 1 Updated')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  test('asks before using the edit page back button with unsaved service changes', async () => {
+    window.sessionStorage.setItem(
+      'banji.navigation-history',
+      JSON.stringify([
+        { key: 'catalog', to: '/catalog' },
+        { key: 'service-edit', to: '/catalog/services/service-1/edit' },
+      ]),
+    );
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('Service 1 Updated')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
     });
   });
 });

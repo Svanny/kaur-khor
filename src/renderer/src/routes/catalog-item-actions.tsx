@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
@@ -27,6 +27,8 @@ import {
 } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
+import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
+import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import {
   ActionSheetField,
@@ -172,6 +174,14 @@ function formatCatalogSheetTitle(
   return actionLabel;
 }
 
+function formatMoneyDraft(value: number, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
+  return formatEditableMoneyFromUsd(value, currency, usdToKhrExchangeRate);
+}
+
+function parseMoneyDraft(value: string, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
+  return usdMoneyFromDisplay(Number(value), currency, usdToKhrExchangeRate);
+}
+
 export function SkuMutationActions({
   actionContext,
   skuId,
@@ -182,30 +192,58 @@ export function SkuMutationActions({
   catalogEntityName,
 }: SkuMutationActionsProps) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
-  const { t } = usePreferences();
+  const { currency, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useState<SkuActionMode | null>(null);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actionContext.latestObservationAt));
   const [notes, setNotes] = useState('');
   const [unitsInStock, setUnitsInStock] = useState(String(Math.round(actionContext.currentStock)));
-  const [costPerUnit, setCostPerUnit] = useState(String(actionContext.costPerUnit));
-  const [productPrice, setProductPrice] = useState(actionContext.productPrice != null ? String(actionContext.productPrice) : '');
+  const [costPerUnit, setCostPerUnit] = useState(formatMoneyDraft(actionContext.costPerUnit, currency, usdToKhrExchangeRate));
+  const [productPrice, setProductPrice] = useState(actionContext.productPrice != null ? formatMoneyDraft(actionContext.productPrice, currency, usdToKhrExchangeRate) : '');
   const [approximateOrderQuantity, setApproximateOrderQuantity] = useState('');
   const [approximateReceiptQuantity, setApproximateReceiptQuantity] = useState('');
   const [typicalLeadTimeDays, setTypicalLeadTimeDays] = useState('');
   const [leadTimeVariability, setLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>('');
   const [error, setError] = useState<string | null>(null);
+  const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
+
+  useEffect(() => {
+    const previous = previousMoneyPreferencesRef.current;
+    if (previous.currency === currency && previous.usdToKhrExchangeRate === usdToKhrExchangeRate) {
+      return;
+    }
+
+    setCostPerUnit((current) =>
+      reformatMoneyDraftValue({
+        value: current,
+        previousCurrency: previous.currency,
+        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
+        nextCurrency: currency,
+        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
+      }),
+    );
+    setProductPrice((current) =>
+      reformatMoneyDraftValue({
+        value: current,
+        previousCurrency: previous.currency,
+        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
+        nextCurrency: currency,
+        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
+      }),
+    );
+    previousMoneyPreferencesRef.current = { currency, usdToKhrExchangeRate };
+  }, [currency, usdToKhrExchangeRate]);
 
   const baselineSnapshot = useMemo(
     () => ({
       skuId,
       unitsInStock: Number(unitsInStock || actionContext.currentStock),
-      costPerUnit: Number(costPerUnit || actionContext.costPerUnit),
+      costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actionContext.costPerUnit,
       productPrice:
         actionContext.soldAsProduct && productPrice !== ''
-          ? Number(productPrice)
+          ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate)
           : actionContext.productPrice ?? null,
     }),
-    [actionContext.costPerUnit, actionContext.currentStock, actionContext.productPrice, actionContext.soldAsProduct, costPerUnit, productPrice, skuId, unitsInStock],
+    [actionContext.costPerUnit, actionContext.currentStock, actionContext.productPrice, actionContext.soldAsProduct, costPerUnit, currency, productPrice, skuId, unitsInStock, usdToKhrExchangeRate],
   );
 
   function resetForm(nextMode: SkuActionMode) {
@@ -214,8 +252,8 @@ export function SkuMutationActions({
     setObservedAt(initialObservedAt(actionContext.latestObservationAt));
     setNotes('');
     setUnitsInStock(String(Math.round(actionContext.currentStock)));
-    setCostPerUnit(String(actionContext.costPerUnit));
-    setProductPrice(actionContext.productPrice != null ? String(actionContext.productPrice) : '');
+    setCostPerUnit(formatMoneyDraft(actionContext.costPerUnit, currency, usdToKhrExchangeRate));
+    setProductPrice(actionContext.productPrice != null ? formatMoneyDraft(actionContext.productPrice, currency, usdToKhrExchangeRate) : '');
     setApproximateOrderQuantity(
       nextMode === 'order' && actionContext.recommendedOrderQuantity > 0
         ? String(actionContext.recommendedOrderQuantity)
@@ -225,6 +263,39 @@ export function SkuMutationActions({
     setTypicalLeadTimeDays('');
     setLeadTimeVariability(actionContext.leadTimeVariability ?? '');
     setError(null);
+  }
+
+  function skuActionDraftSnapshot(modeValue: SkuActionMode) {
+    return {
+      mode: modeValue,
+      observedAt,
+      notes,
+      unitsInStock,
+      costPerUnit,
+      productPrice,
+      approximateOrderQuantity,
+      approximateReceiptQuantity,
+      typicalLeadTimeDays,
+      leadTimeVariability,
+    };
+  }
+
+  function skuActionBaselineSnapshot(modeValue: SkuActionMode) {
+    return {
+      mode: modeValue,
+      observedAt: initialObservedAt(actionContext.latestObservationAt),
+      notes: '',
+      unitsInStock: String(Math.round(actionContext.currentStock)),
+      costPerUnit: formatMoneyDraft(actionContext.costPerUnit, currency, usdToKhrExchangeRate),
+      productPrice: actionContext.productPrice != null ? formatMoneyDraft(actionContext.productPrice, currency, usdToKhrExchangeRate) : '',
+      approximateOrderQuantity:
+        modeValue === 'order' && actionContext.recommendedOrderQuantity > 0
+          ? String(actionContext.recommendedOrderQuantity)
+          : '',
+      approximateReceiptQuantity: '',
+      typicalLeadTimeDays: '',
+      leadTimeVariability: actionContext.leadTimeVariability ?? '',
+    };
   }
 
   async function submit(modeValue: SkuActionMode) {
@@ -243,8 +314,8 @@ export function SkuMutationActions({
           {
             skuId,
             unitsInStock: Number(unitsInStock),
-            costPerUnit: Number(costPerUnit),
-            productPrice: actionContext.soldAsProduct && productPrice !== '' ? Number(productPrice) : null,
+            costPerUnit: parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate),
+            productPrice: actionContext.soldAsProduct && productPrice !== '' ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) : null,
           },
         ],
         notes: notes.trim() || null,
@@ -253,8 +324,8 @@ export function SkuMutationActions({
         {
           ...baselineSnapshot,
           unitsInStock: Number(unitsInStock),
-          costPerUnit: Number(costPerUnit),
-          productPrice: actionContext.soldAsProduct && productPrice !== '' ? Number(productPrice) : null,
+          costPerUnit: parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate),
+          productPrice: actionContext.soldAsProduct && productPrice !== '' ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) : null,
         },
       ];
     }
@@ -286,7 +357,7 @@ export function SkuMutationActions({
           {
             skuId,
             unitsInStock: Number(unitsInStock),
-            costPerUnit: costPerUnit ? Number(costPerUnit) : actionContext.costPerUnit,
+            costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actionContext.costPerUnit,
             productPrice: actionContext.productPrice,
             restockIncluded: true,
           },
@@ -297,7 +368,7 @@ export function SkuMutationActions({
         {
           ...baselineSnapshot,
           unitsInStock: Number(unitsInStock),
-          costPerUnit: costPerUnit ? Number(costPerUnit) : actionContext.costPerUnit,
+          costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actionContext.costPerUnit,
         },
       ];
       senaPayload.orderSignals = [
@@ -319,12 +390,12 @@ export function SkuMutationActions({
             skuId,
             unitsInStock: actionContext.currentStock,
             costPerUnit: actionContext.costPerUnit,
-            productPrice: Number(productPrice),
+            productPrice: parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate),
           },
         ],
         notes: notes.trim() || null,
       };
-      senaPayload.retailPrices = [{ skuId, price: Number(productPrice) }];
+      senaPayload.retailPrices = [{ skuId, price: parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) }];
     }
 
     try {
@@ -347,6 +418,21 @@ export function SkuMutationActions({
     (mode === 'order' && !approximateOrderQuantity) ||
     (mode === 'receipt' && (!approximateReceiptQuantity || !unitsInStock)) ||
     (mode === 'price' && (!actionContext.soldAsProduct || !productPrice));
+  const hasUnsavedSheetChanges =
+    mode != null &&
+    JSON.stringify(skuActionDraftSnapshot(mode)) !== JSON.stringify(skuActionBaselineSnapshot(mode));
+  const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
+    enabled: hasUnsavedSheetChanges,
+    description: 'You have unsaved action changes. Close this panel and discard the current draft?',
+    onDiscard: () => setError(null),
+  });
+
+  function handleSheetOpenChange(open: boolean) {
+    if (open) {
+      return;
+    }
+    requestDiscard(() => setMode(null));
+  }
 
   return (
     <>
@@ -379,8 +465,9 @@ export function SkuMutationActions({
         ) : null}
       </div>
 
-      <Sheet open={mode != null} onOpenChange={(open) => setMode(open ? mode : null)}>
+      <Sheet open={mode != null} onOpenChange={handleSheetOpenChange}>
         <SheetContent className="w-full max-w-2xl gap-0 overflow-y-auto border-l border-border/70 bg-white px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-2xl">
+          {discardConfirmDialog}
           <SheetHeader className="gap-3 border-b border-border/60 px-8 py-7">
             <SheetTitle>
               {formatCatalogSheetTitle(
@@ -402,6 +489,7 @@ export function SkuMutationActions({
           <div className="grid gap-5 px-8 py-7">
             <ActionSheetField label={t('catalogSenaSkuObservedAt')}>
               <Input
+                aria-label={t('catalogSenaSkuObservedAt')}
                 className={actionSheetInputClassName}
                 required
                 type="datetime-local"
@@ -414,6 +502,7 @@ export function SkuMutationActions({
               <>
                 <ActionSheetField label={t('catalogSenaSkuUnitsInStock')}>
                   <Input
+                    aria-label={t('catalogSenaSkuUnitsInStock')}
                     className={actionSheetInputClassName}
                     min="0"
                     step="1"
@@ -424,9 +513,10 @@ export function SkuMutationActions({
                 </ActionSheetField>
                 <ActionSheetField label={t('catalogSenaSkuCostPerUnit')}>
                   <Input
+                    aria-label={t('catalogSenaSkuCostPerUnit')}
                     className={actionSheetInputClassName}
                     min="0"
-                    step="0.01"
+                    step={moneyInputStep(currency)}
                     type="number"
                     value={costPerUnit}
                     onChange={(event) => setCostPerUnit(event.target.value)}
@@ -438,9 +528,10 @@ export function SkuMutationActions({
             {mode === 'stock' && actionContext.soldAsProduct ? (
               <ActionSheetField label={t('catalogSenaSkuProductPrice')}>
                 <Input
+                  aria-label={t('catalogSenaSkuProductPrice')}
                   className={actionSheetInputClassName}
                   min="0"
-                  step="0.01"
+                  step={moneyInputStep(currency)}
                   type="number"
                   value={productPrice}
                   onChange={(event) => setProductPrice(event.target.value)}
@@ -459,6 +550,7 @@ export function SkuMutationActions({
                   label={t('catalogSenaSkuApproximateOrderQuantity')}
                 >
                   <Input
+                    aria-label={t('catalogSenaSkuApproximateOrderQuantity')}
                     className={actionSheetInputClassName}
                     min="0"
                     step="1"
@@ -469,6 +561,7 @@ export function SkuMutationActions({
                 </ActionSheetField>
                 <ActionSheetField label={t('catalogSenaSkuTypicalLeadTimeDays')}>
                   <Input
+                    aria-label={t('catalogSenaSkuTypicalLeadTimeDays')}
                     className={actionSheetInputClassName}
                     min="0"
                     step="0.1"
@@ -506,6 +599,7 @@ export function SkuMutationActions({
             {mode === 'receipt' ? (
               <ActionSheetField label={t('catalogSenaSkuApproximateReceiptQuantity')}>
                 <Input
+                  aria-label={t('catalogSenaSkuApproximateReceiptQuantity')}
                   className={actionSheetInputClassName}
                   min="0"
                   step="1"
@@ -519,9 +613,10 @@ export function SkuMutationActions({
             {mode === 'price' ? (
               <ActionSheetField label={t('catalogSenaSkuProductPrice')}>
                 <Input
+                  aria-label={t('catalogSenaSkuProductPrice')}
                   className={actionSheetInputClassName}
                   min="0"
-                  step="0.01"
+                  step={moneyInputStep(currency)}
                   type="number"
                   value={productPrice}
                   onChange={(event) => setProductPrice(event.target.value)}
@@ -531,6 +626,7 @@ export function SkuMutationActions({
 
             <ActionSheetField label={t('catalogSenaSkuNotes')}>
               <Textarea
+                aria-label={t('catalogSenaSkuNotes')}
                 className={actionSheetTextareaClassName}
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
@@ -567,20 +663,57 @@ export function ServiceMutationActions({
   catalogEntityName,
 }: ServiceMutationActionsProps) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
-  const { t } = usePreferences();
+  const { currency, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useState<ServiceActionMode | null>(null);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actions.latestObservedAt));
   const [notes, setNotes] = useState('');
   const [unitsInStock, setUnitsInStock] = useState(
     actions.bottleneckSku ? String(Math.round(actions.bottleneckSku.unitsInStock)) : '0',
   );
-  const [costPerUnit, setCostPerUnit] = useState(actions.bottleneckSku ? String(actions.bottleneckSku.costPerUnit) : '0');
+  const [costPerUnit, setCostPerUnit] = useState(actions.bottleneckSku ? formatMoneyDraft(actions.bottleneckSku.costPerUnit, currency, usdToKhrExchangeRate) : '0');
   const [productPrice, setProductPrice] = useState(
-    actions.bottleneckSku?.productPrice != null ? String(actions.bottleneckSku.productPrice) : '',
+    actions.bottleneckSku?.productPrice != null ? formatMoneyDraft(actions.bottleneckSku.productPrice, currency, usdToKhrExchangeRate) : '',
   );
   const [approximateReceiptQuantity, setApproximateReceiptQuantity] = useState('');
-  const [servicePrice, setServicePrice] = useState(String(actions.servicePrice.currentPrice));
+  const [servicePrice, setServicePrice] = useState(formatMoneyDraft(actions.servicePrice.currentPrice, currency, usdToKhrExchangeRate));
   const [error, setError] = useState<string | null>(null);
+  const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
+
+  useEffect(() => {
+    const previous = previousMoneyPreferencesRef.current;
+    if (previous.currency === currency && previous.usdToKhrExchangeRate === usdToKhrExchangeRate) {
+      return;
+    }
+
+    setCostPerUnit((current) =>
+      reformatMoneyDraftValue({
+        value: current,
+        previousCurrency: previous.currency,
+        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
+        nextCurrency: currency,
+        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
+      }),
+    );
+    setProductPrice((current) =>
+      reformatMoneyDraftValue({
+        value: current,
+        previousCurrency: previous.currency,
+        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
+        nextCurrency: currency,
+        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
+      }),
+    );
+    setServicePrice((current) =>
+      reformatMoneyDraftValue({
+        value: current,
+        previousCurrency: previous.currency,
+        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
+        nextCurrency: currency,
+        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
+      }),
+    );
+    previousMoneyPreferencesRef.current = { currency, usdToKhrExchangeRate };
+  }, [currency, usdToKhrExchangeRate]);
 
   const baselineSnapshot = useMemo(
     () =>
@@ -588,14 +721,14 @@ export function ServiceMutationActions({
         ? {
             skuId: actions.bottleneckSku.skuId,
             unitsInStock: Number(unitsInStock || actions.bottleneckSku.unitsInStock),
-            costPerUnit: Number(costPerUnit || actions.bottleneckSku.costPerUnit),
+            costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actions.bottleneckSku.costPerUnit,
             productPrice:
               actions.bottleneckSku.soldAsProduct && productPrice !== ''
-                ? Number(productPrice)
+                ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate)
                 : actions.bottleneckSku.productPrice ?? null,
           }
         : null,
-    [actions.bottleneckSku, costPerUnit, productPrice, unitsInStock],
+    [actions.bottleneckSku, costPerUnit, currency, productPrice, unitsInStock, usdToKhrExchangeRate],
   );
 
   function resetForm(nextMode: ServiceActionMode) {
@@ -604,11 +737,37 @@ export function ServiceMutationActions({
     setObservedAt(initialObservedAt(actions.latestObservedAt));
     setNotes('');
     setUnitsInStock(actions.bottleneckSku ? String(Math.round(actions.bottleneckSku.unitsInStock)) : '0');
-    setCostPerUnit(actions.bottleneckSku ? String(actions.bottleneckSku.costPerUnit) : '0');
-    setProductPrice(actions.bottleneckSku?.productPrice != null ? String(actions.bottleneckSku.productPrice) : '');
+    setCostPerUnit(actions.bottleneckSku ? formatMoneyDraft(actions.bottleneckSku.costPerUnit, currency, usdToKhrExchangeRate) : '0');
+    setProductPrice(actions.bottleneckSku?.productPrice != null ? formatMoneyDraft(actions.bottleneckSku.productPrice, currency, usdToKhrExchangeRate) : '');
     setApproximateReceiptQuantity('');
-    setServicePrice(String(actions.servicePrice.currentPrice));
+    setServicePrice(formatMoneyDraft(actions.servicePrice.currentPrice, currency, usdToKhrExchangeRate));
     setError(null);
+  }
+
+  function serviceActionDraftSnapshot(modeValue: ServiceActionMode) {
+    return {
+      mode: modeValue,
+      observedAt,
+      notes,
+      unitsInStock,
+      costPerUnit,
+      productPrice,
+      approximateReceiptQuantity,
+      servicePrice,
+    };
+  }
+
+  function serviceActionBaselineSnapshot(modeValue: ServiceActionMode) {
+    return {
+      mode: modeValue,
+      observedAt: initialObservedAt(actions.latestObservedAt),
+      notes: '',
+      unitsInStock: actions.bottleneckSku ? String(Math.round(actions.bottleneckSku.unitsInStock)) : '0',
+      costPerUnit: actions.bottleneckSku ? formatMoneyDraft(actions.bottleneckSku.costPerUnit, currency, usdToKhrExchangeRate) : '0',
+      productPrice: actions.bottleneckSku?.productPrice != null ? formatMoneyDraft(actions.bottleneckSku.productPrice, currency, usdToKhrExchangeRate) : '',
+      approximateReceiptQuantity: '',
+      servicePrice: formatMoneyDraft(actions.servicePrice.currentPrice, currency, usdToKhrExchangeRate),
+    };
   }
 
   async function submit(modeValue: ServiceActionMode) {
@@ -631,9 +790,9 @@ export function ServiceMutationActions({
           {
             skuId: actions.bottleneckSku.skuId,
             unitsInStock: Number(unitsInStock),
-            costPerUnit: Number(costPerUnit),
+            costPerUnit: parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate),
             productPrice:
-              actions.bottleneckSku.soldAsProduct && productPrice !== '' ? Number(productPrice) : null,
+              actions.bottleneckSku.soldAsProduct && productPrice !== '' ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) : null,
           },
         ],
         notes: notes.trim() || null,
@@ -642,9 +801,9 @@ export function ServiceMutationActions({
         {
           ...baselineSnapshot,
           unitsInStock: Number(unitsInStock),
-          costPerUnit: Number(costPerUnit),
+          costPerUnit: parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate),
           productPrice:
-            actions.bottleneckSku.soldAsProduct && productPrice !== '' ? Number(productPrice) : null,
+            actions.bottleneckSku.soldAsProduct && productPrice !== '' ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) : null,
         },
       ];
     }
@@ -660,7 +819,7 @@ export function ServiceMutationActions({
           {
             skuId: actions.bottleneckSku.skuId,
             unitsInStock: Number(unitsInStock),
-            costPerUnit: costPerUnit ? Number(costPerUnit) : actions.bottleneckSku.costPerUnit,
+            costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actions.bottleneckSku.costPerUnit,
             productPrice: actions.bottleneckSku.productPrice,
             restockIncluded: true,
           },
@@ -671,7 +830,7 @@ export function ServiceMutationActions({
         {
           ...baselineSnapshot,
           unitsInStock: Number(unitsInStock),
-          costPerUnit: costPerUnit ? Number(costPerUnit) : actions.bottleneckSku.costPerUnit,
+          costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actions.bottleneckSku.costPerUnit,
         },
       ];
       senaPayload.orderSignals = [
@@ -692,13 +851,13 @@ export function ServiceMutationActions({
         servicePriceAdjustments: [
           {
             serviceId: actions.servicePrice.serviceId,
-            price: Number(servicePrice),
+            price: parseMoneyDraft(servicePrice, currency, usdToKhrExchangeRate),
             previousPrice: actions.servicePrice.currentPrice,
           },
         ],
         notes: notes.trim() || null,
       };
-      senaPayload.servicePrices = [{ serviceId: actions.servicePrice.serviceId, price: Number(servicePrice) }];
+      senaPayload.servicePrices = [{ serviceId: actions.servicePrice.serviceId, price: parseMoneyDraft(servicePrice, currency, usdToKhrExchangeRate) }];
     }
 
     try {
@@ -722,6 +881,21 @@ export function ServiceMutationActions({
     (mode === 'stock' && (!unitsInStock || !costPerUnit)) ||
     (mode === 'receipt' && (!approximateReceiptQuantity || !unitsInStock)) ||
     (mode === 'price' && !servicePrice);
+  const hasUnsavedSheetChanges =
+    mode != null &&
+    JSON.stringify(serviceActionDraftSnapshot(mode)) !== JSON.stringify(serviceActionBaselineSnapshot(mode));
+  const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
+    enabled: hasUnsavedSheetChanges,
+    description: 'You have unsaved action changes. Close this panel and discard the current draft?',
+    onDiscard: () => setError(null),
+  });
+
+  function handleSheetOpenChange(open: boolean) {
+    if (open) {
+      return;
+    }
+    requestDiscard(() => setMode(null));
+  }
 
   return (
     <>
@@ -770,8 +944,9 @@ export function ServiceMutationActions({
         ) : null}
       </div>
 
-      <Sheet open={mode != null} onOpenChange={(open) => setMode(open ? mode : null)}>
+      <Sheet open={mode != null} onOpenChange={handleSheetOpenChange}>
         <SheetContent className="w-full max-w-2xl gap-0 overflow-y-auto border-l border-border/70 bg-white px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-2xl">
+          {discardConfirmDialog}
           <SheetHeader className="gap-3 border-b border-border/60 px-8 py-7">
             <SheetTitle>
               {formatCatalogSheetTitle(
@@ -791,6 +966,7 @@ export function ServiceMutationActions({
           <div className="grid gap-5 px-8 py-7">
             <ActionSheetField label="Observed at">
               <Input
+                aria-label="Observed at"
                 className={actionSheetInputClassName}
                 required
                 type="datetime-local"
@@ -803,6 +979,7 @@ export function ServiceMutationActions({
               <>
                 <ActionSheetField label="Units in stock">
                   <Input
+                    aria-label="Units in stock"
                     className={actionSheetInputClassName}
                     min="0"
                     step="1"
@@ -813,9 +990,10 @@ export function ServiceMutationActions({
                 </ActionSheetField>
                 <ActionSheetField label="Cost per unit">
                   <Input
+                    aria-label="Cost per unit"
                     className={actionSheetInputClassName}
                     min="0"
-                    step="0.01"
+                    step={moneyInputStep(currency)}
                     type="number"
                     value={costPerUnit}
                     onChange={(event) => setCostPerUnit(event.target.value)}
@@ -824,9 +1002,10 @@ export function ServiceMutationActions({
                 {mode === 'stock' && actions.bottleneckSku?.soldAsProduct ? (
                   <ActionSheetField label="Product price">
                     <Input
+                      aria-label="Product price"
                       className={actionSheetInputClassName}
                       min="0"
-                      step="0.01"
+                      step={moneyInputStep(currency)}
                       type="number"
                       value={productPrice}
                       onChange={(event) => setProductPrice(event.target.value)}
@@ -839,6 +1018,7 @@ export function ServiceMutationActions({
             {mode === 'receipt' ? (
               <ActionSheetField label="Approximate receipt quantity">
                 <Input
+                  aria-label="Approximate receipt quantity"
                   className={actionSheetInputClassName}
                   min="0"
                   step="1"
@@ -852,9 +1032,10 @@ export function ServiceMutationActions({
             {mode === 'price' ? (
               <ActionSheetField label="Service price">
                 <Input
+                  aria-label="Service price"
                   className={actionSheetInputClassName}
                   min="0"
-                  step="0.01"
+                  step={moneyInputStep(currency)}
                   type="number"
                   value={servicePrice}
                   onChange={(event) => setServicePrice(event.target.value)}
@@ -864,6 +1045,7 @@ export function ServiceMutationActions({
 
             <ActionSheetField label="Notes">
               <Textarea
+                aria-label="Notes"
                 className={actionSheetTextareaClassName}
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}

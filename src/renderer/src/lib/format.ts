@@ -5,6 +5,7 @@ import type {
   ServiceRecord,
   SkuRecord,
 } from '@shared/inventory';
+import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 
 type DurationUnit = 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
 type DurationDisplay = 'short' | 'long';
@@ -38,6 +39,7 @@ export function formatCurrency(
   value: number,
   currency: AppCurrency,
   language: AppLanguage,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
 ): string {
   const fractionDigits = currencyFractionDigits(currency);
   return new Intl.NumberFormat(localeFor(language), {
@@ -45,11 +47,35 @@ export function formatCurrency(
     currency,
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
-  }).format(value);
+  }).format(displayMoneyFromUsd(value, currency, usdToKhrExchangeRate));
 }
 
 export function currencyFractionDigits(currency: AppCurrency): number {
   return currency === 'KHR' ? 0 : 2;
+}
+
+export function displayMoneyFromUsd(
+  value: number,
+  currency: AppCurrency,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+): number {
+  return currency === 'KHR' ? value * usdToKhrExchangeRate : value;
+}
+
+export function usdMoneyFromDisplay(
+  value: number,
+  currency: AppCurrency,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+): number {
+  return currency === 'KHR' ? value / usdToKhrExchangeRate : value;
+}
+
+export function parseUsdMoneyFromDisplay(
+  value: string,
+  currency: AppCurrency,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+): number {
+  return usdMoneyFromDisplay(Number(value), currency, usdToKhrExchangeRate);
 }
 
 export function formatDecimal(
@@ -168,6 +194,50 @@ export function formatEditableDecimal(value: number, maximumFractionDigits: numb
 
 export function formatEditableMoney(value: number): string {
   return formatEditableDecimal(value, 2);
+}
+
+export function formatEditableMoneyFromUsd(
+  value: number,
+  currency: AppCurrency,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+): string {
+  return formatEditableDecimal(
+    displayMoneyFromUsd(value, currency, usdToKhrExchangeRate),
+    currencyFractionDigits(currency),
+  );
+}
+
+export function moneyInputStep(currency: AppCurrency): string {
+  return currency === 'KHR' ? '1' : '0.01';
+}
+
+export function reformatMoneyDraftValue({
+  value,
+  previousCurrency,
+  previousUsdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+  nextCurrency,
+  nextUsdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+}: {
+  value: string;
+  previousCurrency: AppCurrency;
+  previousUsdToKhrExchangeRate?: number;
+  nextCurrency: AppCurrency;
+  nextUsdToKhrExchangeRate?: number;
+}): string {
+  if (value.trim().length === 0) {
+    return '';
+  }
+
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+
+  return formatEditableMoneyFromUsd(
+    usdMoneyFromDisplay(parsed, previousCurrency, previousUsdToKhrExchangeRate),
+    nextCurrency,
+    nextUsdToKhrExchangeRate,
+  );
 }
 
 export function rankLabel(

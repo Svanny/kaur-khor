@@ -440,6 +440,31 @@ describe('DashboardRoute', () => {
     expect(screen.getByLabelText('Ordered quantity')).toHaveValue(15);
   });
 
+  test('asks before closing a dirty overview task drawer', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByText('Recommended order')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Ordered, waiting/i }));
+    fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '22' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText('Ordered quantity')).toHaveValue(22);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Recommended order')).not.toBeInTheDocument();
+    });
+  });
+
   test('keeps issued reorder recommendations in To order even when an order is already open', async () => {
     const user = userEvent.setup();
     const workspaceSummary = structuredClone(sampleWorkspaceSummary);

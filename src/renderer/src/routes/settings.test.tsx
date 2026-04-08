@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { SettingsRoute } from './settings';
@@ -23,6 +23,7 @@ describe('SettingsRoute', () => {
     getPreferences.mockResolvedValue({
       language: 'en',
       currency: 'USD',
+      usdToKhrExchangeRate: 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -31,6 +32,7 @@ describe('SettingsRoute', () => {
     savePreferences.mockResolvedValue({
       language: 'en',
       currency: 'USD',
+      usdToKhrExchangeRate: 4000,
       showExplanatoryTooltips: false,
       showFloatingTitleActions: false,
       showRightRailCards: false,
@@ -84,12 +86,48 @@ describe('SettingsRoute', () => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'en',
         currency: 'USD',
+        usdToKhrExchangeRate: 4000,
         showExplanatoryTooltips: false,
         showFloatingTitleActions: true,
         showRightRailCards: true,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
       }));
     });
+  });
+
+  it('renders and validates the KHR exchange rate preference', async () => {
+    savePreferences.mockImplementation(async (payload) => ({
+      language: 'en',
+      currency: payload.currency ?? 'USD',
+      usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+    }));
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const exchangeRateInput = await screen.findByLabelText(/exchange rate for 1 usd in khr/i);
+    expect(exchangeRateInput).toHaveDisplayValue('4000');
+
+    fireEvent.change(exchangeRateInput, { target: { value: '4100' } });
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        usdToKhrExchangeRate: 4100,
+      }));
+    });
+
+    fireEvent.change(exchangeRateInput, { target: { value: '0' } });
+    expect(await screen.findByText('Exchange rate must be greater than 0.')).toBeInTheDocument();
+    expect(firstSavePreferencesButton()).toBeDisabled();
   });
 
   it('renders and saves the right rail visibility preference', async () => {
@@ -111,6 +149,7 @@ describe('SettingsRoute', () => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'en',
         currency: 'USD',
+        usdToKhrExchangeRate: 4000,
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: false,
@@ -123,6 +162,7 @@ describe('SettingsRoute', () => {
     savePreferences.mockImplementation(async (payload) => ({
       language: 'en',
       currency: 'USD',
+      usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -160,6 +200,7 @@ describe('SettingsRoute', () => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'en',
         currency: 'USD',
+        usdToKhrExchangeRate: 4000,
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: true,
@@ -196,6 +237,7 @@ describe('SettingsRoute', () => {
     savePreferences.mockImplementation(async (payload) => ({
       language: 'en',
       currency: 'USD',
+      usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -224,6 +266,7 @@ describe('SettingsRoute', () => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'en',
         currency: 'USD',
+        usdToKhrExchangeRate: 4000,
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: true,
@@ -328,5 +371,35 @@ describe('SettingsRoute', () => {
       ).not.toBeInTheDocument();
     });
     expect(firstSavePreferencesButton()).not.toBeDisabled();
+  });
+
+  it('asks before leaving with unsaved preference changes', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <PreferencesProvider>
+          <Link to="/catalog">Catalog</Link>
+          <Routes>
+            <Route element={<SettingsRoute />} path="/settings" />
+            <Route element={<div>Catalog destination</div>} path="/catalog" />
+          </Routes>
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show optional help/i });
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
+    expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
+    });
   });
 });
