@@ -10,6 +10,18 @@ async function loadPreferencesModule() {
   return import('./preferences');
 }
 
+const defaultSenaEngineParameters = {
+  algorithmVersion: 'sena-analysis-v3',
+  particleCount: 256,
+  targetServiceLevel: 0.95,
+  recommendationQuantile: 0.7,
+  intervalLowQuantile: 0.1,
+  intervalHighQuantile: 0.9,
+  needProbabilityGate: 0.5,
+  reviewDelayDays: 0,
+  smoothingEnabled: false,
+};
+
 describe('desktop preferences store', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -27,6 +39,7 @@ describe('desktop preferences store', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      senaEngineParameters: defaultSenaEngineParameters,
     });
   });
 
@@ -44,6 +57,7 @@ describe('desktop preferences store', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      senaEngineParameters: defaultSenaEngineParameters,
     });
 
     await expect(
@@ -58,6 +72,7 @@ describe('desktop preferences store', () => {
       showExplanatoryTooltips: false,
       showFloatingTitleActions: true,
       showRightRailCards: false,
+      senaEngineParameters: defaultSenaEngineParameters,
     });
 
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
@@ -66,6 +81,7 @@ describe('desktop preferences store', () => {
       showExplanatoryTooltips: false,
       showFloatingTitleActions: true,
       showRightRailCards: false,
+      senaEngineParameters: defaultSenaEngineParameters,
     });
 
     const raw = await readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8');
@@ -75,6 +91,7 @@ describe('desktop preferences store', () => {
       showExplanatoryTooltips: false,
       showFloatingTitleActions: true,
       showRightRailCards: false,
+      senaEngineParameters: defaultSenaEngineParameters,
     });
   });
 
@@ -128,6 +145,7 @@ describe('desktop preferences store', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      senaEngineParameters: defaultSenaEngineParameters,
     });
     await expect(secondSave).resolves.toEqual({
       language: 'km',
@@ -135,6 +153,7 @@ describe('desktop preferences store', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      senaEngineParameters: defaultSenaEngineParameters,
     });
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
@@ -142,6 +161,7 @@ describe('desktop preferences store', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      senaEngineParameters: defaultSenaEngineParameters,
     });
   });
 });

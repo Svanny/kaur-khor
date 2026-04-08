@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { usePreferences, PreferencesProvider } from './preferences';
 
 function PreferencesProbe() {
@@ -72,8 +73,8 @@ describe('preferences state', () => {
   beforeEach(() => {
     getPreferences.mockReset();
     savePreferences.mockReset();
-    getPreferences.mockResolvedValue({ language: 'en', currency: 'USD', showExplanatoryTooltips: true, showFloatingTitleActions: true, showRightRailCards: true });
-    savePreferences.mockResolvedValue({ language: 'km', currency: 'KHR', showExplanatoryTooltips: false, showFloatingTitleActions: false, showRightRailCards: false });
+    getPreferences.mockResolvedValue({ language: 'en', currency: 'USD', showExplanatoryTooltips: true, showFloatingTitleActions: true, showRightRailCards: true, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
+    savePreferences.mockResolvedValue({ language: 'km', currency: 'KHR', showExplanatoryTooltips: false, showFloatingTitleActions: false, showRightRailCards: false, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
     window.banjiDesktop = {
       ...window.banjiDesktop,
       preferences: {
@@ -95,7 +96,7 @@ describe('preferences state', () => {
     });
     expect(screen.getByTestId('translation').textContent).toBe('Settings');
     expect(screen.getByTestId('description-translation').textContent).toBe(
-      'Preview workspace preferences live, keep advanced model tuning tucked away until needed, and save everything from one page action row.',
+      'Adjust local shell behavior, optional help, and workspace preferences from one page.',
     );
 
     fireEvent.click(screen.getByText('preview-language'));
@@ -114,7 +115,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('pending').textContent).toBe('true');
     expect(screen.getByTestId('translation').textContent).toBe('ការកំណត់');
     expect(screen.getByTestId('description-translation').textContent).toBe(
-      'Preview workspace preferences live, keep advanced model tuning tucked away until needed, and save everything from one page action row.',
+      'Adjust local shell behavior, optional help, and workspace preferences from one page.',
     );
     expect(savePreferences).not.toHaveBeenCalled();
 
@@ -133,7 +134,7 @@ describe('preferences state', () => {
     fireEvent.click(screen.getByText('save'));
 
     await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith({ language: 'km', currency: 'KHR', showExplanatoryTooltips: false, showFloatingTitleActions: false, showRightRailCards: false });
+      expect(savePreferences).toHaveBeenCalledWith({ language: 'km', currency: 'KHR', showExplanatoryTooltips: false, showFloatingTitleActions: false, showRightRailCards: false, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
     });
     expect(screen.getByTestId('persisted-language').textContent).toBe('km');
     expect(screen.getByTestId('persisted-currency').textContent).toBe('KHR');

@@ -31,6 +31,71 @@ const REORDER_INTERVAL_LOW_QUANTILE: f64 = 0.10;
 const REORDER_INTERVAL_HIGH_QUANTILE: f64 = 0.90;
 const REORDER_NEED_PROBABILITY_GATE: f64 = 0.50;
 const REORDER_REVIEW_DELAY_DAYS: f64 = 0.0;
+const DEFAULT_TARGET_SERVICE_LEVEL: f64 = 0.95;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaEngineParameters {
+    pub particle_count: usize,
+    pub target_service_level: f64,
+    pub recommendation_quantile: f64,
+    pub interval_low_quantile: f64,
+    pub interval_high_quantile: f64,
+    pub need_probability_gate: f64,
+    pub review_delay_days: f64,
+    pub smoothing_enabled: bool,
+}
+
+impl SenaEngineParameters {
+    pub fn for_algorithm(algorithm_version: &str) -> Self {
+        Self {
+            particle_count: particle_count_for_algorithm(algorithm_version),
+            target_service_level: DEFAULT_TARGET_SERVICE_LEVEL,
+            recommendation_quantile: REORDER_RECOMMENDATION_QUANTILE,
+            interval_low_quantile: REORDER_INTERVAL_LOW_QUANTILE,
+            interval_high_quantile: REORDER_INTERVAL_HIGH_QUANTILE,
+            need_probability_gate: REORDER_NEED_PROBABILITY_GATE,
+            review_delay_days: REORDER_REVIEW_DELAY_DAYS,
+            smoothing_enabled: false,
+        }
+    }
+
+    pub fn normalized_for_algorithm(&self, algorithm_version: &str) -> Self {
+        let interval_low_quantile = self.interval_low_quantile.clamp(0.0, 1.0);
+        let interval_high_quantile = self
+            .interval_high_quantile
+            .clamp(interval_low_quantile, 1.0);
+
+        Self {
+            particle_count: self.particle_count.clamp(32, 2048),
+            target_service_level: self.target_service_level.clamp(0.5, 0.999),
+            recommendation_quantile: self.recommendation_quantile.clamp(0.0, 1.0),
+            interval_low_quantile,
+            interval_high_quantile,
+            need_probability_gate: self.need_probability_gate.clamp(0.0, 1.0),
+            review_delay_days: self.review_delay_days.clamp(0.0, 365.0),
+            smoothing_enabled: self.smoothing_enabled,
+        }
+        .with_algorithm_defaults(algorithm_version)
+    }
+
+    fn with_algorithm_defaults(mut self, algorithm_version: &str) -> Self {
+        if self.particle_count == 0 {
+            self.particle_count = particle_count_for_algorithm(algorithm_version);
+        }
+        self
+    }
+
+    pub fn is_default_for_algorithm(&self, algorithm_version: &str) -> bool {
+        self.normalized_for_algorithm(algorithm_version) == Self::for_algorithm(algorithm_version)
+    }
+}
+
+impl Default for SenaEngineParameters {
+    fn default() -> Self {
+        Self::for_algorithm("sena-analysis-v3")
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -522,12 +587,37 @@ pub fn run_preprocessed_analysis(
     resume_from: Option<&SenaAnalysisCheckpoint>,
     checkpoint_interval: Option<usize>,
 ) -> Result<RunAnalysisOutput> {
+    run_preprocessed_analysis_with_parameters(
+        owner_sub,
+        catalog,
+        observations,
+        algorithm_version,
+        preprocessed,
+        resume_from,
+        checkpoint_interval,
+        None,
+    )
+}
+
+pub fn run_preprocessed_analysis_with_parameters(
+    owner_sub: &str,
+    catalog: &SenaCatalog,
+    observations: &[SenaObservationRecord],
+    algorithm_version: &str,
+    preprocessed: &PreprocessedWorkspace,
+    resume_from: Option<&SenaAnalysisCheckpoint>,
+    checkpoint_interval: Option<usize>,
+    parameters: Option<&SenaEngineParameters>,
+) -> Result<RunAnalysisOutput> {
     if observations.len() < 2 {
         return Err(anyhow!("SENA analysis requires at least two observations"));
     }
 
-    let particle_count = particle_count_for_algorithm(algorithm_version);
-    let smoothing_enabled = false;
+    let parameters = parameters
+        .cloned()
+        .unwrap_or_else(|| SenaEngineParameters::for_algorithm(algorithm_version))
+        .normalized_for_algorithm(algorithm_version);
+    let particle_count = parameters.particle_count;
     let catalog_fingerprint = fingerprint_catalog(catalog)?;
     let mut sku_index = HashMap::new();
     for (index, sku) in catalog.skus.iter().enumerate() {
@@ -881,7 +971,7 @@ pub fn run_preprocessed_analysis(
         algorithm_version,
         preprocessed,
         state,
-        smoothing_enabled,
+        &parameters,
     )?;
     let artifacts = AnalysisArtifacts {
         primary_artifact_key: format!(
@@ -890,6 +980,7 @@ pub fn run_preprocessed_analysis(
         payload: serde_json::json!({
             "generatedAt": OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string()),
             "algorithmVersion": algorithm_version,
+            "engineParameters": parameters,
             "skuDetails": result.sku_details.clone(),
             "serviceDetails": result.service_details.clone(),
             "diagnostics": result.diagnostics.clone()
@@ -910,9 +1001,9 @@ fn finalize_analysis(
     _algorithm_version: &str,
     preprocessed: &PreprocessedWorkspace,
     mut state: SenaAnalysisRuntimeState,
-    smoothing_enabled: bool,
+    parameters: &SenaEngineParameters,
 ) -> Result<SenaAnalysisResult> {
-    if smoothing_enabled {
+    if parameters.smoothing_enabled {
         smooth_inventory_traces(&mut state.sku_inventory_traces);
     }
     let latest_observed_at = observations
@@ -978,7 +1069,8 @@ fn finalize_analysis(
             &latest_snapshot.weights,
             expected_lead_time_demand,
         );
-        let safety_stock = 1.64 * lead_time_demand_variance.max(0.0).sqrt();
+        let safety_stock = normal_quantile(parameters.target_service_level)
+            * lead_time_demand_variance.max(0.0).sqrt();
         let reorder_point = expected_lead_time_demand + safety_stock;
         let reorder_trigger_probability = latest_inventory_draws
             .iter()
@@ -999,6 +1091,7 @@ fn finalize_analysis(
             latest_demand_rate_draws,
             &lead_time_draws,
             &latest_snapshot.weights,
+            parameters,
         );
         let stockout_risk =
             weighted_mean(latest_stockout_draws, &latest_snapshot.weights).clamp(0.0, 1.0);
@@ -1102,7 +1195,7 @@ fn finalize_analysis(
     let diagnostics = SenaDiagnostics {
         effective_sample_size_mean: mean(&state.ess_values),
         resampling_count: state.resampling_count,
-        smoothing_enabled,
+        smoothing_enabled: parameters.smoothing_enabled,
         change_point_probability: state.latest_change_point_probability,
         latest_change_point_probability: state.latest_change_point_probability,
         seasonality_active: !state.particles.is_empty()
@@ -1185,8 +1278,18 @@ pub fn run_analysis(
     observations: &[SenaObservationRecord],
     algorithm_version: &str,
 ) -> Result<(SenaAnalysisResult, AnalysisArtifacts)> {
+    run_analysis_with_parameters(owner_sub, catalog, observations, algorithm_version, None)
+}
+
+pub fn run_analysis_with_parameters(
+    owner_sub: &str,
+    catalog: &SenaCatalog,
+    observations: &[SenaObservationRecord],
+    algorithm_version: &str,
+    parameters: Option<&SenaEngineParameters>,
+) -> Result<(SenaAnalysisResult, AnalysisArtifacts)> {
     let preprocessed = preprocess_workspace(catalog, observations)?;
-    let output = run_preprocessed_analysis(
+    let output = run_preprocessed_analysis_with_parameters(
         owner_sub,
         catalog,
         observations,
@@ -1194,6 +1297,7 @@ pub fn run_analysis(
         &preprocessed,
         None,
         None,
+        parameters,
     )?;
     Ok((output.result, output.artifacts))
 }
@@ -2023,6 +2127,7 @@ fn compute_reorder_quantity_recommendation(
     demand_rate_draws: &[f64],
     lead_time_draws: &[f64],
     weights: &[f64],
+    parameters: &SenaEngineParameters,
 ) -> SenaReorderQuantityRecommendation {
     let gaps = inventory_draws
         .iter()
@@ -2031,7 +2136,7 @@ fn compute_reorder_quantity_recommendation(
         .zip(lead_time_draws.iter())
         .map(|(((inventory, pipeline), demand_rate), lead_time)| {
             let inventory_position = inventory + pipeline;
-            let protection_horizon = lead_time + REORDER_REVIEW_DELAY_DAYS;
+            let protection_horizon = lead_time + parameters.review_delay_days;
             (demand_rate * protection_horizon - inventory_position).max(0.0)
         })
         .collect::<Vec<_>>();
@@ -2042,13 +2147,13 @@ fn compute_reorder_quantity_recommendation(
         .sum::<f64>()
         .clamp(0.0, 1.0);
     let ungated_recommended_units =
-        weighted_quantile(&gaps, weights, REORDER_RECOMMENDATION_QUANTILE).max(0.0);
+        weighted_quantile(&gaps, weights, parameters.recommendation_quantile).max(0.0);
     let likely_range_low =
-        weighted_quantile(&gaps, weights, REORDER_INTERVAL_LOW_QUANTILE).max(0.0);
+        weighted_quantile(&gaps, weights, parameters.interval_low_quantile).max(0.0);
     let likely_range_high =
-        weighted_quantile(&gaps, weights, REORDER_INTERVAL_HIGH_QUANTILE).max(0.0);
+        weighted_quantile(&gaps, weights, parameters.interval_high_quantile).max(0.0);
     let recommendation_issued =
-        need_probability > REORDER_NEED_PROBABILITY_GATE && ungated_recommended_units > 0.0;
+        need_probability > parameters.need_probability_gate && ungated_recommended_units > 0.0;
 
     SenaReorderQuantityRecommendation {
         recommended_units: if recommendation_issued {
@@ -2061,11 +2166,11 @@ fn compute_reorder_quantity_recommendation(
         likely_range_high,
         need_probability,
         recommendation_issued,
-        recommendation_quantile: REORDER_RECOMMENDATION_QUANTILE,
-        interval_low_quantile: REORDER_INTERVAL_LOW_QUANTILE,
-        interval_high_quantile: REORDER_INTERVAL_HIGH_QUANTILE,
-        need_probability_gate: REORDER_NEED_PROBABILITY_GATE,
-        review_delay_days: REORDER_REVIEW_DELAY_DAYS,
+        recommendation_quantile: parameters.recommendation_quantile,
+        interval_low_quantile: parameters.interval_low_quantile,
+        interval_high_quantile: parameters.interval_high_quantile,
+        need_probability_gate: parameters.need_probability_gate,
+        review_delay_days: parameters.review_delay_days,
     }
 }
 
@@ -2092,6 +2197,37 @@ fn weighted_quantile(values: &[f64], weights: &[f64], q: f64) -> f64 {
         }
     }
     values.last().copied().unwrap_or(0.0)
+}
+
+fn normal_quantile(probability: f64) -> f64 {
+    let target = probability.clamp(0.001, 0.999);
+    let mut low = -4.0;
+    let mut high = 4.0;
+    for _ in 0..48 {
+        let mid = (low + high) / 2.0;
+        if normal_cdf(mid) < target {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    ((low + high) / 2.0).max(0.0)
+}
+
+fn normal_cdf(value: f64) -> f64 {
+    0.5 * (1.0 + erf(value / 2.0_f64.sqrt()))
+}
+
+fn erf(value: f64) -> f64 {
+    let sign = if value < 0.0 { -1.0 } else { 1.0 };
+    let x = value.abs();
+    let t = 1.0 / (1.0 + 0.3275911 * x);
+    let y = 1.0
+        - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t
+            + 0.254829592)
+            * t
+            * (-x * x).exp();
+    sign * y
 }
 
 fn sample_count(mean: f64, variance: f64, rng: &mut StdRng) -> u64 {
@@ -2218,7 +2354,7 @@ mod tests {
         available_particle_workers, compute_reorder_quantity_recommendation, compute_stockout_hit,
         effective_sample_size, fingerprint_catalog, fingerprint_observations, normalize_weights,
         particle_pool_init_count, preprocess_workspace, run_analysis, run_preprocessed_analysis,
-        weighted_mean, weighted_quantile,
+        weighted_mean, weighted_quantile, SenaEngineParameters,
     };
     use crate::types::{
         SenaCatalog, SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord,
@@ -2355,6 +2491,7 @@ mod tests {
             &[3.0, 3.0, 3.0],
             &[2.0, 2.0, 2.0],
             &[0.2, 0.3, 0.5],
+            &SenaEngineParameters::default(),
         );
 
         assert!(recommendation.recommendation_issued);
@@ -2378,6 +2515,7 @@ mod tests {
             &[1.0, 1.0, 1.0],
             &[1.0, 1.0, 1.0],
             &[0.4, 0.4, 0.2],
+            &SenaEngineParameters::default(),
         );
 
         assert!(!recommendation.recommendation_issued);

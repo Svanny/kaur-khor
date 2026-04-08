@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { InventorySnapshot, StockReport, StockReportSubmission } from '@shared/inventory';
+import type { SenaEngineParameters } from '@shared/ipc';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
@@ -61,7 +62,7 @@ export interface InventoryContextValue {
   ingestSenaObservation: (payload: SenaObservationInput) => Promise<SenaObservationRecord>;
   listSenaObservations: () => Promise<SenaObservationRecord[]>;
   loadSenaObservations: () => Promise<SenaObservationRecord[]>;
-  triggerSenaRun: (payload?: { algorithmVersion?: string }) => Promise<SenaAnalysisRunRecord>;
+  triggerSenaRun: (payload?: { algorithmVersion?: string; parameters?: SenaEngineParameters }) => Promise<SenaAnalysisRunRecord>;
   retrySenaRun: (payload: { runId: string }) => Promise<SenaAnalysisRunRecord>;
   loadSenaWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
   loadSenaSkuDetail: (skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaSkuDetailPage | null>;

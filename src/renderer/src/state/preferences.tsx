@@ -7,6 +7,11 @@ import {
   type ReactNode,
 } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
+import {
+  normalizeSenaEngineParameters,
+  senaEngineParametersEqual,
+  type SenaEngineParameters,
+} from '@shared/ipc';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { currencyLabel, getTranslation, type TranslationKey } from '../lib/translations';
 
@@ -16,17 +21,21 @@ interface PreferencesContextValue {
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
+  senaEngineParameters: SenaEngineParameters;
   displayViewMode: 'minimal' | 'maximal';
   persistedLanguage: AppLanguage;
   persistedCurrency: AppCurrency;
   persistedShowExplanatoryTooltips: boolean;
   persistedShowFloatingTitleActions: boolean;
   persistedShowRightRailCards: boolean;
+  persistedSenaEngineParameters: SenaEngineParameters;
   setLanguage: (value: AppLanguage) => void;
   setCurrency: (value: AppCurrency) => void;
   setShowExplanatoryTooltips: (value: boolean) => void;
   setShowFloatingTitleActions: (value: boolean) => void;
   setShowRightRailCards: (value: boolean) => void;
+  setSenaEngineParameters: (value: SenaEngineParameters) => void;
+  applySenaEngineParameters: (value: SenaEngineParameters) => Promise<void>;
   applyDisplayViewMode: (mode: 'minimal' | 'maximal') => Promise<void>;
   savePreferences: () => Promise<void>;
   resetPreferences: () => void;
@@ -58,11 +67,17 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [showExplanatoryTooltips, setShowExplanatoryTooltipsState] = useState(true);
   const [showFloatingTitleActions, setShowFloatingTitleActionsState] = useState(true);
   const [showRightRailCards, setShowRightRailCardsState] = useState(true);
+  const [senaEngineParameters, setSenaEngineParametersState] = useState(() =>
+    normalizeSenaEngineParameters(null),
+  );
   const [persistedLanguage, setPersistedLanguage] = useState<AppLanguage>('en');
   const [persistedCurrency, setPersistedCurrency] = useState<AppCurrency>('USD');
   const [persistedShowExplanatoryTooltips, setPersistedShowExplanatoryTooltips] = useState(true);
   const [persistedShowFloatingTitleActions, setPersistedShowFloatingTitleActions] = useState(true);
   const [persistedShowRightRailCards, setPersistedShowRightRailCards] = useState(true);
+  const [persistedSenaEngineParameters, setPersistedSenaEngineParameters] = useState(() =>
+    normalizeSenaEngineParameters(null),
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -74,16 +89,20 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        const nextSenaEngineParameters = normalizeSenaEngineParameters(preferences.senaEngineParameters);
+
         setLanguageState(preferences.language);
         setCurrencyState(preferences.currency);
         setShowExplanatoryTooltipsState(preferences.showExplanatoryTooltips);
         setShowFloatingTitleActionsState(preferences.showFloatingTitleActions);
         setShowRightRailCardsState(preferences.showRightRailCards);
+        setSenaEngineParametersState(nextSenaEngineParameters);
         setPersistedLanguage(preferences.language);
         setPersistedCurrency(preferences.currency);
         setPersistedShowExplanatoryTooltips(preferences.showExplanatoryTooltips);
         setPersistedShowFloatingTitleActions(preferences.showFloatingTitleActions);
         setPersistedShowRightRailCards(preferences.showRightRailCards);
+        setPersistedSenaEngineParameters(nextSenaEngineParameters);
       })
       .catch((error) => {
         console.error('failed to load desktop preferences', error);
@@ -100,18 +119,22 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     showExplanatoryTooltips: boolean;
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
+    senaEngineParameters: SenaEngineParameters;
   }>) {
     const nextPreferences = await window.banjiDesktop.preferences.save(next);
+    const nextSenaEngineParameters = normalizeSenaEngineParameters(nextPreferences.senaEngineParameters);
     setLanguageState(nextPreferences.language);
     setCurrencyState(nextPreferences.currency);
     setShowExplanatoryTooltipsState(nextPreferences.showExplanatoryTooltips);
     setShowFloatingTitleActionsState(nextPreferences.showFloatingTitleActions);
     setShowRightRailCardsState(nextPreferences.showRightRailCards);
+    setSenaEngineParametersState(nextSenaEngineParameters);
     setPersistedLanguage(nextPreferences.language);
     setPersistedCurrency(nextPreferences.currency);
     setPersistedShowExplanatoryTooltips(nextPreferences.showExplanatoryTooltips);
     setPersistedShowFloatingTitleActions(nextPreferences.showFloatingTitleActions);
     setPersistedShowRightRailCards(nextPreferences.showRightRailCards);
+    setPersistedSenaEngineParameters(nextSenaEngineParameters);
     return nextPreferences;
   }
 
@@ -122,6 +145,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,
+      senaEngineParameters,
       displayViewMode: resolveDisplayViewMode({
         showExplanatoryTooltips,
         showFloatingTitleActions,
@@ -132,11 +156,19 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedShowExplanatoryTooltips,
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
+      persistedSenaEngineParameters,
       setLanguage: setLanguageState,
       setCurrency: setCurrencyState,
       setShowExplanatoryTooltips: setShowExplanatoryTooltipsState,
       setShowFloatingTitleActions: setShowFloatingTitleActionsState,
       setShowRightRailCards: setShowRightRailCardsState,
+      setSenaEngineParameters: (next) =>
+        setSenaEngineParametersState(normalizeSenaEngineParameters(next)),
+      applySenaEngineParameters: async (next) => {
+        await savePreferencesPatch({
+          senaEngineParameters: normalizeSenaEngineParameters(next),
+        });
+      },
       applyDisplayViewMode: async (mode) => {
         await savePreferencesPatch({
           showExplanatoryTooltips: mode === 'maximal',
@@ -151,6 +183,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           showExplanatoryTooltips,
           showFloatingTitleActions,
           showRightRailCards,
+          senaEngineParameters,
         });
       },
       resetPreferences: () => {
@@ -159,13 +192,15 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowExplanatoryTooltipsState(persistedShowExplanatoryTooltips);
         setShowFloatingTitleActionsState(persistedShowFloatingTitleActions);
         setShowRightRailCardsState(persistedShowRightRailCards);
+        setSenaEngineParametersState(persistedSenaEngineParameters);
       },
       hasPendingChanges:
         language !== persistedLanguage ||
         currency !== persistedCurrency ||
         showExplanatoryTooltips !== persistedShowExplanatoryTooltips ||
         showFloatingTitleActions !== persistedShowFloatingTitleActions ||
-        showRightRailCards !== persistedShowRightRailCards,
+        showRightRailCards !== persistedShowRightRailCards ||
+        !senaEngineParametersEqual(senaEngineParameters, persistedSenaEngineParameters),
       t: (key) => getTranslation(language, key),
       rawT: (key) => getTranslation(language, key),
       currencyLabel: (next) => currencyLabel(language, next),
@@ -178,6 +213,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedShowExplanatoryTooltips,
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
+      persistedSenaEngineParameters,
+      senaEngineParameters,
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,

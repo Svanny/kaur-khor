@@ -35,6 +35,19 @@ export interface DesktopPreferences {
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
+  senaEngineParameters: SenaEngineParameters;
+}
+
+export interface SenaEngineParameters {
+  algorithmVersion: string;
+  particleCount: number;
+  targetServiceLevel: number;
+  recommendationQuantile: number;
+  intervalLowQuantile: number;
+  intervalHighQuantile: number;
+  needProbabilityGate: number;
+  reviewDelayDays: number;
+  smoothingEnabled: boolean;
 }
 
 export interface SenaSkuLookupPayload {
@@ -55,6 +68,7 @@ export interface SenaRunLookupPayload {
 
 export interface SenaTriggerRunPayload {
   algorithmVersion?: string;
+  parameters?: SenaEngineParameters;
 }
 
 export interface SenaDetailCacheClearPayload {
@@ -123,3 +137,64 @@ export const IPC_CHANNELS = {
   preferencesGet: 'banji:preferences:get',
   preferencesSave: 'banji:preferences:save',
 } as const;
+
+export const DEFAULT_SENA_ENGINE_PARAMETERS: SenaEngineParameters = {
+  algorithmVersion: 'sena-analysis-v3',
+  particleCount: 256,
+  targetServiceLevel: 0.95,
+  recommendationQuantile: 0.7,
+  intervalLowQuantile: 0.1,
+  intervalHighQuantile: 0.9,
+  needProbabilityGate: 0.5,
+  reviewDelayDays: 0,
+  smoothingEnabled: false,
+};
+
+export function normalizeSenaEngineParameters(
+  value: Partial<SenaEngineParameters> | null | undefined,
+): SenaEngineParameters {
+  const defaultParameters = DEFAULT_SENA_ENGINE_PARAMETERS;
+  const intervalLowQuantile = clampNumber(value?.intervalLowQuantile, 0, 1, defaultParameters.intervalLowQuantile);
+  const intervalHighQuantile = clampNumber(value?.intervalHighQuantile, intervalLowQuantile, 1, defaultParameters.intervalHighQuantile);
+
+  return {
+    algorithmVersion:
+      typeof value?.algorithmVersion === 'string' && value.algorithmVersion.trim().length > 0
+        ? value.algorithmVersion.trim()
+        : defaultParameters.algorithmVersion,
+    particleCount: Math.round(clampNumber(value?.particleCount, 32, 2048, defaultParameters.particleCount)),
+    targetServiceLevel: clampNumber(value?.targetServiceLevel, 0.5, 0.999, defaultParameters.targetServiceLevel),
+    recommendationQuantile: clampNumber(value?.recommendationQuantile, 0, 1, defaultParameters.recommendationQuantile),
+    intervalLowQuantile,
+    intervalHighQuantile,
+    needProbabilityGate: clampNumber(value?.needProbabilityGate, 0, 1, defaultParameters.needProbabilityGate),
+    reviewDelayDays: clampNumber(value?.reviewDelayDays, 0, 365, defaultParameters.reviewDelayDays),
+    smoothingEnabled: value?.smoothingEnabled ?? defaultParameters.smoothingEnabled,
+  };
+}
+
+export function senaEngineParametersEqual(left: SenaEngineParameters, right: SenaEngineParameters) {
+  return (
+    left.algorithmVersion === right.algorithmVersion &&
+    left.particleCount === right.particleCount &&
+    left.targetServiceLevel === right.targetServiceLevel &&
+    left.recommendationQuantile === right.recommendationQuantile &&
+    left.intervalLowQuantile === right.intervalLowQuantile &&
+    left.intervalHighQuantile === right.intervalHighQuantile &&
+    left.needProbabilityGate === right.needProbabilityGate &&
+    left.reviewDelayDays === right.reviewDelayDays &&
+    left.smoothingEnabled === right.smoothingEnabled
+  );
+}
+
+function clampNumber(
+  value: number | null | undefined,
+  minimum: number,
+  maximum: number,
+  fallback: number,
+) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(Math.max(value, minimum), maximum);
+}

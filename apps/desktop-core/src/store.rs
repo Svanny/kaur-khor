@@ -4,8 +4,9 @@ use crate::legacy_inventory::{
 };
 use anyhow::Result;
 use banji_sena_core::{
-    classify_relative_width, derive_relative_width, execute_analysis_run, trigger_analysis_run,
-    SenaAdjustmentSignal, SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaDiagnostics,
+    classify_relative_width, derive_relative_width, execute_analysis_run,
+    execute_analysis_run_with_parameters, trigger_analysis_run, SenaAdjustmentSignal,
+    SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaDiagnostics, SenaEngineParameters,
     SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord, SenaObservationRegimeHint,
     SenaOrderSignal, SenaRecipeUsageHint, SenaRepository, SenaRetailPriceObservation, SenaService,
     SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
@@ -1318,9 +1319,22 @@ pub fn list_observations(owner_sub: &str) -> Result<Vec<SenaObservationRecord>> 
 }
 
 pub fn trigger_run(owner_sub: &str, algorithm_version: &str) -> Result<SenaAnalysisRunRecord> {
+    trigger_run_with_parameters(owner_sub, algorithm_version, None)
+}
+
+pub fn trigger_run_with_parameters(
+    owner_sub: &str,
+    algorithm_version: &str,
+    parameters: Option<&SenaEngineParameters>,
+) -> Result<SenaAnalysisRunRecord> {
     let repo = repository()?;
     let run = block_on(trigger_analysis_run(&repo, owner_sub, algorithm_version))?;
-    let (completed, _) = block_on(execute_analysis_run(&repo, &run.run_id, algorithm_version))?;
+    let (completed, _) = block_on(execute_analysis_run_with_parameters(
+        &repo,
+        &run.run_id,
+        algorithm_version,
+        parameters,
+    ))?;
     Ok(completed)
 }
 

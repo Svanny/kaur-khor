@@ -1,8 +1,8 @@
 use crate::{
     inference::{
         build_input_fingerprint, fingerprint_observation_prefix, preprocess_workspace,
-        run_preprocessed_analysis, AnalysisArtifacts, PreprocessedWorkspace,
-        SenaAnalysisCheckpoint,
+        run_preprocessed_analysis_with_parameters, AnalysisArtifacts, PreprocessedWorkspace,
+        SenaAnalysisCheckpoint, SenaEngineParameters,
     },
     types::{
         SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaObservationInput,
@@ -93,6 +93,15 @@ pub async fn execute_analysis_run<R: SenaRepository>(
     run_id: &str,
     algorithm_version: &str,
 ) -> Result<(SenaAnalysisRunRecord, AnalysisArtifacts)> {
+    execute_analysis_run_with_parameters(repo, run_id, algorithm_version, None).await
+}
+
+pub async fn execute_analysis_run_with_parameters<R: SenaRepository>(
+    repo: &R,
+    run_id: &str,
+    algorithm_version: &str,
+    parameters: Option<&SenaEngineParameters>,
+) -> Result<(SenaAnalysisRunRecord, AnalysisArtifacts)> {
     let Some(run) = repo.get_run(run_id).await? else {
         return Err(anyhow!("run not found"));
     };
@@ -129,25 +138,42 @@ pub async fn execute_analysis_run<R: SenaRepository>(
             computed
         }
     };
-    let resume_from = latest_reusable_checkpoint(
-        repo,
-        &run.owner_sub,
-        algorithm_version,
-        &fingerprints.catalog_fingerprint,
-        &observations,
-    )
-    .await?;
-    let output = run_preprocessed_analysis(
+    let normalized_parameters = parameters
+        .cloned()
+        .unwrap_or_else(|| SenaEngineParameters::for_algorithm(algorithm_version))
+        .normalized_for_algorithm(algorithm_version);
+    let should_reuse_checkpoints =
+        normalized_parameters.is_default_for_algorithm(algorithm_version);
+    let resume_from = if should_reuse_checkpoints {
+        latest_reusable_checkpoint(
+            repo,
+            &run.owner_sub,
+            algorithm_version,
+            &fingerprints.catalog_fingerprint,
+            &observations,
+        )
+        .await?
+    } else {
+        None
+    };
+    let output = run_preprocessed_analysis_with_parameters(
         &run.owner_sub,
         &catalog,
         &observations,
         algorithm_version,
         &preprocessed,
         resume_from.as_ref(),
-        Some(8),
+        if should_reuse_checkpoints {
+            Some(8)
+        } else {
+            None
+        },
+        Some(&normalized_parameters),
     )?;
-    for checkpoint in &output.checkpoints {
-        repo.save_analysis_checkpoint(checkpoint).await?;
+    if should_reuse_checkpoints {
+        for checkpoint in &output.checkpoints {
+            repo.save_analysis_checkpoint(checkpoint).await?;
+        }
     }
     let result = output.result;
     let artifacts = output.artifacts;

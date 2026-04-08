@@ -1,3 +1,4 @@
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import type {
   DesktopAppContext,
   DesktopBridge,
@@ -611,6 +612,7 @@ function createMockState(): BrowserMockState {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
     },
     reports: [],
     serviceDetails,

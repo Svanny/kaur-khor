@@ -1,7 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use banji_desktop_core::legacy_inventory::types::SubmitStockReportRequest;
 use banji_desktop_core::store;
-use banji_sena_core::{SenaCatalog, SenaObservationInput};
+use banji_sena_core::{SenaCatalog, SenaEngineParameters, SenaObservationInput};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -30,6 +30,8 @@ struct ResponseEnvelope {
 struct TriggerRunPayload {
     #[serde(default = "default_algorithm_version")]
     algorithm_version: String,
+    #[serde(default)]
+    parameters: Option<SenaEngineParameters>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,6 +132,12 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
             let observation: SenaObservationInput = serde_json::from_value(payload)
                 .context("invalid sena.ingestObservation payload")?;
             observation.validate()?;
+            if observation.stock_snapshot.is_empty() && store::list_observations(owner)?.is_empty()
+            {
+                return Err(anyhow!(
+                    "first SENA observation must include at least one stock snapshot"
+                ));
+            }
             Ok(Some(serde_json::to_value(store::ingest_observation(
                 owner,
                 &observation,
@@ -142,10 +150,13 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
         "sena.triggerRun" => {
             let request: TriggerRunPayload =
                 serde_json::from_value(payload).context("invalid sena.triggerRun payload")?;
-            Ok(Some(serde_json::to_value(store::trigger_run(
-                owner,
-                &request.algorithm_version,
-            )?)?))
+            Ok(Some(serde_json::to_value(
+                store::trigger_run_with_parameters(
+                    owner,
+                    &request.algorithm_version,
+                    request.parameters.as_ref(),
+                )?,
+            )?))
         }
         "sena.retryRun" => {
             let request: RunLookupPayload =
