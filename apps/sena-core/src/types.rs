@@ -235,9 +235,45 @@ pub struct SenaSkuSummary {
     pub safety_stock: f64,
     pub reorder_point: f64,
     pub reorder_trigger_probability: f64,
+    #[serde(default)]
+    pub reorder_quantity: SenaReorderQuantityRecommendation,
     pub lead_time_mean_days: f64,
     pub lead_time_std_days: f64,
     pub regime_probabilities: BTreeMap<String, f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaReorderQuantityRecommendation {
+    pub recommended_units: f64,
+    pub ungated_recommended_units: f64,
+    pub likely_range_low: f64,
+    pub likely_range_high: f64,
+    pub need_probability: f64,
+    pub recommendation_issued: bool,
+    pub recommendation_quantile: f64,
+    pub interval_low_quantile: f64,
+    pub interval_high_quantile: f64,
+    pub need_probability_gate: f64,
+    pub review_delay_days: f64,
+}
+
+impl Default for SenaReorderQuantityRecommendation {
+    fn default() -> Self {
+        Self {
+            recommended_units: 0.0,
+            ungated_recommended_units: 0.0,
+            likely_range_low: 0.0,
+            likely_range_high: 0.0,
+            need_probability: 0.0,
+            recommendation_issued: false,
+            recommendation_quantile: 0.70,
+            interval_low_quantile: 0.10,
+            interval_high_quantile: 0.90,
+            need_probability_gate: 0.50,
+            review_delay_days: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -268,6 +304,8 @@ pub struct SenaServiceContributor {
     pub sku_id: String,
     pub usage_probability: f64,
     pub bottleneck_probability: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reorder_quantity: Option<SenaReorderQuantityRecommendation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

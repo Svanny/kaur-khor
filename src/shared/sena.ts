@@ -169,9 +169,24 @@ export interface SenaSkuSummary {
   safetyStock: number;
   reorderPoint: number;
   reorderTriggerProbability: number;
+  reorderQuantity?: SenaReorderQuantityRecommendation;
   leadTimeMeanDays: number;
   leadTimeStdDays: number;
   regimeProbabilities: Record<string, number>;
+}
+
+export interface SenaReorderQuantityRecommendation {
+  recommendedUnits: number;
+  ungatedRecommendedUnits: number;
+  likelyRangeLow: number;
+  likelyRangeHigh: number;
+  needProbability: number;
+  recommendationIssued: boolean;
+  recommendationQuantile: number;
+  intervalLowQuantile: number;
+  intervalHighQuantile: number;
+  needProbabilityGate: number;
+  reviewDelayDays: number;
 }
 
 export interface SenaSkuDetail {
@@ -282,4 +297,5 @@ export interface SenaServiceContributor {
   skuId: string;
   usageProbability: number;
   bottleneckProbability: number;
+  reorderQuantity?: SenaReorderQuantityRecommendation | null;
 }

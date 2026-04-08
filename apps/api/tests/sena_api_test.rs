@@ -298,7 +298,10 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
         .as_str()
         .expect("run id should be present")
         .to_string();
-    assert_eq!(trigger_body["run"]["algorithmVersion"], json!("sena-analysis-v3"));
+    assert_eq!(
+        trigger_body["run"]["algorithmVersion"],
+        json!("sena-analysis-v3")
+    );
 
     let summary = client
         .get(format!("http://{addr}/v1/sena/summary"))
@@ -333,6 +336,10 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
             > 0.0
     );
     assert!(sku_body["detail"]["summary"]["reorderTriggerProbability"].is_number());
+    assert!(sku_body["detail"]["summary"]["reorderQuantity"]["recommendedUnits"].is_number());
+    assert!(sku_body["detail"]["summary"]["reorderQuantity"]["needProbability"].is_number());
+    assert!(sku_body["detail"]["summary"]["reorderQuantity"]["likelyRangeLow"].is_number());
+    assert!(sku_body["detail"]["summary"]["reorderQuantity"]["likelyRangeHigh"].is_number());
     assert!(sku_body["detail"]["demandPosterior"][0]["lostDemandMean"].is_number());
     assert!(sku_body["detail"]["demandPosterior"][0]["inventoryPositionMean"].is_number());
     assert!(sku_body["detail"]["leadTimePosterior"][0]["varianceDaysSquared"].is_number());
@@ -350,6 +357,13 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
         .expect("service body should parse");
     assert_eq!(service_body["detail"]["serviceId"], json!("service-001"));
     assert!(service_body["detail"]["activityMean"].is_number());
+    assert!(
+        service_body["detail"]["contributors"][0]["reorderQuantity"]["recommendedUnits"]
+            .is_number()
+    );
+    assert!(
+        service_body["detail"]["contributors"][0]["reorderQuantity"]["needProbability"].is_number()
+    );
 
     let diagnostics = client
         .get(format!("http://{addr}/v1/sena/diagnostics"))
@@ -361,7 +375,10 @@ async fn sena_api_supports_catalog_observation_and_analysis_reads() {
         .json()
         .await
         .expect("diagnostics body should parse");
-    assert_eq!(diagnostics_body["regimeHistory"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        diagnostics_body["regimeHistory"].as_array().unwrap().len(),
+        1
+    );
     assert!(diagnostics_body["latestChangePointProbability"].is_number());
 
     let run = client

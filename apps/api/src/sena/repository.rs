@@ -2,8 +2,9 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use banji_sena_core::{
     now_rfc3339, run_analysis, SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog,
-    SenaDiagnostics, SenaObservationInput, SenaObservationRecord, SenaRepository,
-    SenaRunStatus, SenaServiceDetail, SenaSkuDetail, SenaWorkspaceSummary,
+    PreprocessedWorkspace, SenaAnalysisCheckpoint, SenaDiagnostics, SenaObservationInput,
+    SenaObservationRecord, SenaRepository, SenaRunStatus, SenaServiceDetail, SenaSkuDetail,
+    SenaWorkspaceSummary,
 };
 use serde::Serialize;
 use sqlx::{postgres::PgRow, PgPool, Postgres, Row, Transaction};
@@ -243,6 +244,40 @@ impl SenaRepository for PgSenaRepository {
         let mut tx = self.pool.begin().await?;
         persist_completed_run_tx(&mut tx, run_id, result, artifact_key).await?;
         tx.commit().await?;
+        Ok(())
+    }
+
+    async fn load_preprocessed_workspace(
+        &self,
+        _owner_sub: &str,
+        _algorithm_version: &str,
+        _catalog_fingerprint: &str,
+        _observation_fingerprint: &str,
+    ) -> Result<Option<PreprocessedWorkspace>> {
+        Ok(None)
+    }
+
+    async fn save_preprocessed_workspace(
+        &self,
+        _owner_sub: &str,
+        _algorithm_version: &str,
+        _catalog_fingerprint: &str,
+        _observation_fingerprint: &str,
+        _workspace: &PreprocessedWorkspace,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn list_analysis_checkpoints(
+        &self,
+        _owner_sub: &str,
+        _algorithm_version: &str,
+        _catalog_fingerprint: &str,
+    ) -> Result<Vec<SenaAnalysisCheckpoint>> {
+        Ok(Vec::new())
+    }
+
+    async fn save_analysis_checkpoint(&self, _checkpoint: &SenaAnalysisCheckpoint) -> Result<()> {
         Ok(())
     }
 

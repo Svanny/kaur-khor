@@ -2,8 +2,8 @@ use crate::lead_time::{derive_relative_width, derive_variability_class, target_s
 use crate::types::{
     SenaAnalysisResult, SenaCatalog, SenaDiagnostics, SenaIntervalPosterior,
     SenaLeadTimePosteriorPoint, SenaObservationRecord, SenaPipelinePosteriorPoint,
-    SenaRegimePosteriorPoint, SenaServiceContributor, SenaServiceDetail, SenaSkuDetail,
-    SenaSkuSummary, SenaTrajectoryPoint, SenaWorkspaceSummary,
+    SenaRegimePosteriorPoint, SenaReorderQuantityRecommendation, SenaServiceContributor,
+    SenaServiceDetail, SenaSkuDetail, SenaSkuSummary, SenaTrajectoryPoint, SenaWorkspaceSummary,
 };
 use anyhow::{anyhow, Result};
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -26,6 +26,11 @@ const REGIMES: [&str; 6] = [
     "promo",
     "correction",
 ];
+const REORDER_RECOMMENDATION_QUANTILE: f64 = 0.70;
+const REORDER_INTERVAL_LOW_QUANTILE: f64 = 0.10;
+const REORDER_INTERVAL_HIGH_QUANTILE: f64 = 0.90;
+const REORDER_NEED_PROBABILITY_GATE: f64 = 0.50;
+const REORDER_REVIEW_DELAY_DAYS: f64 = 0.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -988,6 +993,13 @@ fn finalize_analysis(
             })
             .sum::<f64>()
             .clamp(0.0, 1.0);
+        let reorder_quantity = compute_reorder_quantity_recommendation(
+            latest_inventory_draws,
+            latest_pipeline_draws,
+            latest_demand_rate_draws,
+            &lead_time_draws,
+            &latest_snapshot.weights,
+        );
         let stockout_risk =
             weighted_mean(latest_stockout_draws, &latest_snapshot.weights).clamp(0.0, 1.0);
         let days_of_cover = if demand_per_day_mean > 0.0 {
@@ -1015,6 +1027,7 @@ fn finalize_analysis(
             safety_stock,
             reorder_point,
             reorder_trigger_probability,
+            reorder_quantity,
             lead_time_mean_days,
             lead_time_std_days,
             regime_probabilities: state.latest_regime_probabilities.clone(),
@@ -1038,7 +1051,7 @@ fn finalize_analysis(
 
     let pending_reorder_count = sku_summaries
         .iter()
-        .filter(|summary| summary.reorder_trigger_probability >= 0.5)
+        .filter(|summary| summary.reorder_quantity.recommendation_issued)
         .count();
     let high_risk_sku_ids = sku_summaries
         .iter()
@@ -1063,6 +1076,10 @@ fn finalize_analysis(
                     .find(|summary| summary.sku_id == catalog.skus[*sku_idx].sku_id)
                     .map(|summary| summary.stockout_risk)
                     .unwrap_or(0.0),
+                reorder_quantity: sku_summaries
+                    .iter()
+                    .find(|summary| summary.sku_id == catalog.skus[*sku_idx].sku_id)
+                    .map(|summary| summary.reorder_quantity.clone()),
             })
             .collect::<Vec<_>>();
         let activity = &state.service_activity_series[service_idx];
@@ -2000,6 +2017,58 @@ fn weighted_variance(values: &[f64], weights: &[f64], mean_value: f64) -> f64 {
         .sum()
 }
 
+fn compute_reorder_quantity_recommendation(
+    inventory_draws: &[f64],
+    pipeline_draws: &[f64],
+    demand_rate_draws: &[f64],
+    lead_time_draws: &[f64],
+    weights: &[f64],
+) -> SenaReorderQuantityRecommendation {
+    let gaps = inventory_draws
+        .iter()
+        .zip(pipeline_draws.iter())
+        .zip(demand_rate_draws.iter())
+        .zip(lead_time_draws.iter())
+        .map(|(((inventory, pipeline), demand_rate), lead_time)| {
+            let inventory_position = inventory + pipeline;
+            let protection_horizon = lead_time + REORDER_REVIEW_DELAY_DAYS;
+            (demand_rate * protection_horizon - inventory_position).max(0.0)
+        })
+        .collect::<Vec<_>>();
+    let need_probability = gaps
+        .iter()
+        .zip(weights.iter())
+        .map(|(gap, weight)| if *gap > 0.0 { *weight } else { 0.0 })
+        .sum::<f64>()
+        .clamp(0.0, 1.0);
+    let ungated_recommended_units =
+        weighted_quantile(&gaps, weights, REORDER_RECOMMENDATION_QUANTILE).max(0.0);
+    let likely_range_low =
+        weighted_quantile(&gaps, weights, REORDER_INTERVAL_LOW_QUANTILE).max(0.0);
+    let likely_range_high =
+        weighted_quantile(&gaps, weights, REORDER_INTERVAL_HIGH_QUANTILE).max(0.0);
+    let recommendation_issued =
+        need_probability > REORDER_NEED_PROBABILITY_GATE && ungated_recommended_units > 0.0;
+
+    SenaReorderQuantityRecommendation {
+        recommended_units: if recommendation_issued {
+            ungated_recommended_units
+        } else {
+            0.0
+        },
+        ungated_recommended_units,
+        likely_range_low,
+        likely_range_high,
+        need_probability,
+        recommendation_issued,
+        recommendation_quantile: REORDER_RECOMMENDATION_QUANTILE,
+        interval_low_quantile: REORDER_INTERVAL_LOW_QUANTILE,
+        interval_high_quantile: REORDER_INTERVAL_HIGH_QUANTILE,
+        need_probability_gate: REORDER_NEED_PROBABILITY_GATE,
+        review_delay_days: REORDER_REVIEW_DELAY_DAYS,
+    }
+}
+
 fn weighted_quantile(values: &[f64], weights: &[f64], q: f64) -> f64 {
     if values.is_empty() || weights.is_empty() {
         return 0.0;
@@ -2146,10 +2215,10 @@ fn stable_seed(value: &impl std::fmt::Debug) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        available_particle_workers, compute_stockout_hit, effective_sample_size,
-        fingerprint_catalog, fingerprint_observations, normalize_weights, particle_pool_init_count,
-        preprocess_workspace, run_analysis, run_preprocessed_analysis, weighted_mean,
-        weighted_quantile,
+        available_particle_workers, compute_reorder_quantity_recommendation, compute_stockout_hit,
+        effective_sample_size, fingerprint_catalog, fingerprint_observations, normalize_weights,
+        particle_pool_init_count, preprocess_workspace, run_analysis, run_preprocessed_analysis,
+        weighted_mean, weighted_quantile,
     };
     use crate::types::{
         SenaCatalog, SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord,
@@ -2279,6 +2348,45 @@ mod tests {
     }
 
     #[test]
+    fn reorder_quantity_recommends_when_protection_gap_is_likely_positive() {
+        let recommendation = compute_reorder_quantity_recommendation(
+            &[0.0, 1.0, 2.0],
+            &[0.0, 0.0, 0.0],
+            &[3.0, 3.0, 3.0],
+            &[2.0, 2.0, 2.0],
+            &[0.2, 0.3, 0.5],
+        );
+
+        assert!(recommendation.recommendation_issued);
+        assert!(recommendation.recommended_units > 0.0);
+        assert_eq!(
+            recommendation.recommended_units,
+            recommendation.ungated_recommended_units
+        );
+        assert_eq!(recommendation.need_probability, 1.0);
+        assert_eq!(recommendation.recommendation_quantile, 0.70);
+        assert_eq!(recommendation.interval_low_quantile, 0.10);
+        assert_eq!(recommendation.interval_high_quantile, 0.90);
+        assert_eq!(recommendation.need_probability_gate, 0.50);
+    }
+
+    #[test]
+    fn reorder_quantity_suppresses_final_recommendation_below_need_gate() {
+        let recommendation = compute_reorder_quantity_recommendation(
+            &[100.0, 100.0, 0.0],
+            &[0.0, 0.0, 0.0],
+            &[1.0, 1.0, 1.0],
+            &[1.0, 1.0, 1.0],
+            &[0.4, 0.4, 0.2],
+        );
+
+        assert!(!recommendation.recommendation_issued);
+        assert_eq!(recommendation.recommended_units, 0.0);
+        assert!(recommendation.need_probability > 0.0);
+        assert!(recommendation.need_probability < recommendation.need_probability_gate);
+    }
+
+    #[test]
     fn analysis_reports_added_interval_and_lead_time_fields() {
         let catalog = sample_catalog();
         let observations = vec![
@@ -2296,6 +2404,15 @@ mod tests {
         assert_eq!(
             result.diagnostics.change_point_probability,
             result.diagnostics.latest_change_point_probability
+        );
+        let reorder_quantity = &result.sku_details[0].summary.reorder_quantity;
+        assert!(reorder_quantity.need_probability >= 0.0);
+        assert!(reorder_quantity.ungated_recommended_units >= 0.0);
+        assert_eq!(reorder_quantity.recommendation_quantile, 0.70);
+        assert_eq!(reorder_quantity.review_delay_days, 0.0);
+        assert_eq!(
+            result.service_details[0].contributors[0].reorder_quantity,
+            Some(reorder_quantity.clone())
         );
     }
 
