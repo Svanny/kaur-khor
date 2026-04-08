@@ -34,6 +34,7 @@ describe('BanjiShell', () => {
         const translations: Record<string, string> = {
           appBrand: 'Banji',
           navOverview: 'Overview',
+          navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
@@ -98,6 +99,7 @@ describe('BanjiShell', () => {
     );
 
     expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Record update' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
@@ -106,6 +108,8 @@ describe('BanjiShell', () => {
     expect(screen.getByText('Other')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'SIST' })).not.toBeInTheDocument();
     const navLinks = screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'));
+    expect(navLinks.indexOf('Overview')).toBeLessThan(navLinks.indexOf('Record update'));
+    expect(navLinks.indexOf('Record update')).toBeLessThan(navLinks.indexOf('Performance'));
     expect(navLinks.indexOf('Catalog')).toBeLessThan(navLinks.indexOf('Analysis'));
     expect(navLinks.indexOf('Analysis')).toBeLessThan(navLinks.indexOf('Logs'));
 
@@ -128,6 +132,7 @@ describe('BanjiShell', () => {
         ({
           appBrand: 'Banji',
           navOverview: 'Overview',
+          navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',

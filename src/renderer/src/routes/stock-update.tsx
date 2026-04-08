@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { PagedPanelNavigation } from './detail-panels';
+import { intervalDaysBetween, observationCompositionLabel } from './observation-payload';
 import { formatSenaDateTime, formatSenaLongDate, formatSenaWeekdayShort } from './sku-detail/format';
 
 type ObservationScope = 'all' | 'skus' | 'services';
@@ -478,6 +479,26 @@ function paginatedObservationRange(page: number, totalCount: number) {
   };
 }
 
+function previousObservationAt(observation: SenaObservationRecord, observations: SenaObservationRecord[]) {
+  const observedTime = new Date(observation.input.observedAt).getTime();
+  return observations
+    .map((entry) => entry.input.observedAt)
+    .filter((observedAt) => {
+      const candidateTime = new Date(observedAt).getTime();
+      return !Number.isNaN(candidateTime) && candidateTime < observedTime;
+    })
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+}
+
+function observationIntervalLabel(observation: SenaObservationRecord, observations: SenaObservationRecord[]) {
+  const previousAt = previousObservationAt(observation, observations);
+  const intervalDays = intervalDaysBetween(previousAt, observation.input.observedAt);
+  if (!previousAt || intervalDays == null) {
+    return 'first update';
+  }
+  return `${intervalDays}-day interval`;
+}
+
 export function StockUpdateRoute() {
   const {
     catalog,
@@ -584,14 +605,14 @@ export function StockUpdateRoute() {
     <WorkspacePage>
       <WorkspaceTitleCard
         eyebrow="Logs"
-        title="Internal Evidence"
-        descriptor="Search saved observations, see when activity happened, and open the day you want to inspect."
+        title="Update history"
+        descriptor="Search saved updates, see when real-world activity was captured, and inspect the signal package behind each interval."
         actions={
           <WorkspaceActionRow>
             <Button asChild>
-              <Link to="/operations/session">
+              <Link to="/record-update">
                 <ClipboardPlus aria-hidden="true" className="size-4" />
-                New observation
+                Start update
               </Link>
             </Button>
           </WorkspaceActionRow>
@@ -780,8 +801,8 @@ export function StockUpdateRoute() {
                         {formatSenaDateTime(observation.input.observedAt, language)}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {formatSenaWeekdayShort(observation.input.observedAt, language)} · {observation.input.stockSnapshot.length} stock rows ·{' '}
-                        {observation.input.orderSignals.length} order signals
+                        {formatSenaWeekdayShort(observation.input.observedAt, language)} · {observationIntervalLabel(observation, filteredObservations)} ·{' '}
+                        {observationCompositionLabel(observation.input)}
                       </p>
                       {observation.input.notes ? (
                         <p className="mt-2 text-sm text-muted-foreground">{observation.input.notes}</p>
@@ -824,8 +845,8 @@ export function StockUpdateRoute() {
                       {formatSenaDateTime(observation.input.observedAt, language)}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {formatSenaWeekdayShort(observation.input.observedAt, language)} · {observation.input.stockSnapshot.length} stock rows ·{' '}
-                      {observation.input.orderSignals.length} order signals
+                      {formatSenaWeekdayShort(observation.input.observedAt, language)} · {observationIntervalLabel(observation, filteredObservations)} ·{' '}
+                      {observationCompositionLabel(observation.input)}
                     </p>
                     {observation.input.notes ? (
                       <p className="mt-2 text-sm text-muted-foreground">{observation.input.notes}</p>

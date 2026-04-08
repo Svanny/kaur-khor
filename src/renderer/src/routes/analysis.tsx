@@ -211,7 +211,7 @@ export function AnalysisRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/operations/session">New observation</Link>
+                <Link to="/record-update">Start update</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link to="/">Open Overview</Link>

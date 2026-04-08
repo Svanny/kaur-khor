@@ -1707,6 +1707,7 @@ function ObservationLedgerCompact({
                   secondary={
                     <>
                       <p>{row.observedAt}</p>
+                      <p className="mt-1">{row.intervalLabel}</p>
                       <p className="mt-2">{row.detail}</p>
                     </>
                   }

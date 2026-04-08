@@ -101,6 +101,7 @@ export interface AnalysisEntityPressureRow {
 export interface AnalysisObservationLedgerRow {
   id: string;
   observedAt: string;
+  intervalLabel: string;
   title: string;
   detail: string;
   stockSnapshotLabel: string;
@@ -1190,6 +1191,13 @@ export function deriveAnalysisViewModel({
       const servicePriceCount = observation.input.servicePrices.length;
       const retailPriceCount = observation.input.retailPrices.length;
       const leadTimeHintCount = observation.input.leadTimeHints.length;
+      const previousObservedAt = filteredObservations
+        .map((entry) => entry.input.observedAt)
+        .filter((observedAt) => new Date(observedAt).getTime() < new Date(observation.input.observedAt).getTime())
+        .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+      const intervalDays = previousObservedAt
+        ? Math.round(intervalDurationDays(previousObservedAt, observation.input.observedAt))
+        : null;
       const channelsPresent = accumulateSignals(observation);
       const affectedEntityLabels = uniqueOrderedStrings(
         [
@@ -1206,6 +1214,7 @@ export function deriveAnalysisViewModel({
       return {
         id: observation.observationId,
         observedAt: formatSenaDateTime(observation.input.observedAt, language),
+        intervalLabel: intervalDays == null ? 'first update' : `${formatSenaDays(intervalDays, language)} interval`,
         title: index === 0 ? 'Latest observation' : `Observation ${filteredObservations.length - index}`,
         detail: observation.input.notes?.trim() || 'Sparse evidence update with no operator note attached.',
         stockSnapshotLabel: stockSnapshotCount > 0 ? `${stockSnapshotCount}` : '—',

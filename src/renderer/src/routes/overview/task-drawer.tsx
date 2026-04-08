@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useState } from 'react';
 import type { StockReportSubmission } from '@shared/inventory';
-import type { SenaLeadTimeVariabilityClass, SenaObservationInput } from '@shared/sena';
+import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
   deriveLeadTimeVariabilityClass,
   leadTimeVariabilityLabel,
@@ -44,6 +44,7 @@ import {
   actionSheetSelectTriggerClassName,
   actionSheetTextareaClassName,
 } from '@/routes/detail-action-sheet';
+import { createEmptyObservationInput, hasStructuredObservationSignal } from '@/routes/observation-payload';
 import { useInventory } from '@/state/inventory';
 import type { OverviewDrawerBandId, OverviewTask, OverviewTaskDrawerMode } from './view-model';
 
@@ -345,44 +346,36 @@ export function OverviewTaskDrawer({
     return null;
   }
 
+  const activeTask = task;
   const baselineSnapshot = {
-    skuId: task.skuId,
-    unitsInStock: Math.max(0, Math.round(task.currentStock)),
-    costPerUnit: task.costPerUnit,
-    productPrice: task.productPrice,
+    skuId: activeTask.skuId,
+    unitsInStock: Math.max(0, Math.round(activeTask.currentStock)),
+    costPerUnit: activeTask.costPerUnit,
+    productPrice: activeTask.productPrice,
   };
 
   async function submit() {
     setError(null);
     const observedAtIso = new Date(observedAt).toISOString();
-    const senaPayload: SenaObservationInput = {
+    const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
-      stockSnapshot: [baselineSnapshot],
-      serviceRankings: [],
-      retailRankings: [],
-      serviceStockouts: [],
-      retailStockouts: [],
-      orderSignals: [],
-      servicePrices: [],
-      retailPrices: [],
-      leadTimeHints: [],
       notes: notes.trim() || null,
-    };
+    });
     let legacyPayload: StockReportSubmission | null = null;
 
     if (mode === 'ordered_waiting' || mode === 'eta_changed') {
       senaPayload.orderSignals = [
         {
-          skuId: task.skuId,
+          skuId: activeTask.skuId,
           orderPlaced: true,
           receiptArrived: false,
-          approximateOrderQuantity: orderedQuantity ? Number(orderedQuantity) : task.suggestedOrderQuantity || null,
+          approximateOrderQuantity: orderedQuantity ? Number(orderedQuantity) : activeTask.suggestedOrderQuantity || null,
           approximateReceiptQuantity: null,
         },
       ];
       senaPayload.leadTimeHints = leadTimeHintFromTaskInputs({
         observedAt,
-        skuId: task.skuId,
+        skuId: activeTask.skuId,
         uncertaintyDays,
         useLeadTimeEstimate,
         variabilityClass,
@@ -392,16 +385,16 @@ export function OverviewTaskDrawer({
 
     if (mode === 'goods_received') {
       const receivedUnits = Number(receivedQuantity);
-      const updatedUnitsInStock = Math.max(0, Math.round(task.currentStock) + receivedUnits);
-      const nextCost = receivedCost ? Number(receivedCost) : task.costPerUnit;
+      const updatedUnitsInStock = Math.max(0, Math.round(activeTask.currentStock) + receivedUnits);
+      const nextCost = receivedCost ? Number(receivedCost) : activeTask.costPerUnit;
       legacyPayload = {
         reportedAt: observedAtIso,
         skuObservations: [
           {
-            skuId: task.skuId,
+            skuId: activeTask.skuId,
             unitsInStock: updatedUnitsInStock,
             costPerUnit: nextCost,
-            productPrice: task.productPrice,
+            productPrice: activeTask.productPrice,
             restockIncluded: true,
           },
         ],
@@ -416,7 +409,7 @@ export function OverviewTaskDrawer({
       ];
       senaPayload.orderSignals = [
         {
-          skuId: task.skuId,
+          skuId: activeTask.skuId,
           orderPlaced: false,
           receiptArrived: true,
           approximateOrderQuantity: null,
@@ -426,6 +419,10 @@ export function OverviewTaskDrawer({
     }
 
     try {
+      if (!hasStructuredObservationSignal(senaPayload)) {
+        onOpenChange(false);
+        return;
+      }
       if (legacyPayload) {
         await submitLegacyReport(legacyPayload);
       }

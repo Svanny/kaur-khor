@@ -419,6 +419,7 @@ describe('SENA routes', () => {
       );
       expect(context.ingestSenaObservation).toHaveBeenCalledWith(
         expect.objectContaining({
+          stockSnapshot: [],
           servicePrices: [{ serviceId: 'service-1', price: 18 }],
         }),
       );

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { StockReportSubmission } from '@shared/inventory';
-import type { SenaLeadTimeVariabilityClass, SenaObservationInput } from '@shared/sena';
+import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
   compatibilityRangeForClass,
   leadTimeVariabilityLabel,
@@ -32,6 +32,7 @@ import {
   actionSheetSelectTriggerClassName,
   actionSheetTextareaClassName,
 } from '@/routes/detail-action-sheet';
+import { createEmptyObservationInput } from '@/routes/observation-payload';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -126,19 +127,10 @@ export function SkuDetailActions({
   async function submit(modeValue: Exclude<ActionMode, null>) {
     setError(null);
     const observedAtIso = new Date(observedAt).toISOString();
-    const senaPayload: SenaObservationInput = {
+    const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
-      stockSnapshot: [baselineSnapshot],
-      serviceRankings: [],
-      retailRankings: [],
-      serviceStockouts: [],
-      retailStockouts: [],
-      orderSignals: [],
-      servicePrices: [],
-      retailPrices: [],
-      leadTimeHints: [],
       notes: notes.trim() || null,
-    };
+    });
     let legacyPayload: StockReportSubmission | null = null;
 
     if (modeValue === 'stock') {
@@ -239,9 +231,9 @@ export function SkuDetailActions({
         await submitLegacyReport(legacyPayload);
       }
       await ingestSenaObservation(senaPayload);
-        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-        await onComplete();
-        setMode(null);
+      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await onComplete();
+      setMode(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('catalogSenaSkuMutationFailed'));
     }

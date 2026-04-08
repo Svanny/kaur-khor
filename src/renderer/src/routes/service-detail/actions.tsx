@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { StockReportSubmission } from '@shared/inventory';
-import type { SenaObservationInput } from '@shared/sena';
 import { ArrowUpRight, ClipboardPlus, PackageCheck, Save, SquarePen, Tags } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +18,7 @@ import {
   actionSheetInputClassName,
   actionSheetTextareaClassName,
 } from '@/routes/detail-action-sheet';
+import { createEmptyObservationInput } from '@/routes/observation-payload';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import type { ServiceDetailViewModel } from './view-model';
@@ -86,19 +86,10 @@ export function ServiceDetailActions({
   async function submit(modeValue: Exclude<ActionMode, null>) {
     setError(null);
     const observedAtIso = new Date(observedAt).toISOString();
-    const senaPayload: SenaObservationInput = {
+    const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
-      stockSnapshot: [],
-      serviceRankings: [],
-      retailRankings: [],
-      serviceStockouts: [],
-      retailStockouts: [],
-      orderSignals: [],
-      servicePrices: [],
-      retailPrices: [],
-      leadTimeHints: [],
       notes: notes.trim() || null,
-    };
+    });
     let legacyPayload: StockReportSubmission | null = null;
 
     if (modeValue === 'stock') {

@@ -39,6 +39,8 @@ import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+import { intervalDaysBetween, latestObservationAt } from './observation-payload';
+import { formatSenaDateTime } from './sku-detail/format';
 import { OverviewTaskDrawer } from './overview/task-drawer';
 import {
   buildOverviewModel,
@@ -169,6 +171,8 @@ export function DashboardRoute() {
     observations: inventory.observations,
     workspaceSummary: inventory.workspaceSummary,
   });
+  const latestUpdateAt = latestObservationAt(inventory.observations);
+  const latestUpdateAgeDays = intervalDaysBetween(latestUpdateAt, new Date().toISOString());
 
   const scopedTasks = model.tasks.filter(
     (task) => matchesOverviewEntityScope(task, searchScope) && matchesOverviewQuery(task, deferredQuery, searchScope),
@@ -207,7 +211,7 @@ export function DashboardRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/operations/session">New observation</Link>
+                <Link to="/record-update">Start update</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link to="/catalog">Open catalog</Link>
@@ -225,7 +229,26 @@ export function DashboardRoute() {
         eyebrow="Overview"
         title="Mission Control"
         descriptor="See what needs attention next, what is already in motion, and when Banji will check back."
+        actions={
+          <WorkspaceActionRow>
+            <Button asChild variant="outline">
+              <Link to="/record-update">
+                <ClipboardList className="size-4" />
+                Start update
+              </Link>
+            </Button>
+          </WorkspaceActionRow>
+        }
       >
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[1.15rem] border border-border/65 bg-background/65 px-4 py-3 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {latestUpdateAt
+              ? `Last update ${latestUpdateAgeDays == null ? formatSenaDateTime(latestUpdateAt, language) : `${latestUpdateAgeDays} days ago`}`
+              : 'No real-world update yet'}
+          </span>
+          <span>·</span>
+          <span>{model.tasks.length} high-impact queue item{model.tasks.length === 1 ? '' : 's'} need current signals</span>
+        </div>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
           <div className="w-full max-w-xl">
             <SearchInput

@@ -22,6 +22,7 @@ import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+import { intervalDaysBetween, latestObservationAt } from './observation-payload';
 import { PerformanceRightRailBlock, PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './performance/chrome';
 import { useSenaDetailHydration } from './performance/use-sena-detail-hydration';
 import {
@@ -340,6 +341,8 @@ export function PerformanceRoute() {
     skuDetailsById,
     timeRange,
   ]);
+  const latestUpdateAt = latestObservationAt(inventory.observations);
+  const latestUpdateAgeDays = intervalDaysBetween(latestUpdateAt, new Date().toISOString());
 
   if (!inventory.catalog) {
     return (
@@ -366,7 +369,7 @@ export function PerformanceRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/operations/session">New observation</Link>
+                <Link to="/record-update">Start update</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link to="/">Open Overview</Link>
@@ -438,6 +441,11 @@ export function PerformanceRoute() {
       >
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span>{model.lastUpdatedLabel}</span>
+          <span>
+            {latestUpdateAt
+              ? `Real-world update ${latestUpdateAgeDays == null ? 'loaded' : `${latestUpdateAgeDays}d ago`}`
+              : 'No real-world update yet'}
+          </span>
           {isHydratingDetails ? <span>Refining pipeline and capacity signals…</span> : null}
           <span>{scope === 'all' ? 'Mixed portfolio view' : scope === 'services' ? 'Service posture only' : 'SKU posture only'}</span>
           <span>{compareMode ? `Showing ${model.windowLabel} posture vs ${model.previousWindowLabel}` : `Showing ${model.windowLabel} posture only`}</span>
@@ -700,9 +708,20 @@ export function PerformanceRoute() {
             tooltip="How much evidence supports this view and where it is weakest."
           >
             <div className="space-y-3">
+              <p className="text-sm leading-6 text-muted-foreground">
+                {latestUpdateAt
+                  ? `Last real-world update ${latestUpdateAgeDays == null ? model.lastUpdatedLabel : `${latestUpdateAgeDays} days ago`}`
+                  : 'Coverage thin · no real-world update yet'}
+              </p>
               <p className="text-sm leading-6 text-muted-foreground">Signal coverage {model.confidence.coverageLabel}</p>
               <p className="text-sm leading-6 text-muted-foreground">{model.confidence.evidenceLabel}</p>
               <p className="text-sm leading-6 text-muted-foreground">Least certain {model.confidence.weakSpotLabel}</p>
+              <Button asChild className="w-full" size="sm" variant="outline">
+                <Link to="/record-update">
+                  <ArrowUpRight className="size-4" />
+                  Start update
+                </Link>
+              </Button>
             </div>
           </PerformanceRightRailBlock>
           </aside>

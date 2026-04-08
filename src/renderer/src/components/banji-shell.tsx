@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Boxes,
+  ClipboardList,
   LoaderCircle,
   LayoutDashboard,
   NotebookTabs,
@@ -38,8 +39,8 @@ import brandLogo from '@/assets/banji-logo.svg';
 type ShellSectionConfig = {
   destination: string;
   icon: typeof LayoutDashboard;
-  id: 'overview' | 'performance' | 'analysis' | 'catalog' | 'operations' | 'settings';
-  labelKey: 'navOverview' | 'navPerformance' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navSettings';
+  id: 'overview' | 'recordUpdate' | 'performance' | 'analysis' | 'catalog' | 'operations' | 'settings';
+  labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navSettings';
   matches: (pathname: string) => boolean;
 };
 
@@ -60,6 +61,13 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     labelKey: 'navOverview',
     icon: LayoutDashboard,
     matches: (pathname) => pathname === '/',
+  },
+  {
+    id: 'recordUpdate',
+    destination: '/record-update',
+    labelKey: 'navRecordUpdate',
+    icon: ClipboardList,
+    matches: (pathname) => matchesSection(pathname, '/record-update') || matchesSection(pathname, '/operations/session'),
   },
   {
     id: 'performance',

@@ -446,9 +446,26 @@ impl SenaCatalog {
 }
 
 impl SenaObservationInput {
+    pub fn has_structured_signal(&self) -> bool {
+        !self.stock_snapshot.is_empty()
+            || !self.service_rankings.is_empty()
+            || !self.retail_rankings.is_empty()
+            || !self.service_stockouts.is_empty()
+            || !self.retail_stockouts.is_empty()
+            || !self.order_signals.is_empty()
+            || !self.service_prices.is_empty()
+            || !self.retail_prices.is_empty()
+            || !self.lead_time_hints.is_empty()
+            || self.regime_hint.is_some()
+            || !self.adjustment_signals.is_empty()
+            || !self.recipe_usage_hints.is_empty()
+    }
+
     pub fn validate(&self) -> Result<()> {
-        if self.stock_snapshot.is_empty() {
-            return Err(anyhow!("stockSnapshot must include at least one sku"));
+        if !self.has_structured_signal() {
+            return Err(anyhow!(
+                "observation must include at least one structured signal"
+            ));
         }
         OffsetDateTime::parse(
             &self.observed_at,
@@ -461,11 +478,45 @@ impl SenaObservationInput {
             if snapshot.units_in_stock < 0.0 {
                 return Err(anyhow!("unitsInStock must be >= 0"));
             }
+            if let Some(cost) = snapshot.cost_per_unit {
+                if !cost.is_finite() || cost < 0.0 {
+                    return Err(anyhow!("costPerUnit must be >= 0"));
+                }
+            }
+            if let Some(price) = snapshot.product_price {
+                if !price.is_finite() || price < 0.0 {
+                    return Err(anyhow!("productPrice must be >= 0"));
+                }
+            }
             if !seen.insert(snapshot.sku_id.clone()) {
                 return Err(anyhow!(
                     "duplicate stockSnapshot skuId '{}'",
                     snapshot.sku_id
                 ));
+            }
+        }
+        for service_id in &self.service_rankings {
+            validate_identifier("serviceRankings[]", service_id)?;
+        }
+        for sku_id in &self.retail_rankings {
+            validate_identifier("retailRankings[]", sku_id)?;
+        }
+        for service_id in &self.service_stockouts {
+            validate_identifier("serviceStockouts[]", service_id)?;
+        }
+        for sku_id in &self.retail_stockouts {
+            validate_identifier("retailStockouts[]", sku_id)?;
+        }
+        for price in &self.service_prices {
+            validate_identifier("servicePrices[].serviceId", &price.service_id)?;
+            if !price.price.is_finite() || price.price < 0.0 {
+                return Err(anyhow!("servicePrices[].price must be >= 0"));
+            }
+        }
+        for price in &self.retail_prices {
+            validate_identifier("retailPrices[].skuId", &price.sku_id)?;
+            if !price.price.is_finite() || price.price < 0.0 {
+                return Err(anyhow!("retailPrices[].price must be >= 0"));
             }
         }
         for hint in &self.lead_time_hints {
@@ -608,6 +659,61 @@ mod tests {
             recipe_usage_hints: Vec::new(),
             notes: None,
         };
+
+        observation.validate().expect("observation should validate");
+    }
+
+    #[test]
+    fn observation_validation_rejects_notes_only_payload() {
+        let observation = SenaObservationInput {
+            observed_at: "2026-04-03T00:00:00Z".to_string(),
+            stock_snapshot: Vec::new(),
+            service_rankings: Vec::new(),
+            retail_rankings: Vec::new(),
+            service_stockouts: Vec::new(),
+            retail_stockouts: Vec::new(),
+            order_signals: Vec::new(),
+            service_prices: Vec::new(),
+            retail_prices: Vec::new(),
+            lead_time_hints: Vec::new(),
+            regime_hint: None,
+            adjustment_signals: Vec::new(),
+            recipe_usage_hints: Vec::new(),
+            notes: Some("operator note only".to_string()),
+        };
+
+        let error = observation.validate().expect_err("validation should fail");
+        assert!(error
+            .to_string()
+            .contains("observation must include at least one structured signal"));
+    }
+
+    #[test]
+    fn observation_validation_accepts_signal_only_payload() {
+        let observation = serde_json::from_str::<SenaObservationInput>(
+            r#"{
+              "observedAt": "2026-04-03T00:00:00Z",
+              "stockSnapshot": [],
+              "serviceRankings": ["service-1"],
+              "retailRankings": ["sku-1"],
+              "serviceStockouts": ["service-1"],
+              "retailStockouts": ["sku-1"],
+              "orderSignals": [{
+                "skuId": "sku-1",
+                "orderPlaced": true,
+                "receiptArrived": false,
+                "approximateOrderQuantity": 8,
+                "approximateReceiptQuantity": null
+              }],
+              "servicePrices": [{"serviceId": "service-1", "price": 15}],
+              "retailPrices": [{"skuId": "sku-1", "price": 9}],
+              "leadTimeHints": [],
+              "adjustmentSignals": [{"skuId": "sku-1", "quantityDelta": -1, "reason": "write_off"}],
+              "recipeUsageHints": [],
+              "notes": "Signal-only sparse update"
+            }"#,
+        )
+        .expect("observation should parse");
 
         observation.validate().expect("observation should validate");
     }

@@ -5,6 +5,7 @@ import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
+import { formatSenaDateTime } from '@/routes/sku-detail/format';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
 function RailBlock({
@@ -123,6 +124,11 @@ export function ServiceDetailRightRail({
       <RailBlock title="Next touch">
         <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{model.rail.nextTouch.dateLabel}</p>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{model.rail.nextTouch.reason}</p>
+        <p className="mt-3 rounded-[1rem] border border-border/70 bg-background/70 px-3 py-2 text-sm text-muted-foreground">
+          {model.actions?.latestObservedAt
+            ? `Latest bottleneck signal ${formatSenaDateTime(model.actions.latestObservedAt, 'en')}`
+            : 'No bottleneck stock update yet'}
+        </p>
       </RailBlock>
     </aside>
   );

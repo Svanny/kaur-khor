@@ -198,12 +198,12 @@ describe('StockUpdateRoute', () => {
     renderRoute();
 
     expect(screen.getByText('Logs')).toBeInTheDocument();
-    expect(screen.getByText('Internal Evidence')).toBeInTheDocument();
+    expect(screen.getByText('Update history')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Select log view' })).toBeInTheDocument();
     expect(screen.getByText('View: Heatmap')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'New observation' })).toHaveAttribute('href', '/operations/session');
+    expect(screen.getByRole('link', { name: 'Start update' })).toHaveAttribute('href', '/record-update');
     expect(screen.queryByRole('button', { name: 'Run analysis' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Re-run analysis' })).not.toBeInTheDocument();
     expect(screen.getByText('3 contributions in 2025-2026')).toBeInTheDocument();
