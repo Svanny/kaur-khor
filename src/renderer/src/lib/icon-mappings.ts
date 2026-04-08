@@ -2,17 +2,21 @@ import type { RankingEntryType } from '@shared/inventory';
 import type { LucideIcon } from 'lucide-react';
 import {
   Archive,
+  BadgePercent,
   BrainCircuit,
   Bot,
   CalendarClock,
+  CircleGauge,
+  CircleOff,
   ClipboardCheck,
   ClipboardClock,
   ClipboardList,
+  Flame,
   FileText,
-  HandCoins,
   Layers3,
   ListTodo,
   ListChecks,
+  MoonStar,
   ShoppingBasket,
   Package,
   PackagePlus,
@@ -20,9 +24,11 @@ import {
   ScanLine,
   ScrollText,
   Send,
+  Store,
   TimerReset,
   Eye,
   BellRing,
+  Wrench,
 } from 'lucide-react';
 import type {
   OverviewTaskAction,
@@ -61,6 +67,52 @@ export const overviewDrawerBandIconMap: Record<OverviewDrawerBandId, LucideIcon>
 };
 
 export const rankingEntryTypeIconMap: Record<RankingEntryType, LucideIcon> = {
-  service: HandCoins,
+  service: Store,
   sku: Package,
 };
+
+export type RegimeIconKey =
+  | 'normal'
+  | 'promo'
+  | 'spike'
+  | 'lull'
+  | 'stockout_constrained'
+  | 'correction'
+  | 'unknown';
+
+export const regimeIconMap: Record<RegimeIconKey, LucideIcon> = {
+  normal: CircleGauge,
+  promo: BadgePercent,
+  spike: Flame,
+  lull: MoonStar,
+  stockout_constrained: CircleOff,
+  correction: Wrench,
+  unknown: CircleGauge,
+};
+
+export function normalizeRegimeIconKey(regime: string | null | undefined): RegimeIconKey {
+  const normalized = regime?.trim().toLowerCase() ?? '';
+  if (normalized.includes('promo')) {
+    return 'promo';
+  }
+  if (normalized.includes('spike')) {
+    return 'spike';
+  }
+  if (normalized.includes('lull')) {
+    return 'lull';
+  }
+  if (normalized.includes('correction')) {
+    return 'correction';
+  }
+  if (normalized.includes('stockout')) {
+    return 'stockout_constrained';
+  }
+  if (normalized.includes('normal')) {
+    return 'normal';
+  }
+  return 'unknown';
+}
+
+export function regimeIconFor(regime: string | null | undefined): LucideIcon {
+  return regimeIconMap[normalizeRegimeIconKey(regime)];
+}

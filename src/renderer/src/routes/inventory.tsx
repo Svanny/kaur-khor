@@ -68,15 +68,16 @@ function skuMetaLine(
     language: 'en' | 'km';
     productPrice: number | null;
     soldAsProduct: boolean;
+    usdToKhrExchangeRate: number;
   },
 ) {
   const parts = [`${linkedServiceCount} linked services`, options.soldAsProduct ? 'sellable' : 'not sellable'];
 
   if (options.soldAsProduct && options.productPrice != null) {
-    parts.push(`price ${formatCurrency(options.productPrice, options.currency, options.language)}`);
+    parts.push(`price ${formatCurrency(options.productPrice, options.currency, options.language, options.usdToKhrExchangeRate)}`);
   }
 
-  parts.push(`cost ${formatCurrency(options.costPerUnit, options.currency, options.language)}`);
+  parts.push(`cost ${formatCurrency(options.costPerUnit, options.currency, options.language, options.usdToKhrExchangeRate)}`);
   return parts.join(' · ');
 }
 
@@ -219,7 +220,7 @@ function CatalogLoadingState() {
 export function InventoryRoute() {
   const inventory = useInventory();
   const { catalog, observations, reports, snapshot, workspaceSummary } = inventory;
-  const { currency, language, t } = usePreferences();
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const [serviceActionModels, setServiceActionModels] = useState<Record<string, ServiceDetailViewModel>>({});
 
@@ -475,6 +476,7 @@ export function InventoryRoute() {
                             language,
                             productPrice: sku.productPrice,
                             soldAsProduct: sku.soldAsProduct,
+                            usdToKhrExchangeRate,
                           })}
                         </p>
                       </div>
@@ -548,7 +550,7 @@ export function InventoryRoute() {
                         <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{service.serviceId}</p>
                         <p className="text-sm text-muted-foreground">{service.description || 'No description'}</p>
                         <p className="text-xs text-muted-foreground">
-                          {linkedSkus.length} linked SKUs · price {formatCurrency(service.price, currency, language)}
+                          {linkedSkus.length} linked SKUs · price {formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
                         </p>
                       </div>
                       <WorkspaceActionRow>

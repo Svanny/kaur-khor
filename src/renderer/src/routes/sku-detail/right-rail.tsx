@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
+import { regimeIconFor } from '@/lib/icon-mappings';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { usePreferences } from '@/state/preferences';
 import { formatSenaDateTime } from './format';
@@ -30,6 +31,7 @@ function RailBlock({
 
 export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel }) {
   const { language, t } = usePreferences();
+  const SelectedRegimeIcon = regimeIconFor(model.rail.selectedIntervalSummary.dominantRegime);
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
@@ -48,7 +50,13 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
       <RailBlock title={t('catalogSenaSkuSelectedInterval')} tooltip={t('catalogSenaSkuSelectedIntervalTooltip')}>
         <SelectedIntervalBrief
           headline={model.rail.selectedIntervalSummary.headline}
-          meta={[model.rail.selectedIntervalSummary.label, model.rail.selectedIntervalSummary.dominantRegime]}
+          meta={[
+            model.rail.selectedIntervalSummary.label,
+            <span className="inline-flex items-center gap-2">
+              <SelectedRegimeIcon className="size-4" />
+              <span>{model.rail.selectedIntervalSummary.dominantRegime}</span>
+            </span>,
+          ]}
           metrics={[
             { label: 'Service', value: model.rail.selectedIntervalSummary.serviceDemand },
             { label: 'Retail', value: model.rail.selectedIntervalSummary.retailDemand },

@@ -756,6 +756,8 @@ describe('AnalysisWorkbench', () => {
 
     const initialRegimeTile = screen.getByRole('button', { name: /normal regime/i });
     const initialTileHeight = Number.parseFloat(initialRegimeTile.style.height || '0');
+    const initialTileMarginLeft = Number.parseFloat(initialRegimeTile.style.marginLeft || '0');
+    const initialTileMarginRight = Number.parseFloat(initialRegimeTile.style.marginRight || '0');
 
     await user.click(screen.getByRole('button', { name: 'Expand Regime + price lane' }));
 
@@ -763,5 +765,7 @@ describe('AnalysisWorkbench', () => {
     const section = container.querySelector('section');
     expect(Number.parseFloat(expandedRegimeTile.style.height || '0')).toBeGreaterThan(initialTileHeight);
     expect(Number.parseFloat(expandedRegimeTile.style.height || '0')).toBeLessThanOrEqual(section?.clientHeight ?? Number.POSITIVE_INFINITY);
+    expect(Number.parseFloat(expandedRegimeTile.style.marginLeft || '0')).toBe(initialTileMarginLeft);
+    expect(Number.parseFloat(expandedRegimeTile.style.marginRight || '0')).toBe(initialTileMarginRight);
   });
 });

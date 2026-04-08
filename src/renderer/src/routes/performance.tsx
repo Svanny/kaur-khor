@@ -303,7 +303,7 @@ function MoveNowTable({ rows }: { rows: PerformanceMoveRow[] }) {
 
 export function PerformanceRoute() {
   const inventory = useInventory();
-  const { currency, language, showRightRailCards } = usePreferences();
+  const { currency, language, showRightRailCards, usdToKhrExchangeRate } = usePreferences();
   const [timeRange, setTimeRange] = useState<PerformanceTimeRange>('30d');
   const [scope, setScope] = useState<PerformanceScope>('all');
   const [compareMode, setCompareMode] = useState(true);
@@ -319,6 +319,7 @@ export function PerformanceRoute() {
       catalog: inventory.catalog,
       compareMode,
       currency,
+      usdToKhrExchangeRate,
       diagnostics: inventory.diagnostics,
       language,
       observations: inventory.observations,
@@ -340,6 +341,7 @@ export function PerformanceRoute() {
     serviceDetailsById,
     skuDetailsById,
     timeRange,
+    usdToKhrExchangeRate,
   ]);
   const latestUpdateAt = latestObservationAt(inventory.observations);
   const latestUpdateAgeDays = intervalDaysBetween(latestUpdateAt, new Date().toISOString());

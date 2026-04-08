@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import { forwardRef, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 type HeaderedTableVariant = 'overview' | 'framed';
@@ -41,17 +41,29 @@ export function createHeaderedTableLayout({
         };
 
   const gapClasses =
-    gap === 4
-      ? {
-          header: `${breakpoint}:gap-0 ${breakpoint}:[&>*]:px-3`,
-          body: '',
-          row: `${breakpoint}:gap-0 ${breakpoint}:[&>*]:px-3`,
-        }
-      : {
-          header: `${breakpoint}:gap-0 ${breakpoint}:[&>*]:px-3.5`,
-          body: '',
-          row: `${breakpoint}:gap-0 ${breakpoint}:[&>*]:px-3.5`,
-        };
+    breakpoint === 'lg'
+      ? gap === 4
+        ? {
+            header: 'lg:gap-0 lg:[&>*]:px-3',
+            body: '',
+            row: 'lg:gap-0 lg:[&>*]:px-3',
+          }
+        : {
+            header: 'lg:gap-0 lg:[&>*]:px-3.5',
+            body: '',
+            row: 'lg:gap-0 lg:[&>*]:px-3.5',
+          }
+      : gap === 4
+        ? {
+            header: 'xl:gap-0 xl:[&>*]:px-3',
+            body: '',
+            row: 'xl:gap-0 xl:[&>*]:px-3',
+          }
+        : {
+            header: 'xl:gap-0 xl:[&>*]:px-3.5',
+            body: '',
+            row: 'xl:gap-0 xl:[&>*]:px-3.5',
+          };
 
   return {
     containerClassName: responsiveClasses.container,
@@ -75,8 +87,8 @@ export function HeaderedTable({
   return (
     <div
       className={cn(
-        variant === 'overview' && 'overflow-hidden rounded-none border-0 bg-transparent',
-        variant === 'framed' && 'overflow-hidden rounded-[1.4rem] border border-border/60 bg-background/70',
+        variant === 'overview' && 'overflow-hidden rounded-none border-0 bg-white',
+        variant === 'framed' && 'overflow-hidden rounded-[1.4rem] border border-border/60 bg-white',
         className,
       )}
       data-slot="headered-table"
@@ -131,39 +143,54 @@ export function HeaderedTableHeaderCell({
   );
 }
 
-export function HeaderedTableBody({
-  children,
-  className,
-  style,
-}: {
-  children: ReactNode;
-  className?: string;
-  style?: CSSProperties;
-}) {
+export const HeaderedTableBody = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(function HeaderedTableBody(
+  {
+    children,
+    className,
+    style,
+    ...props
+  },
+  ref,
+) {
   return (
-    <div className={cn('divide-y divide-border/60', className)} data-slot="headered-table-body" style={style}>
+    <div
+      {...props}
+      className={cn('divide-y divide-border/60', className)}
+      data-slot="headered-table-body"
+      ref={ref}
+      style={style}
+    >
       {children}
     </div>
   );
-}
+});
 
-export function HeaderedTableRow({
-  children,
-  className,
-  dataSlot,
-  'data-slot': dataSlotAttr,
-  onClick,
-  style,
-}: {
-  children: ReactNode;
-  className?: string;
-  dataSlot?: string;
-  'data-slot'?: string;
-  onClick?: () => void;
-  style?: CSSProperties;
-}) {
+export const HeaderedTableRow = forwardRef<
+  HTMLDivElement,
+  HTMLAttributes<HTMLDivElement> & {
+    dataSlot?: string;
+  }
+>(function HeaderedTableRow(
+  {
+    children,
+    className,
+    dataSlot,
+    'data-slot': dataSlotAttr,
+    onClick,
+    onKeyDown,
+    role,
+    style,
+    tabIndex,
+    ...props
+  },
+  ref,
+) {
   const interactive = typeof onClick === 'function';
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented) {
+      return;
+    }
     if (!interactive) {
       return;
     }
@@ -175,18 +202,20 @@ export function HeaderedTableRow({
 
   return (
     <div
+      {...props}
       className={cn('grid gap-4 px-5 py-5 transition-colors sm:px-6', interactive && 'cursor-pointer', className)}
       data-slot={dataSlotAttr ?? dataSlot ?? 'headered-table-row'}
       onClick={onClick}
       onKeyDown={handleKeyDown}
-      role={interactive ? 'button' : undefined}
+      ref={ref}
+      role={interactive ? 'button' : role}
       style={style}
-      tabIndex={interactive ? 0 : undefined}
+      tabIndex={interactive ? 0 : tabIndex}
     >
       {children}
     </div>
   );
-}
+});
 
 export function HeaderedTableMobileLabel({
   children,

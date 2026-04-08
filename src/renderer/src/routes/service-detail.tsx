@@ -62,7 +62,7 @@ function ServiceDetailLoadingState({
 }
 
 export function ServiceDetailRoute() {
-  const { currency, language, showRightRailCards } = usePreferences();
+  const { currency, language, showRightRailCards, usdToKhrExchangeRate } = usePreferences();
   const {
     catalog,
     listStockReports,
@@ -249,6 +249,7 @@ export function ServiceDetailRoute() {
     }
     return deriveServiceDetailViewModel({
       currency,
+      usdToKhrExchangeRate,
       detail,
       language,
       observations,
@@ -257,7 +258,7 @@ export function ServiceDetailRoute() {
       snapshot: activeSnapshot,
       workspaceSummary,
     });
-  }, [activeReports, activeSnapshot, currency, detail, language, observations, service, workspaceSummary]);
+  }, [activeReports, activeSnapshot, currency, detail, language, observations, service, workspaceSummary, usdToKhrExchangeRate]);
 
   useEffect(() => {
     if (!model) {

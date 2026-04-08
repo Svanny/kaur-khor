@@ -90,7 +90,7 @@ function SkuDetailLoadingState({
 }
 
 export function SkuDetailRoute() {
-  const { currency, language, showRightRailCards, t } = usePreferences();
+  const { currency, language, showRightRailCards, t, usdToKhrExchangeRate } = usePreferences();
   const inventory = useInventory();
   const { skuId = '' } = useParams();
   const [bootstrap, setBootstrap] = useState<BootstrapSkuDetailResult | null>(() => emptyBootstrap());
@@ -189,6 +189,7 @@ export function SkuDetailRoute() {
     }
     return deriveSenaSkuDetailViewModel({
       currency,
+      usdToKhrExchangeRate,
       diagnostics: bootstrap.diagnostics,
       observations: bootstrap.observations,
       linkedServiceDetails: bootstrap.linkedServiceDetails,
@@ -200,7 +201,7 @@ export function SkuDetailRoute() {
       workspaceSummary: bootstrap.workspaceSummary,
       language,
     });
-  }, [bootstrap, currency, language, pagedDetail, selectedIntervalIndex, skuId, snapshotSku]);
+  }, [bootstrap, currency, language, pagedDetail, selectedIntervalIndex, skuId, snapshotSku, usdToKhrExchangeRate]);
 
   if (!bootstrap && (inventory.isLoading || isRefreshing)) {
     const loadingTitle = snapshotSku?.name ?? skuId ?? t('catalogSenaSkuPreparing');

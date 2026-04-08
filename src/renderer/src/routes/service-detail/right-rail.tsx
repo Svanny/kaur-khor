@@ -4,6 +4,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
+import { regimeIconFor } from '@/lib/icon-mappings';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { formatSenaDateTime } from '@/routes/sku-detail/format';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
@@ -48,6 +49,7 @@ export function ServiceDetailRightRail({
 }) {
   const contributor = selectedContributor(model, selection);
   const interval = selectedInterval(model, selection);
+  const SelectedRegimeIcon = interval ? regimeIconFor(interval.dominantRegime) : null;
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
@@ -84,10 +86,16 @@ export function ServiceDetailRightRail({
 
       {interval ? (
         <RailBlock title="Selected interval">
-          <SelectedIntervalBrief
-            headline={interval.changeHeadline}
-            meta={[interval.label, interval.dominantRegime]}
-            metrics={[
+        <SelectedIntervalBrief
+          headline={interval.changeHeadline}
+          meta={[
+            interval.label,
+            <span className="inline-flex items-center gap-2">
+              {SelectedRegimeIcon ? <SelectedRegimeIcon className="size-4" /> : null}
+              <span>{interval.dominantRegime}</span>
+            </span>,
+          ]}
+          metrics={[
               { label: 'Demand', value: interval.demandLabel },
               { label: 'Sellable', value: interval.sellableLabel },
               { label: 'Binding SKU', value: interval.bindingLabel, wide: true },

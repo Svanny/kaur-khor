@@ -12,7 +12,9 @@ describe('icon mappings', () => {
       'follow_up',
       'log_order',
       'receive',
+      'remind_tomorrow',
       'review',
+      'start_update',
       'update_eta',
     ]);
   });
@@ -58,6 +60,6 @@ describe('icon mappings', () => {
       .map((Icon) => Icon.displayName ?? Icon.name);
     const duplicateNames = iconNames.filter((name, index) => iconNames.indexOf(name) !== index);
 
-    expect(duplicateNames).toEqual(['Package']);
+    expect(duplicateNames).toEqual(['ClipboardList', 'Package']);
   });
 });

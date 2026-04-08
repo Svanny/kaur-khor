@@ -78,6 +78,7 @@ const FLOW_LABEL_GUTTER_HEIGHT = 64;
 const FLOW_LANE_PLOT_HEIGHT = 112;
 const LINE_POINT_MARKER_MIN_SLOT_WIDTH = 20;
 const EXPANDED_LANE_HEADER_ALLOWANCE = 136;
+const EXPANDED_LANE_HEIGHT_MULTIPLIER = 4;
 const PIPELINE_TILE_MIN_HEIGHT = 96;
 
 function intervalEntries(model: SenaSkuDetailViewModel) {
@@ -335,6 +336,7 @@ export function SkuDetailLedger({
   const flowScrollRef = useRef<HTMLDivElement | null>(null);
   const pipelineScrollRef = useRef<HTMLDivElement | null>(null);
   const laneBodyRef = useRef<HTMLDivElement | null>(null);
+  const regimeLaneRef = useRef<HTMLDivElement | null>(null);
   const intervals = intervalEntries(model);
   const showsPriceSurfaces = model.identity.soldAsProduct;
   const visibleRegimes = useMemo(
@@ -457,8 +459,15 @@ export function SkuDetailLedger({
     setExpandedLane((current) => (current === laneKey ? null : laneKey));
   };
   const collapsedLaneBodyHeight = useObservedElementHeight(laneBodyRef, expandedLane == null);
+  const collapsedRegimeLaneHeight = useObservedElementHeight(regimeLaneRef, expandedLane == null);
   const reservedExpandedLaneBodyHeight =
-    expandedLane != null && collapsedLaneBodyHeight > 0 ? collapsedLaneBodyHeight : undefined;
+    expandedLane != null
+      ? collapsedRegimeLaneHeight > 0
+        ? collapsedRegimeLaneHeight * EXPANDED_LANE_HEIGHT_MULTIPLIER
+        : collapsedLaneBodyHeight > 0
+          ? collapsedLaneBodyHeight
+          : undefined
+      : undefined;
   const expandedLinePlotHeight =
     expandedLane != null && reservedExpandedLaneBodyHeight != null
       ? Math.max(CHART_PLOT_HEIGHT, reservedExpandedLaneBodyHeight - EXPANDED_LANE_HEADER_ALLOWANCE)
@@ -549,10 +558,21 @@ export function SkuDetailLedger({
       <div
         ref={laneBodyRef}
         className="mt-5"
-        style={reservedExpandedLaneBodyHeight != null ? { minHeight: reservedExpandedLaneBodyHeight } : undefined}
+        style={
+          reservedExpandedLaneBodyHeight != null
+            ? {
+                height: reservedExpandedLaneBodyHeight,
+                minHeight: reservedExpandedLaneBodyHeight,
+                maxHeight: reservedExpandedLaneBodyHeight,
+              }
+            : undefined
+        }
       >
         {visibleLaneOrder.includes('regime') ? (
-        <div className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
+        <div
+          ref={regimeLaneRef}
+          className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}
+        >
           <LaneTitle
             title={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLane') : 'Regime lane'}
             tooltip={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLaneTooltip') : 'Dominant demand regime across the visible intervals.'}
@@ -930,14 +950,14 @@ export function SkuDetailLedger({
           </div>
           <div ref={pipelineScrollRef} className={cn('hidden-scrollbar overflow-x-auto overflow-y-visible overscroll-contain', isLaneExpanded('pipeline') && 'min-h-0 h-full')} onScroll={handleScrollerScroll}>
             <div
-              className="relative grid rounded-md bg-muted/20 pb-2 pt-2"
+              className="relative grid rounded-md bg-muted/20"
               style={{
                 width: contentWidth,
+                height: LABEL_GUTTER_HEIGHT + expandedPipelineBodyHeight,
                 paddingLeft: axisStartPadding,
                 paddingRight: axisEndPadding,
                 paddingTop: LABEL_GUTTER_HEIGHT,
                 gridTemplateColumns: `repeat(${Math.max(model.lanes.pipelineLane.intervals.length, 1)}, ${stretchedSlotWidth}px)`,
-                minHeight: LABEL_GUTTER_HEIGHT + expandedPipelineBodyHeight,
               }}
             >
               {model.lanes.pipelineLane.intervals.map((interval, index) => {
@@ -974,10 +994,11 @@ export function SkuDetailLedger({
                       </ClampedChartDataLabel>
                     ) : null}
                     <button
-                      className="relative flex min-h-24 self-center flex-col items-center justify-center gap-1 rounded-[1.35rem] border px-1.5 py-3 text-center transition-colors"
+                      className="relative flex self-end flex-col items-center justify-center gap-1 rounded-[1.35rem] border px-1.5 py-3 text-center transition-colors"
                       data-pipeline-tile="true"
                       style={{
                         ...pipelineTintStyle(interval.inTransitMean, maxPipelineInTransit),
+                        height: expandedPipelineBodyHeight,
                         width: tileLayout.width,
                         marginLeft: tileLayout.inset,
                         marginRight: tileLayout.inset,

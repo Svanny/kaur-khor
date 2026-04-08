@@ -39,11 +39,16 @@ export function formatSenaDays(value: number | null, language: AppLanguage) {
   return formatDurationAuto(value, 'day', language, 'short');
 }
 
-export function formatSenaCurrency(value: number | null, currency: AppCurrency, language: AppLanguage) {
+export function formatSenaCurrency(
+  value: number | null,
+  currency: AppCurrency,
+  language: AppLanguage,
+  usdToKhrExchangeRate: number,
+) {
   if (value == null) {
     return '—';
   }
-  return formatCurrency(value, currency, language);
+  return formatCurrency(value, currency, language, usdToKhrExchangeRate);
 }
 
 export function formatSenaDecimal(value: number | null, language: AppLanguage, digits = 1) {

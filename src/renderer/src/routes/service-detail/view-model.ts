@@ -1,4 +1,5 @@
 import type { AppCurrency, AppLanguage, InventorySnapshot, ServiceRecord, StockReport } from '@shared/inventory';
+import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import type { SenaObservationRecord, SenaRegimePosteriorPoint, SenaServiceDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { computeServiceSellableUnits, serviceLinkedSkus } from '@/lib/catalog';
 import {
@@ -8,7 +9,7 @@ import {
   serviceStateLabel,
   type RankedContributor,
 } from '@/lib/service-control-panel';
-import { formatCurrency, formatNumber, formatWholeNumber } from '@/lib/format';
+import { displayMoneyFromUsd, formatCurrency, formatNumber, formatWholeNumber } from '@/lib/format';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import { formatSenaDate, formatSenaDays, formatSenaPercent } from '@/routes/sku-detail/format';
 
@@ -266,6 +267,17 @@ function sellableFromStockSnapshot({
   return linked.reduce((minimum, entry) => Math.min(minimum, entry.unitsInStock), linked[0].unitsInStock);
 }
 
+function contributorRolePriority(roleLabel: string) {
+  switch (roleLabel) {
+    case 'Limiting now':
+      return 0;
+    case 'Next likely limiter':
+      return 1;
+    default:
+      return 2;
+  }
+}
+
 function buildRestorationEvents({
   language,
   linkedSkuIds,
@@ -431,6 +443,7 @@ function fallbackInterval({
 
 export function deriveServiceDetailViewModel({
   currency,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   detail,
   language,
   observations,
@@ -440,6 +453,7 @@ export function deriveServiceDetailViewModel({
   workspaceSummary,
 }: {
   currency: AppCurrency;
+  usdToKhrExchangeRate?: number;
   detail: SenaServiceDetail | null;
   language: AppLanguage;
   observations: SenaObservationRecord[];
@@ -488,6 +502,7 @@ export function deriveServiceDetailViewModel({
     reports,
     service,
     snapshot,
+    usdToKhrExchangeRate,
   });
 
   const contributors = rankedContributors.map<ServiceContributorViewModel>((entry, index) => {
@@ -581,8 +596,8 @@ export function deriveServiceDetailViewModel({
       caption: titleCaseRegime(interval.dominantRegime),
       dominantRegime: titleCaseRegime(interval.dominantRegime),
       endAt: interval.endAt,
-      priceLabel: formatCurrency(price, currency, language),
-      priceValue: price,
+      priceLabel: formatCurrency(price, currency, language, usdToKhrExchangeRate),
+      priceValue: displayMoneyFromUsd(price, currency, usdToKhrExchangeRate),
       demandValue,
       demandLabel: formatNumber(demandValue, language),
       sellableValue: snapshotSellable,
@@ -701,7 +716,7 @@ export function deriveServiceDetailViewModel({
       { key: 'sellable-now', label: 'Sellable now', value: formatWholeNumber(sellableNow, language) },
       { key: 'demand-per-day', label: 'Demand/day', value: formatNumber(activityMean, language) },
       { key: 'bottleneck', label: 'Bottleneck SKU', value: topContributor?.sku.name ?? '—' },
-      { key: 'revenue-at-risk', label: 'Revenue at risk', value: formatCurrency(revenueAtRiskValue, currency, language) },
+      { key: 'revenue-at-risk', label: 'Revenue at risk', value: formatCurrency(revenueAtRiskValue, currency, language, usdToKhrExchangeRate) },
       { key: 'next-disruption', label: 'Next disruption', value: nextDisruptionDays != null ? formatSenaDays(nextDisruptionDays, language) : 'Pending' },
       {
         key: 'linked-health',
@@ -720,11 +735,20 @@ export function deriveServiceDetailViewModel({
           ? `Unblock ${service.name.toLowerCase()}`
           : `Protect ${service.name.toLowerCase()}`,
       overviewReason,
-      bottleneckStack: contributors.slice(0, 4).map((entry) => ({
-        skuId: entry.skuId,
-        label: entry.name,
-        role: entry.roleLabel,
-      })),
+      bottleneckStack: [...contributors]
+        .sort((left, right) => {
+          const roleDelta = contributorRolePriority(left.roleLabel) - contributorRolePriority(right.roleLabel);
+          if (roleDelta !== 0) {
+            return roleDelta;
+          }
+          return left.orderRank - right.orderRank;
+        })
+        .slice(0, 4)
+        .map((entry) => ({
+          skuId: entry.skuId,
+          label: entry.name,
+          role: entry.roleLabel,
+        })),
       recoveryPath:
         restockRecoveryPath.length > 0
           ? [

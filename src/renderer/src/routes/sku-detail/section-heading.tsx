@@ -3,12 +3,14 @@ import { HelpTooltip } from '@/components/system/help-tooltip';
 
 export function SectionLabel({
   tooltip,
+  tooltipLabel,
   children,
 }: {
   tooltip: string;
+  tooltipLabel?: string;
   children: ReactNode;
 }) {
-  const label = typeof children === 'string' ? children : 'Section';
+  const label = tooltipLabel ?? (typeof children === 'string' ? children : 'Section');
 
   return (
     <span className="inline-flex items-center gap-2 align-middle">

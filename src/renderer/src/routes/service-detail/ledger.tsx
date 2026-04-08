@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { SenaServiceDetailPage } from '@shared/sena';
 import type { ChartTimeframe } from '@/components/system/chart-timeframe';
 import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '@/components/system/chart-workspace';
+import { PagedPanelNavigation } from '@/routes/detail-panels';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
 import {
   deriveFreshMountIntervalScrollLeft,
@@ -64,6 +65,8 @@ const FLOW_LINE_TOP_PADDING = 6;
 const FLOW_LINE_BOTTOM_PADDING = 6;
 const LINE_POINT_MARKER_MIN_SLOT_WIDTH = 20;
 const EXPANDED_LANE_HEADER_ALLOWANCE = 136;
+const RESTORATION_PAGE_SIZE = 10;
+const EXPANDED_LANE_HEIGHT_MULTIPLIER = 4;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -429,6 +432,7 @@ export function ServiceDetailLedger({
   const priceScrollRef = useRef<HTMLDivElement | null>(null);
   const flowScrollRef = useRef<HTMLDivElement | null>(null);
   const laneBodyRef = useRef<HTMLDivElement | null>(null);
+  const regimeLaneRef = useRef<HTMLDivElement | null>(null);
   const intervals = model.intervals;
   const selectedIntervalIndex = selectedIntervalIndexFromSelection(model, selection);
   const indices = useMemo(() => intervals.map((entry) => entry.intervalIndex), [intervals]);
@@ -452,7 +456,8 @@ export function ServiceDetailLedger({
     [intervals],
   );
   const syncRefs = [intervalScrollRef, priceScrollRef, flowScrollRef];
-  const [expandedLane, setExpandedLane] = useState<'regime' | 'flow' | 'contributors' | 'restoration' | null>(null);
+  const [expandedLane, setExpandedLane] = useState<'regime' | 'flow' | null>(null);
+  const [restorationPageIndex, setRestorationPageIndex] = useState(0);
   const latestLoadedIntervalIndex = indices.at(-1) ?? null;
   const targetVisibleIntervalCount = timeframe === 'Recent' ? INTERVAL_VISIBLE_COUNT : Math.max(1, indices.length);
   const {
@@ -513,15 +518,23 @@ export function ServiceDetailLedger({
     [intervals],
   );
   const maxGapMagnitude = Math.max(1, ...gapValues.map((value) => Math.abs(value)));
-  const laneOrder = ['regime', 'flow', 'contributors', 'restoration'] as const;
+  const laneOrder = ['regime', 'flow'] as const;
   const visibleLaneOrder = expandedLane == null ? laneOrder : [expandedLane];
   const isLaneExpanded = (laneKey: (typeof laneOrder)[number]) => expandedLane === laneKey;
   const toggleLaneExpanded = (laneKey: (typeof laneOrder)[number]) => {
     setExpandedLane((current) => (current === laneKey ? null : laneKey));
   };
+  const showSupplementalLanes = expandedLane == null;
   const collapsedLaneBodyHeight = useObservedElementHeight(laneBodyRef, expandedLane == null);
+  const collapsedRegimeLaneHeight = useObservedElementHeight(regimeLaneRef, expandedLane == null);
   const reservedExpandedLaneBodyHeight =
-    expandedLane != null && collapsedLaneBodyHeight > 0 ? collapsedLaneBodyHeight : undefined;
+    expandedLane != null
+      ? collapsedRegimeLaneHeight > 0
+        ? collapsedRegimeLaneHeight * EXPANDED_LANE_HEIGHT_MULTIPLIER
+        : collapsedLaneBodyHeight > 0
+          ? collapsedLaneBodyHeight
+          : undefined
+      : undefined;
   const expandedLinePlotHeight =
     expandedLane != null && reservedExpandedLaneBodyHeight != null
       ? Math.max(CHART_PLOT_HEIGHT, reservedExpandedLaneBodyHeight - EXPANDED_LANE_HEADER_ALLOWANCE)
@@ -547,6 +560,15 @@ export function ServiceDetailLedger({
     maxStrokeWidth: 1,
     maxDataLabelFontSize: 12,
   });
+  const restorationPageCount = Math.max(1, Math.ceil(model.restoration.length / RESTORATION_PAGE_SIZE));
+  const pagedRestorationEvents = useMemo(() => {
+    const start = restorationPageIndex * RESTORATION_PAGE_SIZE;
+    return model.restoration.slice(start, start + RESTORATION_PAGE_SIZE);
+  }, [model.restoration, restorationPageIndex]);
+
+  useEffect(() => {
+    setRestorationPageIndex((current) => Math.min(current, restorationPageCount - 1));
+  }, [restorationPageCount]);
 
   return (
     <>
@@ -586,10 +608,21 @@ export function ServiceDetailLedger({
       <div
         ref={laneBodyRef}
         className="mt-5"
-        style={reservedExpandedLaneBodyHeight != null ? { minHeight: reservedExpandedLaneBodyHeight } : undefined}
+        style={
+          reservedExpandedLaneBodyHeight != null
+            ? {
+                height: reservedExpandedLaneBodyHeight,
+                minHeight: reservedExpandedLaneBodyHeight,
+                maxHeight: reservedExpandedLaneBodyHeight,
+              }
+            : undefined
+        }
       >
         {visibleLaneOrder.includes('regime') ? (
-        <div className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
+        <div
+          ref={regimeLaneRef}
+          className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}
+        >
           <LaneTitle
             title="Regime + price lane"
             subtitle={selectedIntervalIndex == null ? intervals.at(-1)?.priceLabel : intervalsByIndex.get(selectedIntervalIndex)?.priceLabel ?? intervals.at(-1)?.priceLabel}
@@ -799,15 +832,12 @@ export function ServiceDetailLedger({
         </div>
         ) : null}
 
-        {visibleLaneOrder.includes('contributors') ? (
+        {showSupplementalLanes ? (
         <div className="border-t border-border/60 py-5">
           <LaneTitle
             title="Contributor pressure lane"
             tooltip="Linked SKUs ranked by how strongly they limit this service."
           />
-          <div className="-mt-1 mb-3 flex justify-end">
-            <LaneExpandButton expanded={isLaneExpanded('contributors')} title="Contributor pressure lane" onClick={() => toggleLaneExpanded('contributors')} />
-          </div>
           <div className="grid gap-3">
             {model.contributors.map((contributor) => {
               const isSelected = selection.type === 'contributor' && selection.skuId === contributor.skuId;
@@ -857,31 +887,38 @@ export function ServiceDetailLedger({
         </div>
         ) : null}
 
-        {visibleLaneOrder.includes('restoration') ? (
+        {showSupplementalLanes ? (
         <div className="border-t border-border/60 pt-5">
           <LaneTitle
             title="Restoration pipeline lane"
             tooltip="Inbound linked-SKU events that can restore service capacity."
           />
-          <div className="-mt-1 mb-3 flex justify-end">
-            <LaneExpandButton expanded={isLaneExpanded('restoration')} title="Restoration pipeline lane" onClick={() => toggleLaneExpanded('restoration')} />
-          </div>
           {model.restoration.length > 0 ? (
-            <div className="grid gap-3 xl:grid-cols-2">
-              {model.restoration.map((event) => (
-                <div key={event.key} className="rounded-[1.2rem] border border-border/70 bg-white p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-base font-semibold tracking-[-0.02em] text-foreground">{event.headline}</p>
-                    <span className="rounded-full border border-border/70 bg-muted/45 px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                      {event.state === 'open' ? 'Open inbound' : 'Receipt logged'}
-                    </span>
+            <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-border/60 bg-background/70">
+              <div className="grid gap-3 p-4 md:grid-cols-2">
+                {pagedRestorationEvents.map((event) => (
+                  <div key={event.key} className="rounded-[1.2rem] border border-border/70 bg-white p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold tracking-[-0.02em] text-foreground">{event.headline}</p>
+                      <span className="rounded-full border border-border/70 bg-muted/45 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                        {event.state === 'open' ? 'Open inbound' : 'Receipt logged'}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {event.timingLabel} · {event.quantityLabel}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{event.detail}</p>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {event.timingLabel} · {event.quantityLabel}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{event.detail}</p>
-                </div>
-              ))}
+                ))}
+              </div>
+              {model.restoration.length > RESTORATION_PAGE_SIZE ? (
+                <PagedPanelNavigation
+                  className="bg-background/40 px-4"
+                  pageCount={restorationPageCount}
+                  pageIndex={restorationPageIndex}
+                  setPageIndex={setRestorationPageIndex}
+                />
+              ) : null}
             </div>
           ) : (
             <div className="rounded-[1.2rem] border border-dashed border-border/70 bg-background/70 px-4 py-5 text-sm leading-6 text-muted-foreground">

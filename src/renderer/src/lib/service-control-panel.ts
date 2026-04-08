@@ -7,6 +7,7 @@ import type {
   SkuRecord,
   StockReport,
 } from '@shared/inventory';
+import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import { formatCurrency, formatNumber, formatWholeNumber } from '@/lib/format';
 import { computeServiceSellableUnits, serviceCoverageState, serviceLinkedSkus } from '@/lib/catalog';
 
@@ -277,12 +278,14 @@ export function mapServiceTimelineEvents({
   reports,
   currency,
   language,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
 }: {
   service: ServiceRecord;
   snapshot: InventorySnapshot;
   reports: StockReport[];
   currency: 'USD' | 'KHR';
   language: AppLanguage;
+  usdToKhrExchangeRate?: number;
 }) {
   const relevant = [...reports]
     .filter(
@@ -314,7 +317,7 @@ export function mapServiceTimelineEvents({
     }
     if (priceAdjustment) {
       types.push('price-adjustment');
-      summaries.push(`Price adjusted to ${formatCurrency(priceAdjustment.price, currency, language)}`);
+      summaries.push(`Price adjusted to ${formatCurrency(priceAdjustment.price, currency, language, usdToKhrExchangeRate)}`);
     }
     if (linkedSkuObservation) {
       types.push('linked-sku-change');

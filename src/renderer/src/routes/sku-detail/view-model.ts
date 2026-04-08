@@ -9,12 +9,14 @@ import type {
   SenaSkuDetail,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import { deriveLeadTimeVariabilityClass, leadTimeVariabilityLabel } from '@shared/sena-lead-time';
 import {
   formatSenaReorderQuantity,
   isSenaReorderQuantityIssued,
   type SenaReorderQuantityDisplay,
 } from '@/lib/sena-reorder-quantity';
+import { displayMoneyFromUsd } from '@/lib/format';
 import { formatSenaCurrency, formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity, formatSenaUnits } from './format';
 
 export type SkuStatusTone = 'neutral' | 'success' | 'warning' | 'danger';
@@ -370,6 +372,7 @@ function extractSkuEvidence(observations: SenaObservationRecord[], skuId: string
 
 export function deriveSenaSkuDetailViewModel({
   currency,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   diagnostics,
   observations,
   linkedServiceDetails,
@@ -382,6 +385,7 @@ export function deriveSenaSkuDetailViewModel({
   language,
 }: {
   currency: AppCurrency;
+  usdToKhrExchangeRate?: number;
   diagnostics: SenaDiagnostics | null;
   observations: SenaObservationRecord[];
   linkedServiceDetails: SenaServiceDetail[];
@@ -507,7 +511,10 @@ export function deriveSenaSkuDetailViewModel({
         intervals: visibleRegimeHistory,
         observations,
         skuId,
-      })
+      }).map((marker) => ({
+        ...marker,
+        price: displayMoneyFromUsd(marker.price, currency, usdToKhrExchangeRate),
+      }))
     : [];
 
   const receiptLabel =
@@ -544,7 +551,7 @@ export function deriveSenaSkuDetailViewModel({
       { key: 'serviceExposure', label: 'Service exposure', value: `${dependencyImpact.length}` },
     ].concat(
       sku.soldAsProduct
-        ? [{ key: 'priceNow', label: 'Price now', value: formatSenaCurrency(currentPrice, currency, language) }]
+        ? [{ key: 'priceNow', label: 'Price now', value: formatSenaCurrency(currentPrice, currency, language, usdToKhrExchangeRate) }]
         : [],
     ),
     selectedInterval: {
@@ -556,7 +563,7 @@ export function deriveSenaSkuDetailViewModel({
         intervals: visibleRegimeHistory,
         priceMarkers: intervalPriceMarkers,
         summary: `Regime history has ${visibleRegimeHistory.length} intervals and ${intervalPriceMarkers.length} retail price markers.`,
-        currentPriceLabel: formatSenaCurrency(currentPrice, currency, language),
+        currentPriceLabel: formatSenaCurrency(currentPrice, currency, language, usdToKhrExchangeRate),
       },
       inventoryLane: {
         summary: `Inventory posterior latest mean ${formatSenaUnits(summary?.latestPosteriorUnits ?? sku.unitsInStock, language)}, reorder point ${formatSenaUnits(summary?.reorderPoint ?? null, language)}, safety stock ${formatSenaUnits(summary?.safetyStock ?? null, language)}.`,

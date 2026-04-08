@@ -1,5 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
@@ -1004,6 +1005,55 @@ describe('SKU detail SENA helpers', () => {
       await waitFor(() => {
         expect(intervalScroller!.scrollLeft).toBe(anchoredScrollLeft);
       });
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
+  });
+
+  test('expanded pipeline lane stretches tiles to the full plot height while preserving inset gaps', async () => {
+    const user = userEvent.setup();
+    const resizeCallbacks: Array<() => void> = [];
+    const originalResizeObserver = globalThis.ResizeObserver;
+
+    class ResizeObserverMock {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+
+      observe(target: Element) {
+        Object.defineProperty(target, 'offsetHeight', {
+          configurable: true,
+          value: 520,
+        });
+        resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
+      }
+
+      disconnect() {}
+    }
+
+    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+
+    const LedgerHarness = () => {
+      const [selectedIntervalIndex, setSelectedIntervalIndex] = React.useState<number | null>(0);
+      return <SkuDetailLedger model={buildLedgerModel(12)} selectedIntervalIndex={selectedIntervalIndex} setSelectedIntervalIndex={setSelectedIntervalIndex} />;
+    };
+
+    try {
+      const { container } = render(<LedgerHarness />);
+      const initialPipelineTile = container.querySelector('[data-pipeline-tile="true"]') as HTMLElement | null;
+
+      expect(initialPipelineTile).not.toBeNull();
+      const initialTileHeight = Number.parseFloat(initialPipelineTile?.style.height ?? '0');
+      const initialTileMarginLeft = Number.parseFloat(initialPipelineTile?.style.marginLeft ?? '0');
+      const initialTileMarginRight = Number.parseFloat(initialPipelineTile?.style.marginRight ?? '0');
+
+      resizeCallbacks.forEach((callback) => callback());
+      await user.click(screen.getByRole('button', { name: 'Expand Pipeline lane' }));
+
+      const expandedPipelineTile = container.querySelector('[data-pipeline-tile="true"]') as HTMLElement | null;
+
+      expect(expandedPipelineTile).not.toBeNull();
+      expect(Number.parseFloat(expandedPipelineTile?.style.height ?? '0')).toBeGreaterThan(initialTileHeight);
+      expect(Number.parseFloat(expandedPipelineTile?.style.marginLeft ?? '0')).toBe(initialTileMarginLeft);
+      expect(Number.parseFloat(expandedPipelineTile?.style.marginRight ?? '0')).toBe(initialTileMarginRight);
     } finally {
       globalThis.ResizeObserver = originalResizeObserver;
     }

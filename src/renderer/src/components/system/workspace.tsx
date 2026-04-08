@@ -88,7 +88,6 @@ export function WorkspaceTitleCard({
   return (
     <div ref={anchorRef}>
       <Card className={cn('hero-mesh relative overflow-hidden border-white/70', !showDescription && 'gap-4', className)}>
-        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-64 bg-[radial-gradient(circle_at_top,rgba(189,124,81,0.2),transparent_60%)] lg:block" />
         <CardHeader className={cn('relative gap-4', !showDescription && 'gap-2')}>
           <div className={cn('flex flex-col gap-3', !showDescription && 'gap-2')}>
             {eyebrow ? (

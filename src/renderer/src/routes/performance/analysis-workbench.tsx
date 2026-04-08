@@ -1,20 +1,16 @@
 import { Fragment, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type RefObject, type UIEvent, type WheelEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  BadgePercent,
   ArrowUpRight,
   AudioLines,
   Boxes,
   ChartNoAxesColumnIncreasing,
   CircleGauge,
-  CircleOff,
   Cog,
   FileSearch,
-  Flame,
   Grid3x3,
   ListTree,
   Map as MapIcon,
-  MoonStar,
   CalendarClock,
   PackageSearch,
   Package,
@@ -24,7 +20,6 @@ import {
   SearchCheck,
   Store,
   Waypoints,
-  Wrench,
 } from 'lucide-react';
 import {
   AXIS_END_PADDING,
@@ -80,6 +75,7 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { regimeIconFor } from '@/lib/icon-mappings';
 import { cn } from '@/lib/utils';
 import { statusPillClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
@@ -264,23 +260,8 @@ function regimeFill(regime: string) {
 }
 
 function regimeIcon(regime: string) {
-  const normalized = regime.trim().toLowerCase();
-  if (normalized.includes('promo')) {
-    return <BadgePercent className="size-4" />;
-  }
-  if (normalized.includes('spike')) {
-    return <Flame className="size-4" />;
-  }
-  if (normalized.includes('lull')) {
-    return <MoonStar className="size-4" />;
-  }
-  if (normalized.includes('correction')) {
-    return <Wrench className="size-4" />;
-  }
-  if (normalized.includes('stockout')) {
-    return <CircleOff className="size-4" />;
-  }
-  return <CircleGauge className="size-4" />;
+  const Icon = regimeIconFor(regime);
+  return <Icon className="size-4" />;
 }
 
 function regimeInitials(regime: string) {
@@ -319,6 +300,7 @@ const CHART_VIEWBOX_HEIGHT = 42;
 const REGIME_CHART_MIN_HEIGHT = 92;
 const INVENTORY_CHART_PLOT_HEIGHT = 72;
 const INVENTORY_FLOW_SECTION_HEIGHT = 60;
+const EXPANDED_LANE_HEIGHT_MULTIPLIER = 4;
 const LEAD_TIME_CHART_PLOT_HEIGHT = 72;
 const PIPELINE_ROW_HEIGHT = 28;
 const PIPELINE_PILL_HEIGHT = 20;
@@ -642,7 +624,10 @@ function SystemLedger({
   const inventoryScrollRef = useRef<HTMLDivElement | null>(null);
   const pipelineScrollRef = useRef<HTMLDivElement | null>(null);
   const leadTimeScrollRef = useRef<HTMLDivElement | null>(null);
+  const laneRowsRef = useRef<HTMLDivElement | null>(null);
   const [expandedLane, setExpandedLane] = useState<WorkbenchLaneKey | null>(null);
+  const [collapsedRegimeViewportHeight, setCollapsedRegimeViewportHeight] = useState(0);
+  const [sectionHeightCap, setSectionHeightCap] = useState(0);
   const intervalEntries = useMemo(() => model.intervals.map((interval) => ({
     intervalIndex: interval.intervalIndex,
     startAt: interval.startAt,
@@ -651,9 +636,29 @@ function SystemLedger({
   const itemCount = intervalEntries.length;
   const syncRefs = [intervalScrollRef, regimeScrollRef, inventoryScrollRef, pipelineScrollRef, leadTimeScrollRef];
   const regimeViewportHeight = useObservedElementHeight(regimeScrollRef, expandedLane);
-  const inventoryViewportHeight = useObservedElementHeight(inventoryScrollRef, expandedLane);
-  const pipelineViewportHeight = useObservedElementHeight(pipelineScrollRef, expandedLane);
-  const leadTimeViewportHeight = useObservedElementHeight(leadTimeScrollRef, expandedLane);
+  useEffect(() => {
+    if (expandedLane == null && regimeViewportHeight > 0) {
+      setCollapsedRegimeViewportHeight((current) => (current === regimeViewportHeight ? current : regimeViewportHeight));
+    }
+  }, [expandedLane, regimeViewportHeight]);
+  useEffect(() => {
+    const section = laneRowsRef.current?.closest('section');
+    if (!(section instanceof HTMLElement)) {
+      return;
+    }
+    const updateHeight = () => setSectionHeightCap((current) => (current === section.clientHeight ? current : section.clientHeight));
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(section);
+    updateHeight();
+    return () => observer.disconnect();
+  }, [expandedLane]);
+  const expandedLaneViewportHeight =
+    expandedLane != null && collapsedRegimeViewportHeight > 0
+      ? Math.min(
+          collapsedRegimeViewportHeight * EXPANDED_LANE_HEIGHT_MULTIPLIER,
+          sectionHeightCap > 0 ? sectionHeightCap : Number.POSITIVE_INFINITY,
+        )
+      : 0;
   const targetVisibleIntervalCount = timeframe === 'Recent'
     ? INTERVAL_VISIBLE_COUNT
     : Math.max(1, itemCount);
@@ -704,8 +709,8 @@ function SystemLedger({
     [model.workbench.regimePriceLane.intervals],
   );
   const inventoryPoints = model.workbench.inventoryDemandLane.points;
-  const inventoryAvailableHeight = expandedLane === 'inventory' && inventoryViewportHeight > 0
-    ? Math.max(INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT, inventoryViewportHeight - CHART_GUTTER_HEIGHT - 4)
+  const inventoryAvailableHeight = expandedLane === 'inventory' && expandedLaneViewportHeight > 0
+    ? Math.max(INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT, expandedLaneViewportHeight - CHART_GUTTER_HEIGHT - 4)
     : INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT;
   const inventoryGeometry = deriveProportionalChartGeometry({
     collapsedPlotHeight: INVENTORY_CHART_PLOT_HEIGHT,
@@ -767,8 +772,8 @@ function SystemLedger({
     };
   }, [inventoryGeometry.bandMinThickness, inventoryPoints, slotWidth]);
   const leadTimePoints = model.workbench.leadTimeLane.points;
-  const leadTimeAvailableHeight = expandedLane === 'lead-time' && leadTimeViewportHeight > 0
-    ? Math.max(LEAD_TIME_CHART_PLOT_HEIGHT, leadTimeViewportHeight - CHART_GUTTER_HEIGHT - 4)
+  const leadTimeAvailableHeight = expandedLane === 'lead-time' && expandedLaneViewportHeight > 0
+    ? Math.max(LEAD_TIME_CHART_PLOT_HEIGHT, expandedLaneViewportHeight - CHART_GUTTER_HEIGHT - 4)
     : LEAD_TIME_CHART_PLOT_HEIGHT;
   const leadTimeGeometry = deriveProportionalChartGeometry({
     collapsedPlotHeight: LEAD_TIME_CHART_PLOT_HEIGHT,
@@ -827,14 +832,10 @@ function SystemLedger({
       ),
     };
   }, [leadTimeGeometry.bandMinThickness, leadTimePoints, slotWidth]);
-  const regimeAvailableHeight = expandedLane === 'regime' && regimeViewportHeight > 0
-    ? Math.max(REGIME_CHART_MIN_HEIGHT, regimeViewportHeight - 4)
+  const regimeAvailableHeight = expandedLane === 'regime' && expandedLaneViewportHeight > 0
+    ? Math.max(REGIME_CHART_MIN_HEIGHT, expandedLaneViewportHeight - 4)
     : REGIME_CHART_MIN_HEIGHT;
   const regimeChartMinHeight = regimeAvailableHeight;
-  const regimeTileHeight = Math.min(
-    92,
-    Math.round(66 * Math.max(1, regimeAvailableHeight / REGIME_CHART_MIN_HEIGHT) ** 0.45),
-  );
   const regimeTileLayout = deriveTouchingSlotGlyphLayout({
     slotWidth,
     preferredInset: 4,
@@ -849,8 +850,8 @@ function SystemLedger({
   const inventoryLaneMinHeight = CHART_GUTTER_HEIGHT + INVENTORY_CHART_PLOT_HEIGHT + INVENTORY_FLOW_SECTION_HEIGHT + 12;
   const leadTimeLaneMinHeight = CHART_GUTTER_HEIGHT + LEAD_TIME_CHART_PLOT_HEIGHT + 36;
   const pipelineCollapsedBodyHeight = PIPELINE_TOP_PADDING + Math.max(1, model.workbench.pipelineLane.rowCount - 1) * PIPELINE_ROW_HEIGHT + PIPELINE_PILL_HEIGHT + 28;
-  const pipelineAvailableHeight = expandedLane === 'pipeline' && pipelineViewportHeight > 0
-    ? Math.max(pipelineCollapsedBodyHeight, pipelineViewportHeight - 4)
+  const pipelineAvailableHeight = expandedLane === 'pipeline' && expandedLaneViewportHeight > 0
+    ? Math.max(pipelineCollapsedBodyHeight, expandedLaneViewportHeight - 4)
     : pipelineCollapsedBodyHeight;
   const pipelineGeometry = deriveProportionalChartGeometry({
     collapsedPlotHeight: pipelineCollapsedBodyHeight,
@@ -950,7 +951,7 @@ function SystemLedger({
         tooltip="Interval-by-interval analysis across regime, inventory, pipeline, and lead time."
         descriptor="Inspect how observations turned into the current system reading."
         headerActions={chartHeaderActions}
-        className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
+        className={cn(showRightRailCards && 'lg:rounded-r-none', expandedLaneViewportHeight > 0 && 'h-auto')}
         contentClassName="px-0 py-0"
       >
         <div className="grid h-full gap-4 px-6 py-5 [grid-template-rows:auto_minmax(0,1fr)]">
@@ -973,7 +974,20 @@ function SystemLedger({
           />
         </div>
 
-        <div className="grid min-h-0 gap-4" style={laneRowsStyle}>
+        <div
+          ref={laneRowsRef}
+          className="grid min-h-0 gap-4"
+          style={{
+            ...laneRowsStyle,
+            ...(expandedLaneViewportHeight > 0
+              ? {
+                  height: expandedLaneViewportHeight,
+                  minHeight: expandedLaneViewportHeight,
+                  maxHeight: expandedLaneViewportHeight,
+                }
+              : {}),
+          }}
+        >
           {visibleLaneOrder.includes('regime') ? <div className="grid h-full min-h-0 gap-3" data-lane="regime" style={laneGridStyle}>
             <LaneLabel
               subtitle="Continuous regime state with price and stockout cues carried as lightweight markers instead of interval cards."
@@ -1011,7 +1025,7 @@ function SystemLedger({
                 className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleScrollerScroll}
               >
-                <div className="relative h-full" style={{ width: contentWidth, minHeight: regimeChartMinHeight }}>
+                <div className="relative h-full" style={{ width: contentWidth, height: regimeChartMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -1022,7 +1036,7 @@ function SystemLedger({
                     className="inset-y-2"
                   />
                   <div
-                    className="absolute inset-y-0 grid items-center px-0"
+                    className="absolute inset-y-0 grid items-stretch px-0"
                     style={{
                       paddingLeft: AXIS_START_PADDING,
                       paddingRight: AXIS_END_PADDING,
@@ -1034,12 +1048,12 @@ function SystemLedger({
                         key={`regime:${interval.intervalIndex}`}
                         aria-label={`${interval.dominantRegime} regime, ${interval.cueSummary}`}
                         className={cn(
-                          'relative rounded-[1rem] border text-left transition-transform hover:-translate-y-0.5',
+                          'flex flex-col items-center justify-center gap-3 rounded-[1rem] border px-2 text-left transition-transform hover:-translate-y-0.5',
                           selectedIntervalIndex === interval.intervalIndex ? 'border-foreground/20 shadow-sm' : 'border-white/70',
                         )}
                         style={{
                           backgroundColor: regimeFill(interval.dominantRegime),
-                          height: regimeTileHeight,
+                          height: regimeChartMinHeight,
                           width: regimeTileLayout.width,
                           marginLeft: regimeTileLayout.inset,
                           marginRight: regimeTileLayout.inset,
@@ -1048,7 +1062,7 @@ function SystemLedger({
                         type="button"
                         onClick={() => onIntervalChartLabelClick(interval.intervalIndex, 'observed-signals')}
                       >
-                        <span className="absolute left-1/2 top-[1.35rem] inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-foreground/75">
+                        <span className="inline-flex items-center justify-center text-foreground/75">
                           {showsRegimeIcons ? (
                             regimeIcon(interval.dominantRegime)
                           ) : showsRegimeInitials ? (
@@ -1057,7 +1071,7 @@ function SystemLedger({
                             </span>
                           ) : null}
                         </span>
-                        <span className="absolute inset-x-2.5 bottom-2 flex flex-nowrap items-center justify-center gap-1 whitespace-nowrap">
+                        <span className="flex flex-wrap items-center justify-center gap-1 whitespace-nowrap">
                           <RegimeCueBadges
                             priceCueCount={interval.priceCueCount}
                             stockoutCueCount={interval.stockoutCueCount}

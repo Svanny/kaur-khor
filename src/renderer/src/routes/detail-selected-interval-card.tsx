@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 export interface SelectedIntervalMetric {
   label: string;
   value: string;
@@ -11,7 +13,7 @@ export function SelectedIntervalBrief({
   notes,
 }: {
   headline: string;
-  meta: string[];
+  meta: ReactNode[];
   metrics: SelectedIntervalMetric[];
   notes?: string[];
 }) {

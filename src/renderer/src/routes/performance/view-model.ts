@@ -1,4 +1,5 @@
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
+import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import type {
   SenaCatalog,
   SenaDiagnostics,
@@ -799,11 +800,13 @@ function marginToneLabel({
   marginRatio,
   priceSignal,
   language,
+  usdToKhrExchangeRate,
 }: {
   currency: AppCurrency;
   marginRatio: number | null;
   priceSignal: PriceSignal | null;
   language: AppLanguage;
+  usdToKhrExchangeRate: number;
 }) {
   const marginText =
     marginRatio == null
@@ -819,7 +822,7 @@ function marginToneLabel({
   }
 
   const priceLabel = priceSignal.delta > 0 ? 'price up' : 'price drag';
-  return `${marginText} · ${priceLabel} ${formatCurrency(Math.abs(priceSignal.delta), currency, language)}`;
+  return `${marginText} · ${priceLabel} ${formatCurrency(Math.abs(priceSignal.delta), currency, language, usdToKhrExchangeRate)}`;
 }
 
 function trendGlyph(tone: TrendTone) {
@@ -1026,6 +1029,7 @@ export function derivePerformanceViewModel({
   catalog,
   compareMode,
   currency,
+  usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   diagnostics,
   language,
   observations,
@@ -1038,6 +1042,7 @@ export function derivePerformanceViewModel({
   catalog: SenaCatalog;
   compareMode: boolean;
   currency: AppCurrency;
+  usdToKhrExchangeRate?: number;
   diagnostics: SenaDiagnostics | null;
   language: AppLanguage;
   observations: SenaObservationRecord[];
@@ -1130,7 +1135,7 @@ export function derivePerformanceViewModel({
       id: sku.skuId,
       linkedServiceNames: linkedServices.map((service) => service.name),
       linkedServiceRevenue,
-      marginLabel: marginToneLabel({ currency, marginRatio, priceSignal, language }),
+      marginLabel: marginToneLabel({ currency, marginRatio, priceSignal, language, usdToKhrExchangeRate }),
       marginRatio,
       name: sku.name,
       pipelineLabel: formatPipelineSupport(receiptSignal, language),
@@ -1310,7 +1315,7 @@ export function derivePerformanceViewModel({
     {
       key: 'risk',
       label: 'Revenue at risk',
-      value: formatCurrency(revenueAtRisk, currency, language),
+      value: formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate),
       detail: `Revenue currently blocked by capacity or stock pressure in ${activeWindowLabel}`,
     },
   ];
@@ -1520,7 +1525,7 @@ export function derivePerformanceViewModel({
       href: row.href,
       summary:
         row.type === 'service'
-          ? `${formatCurrency(row.revenueAtRisk, currency, language)} blocked · ${row.pipelineLabel.toLowerCase()}`
+          ? `${formatCurrency(row.revenueAtRisk, currency, language, usdToKhrExchangeRate)} blocked · ${row.pipelineLabel.toLowerCase()}`
           : `${row.supportLabel} · ${row.pipelineLabel.toLowerCase()}`,
       tone: 'danger' as const,
     }));
@@ -1591,7 +1596,7 @@ export function derivePerformanceViewModel({
       subtitle:
         blockedProfit[0]?.label ??
         `${formatWholeNumber(serviceRows.filter((row) => row.coverageRatio < 1).length, language)} services exposed`,
-      detail: `${formatCurrency(revenueAtRisk, currency, language)} tied up in blocked demand`,
+      detail: `${formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate)} tied up in blocked demand`,
     },
     {
       id: 'timeline-receipt',
