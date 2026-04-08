@@ -123,6 +123,8 @@ const SENA_ENGINE_PARAMETER_FIELDS = [
 
 type SenaEngineNumberField = (typeof SENA_ENGINE_PARAMETER_FIELDS)[number]['key'];
 type ExportFormat = (typeof EXPORT_FORMAT_OPTIONS)[number]['value'];
+type SenaEngineNumberDrafts = Record<SenaEngineNumberField, string>;
+type SenaEngineNumberErrors = Partial<Record<SenaEngineNumberField, string>>;
 
 function exportFormatLabel(value: ExportFormat) {
   return EXPORT_FORMAT_OPTIONS.find((option) => option.value === value)?.label ?? 'CSV';
@@ -278,19 +280,95 @@ function ParameterLabel({
   );
 }
 
-function setSenaEngineNumberParameter(
-  parameters: SenaEngineParameters,
-  key: SenaEngineNumberField,
+function createSenaEngineNumberDrafts(parameters: SenaEngineParameters): SenaEngineNumberDrafts {
+  return {
+    particleCount: String(parameters.particleCount),
+    targetServiceLevel: String(parameters.targetServiceLevel),
+    recommendationQuantile: String(parameters.recommendationQuantile),
+    intervalLowQuantile: String(parameters.intervalLowQuantile),
+    intervalHighQuantile: String(parameters.intervalHighQuantile),
+    needProbabilityGate: String(parameters.needProbabilityGate),
+    reviewDelayDays: String(parameters.reviewDelayDays),
+  };
+}
+
+function formatSenaParameterValue(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value);
+}
+
+function senaParameterRangeMessage(field: (typeof SENA_ENGINE_PARAMETER_FIELDS)[number]) {
+  return `Valid range: ${formatSenaParameterValue(field.min)} to ${formatSenaParameterValue(field.max)}.`;
+}
+
+function validateSenaEngineNumberDraft(
+  field: (typeof SENA_ENGINE_PARAMETER_FIELDS)[number],
   rawValue: string,
 ) {
-  const parsedValue = Number(rawValue);
-  if (!Number.isFinite(parsedValue)) {
-    return parameters;
+  const trimmedValue = rawValue.trim();
+  if (trimmedValue.length === 0) {
+    return `Enter a value. ${senaParameterRangeMessage(field)}`;
   }
-  return normalizeSenaEngineParameters({
-    ...parameters,
-    [key]: parsedValue,
-  });
+
+  const parsedValue = Number(trimmedValue);
+  if (!Number.isFinite(parsedValue)) {
+    return `Enter a valid number. ${senaParameterRangeMessage(field)}`;
+  }
+
+  if (parsedValue < field.min || parsedValue > field.max) {
+    return senaParameterRangeMessage(field);
+  }
+
+  return null;
+}
+
+function validateSenaEngineNumberDrafts(drafts: SenaEngineNumberDrafts): SenaEngineNumberErrors {
+  const errors = SENA_ENGINE_PARAMETER_FIELDS.reduce<SenaEngineNumberErrors>((nextErrors, field) => {
+    const message = validateSenaEngineNumberDraft(field, drafts[field.key]);
+    if (message) {
+      nextErrors[field.key] = message;
+    }
+    return nextErrors;
+  }, {});
+
+  if (!errors.intervalLowQuantile && !errors.intervalHighQuantile) {
+    const intervalLowQuantile = Number(drafts.intervalLowQuantile.trim());
+    const intervalHighQuantile = Number(drafts.intervalHighQuantile.trim());
+    if (intervalLowQuantile > intervalHighQuantile) {
+      errors.intervalLowQuantile = 'Range low quantile cannot be higher than range high quantile.';
+      errors.intervalHighQuantile = 'Range high quantile must be at least as high as range low quantile.';
+    }
+
+    if (!errors.recommendationQuantile) {
+      const recommendationQuantile = Number(drafts.recommendationQuantile.trim());
+      if (
+        Number.isFinite(recommendationQuantile) &&
+        (recommendationQuantile < intervalLowQuantile || recommendationQuantile > intervalHighQuantile)
+      ) {
+        errors.recommendationQuantile =
+          'Recommendation quantile must be between range low quantile and range high quantile.';
+      }
+    }
+  }
+
+  return errors;
+}
+
+function applySenaEngineNumberDrafts(
+  parameters: SenaEngineParameters,
+  drafts: SenaEngineNumberDrafts,
+): SenaEngineParameters {
+  return normalizeSenaEngineParameters(
+    SENA_ENGINE_PARAMETER_FIELDS.reduce<Partial<SenaEngineParameters>>(
+      (nextParameters, parameter) => {
+        const parsedValue = Number(drafts[parameter.key]);
+        nextParameters[parameter.key] = Number.isFinite(parsedValue)
+          ? parsedValue
+          : parameters[parameter.key];
+        return nextParameters;
+      },
+      { ...parameters },
+    ),
+  );
 }
 
 function ExportFormatSelect({
@@ -361,10 +439,23 @@ export function SettingsRoute() {
   const [senaExportFormat, setSenaExportFormat] = useState<ExportFormat>('csv');
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [creditsOpen, setCreditsOpen] = useState(false);
+  const [senaEngineNumberDrafts, setSenaEngineNumberDrafts] = useState<SenaEngineNumberDrafts>(() =>
+    createSenaEngineNumberDrafts(senaEngineParameters),
+  );
+  const [senaEngineNumberErrors, setSenaEngineNumberErrors] = useState<SenaEngineNumberErrors>({});
+  const hasSenaParameterErrors = Object.keys(senaEngineNumberErrors).length > 0;
+  const pendingSenaEngineParameters = hasSenaParameterErrors
+    ? senaEngineParameters
+    : applySenaEngineNumberDrafts(senaEngineParameters, senaEngineNumberDrafts);
   const senaParametersChanged = !senaEngineParametersEqual(
-    senaEngineParameters,
+    pendingSenaEngineParameters,
     persistedSenaEngineParameters,
   );
+
+  useEffect(() => {
+    setSenaEngineNumberDrafts(createSenaEngineNumberDrafts(senaEngineParameters));
+    setSenaEngineNumberErrors({});
+  }, [senaEngineParameters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -395,12 +486,20 @@ export function SettingsRoute() {
   }
 
   async function handleSavePreferences() {
+    const nextErrors = validateSenaEngineNumberDrafts(senaEngineNumberDrafts);
+    if (Object.keys(nextErrors).length > 0) {
+      setSenaEngineNumberErrors(nextErrors);
+      setSenaRunStatus('Fix the highlighted SENA parameters before saving.');
+      return;
+    }
+    const nextSenaEngineParameters = pendingSenaEngineParameters;
     const shouldRerunSena = senaParametersChanged;
     setSenaRunStatus(null);
-    await savePreferences();
+    setSenaEngineParameters(nextSenaEngineParameters);
+    await savePreferences({ senaEngineParameters: nextSenaEngineParameters });
     if (shouldRerunSena) {
       try {
-        await rerunSenaWithParameters(senaEngineParameters);
+        await rerunSenaWithParameters(nextSenaEngineParameters);
         setSenaRunStatus('SENA reran with the saved engine parameters.');
       } catch (error) {
         setSenaRunStatus(error instanceof Error ? error.message : 'SENA rerun failed.');
@@ -497,7 +596,11 @@ export function SettingsRoute() {
         descriptor="Choose how much optional guidance Banji shows and how the desktop shell behaves on this device."
         actions={
           <WorkspaceActionRow className="justify-end">
-            <Button disabled={!hasPendingChanges} type="button" onClick={() => void handleSavePreferences()}>
+            <Button
+              disabled={hasSenaParameterErrors || (!hasPendingChanges && !senaParametersChanged)}
+              type="button"
+              onClick={() => void handleSavePreferences()}
+            >
               <Save data-icon="inline-start" />
               Save preferences
             </Button>
@@ -622,20 +725,48 @@ export function SettingsRoute() {
                 tooltip={parameter.tooltip}
               />
               <input
-                className={numberInputClassName}
+                aria-describedby={`sena-parameter-${parameter.key}-hint${senaEngineNumberErrors[parameter.key] ? ` sena-parameter-${parameter.key}-error` : ''}`}
+                aria-invalid={senaEngineNumberErrors[parameter.key] ? 'true' : undefined}
+                className={`${numberInputClassName}${senaEngineNumberErrors[parameter.key] ? ' border-destructive ring-1 ring-destructive/30' : ''}`}
                 id={`sena-parameter-${parameter.key}`}
-                max={parameter.max}
-                min={parameter.min}
-                step={parameter.step}
-                type="number"
-                value={senaEngineParameters[parameter.key]}
+                inputMode={parameter.step < 1 ? 'decimal' : 'numeric'}
+                pattern={parameter.step < 1 ? '[0-9]*[.]?[0-9]*' : '[0-9]*'}
+                type="text"
+                value={senaEngineNumberDrafts[parameter.key]}
+                onBlur={() => {
+                  const nextErrors = validateSenaEngineNumberDrafts(senaEngineNumberDrafts);
+                  setSenaEngineNumberErrors(nextErrors);
+                  if (Object.keys(nextErrors).length > 0) {
+                    return;
+                  }
+                  setSenaEngineParameters(applySenaEngineNumberDrafts(senaEngineParameters, senaEngineNumberDrafts));
+                }}
                 onChange={(event) =>
-                  setSenaEngineParameters(
-                    setSenaEngineNumberParameter(senaEngineParameters, parameter.key, event.target.value),
-                  )
+                  {
+                    const nextValue = event.target.value;
+                    setSenaEngineNumberDrafts((current) => {
+                      const nextDrafts = {
+                        ...current,
+                        [parameter.key]: nextValue,
+                      };
+                      setSenaEngineNumberErrors(validateSenaEngineNumberDrafts(nextDrafts));
+                      return nextDrafts;
+                    });
+                  }
                 }
               />
-              <span className={parameterHelperClassName}>{parameter.helper}</span>
+              <span className={parameterHelperClassName} id={`sena-parameter-${parameter.key}-hint`}>
+                {parameter.helper}
+              </span>
+              {senaEngineNumberErrors[parameter.key] ? (
+                <span
+                  className="text-sm text-destructive"
+                  id={`sena-parameter-${parameter.key}-error`}
+                  role="alert"
+                >
+                  {senaEngineNumberErrors[parameter.key]}
+                </span>
+              ) : null}
             </div>
           ))}
           <CheckboxRow
@@ -659,6 +790,8 @@ export function SettingsRoute() {
         </div>
         {senaRunStatus ? (
           <p className="text-sm text-muted-foreground">{senaRunStatus}</p>
+        ) : hasSenaParameterErrors ? (
+          <p className="text-sm text-destructive">Fix the highlighted SENA parameters before saving.</p>
         ) : senaParametersChanged ? (
           <p className="text-sm text-muted-foreground">
             Saving preferences will rerun SENA with these engine parameters.

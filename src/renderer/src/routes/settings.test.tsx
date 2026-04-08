@@ -81,14 +81,14 @@ describe('SettingsRoute', () => {
     fireEvent.click(firstSavePreferencesButton());
 
     await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith({
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'en',
         currency: 'USD',
         showExplanatoryTooltips: false,
         showFloatingTitleActions: true,
         showRightRailCards: true,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
-      });
+      }));
     });
   });
 
@@ -108,14 +108,14 @@ describe('SettingsRoute', () => {
     fireEvent.click(firstSavePreferencesButton());
 
     await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith({
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'en',
         currency: 'USD',
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: false,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
-      });
+      }));
     });
   });
 
@@ -150,13 +150,14 @@ describe('SettingsRoute', () => {
     expect(screen.getByRole('combobox', { name: /export sena data format/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/analysis profile/i)).not.toBeInTheDocument();
     const particleInput = screen.getByLabelText(/particle count/i);
-    expect(particleInput).toHaveValue(256);
+    expect(particleInput).toHaveDisplayValue('256');
 
     fireEvent.change(particleInput, { target: { value: '384' } });
+    expect(particleInput).toHaveDisplayValue('384');
     fireEvent.click(firstSavePreferencesButton());
 
     await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith({
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'en',
         currency: 'USD',
         showExplanatoryTooltips: true,
@@ -166,7 +167,7 @@ describe('SettingsRoute', () => {
           ...DEFAULT_SENA_ENGINE_PARAMETERS,
           particleCount: 384,
         },
-      });
+      }));
     });
     await waitFor(() => {
       expect(triggerRun).toHaveBeenCalledWith({
@@ -189,5 +190,143 @@ describe('SettingsRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: /expand credits/i }));
     expect(screen.getByText('Made with')).toBeInTheDocument();
     expect(screen.getByText('by Monysovann Ly.')).toBeInTheDocument();
+  });
+
+  it('keeps SENA number fields directly editable while typing partial numeric values', async () => {
+    savePreferences.mockImplementation(async (payload) => ({
+      language: 'en',
+      currency: 'USD',
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      senaEngineParameters: payload.senaEngineParameters,
+    }));
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const recommendationQuantileInput = await screen.findByLabelText(/recommendation quantile/i);
+    expect(recommendationQuantileInput).toHaveDisplayValue('0.7');
+
+    fireEvent.change(recommendationQuantileInput, { target: { value: '0.' } });
+    expect(recommendationQuantileInput).toHaveDisplayValue('0.');
+
+    fireEvent.change(recommendationQuantileInput, { target: { value: '0.85' } });
+    expect(recommendationQuantileInput).toHaveDisplayValue('0.85');
+
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        language: 'en',
+        currency: 'USD',
+        showExplanatoryTooltips: true,
+        showFloatingTitleActions: true,
+        showRightRailCards: true,
+        senaEngineParameters: {
+          ...DEFAULT_SENA_ENGINE_PARAMETERS,
+          recommendationQuantile: 0.85,
+        },
+      }));
+    });
+  });
+
+  it('shows a valid range error and blocks save for out-of-bounds SENA values', async () => {
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const particleInput = await screen.findByLabelText(/particle count/i);
+    fireEvent.change(particleInput, { target: { value: '5000' } });
+
+    expect(particleInput).toHaveDisplayValue('5000');
+    expect(await screen.findByText('Valid range: 32 to 2048.')).toBeInTheDocument();
+    expect(firstSavePreferencesButton()).toBeDisabled();
+
+    fireEvent.click(firstSavePreferencesButton());
+    expect(savePreferences).not.toHaveBeenCalled();
+
+    fireEvent.change(particleInput, { target: { value: '32' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Valid range: 32 to 2048.')).not.toBeInTheDocument();
+    });
+    expect(firstSavePreferencesButton()).not.toBeDisabled();
+  });
+
+  it('blocks saving when range low quantile is higher than range high quantile', async () => {
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const rangeLowInput = await screen.findByLabelText(/range low quantile/i);
+    const rangeHighInput = screen.getByLabelText(/range high quantile/i);
+    const recommendationInput = screen.getByLabelText(/recommendation quantile/i);
+
+    fireEvent.change(rangeLowInput, { target: { value: '0.95' } });
+    fireEvent.change(rangeHighInput, { target: { value: '0.9' } });
+
+    expect(await screen.findByText('Range low quantile cannot be higher than range high quantile.')).toBeInTheDocument();
+    expect(screen.getByText('Range high quantile must be at least as high as range low quantile.')).toBeInTheDocument();
+    expect(firstSavePreferencesButton()).toBeDisabled();
+
+    fireEvent.click(firstSavePreferencesButton());
+    expect(savePreferences).not.toHaveBeenCalled();
+
+    fireEvent.change(rangeHighInput, { target: { value: '0.97' } });
+    fireEvent.change(recommendationInput, { target: { value: '0.96' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Range low quantile cannot be higher than range high quantile.')).not.toBeInTheDocument();
+    });
+    expect(firstSavePreferencesButton()).not.toBeDisabled();
+  });
+
+  it('blocks saving when recommendation quantile falls outside the low-high band', async () => {
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const recommendationInput = await screen.findByLabelText(/recommendation quantile/i);
+    const rangeLowInput = screen.getByLabelText(/range low quantile/i);
+    const rangeHighInput = screen.getByLabelText(/range high quantile/i);
+
+    fireEvent.change(rangeLowInput, { target: { value: '0.8' } });
+    fireEvent.change(rangeHighInput, { target: { value: '0.9' } });
+    fireEvent.change(recommendationInput, { target: { value: '0.7' } });
+
+    expect(
+      await screen.findByText(
+        'Recommendation quantile must be between range low quantile and range high quantile.',
+      ),
+    ).toBeInTheDocument();
+    expect(firstSavePreferencesButton()).toBeDisabled();
+
+    fireEvent.change(recommendationInput, { target: { value: '0.85' } });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText(
+          'Recommendation quantile must be between range low quantile and range high quantile.',
+        ),
+      ).not.toBeInTheDocument();
+    });
+    expect(firstSavePreferencesButton()).not.toBeDisabled();
   });
 });
