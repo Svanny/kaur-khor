@@ -14,6 +14,7 @@ import {
   isSenaReorderQuantityIssued,
   type SenaReorderQuantityDisplay,
 } from '@/lib/sena-reorder-quantity';
+import { latestObservationAt } from '@/routes/observation-payload';
 import { formatSenaDate, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
 
 export type OverviewTaskFilter =
@@ -29,7 +30,9 @@ export type OverviewTaskAction =
   | 'update_eta'
   | 'follow_up'
   | 'receive'
-  | 'review';
+  | 'review'
+  | 'start_update'
+  | 'remind_tomorrow';
 
 export type OverviewTaskDrawerMode =
   | 'not_ordered'
@@ -47,7 +50,24 @@ export type OverviewDrawerBandId =
   | 'note'
   | 'next_steps';
 
-export interface OverviewTask {
+interface OverviewTaskBase {
+  id: string;
+  kind: 'sku' | 'stale_update_reminder';
+  stateLabel: string;
+  statusTone: 'danger' | 'warning' | 'success' | 'info' | 'neutral';
+  action: OverviewTaskAction;
+  actionLabel: string;
+  whyNow: string;
+  whyDetail: string;
+  etaLabel: string;
+  etaDetail: string;
+  confidenceCue: string;
+  heartbeat: string[];
+  nextSteps: string[];
+}
+
+export interface OverviewSkuTask extends OverviewTaskBase {
+  kind: 'sku';
   id: string;
   skuId: string;
   skuName: string;
@@ -88,6 +108,16 @@ export interface OverviewTask {
   reorderRecommendation: SenaReorderQuantityDisplay;
   daysOfCover: number | null;
 }
+
+export interface OverviewStaleUpdateReminderTask extends OverviewTaskBase {
+  kind: 'stale_update_reminder';
+  snoozeAction: 'remind_tomorrow';
+  snoozeActionLabel: string;
+  staleDays: number;
+  latestObservationAt: string;
+}
+
+export type OverviewTask = OverviewSkuTask | OverviewStaleUpdateReminderTask;
 
 export interface OverviewInTransitRow {
   id: string;
@@ -163,6 +193,26 @@ function compactList(values: string[], max = 2) {
 function todayStart() {
   const value = new Date();
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function startOfLocalDay(value: string | Date) {
+  const date = value instanceof Date ? new Date(value) : new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return null;
+  }
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function diffCalendarDays(value: string | null, reference = new Date()) {
+  if (!value) {
+    return null;
+  }
+  const valueStart = startOfLocalDay(value);
+  const referenceStart = startOfLocalDay(reference);
+  if (!valueStart || !referenceStart) {
+    return null;
+  }
+  return Math.round((referenceStart.getTime() - valueStart.getTime()) / 86_400_000);
 }
 
 function isSameLocalDay(value: string | null, reference = new Date()) {
@@ -657,6 +707,7 @@ function buildTask({
         : (receiptWindow?.etaDetail ?? 'Banji is waiting for the next supplier signal.');
 
   return {
+    kind: 'sku',
     id: summary.skuId,
     skuId: summary.skuId,
     skuName: sku.name,
@@ -716,10 +767,66 @@ function buildTask({
     reorderTriggerProbability: summary.reorderTriggerProbability,
     reorderRecommendation,
     daysOfCover: summary.daysOfCover,
-  } satisfies OverviewTask;
+  } satisfies OverviewSkuTask;
 }
 
-function buildSignals(tasks: OverviewTask[]) {
+function buildStaleUpdateReminderTask({
+  forceVisible,
+  language,
+  observations,
+  snoozeUntil,
+}: {
+  forceVisible?: boolean;
+  language: AppLanguage;
+  observations: SenaObservationRecord[];
+  snoozeUntil: string | null;
+}): OverviewStaleUpdateReminderTask | null {
+  const latestRecordedUpdateAt = latestObservationAt(observations);
+  if (!latestRecordedUpdateAt) {
+    return null;
+  }
+
+  const staleDays = diffCalendarDays(latestRecordedUpdateAt);
+  if (staleDays == null || (!forceVisible && staleDays <= 7)) {
+    return null;
+  }
+
+  if (snoozeUntil) {
+    const snoozeUntilStart = startOfLocalDay(snoozeUntil);
+    const currentDayStart = todayStart();
+    if (snoozeUntilStart && snoozeUntilStart.getTime() > currentDayStart.getTime()) {
+      return null;
+    }
+  }
+
+  return {
+    kind: 'stale_update_reminder',
+    id: 'overview:stale-update-reminder',
+    stateLabel: 'Reminder',
+    statusTone: 'warning',
+    action: 'start_update',
+    actionLabel: 'Start update',
+    snoozeAction: 'remind_tomorrow',
+    snoozeActionLabel: 'Remind tomorrow',
+    staleDays,
+    latestObservationAt: latestRecordedUpdateAt,
+    whyNow: 'Fresh real-world signals are overdue',
+    whyDetail: `Banji has not seen a recorded update in ${formatWholeNumber(staleDays, language)} days.`,
+    etaLabel: `Last update ${formatSenaDate(latestRecordedUpdateAt, language)}`,
+    etaDetail: 'Start a new update now, or hide this reminder until tomorrow.',
+    confidenceCue: 'stale update cadence',
+    heartbeat: [
+      `Last recorded update ${formatSenaDate(latestRecordedUpdateAt, language)}`,
+      `${formatWholeNumber(staleDays, language)} days since the last live check-in`,
+    ],
+    nextSteps: [
+      'Start a fresh update to capture current stock, pricing, and supplier changes.',
+      'If today is too early, snooze this reminder and Banji will bring it back tomorrow.',
+    ],
+  };
+}
+
+function buildSignals(tasks: OverviewSkuTask[]) {
   const rows: OverviewSignalRow[] = [];
 
   const priceSignalTask = tasks.find((task) => task.heartbeat.some((entry) => entry.startsWith('Recent price signal')));
@@ -762,14 +869,18 @@ function buildSignals(tasks: OverviewTask[]) {
 export function buildOverviewModel({
   catalog,
   detailBySkuId,
+  forceStaleUpdateReminder,
   language,
   observations,
+  staleUpdateReminderSnoozeUntil,
   workspaceSummary,
 }: {
   catalog: SenaCatalog | null;
   detailBySkuId: Record<string, SenaSkuDetail | null>;
+  forceStaleUpdateReminder?: boolean;
   language: AppLanguage;
   observations: SenaObservationRecord[];
+  staleUpdateReminderSnoozeUntil?: string | null;
   workspaceSummary: SenaWorkspaceSummary | null;
 }): OverviewModel {
   if (!catalog || !workspaceSummary) {
@@ -797,7 +908,7 @@ export function buildOverviewModel({
         workspaceLatestObservedAt: workspaceSummary.latestObservedAt,
       }),
     )
-    .filter((value): value is OverviewTask => value != null)
+    .filter((value): value is OverviewSkuTask => value != null)
     .sort((left, right) => {
       const priorityGap = taskPriority(left.state) - taskPriority(right.state);
       if (priorityGap !== 0) {
@@ -805,6 +916,13 @@ export function buildOverviewModel({
       }
       return right.stockoutRisk - left.stockoutRisk;
     });
+  const staleUpdateReminderTask = buildStaleUpdateReminderTask({
+    forceVisible: forceStaleUpdateReminder ?? false,
+    language,
+    observations,
+    snoozeUntil: staleUpdateReminderSnoozeUntil ?? null,
+  });
+  const allTasks = staleUpdateReminderTask ? [staleUpdateReminderTask, ...tasks] : tasks;
 
   const inTransit = tasks
     .filter((task) =>
@@ -837,7 +955,7 @@ export function buildOverviewModel({
     .slice(0, 4);
 
   return {
-    tasks,
+    tasks: allTasks,
     inTransit,
     recentReceipts,
     signals: buildSignals(tasks),
@@ -854,6 +972,22 @@ export function taskMatchesQuery(task: OverviewTask, query: string) {
   if (!normalized) {
     return true;
   }
+
+  if (task.kind === 'stale_update_reminder') {
+    return [
+      task.stateLabel,
+      task.actionLabel,
+      task.snoozeActionLabel,
+      task.whyNow,
+      task.whyDetail,
+      task.etaLabel,
+      task.etaDetail,
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(normalized);
+  }
+
   return [
     task.skuName,
     task.serviceImpact,
@@ -871,7 +1005,14 @@ export function taskMatchesQuery(task: OverviewTask, query: string) {
 }
 
 export function shouldShowTask(task: OverviewTask, filter: OverviewTaskFilter) {
+  if (task.kind === 'stale_update_reminder') {
+    return filter === 'all';
+  }
   return filter === 'all' || task.state === filter;
+}
+
+export function isOverviewSkuTask(task: OverviewTask): task is OverviewSkuTask {
+  return task.kind === 'sku';
 }
 
 export function relativeReceiptLabel(value: string | null) {

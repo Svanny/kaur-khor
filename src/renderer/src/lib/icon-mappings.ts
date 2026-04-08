@@ -22,6 +22,7 @@ import {
   Send,
   TimerReset,
   Eye,
+  BellRing,
 } from 'lucide-react';
 import type {
   OverviewTaskAction,
@@ -35,6 +36,8 @@ export const overviewTaskActionIconMap: Record<OverviewTaskAction, LucideIcon | 
   follow_up: Send,
   receive: ScanLine,
   review: null,
+  start_update: ClipboardList,
+  remind_tomorrow: BellRing,
 };
 
 export const overviewTaskFilterIconMap: Record<OverviewTaskFilter, LucideIcon> = {

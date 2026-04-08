@@ -46,7 +46,7 @@ import {
 } from '@/routes/detail-action-sheet';
 import { createEmptyObservationInput, hasStructuredObservationSignal } from '@/routes/observation-payload';
 import { useInventory } from '@/state/inventory';
-import type { OverviewDrawerBandId, OverviewTask, OverviewTaskDrawerMode } from './view-model';
+import type { OverviewDrawerBandId, OverviewSkuTask, OverviewTaskDrawerMode } from './view-model';
 
 function initialObservedAt(value: string | null) {
   if (value) {
@@ -260,7 +260,7 @@ function DrawerModeTile({
   );
 }
 
-function RecommendedOrderPanel({ task }: { task: OverviewTask }) {
+function RecommendedOrderPanel({ task }: { task: OverviewSkuTask }) {
   const recommendation = task.reorderRecommendation;
 
   return (
@@ -297,7 +297,7 @@ export function OverviewTaskDrawer({
   onOpenChange,
 }: {
   open: boolean;
-  task: OverviewTask | null;
+  task: OverviewSkuTask | null;
   onOpenChange: (open: boolean) => void;
 }) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();

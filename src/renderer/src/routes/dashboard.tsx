@@ -39,12 +39,12 @@ import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
-import { intervalDaysBetween, latestObservationAt } from './observation-payload';
-import { formatSenaDateTime } from './sku-detail/format';
 import { OverviewTaskDrawer } from './overview/task-drawer';
 import {
   buildOverviewModel,
+  isOverviewSkuTask,
   shouldShowTask,
+  type OverviewSkuTask,
   type OverviewTask,
   type OverviewTaskFilter,
 } from './overview/view-model';
@@ -84,7 +84,23 @@ function railBlockClassName() {
   return 'border-t border-border/60 px-5 py-5 first:border-t-0';
 }
 
+const overviewStartUpdateButtonClassName =
+  'border-[#b87745] bg-[#b87745] text-white shadow-xs hover:bg-[#a66a3b]';
+
+function nextLocalDayStartIso(reference = new Date()) {
+  const nextDayStart = new Date(
+    reference.getFullYear(),
+    reference.getMonth(),
+    reference.getDate() + 1,
+  );
+  return nextDayStart.toISOString();
+}
+
 function matchesOverviewEntityScope(task: OverviewTask, scope: OverviewSearchScope) {
+  if (!isOverviewSkuTask(task)) {
+    return scope === 'all';
+  }
+
   if (scope === 'all') {
     return true;
   }
@@ -100,6 +116,21 @@ function matchesOverviewQuery(task: OverviewTask, query: string, scope: Overview
   const normalized = query.trim().toLowerCase();
   if (!normalized) {
     return true;
+  }
+
+  if (!isOverviewSkuTask(task)) {
+    return [
+      task.stateLabel,
+      task.actionLabel,
+      task.snoozeActionLabel,
+      task.whyNow,
+      task.whyDetail,
+      task.etaLabel,
+      task.etaDetail,
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(normalized);
   }
 
   const parts =
@@ -123,7 +154,13 @@ function matchesOverviewQuery(task: OverviewTask, query: string, scope: Overview
 
 export function DashboardRoute() {
   const inventory = useInventory();
-  const { language, showRightRailCards, t } = usePreferences();
+  const {
+    applyOverviewStaleUpdateReminderSnoozeUntil,
+    language,
+    overviewStaleUpdateReminderSnoozeUntil,
+    showRightRailCards,
+    t,
+  } = usePreferences();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const [searchScope, setSearchScope] = useState<OverviewSearchScope>('all');
@@ -167,18 +204,23 @@ export function DashboardRoute() {
   const model = buildOverviewModel({
     catalog: inventory.catalog,
     detailBySkuId,
+    forceStaleUpdateReminder: import.meta.env.MODE === 'development',
     language,
     observations: inventory.observations,
+    staleUpdateReminderSnoozeUntil: overviewStaleUpdateReminderSnoozeUntil,
     workspaceSummary: inventory.workspaceSummary,
   });
-  const latestUpdateAt = latestObservationAt(inventory.observations);
-  const latestUpdateAgeDays = intervalDaysBetween(latestUpdateAt, new Date().toISOString());
 
   const scopedTasks = model.tasks.filter(
-    (task) => matchesOverviewEntityScope(task, searchScope) && matchesOverviewQuery(task, deferredQuery, searchScope),
+    (task) =>
+      isOverviewSkuTask(task)
+        ? matchesOverviewEntityScope(task, searchScope) && matchesOverviewQuery(task, deferredQuery, searchScope)
+        : searchScope === 'all' && matchesOverviewQuery(task, deferredQuery, searchScope),
   );
   const visibleTasks = scopedTasks.filter((task) => shouldShowTask(task, filter));
-  const selectedTask = scopedTasks.find((task) => task.id === selectedTaskId) ?? null;
+  const selectedTask = scopedTasks.find(
+    (task): task is OverviewSkuTask => task.id === selectedTaskId && isOverviewSkuTask(task),
+  ) ?? null;
 
   useEffect(() => {
     if (selectedTaskId && !selectedTask) {
@@ -210,7 +252,7 @@ export function DashboardRoute() {
           hint="Capture a live observation so Banji can build the order, receipt, and follow-up queue."
           action={
             <WorkspaceActionRow>
-              <Button asChild>
+              <Button asChild className={overviewStartUpdateButtonClassName}>
                 <Link to="/record-update">Start update</Link>
               </Button>
               <Button asChild variant="outline">
@@ -231,7 +273,7 @@ export function DashboardRoute() {
         descriptor="See what needs attention next, what is already in motion, and when Banji will check back."
         actions={
           <WorkspaceActionRow>
-            <Button asChild variant="outline">
+            <Button asChild className={overviewStartUpdateButtonClassName}>
               <Link to="/record-update">
                 <ClipboardList className="size-4" />
                 Start update
@@ -240,15 +282,6 @@ export function DashboardRoute() {
           </WorkspaceActionRow>
         }
       >
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[1.15rem] border border-border/65 bg-background/65 px-4 py-3 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">
-            {latestUpdateAt
-              ? `Last update ${latestUpdateAgeDays == null ? formatSenaDateTime(latestUpdateAt, language) : `${latestUpdateAgeDays} days ago`}`
-              : 'No real-world update yet'}
-          </span>
-          <span>·</span>
-          <span>{model.tasks.length} high-impact queue item{model.tasks.length === 1 ? '' : 's'} need current signals</span>
-        </div>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
           <div className="w-full max-w-xl">
             <SearchInput
@@ -351,26 +384,45 @@ export function DashboardRoute() {
                           data-slot="overview-task-row"
                         >
                           <div className="min-w-0">
-                            <button
-                              className="group min-w-0 text-left"
-                              type="button"
-                              onClick={() => setSelectedTaskId(task.id)}
-                            >
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
-                                  {task.skuName}
-                                </span>
-                                <span
-                                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
-                                >
-                                  {task.stateLabel}
-                                </span>
+                            {isOverviewSkuTask(task) ? (
+                              <button
+                                className="group min-w-0 text-left"
+                                type="button"
+                                onClick={() => setSelectedTaskId(task.id)}
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
+                                    {task.skuName}
+                                  </span>
+                                  <span
+                                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
+                                  >
+                                    {task.stateLabel}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+                                  {task.skuId}
+                                </p>
+                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.serviceImpact}</p>
+                              </button>
+                            ) : (
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-base font-semibold text-foreground">
+                                    Capture a fresh update
+                                  </span>
+                                  <span
+                                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
+                                  >
+                                    {task.stateLabel}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+                                  Overview reminder
+                                </p>
+                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
                               </div>
-                              <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                                {task.skuId}
-                              </p>
-                              <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.serviceImpact}</p>
-                            </button>
+                            )}
                           </div>
 
                           <div className="min-w-0">
@@ -379,7 +431,7 @@ export function DashboardRoute() {
                             </HeaderedTableMobileLabel>
                             <p className="font-medium text-foreground">{task.whyNow}</p>
                             <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
-                            {task.reorderRecommendation.compactLabel ? (
+                            {isOverviewSkuTask(task) && task.reorderRecommendation.compactLabel ? (
                               <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.reorderRecommendation.compactLabel}</p>
                             ) : null}
                           </div>
@@ -395,16 +447,44 @@ export function DashboardRoute() {
                           </div>
 
                           <div className="flex items-start lg:justify-center">
-                            <Button
-                              className="w-[136px] justify-center"
-                              size="sm"
-                              type="button"
-                              variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
-                              onClick={() => setSelectedTaskId(task.id)}
-                            >
-                              {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
-                              {task.actionLabel}
-                            </Button>
+                            {isOverviewSkuTask(task) ? (
+                              <Button
+                                className="w-[136px] justify-center"
+                                size="sm"
+                                type="button"
+                                variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
+                                onClick={() => setSelectedTaskId(task.id)}
+                              >
+                                {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
+                                {task.actionLabel}
+                              </Button>
+                            ) : (
+                              <div className="flex w-full min-w-[168px] flex-col gap-2 lg:w-[168px]">
+                                <Button asChild className="justify-center">
+                                  <Link to="/record-update">
+                                    {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
+                                    {task.actionLabel}
+                                  </Link>
+                                </Button>
+                                <Button
+                                  className="justify-center"
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() =>
+                                    void applyOverviewStaleUpdateReminderSnoozeUntil(
+                                      nextLocalDayStartIso(),
+                                    )
+                                  }
+                                >
+                                  {(() => {
+                                    const SnoozeIcon = overviewTaskActionIconMap[task.snoozeAction];
+                                    return SnoozeIcon ? <SnoozeIcon className="size-4" /> : null;
+                                  })()}
+                                  {task.snoozeActionLabel}
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </HeaderedTableRow>
                       );

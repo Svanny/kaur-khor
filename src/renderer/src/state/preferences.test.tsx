@@ -134,7 +134,14 @@ describe('preferences state', () => {
     fireEvent.click(screen.getByText('save'));
 
     await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith({ language: 'km', currency: 'KHR', showExplanatoryTooltips: false, showFloatingTitleActions: false, showRightRailCards: false, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        language: 'km',
+        currency: 'KHR',
+        showExplanatoryTooltips: false,
+        showFloatingTitleActions: false,
+        showRightRailCards: false,
+        senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      }));
     });
     expect(screen.getByTestId('persisted-language').textContent).toBe('km');
     expect(screen.getByTestId('persisted-currency').textContent).toBe('KHR');

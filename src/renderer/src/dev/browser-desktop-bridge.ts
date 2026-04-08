@@ -160,7 +160,7 @@ const mockCatalog: SenaCatalog = {
 const mockWorkspaceSummary: SenaWorkspaceSummary = {
   ownerSub: MOCK_OWNER_SUB,
   runId: MOCK_RUN_ID,
-  latestObservedAt: '2026-04-03T08:00:00.000Z',
+  latestObservedAt: '2025-03-30T15:00:00.000Z',
   skuCount: 5,
   serviceCount: 7,
   intervalCount: 4,
@@ -256,7 +256,7 @@ const mockObservations: SenaObservationRecord[] = [
     observationId: 'obs-order-rattan',
     ownerSub: MOCK_OWNER_SUB,
     input: {
-      observedAt: '2026-03-28T08:00:00.000Z',
+      observedAt: '2025-03-28T08:00:00.000Z',
       stockSnapshot: [],
       serviceRankings: [],
       retailRankings: [],
@@ -286,7 +286,7 @@ const mockObservations: SenaObservationRecord[] = [
     observationId: 'obs-order-children',
     ownerSub: MOCK_OWNER_SUB,
     input: {
-      observedAt: '2026-03-29T08:00:00.000Z',
+      observedAt: '2025-03-29T08:00:00.000Z',
       stockSnapshot: [],
       serviceRankings: [],
       retailRankings: [],
@@ -311,7 +311,7 @@ const mockObservations: SenaObservationRecord[] = [
     observationId: 'obs-order-scarf',
     ownerSub: MOCK_OWNER_SUB,
     input: {
-      observedAt: '2026-03-30T08:00:00.000Z',
+      observedAt: '2025-03-30T08:00:00.000Z',
       stockSnapshot: [],
       serviceRankings: [],
       retailRankings: [],
@@ -336,7 +336,7 @@ const mockObservations: SenaObservationRecord[] = [
     observationId: 'obs-receive-belt',
     ownerSub: MOCK_OWNER_SUB,
     input: {
-      observedAt: '2026-03-30T12:00:00.000Z',
+      observedAt: '2025-03-30T12:00:00.000Z',
       stockSnapshot: [],
       serviceRankings: [],
       retailRankings: [],
@@ -361,7 +361,7 @@ const mockObservations: SenaObservationRecord[] = [
     observationId: 'obs-receipt-sampot',
     ownerSub: MOCK_OWNER_SUB,
     input: {
-      observedAt: '2026-03-30T15:00:00.000Z',
+      observedAt: '2025-03-30T15:00:00.000Z',
       stockSnapshot: [
         {
           skuId: 'sku-5',
@@ -534,7 +534,7 @@ const mockInventorySnapshot: InventorySnapshot = {
     topServiceIds: [],
     topRetailSkuIds: [],
   },
-  lastReportAt: '2026-04-03T08:00:00.000Z',
+  lastReportAt: '2025-03-30T15:00:00.000Z',
 };
 
 const mockLocalDataInfo: DesktopLocalDataInfo = {
@@ -587,8 +587,8 @@ function createMockState(): BrowserMockState {
     algorithmVersion: 'sena-analysis-v3',
     status: 'succeeded',
     observationCount: mockObservations.length,
-    createdAt: '2026-04-03T08:05:00.000Z',
-    completedAt: '2026-04-03T08:05:03.000Z',
+    createdAt: '2025-03-30T15:05:00.000Z',
+    completedAt: '2025-03-30T15:05:03.000Z',
     summary: clone(mockWorkspaceSummary),
     diagnostics: clone(mockDiagnostics),
     primaryArtifactKey: null,
@@ -613,6 +613,7 @@ function createMockState(): BrowserMockState {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
     },
     reports: [],
     serviceDetails,

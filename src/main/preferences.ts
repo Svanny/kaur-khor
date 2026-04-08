@@ -1,6 +1,11 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DEFAULT_SENA_ENGINE_PARAMETERS, normalizeSenaEngineParameters, type DesktopPreferences } from '@shared/ipc';
+import {
+  DEFAULT_SENA_ENGINE_PARAMETERS,
+  normalizeDesktopPreferenceTimestamp,
+  normalizeSenaEngineParameters,
+  type DesktopPreferences,
+} from '@shared/ipc';
 
 const DEFAULT_PREFERENCES: DesktopPreferences = {
   language: 'en',
@@ -9,6 +14,7 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   showFloatingTitleActions: true,
   showRightRailCards: true,
   senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+  overviewStaleUpdateReminderSnoozeUntil: null,
 };
 let preferencesWriteQueue: Promise<void> = Promise.resolve();
 
@@ -24,6 +30,9 @@ function normalizePreferences(value: Partial<DesktopPreferences> | null | undefi
     showFloatingTitleActions: value?.showFloatingTitleActions ?? true,
     showRightRailCards: value?.showRightRailCards ?? true,
     senaEngineParameters: normalizeSenaEngineParameters(value?.senaEngineParameters),
+    overviewStaleUpdateReminderSnoozeUntil: normalizeDesktopPreferenceTimestamp(
+      value?.overviewStaleUpdateReminderSnoozeUntil,
+    ),
   };
 }
 

@@ -8,12 +8,16 @@ import { rowHoverClassName } from '@/lib/interactive-surface';
 import { DashboardRoute } from './dashboard';
 
 const inventoryHook = vi.fn();
+const applyOverviewStaleUpdateReminderSnoozeUntil = vi.fn(async (value: string | null) => {
+  preferenceState.overviewStaleUpdateReminderSnoozeUntil = value;
+});
 const preferenceState = {
   currency: 'USD',
   language: 'en',
   showExplanatoryTooltips: true,
   showFloatingTitleActions: true,
   showRightRailCards: true,
+  overviewStaleUpdateReminderSnoozeUntil: null as string | null,
 };
 
 vi.mock('../state/inventory', () => ({
@@ -27,6 +31,8 @@ vi.mock('../state/preferences', () => ({
     showExplanatoryTooltips: preferenceState.showExplanatoryTooltips,
     showFloatingTitleActions: preferenceState.showFloatingTitleActions,
     showRightRailCards: preferenceState.showRightRailCards,
+    overviewStaleUpdateReminderSnoozeUntil: preferenceState.overviewStaleUpdateReminderSnoozeUntil,
+    applyOverviewStaleUpdateReminderSnoozeUntil,
     t: (key: string) => {
       if (key === 'searchPlaceholder') {
         return 'Search name, description, or id…';
@@ -350,6 +356,8 @@ function renderRouteWithOptionalHelp(visible: boolean) {
 describe('DashboardRoute', () => {
   beforeEach(() => {
     preferenceState.showRightRailCards = true;
+    preferenceState.overviewStaleUpdateReminderSnoozeUntil = null;
+    applyOverviewStaleUpdateReminderSnoozeUntil.mockClear();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-04-03T12:00:00.000Z'));
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
@@ -615,5 +623,44 @@ describe('DashboardRoute', () => {
 
     expect(await screen.findByText('Overview needs the catalog first')).toBeInTheDocument();
     expect(screen.queryByText('Create the first SKU so Banji can build an action list from real stock work.')).not.toBeInTheDocument();
+  });
+
+  test('shows a stale-update reminder in All Tasks and lets the user snooze it until tomorrow', async () => {
+    const user = userEvent.setup();
+    vi.setSystemTime(new Date('2026-04-12T12:00:00.000Z'));
+
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      submitLegacyReport: vi.fn(async (payload) => payload),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    const { rerender } = renderRoute();
+
+    const reminderText = await screen.findByText('Capture a fresh update');
+    const reminderRow = reminderText.closest('[data-slot="overview-task-row"]');
+    expect(reminderRow).not.toBeNull();
+    expect(within(reminderRow as HTMLElement).getByRole('link', { name: 'Start update' })).toHaveAttribute('href', '/record-update');
+    expect(within(reminderRow as HTMLElement).getByRole('button', { name: 'Remind tomorrow' })).toBeInTheDocument();
+
+    await user.click(within(reminderRow as HTMLElement).getByRole('button', { name: 'Remind tomorrow' }));
+
+    expect(applyOverviewStaleUpdateReminderSnoozeUntil).toHaveBeenCalledTimes(1);
+    expect(preferenceState.overviewStaleUpdateReminderSnoozeUntil).toBe('2026-04-12T17:00:00.000Z');
+
+    rerender(
+      <MemoryRouter>
+        <DashboardRoute />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText('Capture a fresh update')).not.toBeInTheDocument();
+    });
   });
 });

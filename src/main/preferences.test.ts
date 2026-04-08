@@ -40,6 +40,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       senaEngineParameters: defaultSenaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil: null,
     });
   });
 
@@ -58,6 +59,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       senaEngineParameters: defaultSenaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil: null,
     });
 
     await expect(
@@ -65,6 +67,7 @@ describe('desktop preferences store', () => {
         currency: 'KHR',
         showExplanatoryTooltips: false,
         showRightRailCards: false,
+        overviewStaleUpdateReminderSnoozeUntil: '2026-04-05T17:00:00.000Z',
       }),
     ).resolves.toEqual({
       language: 'km',
@@ -73,6 +76,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: false,
       senaEngineParameters: defaultSenaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil: '2026-04-05T17:00:00.000Z',
     });
 
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
@@ -82,6 +86,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: false,
       senaEngineParameters: defaultSenaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil: '2026-04-05T17:00:00.000Z',
     });
 
     const raw = await readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8');
@@ -92,6 +97,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: false,
       senaEngineParameters: defaultSenaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil: '2026-04-05T17:00:00.000Z',
     });
   });
 
@@ -146,6 +152,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       senaEngineParameters: defaultSenaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil: null,
     });
     await expect(secondSave).resolves.toEqual({
       language: 'km',
@@ -154,6 +161,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       senaEngineParameters: defaultSenaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil: null,
     });
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
@@ -162,6 +170,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       senaEngineParameters: defaultSenaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil: null,
     });
   });
 });

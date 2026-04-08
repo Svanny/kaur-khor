@@ -36,6 +36,7 @@ export interface DesktopPreferences {
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
   senaEngineParameters: SenaEngineParameters;
+  overviewStaleUpdateReminderSnoozeUntil: string | null;
 }
 
 export interface SenaEngineParameters {
@@ -149,6 +150,17 @@ export const DEFAULT_SENA_ENGINE_PARAMETERS: SenaEngineParameters = {
   reviewDelayDays: 0,
   smoothingEnabled: false,
 };
+
+export function normalizeDesktopPreferenceTimestamp(value: string | null | undefined) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
 
 export function normalizeSenaEngineParameters(
   value: Partial<SenaEngineParameters> | null | undefined,

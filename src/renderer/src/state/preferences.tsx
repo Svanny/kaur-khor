@@ -8,6 +8,7 @@ import {
 } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import {
+  normalizeDesktopPreferenceTimestamp,
   normalizeSenaEngineParameters,
   senaEngineParametersEqual,
   type SenaEngineParameters,
@@ -22,6 +23,7 @@ interface PreferencesContextValue {
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
   senaEngineParameters: SenaEngineParameters;
+  overviewStaleUpdateReminderSnoozeUntil: string | null;
   displayViewMode: 'minimal' | 'maximal';
   persistedLanguage: AppLanguage;
   persistedCurrency: AppCurrency;
@@ -29,15 +31,26 @@ interface PreferencesContextValue {
   persistedShowFloatingTitleActions: boolean;
   persistedShowRightRailCards: boolean;
   persistedSenaEngineParameters: SenaEngineParameters;
+  persistedOverviewStaleUpdateReminderSnoozeUntil: string | null;
   setLanguage: (value: AppLanguage) => void;
   setCurrency: (value: AppCurrency) => void;
   setShowExplanatoryTooltips: (value: boolean) => void;
   setShowFloatingTitleActions: (value: boolean) => void;
   setShowRightRailCards: (value: boolean) => void;
   setSenaEngineParameters: (value: SenaEngineParameters) => void;
+  setOverviewStaleUpdateReminderSnoozeUntil: (value: string | null) => void;
   applySenaEngineParameters: (value: SenaEngineParameters) => Promise<void>;
+  applyOverviewStaleUpdateReminderSnoozeUntil: (value: string | null) => Promise<void>;
   applyDisplayViewMode: (mode: 'minimal' | 'maximal') => Promise<void>;
-  savePreferences: () => Promise<void>;
+  savePreferences: (overrides?: Partial<{
+    language: AppLanguage;
+    currency: AppCurrency;
+    showExplanatoryTooltips: boolean;
+    showFloatingTitleActions: boolean;
+    showRightRailCards: boolean;
+    senaEngineParameters: SenaEngineParameters;
+    overviewStaleUpdateReminderSnoozeUntil: string | null;
+  }>) => Promise<void>;
   resetPreferences: () => void;
   hasPendingChanges: boolean;
   t: (key: TranslationKey) => string;
@@ -70,6 +83,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [senaEngineParameters, setSenaEngineParametersState] = useState(() =>
     normalizeSenaEngineParameters(null),
   );
+  const [overviewStaleUpdateReminderSnoozeUntil, setOverviewStaleUpdateReminderSnoozeUntilState] =
+    useState<string | null>(null);
   const [persistedLanguage, setPersistedLanguage] = useState<AppLanguage>('en');
   const [persistedCurrency, setPersistedCurrency] = useState<AppCurrency>('USD');
   const [persistedShowExplanatoryTooltips, setPersistedShowExplanatoryTooltips] = useState(true);
@@ -78,6 +93,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedSenaEngineParameters, setPersistedSenaEngineParameters] = useState(() =>
     normalizeSenaEngineParameters(null),
   );
+  const [persistedOverviewStaleUpdateReminderSnoozeUntil, setPersistedOverviewStaleUpdateReminderSnoozeUntil] =
+    useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -97,12 +114,18 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowFloatingTitleActionsState(preferences.showFloatingTitleActions);
         setShowRightRailCardsState(preferences.showRightRailCards);
         setSenaEngineParametersState(nextSenaEngineParameters);
+        setOverviewStaleUpdateReminderSnoozeUntilState(
+          normalizeDesktopPreferenceTimestamp(preferences.overviewStaleUpdateReminderSnoozeUntil),
+        );
         setPersistedLanguage(preferences.language);
         setPersistedCurrency(preferences.currency);
         setPersistedShowExplanatoryTooltips(preferences.showExplanatoryTooltips);
         setPersistedShowFloatingTitleActions(preferences.showFloatingTitleActions);
         setPersistedShowRightRailCards(preferences.showRightRailCards);
         setPersistedSenaEngineParameters(nextSenaEngineParameters);
+        setPersistedOverviewStaleUpdateReminderSnoozeUntil(
+          normalizeDesktopPreferenceTimestamp(preferences.overviewStaleUpdateReminderSnoozeUntil),
+        );
       })
       .catch((error) => {
         console.error('failed to load desktop preferences', error);
@@ -120,21 +143,27 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
     senaEngineParameters: SenaEngineParameters;
+    overviewStaleUpdateReminderSnoozeUntil: string | null;
   }>) {
     const nextPreferences = await window.banjiDesktop.preferences.save(next);
     const nextSenaEngineParameters = normalizeSenaEngineParameters(nextPreferences.senaEngineParameters);
+    const nextOverviewStaleUpdateReminderSnoozeUntil = normalizeDesktopPreferenceTimestamp(
+      nextPreferences.overviewStaleUpdateReminderSnoozeUntil,
+    );
     setLanguageState(nextPreferences.language);
     setCurrencyState(nextPreferences.currency);
     setShowExplanatoryTooltipsState(nextPreferences.showExplanatoryTooltips);
     setShowFloatingTitleActionsState(nextPreferences.showFloatingTitleActions);
     setShowRightRailCardsState(nextPreferences.showRightRailCards);
     setSenaEngineParametersState(nextSenaEngineParameters);
+    setOverviewStaleUpdateReminderSnoozeUntilState(nextOverviewStaleUpdateReminderSnoozeUntil);
     setPersistedLanguage(nextPreferences.language);
     setPersistedCurrency(nextPreferences.currency);
     setPersistedShowExplanatoryTooltips(nextPreferences.showExplanatoryTooltips);
     setPersistedShowFloatingTitleActions(nextPreferences.showFloatingTitleActions);
     setPersistedShowRightRailCards(nextPreferences.showRightRailCards);
     setPersistedSenaEngineParameters(nextSenaEngineParameters);
+    setPersistedOverviewStaleUpdateReminderSnoozeUntil(nextOverviewStaleUpdateReminderSnoozeUntil);
     return nextPreferences;
   }
 
@@ -146,6 +175,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       showFloatingTitleActions,
       showRightRailCards,
       senaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil,
       displayViewMode: resolveDisplayViewMode({
         showExplanatoryTooltips,
         showFloatingTitleActions,
@@ -157,6 +187,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
       persistedSenaEngineParameters,
+      persistedOverviewStaleUpdateReminderSnoozeUntil,
       setLanguage: setLanguageState,
       setCurrency: setCurrencyState,
       setShowExplanatoryTooltips: setShowExplanatoryTooltipsState,
@@ -164,9 +195,16 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setShowRightRailCards: setShowRightRailCardsState,
       setSenaEngineParameters: (next) =>
         setSenaEngineParametersState(normalizeSenaEngineParameters(next)),
+      setOverviewStaleUpdateReminderSnoozeUntil: (next) =>
+        setOverviewStaleUpdateReminderSnoozeUntilState(normalizeDesktopPreferenceTimestamp(next)),
       applySenaEngineParameters: async (next) => {
         await savePreferencesPatch({
           senaEngineParameters: normalizeSenaEngineParameters(next),
+        });
+      },
+      applyOverviewStaleUpdateReminderSnoozeUntil: async (next) => {
+        await savePreferencesPatch({
+          overviewStaleUpdateReminderSnoozeUntil: normalizeDesktopPreferenceTimestamp(next),
         });
       },
       applyDisplayViewMode: async (mode) => {
@@ -176,14 +214,16 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           showRightRailCards: mode === 'maximal',
         });
       },
-      savePreferences: async () => {
+      savePreferences: async (overrides) => {
         await savePreferencesPatch({
-          language,
-          currency,
-          showExplanatoryTooltips,
-          showFloatingTitleActions,
-          showRightRailCards,
-          senaEngineParameters,
+          language: overrides?.language ?? language,
+          currency: overrides?.currency ?? currency,
+          showExplanatoryTooltips: overrides?.showExplanatoryTooltips ?? showExplanatoryTooltips,
+          showFloatingTitleActions: overrides?.showFloatingTitleActions ?? showFloatingTitleActions,
+          showRightRailCards: overrides?.showRightRailCards ?? showRightRailCards,
+          senaEngineParameters: overrides?.senaEngineParameters ?? senaEngineParameters,
+          overviewStaleUpdateReminderSnoozeUntil:
+            overrides?.overviewStaleUpdateReminderSnoozeUntil ?? overviewStaleUpdateReminderSnoozeUntil,
         });
       },
       resetPreferences: () => {
@@ -193,6 +233,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowFloatingTitleActionsState(persistedShowFloatingTitleActions);
         setShowRightRailCardsState(persistedShowRightRailCards);
         setSenaEngineParametersState(persistedSenaEngineParameters);
+        setOverviewStaleUpdateReminderSnoozeUntilState(
+          persistedOverviewStaleUpdateReminderSnoozeUntil,
+        );
       },
       hasPendingChanges:
         language !== persistedLanguage ||
@@ -200,6 +243,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         showExplanatoryTooltips !== persistedShowExplanatoryTooltips ||
         showFloatingTitleActions !== persistedShowFloatingTitleActions ||
         showRightRailCards !== persistedShowRightRailCards ||
+        overviewStaleUpdateReminderSnoozeUntil !== persistedOverviewStaleUpdateReminderSnoozeUntil ||
         !senaEngineParametersEqual(senaEngineParameters, persistedSenaEngineParameters),
       t: (key) => getTranslation(language, key),
       rawT: (key) => getTranslation(language, key),
@@ -214,7 +258,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
       persistedSenaEngineParameters,
+      persistedOverviewStaleUpdateReminderSnoozeUntil,
       senaEngineParameters,
+      overviewStaleUpdateReminderSnoozeUntil,
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,
