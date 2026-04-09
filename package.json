@@ -1,6 +1,6 @@
 {
   "name": "banji",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "private": true,
   "description": "Electron desktop inventory workspace for Banji, with a bundled Rust desktop-core runtime for local persistence and analysis flows.",
   "author": {
