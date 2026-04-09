@@ -223,6 +223,54 @@ impl SenaRepository for SqliteSenaRepository {
         Ok(record)
     }
 
+    async fn update_observation(
+        &self,
+        owner_sub: &str,
+        observation_id: &str,
+        observation: &SenaObservationInput,
+    ) -> Result<SenaObservationRecord> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let updated = connection.execute(
+            r#"
+            UPDATE sena_observation
+            SET observed_at = ?3, payload = ?4
+            WHERE observation_id = ?1 AND owner_sub = ?2
+            "#,
+            params![
+                observation_id,
+                owner_sub,
+                observation.observed_at,
+                serde_json::to_string(observation)?,
+            ],
+        )?;
+        if updated == 0 {
+            return Err(anyhow!("observation not found"));
+        }
+        Ok(SenaObservationRecord {
+            observation_id: observation_id.to_string(),
+            owner_sub: owner_sub.to_string(),
+            input: observation.clone(),
+        })
+    }
+
+    async fn delete_observation(&self, owner_sub: &str, observation_id: &str) -> Result<()> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let deleted = connection.execute(
+            "DELETE FROM sena_observation WHERE observation_id = ?1 AND owner_sub = ?2",
+            params![observation_id, owner_sub],
+        )?;
+        if deleted == 0 {
+            return Err(anyhow!("observation not found"));
+        }
+        Ok(())
+    }
+
     async fn list_observations(&self, owner_sub: &str) -> Result<Vec<SenaObservationRecord>> {
         let connection = self
             .connection
@@ -730,6 +778,7 @@ mod tests {
                 name: "SKU 1".to_string(),
                 description: "Inventory".to_string(),
                 cost_per_unit: 2.0,
+                archived: false,
                 sold_as_product: true,
                 product_price: Some(5.0),
                 lead_time_mean_days_hint: Some(2.0),
@@ -740,6 +789,7 @@ mod tests {
                 name: "Service".to_string(),
                 description: "Linked service".to_string(),
                 price: 10.0,
+                archived: false,
                 bundle: true,
             }],
             bundles: Vec::new(),
@@ -899,5 +949,34 @@ mod tests {
             metadata.observation_prefix_fingerprint,
             checkpoints[0].metadata.observation_prefix_fingerprint
         );
+    }
+
+    #[test]
+    fn observations_can_be_updated_and_deleted() {
+        let path = temp_store_path("observation-mutations");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let inserted = block_on(repo.insert_observation(
+            "owner",
+            &observation("2026-04-01T00:00:00Z", 14.0).input,
+        ))
+        .expect("observation should insert");
+
+        let mut updated_input = inserted.input.clone();
+        updated_input.notes = Some("edited".to_string());
+        updated_input.observed_at = "2026-04-02T00:00:00Z".to_string();
+
+        let updated = block_on(repo.update_observation("owner", &inserted.observation_id, &updated_input))
+            .expect("observation should update");
+        assert_eq!(updated.observation_id, inserted.observation_id);
+        assert_eq!(updated.input.notes.as_deref(), Some("edited"));
+
+        let observations = block_on(repo.list_observations("owner")).expect("observations should load");
+        assert_eq!(observations.len(), 1);
+        assert_eq!(observations[0].input.observed_at, "2026-04-02T00:00:00Z");
+
+        block_on(repo.delete_observation("owner", &inserted.observation_id))
+            .expect("observation should delete");
+        let remaining = block_on(repo.list_observations("owner")).expect("observations should load");
+        assert!(remaining.is_empty());
     }
 }

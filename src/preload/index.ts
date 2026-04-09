@@ -13,9 +13,11 @@ import type { InventorySnapshot, StockReport, StockReportSubmission } from '@sha
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaObservationDeletePayload,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaObservationUpdatePayload,
   SenaServiceDetailPage,
   SenaSkuDetailPage,
   SenaWorkspaceSummary,
@@ -25,7 +27,7 @@ const desktopBridge: DesktopBridge = {
   system: {
     getAppContext: () => ipcRenderer.invoke(IPC_CHANNELS.systemGetAppContext),
     getLocalDataInfo: () => ipcRenderer.invoke(IPC_CHANNELS.systemGetLocalDataInfo),
-    openLocalDataFolder: () => ipcRenderer.invoke(IPC_CHANNELS.systemOpenLocalDataFolder),
+    revealPath: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.systemRevealPath, path),
   },
   inventory: {
     loadSnapshot: (): Promise<InventorySnapshot> => ipcRenderer.invoke(IPC_CHANNELS.inventoryLoadSnapshot),
@@ -41,6 +43,10 @@ const desktopBridge: DesktopBridge = {
       ipcRenderer.invoke(IPC_CHANNELS.senaUpsertCatalog, payload),
     ingestObservation: (payload: SenaObservationInput): Promise<SenaObservationRecord> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaIngestObservation, payload),
+    updateObservation: (payload: SenaObservationUpdatePayload): Promise<SenaObservationRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaUpdateObservation, payload),
+    deleteObservation: (payload: SenaObservationDeletePayload): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaDeleteObservation, payload),
     triggerRun: (payload?: SenaTriggerRunPayload): Promise<SenaAnalysisRunRecord> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaTriggerRun, payload),
     retryRun: (payload: SenaRunLookupPayload): Promise<SenaAnalysisRunRecord> =>

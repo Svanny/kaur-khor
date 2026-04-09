@@ -51,6 +51,35 @@ export interface StartManagedCoreOptions {
   isPackaged?: boolean;
 }
 
+function signalProcessGroup(pid: number, signal: NodeJS.Signals) {
+  process.kill(-pid, signal);
+}
+
+function isMissingProcessError(error: unknown) {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as NodeJS.ErrnoException).code === 'ESRCH';
+}
+
+export function terminateManagedChildProcess(
+  child: Pick<ChildProcessWithoutNullStreams, 'kill' | 'pid'>,
+  signal: NodeJS.Signals,
+) {
+  if (process.platform !== 'win32' && typeof child.pid === 'number') {
+    try {
+      signalProcessGroup(child.pid, signal);
+      return;
+    } catch (error) {
+      if (!isMissingProcessError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  child.kill(signal);
+}
+
 function desktopTraceEnabled() {
   const raw = process.env.BANJI_DESKTOP_TRACE_IPC;
   if (!raw) {
@@ -135,6 +164,7 @@ export async function startManagedCore(
 
   const child = spawn(command, args, {
     cwd: options.projectRoot,
+    detached: process.platform !== 'win32',
     env,
     stdio: 'pipe',
   });
@@ -310,7 +340,7 @@ export async function startManagedCore(
   try {
     await invoke('system.ping');
   } catch (error) {
-    child.kill('SIGTERM');
+    terminateManagedChildProcess(child, 'SIGTERM');
     const details = stderr.join('\n').trim();
     throw new Error(
       details
@@ -327,11 +357,11 @@ export async function startManagedCore(
         return;
       }
 
-      child.kill('SIGTERM');
+      terminateManagedChildProcess(child, 'SIGTERM');
       await new Promise<void>((resolvePromise) => {
         const timeout = setTimeout(() => {
           if (!child.killed) {
-            child.kill('SIGKILL');
+            terminateManagedChildProcess(child, 'SIGKILL');
           }
         }, 3_000);
 

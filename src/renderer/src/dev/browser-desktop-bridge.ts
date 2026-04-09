@@ -49,6 +49,7 @@ const mockCatalog: SenaCatalog = {
       productPrice: 42,
       leadTimeMeanDaysHint: 5,
       leadTimeStdDaysHint: 1,
+      archived: false,
     },
     {
       skuId: 'sku-2',
@@ -59,6 +60,7 @@ const mockCatalog: SenaCatalog = {
       productPrice: 28,
       leadTimeMeanDaysHint: 6,
       leadTimeStdDaysHint: 2,
+      archived: false,
     },
     {
       skuId: 'sku-3',
@@ -69,6 +71,7 @@ const mockCatalog: SenaCatalog = {
       productPrice: 24,
       leadTimeMeanDaysHint: 4,
       leadTimeStdDaysHint: 1,
+      archived: false,
     },
     {
       skuId: 'sku-4',
@@ -79,6 +82,7 @@ const mockCatalog: SenaCatalog = {
       productPrice: 22,
       leadTimeMeanDaysHint: 3,
       leadTimeStdDaysHint: 1,
+      archived: false,
     },
     {
       skuId: 'sku-5',
@@ -89,6 +93,7 @@ const mockCatalog: SenaCatalog = {
       productPrice: 58,
       leadTimeMeanDaysHint: 8,
       leadTimeStdDaysHint: 3,
+      archived: false,
     },
   ],
   services: [
@@ -98,6 +103,7 @@ const mockCatalog: SenaCatalog = {
       description: 'Upsell set for woven accessories.',
       price: 18,
       bundle: false,
+      archived: false,
     },
     {
       serviceId: 'service-2',
@@ -105,6 +111,7 @@ const mockCatalog: SenaCatalog = {
       description: 'Multi-item family capsule.',
       price: 35,
       bundle: false,
+      archived: false,
     },
     {
       serviceId: 'service-3',
@@ -112,6 +119,7 @@ const mockCatalog: SenaCatalog = {
       description: 'Giftable souvenir pairing.',
       price: 16,
       bundle: false,
+      archived: false,
     },
     {
       serviceId: 'service-4',
@@ -119,6 +127,7 @@ const mockCatalog: SenaCatalog = {
       description: 'Seasonal editorial assortment.',
       price: 40,
       bundle: false,
+      archived: false,
     },
     {
       serviceId: 'service-5',
@@ -126,6 +135,7 @@ const mockCatalog: SenaCatalog = {
       description: 'Styling service dependent on matching accessories.',
       price: 14,
       bundle: false,
+      archived: false,
     },
     {
       serviceId: 'service-6',
@@ -133,6 +143,7 @@ const mockCatalog: SenaCatalog = {
       description: 'High-value ceremony package.',
       price: 72,
       bundle: false,
+      archived: false,
     },
     {
       serviceId: 'service-7',
@@ -140,6 +151,7 @@ const mockCatalog: SenaCatalog = {
       description: 'Ceremonial packaged set.',
       price: 61,
       bundle: false,
+      archived: false,
     },
   ],
   bundles: [],
@@ -652,7 +664,7 @@ function installBrowserDesktopBridge() {
     system: {
       getAppContext: async () => clone(browserMockState.appContext),
       getLocalDataInfo: async () => clone(browserMockState.localDataInfo),
-      openLocalDataFolder: async () => {},
+      revealPath: async () => {},
     },
     preferences: {
       get: async () => clone(browserMockState.preferences),
@@ -710,6 +722,28 @@ function installBrowserDesktopBridge() {
         browserMockState.observations = [observation, ...browserMockState.observations];
         browserMockState.workspaceSummary.latestObservedAt = payload.observedAt;
         return clone(observation);
+      },
+      updateObservation: async ({ observationId, input }) => {
+        const index = browserMockState.observations.findIndex((observation) => observation.observationId === observationId);
+        if (index < 0) {
+          throw new Error('Observation not found');
+        }
+        const updated: SenaObservationRecord = {
+          observationId,
+          ownerSub: browserMockState.observations[index]!.ownerSub,
+          input,
+        };
+        browserMockState.observations[index] = updated;
+        browserMockState.workspaceSummary.latestObservedAt = [...browserMockState.observations]
+          .map((observation) => observation.input.observedAt)
+          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+        return clone(updated);
+      },
+      deleteObservation: async ({ observationId }) => {
+        browserMockState.observations = browserMockState.observations.filter((observation) => observation.observationId !== observationId);
+        browserMockState.workspaceSummary.latestObservedAt = [...browserMockState.observations]
+          .map((observation) => observation.input.observedAt)
+          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
       },
       triggerRun: async (payload?: SenaTriggerRunPayload) => {
         const runId = `browser-run-${runCounter++}`;

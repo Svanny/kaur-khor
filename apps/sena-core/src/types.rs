@@ -28,6 +28,8 @@ pub struct SenaSku {
     pub description: String,
     pub cost_per_unit: f64,
     #[serde(default)]
+    pub archived: bool,
+    #[serde(default)]
     pub sold_as_product: bool,
     pub product_price: Option<f64>,
     pub lead_time_mean_days_hint: Option<f64>,
@@ -41,6 +43,8 @@ pub struct SenaService {
     pub name: String,
     pub description: String,
     pub price: f64,
+    #[serde(default)]
+    pub archived: bool,
     #[serde(default)]
     pub bundle: bool,
 }
@@ -421,6 +425,12 @@ impl SenaCatalog {
             if !service_ids.insert(service.service_id.clone()) {
                 return Err(anyhow!("duplicate serviceId '{}'", service.service_id));
             }
+            if sku_ids.contains(&service.service_id) {
+                return Err(anyhow!(
+                    "serviceId '{}' conflicts with existing skuId",
+                    service.service_id
+                ));
+            }
         }
         for entry in &self.sharing_mask {
             if !service_ids.contains(&entry.service_id) {
@@ -627,8 +637,44 @@ pub fn validate_non_empty(label: &str, value: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{SenaLeadTimeHint, SenaObservationInput, SenaStockSnapshot};
+    use super::{
+        SenaCatalog, SenaLeadTimeHint, SenaObservationInput, SenaService, SenaSku,
+        SenaStockSnapshot, SENA_SCHEMA_VERSION,
+    };
     use crate::lead_time::SenaLeadTimeVariabilityClass;
+
+    #[test]
+    fn catalog_validation_rejects_cross_type_id_overlap() {
+        let catalog = SenaCatalog {
+            schema_version: SENA_SCHEMA_VERSION,
+            skus: vec![SenaSku {
+                sku_id: "shared-id".to_string(),
+                name: "SKU".to_string(),
+                description: String::new(),
+                cost_per_unit: 2.0,
+                archived: false,
+                sold_as_product: false,
+                product_price: None,
+                lead_time_mean_days_hint: None,
+                lead_time_std_days_hint: None,
+            }],
+            services: vec![SenaService {
+                service_id: "shared-id".to_string(),
+                name: "Service".to_string(),
+                description: String::new(),
+                price: 10.0,
+                archived: false,
+                bundle: false,
+            }],
+            bundles: Vec::new(),
+            sharing_mask: Vec::new(),
+        };
+
+        let error = catalog.validate().expect_err("validation should fail");
+        assert!(error
+            .to_string()
+            .contains("conflicts with existing skuId"));
+    }
 
     #[test]
     fn observation_validation_accepts_explicit_variability_class() {

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use banji_desktop_core::legacy_inventory::types::SubmitStockReportRequest;
 use banji_desktop_core::store;
-use banji_sena_core::{SenaCatalog, SenaEngineParameters, SenaObservationInput};
+use banji_sena_core::{SenaCatalog, SenaEngineParameters, SenaObservationInput, SenaObservationRecord};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -58,6 +58,19 @@ struct ServiceLookupPayload {
     before_interval_index: Option<usize>,
     #[serde(default)]
     limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ObservationLookupPayload {
+    observation_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateObservationPayload {
+    observation_id: String,
+    input: SenaObservationInput,
 }
 
 fn default_algorithm_version() -> String {
@@ -142,6 +155,34 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
                 owner,
                 &observation,
             )?)?))
+        }
+        "sena.updateObservation" => {
+            let request: UpdateObservationPayload = serde_json::from_value(payload)
+                .context("invalid sena.updateObservation payload")?;
+            request.input.validate()?;
+            let existing = store::list_observations(owner)?;
+            if request.input.stock_snapshot.is_empty()
+                && existing
+                    .iter()
+                    .filter(|observation: &&SenaObservationRecord| observation.observation_id != request.observation_id)
+                    .count()
+                    == 0
+            {
+                return Err(anyhow!(
+                    "first SENA observation must include at least one stock snapshot"
+                ));
+            }
+            Ok(Some(serde_json::to_value(store::update_observation(
+                owner,
+                &request.observation_id,
+                &request.input,
+            )?)?))
+        }
+        "sena.deleteObservation" => {
+            let request: ObservationLookupPayload = serde_json::from_value(payload)
+                .context("invalid sena.deleteObservation payload")?;
+            store::delete_observation(owner, &request.observation_id)?;
+            Ok(None)
         }
         "sena.getCatalog" => Ok(Some(serde_json::to_value(store::get_catalog(owner)?)?)),
         "sena.listObservations" => Ok(Some(serde_json::to_value(store::list_observations(

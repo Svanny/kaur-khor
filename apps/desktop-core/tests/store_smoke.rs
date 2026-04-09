@@ -333,3 +333,35 @@ fn desktop_core_append_only_rerun_keeps_checkpoint_state_available() {
         .expect("summary should exist");
     assert_eq!(summary.interval_count, 9);
 }
+
+#[test]
+fn desktop_core_updates_and_deletes_observations() {
+    let _guard = env_lock().lock().expect("env lock should acquire");
+    let store_path = temp_store_path("mutate-observation");
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+
+    store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
+    let inserted = store::ingest_observation(
+        store::default_owner(),
+        &observation("2026-04-01T00:00:00Z", 24.0, 18.0),
+    )
+    .expect("observation should save");
+
+    let mut updated = inserted.input.clone();
+    updated.notes = Some("Edited observation".to_string());
+    updated.observed_at = "2026-04-02T00:00:00Z".to_string();
+    store::update_observation(store::default_owner(), &inserted.observation_id, &updated)
+        .expect("observation should update");
+
+    let observations =
+        store::list_observations(store::default_owner()).expect("observations load should succeed");
+    assert_eq!(observations.len(), 1);
+    assert_eq!(observations[0].input.notes.as_deref(), Some("Edited observation"));
+    assert_eq!(observations[0].observation_id, inserted.observation_id);
+
+    store::delete_observation(store::default_owner(), &inserted.observation_id)
+        .expect("observation should delete");
+    let remaining =
+        store::list_observations(store::default_owner()).expect("observations load should succeed");
+    assert!(remaining.is_empty());
+}

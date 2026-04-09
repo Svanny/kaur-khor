@@ -1,9 +1,13 @@
 // @vitest-environment node
 
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { describe, expect, it, vi } from 'vitest';
 import {
   resolveCoreLaunchCommand,
   resolveManagedCoreEnv,
+  terminateManagedChildProcess,
 } from './backend';
 
 describe('desktop core host helpers', () => {
@@ -26,5 +30,45 @@ describe('desktop core host helpers', () => {
       '--manifest-path',
       join('/Users/svanny/banji', 'apps/desktop-core/Cargo.toml'),
     ]);
+  });
+
+  it('prefers a bundled packaged core binary when present', () => {
+    const resourcesPath = mkdtempSync(join(tmpdir(), 'banji-packaged-core-'));
+    const binaryName = process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core';
+    const packagedBinary = join(resourcesPath, 'bin', binaryName);
+
+    mkdirSync(join(resourcesPath, 'bin'), { recursive: true });
+    writeFileSync(packagedBinary, 'stub');
+
+    try {
+      const command = resolveCoreLaunchCommand('/Users/svanny/banji', resourcesPath, true);
+
+      expect(command.command).toBe(packagedBinary);
+      expect(command.args).toEqual([]);
+    } finally {
+      rmSync(resourcesPath, { recursive: true, force: true });
+    }
+  });
+
+  it('kills the whole process group on posix so spawned grandchildren do not linger', () => {
+    const processKill = vi.spyOn(process, 'kill').mockImplementation(() => true);
+    const child = {
+      kill: vi.fn(() => true),
+      pid: 43210,
+    };
+
+    try {
+      terminateManagedChildProcess(child as never, 'SIGTERM');
+
+      if (process.platform === 'win32') {
+        expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+        expect(processKill).not.toHaveBeenCalled();
+      } else {
+        expect(processKill).toHaveBeenCalledWith(-43210, 'SIGTERM');
+        expect(child.kill).not.toHaveBeenCalled();
+      }
+    } finally {
+      processKill.mockRestore();
+    }
   });
 });

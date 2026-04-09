@@ -203,6 +203,19 @@ impl SenaRepository for PgSenaRepository {
         Ok(value)
     }
 
+    async fn update_observation(
+        &self,
+        _owner_sub: &str,
+        _observation_id: &str,
+        _observation: &SenaObservationInput,
+    ) -> Result<SenaObservationRecord> {
+        anyhow::bail!("update_observation is not implemented for the API repository")
+    }
+
+    async fn delete_observation(&self, _owner_sub: &str, _observation_id: &str) -> Result<()> {
+        anyhow::bail!("delete_observation is not implemented for the API repository")
+    }
+
     async fn list_observations(&self, owner_sub: &str) -> Result<Vec<SenaObservationRecord>> {
         list_observations(&self.pool, owner_sub).await
     }

@@ -516,6 +516,7 @@ fn sample_catalog() -> SenaCatalog {
             name: profile.name.to_string(),
             description: profile.description.to_string(),
             cost_per_unit: profile.cost_per_unit,
+            archived: false,
             sold_as_product: profile.sold_as_product,
             product_price: profile.product_price,
             lead_time_mean_days_hint: Some(profile.lead_time_mean_days_hint),
@@ -530,6 +531,7 @@ fn sample_catalog() -> SenaCatalog {
             name: profile.name.to_string(),
             description: profile.description.to_string(),
             price: profile.price,
+            archived: false,
             bundle: profile.bundle,
         })
         .collect();
@@ -1308,6 +1310,18 @@ pub fn ingest_observation(
     observation: &SenaObservationInput,
 ) -> Result<SenaObservationRecord> {
     block_on(repository()?.insert_observation(owner_sub, observation))
+}
+
+pub fn update_observation(
+    owner_sub: &str,
+    observation_id: &str,
+    observation: &SenaObservationInput,
+) -> Result<SenaObservationRecord> {
+    block_on(repository()?.update_observation(owner_sub, observation_id, observation))
+}
+
+pub fn delete_observation(owner_sub: &str, observation_id: &str) -> Result<()> {
+    block_on(repository()?.delete_observation(owner_sub, observation_id))
 }
 
 pub fn get_catalog(owner_sub: &str) -> Result<Option<SenaCatalog>> {

@@ -23,6 +23,13 @@ pub trait SenaRepository {
         owner_sub: &str,
         observation: &SenaObservationInput,
     ) -> Result<SenaObservationRecord>;
+    async fn update_observation(
+        &self,
+        owner_sub: &str,
+        observation_id: &str,
+        observation: &SenaObservationInput,
+    ) -> Result<SenaObservationRecord>;
+    async fn delete_observation(&self, owner_sub: &str, observation_id: &str) -> Result<()>;
     async fn list_observations(&self, owner_sub: &str) -> Result<Vec<SenaObservationRecord>>;
     async fn create_run(
         &self,

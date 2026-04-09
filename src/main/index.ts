@@ -1,10 +1,10 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, session, shell } from 'electron';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 import { createManagedCoreController } from './core-manager';
 import { migrateLegacyDesktopData } from './data-migration';
-import { hasMacDockIconPair, macIconAssets } from './icon';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import {
   IPC_CHANNELS,
@@ -21,9 +21,11 @@ import type { InventorySnapshot, StockReport, StockReportSubmission } from '@sha
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaObservationDeletePayload,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaObservationUpdatePayload,
   SenaServiceDetailPage,
   SenaSkuDetailPage,
   SenaWorkspaceSummary,
@@ -392,12 +394,22 @@ ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, async () => {
   };
   return info;
 });
-ipcMain.handle(IPC_CHANNELS.systemOpenLocalDataFolder, async () => {
-  await mkdir(desktopDataPath, { recursive: true });
-  const openError = await shell.openPath(desktopDataPath);
-  if (openError) {
-    throw new Error(openError);
+ipcMain.handle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string) => {
+  if (typeof targetPath !== 'string' || targetPath.trim().length === 0) {
+    throw new Error('A local path is required.');
   }
+
+  const normalizedPath = targetPath.trim();
+  const targetStats = await stat(normalizedPath).catch(() => null);
+  if (targetStats?.isDirectory()) {
+    const openError = await shell.openPath(normalizedPath);
+    if (openError) {
+      throw new Error(openError);
+    }
+    return;
+  }
+
+  shell.showItemInFolder(normalizedPath);
 });
 
 ipcMain.handle(IPC_CHANNELS.inventoryLoadSnapshot, async () =>
@@ -440,6 +452,19 @@ ipcMain.handle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaO
   });
   await invalidateSenaReadCache();
   return result;
+});
+ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, async (_event, payload: SenaObservationUpdatePayload) => {
+  const result = await managedCore.invoke<SenaObservationRecord>('sena.updateObservation', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  await invalidateSenaReadCache();
+  return result;
+});
+ipcMain.handle(IPC_CHANNELS.senaDeleteObservation, async (_event, payload: SenaObservationDeletePayload) => {
+  await managedCore.invoke('sena.deleteObservation', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  await invalidateSenaReadCache();
 });
 ipcMain.handle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) => {
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload, {

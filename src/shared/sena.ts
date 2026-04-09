@@ -13,6 +13,7 @@ export interface SenaSku {
   name: string;
   description: string;
   costPerUnit: number;
+  archived: boolean;
   soldAsProduct: boolean;
   productPrice: number | null;
   leadTimeMeanDaysHint: number | null;
@@ -24,6 +25,7 @@ export interface SenaService {
   name: string;
   description: string;
   price: number;
+  archived: boolean;
   bundle: boolean;
 }
 
@@ -126,6 +128,15 @@ export interface SenaObservationRecord {
   observationId: string;
   ownerSub: string;
   input: SenaObservationInput;
+}
+
+export interface SenaObservationUpdatePayload {
+  observationId: string;
+  input: SenaObservationInput;
+}
+
+export interface SenaObservationDeletePayload {
+  observationId: string;
 }
 
 export type SenaRunStatus = 'queued' | 'running' | 'succeeded' | 'failed';

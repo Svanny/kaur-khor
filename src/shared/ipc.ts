@@ -8,10 +8,12 @@ import type {
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaObservationDeletePayload,
   SenaDetailWindowRequest,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaObservationUpdatePayload,
   SenaServiceDetailPage,
   SenaSkuDetailPage,
   SenaWorkspaceSummary,
@@ -83,6 +85,8 @@ export interface DesktopSenaBridge {
   listObservations: () => Promise<SenaObservationRecord[]>;
   upsertCatalog: (payload: SenaCatalog) => Promise<SenaCatalog>;
   ingestObservation: (payload: SenaObservationInput) => Promise<SenaObservationRecord>;
+  updateObservation: (payload: SenaObservationUpdatePayload) => Promise<SenaObservationRecord>;
+  deleteObservation: (payload: SenaObservationDeletePayload) => Promise<void>;
   triggerRun: (payload?: SenaTriggerRunPayload) => Promise<SenaAnalysisRunRecord>;
   retryRun: (payload: SenaRunLookupPayload) => Promise<SenaAnalysisRunRecord>;
   getWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
@@ -107,7 +111,7 @@ export interface DesktopPreferencesBridge {
 export interface DesktopSystemBridge {
   getAppContext: () => Promise<DesktopAppContext>;
   getLocalDataInfo: () => Promise<DesktopLocalDataInfo>;
-  openLocalDataFolder: () => Promise<void>;
+  revealPath: (path: string) => Promise<void>;
 }
 
 export interface DesktopBridge {
@@ -120,7 +124,7 @@ export interface DesktopBridge {
 export const IPC_CHANNELS = {
   systemGetAppContext: 'banji:system:get-app-context',
   systemGetLocalDataInfo: 'banji:system:get-local-data-info',
-  systemOpenLocalDataFolder: 'banji:system:open-local-data-folder',
+  systemRevealPath: 'banji:system:reveal-path',
   inventoryLoadSnapshot: 'banji:inventory:load-snapshot',
   inventoryListReports: 'banji:inventory:list-reports',
   inventorySubmitReport: 'banji:inventory:submit-report',
@@ -128,6 +132,8 @@ export const IPC_CHANNELS = {
   senaListObservations: 'banji:sena:list-observations',
   senaUpsertCatalog: 'banji:sena:upsert-catalog',
   senaIngestObservation: 'banji:sena:ingest-observation',
+  senaUpdateObservation: 'banji:sena:update-observation',
+  senaDeleteObservation: 'banji:sena:delete-observation',
   senaTriggerRun: 'banji:sena:trigger-run',
   senaRetryRun: 'banji:sena:retry-run',
   senaGetWorkspaceSummary: 'banji:sena:get-workspace-summary',
