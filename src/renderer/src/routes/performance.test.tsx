@@ -468,12 +468,12 @@ describe('PerformanceRoute', () => {
     );
   }
 
-  test('renders the performance steering surface', async () => {
+  test('renders the performance steering surface', () => {
     renderRoute();
 
     expect(screen.getByText('Performance')).toBeInTheDocument();
     expect(screen.getByText('Demand, available capacity, incoming stock, and pricing in one business view.')).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'Move now' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Move now' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Demand × capacity board' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Cash and profit efficiency' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Business timeline' })).toBeInTheDocument();
