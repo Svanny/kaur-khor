@@ -1,14 +1,17 @@
 // @vitest-environment node
 
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
   resolveCoreLaunchCommand,
   resolveManagedCoreEnv,
   terminateManagedChildProcess,
 } from './backend';
+
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 describe('desktop core host helpers', () => {
   it('only injects the local data path for the desktop core runtime', () => {
@@ -22,13 +25,13 @@ describe('desktop core host helpers', () => {
   });
 
   it('falls back to cargo when a packaged core binary is unavailable', () => {
-    const command = resolveCoreLaunchCommand('/Users/svanny/banji', '/tmp/resources', true);
+    const command = resolveCoreLaunchCommand(projectRoot, join(tmpdir(), 'resources'), true);
 
     expect(command.command).toBe('cargo');
     expect(command.args).toEqual([
       'run',
       '--manifest-path',
-      join('/Users/svanny/banji', 'apps/desktop-core/Cargo.toml'),
+      join(projectRoot, 'apps', 'desktop-core', 'Cargo.toml'),
     ]);
   });
 
@@ -41,7 +44,7 @@ describe('desktop core host helpers', () => {
     writeFileSync(packagedBinary, 'stub');
 
     try {
-      const command = resolveCoreLaunchCommand('/Users/svanny/banji', resourcesPath, true);
+      const command = resolveCoreLaunchCommand(projectRoot, resourcesPath, true);
 
       expect(command.command).toBe(packagedBinary);
       expect(command.args).toEqual([]);
