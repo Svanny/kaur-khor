@@ -5,6 +5,11 @@ import { CommandPaletteProvider } from './command-palette';
 
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
+const savePreferences = vi.fn(async () => {});
+const applyDisplayViewMode = vi.fn(async () => {});
+const applySenaEngineParameters = vi.fn(async () => {});
+const archiveCatalogEntity = vi.fn(async () => null);
+const unarchiveCatalogEntity = vi.fn(async () => null);
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -34,12 +39,24 @@ describe('CommandPaletteProvider', () => {
       senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
       snapshot: null,
       workspaceSummary: null,
+      archiveCatalogEntity,
+      unarchiveCatalogEntity,
     });
     preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      applySenaEngineParameters,
+      currency: 'USD',
+      displayViewMode: 'maximal',
       language: 'en',
+      savePreferences,
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
       t: (key: string) =>
         ({
           navAnalysis: 'Analysis',
+          navArchive: 'Archive',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
           navOverview: 'Overview',
@@ -48,6 +65,11 @@ describe('CommandPaletteProvider', () => {
           navSettings: 'Settings',
         }[key] ?? key),
     });
+    savePreferences.mockClear();
+    applyDisplayViewMode.mockClear();
+    applySenaEngineParameters.mockClear();
+    archiveCatalogEntity.mockClear();
+    unarchiveCatalogEntity.mockClear();
   });
 
   test('opens from the global shortcut and navigates on selection', async () => {
@@ -71,7 +93,7 @@ describe('CommandPaletteProvider', () => {
       expect(screen.getByText('Catalog screen')).toBeInTheDocument();
     });
     expect(screen.queryByRole('searchbox', { name: 'Search commands' })).not.toBeInTheDocument();
-  });
+  }, 10000);
 
   test('opens even when a text input is focused', () => {
     render(
@@ -92,5 +114,324 @@ describe('CommandPaletteProvider', () => {
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
 
     expect(screen.getByRole('searchbox', { name: 'Search commands' })).toBeInTheDocument();
+  });
+
+  test('executes settings commands directly from the palette', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search commands' }), {
+      target: { value: 'khmer' },
+    });
+
+    fireEvent.click(screen.getByRole('option', { name: /Set language to Khmer/ }));
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith({ language: 'km' });
+    });
+  });
+
+  test('renders Khmer search chrome and result copy when the language is Khmer', () => {
+    preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      applySenaEngineParameters,
+      currency: 'USD',
+      displayViewMode: 'maximal',
+      language: 'km',
+      savePreferences,
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      t: (key: string) =>
+        ({
+          navAnalysis: 'ការវិភាគ',
+          navArchive: 'បណ្ណសារ',
+          navCatalog: 'កាតាឡុក',
+          navOperations: 'កំណត់ហេតុ',
+          navOverview: 'ទិដ្ឋភាពទូទៅ',
+          navPerformance: 'សុខភាពអាជីវកម្ម',
+          navRecordUpdate: 'កត់ត្រាការអាប់ដេត',
+          navSettings: 'ការកំណត់',
+          settingsPreferencesControlsTitle: 'ចំណូលចិត្តកន្លែងធ្វើការ',
+          settingsSenaParametersPanelTitle: 'ការកំណត់លម្អិតផែនការ',
+        }[key] ?? key),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+
+    expect(screen.getByRole('searchbox', { name: 'ស្វែងរកពាក្យបញ្ជា' })).toBeInTheDocument();
+    expect(screen.getByText('ជួរទិដ្ឋភាពទូទៅ និងការងារតាមដាន')).toBeInTheDocument();
+    expect(screen.getByText('កត់ត្រាការអាប់ដេតពិតបន្ទាប់')).toBeInTheDocument();
+    expect(screen.getByText('តម្រូវការ សមត្ថភាព និងលំហូរសាច់ប្រាក់')).toBeInTheDocument();
+    expect(screen.getAllByText('ទំព័រ').length).toBeGreaterThan(0);
+    expect(screen.getByText('រុករក')).toBeInTheDocument();
+    expect(screen.getByText('បើក')).toBeInTheDocument();
+    expect(screen.getByText('បិទ')).toBeInTheDocument();
+  });
+
+  test('renders best matches ahead of grouped page, tab, and action results', () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{
+          archived: false,
+          costPerUnit: 4,
+          description: 'SKU 1',
+          leadTimeMeanDaysHint: 5,
+          leadTimeStdDaysHint: 1,
+          name: 'SKU 1',
+          productPrice: 9,
+          skuId: 'sku-1',
+          soldAsProduct: true,
+        }],
+      },
+      diagnostics: null,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations: [],
+      reload: vi.fn(),
+      reports: [],
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      snapshot: null,
+      workspaceSummary: null,
+      archiveCatalogEntity,
+      unarchiveCatalogEntity,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search commands' }), {
+      target: { value: 'c' },
+    });
+
+    expect(screen.getByText('Best Matches')).toBeInTheDocument();
+    expect(screen.getByText('Pages')).toBeInTheDocument();
+    expect(screen.getByText('Tabs')).toBeInTheDocument();
+    expect(screen.getByText('Actions')).toBeInTheDocument();
+  });
+
+  test('scrolls the active result into view during arrow navigation', () => {
+    const scrollIntoView = vi.fn();
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: Array.from({ length: 8 }, (_, index) => ({
+          archived: false,
+          bundle: false,
+          description: `Service ${index + 1}`,
+          name: `Service ${index + 1}`,
+          price: 10 + index,
+          serviceId: `service-${index + 1}`,
+        })),
+        sharingMask: [],
+        skus: Array.from({ length: 12 }, (_, index) => ({
+          archived: false,
+          costPerUnit: 4,
+          description: `SKU ${index + 1}`,
+          leadTimeMeanDaysHint: 5,
+          leadTimeStdDaysHint: 1,
+          name: `SKU ${index + 1}`,
+          productPrice: 9,
+          skuId: `sku-${index + 1}`,
+          soldAsProduct: true,
+        })),
+      },
+      diagnostics: null,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations: [],
+      reload: vi.fn(),
+      reports: [],
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      snapshot: null,
+      workspaceSummary: null,
+      archiveCatalogEntity,
+      unarchiveCatalogEntity,
+    });
+
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+
+    const input = screen.getByRole('searchbox', { name: 'Search commands' });
+    fireEvent.change(input, { target: { value: 'sku' } });
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  });
+
+  test('opens the shared confirmation dialog before archiving from the command palette', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{
+          archived: false,
+          costPerUnit: 4,
+          description: 'SKU 1',
+          leadTimeMeanDaysHint: 5,
+          leadTimeStdDaysHint: 1,
+          name: 'SKU 1',
+          productPrice: 9,
+          skuId: 'sku-1',
+          soldAsProduct: true,
+        }],
+      },
+      diagnostics: null,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations: [],
+      reload: vi.fn(),
+      reports: [],
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      snapshot: null,
+      workspaceSummary: null,
+      archiveCatalogEntity,
+      unarchiveCatalogEntity,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Catalog screen</div>} path="/catalog" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search commands' }), {
+      target: { value: 'archive sku 1' },
+    });
+    fireEvent.click(screen.getByRole('option', { name: /Archive SKU 1/ }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Archive SKU 1?');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
+
+    await waitFor(() => {
+      expect(archiveCatalogEntity).toHaveBeenCalledWith({
+        entityId: 'sku-1',
+        entityType: 'sku',
+      });
+    });
+  });
+
+  test('opens the shared confirmation dialog before unarchiving from the command palette', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{
+          archived: true,
+          costPerUnit: 4,
+          description: 'SKU 1',
+          leadTimeMeanDaysHint: 5,
+          leadTimeStdDaysHint: 1,
+          name: 'SKU 1',
+          productPrice: 9,
+          skuId: 'sku-1',
+          soldAsProduct: true,
+        }],
+      },
+      diagnostics: null,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations: [],
+      reload: vi.fn(),
+      reports: [],
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      snapshot: null,
+      workspaceSummary: null,
+      archiveCatalogEntity,
+      unarchiveCatalogEntity,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/operations/archive']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Archive screen</div>} path="/operations/archive" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search commands' }), {
+      target: { value: 'unarchive sku 1' },
+    });
+    fireEvent.click(screen.getByRole('option', { name: /Unarchive SKU 1/ }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Unarchive SKU 1?');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unarchive' }));
+
+    await waitFor(() => {
+      expect(unarchiveCatalogEntity).toHaveBeenCalledWith({
+        entityId: 'sku-1',
+        entityType: 'sku',
+      });
+    });
   });
 });

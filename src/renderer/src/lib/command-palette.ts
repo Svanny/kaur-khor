@@ -4,6 +4,7 @@ import type { AppLanguage } from '@shared/inventory';
 import type { InventoryContextValue } from '@/state/inventory';
 import {
   buildAnalysisHref,
+  buildOperationsArchiveHref,
   buildCatalogHref,
   buildOverviewHref,
   buildOperationsHref,
@@ -13,6 +14,7 @@ import {
   type AnalysisScopeValue,
   type AnalysisSectionValue,
   type AnalysisTimeframeValue,
+  type ArchiveViewValue,
   type CatalogViewValue,
   type OverviewSearchScope,
   type OverviewTaskFilterValue,
@@ -24,6 +26,11 @@ import {
   type ServiceActionValue,
   type SkuActionValue,
 } from '@/lib/navigation-state';
+import {
+  activeSenaCatalog,
+  archivedSenaServices,
+  archivedSenaSkus,
+} from '@/lib/sena-catalog';
 import { buildOverviewModel, isOverviewSkuTask } from '@/routes/overview/view-model';
 
 export type CommandKind = 'page' | 'tab' | 'entity' | 'workflow' | 'sheet';
@@ -33,7 +40,27 @@ export type CommandAction =
   | { href: string; type: 'tab' }
   | { href: string; type: 'entity' }
   | { href: string; type: 'workflow' }
-  | { href: string; type: 'sheet' };
+  | { href: string; type: 'sheet' }
+  | {
+      entityId: string;
+      entityName: string;
+      entityType: 'sku' | 'service';
+      mutation: 'archive' | 'unarchive';
+      type: 'catalog-mutation';
+    }
+  | {
+      href: string;
+      type: 'settings';
+      effect:
+        | 'set-language'
+        | 'set-currency'
+        | 'set-display-mode'
+        | 'set-show-explanatory-tooltips'
+        | 'set-show-floating-title-actions'
+        | 'set-show-right-rail-cards'
+        | 'set-smoothing-enabled';
+      value: boolean | 'en' | 'km' | 'USD' | 'KHR' | 'minimal' | 'maximal';
+    };
 
 export interface CommandDescriptor {
   action: CommandAction;
@@ -42,9 +69,20 @@ export interface CommandDescriptor {
   id: string;
   keywords: string[];
   kind: CommandKind;
+  pageId: string;
+  pageOrder: number;
   pagePrefixes: string[];
   priority: number;
   subtitle?: string;
+  tabOrder?: number;
+  title: string;
+}
+
+export type CommandPaletteSectionId = 'best-matches' | 'pages' | 'tabs' | 'actions';
+
+export interface CommandPaletteSection {
+  id: CommandPaletteSectionId;
+  items: CommandDescriptor[];
   title: string;
 }
 
@@ -66,6 +104,37 @@ function commandKindLabel(kind: CommandKind) {
   return 'Sheet';
 }
 
+function commandKindSearchTerms(kind: CommandKind) {
+  if (kind === 'page') {
+    return ['page', 'pages'];
+  }
+  if (kind === 'tab') {
+    return ['tab', 'tabs'];
+  }
+  if (kind === 'entity') {
+    return ['entity', 'entities'];
+  }
+  if (kind === 'workflow') {
+    return ['action', 'actions'];
+  }
+  return ['sheet', 'sheets'];
+}
+
+function commandSearchTerms(command: CommandDescriptor) {
+  const kindTerms = commandKindSearchTerms(command.kind);
+
+  return [
+    command.title,
+    command.subtitle,
+    ...command.aliases,
+    ...command.keywords,
+    ...kindTerms,
+    ...kindTerms.map((term) => `${command.title} ${term}`),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => normalizeText(value));
+}
+
 function normalizeText(value: string) {
   return value.trim().toLowerCase();
 }
@@ -77,9 +146,12 @@ function createCommand({
   id,
   keywords = [],
   kind,
+  pageId,
+  pageOrder,
   pagePrefixes,
   priority,
   subtitle,
+  tabOrder,
   title,
 }: Omit<CommandDescriptor, 'aliases' | 'keywords'> & {
   aliases?: string[];
@@ -92,9 +164,12 @@ function createCommand({
     id,
     keywords,
     kind,
+    pageId,
+    pageOrder,
     pagePrefixes,
     priority,
     subtitle,
+    tabOrder,
     title,
   } satisfies CommandDescriptor;
 }
@@ -105,6 +180,8 @@ function pageCommand({
   id,
   keywords,
   pagePrefix,
+  pageId,
+  pageOrder,
   priority,
   subtitle,
   title,
@@ -114,6 +191,8 @@ function pageCommand({
   id: string;
   keywords?: string[];
   pagePrefix: string;
+  pageId: string;
+  pageOrder: number;
   priority: number;
   subtitle?: string;
   title: string;
@@ -125,6 +204,8 @@ function pageCommand({
     id,
     keywords,
     kind: 'page',
+    pageId,
+    pageOrder,
     pagePrefixes: [pagePrefix],
     priority,
     subtitle,
@@ -138,8 +219,11 @@ function tabCommand({
   id,
   keywords,
   pagePrefix,
+  pageId,
+  pageOrder,
   priority,
   subtitle,
+  tabOrder,
   title,
 }: {
   aliases?: string[];
@@ -147,8 +231,11 @@ function tabCommand({
   id: string;
   keywords?: string[];
   pagePrefix: string;
+  pageId: string;
+  pageOrder: number;
   priority: number;
   subtitle?: string;
+  tabOrder: number;
   title: string;
 }) {
   return createCommand({
@@ -158,9 +245,12 @@ function tabCommand({
     id,
     keywords,
     kind: 'tab',
+    pageId,
+    pageOrder,
     pagePrefixes: [pagePrefix],
     priority,
     subtitle,
+    tabOrder,
     title,
   });
 }
@@ -172,6 +262,8 @@ function buildPageCommands(t: Translator) {
       href: buildOverviewHref(),
       id: 'page:overview',
       keywords: ['queue', 'tasks', 'overview'],
+      pageId: 'overview',
+      pageOrder: 0,
       pagePrefix: '/',
       priority: 10,
       subtitle: 'Overview queue and follow-up work',
@@ -182,6 +274,8 @@ function buildPageCommands(t: Translator) {
       href: '/record-update',
       id: 'page:record-update',
       keywords: ['record', 'update', 'observation'],
+      pageId: 'record-update',
+      pageOrder: 1,
       pagePrefix: '/record-update',
       priority: 11,
       subtitle: 'Capture the next live update',
@@ -192,6 +286,8 @@ function buildPageCommands(t: Translator) {
       href: buildPerformanceHref(),
       id: 'page:performance',
       keywords: ['performance', 'range', 'compare'],
+      pageId: 'performance',
+      pageOrder: 2,
       pagePrefix: '/performance',
       priority: 12,
       subtitle: 'Demand, capacity, and cash movement',
@@ -202,9 +298,11 @@ function buildPageCommands(t: Translator) {
       href: buildAnalysisHref(),
       id: 'page:analysis',
       keywords: ['analysis', 'workbench', 'fragility', 'pressure'],
+      pageId: 'analysis',
+      pageOrder: 4,
       pagePrefix: '/analysis',
       priority: 13,
-      subtitle: 'Deep analysis workbench',
+      subtitle: 'Detailed analysis tools',
       title: t('navAnalysis'),
     }),
     pageCommand({
@@ -212,6 +310,8 @@ function buildPageCommands(t: Translator) {
       href: buildCatalogHref(),
       id: 'page:catalog',
       keywords: ['catalog', 'skus', 'services'],
+      pageId: 'catalog',
+      pageOrder: 3,
       pagePrefix: '/catalog',
       priority: 14,
       subtitle: 'Browse SKUs and services',
@@ -222,19 +322,35 @@ function buildPageCommands(t: Translator) {
       href: buildOperationsHref(),
       id: 'page:operations',
       keywords: ['operations', 'logs', 'history', 'heatmap'],
+      pageId: 'operations',
+      pageOrder: 5,
       pagePrefix: '/operations',
       priority: 15,
       subtitle: 'Observation history and logs',
       title: t('navOperations'),
     }),
     pageCommand({
+      aliases: ['archive', 'archived'],
+      href: buildOperationsArchiveHref(),
+      id: 'page:archive',
+      keywords: ['archive', 'archived', 'logs'],
+      pageId: 'archive',
+      pageOrder: 6,
+      pagePrefix: '/operations/archive',
+      priority: 16,
+      subtitle: 'Archived SKUs and services',
+      title: t('navArchive'),
+    }),
+    pageCommand({
       aliases: ['preferences'],
       href: '/settings',
       id: 'page:settings',
       keywords: ['settings', 'preferences'],
+      pageId: 'settings',
+      pageOrder: 7,
       pagePrefix: '/settings',
-      priority: 16,
-      subtitle: 'Preferences and SENA parameters',
+      priority: 17,
+      subtitle: `${t('settingsPreferencesControlsTitle')} · ${t('settingsSenaParametersPanelTitle')}`,
       title: t('navSettings'),
     }),
   ];
@@ -262,9 +378,12 @@ function buildOverviewCommands() {
         href: buildOverviewHref({ scope: command.value }),
         id: `overview:scope:${command.value}`,
         keywords: ['overview', 'scope', command.value],
+        pageId: 'overview',
+        pageOrder: 0,
         pagePrefix: '/',
         priority: 40 + index,
         subtitle: 'Overview scope',
+        tabOrder: index,
         title: command.label,
       }),
     ),
@@ -274,9 +393,12 @@ function buildOverviewCommands() {
         href: buildOverviewHref({ filter: command.value }),
         id: `overview:filter:${command.value}`,
         keywords: ['overview', 'filter', command.value],
+        pageId: 'overview',
+        pageOrder: 0,
         pagePrefix: '/',
         priority: 50 + index,
         subtitle: 'Overview filter',
+        tabOrder: scopeCommands.length + index,
         title: command.label,
       }),
     ),
@@ -285,9 +407,9 @@ function buildOverviewCommands() {
 
 function buildCatalogCommands() {
   const viewCommands: Array<{ label: string; value: CatalogViewValue }> = [
-    { label: 'Catalog: all items', value: 'all' },
-    { label: 'Catalog: SKUs', value: 'skus' },
-    { label: 'Catalog: services', value: 'services' },
+    { label: 'Catalog / All items', value: 'all' },
+    { label: 'Catalog / SKUs', value: 'skus' },
+    { label: 'Catalog / Services', value: 'services' },
   ];
 
   return viewCommands.map((command, index) =>
@@ -296,9 +418,12 @@ function buildCatalogCommands() {
       href: buildCatalogHref({ view: command.value }),
       id: `catalog:view:${command.value}`,
       keywords: ['catalog', command.value],
+      pageId: 'catalog',
+      pageOrder: 3,
       pagePrefix: '/catalog',
       priority: 60 + index,
       subtitle: 'Catalog view',
+      tabOrder: index,
       title: command.label,
     }),
   );
@@ -306,13 +431,13 @@ function buildCatalogCommands() {
 
 function buildOperationsCommands() {
   const scopeCommands: Array<{ label: string; value: OperationsScopeValue }> = [
-    { label: 'Logs: all items', value: 'all' },
-    { label: 'Logs: SKUs', value: 'skus' },
-    { label: 'Logs: services', value: 'services' },
+    { label: 'Logs / All items', value: 'all' },
+    { label: 'Logs / SKUs', value: 'skus' },
+    { label: 'Logs / Services', value: 'services' },
   ];
   const viewCommands: Array<{ label: string; value: OperationsViewValue }> = [
-    { label: 'Logs heatmap view', value: 'heatmap' },
-    { label: 'Logs list view', value: 'all' },
+    { label: 'Logs / Heatmap view', value: 'heatmap' },
+    { label: 'Logs / List view', value: 'all' },
   ];
 
   return [
@@ -322,9 +447,12 @@ function buildOperationsCommands() {
         href: buildOperationsHref({ scope: command.value }),
         id: `operations:scope:${command.value}`,
         keywords: ['operations', 'logs', command.value],
+        pageId: 'operations',
+        pageOrder: 5,
         pagePrefix: '/operations',
         priority: 70 + index,
         subtitle: 'Operations scope',
+        tabOrder: index,
         title: command.label,
       }),
     ),
@@ -334,25 +462,52 @@ function buildOperationsCommands() {
         href: buildOperationsHref({ view: command.value }),
         id: `operations:view:${command.value}`,
         keywords: ['operations', 'logs', 'view', command.value],
+        pageId: 'operations',
+        pageOrder: 5,
         pagePrefix: '/operations',
         priority: 80 + index,
         subtitle: 'Operations view',
+        tabOrder: scopeCommands.length + index,
         title: command.label,
       }),
     ),
   ];
 }
 
+function buildArchiveCommands() {
+  const viewCommands: Array<{ label: string; value: ArchiveViewValue }> = [
+    { label: 'Archive / All items', value: 'all' },
+    { label: 'Archive / SKUs', value: 'skus' },
+    { label: 'Archive / Services', value: 'services' },
+  ];
+
+  return viewCommands.map((command, index) =>
+    tabCommand({
+      aliases: ['archive', 'view'],
+      href: buildOperationsArchiveHref({ view: command.value }),
+      id: `archive:view:${command.value}`,
+      keywords: ['archive', command.value],
+      pageId: 'archive',
+      pageOrder: 6,
+      pagePrefix: '/operations/archive',
+      priority: 85 + index,
+      subtitle: 'Archive view',
+      tabOrder: index,
+      title: command.label,
+    }),
+  );
+}
+
 function buildPerformanceCommands() {
   const rangeCommands: Array<{ label: string; value: PerformanceRangeValue }> = [
-    { label: 'Performance 7D', value: '7d' },
-    { label: 'Performance 30D', value: '30d' },
-    { label: 'Performance 90D', value: '90d' },
+    { label: 'Performance / 7D', value: '7d' },
+    { label: 'Performance / 30D', value: '30d' },
+    { label: 'Performance / 90D', value: '90d' },
   ];
   const scopeCommands: Array<{ label: string; value: PerformanceScopeValue }> = [
-    { label: 'Performance: all items', value: 'all' },
-    { label: 'Performance: services', value: 'services' },
-    { label: 'Performance: SKUs', value: 'skus' },
+    { label: 'Performance / All items', value: 'all' },
+    { label: 'Performance / Services', value: 'services' },
+    { label: 'Performance / SKUs', value: 'skus' },
   ];
 
   return [
@@ -362,9 +517,12 @@ function buildPerformanceCommands() {
         href: buildPerformanceHref({ range: command.value }),
         id: `performance:range:${command.value}`,
         keywords: ['performance', 'range', command.value],
+        pageId: 'performance',
+        pageOrder: 2,
         pagePrefix: '/performance',
         priority: 90 + index,
         subtitle: 'Performance range',
+        tabOrder: index,
         title: command.label,
       }),
     ),
@@ -374,9 +532,12 @@ function buildPerformanceCommands() {
         href: buildPerformanceHref({ scope: command.value }),
         id: `performance:scope:${command.value}`,
         keywords: ['performance', 'scope', command.value],
+        pageId: 'performance',
+        pageOrder: 2,
         pagePrefix: '/performance',
         priority: 100 + index,
         subtitle: 'Performance scope',
+        tabOrder: rangeCommands.length + index,
         title: command.label,
       }),
     ),
@@ -385,36 +546,42 @@ function buildPerformanceCommands() {
       href: buildPerformanceHref({ compare: true }),
       id: 'performance:compare:on',
       keywords: ['performance', 'compare', 'on'],
+      pageId: 'performance',
+      pageOrder: 2,
       pagePrefix: '/performance',
       priority: 104,
       subtitle: 'Performance comparison',
-      title: 'Performance compare view',
+      tabOrder: rangeCommands.length + scopeCommands.length,
+      title: 'Performance / Compare view',
     }),
     tabCommand({
       aliases: ['performance', 'compare'],
       href: buildPerformanceHref({ compare: false }),
       id: 'performance:compare:off',
       keywords: ['performance', 'compare', 'off'],
+      pageId: 'performance',
+      pageOrder: 2,
       pagePrefix: '/performance',
       priority: 105,
       subtitle: 'Performance comparison',
-      title: 'Performance single view',
+      tabOrder: rangeCommands.length + scopeCommands.length + 1,
+      title: 'Performance / Single view',
     }),
   ];
 }
 
 function buildAnalysisCommands() {
   const scopeCommands: Array<{ label: string; value: AnalysisScopeValue }> = [
-    { label: 'Analysis: all items', value: 'all' },
-    { label: 'Analysis: services', value: 'services' },
-    { label: 'Analysis: SKUs', value: 'skus' },
+    { label: 'Analysis / All items', value: 'all' },
+    { label: 'Analysis / Services', value: 'services' },
+    { label: 'Analysis / SKUs', value: 'skus' },
   ];
   const sectionCommands: Array<{ label: string; value: AnalysisSectionValue }> = [
-    { label: 'Analysis workbench', value: 'workbench' },
-    { label: 'Analysis pressure', value: 'pressure' },
-    { label: 'Analysis observations', value: 'observations' },
-    { label: 'Analysis fragility', value: 'fragility' },
-    { label: 'Analysis settings', value: 'settings' },
+    { label: 'Analysis / Main view', value: 'workbench' },
+    { label: 'Analysis / Pressure', value: 'pressure' },
+    { label: 'Analysis / Observations', value: 'observations' },
+    { label: 'Analysis / Fragility', value: 'fragility' },
+    { label: 'Analysis / Settings', value: 'settings' },
   ];
   const timeframeCommands: AnalysisTimeframeValue[] = ['Recent', '1M', '3M', 'YTD', '1Y', 'MAX'];
 
@@ -425,9 +592,12 @@ function buildAnalysisCommands() {
         href: buildAnalysisHref({ scope: command.value }),
         id: `analysis:scope:${command.value}`,
         keywords: ['analysis', 'scope', command.value],
+        pageId: 'analysis',
+        pageOrder: 4,
         pagePrefix: '/analysis',
         priority: 110 + index,
         subtitle: 'Analysis scope',
+        tabOrder: index,
         title: command.label,
       }),
     ),
@@ -437,9 +607,12 @@ function buildAnalysisCommands() {
         href: buildAnalysisHref({ section: command.value }),
         id: `analysis:section:${command.value}`,
         keywords: ['analysis', 'section', command.value],
+        pageId: 'analysis',
+        pageOrder: 4,
         pagePrefix: '/analysis',
         priority: 120 + index,
         subtitle: 'Analysis section',
+        tabOrder: scopeCommands.length + index,
         title: command.label,
       }),
     ),
@@ -449,10 +622,13 @@ function buildAnalysisCommands() {
         href: buildAnalysisHref({ timeframe: command }),
         id: `analysis:timeframe:${command}`,
         keywords: ['analysis', 'timeframe', command],
+        pageId: 'analysis',
+        pageOrder: 4,
         pagePrefix: '/analysis',
         priority: 130 + index,
         subtitle: 'Analysis timeframe',
-        title: `Analysis timeframe: ${command}`,
+        tabOrder: scopeCommands.length + sectionCommands.length + index,
+        title: `Analysis / Timeframe / ${command}`,
       }),
     ),
   ];
@@ -467,6 +643,8 @@ function buildWorkflowCommands() {
       id: 'workflow:new-sku',
       keywords: ['create', 'new', 'sku', 'catalog'],
       kind: 'workflow',
+      pageId: 'catalog',
+      pageOrder: 3,
       pagePrefixes: ['/catalog'],
       priority: 17,
       subtitle: 'Create a new SKU',
@@ -479,6 +657,8 @@ function buildWorkflowCommands() {
       id: 'workflow:new-service',
       keywords: ['create', 'new', 'service', 'catalog'],
       kind: 'workflow',
+      pageId: 'catalog',
+      pageOrder: 3,
       pagePrefixes: ['/catalog'],
       priority: 18,
       subtitle: 'Create a new service',
@@ -491,6 +671,8 @@ function buildWorkflowCommands() {
       id: 'workflow:start-update',
       keywords: ['start', 'update', 'record', 'observation'],
       kind: 'workflow',
+      pageId: 'record-update',
+      pageOrder: 1,
       pagePrefixes: ['/record-update', '/'],
       priority: 19,
       subtitle: 'Capture the next observation',
@@ -499,8 +681,165 @@ function buildWorkflowCommands() {
   ];
 }
 
+function buildSettingsCommands({
+  currency,
+  displayViewMode,
+  language,
+  senaEngineParameters,
+  showExplanatoryTooltips,
+  showFloatingTitleActions,
+  showRightRailCards,
+  t,
+}: {
+  currency: 'USD' | 'KHR';
+  displayViewMode: 'minimal' | 'maximal';
+  language: 'en' | 'km';
+  senaEngineParameters: { smoothingEnabled?: boolean };
+  showExplanatoryTooltips: boolean;
+  showFloatingTitleActions: boolean;
+  showRightRailCards: boolean;
+  t: Translator;
+}) {
+  const smoothingEnabled = senaEngineParameters.smoothingEnabled ?? true;
+
+  return [
+    createCommand({
+      action: { effect: 'set-language', href: '/settings', type: 'settings', value: 'en' },
+      aliases: ['settings language english'],
+      id: 'settings:language:en',
+      keywords: ['settings', 'language', 'english', language === 'en' ? 'current' : ''],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 500,
+      subtitle: 'Settings / Language',
+      title: 'Set language to English',
+    }),
+    createCommand({
+      action: { effect: 'set-language', href: '/settings', type: 'settings', value: 'km' },
+      aliases: ['settings language khmer'],
+      id: 'settings:language:km',
+      keywords: ['settings', 'language', 'khmer', language === 'km' ? 'current' : ''],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 501,
+      subtitle: 'Settings / Language',
+      title: 'Set language to Khmer',
+    }),
+    createCommand({
+      action: { effect: 'set-currency', href: '/settings', type: 'settings', value: 'USD' },
+      aliases: ['settings currency usd'],
+      id: 'settings:currency:usd',
+      keywords: ['settings', 'currency', 'usd', currency === 'USD' ? 'current' : ''],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 502,
+      subtitle: 'Settings / Currency',
+      title: 'Set currency to USD',
+    }),
+    createCommand({
+      action: { effect: 'set-currency', href: '/settings', type: 'settings', value: 'KHR' },
+      aliases: ['settings currency khr'],
+      id: 'settings:currency:khr',
+      keywords: ['settings', 'currency', 'khr', currency === 'KHR' ? 'current' : ''],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 503,
+      subtitle: 'Settings / Currency',
+      title: 'Set currency to KHR',
+    }),
+    createCommand({
+      action: { effect: 'set-display-mode', href: '/settings', type: 'settings', value: 'maximal' },
+      aliases: ['settings full view', 'settings maximal'],
+      id: 'settings:view:maximal',
+      keywords: ['settings', 'view', 'maximal', displayViewMode === 'maximal' ? 'current' : ''],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 504,
+      subtitle: 'Settings / View mode',
+      title: 'Set view mode to Full View',
+    }),
+    createCommand({
+      action: { effect: 'set-display-mode', href: '/settings', type: 'settings', value: 'minimal' },
+      aliases: ['settings compact view', 'settings minimal'],
+      id: 'settings:view:minimal',
+      keywords: ['settings', 'view', 'minimal', displayViewMode === 'minimal' ? 'current' : ''],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 505,
+      subtitle: 'Settings / View mode',
+      title: 'Set view mode to Minimal View',
+    }),
+    createCommand({
+      action: { effect: 'set-show-explanatory-tooltips', href: '/settings', type: 'settings', value: !showExplanatoryTooltips },
+      aliases: ['settings optional help'],
+      id: `settings:help:${showExplanatoryTooltips ? 'off' : 'on'}`,
+      keywords: ['settings', 'help', 'tooltips', showExplanatoryTooltips ? 'disable' : 'enable'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 506,
+      subtitle: 'Settings / Interface visibility',
+      title: `${showExplanatoryTooltips ? 'Hide' : 'Show'} optional help`,
+    }),
+    createCommand({
+      action: { effect: 'set-show-floating-title-actions', href: '/settings', type: 'settings', value: !showFloatingTitleActions },
+      aliases: ['settings floating actions'],
+      id: `settings:floating-actions:${showFloatingTitleActions ? 'off' : 'on'}`,
+      keywords: ['settings', 'floating', 'actions', showFloatingTitleActions ? 'disable' : 'enable'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 507,
+      subtitle: 'Settings / Interface visibility',
+      title: `${showFloatingTitleActions ? 'Hide' : 'Show'} floating title actions`,
+    }),
+    createCommand({
+      action: { effect: 'set-show-right-rail-cards', href: '/settings', type: 'settings', value: !showRightRailCards },
+      aliases: ['settings right rail cards'],
+      id: `settings:right-rail:${showRightRailCards ? 'off' : 'on'}`,
+      keywords: ['settings', 'right rail', 'cards', showRightRailCards ? 'disable' : 'enable'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 508,
+      subtitle: 'Settings / Interface visibility',
+      title: `${showRightRailCards ? 'Hide' : 'Show'} right rail cards`,
+    }),
+    createCommand({
+      action: { effect: 'set-smoothing-enabled', href: '/settings', type: 'settings', value: !smoothingEnabled },
+      aliases: ['settings smoothing'],
+      id: `settings:smoothing:${smoothingEnabled ? 'off' : 'on'}`,
+      keywords: ['settings', 'smoothing', smoothingEnabled ? 'disable' : 'enable'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 509,
+      subtitle: `${t('navSettings')} / ${t('settingsSenaParametersPanelTitle')}`,
+      title: `${smoothingEnabled ? 'Disable' : 'Enable'} smoothing`,
+    }),
+  ];
+}
+
 function buildSkuEntityCommands(catalog: SenaCatalog) {
-  return catalog.skus.flatMap((sku) => {
+  const visibleCatalog = activeSenaCatalog(catalog) ?? catalog;
+
+  return visibleCatalog.skus.flatMap((sku) => {
     const commands: CommandDescriptor[] = [
       createCommand({
         action: { href: buildSkuDetailHref(sku.skuId), type: 'entity' },
@@ -508,6 +847,8 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
         id: `sku:open:${sku.skuId}`,
         keywords: ['sku', 'open', sku.skuId],
         kind: 'entity',
+        pageId: 'catalog',
+        pageOrder: 3,
         pagePrefixes: ['/catalog', `/catalog/skus/${sku.skuId}`],
         priority: 200,
         subtitle: `SKU · ${sku.skuId}`,
@@ -519,10 +860,31 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
         id: `sku:edit:${sku.skuId}`,
         keywords: ['sku', 'edit', sku.skuId],
         kind: 'workflow',
+        pageId: 'catalog',
+        pageOrder: 3,
         pagePrefixes: ['/catalog', `/catalog/skus/${sku.skuId}`],
         priority: 210,
         subtitle: `SKU · ${sku.skuId}`,
         title: `Edit ${sku.name}`,
+      }),
+      createCommand({
+        action: {
+          entityId: sku.skuId,
+          entityName: sku.name,
+          entityType: 'sku',
+          mutation: 'archive',
+          type: 'catalog-mutation',
+        },
+        aliases: [sku.skuId, 'archive sku'],
+        id: `sku:archive:${sku.skuId}`,
+        keywords: ['sku', 'archive', sku.skuId],
+        kind: 'workflow',
+        pageId: 'catalog',
+        pageOrder: 3,
+        pagePrefixes: ['/catalog'],
+        priority: 211,
+        subtitle: `SKU · ${sku.skuId}`,
+        title: `Archive ${sku.name}`,
       }),
     ];
     const sheetCommands: Array<{ label: string; mode: SkuActionValue }> = [
@@ -544,6 +906,8 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
           id: `sku:sheet:${command.mode}:${sku.skuId}`,
           keywords: ['sku', 'sheet', command.mode, sku.skuId],
           kind: 'sheet',
+          pageId: 'catalog',
+          pageOrder: 3,
           pagePrefixes: [`/catalog/skus/${sku.skuId}`],
           priority: 220 + index,
           subtitle: `SKU action · ${sku.skuId}`,
@@ -555,7 +919,9 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
 }
 
 function buildServiceEntityCommands(catalog: SenaCatalog) {
-  return catalog.services.flatMap((service) => {
+  const visibleCatalog = activeSenaCatalog(catalog) ?? catalog;
+
+  return visibleCatalog.services.flatMap((service) => {
     const sheetCommands: Array<{ label: string; mode: ServiceActionValue }> = [
       { label: 'Record stock', mode: 'stock' },
       { label: 'Log receipt', mode: 'receipt' },
@@ -569,6 +935,8 @@ function buildServiceEntityCommands(catalog: SenaCatalog) {
         id: `service:open:${service.serviceId}`,
         keywords: ['service', 'open', service.serviceId],
         kind: 'entity',
+        pageId: 'catalog',
+        pageOrder: 3,
         pagePrefixes: ['/catalog', `/catalog/services/${service.serviceId}`],
         priority: 230,
         subtitle: `Service · ${service.serviceId}`,
@@ -580,10 +948,31 @@ function buildServiceEntityCommands(catalog: SenaCatalog) {
         id: `service:edit:${service.serviceId}`,
         keywords: ['service', 'edit', service.serviceId],
         kind: 'workflow',
+        pageId: 'catalog',
+        pageOrder: 3,
         pagePrefixes: ['/catalog', `/catalog/services/${service.serviceId}`],
         priority: 240,
         subtitle: `Service · ${service.serviceId}`,
         title: `Edit ${service.name}`,
+      }),
+      createCommand({
+        action: {
+          entityId: service.serviceId,
+          entityName: service.name,
+          entityType: 'service',
+          mutation: 'archive',
+          type: 'catalog-mutation',
+        },
+        aliases: [service.serviceId, 'archive service'],
+        id: `service:archive:${service.serviceId}`,
+        keywords: ['service', 'archive', service.serviceId],
+        kind: 'workflow',
+        pageId: 'catalog',
+        pageOrder: 3,
+        pagePrefixes: ['/catalog'],
+        priority: 241,
+        subtitle: `Service · ${service.serviceId}`,
+        title: `Archive ${service.name}`,
       }),
       ...sheetCommands.map((command, index) =>
         createCommand({
@@ -592,6 +981,8 @@ function buildServiceEntityCommands(catalog: SenaCatalog) {
           id: `service:sheet:${command.mode}:${service.serviceId}`,
           keywords: ['service', 'sheet', command.mode, service.serviceId],
           kind: 'sheet',
+          pageId: 'catalog',
+          pageOrder: 3,
           pagePrefixes: [`/catalog/services/${service.serviceId}`],
           priority: 250 + index,
           subtitle: `Service action · ${service.serviceId}`,
@@ -600,6 +991,53 @@ function buildServiceEntityCommands(catalog: SenaCatalog) {
       ),
     ];
   });
+}
+
+function buildArchivedEntityCommands(catalog: SenaCatalog) {
+  const skuCommands = archivedSenaSkus(catalog).map((sku) =>
+    createCommand({
+      action: {
+        entityId: sku.skuId,
+        entityName: sku.name,
+        entityType: 'sku',
+        mutation: 'unarchive',
+        type: 'catalog-mutation',
+      },
+      aliases: [sku.skuId, 'restore sku'],
+      id: `sku:unarchive:${sku.skuId}`,
+      keywords: ['sku', 'unarchive', 'restore', sku.skuId],
+      kind: 'workflow',
+      pageId: 'archive',
+      pageOrder: 6,
+      pagePrefixes: ['/operations/archive'],
+      priority: 260,
+      subtitle: `Archived SKU · ${sku.skuId}`,
+      title: `Unarchive ${sku.name}`,
+    }),
+  );
+  const serviceCommands = archivedSenaServices(catalog).map((service) =>
+    createCommand({
+      action: {
+        entityId: service.serviceId,
+        entityName: service.name,
+        entityType: 'service',
+        mutation: 'unarchive',
+        type: 'catalog-mutation',
+      },
+      aliases: [service.serviceId, 'restore service'],
+      id: `service:unarchive:${service.serviceId}`,
+      keywords: ['service', 'unarchive', 'restore', service.serviceId],
+      kind: 'workflow',
+      pageId: 'archive',
+      pageOrder: 6,
+      pagePrefixes: ['/operations/archive'],
+      priority: 261,
+      subtitle: `Archived Service · ${service.serviceId}`,
+      title: `Unarchive ${service.name}`,
+    }),
+  );
+
+  return [...skuCommands, ...serviceCommands];
 }
 
 function buildOverviewTaskCommands(inventory: InventoryContextValue, language: AppLanguage) {
@@ -622,6 +1060,8 @@ function buildOverviewTaskCommands(inventory: InventoryContextValue, language: A
           id: 'overview:stale-update',
           keywords: ['overview', 'task', 'record', 'update'],
           kind: 'workflow',
+          pageId: 'overview',
+          pageOrder: 0,
           pagePrefixes: ['/'],
           priority: 300,
           subtitle: task.whyNow,
@@ -645,6 +1085,8 @@ function buildOverviewTaskCommands(inventory: InventoryContextValue, language: A
         id: `overview:task:${task.skuId}:${task.action}`,
         keywords: ['overview', 'task', task.action, task.state, ...task.linkedServiceNames],
         kind: 'workflow',
+        pageId: 'overview',
+        pageOrder: 0,
         pagePrefixes: ['/', `/catalog/skus/${task.skuId}`],
         priority: 310,
         subtitle: `${task.stateLabel} · ${task.whyNow}`,
@@ -657,20 +1099,43 @@ function buildOverviewTaskCommands(inventory: InventoryContextValue, language: A
 }
 
 export function buildCommandDescriptors({
+  currency,
+  displayViewMode,
   inventory,
   language,
+  senaEngineParameters,
+  showExplanatoryTooltips,
+  showFloatingTitleActions,
+  showRightRailCards,
   t,
 }: {
+  currency: 'USD' | 'KHR';
+  displayViewMode: 'minimal' | 'maximal';
   inventory: InventoryContextValue;
   language: AppLanguage;
+  senaEngineParameters: { smoothingEnabled?: boolean };
+  showExplanatoryTooltips: boolean;
+  showFloatingTitleActions: boolean;
+  showRightRailCards: boolean;
   t: Translator;
 }) {
   const commands = [
     ...buildPageCommands(t),
     ...buildWorkflowCommands(),
+    ...buildSettingsCommands({
+      currency,
+      displayViewMode,
+      language,
+      senaEngineParameters,
+      showExplanatoryTooltips,
+      showFloatingTitleActions,
+      showRightRailCards,
+      t,
+    }),
     ...buildOverviewCommands(),
     ...buildCatalogCommands(),
     ...buildOperationsCommands(),
+    ...buildArchiveCommands(),
     ...buildPerformanceCommands(),
     ...buildAnalysisCommands(),
   ];
@@ -683,6 +1148,7 @@ export function buildCommandDescriptors({
     ...commands,
     ...buildSkuEntityCommands(inventory.catalog),
     ...buildServiceEntityCommands(inventory.catalog),
+    ...buildArchivedEntityCommands(inventory.catalog),
     ...buildOverviewTaskCommands(inventory, language),
   ];
 }
@@ -691,8 +1157,14 @@ function buildFuse(commands: CommandDescriptor[]) {
   return new Fuse(commands, {
     ignoreLocation: true,
     includeScore: true,
-    keys: ['title', 'subtitle', 'aliases', 'keywords'],
+    keys: ['title', 'subtitle', 'aliases', 'keywords', 'searchTerms'],
     threshold: 0.34,
+    getFn: (command, path) => {
+      if (path === 'searchTerms') {
+        return commandSearchTerms(command);
+      }
+      return Fuse.config.getFn(command, path);
+    },
   });
 }
 
@@ -746,9 +1218,7 @@ export function searchCommandDescriptors({
 
   return commands
     .map((command) => {
-      const haystacks = [command.title, command.subtitle, ...command.aliases, ...command.keywords]
-        .filter((value): value is string => Boolean(value))
-        .map((value) => normalizeText(value));
+      const haystacks = commandSearchTerms(command);
       const exact = haystacks.some((value) => value === normalizedQuery);
       const prefix = haystacks.some((value) => value.startsWith(normalizedQuery));
       const contains = haystacks.some((value) => value.includes(normalizedQuery));
@@ -783,4 +1253,40 @@ export function searchCommandDescriptors({
 
 export function commandBadgeLabel(command: CommandDescriptor) {
   return commandKindLabel(command.kind);
+}
+
+export function groupCommandDescriptors(
+  commands: CommandDescriptor[],
+  options?: {
+    bestMatchCount?: number;
+    includeBestMatches?: boolean;
+  },
+) {
+  const includeBestMatches = options?.includeBestMatches ?? false;
+  const bestMatchCount = options?.bestMatchCount ?? 5;
+  const bestMatches = includeBestMatches ? commands.slice(0, bestMatchCount) : [];
+  const bestMatchIds = new Set(bestMatches.map((command) => command.id));
+  const remainingCommands = commands.filter((command) => !bestMatchIds.has(command.id));
+
+  const pages = remainingCommands
+    .filter((command) => command.kind === 'page')
+    .sort((left, right) => left.pageOrder - right.pageOrder || left.priority - right.priority);
+  const tabs = remainingCommands
+    .filter((command) => command.kind === 'tab')
+    .sort(
+      (left, right) =>
+        left.pageOrder - right.pageOrder ||
+        (left.tabOrder ?? Number.MAX_SAFE_INTEGER) - (right.tabOrder ?? Number.MAX_SAFE_INTEGER) ||
+        left.priority - right.priority,
+    );
+  const actions = remainingCommands
+    .filter((command) => command.kind !== 'page' && command.kind !== 'tab')
+    .sort((left, right) => left.title.localeCompare(right.title) || left.priority - right.priority);
+
+  return [
+    { id: 'best-matches', items: bestMatches, title: 'Best Matches' },
+    { id: 'pages', items: pages, title: 'Pages' },
+    { id: 'tabs', items: tabs, title: 'Tabs' },
+    { id: 'actions', items: actions, title: 'Actions' },
+  ].filter((section) => section.items.length > 0) satisfies CommandPaletteSection[];
 }

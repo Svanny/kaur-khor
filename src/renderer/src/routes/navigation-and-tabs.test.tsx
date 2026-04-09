@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
+import { translateRegimeLabel } from '@/lib/localized-display';
 import { getTranslation } from '@/lib/translations';
 import { InventoryRoute } from './inventory';
 import { ServiceDetailRoute } from './service-detail';
@@ -255,10 +256,10 @@ describe('SENA routes', () => {
     );
   }
 
-  test('renders the SENA catalog route', () => {
+  test('renders the catalog route', () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    expect(screen.getByText('SENA Integrated')).toBeInTheDocument();
+    expect(screen.getByText('Catalog workspace')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
@@ -282,7 +283,7 @@ describe('SENA routes', () => {
 
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    expect(screen.getByText('SENA Integrated')).toBeInTheDocument();
+    expect(screen.getByText('Catalog workspace')).toBeInTheDocument();
     expect(screen.getByText('SKUs')).toBeInTheDocument();
     expect(screen.getByText('Services')).toBeInTheDocument();
     expect(screen.queryByText('No catalog loaded yet')).not.toBeInTheDocument();
@@ -565,21 +566,21 @@ describe('SENA routes', () => {
     expect(screen.getByText('No matching catalog items')).toBeInTheDocument();
   });
 
-  test('loads SENA SKU detail without snapshot bootstrap', async () => {
+  test('loads SKU detail without snapshot bootstrap', async () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('SENA')).toBeInTheDocument();
+    expect(screen.getByText('Banji')).toBeInTheDocument();
 
     expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', { limit: INTERVAL_PAGE_SIZE });
     expect(inventoryHook().loadInventorySnapshot).not.toHaveBeenCalled();
     expect(screen.getAllByText('Service impact').length).toBeGreaterThan(0);
   });
 
-  test('renders SENA SKU detail even when the legacy snapshot is stale', async () => {
+  test('renders SKU detail even when the legacy snapshot is stale', async () => {
     inventoryHook.mockReturnValue({
       ...inventoryHook(),
       loadInventorySnapshot: vi.fn(async () => ({
@@ -604,12 +605,12 @@ describe('SENA routes', () => {
       expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('SENA')).toBeInTheDocument();
+    expect(screen.getByText('Banji')).toBeInTheDocument();
 
     expect(screen.queryByText('SKU not found')).not.toBeInTheDocument();
   });
 
-  test('renders SENA service detail', async () => {
+  test('renders service detail', async () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
@@ -622,6 +623,27 @@ describe('SENA routes', () => {
     expect(screen.getByText('Record stock')).toBeInTheDocument();
     expect(screen.getByText('Update price')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('href', '/catalog/services/service-1/edit');
+  });
+
+  test('shows the service sales-pattern legend on the detail ledger', async () => {
+    renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Service availability timeline' })).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText(translateRegimeLabel('en', 'normal')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Service price line')).toBeInTheDocument();
+  });
+
+  test('uses semantic status tones for service detail pills', async () => {
+    renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Service availability timeline' })).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Main blocker now')[0]).toHaveClass('border-rose-200');
   });
 
   test('hides the sku detail right rail when the global toggle is off', async () => {

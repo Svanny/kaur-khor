@@ -1,42 +1,40 @@
 import type { RankingEntryType } from '@shared/inventory';
-import type { LucideIcon } from 'lucide-react';
+import type {
+  OverviewDrawerBandId,
+  OverviewTaskAction,
+  OverviewTaskFilter,
+} from '../renderer/src/routes/overview/view-model';
+import type { IconComponent } from './types';
 import {
   Archive,
   BadgePercent,
-  BrainCircuit,
+  BellRing,
   Bot,
+  BrainCircuit,
   CalendarClock,
   CircleGauge,
   CircleOff,
   ClipboardCheck,
   ClipboardClock,
   ClipboardList,
-  Flame,
+  Eye,
   FileText,
-  Layers3,
+  Flame,
   ListTodo,
-  ListChecks,
   MoonStar,
-  ShoppingBasket,
   Package,
-  PackagePlus,
   PackageCheck,
+  PackagePlus,
   ScanLine,
   ScrollText,
   Send,
+  ShoppingBasket,
   Store,
   TimerReset,
-  Eye,
-  BellRing,
   Wrench,
 } from 'lucide-react';
-import type {
-  OverviewTaskAction,
-  OverviewTaskFilter,
-  OverviewDrawerBandId,
-} from '@/routes/overview/view-model';
 
-export const overviewTaskActionIconMap: Record<OverviewTaskAction, LucideIcon | null> = {
+export const overviewTaskActionIcons: Record<OverviewTaskAction, IconComponent | null> = {
   log_order: PackagePlus,
   update_eta: CalendarClock,
   follow_up: Send,
@@ -46,7 +44,7 @@ export const overviewTaskActionIconMap: Record<OverviewTaskAction, LucideIcon | 
   remind_tomorrow: BellRing,
 };
 
-export const overviewTaskFilterIconMap: Record<OverviewTaskFilter, LucideIcon> = {
+export const overviewTaskFilterIcons: Record<OverviewTaskFilter, IconComponent> = {
   all: ClipboardList,
   to_order: ShoppingBasket,
   awaiting_receipt: ClipboardClock,
@@ -55,7 +53,7 @@ export const overviewTaskFilterIconMap: Record<OverviewTaskFilter, LucideIcon> =
   received_today: Archive,
 };
 
-export const overviewDrawerBandIconMap: Record<OverviewDrawerBandId, LucideIcon> = {
+export const overviewDrawerBandIcons: Record<OverviewDrawerBandId, IconComponent> = {
   real_life: ScrollText,
   timing: TimerReset,
   order_shape: Package,
@@ -66,7 +64,7 @@ export const overviewDrawerBandIconMap: Record<OverviewDrawerBandId, LucideIcon>
   next_steps: Bot,
 };
 
-export const rankingEntryTypeIconMap: Record<RankingEntryType, LucideIcon> = {
+export const rankingEntryTypeIcons: Record<RankingEntryType, IconComponent> = {
   service: Store,
   sku: Package,
 };
@@ -80,7 +78,7 @@ export type RegimeIconKey =
   | 'correction'
   | 'unknown';
 
-export const regimeIconMap: Record<RegimeIconKey, LucideIcon> = {
+export const regimeIcons: Record<RegimeIconKey, IconComponent> = {
   normal: CircleGauge,
   promo: BadgePercent,
   spike: Flame,
@@ -113,6 +111,6 @@ export function normalizeRegimeIconKey(regime: string | null | undefined): Regim
   return 'unknown';
 }
 
-export function regimeIconFor(regime: string | null | undefined): LucideIcon {
-  return regimeIconMap[normalizeRegimeIconKey(regime)];
+export function getRegimeIcon(regime: string | null | undefined): IconComponent {
+  return regimeIcons[normalizeRegimeIconKey(regime)];
 }

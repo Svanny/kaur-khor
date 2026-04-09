@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@icons': resolve(__dirname, 'src/icons'),
       '@': resolve(__dirname, 'src/renderer/src'),
       '@renderer': resolve(__dirname, 'src/renderer/src'),
       '@shared': resolve(__dirname, 'src/shared'),

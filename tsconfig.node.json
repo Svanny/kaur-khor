@@ -18,6 +18,12 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@icons": [
+        "src/icons/index.ts"
+      ],
+      "@icons/*": [
+        "src/icons/*"
+      ],
       "@shared/*": [
         "src/shared/*"
       ]
@@ -25,6 +31,8 @@
   },
   "include": [
     "electron.vite.config.ts",
+    "src/icons/native.ts",
+    "src/icons/native.test.ts",
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "src/shared/**/*.ts"

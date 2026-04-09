@@ -8,6 +8,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
+        '@icons': resolve(__dirname, 'src/icons'),
         '@shared': resolve(__dirname, 'src/shared'),
       },
     },
@@ -16,6 +17,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
+        '@icons': resolve(__dirname, 'src/icons'),
         '@shared': resolve(__dirname, 'src/shared'),
       },
     },
@@ -23,6 +25,7 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
+        '@icons': resolve(__dirname, 'src/icons'),
         '@': resolve(__dirname, 'src/renderer/src'),
         '@renderer': resolve(__dirname, 'src/renderer/src'),
         '@shared': resolve(__dirname, 'src/shared'),

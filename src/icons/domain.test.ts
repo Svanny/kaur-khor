@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import {
-  overviewDrawerBandIconMap,
-  overviewTaskActionIconMap,
-  overviewTaskFilterIconMap,
-  rankingEntryTypeIconMap,
-} from './icon-mappings';
+  overviewDrawerBandIcons,
+  overviewTaskActionIcons,
+  overviewTaskFilterIcons,
+  rankingEntryTypeIcons,
+} from './domain';
 
-describe('icon mappings', () => {
+describe('domain icon mappings', () => {
   test('covers all overview task action keys', () => {
-    expect(Object.keys(overviewTaskActionIconMap).sort()).toEqual([
+    expect(Object.keys(overviewTaskActionIcons).sort()).toEqual([
       'follow_up',
       'log_order',
       'receive',
@@ -20,7 +20,7 @@ describe('icon mappings', () => {
   });
 
   test('covers all overview filter keys', () => {
-    expect(Object.keys(overviewTaskFilterIconMap).sort()).toEqual([
+    expect(Object.keys(overviewTaskFilterIcons).sort()).toEqual([
       'all',
       'awaiting_receipt',
       'follow_up_today',
@@ -31,7 +31,7 @@ describe('icon mappings', () => {
   });
 
   test('covers all overview drawer band ids', () => {
-    expect(Object.keys(overviewDrawerBandIconMap).sort()).toEqual([
+    expect(Object.keys(overviewDrawerBandIcons).sort()).toEqual([
       'next_steps',
       'note',
       'optional_learning',
@@ -44,15 +44,15 @@ describe('icon mappings', () => {
   });
 
   test('covers all ranking entry types', () => {
-    expect(Object.keys(rankingEntryTypeIconMap).sort()).toEqual(['service', 'sku']);
+    expect(Object.keys(rankingEntryTypeIcons).sort()).toEqual(['service', 'sku']);
   });
 
   test('does not reuse icons across different semantic maps except the intentional package reuse', () => {
     const semanticMaps = [
-      overviewTaskActionIconMap,
-      overviewTaskFilterIconMap,
-      overviewDrawerBandIconMap,
-      rankingEntryTypeIconMap,
+      overviewTaskActionIcons,
+      overviewTaskFilterIcons,
+      overviewDrawerBandIcons,
+      rankingEntryTypeIcons,
     ];
     const iconNames = semanticMaps
       .flatMap((map) => Object.values(map))

@@ -7,6 +7,7 @@ export const enUiCopyV1 = {
   navAnalysis: 'Analysis',
   navCatalog: 'Catalog',
   navOperations: 'Logs',
+  navArchive: 'Archive',
   sidebarSectionMain: 'Main',
   sidebarSectionOther: 'Other',
   navSist: 'Planning',
@@ -927,15 +928,22 @@ export const enUiCopyV1 = {
   catalogSkuRecentReportsNoSkuChanges: 'No SKU-specific changes recorded',
   catalogSkuEditorTitleNew: 'New SKU',
   catalogSkuEditorTitleEdit: 'Edit SKU',
+  catalogItemEditorIdentifierErrorRequired: 'Enter an identifier.',
+  catalogItemEditorIdentifierErrorInvalid:
+    'Use 3 to 64 lowercase letters, numbers, hyphens, or underscores.',
+  catalogItemEditorIdentifierErrorDuplicate:
+    'This identifier is already used by another catalog item, including archived items.',
   catalogSkuEditorDetailsTitleEdit: 'Edit SKU details',
   catalogSkuEditorDescriptionNew:
     'Create the SKU first. You can handle follow-up planning and stock work from its detail page.',
   catalogSkuEditorDescriptionEdit:
     'Update the SKU details Banji uses for catalog, pricing, and planning.',
-  catalogSkuEditorIdentifierDescription: 'This SKU id is locked after creation.',
+  catalogSkuEditorIdentifierDescription:
+    'Keep this SKU id stable unless you need to rename it everywhere Banji tracks it.',
   catalogSkuEditorDetailsDescriptor:
     'Set the SKU name and internal description Banji will use across the app.',
-  catalogSkuEditorIdentifierHelper: 'Enter a stable SKU id. You cannot change it after saving.',
+  catalogSkuEditorIdentifierHelper:
+    'Enter a stable SKU id. Banji will block duplicates across active and archived items.',
   catalogSkuPlanningInputsTitle: 'Planning inputs',
   catalogSkuPlanningInputsDescription:
     'Optional supplier timing inputs. Update them when the lead-time picture changes.',
@@ -1041,10 +1049,12 @@ export const enUiCopyV1 = {
     'Create the service first. You can review fulfillment and logs from its detail page.',
   catalogServiceEditorDescriptionEdit:
     'Update the service details Banji uses for catalog, pricing, and coverage.',
-  catalogServiceEditorIdentifierDescription: 'This service id is locked after creation.',
+  catalogServiceEditorIdentifierDescription:
+    'Keep this service id stable unless you need to rename it everywhere Banji tracks it.',
   catalogServiceEditorDetailsDescriptor:
     'Set the service name and description Banji will show across the app.',
-  catalogServiceEditorIdentifierHelper: 'Use a stable service id. You cannot change it after saving.',
+  catalogServiceEditorIdentifierHelper:
+    'Use a stable service id. Banji will block duplicates across active and archived items.',
   catalogServiceEditorDetailsTooltip:
     'Identity fields define how Banji names and finds this service across catalog, logs, and analysis.',
   catalogServiceEditorPricingTooltip:
@@ -1139,6 +1149,7 @@ export const enUiCopyV1 = {
   settingsExportLogsAction: 'Export Logs',
   settingsExportSenaDataAction: 'Export SENA data',
   settingsLoadLocalWorkspaceInfo: 'Loading local workspace information…',
+  settingsCreditsTitle: 'Credits',
   settingsCreditsDescription: 'One last small note from the builder.',
   settingsCollapseCredits: 'Collapse credits',
   settingsExpandCredits: 'Expand credits',
@@ -1544,7 +1555,7 @@ export const enUiCopyV1 = {
   analysisWorkbenchNavPressure: 'Pressure',
   analysisWorkbenchNavObservations: 'Observations',
   analysisWorkbenchNavFragility: 'Fragility',
-  analysisWorkbenchNavSettings: 'Settings',
+  analysisWorkbenchNavSettings: 'Parameters',
   analysisWorkbenchSettingsRunIdLabel: 'Run ID',
   analysisWorkbenchSettingsRunIdTooltip: 'Unique identifier for the current analysis run.',
   analysisWorkbenchSettingsLatestObservedLabel: 'Latest observed',
@@ -1903,6 +1914,58 @@ export const enUiCopyV1 = {
   stockUpdateBlockedStateAria: 'Blocked or stockout for {name}',
   stockUpdateRemovePriceFlagFor: 'Remove price flag for {name}',
   stockUpdatePriceChangedAria: 'Price if changed for {name}',
+  overviewDrawerModeNotOrderedTitle: 'Not ordered yet',
+  overviewDrawerModeNotOrderedDescription: 'Leave this task open',
+  overviewDrawerModeOrderedWaitingTitle: 'Ordered, waiting',
+  overviewDrawerModeOrderedWaitingDescription: 'Record the open order',
+  overviewDrawerModeEtaChangedTitle: 'ETA changed',
+  overviewDrawerModeEtaChangedDescription: 'Update the arrival date',
+  overviewDrawerModeGoodsReceivedTitle: 'Goods received',
+  overviewDrawerModeGoodsReceivedDescription: 'Log the receipt',
+  overviewDrawerModeSummaryNotOrdered: 'Banji will keep this task open until the order state changes.',
+  overviewDrawerModeSummaryOrderedWaiting: 'Banji will save the order signal and the current arrival window.',
+  overviewDrawerModeSummaryEtaChanged: 'Banji will refresh the arrival window for this task.',
+  overviewDrawerModeSummaryGoodsReceived: 'Banji will log the receipt and update stock.',
+  overviewDrawerRealLifeTitle: 'What happened in real life',
+  overviewDrawerRecommendedOrderTitle: 'Recommended order',
+  overviewDrawerRecommendedOrderLikely: '{value} likely',
+  overviewDrawerRecommendedOrderBasis: 'Based on on hand + in transit + lead time.',
+  overviewDrawerTimingTitle: 'Timing',
+  overviewDrawerReceiptTimingTitle: 'Receipt timing',
+  overviewDrawerObservedAtDescription: 'Choose when you confirmed this update.',
+  overviewDrawerReceiptConfirmedDescription: 'Choose when the receipt was confirmed.',
+  overviewDrawerObservedAtLabel: 'Observed at',
+  overviewDrawerReceivedDateTimeLabel: 'Received date/time',
+  overviewDrawerExpectedArrivalDateLabel: 'Expected arrival date',
+  overviewDrawerExpectedArrivalDateDescription: "Use the supplier's current best estimate.",
+  overviewDrawerOrderShapeTitle: 'Order shape',
+  overviewDrawerOrderedQuantityLabel: 'Ordered quantity',
+  overviewDrawerOrderedQuantityFallback: 'Enter the quantity already ordered.',
+  overviewDrawerUncertaintyLabel: 'Uncertainty ± days',
+  overviewDrawerUncertaintyDescription: 'Add the likely plus/minus range around the arrival date.',
+  overviewDrawerVariabilityLabel: 'Variability',
+  overviewDrawerVariabilityDescription: 'Choose how steady or variable supplier timing has been.',
+  overviewDrawerVariabilityPlaceholder: 'Choose variability',
+  overviewDrawerOptionalLearningTitle: 'Optional learning',
+  overviewDrawerOptionalLearningDescription: 'Use this update to refine future lead-time estimates.',
+  overviewDrawerReceiptDetailsTitle: 'Receipt details',
+  overviewDrawerReceivedQuantityLabel: 'Received quantity',
+  overviewDrawerReceivedQuantityDescription: 'Enter the units that actually arrived.',
+  overviewDrawerReceivedCostLabel: 'Received cost if changed',
+  overviewDrawerReceivedCostDescription: 'Only update this if the landed cost changed.',
+  overviewDrawerPreviewTitle: 'Preview',
+  overviewDrawerPreviewDescription:
+    'Banji will add +{quantity} units, close this receipt task, and move inventory to {stock} units.',
+  overviewDrawerSupplierNoteTitle: 'Supplier note',
+  overviewDrawerSupplierNoteDescription: 'Add context only if it changes the supplier follow-up.',
+  overviewDrawerNoteTitle: 'Note',
+  overviewDrawerNoteDescription: 'Add context only if someone will need it later.',
+  overviewDrawerNextStepsTitle: 'What Banji will do next',
+  overviewDrawerModeLabel: 'Mode: {value}',
+  overviewDrawerSubmitGoodsReceived: 'Confirm inventory update',
+  overviewDrawerSubmitNotOrdered: 'Save note',
+  overviewDrawerSubmitDefault: 'Save and refresh',
+  overviewDrawerSaveFailed: "Banji could not save this update. Try again.",
   stockUpdateEyebrow: 'Operations',
 } as const;
 
@@ -1923,10 +1986,12 @@ export const enUiCopyV2: EnglishUiCopy = {
   workspaceComputingHint:
     'The first launch after a reset can take longer while Banji rebuilds local views.',
   workspaceUnavailable: 'The local workspace is unavailable.',
+  dashboardHealthStarting: 'Starting the desktop core and loading the latest workspace state',
   dashboardRiskTitle: 'Planning pulse',
   dashboardRiskDescription:
     'See which SKUs need attention and where reorder pressure is building.',
   dashboardReportFreshness: 'Planning freshness',
+  dashboardTopRegime: 'Main sales pattern',
   catalogSenaSkuHeroTitle: 'Stock snapshot',
   catalogSenaSkuHeroTooltip:
     'This is Banji’s latest estimate for this SKU. It brings current stock, uncertainty, cover, reorder pressure, and incoming stock into one view.',
@@ -1942,6 +2007,8 @@ export const enUiCopyV2: EnglishUiCopy = {
   catalogSenaSkuEvidenceTimeline: 'Recent evidence',
   catalogSenaSkuEvidenceTimelineTooltip:
     'This timeline shows the saved updates Banji used to form its latest estimate.',
+  catalogSenaSkuSelectedInterval: 'Selected period',
+  catalogSenaSkuActNow: 'Next step',
   catalogSenaSkuActNowTooltip:
     'This is Banji’s suggested next move for this SKU.',
   catalogSenaSkuOpenPipeline: 'Incoming stock',
@@ -1959,6 +2026,9 @@ export const enUiCopyV2: EnglishUiCopy = {
   catalogSenaSkuDegraded: 'Detailed analysis is unavailable, but the main SKU controls still work.',
   catalogSenaSkuDialogDescription: 'Log one SKU-specific update, then refresh this SKU view.',
   catalogSenaSkuSaveAndRefresh: 'Save and refresh view',
+  catalogSenaSkuRegimeLane: 'Sales pattern',
+  catalogSenaSkuRegimeLaneTooltip:
+    'This lane shows the main sales pattern across the visible periods.',
   catalogSenaSkuRegimePriceLane: 'Sales pattern and price',
   catalogSenaSkuRegimePriceLaneTooltip:
     'See the main sales pattern and recent price changes side by side.',
@@ -2012,6 +2082,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   catalogServiceRailMetricGap: 'Shortfall',
   catalogServiceRailLatestSignal: 'Latest blocker signal {date}',
   catalogServiceRailNoSignal: 'No blocker update yet',
+  catalogServiceRegimeLegendLabel: 'Sales pattern',
   catalogServiceRegimePriceLane: 'Sales pattern and price',
   catalogServiceRegimePriceLaneTooltip:
     'See the service sales pattern and price context across the selected periods.',
@@ -2094,11 +2165,15 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Fix the highlighted planning settings before saving.',
   settingsSenaParametersRerunHint:
     'Saving preferences will rerun the local planning analysis with these settings.',
+  settingsExportSenaDataAction: 'Export planning data',
+  settingsParameterRunStatusExported: 'Exported planning data as {format}.',
+  settingsParameterRunStatusFailed: 'Failed to export planning data.',
   settingsLocalWorkspaceStorageTitle: 'Local workspace data',
   settingsLocalWorkspaceStorageDescription:
     'Banji stores workspace data on this device in a local SQLite file.',
   settingsOpenLocalDataFolderAction: 'Open local data folder',
   settingsLoadLocalWorkspaceInfo: 'Loading local workspace details…',
+  settingsCreditsTitle: 'Credits',
   settingsCreditsDescription: 'A small note from the builder.',
   settingsParameterEnterNumber: 'Enter a number. {range}',
   shellViewModeMaximal: 'Full View',
@@ -2121,6 +2196,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   overviewTaskWhyOrderedAlready: 'Order already placed',
   overviewTaskWhyCheckSupplier: 'Supplier update needed',
   overviewTaskWhyReceiptDue: 'Delivery window is open',
+  overviewTaskWhyDetailOrder: '{cover} of cover · reorder signal {probability}',
   overviewTaskServiceImpactMayRestore:
     'Could restore {services}',
   overviewTaskHeartbeatOnHand:
@@ -2145,7 +2221,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsLogsExported: 'Exported activity logs as {format}.',
   settingsLogsExportFailed: "Couldn't export activity logs.",
   settingsSenaDataWorkbookTitle: 'Banji planning data',
-  settingsSenaDataExportFormatLabel: 'Choose planning data format',
+  settingsSenaDataExportFormatLabel: 'Planning data format',
   skuVmUnknown: 'unknown',
   skuVmNoActiveReceiptWindow: 'No delivery window yet',
   skuVmOverdue: 'Late',
@@ -2293,7 +2369,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   performanceVmPriceUp: 'price up',
   performanceVmPriceDrag: 'price drag',
   performanceVmCapacityHolding: 'Capacity holding',
-  performanceVmPartiallyCoverable: 'Partly coverable',
+  performanceVmPartiallyCoverable: 'Partly fulfillable',
   performanceVmBlockedBySupply: 'Blocked by supply',
   performanceVmRibbonDemandMomentum: 'Demand momentum',
   performanceVmRibbonSellableCapacity: 'Sellable capacity',
@@ -2302,6 +2378,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   performanceVmRibbonRevenueAtRisk: 'Revenue at risk',
   performanceVmLastUpdated: 'Updated {date} · {window}',
   performanceVmWaitingForUpdates: 'Waiting for Banji updates',
+  performanceRouteEmptyWorkspaceTitle: 'Performance needs your first update',
   performanceRouteEmptyCatalogHint:
     'Create the first SKU so Banji can compare demand, availability, and price in one business view.',
   performanceRouteEmptyWorkspaceHint:
@@ -2341,7 +2418,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   analysisRouteOpenOverview: 'Open overview',
   analysisWorkbenchNavPressure: 'Risks',
   analysisWorkbenchNavFragility: 'Blockers',
-  analysisWorkbenchSettingsSampleSizeLabel: 'Stability sample size',
+  analysisWorkbenchSettingsSampleSizeLabel: 'Evidence strength',
   analysisWorkbenchSettingsSampleSizeTooltip:
     'Estimate of how much independent evidence is supporting this reading.',
   analysisWorkbenchSettingsPredictiveErrorLabel: 'Prediction gap',
@@ -2424,18 +2501,27 @@ export const enUiCopyV2: EnglishUiCopy = {
   analysisWorkbenchOrdersTransitLeadTimeTooltip:
     'Order, incoming-stock, and delivery-timing conditions in this time period.',
   analysisWorkbenchLeadTimeSpread: 'Timing spread',
-  analysisWorkbenchLeadTimeClass: 'Timing class',
+  analysisWorkbenchLeadTimeClass: 'Timing pattern',
+  analysisWorkbenchSelectedSkuTitle: 'Selected SKU',
+  analysisWorkbenchSelectedServiceTitle: 'Selected service',
+  analysisWorkbenchOpenDetail: 'Open details',
   analysisWorkbenchPosteriorStateTitle: 'Current estimate',
   analysisWorkbenchPosteriorStateTooltip:
-    'Current estimate for demand, stock, reorder posture, and incoming exposure.',
-  analysisWorkbenchPosteriorUnits: 'Estimated units',
+    'Current picture of demand, stock, reorder signal, and incoming stock.',
+  analysisWorkbenchPosteriorUnits: 'Latest estimate',
+  analysisWorkbenchReorderTrigger: 'Reorder signal',
+  analysisWorkbenchReorderPolicyTitle: 'Order guidance',
+  analysisWorkbenchNeedProbability: 'Need chance',
+  analysisWorkbenchPolicyBasis: 'Why this guidance',
   analysisWorkbenchReorderPolicyTooltip:
     'Shows the current order suggestion after stock, incoming stock, demand, and delivery timing are considered.',
   analysisWorkbenchContributorStackTitle: 'Main contributors',
   analysisWorkbenchContributorStackTooltip:
     'The strongest linked contributors behind this item.',
-  analysisWorkbenchOverviewTitle: 'Current system picture',
+  analysisWorkbenchOverviewTitle: 'Current business picture',
   analysisWorkbenchChangePointProbability: 'Shift probability {value}',
+  analysisWorkbenchStrongestChannelsTitle: 'Main evidence',
+  analysisWorkbenchAffectedEntitiesHeader: 'Affected items',
   analysisWorkbenchSettingsTitle: 'Analysis details',
   analysisWorkbenchSettingsTooltip:
     'Read-only analysis and evidence details for the current window.',
@@ -2505,23 +2591,216 @@ export const enUiCopyV2: EnglishUiCopy = {
     'This timestamp anchors the time period since the last confirmed update.',
   stockUpdateObservedAtHelp:
     'Banji starts with the last saved update time; edit only the end time here.',
-  stockUpdateNotesTooltip:
-    'Use notes for human context. Add structured signals when Banji should learn from the change.',
-  stockUpdateNotesHelp:
-    'Notes explain the update, but on their own they do not count as a business signal.',
-  stockUpdateRankingsTooltip:
-    'These rankings are selling-order evidence. Leave them unchanged if the selling order did not meaningfully change.',
-  stockUpdateSaveFailed:
-    "Banji couldn't save this update right now. Try again.",
-  stockUpdateRemoveOrderFlagFor: 'Remove order flag for {name}',
-  stockUpdateOrderedQuantityAria: 'Ordered quantity for {name}',
-  stockUpdateRemoveReceiptFlagFor: 'Remove receipt flag for {name}',
-  stockUpdateReceiptQuantityAria: 'Receipt quantity for {name}',
-  stockUpdateRemoveEventFlagFor: 'Remove event flag for {name}',
-  stockUpdateBlockedStateAria: 'Blocked or stockout for {name}',
-  stockUpdateRemovePriceFlagFor: 'Remove price flag for {name}',
-  stockUpdatePriceChangedAria: 'Price if changed for {name}',
-  stockUpdateEyebrow: 'Operations',
+  ...{
+    backendReady: 'Local planning workspace ready',
+    backendError: 'Local planning workspace unavailable',
+    workspaceLoadingTitle: 'Loading local planning workspace…',
+    workspaceStarting: 'Starting the desktop core and loading the latest local workspace.',
+    workspaceComputingTitle: 'Banji is preparing your workspace',
+    workspaceComputingBody:
+      'Banji is loading your catalog, recent updates, and the latest local planning view.',
+    workspaceUnavailable: 'The local planning workspace is unavailable.',
+    dashboardHealthStarting: 'Starting the desktop core and loading the latest local workspace',
+    dashboardRiskTitle: 'Planning pulse',
+    planningExplainerSistLabel: 'For planning',
+    preferencesSistTitle: 'Planning defaults',
+    apiUnavailable: 'The local planning workspace is unavailable.',
+    catalogSenaSkuHeroTitle: 'SKU snapshot',
+    catalogSenaSkuHeroTooltip:
+      'This snapshot is Banji’s current picture of this SKU. It sums up stock on hand, likely range, days of cover, reorder signal, and open delivery exposure.',
+    catalogSenaSkuOperationalRibbon: 'Key signals',
+    catalogSenaSkuRibbonTooltip:
+      'These six signals matter most for the next decision. They keep stock, incoming deliveries, demand, price, and service impact in one place.',
+    catalogSenaSkuLedgerTitle: 'SKU timeline',
+    catalogSenaSkuLedgerTooltip:
+      'This timeline shows what likely happened over time. It lines up sales pattern, demand, stock movement, orders, deliveries, and corrections in one view.',
+    catalogSenaSkuPreparing: 'Preparing details',
+    catalogSenaSkuNeedsObservations: 'Banji needs at least two saved updates for this view',
+    catalogSenaSkuRefreshing: 'Refreshing details',
+    catalogSenaSkuDegraded: 'Detailed analysis is unavailable right now, but the main SKU controls still work.',
+    catalogSenaSkuDialogDescription: 'Log one SKU-specific update, then refresh this SKU view.',
+    catalogSenaSkuTypicalLeadTimeDays: 'Typical delivery days',
+    catalogSenaSkuRegimePriceLane: 'Sales pattern and price',
+    catalogSenaSkuRegimePriceLaneTooltip:
+      'This lane shows the main sales pattern next to price cues. It helps explain whether sales looked normal, promotional, stock-limited, or corrective.',
+    catalogSenaSkuInventoryLane: 'Stock estimate',
+    catalogSenaSkuInventoryLaneTooltip:
+      'This lane shows Banji’s best stock estimate across the visible window. It includes likely range, reorder warning, and buffer stock guides.',
+    catalogSenaSkuPipelineLane: 'Incoming stock timeline',
+    catalogSenaSkuPipelineLaneTooltip:
+      'This lane shows what Banji thinks is still on the way. It separates order placement, incoming stock, and deliveries.',
+    catalogServiceDetailUnavailableTitle: 'Service details unavailable',
+    catalogSkuDetailLoaderTitle: 'Detailed view',
+    catalogSkuDetailLoaderLoading: 'Loading fuller details…',
+    catalogSkuDetailLoaderFallback: 'Fuller details are not available right now.',
+    settingsSenaParametersPanelTitle: 'Planning settings',
+    settingsSenaParametersPanelDescription:
+      'Adjust how local planning handles uncertainty when it estimates stock and suggests order amounts.',
+    settingsAnalysisProfileTooltip:
+      'This picks the local planning engine version. Keep the current profile unless you are comparing analysis builds.',
+    settingsAnalysisProfileHelp:
+      'Local planning engine version used for the next refresh.',
+    settingsNeedProbabilityGateTooltip:
+      'Banji may still show an optional order amount below this level, but it will not present it as a firm reorder suggestion.',
+    settingsSenaParametersFixErrors: 'Fix the highlighted planning settings before saving.',
+    settingsSenaParametersRerunHint:
+      'Saving preferences will rerun the local planning analysis with these settings.',
+    settingsExportSenaDataAction: 'Export planning data',
+    settingsParameterRunStatusExported: 'Exported planning data as {format}.',
+    settingsParameterRunStatusFailed: 'Failed to export planning data.',
+    settingsSenaRerunSaved: 'Banji refreshed planning with your saved settings.',
+    settingsSenaRerunDefaults: 'Banji refreshed planning with the default settings.',
+    settingsSenaRerunFailed: "Banji couldn't refresh planning right now.",
+    settingsSenaDataWorkbookTitle: 'Banji planning data',
+    settingsSenaDataExportFormatLabel: 'Planning data format',
+    overviewSignalPromo: 'A promotion may have lifted demand for {name}.',
+    skuVmHeroSentence:
+      'Likely range {low}-{high} · cover {cover} · reorder signal {reorder} · {openOrders} · {variability} · next delivery {receipt}',
+    skuVmLaneRegimeSummary:
+      'Sales pattern history has {intervals} periods and {markers} retail price markers.',
+    skuVmLaneInventorySummary:
+      'Latest stock estimate {inventory}, reorder warning {reorderPoint}, buffer stock {safetyStock}.',
+    serviceVmHeroSummary:
+      'Likely range {low}-{high} · main blocker {bottleneck} · risk {risk} · next blocker {nextBlocker} · {inbound}',
+    performanceVmWaitingForUpdates: 'Waiting for recent updates',
+    performanceRouteEmptyWorkspaceTitle: 'Performance needs your first update',
+    performanceRouteBoardTooltip:
+      'A mixed portfolio view of demand, support, incoming stock, and margin posture.',
+    performanceRouteRecoveryPipelineTitle: 'Recovery path',
+    analysisRouteDescriptor:
+      'Inspect how saved updates shaped Banji’s current picture of demand, orders, deliveries, timing shifts, and price effects.',
+    analysisRouteNeedRunTitle: 'Analysis needs your first update',
+    analysisRouteLoadingDetails: 'Loading item details…',
+    analysisWorkbenchSettingsSampleSizeLabel: 'Evidence strength',
+    analysisWorkbenchSettingsPredictiveErrorLabel: 'Prediction gap',
+    analysisWorkbenchSettingsCoverageLabel: 'Coverage level',
+    analysisWorkbenchLedgerTitle: 'System timeline',
+    analysisWorkbenchLedgerTooltip:
+      'Interval-by-interval view of sales pattern, stock estimate, incoming stock, and delivery timing.',
+    analysisWorkbenchLaneRegimeTitle: 'Sales pattern and price',
+    analysisWorkbenchLaneRegimeSubtitle:
+      'See the main sales pattern with price and stockout cues shown as light markers instead of heavy cards.',
+    analysisWorkbenchLaneRegimeTooltip:
+      'Main sales pattern in each interval, with price and stockout cues.',
+    analysisWorkbenchLeadTimeClass: 'Timing pattern',
+    analysisWorkbenchPosteriorStateTitle: 'Current picture',
+    analysisWorkbenchPosteriorStateTooltip:
+      'Current picture of demand, stock, reorder signal, and incoming stock.',
+    analysisWorkbenchPosteriorUnits: 'Latest estimate',
+    analysisWorkbenchReorderTrigger: 'Reorder signal',
+    analysisWorkbenchReorderPolicyTooltip:
+      'Shows the current order suggestion after stock, incoming stock, demand, and delivery timing are considered.',
+    ...{
+      settingsAnalysisProfileLabel: 'Planning method',
+      settingsAnalysisProfileTooltip:
+        'This chooses which local planning method Banji uses. Leave it unchanged unless you are comparing results.',
+      settingsAnalysisProfileHelp: 'Local planning method used on the next refresh.',
+      settingsRecommendationQuantileLabel: 'Order suggestion level',
+      settingsRecommendationQuantileHelp:
+        'Which point in Banji’s likely outcomes becomes the suggested order amount.',
+      settingsRecommendationQuantileTooltip:
+        'Lower values suggest a smaller order. Higher values suggest a larger one.',
+      settingsRangeLowQuantileLabel: 'Suggested range start',
+      settingsRangeLowQuantileHelp:
+        'Lower end of Banji’s likely order range.',
+      settingsRangeLowQuantileTooltip:
+        'Banji uses this as the low end of the likely order range.',
+      settingsRangeHighQuantileLabel: 'Suggested range end',
+      settingsRangeHighQuantileHelp:
+        'Upper end of Banji’s likely order range.',
+      settingsRangeHighQuantileTooltip:
+        'Banji uses this as the high end of the likely order range.',
+      settingsParticleCount: 'Evidence detail level',
+      settingsParticleCountTooltip:
+        'Higher values usually make Banji’s estimates steadier, but refreshes take longer.',
+      settingsEnableSmoothingHelp:
+        'Smooth sharp swings before Banji summarizes them.',
+      settingsEnableSmoothingTooltip:
+        'This can make sparse updates easier to read, but it also softens sudden changes.',
+      settingsRangeLowAboveHigh:
+        'Suggested range start cannot be above the range end.',
+      settingsRangeHighBelowLow:
+        'Suggested range end cannot be below the range start.',
+      settingsRecommendationOutsideRange:
+        'Order suggestion level must stay between the range start and range end.',
+      analysisWorkbenchNavWorkbench: 'Main view',
+      analysisWorkbenchSelectSurface: 'Select analysis view',
+      analysisWorkbenchSettingsSampleSizeTooltip:
+        'How much distinct evidence Banji is effectively using.',
+      analysisWorkbenchLedgerDescriptor:
+        'See how saved updates turned into the current system picture.',
+      analysisWorkbenchPressureDescriptor:
+        'Compare whether risk is coming from demand, incoming stock, arrival timing, or price.',
+      analysisWorkbenchObservationsTitle: 'Saved updates',
+      analysisWorkbenchObservationsTooltip:
+        'List of saved updates and the signals each one included.',
+      analysisWorkbenchObservationsDescriptor:
+        'Review which signals were present in each saved update.',
+      analysisWorkbenchObservedHeader: 'Saved update',
+      analysisWorkbenchObservationChannelsHeader: 'Signals recorded',
+      analysisWorkbenchSalesPatternLine: 'Sales pattern {value}',
+      analysisWorkbenchSelectedEntityTooltip:
+        'The item currently selected in this view.',
+      analysisWorkbenchReorderPolicyTitle: 'Order suggestion',
+      analysisWorkbenchNeedProbability: 'Order chance',
+      analysisWorkbenchRecommendedOrder: 'Suggested order',
+      analysisWorkbenchProtectionHorizon: 'Coverage window',
+      regimeCorrection: 'Adjustment',
+      stockUpdateRegimeCorrection: 'Adjustment pattern',
+      stockUpdateRegimeCorrectionDetail:
+        'Manual cleanup or bookkeeping changes shaped this period.',
+      overviewTaskWhyOrderBlocksService: 'A service could be blocked',
+      overviewTaskWhyOrderSoon: 'Stock is running low',
+      overviewTaskWhyDetailOrder:
+        '{cover} of cover · reorder signal {probability}',
+      overviewTaskWhyReceiptLoop:
+        'Banji is still tracking this delivery.',
+      overviewTaskHeartbeatOnHand:
+        'Likely on hand {low}-{high}',
+      overviewTaskHeartbeatReorder:
+        'Reorder signal {probability}',
+      overviewTaskHeartbeatPattern:
+        'Sales pattern {pattern}',
+      overviewTaskNextOrderUrgent:
+        'This stays urgent while the reorder signal is active.',
+      overviewTaskConfidencePriority:
+        'needs attention',
+      overviewTaskConfidenceWatch:
+        'watch closely',
+      stockUpdateRegimeHelp: 'This sales pattern applies to the full update, not just one SKU.',
+      stockUpdateOverallRegime: 'Overall sales pattern',
+      stockUpdateNoRegimeSignal: 'No sales-pattern signal',
+      stockUpdateReviewTooltip:
+        'Banji saves only changed rows and active signals, then refreshes the planning views.',
+      stockUpdateReviewBody:
+        'Banji will refresh stock and sellability, update Overview tasks, refresh Performance moves, and add this update to Analysis.',
+      stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
+      stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
+      stockUpdateContextFooterEmpty:
+        'Leave sales pattern empty when this period does not need one main explanation.',
+      stockUpdateContextTooltip:
+        'Set the update time, add optional notes, and choose an optional sales pattern for the full update.',
+      stockUpdateNotesTooltip:
+        'Use notes for human context. Add structured signals when Banji should learn from the change.',
+      stockUpdateNotesHelp:
+        'Notes explain the update, but on their own they do not count as a business signal.',
+      stockUpdateRankingsTooltip:
+        'These rankings are selling-order evidence. Leave them unchanged if the selling order did not meaningfully change.',
+      stockUpdateGuidanceAddSignal:
+        'Add at least one stock count, row flag, sales pattern, or ranking signal before saving.',
+      stockUpdateSaveFailed:
+        "Banji couldn't save this update right now. Try again.",
+      stockUpdateRemoveOrderFlagFor: 'Remove order flag for {name}',
+      stockUpdateOrderedQuantityAria: 'Ordered quantity for {name}',
+      stockUpdateRemoveReceiptFlagFor: 'Remove receipt flag for {name}',
+      stockUpdateReceiptQuantityAria: 'Receipt quantity for {name}',
+      stockUpdateRemoveEventFlagFor: 'Remove event flag for {name}',
+      stockUpdateBlockedStateAria: 'Blocked or stockout for {name}',
+      stockUpdateRemovePriceFlagFor: 'Remove price flag for {name}',
+      stockUpdatePriceChangedAria: 'Price if changed for {name}',
+      stockUpdateEyebrow: 'Operations',
+    },
+  },
 } as const;
 
 export const enUiCopyVersions = {

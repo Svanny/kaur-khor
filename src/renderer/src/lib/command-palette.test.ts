@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { InventoryContextValue } from '@/state/inventory';
-import { buildCommandDescriptors, searchCommandDescriptors } from './command-palette';
+import { buildCommandDescriptors, groupCommandDescriptors, searchCommandDescriptors } from './command-palette';
 
 function createInventory(overrides?: Partial<InventoryContextValue>): InventoryContextValue {
   return {
@@ -24,8 +24,20 @@ function createInventory(overrides?: Partial<InventoryContextValue>): InventoryC
       throw new Error('not implemented');
     },
     upsertSenaCatalog: async (payload) => payload,
+    archiveCatalogEntity: async (payload) => {
+      throw new Error(`not implemented: ${payload.entityType}:${payload.entityId}`);
+    },
+    unarchiveCatalogEntity: async (payload) => {
+      throw new Error(`not implemented: ${payload.entityType}:${payload.entityId}`);
+    },
     loadSenaCatalog: async () => null,
     ingestSenaObservation: async () => {
+      throw new Error('not implemented');
+    },
+    updateSenaObservation: async () => {
+      throw new Error('not implemented');
+    },
+    deleteSenaObservation: async () => {
       throw new Error('not implemented');
     },
     listSenaObservations: async () => [],
@@ -54,9 +66,10 @@ describe('command palette descriptors', () => {
       catalog: {
         schemaVersion: 1,
         bundles: [],
-        services: [{ bundle: false, description: 'Hair service', name: 'Haircut', price: 12, serviceId: 'service-1' }],
+        services: [{ archived: false, bundle: false, description: 'Hair service', name: 'Haircut', price: 12, serviceId: 'service-1' }],
         sharingMask: [{ enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: 1 }],
         skus: [{
+          archived: false,
           costPerUnit: 4,
           description: 'Cotton tee',
           leadTimeMeanDaysHint: 5,
@@ -110,11 +123,18 @@ describe('command palette descriptors', () => {
     });
 
     const commands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'maximal',
       inventory,
       language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
       t: (key) =>
         ({
           navAnalysis: 'Analysis',
+          navArchive: 'Archive',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
           navOverview: 'Overview',
@@ -125,10 +145,81 @@ describe('command palette descriptors', () => {
     });
 
     expect(commands.some((command) => command.id === 'page:catalog')).toBe(true);
+    expect(commands.some((command) => command.id === 'page:archive')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:open:sku-1')).toBe(true);
+    expect(commands.some((command) => command.id === 'sku:archive:sku-1')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:sheet:order:sku-1')).toBe(true);
     expect(commands.some((command) => command.id === 'service:sheet:price:service-1')).toBe(true);
+    expect(commands.some((command) => command.id === 'service:archive:service-1')).toBe(true);
     expect(commands.some((command) => command.id === 'overview:task:sku-1:log_order')).toBe(true);
+    expect(commands.some((command) => command.id === 'settings:language:km')).toBe(true);
+  });
+
+  test('excludes archived entities from normal results and emits unarchive commands on the archive page', () => {
+    const inventory = createInventory({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [
+          { archived: false, bundle: false, description: 'Active service', name: 'Haircut', price: 12, serviceId: 'service-1' },
+          { archived: true, bundle: false, description: 'Archived service', name: 'Color', price: 18, serviceId: 'service-2' },
+        ],
+        sharingMask: [],
+        skus: [
+          {
+            archived: false,
+            costPerUnit: 4,
+            description: 'Active sku',
+            leadTimeMeanDaysHint: 5,
+            leadTimeStdDaysHint: 1,
+            name: 'SKU 1',
+            productPrice: 9,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+          {
+            archived: true,
+            costPerUnit: 6,
+            description: 'Archived sku',
+            leadTimeMeanDaysHint: 7,
+            leadTimeStdDaysHint: 2,
+            name: 'SKU 2',
+            productPrice: 12,
+            skuId: 'sku-2',
+            soldAsProduct: true,
+          },
+        ],
+      },
+    });
+
+    const commands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'maximal',
+      inventory,
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      t: (key) =>
+        ({
+          navAnalysis: 'Analysis',
+          navArchive: 'Archive',
+          navCatalog: 'Catalog',
+          navOperations: 'Logs',
+          navOverview: 'Overview',
+          navPerformance: 'Performance',
+          navRecordUpdate: 'Record update',
+          navSettings: 'Settings',
+        }[key] ?? key),
+    });
+
+    expect(commands.some((command) => command.id === 'sku:open:sku-2')).toBe(false);
+    expect(commands.some((command) => command.id === 'service:open:service-2')).toBe(false);
+    expect(commands.some((command) => command.id === 'sku:archive:sku-2')).toBe(false);
+    expect(commands.some((command) => command.id === 'service:archive:service-2')).toBe(false);
+    expect(commands.find((command) => command.id === 'sku:unarchive:sku-2')?.pageId).toBe('archive');
+    expect(commands.find((command) => command.id === 'service:unarchive:service-2')?.pageId).toBe('archive');
   });
 
   test('prefers exact and prefix matches over fuzzy matches', () => {
@@ -139,6 +230,8 @@ describe('command palette descriptors', () => {
         id: 'catalog',
         keywords: ['catalog'],
         kind: 'page' as const,
+        pageId: 'catalog',
+        pageOrder: 3,
         pagePrefixes: ['/catalog'],
         priority: 20,
         title: 'Catalog',
@@ -149,6 +242,8 @@ describe('command palette descriptors', () => {
         id: 'analysis',
         keywords: ['analysis'],
         kind: 'page' as const,
+        pageId: 'analysis',
+        pageOrder: 4,
         pagePrefixes: ['/analysis'],
         priority: 10,
         title: 'Analysis',
@@ -162,5 +257,176 @@ describe('command palette descriptors', () => {
     });
 
     expect(first?.id).toBe('analysis');
+  });
+
+  test('matches pill labels as fuzzy-search terms', () => {
+    const commands = [
+      {
+        action: { href: '/overview', type: 'page' as const },
+        aliases: [],
+        id: 'page-overview',
+        keywords: ['overview'],
+        kind: 'page' as const,
+        pageId: 'overview',
+        pageOrder: 0,
+        pagePrefixes: ['/'],
+        priority: 10,
+        title: 'Overview',
+      },
+      {
+        action: { href: '/overview?scope=all', type: 'tab' as const },
+        aliases: [],
+        id: 'tab-overview-all',
+        keywords: ['overview'],
+        kind: 'tab' as const,
+        pageId: 'overview',
+        pageOrder: 0,
+        pagePrefixes: ['/'],
+        priority: 20,
+        tabOrder: 0,
+        title: 'All overview items',
+      },
+    ];
+
+    expect(
+      searchCommandDescriptors({
+        commands,
+        currentPathname: '/',
+        query: 'pages',
+      }).map((command) => command.id),
+    ).toContain('page-overview');
+    expect(
+      searchCommandDescriptors({
+        commands,
+        currentPathname: '/',
+        query: 'tabs',
+      }).map((command) => command.id),
+    ).toContain('tab-overview-all');
+  });
+
+  test('prefers the page result for title-plus-pill queries', () => {
+    const commands = [
+      {
+        action: { href: '/overview', type: 'page' as const },
+        aliases: [],
+        id: 'page-overview',
+        keywords: ['overview'],
+        kind: 'page' as const,
+        pageId: 'overview',
+        pageOrder: 0,
+        pagePrefixes: ['/'],
+        priority: 10,
+        title: 'Overview',
+      },
+      {
+        action: { href: '/overview?scope=all', type: 'tab' as const },
+        aliases: [],
+        id: 'tab-overview-all',
+        keywords: ['overview'],
+        kind: 'tab' as const,
+        pageId: 'overview',
+        pageOrder: 0,
+        pagePrefixes: ['/'],
+        priority: 20,
+        tabOrder: 0,
+        title: 'All overview items',
+      },
+    ];
+
+    const [first] = searchCommandDescriptors({
+      commands,
+      currentPathname: '/',
+      query: 'overview page',
+    });
+
+    expect(first?.id).toBe('page-overview');
+  });
+
+  test('groups results into best matches, pages, tabs, and alphabetized actions', () => {
+    const sections = groupCommandDescriptors([
+      {
+        action: { href: '/catalog/skus/sku-1', type: 'entity' as const },
+        aliases: [],
+        id: 'action-b',
+        keywords: [],
+        kind: 'entity' as const,
+        pageId: 'catalog',
+        pageOrder: 3,
+        pagePrefixes: ['/catalog'],
+        priority: 300,
+        title: 'Zebra item',
+      },
+      {
+        action: { href: '/analysis?timeframe=Recent', type: 'tab' as const },
+        aliases: [],
+        id: 'tab-analysis',
+        keywords: [],
+        kind: 'tab' as const,
+        pageId: 'analysis',
+        pageOrder: 4,
+        pagePrefixes: ['/analysis'],
+        priority: 120,
+        tabOrder: 2,
+        title: 'Analysis / Timeframe / Recent',
+      },
+      {
+        action: { href: '/catalog?view=skus', type: 'tab' as const },
+        aliases: [],
+        id: 'tab-catalog',
+        keywords: [],
+        kind: 'tab' as const,
+        pageId: 'catalog',
+        pageOrder: 3,
+        pagePrefixes: ['/catalog'],
+        priority: 60,
+        tabOrder: 0,
+        title: 'Catalog / SKUs',
+      },
+      {
+        action: { href: '/settings', type: 'page' as const },
+        aliases: [],
+        id: 'page-settings',
+        keywords: [],
+        kind: 'page' as const,
+        pageId: 'settings',
+        pageOrder: 6,
+        pagePrefixes: ['/settings'],
+        priority: 16,
+        title: 'Settings',
+      },
+      {
+        action: { href: '/performance', type: 'page' as const },
+        aliases: [],
+        id: 'page-performance',
+        keywords: [],
+        kind: 'page' as const,
+        pageId: 'performance',
+        pageOrder: 2,
+        pagePrefixes: ['/performance'],
+        priority: 12,
+        title: 'Performance',
+      },
+      {
+        action: { href: '/catalog/services/new', type: 'workflow' as const },
+        aliases: [],
+        id: 'action-a',
+        keywords: [],
+        kind: 'workflow' as const,
+        pageId: 'catalog',
+        pageOrder: 3,
+        pagePrefixes: ['/catalog'],
+        priority: 17,
+        title: 'Alpha action',
+      },
+    ], {
+      bestMatchCount: 2,
+      includeBestMatches: true,
+    });
+
+    expect(sections.map((section) => section.title)).toEqual(['Best Matches', 'Pages', 'Tabs', 'Actions']);
+    expect(sections[0]?.items.map((item) => item.title)).toEqual(['Zebra item', 'Analysis / Timeframe / Recent']);
+    expect(sections[1]?.items.map((item) => item.title)).toEqual(['Performance', 'Settings']);
+    expect(sections[2]?.items.map((item) => item.title)).toEqual(['Catalog / SKUs']);
+    expect(sections[3]?.items.map((item) => item.title)).toEqual(['Alpha action']);
   });
 });

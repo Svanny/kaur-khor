@@ -1,17 +1,20 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Boxes,
-  ClipboardList,
-  LoaderCircle,
-  LayoutDashboard,
-  NotebookTabs,
-  PanelRight,
-  Rows2,
-  Rows3,
-  SearchCheck,
-  Settings,
-  TrendingUp,
-} from 'lucide-react';
+  NavigationArchiveIcon,
+  NavigationAnalysisIcon,
+  NavigationBoardViewIcon,
+  NavigationCatalogIcon,
+  NavigationCommandPaletteIcon,
+  NavigationDashboardIcon,
+  NavigationLogsIcon,
+  NavigationRightPanelIcon,
+  NavigationSettingsIcon,
+  NavigationSplitViewIcon,
+  NavigationTaskListIcon,
+  NavigationPerformanceIcon,
+} from '@icons/navigation';
+import { StatusLoadingIcon } from '@icons/status';
+import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
 import {
   Sidebar,
@@ -30,6 +33,7 @@ import {
 } from '@/components/ui/sidebar';
 import { WorkspaceBanner } from '@/components/system/workspace';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { SIDEBAR_NAVIGATION_SOURCE } from '@/state/navigation-history';
@@ -38,9 +42,9 @@ import brandLogo from '@/assets/banji-logo.svg';
 
 type ShellSectionConfig = {
   destination: string;
-  icon: typeof LayoutDashboard;
-  id: 'overview' | 'recordUpdate' | 'performance' | 'analysis' | 'catalog' | 'operations' | 'settings';
-  labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navSettings';
+  icon: IconComponent;
+  id: 'overview' | 'recordUpdate' | 'performance' | 'analysis' | 'catalog' | 'operations' | 'archive' | 'settings';
+  labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navArchive' | 'navSettings';
   matches: (pathname: string) => boolean;
 };
 
@@ -49,6 +53,16 @@ type SidebarSectionLabelKey = 'sidebarSectionMain' | 'sidebarSectionOther';
 const sidebarSectionGroupClassName = 'py-1.5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0';
 const sidebarSectionLabelClassName =
   'group-data-[collapsible=icon]:mt-0 group-data-[collapsible=icon]:opacity-0';
+const shortcutKeyClassName =
+  'inline-flex h-6 min-w-6 items-center justify-center rounded-[0.7rem] border border-sidebar-border/70 bg-sidebar-accent/35 px-1.5 text-[0.72rem] font-semibold text-sidebar-foreground/70 shadow-[0_1px_0_rgba(255,255,255,0.45)]';
+
+function isMacPlatform() {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  return /Mac|iPhone|iPod|iPad/i.test(navigator.platform);
+}
 
 function matchesSection(pathname: string, sectionRoot: string) {
   return pathname === sectionRoot || pathname.startsWith(`${sectionRoot}/`);
@@ -63,28 +77,28 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     id: 'overview',
     destination: '/',
     labelKey: 'navOverview',
-    icon: LayoutDashboard,
+    icon: NavigationDashboardIcon,
     matches: (pathname) => pathname === '/',
   },
   {
     id: 'recordUpdate',
     destination: '/record-update',
     labelKey: 'navRecordUpdate',
-    icon: ClipboardList,
+    icon: NavigationTaskListIcon,
     matches: (pathname) => matchesSection(pathname, '/record-update') || matchesSection(pathname, '/operations/session'),
   },
   {
     id: 'performance',
     destination: '/performance',
     labelKey: 'navPerformance',
-    icon: TrendingUp,
+    icon: NavigationPerformanceIcon,
     matches: (pathname) => matchesSection(pathname, '/performance'),
   },
   {
     id: 'catalog',
     destination: '/catalog',
     labelKey: 'navCatalog',
-    icon: Boxes,
+    icon: NavigationCatalogIcon,
     matches: (pathname) => matchesSection(pathname, '/catalog'),
   },
 ];
@@ -94,15 +108,22 @@ const SECONDARY_SECTIONS: ShellSectionConfig[] = [
     id: 'analysis',
     destination: '/analysis',
     labelKey: 'navAnalysis',
-    icon: SearchCheck,
+    icon: NavigationAnalysisIcon,
     matches: (pathname) => matchesSection(pathname, '/analysis'),
   },
   {
     id: 'operations',
     destination: '/operations',
     labelKey: 'navOperations',
-    icon: NotebookTabs,
-    matches: (pathname) => matchesSection(pathname, '/operations'),
+    icon: NavigationLogsIcon,
+    matches: (pathname) => pathname === '/operations',
+  },
+  {
+    id: 'archive',
+    destination: '/operations/archive',
+    labelKey: 'navArchive',
+    icon: NavigationArchiveIcon,
+    matches: (pathname) => matchesSection(pathname, '/operations/archive'),
   },
 ];
 
@@ -110,7 +131,7 @@ const SETTINGS_SECTION: ShellSectionConfig = {
   id: 'settings',
   destination: '/settings',
   labelKey: 'navSettings',
-  icon: Settings,
+  icon: NavigationSettingsIcon,
   matches: (pathname) => matchesSection(pathname, '/settings'),
 };
 
@@ -159,6 +180,45 @@ function SidebarSectionMenu({
   );
 }
 
+function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'en' | 'km'; showSidebarText: boolean }) {
+  const shortcutLabel = isMacPlatform() ? '⌘ + K' : 'Ctrl + K';
+  const openPaletteLabel = translateUiLiteral(language, 'Open command palette with {shortcut}', {
+    shortcut: shortcutLabel,
+  });
+
+  if (!showSidebarText) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            aria-label={openPaletteLabel}
+            className="flex size-8 items-center justify-center rounded-[1rem] border border-sidebar-border/60 bg-sidebar-accent/35 text-sidebar-foreground/80"
+          >
+            <NavigationCommandPaletteIcon className="size-4" />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={10}>{openPaletteLabel}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 px-2 py-1 text-sm text-sidebar-foreground/80">
+      <span className="font-medium">{translateUiLiteral(language, 'Search')}</span>
+      <span className="flex items-center gap-1.5 text-xs font-semibold text-sidebar-foreground/65">
+        {isMacPlatform() ? (
+          <span aria-label="Command" className={shortcutKeyClassName}>
+            <NavigationCommandPaletteIcon className="size-3.5" />
+          </span>
+        ) : (
+          <span className={cn(shortcutKeyClassName, 'px-2 text-[0.68rem] uppercase tracking-[0.08em]')}>Ctrl</span>
+        )}
+        <span className={shortcutKeyClassName}>K</span>
+      </span>
+    </div>
+  );
+}
+
 export function BanjiShell({
   children,
 }: {
@@ -173,7 +233,7 @@ export function BanjiShell({
 
 function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { applyDisplayViewMode, displayViewMode, t } = usePreferences();
+  const { applyDisplayViewMode, displayViewMode, language, t } = usePreferences();
   const { error, isLoading, latestRun, reload } = useInventory();
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
   const isWorkspaceComputing = latestRun?.status === 'queued' || latestRun?.status === 'running';
@@ -190,7 +250,8 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const mainContentInset = 'var(--spacing-page)';
   const viewModeLabel =
     displayViewMode === 'maximal' ? t('shellViewModeMaximal') : t('shellViewModeMinimal');
-  const ViewModeIcon = displayViewMode === 'maximal' ? Rows3 : Rows2;
+  const ViewModeIcon =
+    displayViewMode === 'maximal' ? NavigationBoardViewIcon : NavigationSplitViewIcon;
 
   return (
     <>
@@ -221,7 +282,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                       src={brandLogo}
                     />
                     <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 ease-out group-hover/brand:opacity-100 motion-reduce:transition-none">
-                      <PanelRight aria-hidden="true" className="size-4.5" />
+                      <NavigationRightPanelIcon aria-hidden="true" className="size-4.5" />
                     </span>
                   </span>
                   <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-foreground">
@@ -241,7 +302,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   type="button"
                   onClick={toggleSidebar}
                 >
-                  <PanelRight aria-hidden="true" className="size-4.5 -scale-x-100" />
+                  <NavigationRightPanelIcon aria-hidden="true" className="size-4.5 -scale-x-100" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={10}>{t('openNavigation')}</TooltipContent>
@@ -280,6 +341,9 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
 
           <SidebarGroup className="mt-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent>
+              <div className="mb-3 px-1 group-data-[collapsible=icon]:mb-2 group-data-[collapsible=icon]:px-0">
+                <SidebarCommandPaletteHint language={language} showSidebarText={showSidebarText} />
+              </div>
               <SidebarMenu className="group-data-[collapsible=icon]:items-center">
                 <SidebarMenuItem key={viewModeLabel}>
                   <SidebarMenuButton
@@ -363,7 +427,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                 >
                   <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
                     <div className="flex size-16 items-center justify-center rounded-full border border-primary/20 bg-background/80 shadow-[var(--shadow-float)]">
-                      <LoaderCircle aria-hidden="true" className="size-7 animate-spin text-primary" />
+                      <StatusLoadingIcon aria-hidden="true" className="size-7 animate-spin text-primary" />
                     </div>
                     <p className="mt-6 text-xs font-semibold uppercase tracking-[0.24em] text-primary/80">
                       {t('workspaceLoadingTitle')}

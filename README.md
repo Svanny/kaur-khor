@@ -23,6 +23,7 @@ Banji is a macOS-first inventory platform prototype with:
 ## Project Structure
 
 - `src/main/`: Electron lifecycle, desktop-core bootstrap, preferences, and main-process tests
+- `src/icons/`: centralized semantic icon modules shared across renderer and native helpers
 - `src/preload/`: preload bridge exposed to the renderer
 - `src/renderer/src/`: routes, state providers, UI primitives, and renderer tests
 - `src/shared/`: IPC and desktop inventory types shared across main/preload/renderer

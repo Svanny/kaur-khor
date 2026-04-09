@@ -18,6 +18,10 @@ vi.mock('@/state/preferences', () => ({
 describe('BanjiShell', () => {
   beforeEach(() => {
     setViewport({ width: 375, isMobile: true });
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: 'Win32',
+    });
 
     inventoryHook.mockReturnValue({
       error: null,
@@ -27,6 +31,7 @@ describe('BanjiShell', () => {
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
       displayViewMode: 'maximal',
+      language: 'en',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -39,6 +44,7 @@ describe('BanjiShell', () => {
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
+          navArchive: 'Archive',
           sidebarSectionMain: 'Main',
           sidebarSectionOther: 'Other',
           navSettings: 'Settings',
@@ -89,6 +95,10 @@ describe('BanjiShell', () => {
 
   test('renders the SENA-native primary navigation', () => {
     setViewport({ width: 1440, isMobile: false });
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: 'MacIntel',
+    });
 
     render(
       <MemoryRouter initialEntries={['/settings']}>
@@ -106,6 +116,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Archive' })).toBeInTheDocument();
     expect(screen.getByText('Main')).toBeInTheDocument();
     expect(screen.getByText('Other')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'SIST' })).not.toBeInTheDocument();
@@ -117,6 +128,9 @@ describe('BanjiShell', () => {
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(within(brandToggle).getByText('Banji')).toBeInTheDocument();
+    expect(screen.getByText('Search')).toBeInTheDocument();
+    expect(screen.getByLabelText('Command')).toBeInTheDocument();
+    expect(screen.getByText('K')).toBeInTheDocument();
     const viewModeToggle = screen.getByRole('button', { name: 'Maximal View' });
     expect(viewModeToggle).toBeInTheDocument();
     expect(viewModeToggle.closest('li')).not.toBeNull();
@@ -127,6 +141,7 @@ describe('BanjiShell', () => {
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
       displayViewMode: 'maximal',
+      language: 'en',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -139,6 +154,7 @@ describe('BanjiShell', () => {
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
+          navArchive: 'Archive',
           sidebarSectionMain: 'Main',
           sidebarSectionOther: 'Other',
           navSettings: 'Settings',
@@ -162,6 +178,49 @@ describe('BanjiShell', () => {
 
     fireEvent.click(screen.getByTestId('sidebar-view-mode-toggle'));
     expect(applyDisplayViewMode).toHaveBeenCalledWith('minimal');
+  });
+
+  test('renders the sidebar search hint in Khmer', () => {
+    setViewport({ width: 1440, isMobile: false });
+    preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      displayViewMode: 'maximal',
+      language: 'km',
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      t: (key: string) =>
+        ({
+          appBrand: 'បញ្ជី',
+          navOverview: 'ទិដ្ឋភាពទូទៅ',
+          navRecordUpdate: 'កត់ត្រាការអាប់ដេត',
+          navPerformance: 'សុខភាពអាជីវកម្ម',
+          navAnalysis: 'ការវិភាគ',
+          navCatalog: 'កាតាឡុក',
+          navOperations: 'កំណត់ហេតុ',
+          navArchive: 'បណ្ណសារ',
+          sidebarSectionMain: 'មេ',
+          sidebarSectionOther: 'ផ្សេងទៀត',
+          navSettings: 'ការកំណត់',
+          skipToContent: 'រំលងទៅមាតិកា',
+          openNavigation: 'បើកម៉ឺនុយ',
+          collapseNavigation: 'បង្រួមម៉ឺនុយ',
+          shellViewModeMaximal: 'ទិដ្ឋភាពពេញ',
+          shellViewModeMinimal: 'ទិដ្ឋភាពតូច',
+        }[key] ?? key),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Settings screen</div>} path="/settings" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('ស្វែងរក')).toBeInTheDocument();
   });
 
   test('offers a retry action when workspace loading fails', () => {

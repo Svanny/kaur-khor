@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { NavigationBackIcon } from '@icons/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useNavigationHistory } from '@/state/navigation-history';
@@ -34,7 +34,7 @@ export function RouteBackButton({
       variant="ghost"
       onClick={onClick ?? goBack}
     >
-      <ArrowLeft className="size-4" />
+      <NavigationBackIcon className="size-4" />
     </Button>
   );
 }

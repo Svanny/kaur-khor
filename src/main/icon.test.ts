@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { existsSync } from 'node:fs';
-import { macIconAssets, hasMacDockIconPair } from './icon';
+import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 
 describe('mac icon assets', () => {
   const projectRoot = '/Users/svanny/banji';

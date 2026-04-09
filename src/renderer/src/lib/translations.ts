@@ -1,5 +1,5 @@
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
-import { kmUiCopy } from './km-ui-copy';
+import { kmUiCopy, translateEnglishLiteralToKhmer } from './km-ui-copy';
 import { activeEnUiCopy, enUiCopyV1 } from './ui-copy-map';
 
 export type TranslationKey = keyof typeof enUiCopyV1;
@@ -16,6 +16,20 @@ export function getTranslation(
   variables?: TranslationVariables,
 ): string {
   const template = translations[language][key] ?? activeEnUiCopy[key] ?? String(key);
+  return interpolateTranslation(template, variables);
+}
+
+export function translateUiLiteral(
+  language: AppLanguage,
+  englishTemplate: string,
+  variables?: TranslationVariables,
+): string {
+  const template =
+    language === 'km' ? translateEnglishLiteralToKhmer(englishTemplate) : englishTemplate;
+  return interpolateTranslation(template, variables);
+}
+
+function interpolateTranslation(template: string, variables?: TranslationVariables): string {
   if (!variables) {
     return template;
   }

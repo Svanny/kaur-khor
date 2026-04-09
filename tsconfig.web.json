@@ -20,6 +20,12 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@icons": [
+        "src/icons/index.ts"
+      ],
+      "@icons/*": [
+        "src/icons/*"
+      ],
       "@/*": [
         "src/renderer/src/*"
       ],
@@ -32,9 +38,15 @@
     }
   },
   "include": [
+    "src/icons/**/*.ts",
+    "src/icons/**/*.tsx",
     "src/renderer/src/**/*.ts",
     "src/renderer/src/**/*.tsx",
     "src/renderer/src/**/*.d.ts",
     "src/shared/**/*.ts"
+  ],
+  "exclude": [
+    "src/icons/native.ts",
+    "src/icons/native.test.ts"
   ]
 }
