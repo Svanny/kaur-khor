@@ -188,9 +188,104 @@ describe('deriveServiceDetailViewModel', () => {
     });
 
     expect(model.rail.bottleneckStack.map((entry) => `${entry.label}:${entry.role}`)).toEqual([
-      'Lotus Rib Tank:Next likely limiter',
-      'Boardwalk Camp Shirt:Safe contributor',
-      'Tailor Pleat Trouser:Safe contributor',
+      'Lotus Rib Tank:Next likely blocker',
+      'Boardwalk Camp Shirt:Safe support',
+      'Tailor Pleat Trouser:Safe support',
+    ]);
+  });
+
+  test('keeps bottleneck ordering stable when contributor labels are translated', () => {
+    const serviceWithThreeLinks: ServiceRecord = {
+      ...service,
+      skuIds: ['sku-safe-1', 'sku-risk', 'sku-safe-2'],
+    };
+
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail: {
+        ...detail,
+        serviceId: serviceWithThreeLinks.serviceId,
+        bottleneckProbability: 0.2,
+        contributors: [
+          {
+            skuId: 'sku-safe-1',
+            usageProbability: 0.65,
+            bottleneckProbability: 0,
+            reorderQuantity: null,
+          },
+          {
+            skuId: 'sku-risk',
+            usageProbability: 0.95,
+            bottleneckProbability: 0.2,
+            reorderQuantity: null,
+          },
+          {
+            skuId: 'sku-safe-2',
+            usageProbability: 0.8,
+            bottleneckProbability: 0,
+            reorderQuantity: null,
+          },
+        ],
+      },
+      language: 'km',
+      observations: [],
+      reports: [],
+      service: serviceWithThreeLinks,
+      snapshot: {
+        ...snapshot,
+        skus: [
+          {
+            skuId: 'sku-safe-1',
+            name: 'Boardwalk Camp Shirt',
+            description: 'Linked SKU',
+            unitsInStock: 70,
+            costPerUnit: 10,
+            soldAsProduct: true,
+            productPrice: 22,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+          {
+            skuId: 'sku-risk',
+            name: 'Lotus Rib Tank',
+            description: 'Linked SKU',
+            unitsInStock: 279,
+            costPerUnit: 11,
+            soldAsProduct: true,
+            productPrice: 24,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+          {
+            skuId: 'sku-safe-2',
+            name: 'Tailor Pleat Trouser',
+            description: 'Linked SKU',
+            unitsInStock: 518,
+            costPerUnit: 12,
+            soldAsProduct: true,
+            productPrice: 26,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+        ],
+        services: [serviceWithThreeLinks],
+        sist: {
+          ...snapshot.sist,
+          highRiskSkuIds: [],
+        },
+      },
+      workspaceSummary: {
+        ...workspaceSummary,
+        serviceCount: 1,
+        skuCount: 3,
+        highRiskSkuIds: [],
+      },
+    });
+
+    expect(model.rail.bottleneckStack.map((entry) => entry.label)).toEqual([
+      'Lotus Rib Tank',
+      'Boardwalk Camp Shirt',
+      'Tailor Pleat Trouser',
     ]);
   });
 });

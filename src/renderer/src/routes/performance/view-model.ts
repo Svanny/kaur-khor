@@ -12,6 +12,7 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
+import { getTranslation } from '@/lib/translations';
 import {
   formatSenaReorderQuantity,
   type SenaReorderQuantityDisplay,
@@ -46,6 +47,7 @@ interface ReceiptSignal {
   orderProbability: number;
   receiptUnits: number;
   remainingDays: number | null;
+  state: 'on_the_way' | 'overdue' | 'partial_received' | 'due_soon';
   stateLabel: string;
 }
 
@@ -185,6 +187,10 @@ export interface PerformanceViewModel {
   lastUpdatedLabel: string;
   windowLabel: string;
   previousWindowLabel: string;
+}
+
+function translate(language: AppLanguage, key: Parameters<typeof getTranslation>[1], variables?: Parameters<typeof getTranslation>[2]) {
+  return getTranslation(language, key, variables);
 }
 
 function daysForTimeRange(timeRange: PerformanceTimeRange) {
@@ -574,9 +580,11 @@ function addDays(at: string | null, days: number | null) {
 function buildReceiptSignal({
   detail,
   observedAt,
+  language,
 }: {
   detail: SenaSkuDetail | null | undefined;
   observedAt: string | null;
+  language: AppLanguage;
 }): ReceiptSignal | null {
   const latest = detail?.pipelinePosterior.at(-1) ?? null;
   if (!latest || latest.inTransitMean <= 0 || latest.orderProbability <= 0.25) {
@@ -587,13 +595,17 @@ function buildReceiptSignal({
   const remainingDays = meanDays != null && latest.ageDaysMean != null ? meanDays - latest.ageDaysMean : null;
   const dueAt = addDays(observedAt, remainingDays);
 
-  let stateLabel = 'In transit';
+  let stateLabel = translate(language, 'performanceVmOnTheWay');
+  let state: ReceiptSignal['state'] = 'on_the_way';
   if (remainingDays != null && remainingDays < 0) {
-    stateLabel = 'Overdue';
+    state = 'overdue';
+    stateLabel = translate(language, 'performanceVmOverdue');
   } else if (latest.receiptQuantityMean <= 0) {
-    stateLabel = 'Partial received';
+    state = 'partial_received';
+    stateLabel = translate(language, 'performanceVmPartialReceived');
   } else if (remainingDays != null && remainingDays <= 3) {
-    stateLabel = 'Due soon';
+    state = 'due_soon';
+    stateLabel = translate(language, 'performanceVmDueSoon');
   }
 
   return {
@@ -603,6 +615,7 @@ function buildReceiptSignal({
     orderProbability: latest.orderProbability,
     receiptUnits: latest.receiptQuantityMean,
     remainingDays,
+    state,
     stateLabel,
   };
 }
@@ -781,13 +794,13 @@ function compareTrendSignal({
 
 function formatPipelineSupport(signal: ReceiptSignal | null, language: AppLanguage) {
   if (!signal) {
-    return 'No inbound relief';
+    return translate(language, 'performanceVmNoIncomingRelief');
   }
-  if (signal.stateLabel === 'Overdue') {
-    return `Overdue · ${formatWholeNumber(signal.inTransitUnits, language)} units`;
+  if (signal.stateLabel === translate(language, 'performanceVmOverdue')) {
+    return `${translate(language, 'performanceVmOverdue')} · ${formatWholeNumber(signal.inTransitUnits, language)} units`;
   }
-  if (signal.stateLabel === 'Partial received') {
-    return `Partial received · ${formatWholeNumber(signal.inTransitUnits, language)} in motion`;
+  if (signal.stateLabel === translate(language, 'performanceVmPartialReceived')) {
+    return `${translate(language, 'performanceVmPartialReceived')} · ${formatWholeNumber(signal.inTransitUnits, language)} in motion`;
   }
   if (signal.dueAt) {
     return `${signal.stateLabel} · ${formatSenaDate(signal.dueAt, language)}`;
@@ -810,18 +823,20 @@ function marginToneLabel({
 }) {
   const marginText =
     marginRatio == null
-      ? 'Margin unknown'
+      ? translate(language, 'performanceVmMarginUnknown')
       : marginRatio >= 0.55
-        ? 'Healthy margin'
+        ? translate(language, 'performanceVmHealthyMargin')
         : marginRatio >= 0.42
-          ? 'Stable margin'
-          : 'Margin pressure';
+          ? translate(language, 'performanceVmStableMargin')
+          : translate(language, 'performanceVmMarginPressure');
 
   if (!priceSignal || priceSignal.delta === 0) {
     return marginText;
   }
 
-  const priceLabel = priceSignal.delta > 0 ? 'price up' : 'price drag';
+  const priceLabel = priceSignal.delta > 0
+    ? translate(language, 'performanceVmPriceUp')
+    : translate(language, 'performanceVmPriceDrag');
   return `${marginText} · ${priceLabel} ${formatCurrency(Math.abs(priceSignal.delta), currency, language, usdToKhrExchangeRate)}`;
 }
 
@@ -1095,7 +1110,7 @@ export function derivePerformanceViewModel({
   const skuRows: SkuBusinessRow[] = catalog.skus.map((sku) => {
     const summary = skuSummaryById.get(sku.skuId) ?? null;
     const priceSignal = latestRetailPriceSignal(sku.skuId, sku, recentObservations);
-    const receiptSignal = buildReceiptSignal({ detail: skuDetailsById[sku.skuId], observedAt });
+    const receiptSignal = buildReceiptSignal({ detail: skuDetailsById[sku.skuId], observedAt, language });
     const linkedServices = linkedServicesBySkuId.get(sku.skuId) ?? [];
     const marginRatio = sku.productPrice ? (sku.productPrice - sku.costPerUnit) / sku.productPrice : null;
     const trend = trendFromScore(regimeMomentum(summary) + ((summary?.demandPerDayMean ?? 0) >= 2.8 ? 0.12 : 0));
@@ -1185,7 +1200,7 @@ export function derivePerformanceViewModel({
             [...pipelineSignals].sort((left, right) => (left.remainingDays ?? 999) - (right.remainingDays ?? 999))[0],
             language,
           )
-        : 'No inbound support';
+        : translate(language, 'performanceVmNoIncomingSupport');
     const trend = trendFromScore((activityMean - averageServiceDemand) / Math.max(1, averageServiceDemand));
     const status = statusForService({
       activityMean,
@@ -1199,7 +1214,11 @@ export function derivePerformanceViewModel({
       bottleneckProbability: serviceDetail?.bottleneckProbability ?? (coverageRatio < 0.8 ? 0.55 : 0.2),
       coverageRatio,
       grossMarginLabel:
-        grossMarginRatio >= 0.55 ? 'Healthy margin' : grossMarginRatio >= 0.42 ? 'Stable margin' : 'Margin pressure',
+        grossMarginRatio >= 0.55
+          ? translate(language, 'performanceVmHealthyMargin')
+          : grossMarginRatio >= 0.42
+            ? translate(language, 'performanceVmStableMargin')
+            : translate(language, 'performanceVmMarginPressure'),
       grossMarginRatio,
       href: `/catalog/services/${service.serviceId}`,
       id: service.serviceId,
@@ -1212,7 +1231,12 @@ export function derivePerformanceViewModel({
       status: status.status,
       statusLabel: status.label,
       statusTone: status.tone,
-      supportLabel: coverageRatio >= 0.9 ? 'Capacity holding' : coverageRatio >= 0.7 ? 'Partially coverable' : 'Blocked by supply',
+      supportLabel:
+        coverageRatio >= 0.9
+          ? translate(language, 'performanceVmCapacityHolding')
+          : coverageRatio >= 0.7
+            ? translate(language, 'performanceVmPartiallyCoverable')
+            : translate(language, 'performanceVmBlockedBySupply'),
       trendLabel: trend.label,
       trendTone: trend.tone,
       type: 'service',
@@ -1266,7 +1290,7 @@ export function derivePerformanceViewModel({
         tone: demandTrend.tone,
       };
   const inboundRows = skuRows.filter((row) => row.receiptSignal != null);
-  const overdueInboundCount = inboundRows.filter((row) => row.receiptSignal?.stateLabel === 'Overdue').length;
+  const overdueInboundCount = inboundRows.filter((row) => row.receiptSignal?.state === 'overdue').length;
   const priceWatchRows = [...serviceRows, ...skuRows]
     .filter((row) =>
       row.type === 'service'
@@ -1281,7 +1305,7 @@ export function derivePerformanceViewModel({
   const ribbon: PerformanceRibbonMetric[] = [
     {
       key: 'demand',
-      label: 'Demand momentum',
+      label: translate(language, 'performanceVmRibbonDemandMomentum'),
       value: `${trendGlyph(demandTrend.tone)} ${demandTrend.label}`,
       trendSignal: demandTrendSignal,
       detail:
@@ -1293,19 +1317,19 @@ export function derivePerformanceViewModel({
     },
     {
       key: 'capacity',
-      label: 'Sellable capacity',
+      label: translate(language, 'performanceVmRibbonSellableCapacity'),
       value: `${formatSenaPercent(sellableCapacityRatio, language)} coverable`,
       detail: `${activeWindowLabel} service demand that can still be served`,
     },
     {
       key: 'inbound',
-      label: 'Inbound relief',
+      label: translate(language, 'performanceVmRibbonIncomingStock'),
       value: `${formatWholeNumber(inboundRows.length, language)} receipts in motion`,
       detail: overdueInboundCount > 0 ? `${overdueInboundCount} overdue` : 'Pipeline still within window',
     },
     {
       key: 'margin',
-      label: 'Margin health',
+      label: translate(language, 'performanceVmRibbonMarginHealth'),
       value: priceWatchRows.length > 1 ? 'Watch' : 'Stable',
       detail:
         priceWatchRows.length > 0
@@ -1314,7 +1338,7 @@ export function derivePerformanceViewModel({
     },
     {
       key: 'risk',
-      label: 'Revenue at risk',
+      label: translate(language, 'performanceVmRibbonRevenueAtRisk'),
       value: formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate),
       detail: `Revenue currently blocked by capacity or stock pressure in ${activeWindowLabel}`,
     },
@@ -1552,9 +1576,9 @@ export function derivePerformanceViewModel({
     id: row.id,
     href: row.href,
     label: row.name,
-    detail:
-      row.receiptSignal?.stateLabel === 'Overdue'
-        ? 'Overdue'
+      detail:
+      row.receiptSignal?.state === 'overdue'
+        ? row.receiptSignal.stateLabel
         : row.receiptSignal?.dueAt
           ? `${formatSenaDate(row.receiptSignal.dueAt, language)} ± ${row.daysOfCoverLabel}`
           : row.pipelineLabel,
@@ -1629,7 +1653,12 @@ export function derivePerformanceViewModel({
         : 'No evidence window yet',
       weakSpotLabel,
     },
-    lastUpdatedLabel: observedAt ? `Updated ${formatSenaDate(observedAt, language)} · ${activeWindowLabel}` : 'Waiting for SENA evidence',
+    lastUpdatedLabel: observedAt
+      ? translate(language, 'performanceVmLastUpdated', {
+          date: formatSenaDate(observedAt, language),
+          window: activeWindowLabel,
+        })
+      : translate(language, 'performanceVmWaitingForUpdates'),
     moves,
     operationalDrag,
     priceWatch,

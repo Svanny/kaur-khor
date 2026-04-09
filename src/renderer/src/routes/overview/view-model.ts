@@ -16,6 +16,7 @@ import {
 } from '@/lib/sena-reorder-quantity';
 import { latestObservationAt } from '@/routes/observation-payload';
 import { formatSenaDate, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
+import { getTranslation } from '@/lib/translations';
 
 export type OverviewTaskFilter =
   | 'all'
@@ -102,6 +103,8 @@ export interface OverviewSkuTask extends OverviewTaskBase {
   latestObservationAt: string | null;
   latestOrderAt: string | null;
   latestReceiptAt: string | null;
+  hasRecentPriceSignal: boolean;
+  regimeKey: string;
   regimeLabel: string;
   stockoutRisk: number;
   reorderTriggerProbability: number;
@@ -188,6 +191,10 @@ function compactList(values: string[], max = 2) {
     return values.join(values.length === 2 ? ' and ' : ', ');
   }
   return `${values.slice(0, max).join(', ')} +${values.length - max} more`;
+}
+
+function translate(language: AppLanguage, key: Parameters<typeof getTranslation>[1], variables?: Parameters<typeof getTranslation>[2]) {
+  return getTranslation(language, key, variables);
 }
 
 function todayStart() {
@@ -335,21 +342,21 @@ function latestVariabilityClass(summary: SenaSkuSummary, detail: SenaSkuDetail |
   });
 }
 
-function confidenceCue(value: SenaLeadTimeVariabilityClass | null, overdue: boolean) {
+function confidenceCue(value: SenaLeadTimeVariabilityClass | null, overdue: boolean, language: AppLanguage) {
   if (overdue) {
-    return 'late beyond expected range';
+    return translate(language, 'overviewTimingLate');
   }
   switch (value) {
     case 'very_tight':
     case 'tight':
-      return 'tight window';
+      return translate(language, 'overviewTimingTight');
     case 'wide':
     case 'very_wide':
-      return 'wide window';
+      return translate(language, 'overviewTimingWide');
     case 'normal':
-      return 'normal window';
+      return translate(language, 'overviewTimingNormal');
     default:
-      return 'timing pending';
+      return translate(language, 'overviewTimingPending');
   }
 }
 
@@ -381,9 +388,9 @@ function receiptWindowSummary({
 
   if (meanDays == null || stdDays == null || !baseDate) {
     return {
-      etaLabel: 'Awaiting supplier update',
-      etaDetail: 'Banji is carrying in-transit exposure without a stable window yet.',
-      confidenceCue: 'timing pending',
+      etaLabel: translate(language, 'overviewReceiptAwaitingSupplierUpdate'),
+      etaDetail: translate(language, 'overviewReceiptAwaitingSupplierDetail'),
+      confidenceCue: translate(language, 'overviewTimingPending'),
       arrivalWindowStart: null,
       arrivalWindowEnd: null,
       expectedArrivalDate: null,
@@ -407,16 +414,24 @@ function receiptWindowSummary({
 
   return {
     etaLabel: overdue
-      ? `Expected ${formatSenaDate(expectedArrivalDate, language)}`
-      : `${formatSenaDate(expectedArrivalDate, language)} ± ${formatWholeNumber(stdDays, language)}d`,
+      ? translate(language, 'overviewEtaExpectedOn', {
+          date: formatSenaDate(expectedArrivalDate, language),
+        })
+      : translate(language, 'overviewEtaExpectedWindow', {
+          date: formatSenaDate(expectedArrivalDate, language),
+          days: formatWholeNumber(stdDays, language),
+        }),
     etaDetail: overdue
-      ? 'Expected window passed without a confirmed receipt.'
+      ? translate(language, 'overviewReceiptWindowPassed')
       : dueNow
-        ? 'Receipt window is open right now.'
+        ? translate(language, 'overviewReceiptWindowOpen')
         : arrivalWindowStart && arrivalWindowEnd
-          ? `${formatSenaDate(arrivalWindowStart, language)}-${formatSenaDate(arrivalWindowEnd, language)} arrival window`
-          : 'Arrival window pending',
-    confidenceCue: confidenceCue(variabilityClass, overdue),
+          ? translate(language, 'overviewReceiptWindowRange', {
+              start: formatSenaDate(arrivalWindowStart, language),
+              end: formatSenaDate(arrivalWindowEnd, language),
+            })
+          : translate(language, 'overviewReceiptWindowPending'),
+    confidenceCue: confidenceCue(variabilityClass, overdue, language),
     arrivalWindowStart,
     arrivalWindowEnd,
     expectedArrivalDate,
@@ -425,18 +440,18 @@ function receiptWindowSummary({
   };
 }
 
-function taskStateLabel(value: Exclude<OverviewTaskFilter, 'all'>) {
+function taskStateLabel(value: Exclude<OverviewTaskFilter, 'all'>, language: AppLanguage) {
   switch (value) {
     case 'to_order':
-      return 'To order';
+      return translate(language, 'overviewTaskStateToOrder');
     case 'awaiting_receipt':
-      return 'Awaiting receipt';
+      return translate(language, 'overviewTaskStateAwaitingReceipt');
     case 'follow_up_today':
-      return 'Follow up today';
+      return translate(language, 'overviewTaskStateFollowUpToday');
     case 'ready_to_receive':
-      return 'Ready to receive';
+      return translate(language, 'overviewTaskStateReadyToReceive');
     case 'received_today':
-      return 'Received today';
+      return translate(language, 'overviewTaskStateReceivedToday');
   }
 }
 
@@ -463,10 +478,12 @@ function fallbackRecommendedOrderQuantity(summary: SenaSkuSummary, detail: SenaS
 }
 
 function serviceImpactLine({
+  language,
   linkedServiceNames,
   state,
   stockoutRisk,
 }: {
+  language: AppLanguage;
   linkedServiceNames: string[];
   state: Exclude<OverviewTaskFilter, 'all'>;
   stockoutRisk: number;
@@ -474,26 +491,28 @@ function serviceImpactLine({
   const names = compactList(linkedServiceNames);
 
   if (linkedServiceNames.length === 0) {
-    return 'No linked service impact mapped yet';
+    return translate(language, 'overviewTaskServiceImpactNone');
   }
 
   if (state === 'ready_to_receive' || state === 'received_today') {
-    return `May restore ${names}`;
+    return translate(language, 'overviewTaskServiceImpactMayRestore', { services: names });
   }
 
   if (state === 'to_order' && stockoutRisk >= 0.7) {
-    return `Blocks ${names}`;
+    return translate(language, 'overviewTaskServiceImpactBlocks', { services: names });
   }
 
-  return `Affects ${names}`;
+  return translate(language, 'overviewTaskServiceImpactAffects', { services: names });
 }
 
 function nextStepsForTask({
+  language,
   expectedArrivalDate,
   arrivalWindowStart,
   arrivalWindowEnd,
   state,
 }: {
+  language: AppLanguage;
   expectedArrivalDate: string | null;
   arrivalWindowStart: string | null;
   arrivalWindowEnd: string | null;
@@ -502,9 +521,13 @@ function nextStepsForTask({
   if (state === 'to_order') {
     const reviewDate = addDays(new Date().toISOString(), 1);
     return [
-      `Banji will keep this in To order until an order is logged.`,
-      reviewDate ? `Banji will prompt another review on ${formatSenaDate(reviewDate, 'en')}.` : 'Banji will prompt another review soon.',
-      'The task stays urgent while the reorder trigger remains active.',
+      translate(language, 'overviewTaskNextOrderWaiting'),
+      reviewDate
+        ? translate(language, 'overviewTaskNextOrderReviewOn', {
+            date: formatSenaDate(reviewDate, language),
+          })
+        : translate(language, 'overviewTaskNextOrderReviewSoon'),
+      translate(language, 'overviewTaskNextOrderUrgent'),
     ];
   }
 
@@ -517,19 +540,23 @@ function nextStepsForTask({
 
   return [
     expectedArrivalDate
-      ? `Banji will remind you on ${formatSenaDate(expectedArrivalDate, 'en')}.`
-      : 'Banji will keep watching the current receipt window.',
-    `Current arrival window ${arrivalWindowLabel}.`,
-    'Task will move to Follow up today if no receipt is recorded.',
+      ? translate(language, 'overviewTaskNextArrivalRemindOn', {
+          date: formatSenaDate(expectedArrivalDate, language),
+        })
+      : translate(language, 'overviewTaskNextArrivalWatch'),
+    translate(language, 'overviewTaskNextArrivalWindow', { window: arrivalWindowLabel }),
+    translate(language, 'overviewTaskNextArrivalFollowUp'),
   ];
 }
 
 function taskNarrative({
+  language,
   linkedServiceNames,
   receiptWindow,
   summary,
   taskState,
 }: {
+  language: AppLanguage;
   linkedServiceNames: string[];
   receiptWindow: ReceiptWindowSummary | null;
   summary: SenaSkuSummary;
@@ -539,50 +566,53 @@ function taskNarrative({
     case 'to_order':
       return {
         action: 'log_order' as OverviewTaskAction,
-        actionLabel: 'Log order',
+        actionLabel: translate(language, 'overviewTaskActionLogOrder'),
         defaultDrawerMode: 'not_ordered' as OverviewTaskDrawerMode,
         statusTone: 'danger' as const,
         whyNow:
           summary.stockoutRisk >= 0.7 && linkedServiceNames.length > 0
-            ? 'Stockout blocks service'
-            : 'Reorder soon',
-        whyDetail: `${summary.daysOfCover != null ? formatSenaDays(summary.daysOfCover, 'en') : '—'} cover · reorder trigger ${formatSenaPercent(summary.reorderTriggerProbability, 'en')}`,
+            ? translate(language, 'overviewTaskWhyOrderBlocksService')
+            : translate(language, 'overviewTaskWhyOrderSoon'),
+        whyDetail: translate(language, 'overviewTaskWhyDetailOrder', {
+          cover: summary.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—',
+          probability: formatSenaPercent(summary.reorderTriggerProbability, language),
+        }),
       };
     case 'awaiting_receipt':
       return {
         action: 'update_eta' as OverviewTaskAction,
-        actionLabel: 'Update ETA',
+        actionLabel: translate(language, 'overviewTaskActionUpdateEta'),
         defaultDrawerMode: 'ordered_waiting' as OverviewTaskDrawerMode,
         statusTone: 'warning' as const,
-        whyNow: 'Ordered already',
-        whyDetail: receiptWindow?.etaDetail ?? 'Banji is holding this in the active receipt loop.',
+        whyNow: translate(language, 'overviewTaskWhyOrderedAlready'),
+        whyDetail: receiptWindow?.etaDetail ?? translate(language, 'overviewTaskWhyReceiptLoop'),
       };
     case 'follow_up_today':
       return {
         action: 'follow_up' as OverviewTaskAction,
-        actionLabel: 'Follow up',
+        actionLabel: translate(language, 'overviewTaskActionFollowUp'),
         defaultDrawerMode: 'eta_changed' as OverviewTaskDrawerMode,
         statusTone: 'warning' as const,
-        whyNow: 'Check supplier update',
-        whyDetail: receiptWindow?.etaDetail ?? 'Expected window passed without a new update.',
+        whyNow: translate(language, 'overviewTaskWhyCheckSupplier'),
+        whyDetail: receiptWindow?.etaDetail ?? translate(language, 'overviewTaskWhyReceiptWindowPassed'),
       };
     case 'ready_to_receive':
       return {
         action: 'receive' as OverviewTaskAction,
-        actionLabel: 'Receive',
+        actionLabel: translate(language, 'overviewTaskActionReceive'),
         defaultDrawerMode: 'goods_received' as OverviewTaskDrawerMode,
         statusTone: 'info' as const,
-        whyNow: 'Receipt due',
-        whyDetail: receiptWindow?.etaDetail ?? 'The current arrival window is open.',
+        whyNow: translate(language, 'overviewTaskWhyReceiptDue'),
+        whyDetail: receiptWindow?.etaDetail ?? translate(language, 'overviewTaskWhyReceiptWindowOpen'),
       };
     case 'received_today':
       return {
         action: 'review' as OverviewTaskAction,
-        actionLabel: 'Review',
+        actionLabel: translate(language, 'overviewTaskActionReview'),
         defaultDrawerMode: 'goods_received' as OverviewTaskDrawerMode,
         statusTone: 'success' as const,
-        whyNow: 'Receipt logged today',
-        whyDetail: 'Inventory was updated recently and service recovery should be checked.',
+        whyNow: translate(language, 'overviewTaskWhyReceiptLogged'),
+        whyDetail: translate(language, 'overviewTaskWhyReceiptLoggedDetail'),
       };
   }
 }
@@ -682,6 +712,7 @@ function buildTask({
     fallbackOrderQuantity,
   );
   const narrative = taskNarrative({
+    language,
     linkedServiceNames,
     receiptWindow,
     summary,
@@ -693,18 +724,20 @@ function buildTask({
   )[0]?.[0] ?? 'normal';
   const etaLabel =
     state === 'to_order'
-      ? 'Not ordered yet'
+      ? translate(language, 'overviewTaskEtaNotOrderedYet')
       : state === 'received_today'
-        ? 'Received today'
-        : (receiptWindow?.etaLabel ?? 'Awaiting supplier update');
+        ? translate(language, 'overviewTaskEtaReceivedToday')
+        : (receiptWindow?.etaLabel ?? translate(language, 'overviewReceiptAwaitingSupplierUpdate'));
   const etaDetail =
     state === 'to_order'
-      ? 'No open order is recorded yet.'
+      ? translate(language, 'overviewTaskEtaNotOrderedDetail')
       : state === 'received_today'
         ? observationSignals.latestReceiptAt
-          ? `Logged ${formatSenaDate(observationSignals.latestReceiptAt, language)}`
-          : 'Receipt logged today.'
-        : (receiptWindow?.etaDetail ?? 'Banji is waiting for the next supplier signal.');
+          ? translate(language, 'overviewTaskEtaReceivedLogged', {
+              date: formatSenaDate(observationSignals.latestReceiptAt, language),
+            })
+          : translate(language, 'overviewTaskEtaReceivedFallback')
+        : (receiptWindow?.etaDetail ?? translate(language, 'overviewTaskEtaWaitingSignal'));
 
   return {
     kind: 'sku',
@@ -712,12 +745,13 @@ function buildTask({
     skuId: summary.skuId,
     skuName: sku.name,
     state,
-    stateLabel: taskStateLabel(state),
+    stateLabel: taskStateLabel(state, language),
     statusTone: narrative.statusTone,
     action: narrative.action,
     actionLabel: narrative.actionLabel,
     defaultDrawerMode: narrative.defaultDrawerMode,
     serviceImpact: serviceImpactLine({
+      language,
       linkedServiceNames,
       state,
       stockoutRisk: summary.stockoutRisk,
@@ -729,17 +763,33 @@ function buildTask({
     confidenceCue:
       state === 'to_order' || state === 'received_today'
         ? summary.stockoutRisk >= 0.7
-          ? 'priority elevated'
-          : 'watch posture'
-        : (receiptWindow?.confidenceCue ?? confidenceCue(variabilityClass, false)),
+          ? translate(language, 'overviewTaskConfidencePriority')
+          : translate(language, 'overviewTaskConfidenceWatch')
+        : (receiptWindow?.confidenceCue ?? confidenceCue(variabilityClass, false, language)),
     heartbeat: [
-      `Posterior on hand ${formatSenaUnits(summary.credibleIntervalLow, language)}-${formatSenaUnits(summary.credibleIntervalHigh, language)}`,
-      `${summary.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—'} cover`,
-      `Reorder trigger ${formatSenaPercent(summary.reorderTriggerProbability, language)}`,
-      linkedServiceNames.length > 0 ? serviceImpactLine({ linkedServiceNames, state, stockoutRisk: summary.stockoutRisk }) : 'No linked service exposure',
-      observationSignals.latestPriceAt ? `Recent price signal ${formatSenaDate(observationSignals.latestPriceAt, language)}` : `Regime ${titleCase(dominantRegime)}`,
+      translate(language, 'overviewTaskHeartbeatOnHand', {
+        low: formatSenaUnits(summary.credibleIntervalLow, language),
+        high: formatSenaUnits(summary.credibleIntervalHigh, language),
+      }),
+      translate(language, 'overviewTaskHeartbeatCover', {
+        cover: summary.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—',
+      }),
+      translate(language, 'overviewTaskHeartbeatReorder', {
+        probability: formatSenaPercent(summary.reorderTriggerProbability, language),
+      }),
+      linkedServiceNames.length > 0
+        ? serviceImpactLine({ language, linkedServiceNames, state, stockoutRisk: summary.stockoutRisk })
+        : translate(language, 'overviewTaskHeartbeatNoServiceExposure'),
+      observationSignals.latestPriceAt
+        ? translate(language, 'overviewTaskHeartbeatRecentPrice', {
+            date: formatSenaDate(observationSignals.latestPriceAt, language),
+          })
+        : translate(language, 'overviewTaskHeartbeatPattern', {
+            pattern: titleCase(dominantRegime),
+          }),
     ],
     nextSteps: nextStepsForTask({
+      language,
       expectedArrivalDate: receiptWindow?.expectedArrivalDate ?? null,
       arrivalWindowStart: receiptWindow?.arrivalWindowStart ?? null,
       arrivalWindowEnd: receiptWindow?.arrivalWindowEnd ?? null,
@@ -762,6 +812,8 @@ function buildTask({
     latestObservationAt: observationSignals.latestObservationAt,
     latestOrderAt: observationSignals.latestOrderAt,
     latestReceiptAt: observationSignals.latestReceiptAt,
+    hasRecentPriceSignal: Boolean(observationSignals.latestPriceAt),
+    regimeKey: dominantRegime,
     regimeLabel: titleCase(dominantRegime),
     stockoutRisk: summary.stockoutRisk,
     reorderTriggerProbability: summary.reorderTriggerProbability,
@@ -802,46 +854,54 @@ function buildStaleUpdateReminderTask({
   return {
     kind: 'stale_update_reminder',
     id: 'overview:stale-update-reminder',
-    stateLabel: 'Reminder',
+    stateLabel: translate(language, 'overviewStaleReminderStateLabel'),
     statusTone: 'warning',
     action: 'start_update',
-    actionLabel: 'Start update',
+    actionLabel: translate(language, 'overviewStaleReminderAction'),
     snoozeAction: 'remind_tomorrow',
-    snoozeActionLabel: 'Remind tomorrow',
+    snoozeActionLabel: translate(language, 'overviewStaleReminderSnoozeAction'),
     staleDays,
     latestObservationAt: latestRecordedUpdateAt,
-    whyNow: 'Fresh real-world signals are overdue',
-    whyDetail: `Banji has not seen a recorded update in ${formatWholeNumber(staleDays, language)} days.`,
-    etaLabel: `Last update ${formatSenaDate(latestRecordedUpdateAt, language)}`,
-    etaDetail: 'Start a new update now, or hide this reminder until tomorrow.',
-    confidenceCue: 'stale update cadence',
+    whyNow: translate(language, 'overviewStaleReminderWhyNow'),
+    whyDetail: translate(language, 'overviewStaleReminderWhyDetail', {
+      days: formatWholeNumber(staleDays, language),
+    }),
+    etaLabel: translate(language, 'overviewStaleReminderEtaLabel', {
+      date: formatSenaDate(latestRecordedUpdateAt, language),
+    }),
+    etaDetail: translate(language, 'overviewStaleReminderEtaDetail'),
+    confidenceCue: translate(language, 'overviewStaleReminderConfidence'),
     heartbeat: [
-      `Last recorded update ${formatSenaDate(latestRecordedUpdateAt, language)}`,
-      `${formatWholeNumber(staleDays, language)} days since the last live check-in`,
+      translate(language, 'overviewStaleReminderHeartbeatUpdated', {
+        date: formatSenaDate(latestRecordedUpdateAt, language),
+      }),
+      translate(language, 'overviewStaleReminderHeartbeatAge', {
+        days: formatWholeNumber(staleDays, language),
+      }),
     ],
     nextSteps: [
-      'Start a fresh update to capture current stock, pricing, and supplier changes.',
-      'If today is too early, snooze this reminder and Banji will bring it back tomorrow.',
+      translate(language, 'overviewStaleReminderNextStart'),
+      translate(language, 'overviewStaleReminderNextSnooze'),
     ],
   };
 }
 
-function buildSignals(tasks: OverviewSkuTask[]) {
+function buildSignals(tasks: OverviewSkuTask[], language: AppLanguage) {
   const rows: OverviewSignalRow[] = [];
 
-  const priceSignalTask = tasks.find((task) => task.heartbeat.some((entry) => entry.startsWith('Recent price signal')));
+  const priceSignalTask = tasks.find((task) => task.hasRecentPriceSignal);
   if (priceSignalTask) {
     rows.push({
       id: `price:${priceSignalTask.skuId}`,
-      text: `Demand rose after a recent price move on ${priceSignalTask.skuName}.`,
+      text: translate(language, 'overviewSignalPriceMove', { name: priceSignalTask.skuName }),
     });
   }
 
-  const promoTask = tasks.find((task) => task.regimeLabel === 'Promo');
+  const promoTask = tasks.find((task) => task.regimeKey === 'promo');
   if (promoTask) {
     rows.push({
       id: `promo:${promoTask.skuId}`,
-      text: `Promo window lifted draw on ${promoTask.skuName}.`,
+      text: translate(language, 'overviewSignalPromo', { name: promoTask.skuName }),
     });
   }
 
@@ -851,7 +911,7 @@ function buildSignals(tasks: OverviewSkuTask[]) {
   if (residualRiskTask) {
     rows.push({
       id: `residual:${residualRiskTask.skuId}`,
-      text: `Service risk remains active on ${residualRiskTask.skuName} even after today's receipt.`,
+      text: translate(language, 'overviewSignalResidualRisk', { name: residualRiskTask.skuName }),
     });
   }
 
@@ -859,7 +919,7 @@ function buildSignals(tasks: OverviewSkuTask[]) {
   if (overdueTask) {
     rows.push({
       id: `late:${overdueTask.skuId}`,
-      text: `${overdueTask.skuName} is late beyond the expected arrival range.`,
+      text: `${overdueTask.skuName} ${translate(language, 'overviewTimingLate')}.`,
     });
   }
 
@@ -958,7 +1018,7 @@ export function buildOverviewModel({
     tasks: allTasks,
     inTransit,
     recentReceipts,
-    signals: buildSignals(tasks),
+    signals: buildSignals(tasks, language),
     todayCounts: {
       toOrder: tasks.filter((task) => task.state === 'to_order').length,
       followUpToday: tasks.filter((task) => task.state === 'follow_up_today').length,

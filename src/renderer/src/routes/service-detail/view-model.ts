@@ -2,6 +2,7 @@ import type { AppCurrency, AppLanguage, InventorySnapshot, ServiceRecord, StockR
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import type { SenaObservationRecord, SenaRegimePosteriorPoint, SenaServiceDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { computeServiceSellableUnits, serviceLinkedSkus } from '@/lib/catalog';
+import { getTranslation } from '@/lib/translations';
 import {
   deriveFragilitySummary,
   mapServiceTimelineEvents,
@@ -15,6 +16,10 @@ import { formatSenaDate, formatSenaDays, formatSenaPercent } from '@/routes/sku-
 
 type ServiceIntervalTone = 'safe' | 'tight' | 'blocked';
 type RestorationEventState = 'open' | 'logged';
+
+function translate(language: AppLanguage, key: Parameters<typeof getTranslation>[1], variables?: Parameters<typeof getTranslation>[2]) {
+  return getTranslation(language, key, variables);
+}
 
 export interface ServiceInspectorSelection {
   type: 'overview' | 'contributor' | 'interval';
@@ -48,6 +53,7 @@ export interface ServiceContributorViewModel {
   skuId: string;
   name: string;
   statusLabel: string;
+  roleKey: 'limiting_now' | 'next_likely_limiter' | 'safe_contributor';
   roleLabel: string;
   probabilityLabel: string;
   usageLabel: string;
@@ -196,7 +202,7 @@ function addDays(value: string | null, days: number | null) {
 
 function relativeDayLabel(value: string | null, language: AppLanguage) {
   if (!value) {
-    return 'Next review';
+    return translate(language, 'serviceVmNextReview');
   }
   const target = new Date(value);
   if (Number.isNaN(target.valueOf())) {
@@ -206,10 +212,10 @@ function relativeDayLabel(value: string | null, language: AppLanguage) {
   const targetDay = startOfDay(target);
   const diffDays = Math.round((targetDay.getTime() - today.getTime()) / 86_400_000);
   if (diffDays <= 0) {
-    return 'Today';
+    return translate(language, 'serviceVmToday');
   }
   if (diffDays === 1) {
-    return 'Tomorrow';
+    return translate(language, 'serviceVmTomorrow');
   }
   return formatSenaDate(value, language);
 }
@@ -267,11 +273,11 @@ function sellableFromStockSnapshot({
   return linked.reduce((minimum, entry) => Math.min(minimum, entry.unitsInStock), linked[0].unitsInStock);
 }
 
-function contributorRolePriority(roleLabel: string) {
-  switch (roleLabel) {
-    case 'Limiting now':
+function contributorRolePriority(roleKey: ServiceContributorViewModel['roleKey']) {
+  switch (roleKey) {
+    case 'limiting_now':
       return 0;
-    case 'Next likely limiter':
+    case 'next_likely_limiter':
       return 1;
     default:
       return 2;
@@ -324,13 +330,17 @@ function buildRestorationEvents({
             skuId: signal.skuId,
             skuName: contributor.sku.name,
             state: 'logged',
-            headline: `Receipt logged for ${contributor.sku.name}`,
+            headline: translate(language, 'serviceVmReceiptLoggedFor', {
+              name: contributor.sku.name,
+            }),
             timingLabel: formatSenaDate(entry.input.observedAt, language),
             quantityLabel:
               signal.approximateReceiptQuantity != null
-                ? `+${formatWholeNumber(signal.approximateReceiptQuantity, language)} units`
-                : 'Receipt confirmed',
-            detail: 'Recent stock evidence improved recovery confidence.',
+                ? translate(language, 'serviceVmReceiptQuantity', {
+                    count: formatWholeNumber(signal.approximateReceiptQuantity, language),
+                  })
+                : translate(language, 'serviceVmReceiptLoggedFallback'),
+            detail: translate(language, 'serviceVmRestorationReceiptDetail'),
             openSkuHref: `/catalog/skus/${signal.skuId}`,
           });
         }
@@ -348,20 +358,26 @@ function buildRestorationEvents({
     const expectedReceiptAt = addDays(signal.observedAt, contributor.sku.leadTimeMeanDays);
     const timingLabel = expectedReceiptAt
       ? `${formatSenaDate(expectedReceiptAt, language)}${contributor.sku.leadTimeStdDays != null ? ` ± ${formatWholeNumber(contributor.sku.leadTimeStdDays, language)}d` : ''}`
-      : 'ETA pending';
+      : translate(language, 'serviceVmEtaPending');
 
     events.push({
       key: `open:${skuId}:${signal.observedAt}`,
       skuId,
       skuName: contributor.sku.name,
       state: 'open',
-      headline: `${contributor.sku.name} inbound may restore capacity`,
+      headline: translate(language, 'serviceVmInboundMayRestore', {
+        name: contributor.sku.name,
+      }),
       timingLabel,
       quantityLabel:
-        signal.quantity != null ? `~${formatWholeNumber(signal.quantity, language)} units inbound` : 'Inbound quantity pending',
+        signal.quantity != null
+          ? translate(language, 'serviceVmInboundQuantity', {
+              count: formatWholeNumber(signal.quantity, language),
+            })
+          : translate(language, 'serviceVmInboundQuantityPending'),
       detail: contributor.isBottleneck
-        ? 'Current bottleneck receipt would lift service sellability first.'
-        : 'This receipt supports the next likely restoration step.',
+        ? translate(language, 'serviceVmRestorationBottleneckDetail')
+        : translate(language, 'serviceVmRestorationSupportDetail'),
       openSkuHref: `/catalog/skus/${skuId}`,
     });
   }
@@ -514,32 +530,43 @@ export function deriveServiceDetailViewModel({
       ? `${entry.sku.name} · order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
       : reorderRecommendation.optionalOrderLabel
         ? `${entry.sku.name} · keep watching · optional order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
-      : null;
-    const roleLabel = entry.isBottleneck
-      ? 'Limiting now'
+        : null;
+    const roleKey: ServiceContributorViewModel['roleKey'] = entry.isBottleneck
+      ? 'limiting_now'
       : index === 1
-        ? 'Next likely limiter'
-        : 'Safe contributor';
+        ? 'next_likely_limiter'
+        : 'safe_contributor';
+    const roleLabel =
+      roleKey === 'limiting_now'
+        ? translate(language, 'serviceVmRoleLimitingNow')
+        : roleKey === 'next_likely_limiter'
+          ? translate(language, 'serviceVmRoleNextLikelyLimiter')
+          : translate(language, 'serviceVmRoleSafeContributor');
 
     return {
       skuId: entry.sku.skuId,
       name: entry.sku.name,
       statusLabel: roleLabel,
+      roleKey,
       roleLabel,
       probabilityLabel: formatSenaPercent(entry.insight?.stockoutRisk ?? entry.insight?.reorderTriggerProbability ?? contributorDetail?.bottleneckProbability ?? 0, language),
       usageLabel: formatSenaPercent(contributorDetail?.usageProbability ?? 0, language),
-      daysOfCoverLabel: entry.insight?.daysOfCover != null ? formatSenaDays(entry.insight.daysOfCover, language) : 'Coverage pending',
-      stockLabel: `${formatWholeNumber(entry.sku.unitsInStock, language)} in stock`,
+      daysOfCoverLabel: entry.insight?.daysOfCover != null ? formatSenaDays(entry.insight.daysOfCover, language) : translate(language, 'serviceVmCoveragePending'),
+      stockLabel: translate(language, 'serviceVmInStock', {
+        count: formatWholeNumber(entry.sku.unitsInStock, language),
+      }),
       healthLabel: serviceStateLabel(fragility.currentState),
-      inboundLabel: relatedInbound?.timingLabel ?? relatedReceipt?.timingLabel ?? 'No linked inbound',
+      inboundLabel: relatedInbound?.timingLabel ?? relatedReceipt?.timingLabel ?? translate(language, 'serviceVmNoLinkedInbound'),
       recentSignal:
         relatedReceipt?.headline ??
-        (entry.isBottleneck ? `${entry.sku.name} is the current binding SKU.` : `${entry.sku.name} is not binding yet.`),
+        (entry.isBottleneck
+          ? translate(language, 'serviceVmBindingNow', { name: entry.sku.name })
+          : translate(language, 'serviceVmNotBindingYet', { name: entry.sku.name })),
       recoveryNote:
         relatedInbound?.detail ??
         (entry.isBottleneck
-          ? 'Recording stock or confirming the next receipt will change sellability fastest.'
-          : 'Keep this SKU monitored behind the current bottleneck.'),
+          ? translate(language, 'serviceVmRecoveryFast')
+          : translate(language, 'serviceVmRecoveryMonitor')),
       restockGuidance,
       limitingProbability: clamp(
         contributorDetail?.bottleneckProbability ?? entry.insight?.stockoutRisk ?? 0,
@@ -661,13 +688,22 @@ export function deriveServiceDetailViewModel({
   const primarySkuHref = topContributor ? `/catalog/skus/${topContributor.sku.skuId}` : '/catalog';
   const inboundCount = restoration.filter((entry) => entry.state === 'open').length;
   const overviewReason = [
-    `${formatSenaPercent(disruptionRisk, language)} disruption risk with ${topContributor?.sku.name ?? 'no active bottleneck'} in front.`,
+    translate(language, 'serviceVmOverviewRisk', {
+      risk: formatSenaPercent(disruptionRisk, language),
+      name: topContributor?.sku.name ?? translate(language, 'serviceVmNoActiveBottleneck'),
+    }),
     nextDisruptionDays != null
-      ? `${topContributor?.sku.name ?? 'Next blocker'} may constrain the service in ${formatSenaDays(nextDisruptionDays, language)}.`
-      : 'Cover timing is still being inferred from the latest evidence.',
+      ? translate(language, 'serviceVmOverviewNextBlocker', {
+          name: topContributor?.sku.name ?? translate(language, 'serviceVmRoleNextLikelyLimiter'),
+          days: formatSenaDays(nextDisruptionDays, language),
+        })
+      : translate(language, 'serviceVmOverviewTimingPending'),
     inboundCount > 0
-      ? `${formatWholeNumber(inboundCount, language)} linked inbound ${inboundCount === 1 ? 'signal' : 'signals'} may restore capacity.`
-      : 'No open inbound is visible for the current bottleneck chain.',
+      ? translate(language, 'serviceVmOverviewIncoming', {
+          count: formatWholeNumber(inboundCount, language),
+          noun: translate(language, inboundCount === 1 ? 'serviceVmOverviewIncomingSingular' : 'serviceVmOverviewIncomingPlural'),
+        })
+      : translate(language, 'serviceVmOverviewNoIncoming'),
   ];
   const nextTouchDate = restoration.find((entry) => entry.state === 'open')?.timingLabel ?? null;
   const restockRecoveryPath = contributors
@@ -678,24 +714,42 @@ export function deriveServiceDetailViewModel({
     identity: {
       name: service.name,
       serviceId: service.serviceId,
-      availabilityLabel: fragility.currentState === 'blocked' ? 'Blocked' : 'Available',
-      fragilityLabel: fragility.currentState === 'available' ? 'Stable' : fragility.currentState === 'blocked' ? 'Fragile' : 'Fragile',
+      availabilityLabel: fragility.currentState === 'blocked' ? translate(language, 'serviceVmAvailabilityBlocked') : translate(language, 'serviceVmAvailabilityAvailable'),
+      fragilityLabel: fragility.currentState === 'available' ? translate(language, 'serviceVmFragilityStable') : translate(language, 'serviceVmFragilityFragile'),
       confidenceLabel:
         fragility.confidence === 'high'
-          ? 'High confidence'
+          ? translate(language, 'serviceVmConfidenceHigh')
           : fragility.confidence === 'medium'
-            ? 'Medium confidence'
-            : 'Low confidence',
+            ? translate(language, 'serviceVmConfidenceMedium')
+            : translate(language, 'serviceVmConfidenceLow'),
     },
     hero: {
-      headline: `${formatWholeNumber(sellableNow, language)} service units likely sellable today`,
-      summary: `${formatWholeNumber(credibleBand.low, language)}-${formatWholeNumber(credibleBand.high, language)} credible band · bottleneck: ${topContributor?.sku.name ?? 'none'} · disruption risk ${formatSenaPercent(disruptionRisk, language)} · next blocker ${nextDisruptionDays != null ? `in ${formatSenaDays(nextDisruptionDays, language)}` : 'timing pending'} · ${inboundCount > 0 ? `${formatWholeNumber(inboundCount, language)} inbound ${inboundCount === 1 ? 'receipt may' : 'receipts may'} restore capacity` : 'no inbound recovery visible yet'}`,
+      headline: translate(language, 'serviceVmHeroHeadline', {
+        count: formatWholeNumber(sellableNow, language),
+      }),
+      summary: translate(language, 'serviceVmHeroSummary', {
+        low: formatWholeNumber(credibleBand.low, language),
+        high: formatWholeNumber(credibleBand.high, language),
+        bottleneck: topContributor?.sku.name ?? translate(language, 'serviceVmNoActiveBottleneck'),
+        risk: formatSenaPercent(disruptionRisk, language),
+        nextBlocker: nextDisruptionDays != null
+          ? translate(language, 'serviceVmHeroNextBlockerTimed', {
+              days: formatSenaDays(nextDisruptionDays, language),
+            })
+          : translate(language, 'serviceVmHeroNextBlockerPending'),
+        inbound: inboundCount > 0
+          ? translate(language, 'serviceVmHeroInboundVisible', {
+              count: formatWholeNumber(inboundCount, language),
+              noun: translate(language, inboundCount === 1 ? 'serviceVmInboundSingular' : 'serviceVmInboundPlural'),
+            })
+          : translate(language, 'serviceVmHeroNoInboundVisible'),
+      }),
     },
     actions: {
       primarySkuHref,
       editServiceHref: `/catalog/services/${service.serviceId}/edit`,
       latestObservedAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? reports.at(-1)?.reportedAt ?? null,
-      noBottleneckHint: 'No limiting contributor is active right now.',
+      noBottleneckHint: translate(language, 'serviceVmNoLimitingContributor'),
       bottleneckSku: actionBottleneck
         ? {
             skuId: actionBottleneck.sku.skuId,
@@ -713,15 +767,15 @@ export function deriveServiceDetailViewModel({
       },
     },
     ribbon: [
-      { key: 'sellable-now', label: 'Sellable now', value: formatWholeNumber(sellableNow, language) },
-      { key: 'demand-per-day', label: 'Demand/day', value: formatNumber(activityMean, language) },
-      { key: 'bottleneck', label: 'Bottleneck SKU', value: topContributor?.sku.name ?? '—' },
-      { key: 'revenue-at-risk', label: 'Revenue at risk', value: formatCurrency(revenueAtRiskValue, currency, language, usdToKhrExchangeRate) },
-      { key: 'next-disruption', label: 'Next disruption', value: nextDisruptionDays != null ? formatSenaDays(nextDisruptionDays, language) : 'Pending' },
+      { key: 'sellable-now', label: translate(language, 'serviceVmRibbonSellableNow'), value: formatWholeNumber(sellableNow, language) },
+      { key: 'demand-per-day', label: translate(language, 'serviceVmRibbonDemandPerDay'), value: formatNumber(activityMean, language) },
+      { key: 'bottleneck', label: translate(language, 'serviceVmRibbonMainBlocker'), value: topContributor?.sku.name ?? '—' },
+      { key: 'revenue-at-risk', label: translate(language, 'serviceVmRibbonRevenueAtRisk'), value: formatCurrency(revenueAtRiskValue, currency, language, usdToKhrExchangeRate) },
+      { key: 'next-disruption', label: translate(language, 'serviceVmRibbonNextRiskPoint'), value: nextDisruptionDays != null ? formatSenaDays(nextDisruptionDays, language) : translate(language, 'serviceVmPending') },
       {
         key: 'linked-health',
-        label: 'Linked SKUs health',
-        value: rankedContributors.length ? `${formatWholeNumber(riskCount, language)} risk / ${formatWholeNumber(rankedContributors.length, language)}` : 'No links',
+        label: translate(language, 'serviceVmRibbonLinkedSkuHealth'),
+        value: rankedContributors.length ? `${formatWholeNumber(riskCount, language)} risk / ${formatWholeNumber(rankedContributors.length, language)}` : translate(language, 'serviceVmNoLinks'),
       },
     ],
     intervals,
@@ -732,12 +786,12 @@ export function deriveServiceDetailViewModel({
     rail: {
       overviewTitle:
         fragility.currentState === 'blocked'
-          ? `Unblock ${service.name.toLowerCase()}`
-          : `Protect ${service.name.toLowerCase()}`,
+          ? translate(language, 'serviceVmOverviewTitleUnblock', { name: service.name.toLowerCase() })
+          : translate(language, 'serviceVmOverviewTitleProtect', { name: service.name.toLowerCase() }),
       overviewReason,
       bottleneckStack: [...contributors]
         .sort((left, right) => {
-          const roleDelta = contributorRolePriority(left.roleLabel) - contributorRolePriority(right.roleLabel);
+          const roleDelta = contributorRolePriority(left.roleKey) - contributorRolePriority(right.roleKey);
           if (roleDelta !== 0) {
             return roleDelta;
           }
@@ -762,7 +816,9 @@ export function deriveServiceDetailViewModel({
         dateLabel: relativeDayLabel(nextTouchDate, language),
         reason:
           restoration.find((entry) => entry.state === 'open')?.headline ??
-          (topContributor ? `Review ${topContributor.sku.name} before it binds the service.` : 'Review linked SKU health.'),
+          (topContributor
+            ? translate(language, 'serviceVmNextTouchReview', { name: topContributor.sku.name })
+            : translate(language, 'serviceVmNextTouchReviewLinks')),
       },
     },
   };

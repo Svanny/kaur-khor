@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { getTranslation } from '@/lib/translations';
 import { derivePerformanceViewModel } from './view-model';
 
 const catalog = {
@@ -236,5 +237,39 @@ describe('derivePerformanceViewModel', () => {
     expect(model.boardRows.some((row) => (row.demandTrendSignal?.splitIndex ?? 0) > 0)).toBe(true);
     expect(model.boardRows[0]?.hasMaterialChange).toBe(true);
     expect(model.boardRows[0]?.changeScore).toBeGreaterThanOrEqual(model.boardRows.at(-1)?.changeScore ?? 0);
+  });
+
+  test('keeps overdue pipeline summaries working with localized labels', () => {
+    const model = derivePerformanceViewModel({
+      catalog,
+      compareMode: false,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'km',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: {
+        ...skuDetailsById,
+        'sku-razor': {
+          ...skuDetailsById['sku-razor'],
+          pipelinePosterior: [
+            {
+              ageDaysMean: 7,
+              inTransitMean: 16,
+              intervalIndex: 2,
+              orderProbability: 0.92,
+              orderQuantityMean: 16,
+              receiptQuantityMean: 16,
+            },
+          ],
+        },
+      },
+      timeRange: '30d',
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    expect(model.ribbon.find((metric) => metric.key === 'inbound')?.detail).toContain('1');
+    expect(model.recoveryPipeline[0]?.detail).toBe(getTranslation('km', 'performanceVmOverdue' as never));
   });
 });
