@@ -43,7 +43,7 @@ It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app 
 
 Banji uses **SENA** as its local analysis engine. SENA is what turns saved observations into reorder pressure, timing risk, blocker detection, and explanation surfaces inside the app.
 
-If you want the reference document, see [References/SENA/SENA.pdf](/Users/svanny/banji/References/SENA/SENA.pdf).
+If you want the reference document, see [References/SENA/SENA.pdf](https://github.com/Svanny/banji/blob/main/References/SENA/SENA.pdf).
 
 ## Downloads
 
