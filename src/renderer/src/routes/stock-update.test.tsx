@@ -3,6 +3,27 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StockUpdateRoute } from './stock-update';
 
+const realDate = Date;
+
+function freezeDate(isoString: string) {
+  const fixedDate = new realDate(isoString);
+
+  class MockDate extends realDate {
+    constructor(...args: any[]) {
+      super(...(args.length === 0 ? [fixedDate.toISOString()] : args));
+    }
+
+    static now() {
+      return fixedDate.getTime();
+    }
+
+    static parse = realDate.parse;
+    static UTC = realDate.UTC;
+  }
+
+  vi.stubGlobal('Date', MockDate as unknown as DateConstructor);
+}
+
 const inventoryHook = vi.fn();
 const deleteSenaObservation = vi.fn();
 const triggerSenaRun = vi.fn();
@@ -217,12 +238,11 @@ function renderRouteWithDestination() {
 
 describe('StockUpdateRoute', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-06T12:00:00.000Z'));
+    freezeDate('2026-04-06T12:00:00.000Z');
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
@@ -295,12 +315,14 @@ describe('StockUpdateRoute', () => {
     expect(screen.queryByText('Haircut price updated')).not.toBeInTheDocument();
   });
 
-  it('renders edit and delete actions for observation cards and navigates edit with observation state', () => {
+  it('renders edit and delete actions for observation cards and navigates edit with observation state', async () => {
     renderRouteWithDestination();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit report' })[0]!);
 
-    expect(screen.getByText('edit target: obs-sku-same-day')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('edit target: obs-sku-same-day')).toBeInTheDocument();
+    });
   });
 
   it('requires typed confirmation before deleting an observation card', async () => {

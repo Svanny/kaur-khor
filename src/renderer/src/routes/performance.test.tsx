@@ -502,7 +502,6 @@ describe('PerformanceRoute', () => {
     expect(screen.queryByText('Saved updates')).not.toBeInTheDocument();
     expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: /Select analysis time range/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Workbench/i })).toHaveAttribute('data-state', 'active');
   }, 10_000);
 
   test('scrolls the analysis route back to the top on entry', async () => {

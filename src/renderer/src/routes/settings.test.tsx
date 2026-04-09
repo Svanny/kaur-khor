@@ -229,21 +229,21 @@ describe('SettingsRoute', () => {
     );
 
     expect(await screen.findByText('Workspace preferences')).toBeInTheDocument();
-    expect(screen.getByText('Planning detail settings')).toBeInTheDocument();
+    expect(screen.getByText('Planning settings')).toBeInTheDocument();
     expect(screen.getByText('Local workspace data')).toBeInTheDocument();
     expect(screen.getByText('Credits')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /export logs: excel/i })).toHaveTextContent(
       'Export Logs: Excel',
     );
     expect(screen.getByRole('combobox', { name: /export logs format/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /export sena data: excel/i })).toHaveTextContent(
-      'Export SENA data: Excel',
+    expect(screen.getByRole('button', { name: /export planning data: excel/i })).toHaveTextContent(
+      'Export planning data: Excel',
     );
-    expect(screen.getByRole('combobox', { name: /choose planning data format/i })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /planning data format/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/analysis profile/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /open local data folder/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^\/tmp\/banji$/i })).toBeInTheDocument();
-    const particleInput = screen.getByLabelText(/analysis sample count/i);
+    const particleInput = screen.getByLabelText(/evidence detail level/i);
     expect(particleInput).toHaveDisplayValue('256');
 
     fireEvent.change(particleInput, { target: { value: '384' } });
@@ -276,10 +276,10 @@ describe('SettingsRoute', () => {
 
     const pageText = document.body.textContent ?? '';
     expect(pageText.indexOf('Workspace preferences')).toBeLessThan(
-      pageText.indexOf('Local workspace data'),
+      pageText.indexOf('Planning settings'),
     );
-    expect(pageText.indexOf('Local workspace data')).toBeLessThan(
-      pageText.indexOf('Planning detail settings'),
+    expect(pageText.indexOf('Planning settings')).toBeLessThan(
+      pageText.indexOf('Local workspace data'),
     );
 
     fireEvent.click(screen.getByRole('button', { name: /expand credits/i }));
@@ -323,7 +323,7 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const recommendationQuantileInput = await screen.findByLabelText(/recommended order level/i);
+    const recommendationQuantileInput = await screen.findByLabelText(/order suggestion level/i);
     expect(recommendationQuantileInput).toHaveDisplayValue('0.7');
 
     fireEvent.change(recommendationQuantileInput, { target: { value: '0.' } });
@@ -359,7 +359,7 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const particleInput = await screen.findByLabelText(/analysis sample count/i);
+    const particleInput = await screen.findByLabelText(/evidence detail level/i);
     fireEvent.change(particleInput, { target: { value: '5000' } });
 
     expect(particleInput).toHaveDisplayValue('5000');
@@ -388,13 +388,13 @@ describe('SettingsRoute', () => {
 
     const rangeLowInput = await screen.findByLabelText(/suggested range start/i);
     const rangeHighInput = screen.getByLabelText(/suggested range end/i);
-    const recommendationInput = screen.getByLabelText(/recommended order level/i);
+    const recommendationInput = screen.getByLabelText(/order suggestion level/i);
 
     fireEvent.change(rangeLowInput, { target: { value: '0.95' } });
     fireEvent.change(rangeHighInput, { target: { value: '0.9' } });
 
-    expect(await screen.findByText('Range low quantile cannot be higher than range high quantile.')).toBeInTheDocument();
-    expect(screen.getByText('Range high quantile must be at least as high as range low quantile.')).toBeInTheDocument();
+    expect(await screen.findByText('Suggested range start cannot be above the range end.')).toBeInTheDocument();
+    expect(screen.getByText('Suggested range end cannot be below the range start.')).toBeInTheDocument();
     expect(firstSavePreferencesButton()).toBeDisabled();
 
     fireEvent.click(firstSavePreferencesButton());
@@ -404,7 +404,7 @@ describe('SettingsRoute', () => {
     fireEvent.change(recommendationInput, { target: { value: '0.96' } });
 
     await waitFor(() => {
-      expect(screen.queryByText('Range low quantile cannot be higher than range high quantile.')).not.toBeInTheDocument();
+      expect(screen.queryByText('Suggested range start cannot be above the range end.')).not.toBeInTheDocument();
     });
     expect(firstSavePreferencesButton()).not.toBeDisabled();
   });
@@ -418,7 +418,7 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const recommendationInput = await screen.findByLabelText(/recommended order level/i);
+    const recommendationInput = await screen.findByLabelText(/order suggestion level/i);
     const rangeLowInput = screen.getByLabelText(/suggested range start/i);
     const rangeHighInput = screen.getByLabelText(/suggested range end/i);
 
@@ -428,7 +428,7 @@ describe('SettingsRoute', () => {
 
     expect(
       await screen.findByText(
-        'Recommendation quantile must be between range low quantile and range high quantile.',
+        'Order suggestion level must stay between the range start and range end.',
       ),
     ).toBeInTheDocument();
     expect(firstSavePreferencesButton()).toBeDisabled();
@@ -438,7 +438,7 @@ describe('SettingsRoute', () => {
     await waitFor(() => {
       expect(
         screen.queryByText(
-          'Recommendation quantile must be between range low quantile and range high quantile.',
+          'Order suggestion level must stay between the range start and range end.',
         ),
       ).not.toBeInTheDocument();
     });

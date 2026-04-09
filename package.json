@@ -29,7 +29,7 @@
     "preview": "electron-vite preview",
     "refresh:tree": "bash ./scripts/refresh-tree.sh",
     "refresh:tree:zsh": "zsh ./scripts/refresh-tree.zsh",
-    "test": "vitest run"
+    "test": "vitest run --reporter=dot"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -766,51 +766,6 @@ export function SettingsRoute() {
       </WorkspacePanel>
 
       <WorkspacePanel
-        title={t('settingsLocalWorkspaceStorageTitle')}
-        descriptor={t('settingsLocalWorkspaceStorageDescription')}
-      >
-        {localDataInfo ? (
-          <div className="grid gap-4">
-            <LocalDataLocationLink
-              label={t('settingsDataDirectoryLabel')}
-              path={localDataInfo.dataDirectoryPath}
-            />
-            <LocalDataLocationLink
-              label={t('settingsWorkspaceStoreLabel')}
-              path={localDataInfo.workspaceStorePath}
-            />
-            <LocalDataLocationLink
-              label={t('settingsPreferencesFileLabel')}
-              path={localDataInfo.preferencesPath}
-            />
-            <WorkspaceActionRow>
-              <ExportFormatSelect
-                ariaLabel="Export logs format"
-                icon={<ActionExportIcon className="size-4" />}
-                label={t('settingsExportLogsAction')}
-                onExport={() => void handleExportLogs(logExportFormat)}
-                value={logExportFormat}
-                onValueChange={setLogExportFormat}
-              />
-              <ExportFormatSelect
-                ariaLabel={t('settingsSenaDataExportFormatLabel')}
-                icon={<EntityBackupIcon className="size-4" />}
-                label={t('settingsExportSenaDataAction')}
-                onExport={() => void handleExportSenaData(senaExportFormat)}
-                value={senaExportFormat}
-                onValueChange={setSenaExportFormat}
-              />
-            </WorkspaceActionRow>
-            {exportStatus ? <p className="text-sm text-muted-foreground">{exportStatus}</p> : null}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {localDataError ?? t('settingsLoadLocalWorkspaceInfo')}
-          </p>
-        )}
-      </WorkspacePanel>
-
-      <WorkspacePanel
         title={t('settingsSenaParametersPanelTitle')}
         descriptor={t('settingsSenaParametersPanelDescription')}
         action={
@@ -935,6 +890,51 @@ export function SettingsRoute() {
             {t('settingsSenaParametersRerunHint')}
           </p>
         ) : null}
+      </WorkspacePanel>
+
+      <WorkspacePanel
+        title={t('settingsLocalWorkspaceStorageTitle')}
+        descriptor={t('settingsLocalWorkspaceStorageDescription')}
+      >
+        {localDataInfo ? (
+          <div className="grid gap-4">
+            <LocalDataLocationLink
+              label={t('settingsDataDirectoryLabel')}
+              path={localDataInfo.dataDirectoryPath}
+            />
+            <LocalDataLocationLink
+              label={t('settingsWorkspaceStoreLabel')}
+              path={localDataInfo.workspaceStorePath}
+            />
+            <LocalDataLocationLink
+              label={t('settingsPreferencesFileLabel')}
+              path={localDataInfo.preferencesPath}
+            />
+            <WorkspaceActionRow>
+              <ExportFormatSelect
+                ariaLabel="Export logs format"
+                icon={<ActionExportIcon className="size-4" />}
+                label={t('settingsExportLogsAction')}
+                onExport={() => void handleExportLogs(logExportFormat)}
+                value={logExportFormat}
+                onValueChange={setLogExportFormat}
+              />
+              <ExportFormatSelect
+                ariaLabel={t('settingsSenaDataExportFormatLabel')}
+                icon={<EntityBackupIcon className="size-4" />}
+                label={t('settingsExportSenaDataAction')}
+                onExport={() => void handleExportSenaData(senaExportFormat)}
+                value={senaExportFormat}
+                onValueChange={setSenaExportFormat}
+              />
+            </WorkspaceActionRow>
+            {exportStatus ? <p className="text-sm text-muted-foreground">{exportStatus}</p> : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {localDataError ?? t('settingsLoadLocalWorkspaceInfo')}
+          </p>
+        )}
       </WorkspacePanel>
 
       <WorkspacePanel

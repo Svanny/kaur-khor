@@ -1,6 +1,5 @@
-import { type ReactNode, forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentType, type ReactNode, type SVGProps, forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import type { LucideIcon } from 'lucide-react';
 import {
   ActionAddBadgeIcon,
   ActionClipboardAddIcon,
@@ -42,6 +41,8 @@ import {
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
+type CommandIconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
 function isMacPlatform() {
   if (typeof navigator === 'undefined') {
     return false;
@@ -81,7 +82,7 @@ function commandBadgeClassName(command: CommandDescriptor) {
   }
 }
 
-function pageIcon(pageId: string): LucideIcon {
+function pageIcon(pageId: string): CommandIconComponent {
   switch (pageId) {
     case 'overview':
       return NavigationDashboardIcon;
@@ -104,7 +105,7 @@ function pageIcon(pageId: string): LucideIcon {
   }
 }
 
-function settingsIcon(effect: Extract<CommandDescriptor['action'], { type: 'settings' }>['effect']): LucideIcon {
+function settingsIcon(effect: Extract<CommandDescriptor['action'], { type: 'settings' }>['effect']): CommandIconComponent {
   switch (effect) {
     case 'set-display-mode':
       return NavigationWorkspacePanelsIcon;
@@ -124,7 +125,7 @@ function settingsIcon(effect: Extract<CommandDescriptor['action'], { type: 'sett
   }
 }
 
-function commandIcon(command: CommandDescriptor): LucideIcon {
+function commandIcon(command: CommandDescriptor): CommandIconComponent {
   if (command.kind === 'page') {
     return pageIcon(command.pageId);
   }
