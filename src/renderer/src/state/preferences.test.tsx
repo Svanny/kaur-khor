@@ -125,7 +125,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('pending').textContent).toBe('true');
     expect(screen.getByTestId('translation').textContent).toBe('ការកំណត់');
     expect(screen.getByTestId('description-translation').textContent).toBe(
-      'Adjust local shell behavior, optional help, and workspace preferences from one page.',
+      'កែប្រែរបៀបដំណើរការក្នុងម៉ាស៊ីន ជំនួយស្រេចចិត្ត និងចំណូលចិត្តសម្រាប់កន្លែងធ្វើការពីទំព័រតែមួយ។',
     );
     expect(savePreferences).not.toHaveBeenCalled();
 

@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { SenaSkuDetail } from '@shared/sena';
 import {
   ArrowUpRight,
@@ -35,6 +35,7 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { overviewTaskActionIconMap, overviewTaskFilterIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { buildOverviewSearchParams, readOverviewRouteState } from '@/lib/navigation-state';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
 import { useInventory } from '@/state/inventory';
@@ -161,13 +162,19 @@ export function DashboardRoute() {
     showRightRailCards,
     t,
   } = usePreferences();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
-  const [searchScope, setSearchScope] = useState<OverviewSearchScope>('all');
-  const [filter, setFilter] = useState<OverviewTaskFilter>('all');
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [detailBySkuId, setDetailBySkuId] = useState<Record<string, SenaSkuDetail | null>>({});
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
+  const routeState = readOverviewRouteState(searchParams);
+  const searchScope = routeState.scope;
+  const filter = routeState.filter as OverviewTaskFilter;
+  const selectedTaskId = routeState.taskId;
+
+  function updateRouteState(nextState: Parameters<typeof buildOverviewSearchParams>[1], replace = false) {
+    setSearchParams(buildOverviewSearchParams(searchParams, nextState), { replace });
+  }
 
   useEffect(() => {
     const skuIds = inventory.workspaceSummary?.skuSummaries.map((summary) => summary.skuId) ?? [];
@@ -224,7 +231,7 @@ export function DashboardRoute() {
 
   useEffect(() => {
     if (selectedTaskId && !selectedTask) {
-      setSelectedTaskId(null);
+      updateRouteState({ taskId: null, taskMode: null }, true);
     }
   }, [selectedTask, selectedTaskId]);
 
@@ -299,7 +306,7 @@ export function DashboardRoute() {
             value={searchScope}
             onValueChange={(nextValue) => {
               if (nextValue) {
-                setSearchScope(nextValue as OverviewSearchScope);
+                updateRouteState({ scope: nextValue as OverviewSearchScope });
               }
             }}
           >
@@ -322,7 +329,7 @@ export function DashboardRoute() {
       <ChromeTabs
         className="relative gap-0"
         value={filter}
-        onValueChange={(nextValue) => setFilter(nextValue as OverviewTaskFilter)}
+        onValueChange={(nextValue) => updateRouteState({ filter: nextValue as OverviewTaskFilter })}
       >
         <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
           <ChromeTabsList aria-label="Filter overview tasks" className="min-w-0" collapseBehavior="progressive">
@@ -388,7 +395,7 @@ export function DashboardRoute() {
                               <button
                                 className="group min-w-0 text-left"
                                 type="button"
-                                onClick={() => setSelectedTaskId(task.id)}
+                                onClick={() => updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode })}
                               >
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
@@ -453,7 +460,7 @@ export function DashboardRoute() {
                                 size="sm"
                                 type="button"
                                 variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
-                                onClick={() => setSelectedTaskId(task.id)}
+                                onClick={() => updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode })}
                               >
                                 {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
                                 {task.actionLabel}
@@ -524,7 +531,7 @@ export function DashboardRoute() {
                       aria-pressed={filter === row.filter}
                       className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left text-sm transition-colors ${rowHoverClassName}`}
                       type="button"
-                      onClick={() => setFilter(row.filter)}
+                      onClick={() => updateRouteState({ filter: row.filter })}
                     >
                       <span className="text-muted-foreground">{row.label}</span>
                       <span className="font-semibold text-foreground">{model.todayCounts[row.countKey]}</span>
@@ -547,7 +554,7 @@ export function DashboardRoute() {
                       className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
                       data-slot="overview-rail-row"
                       type="button"
-                      onClick={() => setSelectedTaskId(row.id)}
+                      onClick={() => updateRouteState({ taskId: row.id })}
                     >
                       <span className="min-w-0 pr-3 text-sm font-medium text-foreground">{row.name}</span>
                       <span className="shrink-0 text-sm text-muted-foreground">{row.etaLabel}</span>
@@ -574,7 +581,7 @@ export function DashboardRoute() {
                       className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
                       data-slot="overview-rail-row"
                       type="button"
-                      onClick={() => setSelectedTaskId(row.skuId)}
+                      onClick={() => updateRouteState({ taskId: row.skuId, taskMode: 'goods_received' })}
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground">
@@ -630,9 +637,11 @@ export function DashboardRoute() {
       </ChromeTabs>
 
       <OverviewTaskDrawer
+        mode={routeState.taskMode ?? selectedTask?.defaultDrawerMode ?? null}
         open={selectedTask != null}
         task={selectedTask}
-        onOpenChange={(open) => setSelectedTaskId(open ? selectedTaskId : null)}
+        onModeChange={(nextMode) => updateRouteState({ taskMode: nextMode }, true)}
+        onOpenChange={(open) => updateRouteState({ taskId: open ? selectedTaskId : null, taskMode: open ? routeState.taskMode : null }, true)}
       />
     </WorkspacePage>
   );

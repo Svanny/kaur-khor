@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { MeasuredPagedDetailPanel } from '@/routes/detail-panels';
+import { usePreferences } from '@/state/preferences';
 import type { ServiceDetailViewModel } from './view-model';
 
 export function ServiceDependencyImpact({
@@ -7,11 +8,13 @@ export function ServiceDependencyImpact({
 }: {
   rows: ServiceDetailViewModel['dependencyImpact'];
 }) {
+  const { t } = usePreferences();
+
   return (
     <MeasuredPagedDetailPanel
       items={rows}
-      title="Dependency impact"
-      tooltip="Linked SKUs ranked by service role, cover, and recovery impact."
+      title={t('catalogServiceDependencyImpactTitle')}
+      tooltip={t('catalogServiceDependencyImpactTooltip')}
       renderItem={(row) => (
         <div className="grid gap-3 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">

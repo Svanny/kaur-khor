@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, BadgeDollarSign, GitCompareArrows, Layers3, Package, PiggyBank, RefreshCw, Store, Trophy, TrendingUp, Truck, TriangleAlert } from 'lucide-react';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
@@ -17,6 +17,10 @@ import { Button } from '@/components/ui/button';
 import { CompactSparkline } from '@/components/ui/compact-sparkline';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import {
+  buildPerformanceSearchParams,
+  readPerformanceRouteState,
+} from '@/lib/navigation-state';
 import { cn } from '@/lib/utils';
 import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
@@ -153,15 +157,19 @@ function ItemTypeIcon({ type }: { type: string }) {
 }
 
 function CashBandColumn({
+  band,
   title,
   tooltip,
+  emptyMessage,
   rows,
 }: {
+  band: 'winners' | 'blockedProfit' | 'cashTraps';
   title: string;
   tooltip: string;
+  emptyMessage: string;
   rows: PerformanceBandEntry[];
 }) {
-  const HeaderIcon = title === 'Winners' ? Trophy : title === 'Blocked profit' ? TriangleAlert : PiggyBank;
+  const HeaderIcon = band === 'winners' ? Trophy : band === 'blockedProfit' ? TriangleAlert : PiggyBank;
 
   return (
     <div className="min-w-0">
@@ -188,7 +196,7 @@ function CashBandColumn({
           ))
         ) : (
           <p className="rounded-[1.2rem] border border-dashed border-border/60 px-4 py-4 text-sm text-muted-foreground">
-            No items are stacking up in this band right now.
+            {emptyMessage}
           </p>
         )}
       </div>
@@ -239,29 +247,44 @@ function TimelineStep({
   );
 }
 
-function MoveNowTable({ rows }: { rows: PerformanceMoveRow[] }) {
+function MoveNowTable({
+  headers,
+  rows,
+}: {
+  headers: {
+    action: string;
+    actionTooltip: string;
+    expectedEffect: string;
+    expectedEffectTooltip: string;
+    move: string;
+    moveTooltip: string;
+    whyNow: string;
+    whyNowTooltip: string;
+  };
+  rows: PerformanceMoveRow[];
+}) {
   return (
     <HeaderedTable>
       <div className={moveNowTableLayout.containerClassName} style={moveNowTableLayout.style}>
         <HeaderedTableHeader className={moveNowTableLayout.headerClassName}>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip="Banji's recommended business move for this row.">
-              Move
+            <HeaderTooltipLabel tooltip={headers.moveTooltip}>
+              {headers.move}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip="The business conditions making this move timely right now.">
-              Why now
+            <HeaderTooltipLabel tooltip={headers.whyNowTooltip}>
+              {headers.whyNow}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip="The business result Banji expects if you act now.">
-              Expected effect
+            <HeaderTooltipLabel tooltip={headers.expectedEffectTooltip}>
+              {headers.expectedEffect}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="Where to go in Banji to follow up on this row.">
-              Action
+            <HeaderTooltipLabel tooltip={headers.actionTooltip}>
+              {headers.action}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
         </HeaderedTableHeader>
@@ -276,12 +299,14 @@ function MoveNowTable({ rows }: { rows: PerformanceMoveRow[] }) {
                 </div>
               </div>
               <div className="min-w-0">
-                <HeaderedTableMobileLabel className={moveNowTableLayout.mobileLabelClassName}>Why now</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel className={moveNowTableLayout.mobileLabelClassName}>
+                  {headers.whyNow}
+                </HeaderedTableMobileLabel>
                 <p className="text-sm leading-6 text-muted-foreground">{row.whyNow}</p>
               </div>
               <div className="min-w-0">
                 <HeaderedTableMobileLabel className={moveNowTableLayout.mobileLabelClassName}>
-                  Expected effect
+                  {headers.expectedEffect}
                 </HeaderedTableMobileLabel>
                 <p className="text-sm leading-6 text-muted-foreground">{row.expectedEffect}</p>
               </div>
@@ -303,12 +328,18 @@ function MoveNowTable({ rows }: { rows: PerformanceMoveRow[] }) {
 
 export function PerformanceRoute() {
   const inventory = useInventory();
-  const { currency, language, showRightRailCards, usdToKhrExchangeRate } = usePreferences();
-  const [timeRange, setTimeRange] = useState<PerformanceTimeRange>('30d');
-  const [scope, setScope] = useState<PerformanceScope>('all');
-  const [compareMode, setCompareMode] = useState(true);
+  const { currency, language, showRightRailCards, t, usdToKhrExchangeRate } = usePreferences();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const routeState = readPerformanceRouteState(searchParams);
+  const timeRange = routeState.range as PerformanceTimeRange;
+  const scope = routeState.scope as PerformanceScope;
+  const compareMode = routeState.compare;
   const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
+
+  function updateRouteState(nextState: Parameters<typeof buildPerformanceSearchParams>[1], replace = false) {
+    setSearchParams(buildPerformanceSearchParams(searchParams, nextState), { replace });
+  }
 
   const model = useMemo(() => {
     if (!inventory.catalog || !inventory.workspaceSummary) {
@@ -350,8 +381,8 @@ export function PerformanceRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="Performance needs the catalog first"
-          hint="Create the first SKU so Banji can compare demand, coverage, and price in one business view."
+          title={t('performanceRouteEmptyCatalogTitle')}
+          hint={t('performanceRouteEmptyCatalogHint')}
           action={
             <Button asChild>
               <Link to="/catalog/skus/new">Create first SKU</Link>
@@ -366,8 +397,8 @@ export function PerformanceRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="Performance needs the first SENA run"
-          hint="Capture a live observation so Banji can read demand, capacity, pipeline, and price together."
+          title={t('performanceRouteEmptyWorkspaceTitle')}
+          hint={t('performanceRouteEmptyWorkspaceHint')}
           action={
             <WorkspaceActionRow>
               <Button asChild>
@@ -387,8 +418,8 @@ export function PerformanceRoute() {
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
         eyebrow="Performance"
-        title="Business Health"
-        descriptor="Demand, capacity, pipeline, and pricing in one business view."
+        title={t('performanceRouteTitle')}
+        descriptor={t('performanceRouteDescriptor')}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <ToggleGroup
@@ -399,7 +430,7 @@ export function PerformanceRoute() {
               value={timeRange}
               onValueChange={(nextValue) => {
                 if (nextValue) {
-                  setTimeRange(nextValue as PerformanceTimeRange);
+                  updateRouteState({ range: nextValue as PerformanceTimeRange });
                 }
               }}
             >
@@ -416,27 +447,27 @@ export function PerformanceRoute() {
               value={scope}
               onValueChange={(nextValue) => {
                 if (nextValue) {
-                  setScope(nextValue as PerformanceScope);
+                  updateRouteState({ scope: nextValue as PerformanceScope });
                 }
               }}
             >
               <ToggleGroupItem value="all">
                 <Layers3 data-icon="inline-start" />
-                All
+                {t('performanceRouteScopeAll')}
               </ToggleGroupItem>
               <ToggleGroupItem value="services">
                 <Store data-icon="inline-start" />
-                Services
+                {t('performanceRouteScopeServices')}
               </ToggleGroupItem>
               <ToggleGroupItem value="skus">
                 <Package data-icon="inline-start" />
-                SKUs
+                {t('performanceRouteScopeSkus')}
               </ToggleGroupItem>
             </ToggleGroup>
 
-            <SteeringPill active={compareMode} onClick={() => setCompareMode((current) => !current)}>
+            <SteeringPill active={compareMode} onClick={() => updateRouteState({ compare: !compareMode })}>
               <GitCompareArrows className="size-4" />
-              {compareMode ? 'Compare View' : 'Single View'}
+              {compareMode ? t('performanceRouteCompareView') : t('performanceRouteSingleView')}
             </SteeringPill>
           </div>
         }
@@ -445,12 +476,27 @@ export function PerformanceRoute() {
           <span>{model.lastUpdatedLabel}</span>
           <span>
             {latestUpdateAt
-              ? `Real-world update ${latestUpdateAgeDays == null ? 'loaded' : `${latestUpdateAgeDays}d ago`}`
-              : 'No real-world update yet'}
+              ? latestUpdateAgeDays == null
+                ? t('performanceRouteRealWorldUpdateLoaded')
+                : t('performanceRouteRealWorldUpdateAgo', { days: latestUpdateAgeDays })
+              : t('performanceRouteNoRealWorldUpdate')}
           </span>
-          {isHydratingDetails ? <span>Refining pipeline and capacity signals…</span> : null}
-          <span>{scope === 'all' ? 'Mixed portfolio view' : scope === 'services' ? 'Service posture only' : 'SKU posture only'}</span>
-          <span>{compareMode ? `Showing ${model.windowLabel} posture vs ${model.previousWindowLabel}` : `Showing ${model.windowLabel} posture only`}</span>
+          {isHydratingDetails ? <span>{t('performanceRouteRefiningSignals')}</span> : null}
+          <span>
+            {scope === 'all'
+              ? t('performanceRouteScopeMixed')
+              : scope === 'services'
+                ? t('performanceRouteScopeServicesOnly')
+                : t('performanceRouteScopeSkusOnly')}
+          </span>
+          <span>
+            {compareMode
+              ? t('performanceRouteShowingCompare', {
+                  current: model.windowLabel,
+                  previous: model.previousWindowLabel,
+                })
+              : t('performanceRouteShowingSingle', { current: model.windowLabel })}
+          </span>
         </div>
       </WorkspaceTitleCard>
       <section className={`${PERFORMANCE_HEADER_SURFACE_CLASS_NAME} overflow-hidden`}>
@@ -480,51 +526,63 @@ export function PerformanceRoute() {
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
           <PerformanceSectionShell
-            title="Move now"
-            tooltip="The current queue of commercial moves Banji recommends."
-            descriptor="Business moves worth making now, ranked by urgency and upside."
+            title={t('performanceRouteMoveNowTitle')}
+            tooltip={t('performanceRouteMoveNowTooltip')}
+            descriptor={t('performanceRouteMoveNowDescriptor')}
             contentClassName="px-0 py-0"
           >
-            <MoveNowTable rows={model.moves} />
+            <MoveNowTable
+              headers={{
+                action: t('performanceRouteActionHeader'),
+                actionTooltip: t('performanceRouteActionHeaderTooltip'),
+                expectedEffect: t('performanceRouteExpectedEffectHeader'),
+                expectedEffectTooltip: t('performanceRouteExpectedEffectHeaderTooltip'),
+                move: t('performanceRouteMoveHeader'),
+                moveTooltip: t('performanceRouteMoveHeaderTooltip'),
+                whyNow: t('performanceRouteWhyNowHeader'),
+                whyNowTooltip: t('performanceRouteWhyNowHeaderTooltip'),
+              }}
+              rows={model.moves}
+            />
           </PerformanceSectionShell>
 
           <PerformanceSectionShell
-            title="Demand × capacity board"
-            tooltip="A mixed portfolio view of demand, support, pipeline, and margin posture."
-            descriptor="Scan services and SKUs together in one pass."
+            title={t('performanceRouteBoardTitle')}
+            tooltip={t('performanceRouteBoardTooltip')}
+            descriptor={t('performanceRouteBoardDescriptor')}
             contentClassName="px-0 py-0"
           >
             <HeaderedTable>
               <div className={demandCapacityBoardLayout.containerClassName} style={demandCapacityBoardLayout.style}>
                 <HeaderedTableHeader className={demandCapacityBoardLayout.headerClassName}>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip="The service or SKU in this portfolio scan.">
-                      Item
+                    <HeaderTooltipLabel tooltip={t('performanceRouteItemHeaderTooltip')}>
+                      {t('performanceRouteItemHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell className="px-2">
-                    <HeaderTooltipLabel tooltip="Recent demand direction for the selected window.">
-                      Demand trend
+                    <HeaderTooltipLabel tooltip={t('performanceRouteDemandTrendHeaderTooltip')}>
+                      {t('performanceRouteDemandTrendHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip="How much current demand can actually be fulfilled with current support.">
-                      Sellable / support
+                    <HeaderTooltipLabel tooltip={t('performanceRouteSupportHeaderTooltip')}>
+                      {t('performanceRouteSupportHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip="Whether inbound supply is likely to relieve pressure soon.">
-                      Pipeline support
+                    <HeaderTooltipLabel tooltip={t('performanceRoutePipelineSupportHeaderTooltip')}>
+                      {t('performanceRoutePipelineSupportHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip="Whether pricing and margin conditions are helping, neutral, or under pressure.">
-                      Price / margin tone
+                    <HeaderTooltipLabel tooltip={t('performanceRoutePriceMarginHeaderTooltip')}>
+                      {t('performanceRoutePriceMarginHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell align="center" className="px-2">
-                    <HeaderTooltipLabel tooltip="Banji's current steering recommendation for this row.">
-                      Status
+                    <HeaderTooltipLabel tooltip={t('performanceRouteStatusHeaderTooltip')}>
+                      {t('performanceRouteStatusHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                 </HeaderedTableHeader>
@@ -533,7 +591,7 @@ export function PerformanceRoute() {
                     <HeaderedTableRow key={row.id} className={`${rowHoverClassName} ${demandCapacityBoardLayout.rowClassName}`}>
                     <div className="min-w-0">
                       <HeaderedTableMobileLabel className={demandCapacityBoardLayout.mobileLabelClassName}>
-                        Item
+                        {t('performanceRouteItemHeader')}
                       </HeaderedTableMobileLabel>
                       <HeaderedTableCellStack
                         primary={
@@ -550,7 +608,7 @@ export function PerformanceRoute() {
                     </div>
                     <div className="min-w-0 px-2">
                       <HeaderedTableMobileLabel className={demandCapacityBoardLayout.mobileLabelClassName}>
-                        Demand trend
+                        {t('performanceRouteDemandTrendHeader')}
                       </HeaderedTableMobileLabel>
                       <HeaderedTableCellStack
                         primary={
@@ -572,7 +630,7 @@ export function PerformanceRoute() {
                     </div>
                     <div className="min-w-0">
                       <HeaderedTableMobileLabel className={demandCapacityBoardLayout.mobileLabelClassName}>
-                        Sellable / support
+                        {t('performanceRouteSupportHeader')}
                       </HeaderedTableMobileLabel>
                       <HeaderedTableCellStack
                         primary={row.supportStatus}
@@ -582,7 +640,7 @@ export function PerformanceRoute() {
                     </div>
                     <div className="min-w-0">
                       <HeaderedTableMobileLabel className={demandCapacityBoardLayout.mobileLabelClassName}>
-                        Pipeline support
+                        {t('performanceRoutePipelineSupportHeader')}
                       </HeaderedTableMobileLabel>
                       <HeaderedTableCellStack
                         primary={
@@ -601,7 +659,7 @@ export function PerformanceRoute() {
                     </div>
                     <div className="min-w-0">
                       <HeaderedTableMobileLabel className={demandCapacityBoardLayout.mobileLabelClassName}>
-                        Price / margin tone
+                        {t('performanceRoutePriceMarginHeader')}
                       </HeaderedTableMobileLabel>
                       <HeaderedTableCellStack
                         primary={row.priceMarginTone}
@@ -638,25 +696,31 @@ export function PerformanceRoute() {
           </PerformanceSectionShell>
 
           <PerformanceSectionShell
-            title="Cash and profit efficiency"
-            tooltip="Portfolio grouping by upside capture, blocked profit, and trapped cash."
-            descriptor="Where to push, recover, or clear inventory next."
+            title={t('performanceRouteCashTitle')}
+            tooltip={t('performanceRouteCashTooltip')}
+            descriptor={t('performanceRouteCashDescriptor')}
           >
             <div className="grid gap-6 xl:grid-cols-3">
               <CashBandColumn
+                band="winners"
+                emptyMessage={t('performanceRouteBandEmpty')}
                 rows={model.winners}
-                title="Winners"
-                tooltip="Rows with healthy demand, healthy margin, and enough support to capture upside."
+                title={t('performanceRouteBandWinners')}
+                tooltip={t('performanceRouteBandWinnersTooltip')}
               />
               <CashBandColumn
+                band="blockedProfit"
+                emptyMessage={t('performanceRouteBandEmpty')}
                 rows={model.blockedProfit}
-                title="Blocked profit"
-                tooltip="Rows where demand exists but revenue is blocked by stock, capacity, or inbound timing."
+                title={t('performanceRouteBandBlockedProfit')}
+                tooltip={t('performanceRouteBandBlockedProfitTooltip')}
               />
               <CashBandColumn
+                band="cashTraps"
+                emptyMessage={t('performanceRouteBandEmpty')}
                 rows={model.cashTraps}
-                title="Cash traps"
-                tooltip="Rows where weak demand is tying up inventory or inbound cash."
+                title={t('performanceRouteBandCashTraps')}
+                tooltip={t('performanceRouteBandCashTrapsTooltip')}
               />
             </div>
           </PerformanceSectionShell>
@@ -665,8 +729,8 @@ export function PerformanceRoute() {
         {showRightRailCards ? (
           <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
           <PerformanceRightRailBlock
-            title="Operational drag"
-            tooltip="Operational constraints currently limiting business performance."
+            title={t('performanceRouteOperationalDragTitle')}
+            tooltip={t('performanceRouteOperationalDragTooltip')}
           >
             <div className="space-y-3">
               {model.operationalDrag.map((line) => (
@@ -678,8 +742,8 @@ export function PerformanceRoute() {
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
-            title="Recovery pipeline"
-            tooltip="Inbound events already underway that could restore capacity or ease a bottleneck."
+            title={t('performanceRouteRecoveryPipelineTitle')}
+            tooltip={t('performanceRouteRecoveryPipelineTooltip')}
           >
             <div className="divide-y divide-border/60">
               {model.recoveryPipeline.map((row) => (
@@ -692,8 +756,8 @@ export function PerformanceRoute() {
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
-            title="Price and margin watch"
-            tooltip="Rows where price or margin conditions may need attention."
+            title={t('performanceRoutePriceWatchTitle')}
+            tooltip={t('performanceRoutePriceWatchTooltip')}
           >
             <div className="divide-y divide-border/60">
               {model.priceWatch.map((row) => (
@@ -706,18 +770,24 @@ export function PerformanceRoute() {
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
-            title="Confidence / coverage"
-            tooltip="How much evidence supports this view and where it is weakest."
+            title={t('performanceRouteConfidenceTitle')}
+            tooltip={t('performanceRouteConfidenceTooltip')}
           >
             <div className="space-y-3">
               <p className="text-sm leading-6 text-muted-foreground">
                 {latestUpdateAt
-                  ? `Last real-world update ${latestUpdateAgeDays == null ? model.lastUpdatedLabel : `${latestUpdateAgeDays} days ago`}`
-                  : 'Coverage thin · no real-world update yet'}
+                  ? t('performanceRouteConfidenceLastUpdate', {
+                      value: latestUpdateAgeDays == null ? model.lastUpdatedLabel : `${latestUpdateAgeDays} days ago`,
+                    })
+                  : t('performanceRouteConfidenceThin')}
               </p>
-              <p className="text-sm leading-6 text-muted-foreground">Signal coverage {model.confidence.coverageLabel}</p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                {t('performanceRouteConfidenceSignalCoverage', { value: model.confidence.coverageLabel })}
+              </p>
               <p className="text-sm leading-6 text-muted-foreground">{model.confidence.evidenceLabel}</p>
-              <p className="text-sm leading-6 text-muted-foreground">Least certain {model.confidence.weakSpotLabel}</p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                {t('performanceRouteConfidenceLeastCertain', { value: model.confidence.weakSpotLabel })}
+              </p>
               <Button asChild className="w-full" size="sm" variant="outline">
                 <Link to="/record-update">
                   <ArrowUpRight className="size-4" />
@@ -731,9 +801,9 @@ export function PerformanceRoute() {
       </div>
 
       <PerformanceSectionShell
-        title="Business timeline"
-        tooltip="The main shifts that shaped the current business posture."
-        descriptor="What has been changing across the business posture."
+        title={t('performanceRouteTimelineTitle')}
+        tooltip={t('performanceRouteTimelineTooltip')}
+        descriptor={t('performanceRouteTimelineDescriptor')}
       >
         <div className="flex flex-wrap gap-y-3 pt-2">
           {model.timeline.map((event, index) => (

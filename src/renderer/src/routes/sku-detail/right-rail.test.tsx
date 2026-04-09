@@ -49,8 +49,8 @@ describe('SkuDetailRightRail', () => {
     const actNow = screen.getByText('Act now');
 
     expectBefore(actNow, screen.getByText('Selected interval'));
-    expectBefore(actNow, screen.getByText('Open pipeline'));
-    expectBefore(actNow, screen.getByText('Next touch'));
+    expectBefore(actNow, screen.getByText('Incoming stock'));
+    expectBefore(actNow, screen.getByText('Next check'));
     expect(screen.getByText('Service demand led this interval')).toBeInTheDocument();
     expect(screen.getByText('Service')).toBeInTheDocument();
     expect(screen.getByText('Retail')).toBeInTheDocument();

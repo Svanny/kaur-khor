@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
@@ -117,6 +117,24 @@ function leadTimeHintFromTaskInputs({
       }),
     },
   ];
+}
+
+function useControllableDrawerMode(
+  controlledMode: OverviewTaskDrawerMode | null | undefined,
+  onModeChange: ((mode: OverviewTaskDrawerMode) => void) | undefined,
+) {
+  const [uncontrolledMode, setUncontrolledMode] = useState<OverviewTaskDrawerMode>('not_ordered');
+  const isControlled = controlledMode !== undefined;
+  const mode = isControlled ? controlledMode ?? 'not_ordered' : uncontrolledMode;
+
+  const setMode = useCallback((nextMode: OverviewTaskDrawerMode) => {
+    if (!isControlled) {
+      setUncontrolledMode(nextMode);
+    }
+    onModeChange?.(nextMode);
+  }, [isControlled, onModeChange]);
+
+  return [mode, setMode] as const;
 }
 
 const DRAWER_MODE_OPTIONS: Array<{
@@ -296,16 +314,20 @@ function RecommendedOrderPanel({ task }: { task: OverviewSkuTask }) {
 
 export function OverviewTaskDrawer({
   open,
+  mode: controlledMode,
+  onModeChange,
   task,
   onOpenChange,
 }: {
   open: boolean;
+  mode?: OverviewTaskDrawerMode | null;
+  onModeChange?: (mode: OverviewTaskDrawerMode) => void;
   task: OverviewSkuTask | null;
   onOpenChange: (open: boolean) => void;
 }) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
-  const { currency, usdToKhrExchangeRate } = usePreferences();
-  const [mode, setMode] = useState<OverviewTaskDrawerMode>('not_ordered');
+  const { currency, t, usdToKhrExchangeRate } = usePreferences();
+  const [mode, setMode] = useControllableDrawerMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(initialObservedAt(null));
   const [notes, setNotes] = useState('');
   const [orderedQuantity, setOrderedQuantity] = useState('');
@@ -334,7 +356,7 @@ export function OverviewTaskDrawer({
     setReceivedQuantity(task.recentReceiptQuantity != null ? String(Math.round(task.recentReceiptQuantity)) : '');
     setReceivedCost(task.costPerUnit ? formatEditableMoneyFromUsd(task.costPerUnit, currency, usdToKhrExchangeRate) : '');
     setError(null);
-  }, [task]);
+  }, [currency, setMode, task, usdToKhrExchangeRate]);
 
   useEffect(() => {
     const previous = previousMoneyPreferencesRef.current;
@@ -403,7 +425,7 @@ export function OverviewTaskDrawer({
     open && task != null && JSON.stringify(drawerDraftSnapshot()) !== JSON.stringify(drawerBaselineSnapshot(task));
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: hasUnsavedDrawerChanges,
-    description: 'You have unsaved task changes. Close this drawer and discard the current draft?',
+    description: t('taskDrawerUnsavedLeavePrompt'),
     onDiscard: () => setError(null),
   });
 

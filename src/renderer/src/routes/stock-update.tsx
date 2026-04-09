@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ClipboardPlus, Grid3X3, Layers3, List, Package, Store } from 'lucide-react';
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
@@ -9,6 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
+import {
+  buildOperationsSearchParams,
+  readOperationsRouteState,
+} from '@/lib/navigation-state';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { PagedPanelNavigation } from './detail-panels';
@@ -506,13 +510,19 @@ export function StockUpdateRoute() {
     observations,
   } = useInventory();
   const { t, language } = usePreferences();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
-  const [scope, setScope] = useState<ObservationScope>('all');
-  const [view, setView] = useState<ObservationView>('heatmap');
+  const routeState = readOperationsRouteState(searchParams);
+  const scope = routeState.scope as ObservationScope;
+  const view = routeState.view as ObservationView;
   const [yearOffset, setYearOffset] = useState(0);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+
+  function updateRouteState(nextState: Parameters<typeof buildOperationsSearchParams>[1], replace = false) {
+    setSearchParams(buildOperationsSearchParams(searchParams, nextState), { replace });
+  }
 
   const serviceLinkedSkuIdSet = useMemo(() => linkedServiceSkuIds(catalog), [catalog]);
   const filteredObservations = useMemo(
@@ -635,7 +645,7 @@ export function StockUpdateRoute() {
             value={scope}
             onValueChange={(nextValue) => {
               if (nextValue) {
-                setScope(nextValue as ObservationScope);
+                updateRouteState({ scope: nextValue as ObservationScope });
               }
             }}
           >
@@ -652,7 +662,7 @@ export function StockUpdateRoute() {
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
-          <Select value={view} onValueChange={(nextValue) => setView(nextValue as ObservationView)}>
+          <Select value={view} onValueChange={(nextValue) => updateRouteState({ view: nextValue as ObservationView })}>
             <SelectTrigger
               aria-label="Select log view"
               className="h-11 rounded-2xl border border-border/70 bg-background/80 px-4 text-sm font-medium text-foreground shadow-xs data-[size=default]:h-11 [&_svg]:opacity-100"

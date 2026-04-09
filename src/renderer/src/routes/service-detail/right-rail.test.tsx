@@ -1,8 +1,17 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { getTranslation } from '@/lib/translations';
 import { ServiceDetailRightRail } from './right-rail';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
+
+vi.mock('@/state/preferences', () => ({
+  usePreferences: () => ({
+    language: 'en',
+    t: (key: string, variables?: Record<string, string | number | null | undefined>) =>
+      getTranslation('en', key as never, variables),
+  }),
+}));
 
 function expectBefore(left: HTMLElement, right: HTMLElement) {
   expect(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -59,20 +68,20 @@ describe('ServiceDetailRightRail', () => {
   test('renders the act now card above selected contributor and static rail cards', () => {
     renderRightRail({ type: 'contributor', skuId: 'sku-1' });
 
-    const actNow = screen.getByText('Act now');
+    const actNow = screen.getByText('Next step');
 
-    expectBefore(actNow, screen.getByText('Selected contributor'));
-    expectBefore(actNow, screen.getByText('Bottleneck stack'));
-    expectBefore(actNow, screen.getByText('Recovery path'));
-    expectBefore(actNow, screen.getByText('Next touch'));
+    expectBefore(actNow, screen.getByText('Selected SKU'));
+    expectBefore(actNow, screen.getByText('Main blockers'));
+    expectBefore(actNow, screen.getByText('What could restore service'));
+    expectBefore(actNow, screen.getByText('Next check'));
   });
 
   test('renders the act now card above selected interval cards', () => {
     renderRightRail({ type: 'interval', intervalIndex: 1 });
 
-    expectBefore(screen.getByText('Act now'), screen.getByText('Selected interval'));
+    expectBefore(screen.getByText('Next step'), screen.getByText('Selected period'));
     expect(screen.getByText('Demand steady')).toBeInTheDocument();
-    expect(screen.getByText('Sellable')).toBeInTheDocument();
-    expect(screen.getByText('Binding SKU')).toBeInTheDocument();
+    expect(screen.getByText('Can deliver')).toBeInTheDocument();
+    expect(screen.getByText('Main blocker')).toBeInTheDocument();
   });
 });

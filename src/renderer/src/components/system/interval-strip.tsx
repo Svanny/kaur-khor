@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { RefObject, UIEvent } from 'react';
+import { getTranslation } from '@/lib/translations';
 import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDate, formatSenaWideIntervalDate } from '@/routes/sku-detail/format';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -524,6 +525,7 @@ export function IntervalStrip({
   slotWidth: number;
   onSelect: (index: number) => void;
 }) {
+  const t = (key: Parameters<typeof getTranslation>[1]) => getTranslation(language, key);
   const pillLabels = intervals.map((interval) => {
     const compactDate = formatSenaCompactIntervalDate(interval.endAt);
     const compactDay = formatSenaCompactIntervalDay(interval.endAt);
@@ -538,7 +540,7 @@ export function IntervalStrip({
       <div className="relative mt-4 min-h-12">
         {canScrollLeft ? (
           <button
-            aria-label="Scroll intervals left"
+            aria-label={t('scrollIntervalsLeft')}
             className="absolute left-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
             type="button"
             onClick={() => scrollByViewport(-1)}
@@ -579,7 +581,7 @@ export function IntervalStrip({
         </div>
         {canScrollRight ? (
           <button
-            aria-label="Scroll intervals right"
+            aria-label={t('scrollIntervalsRight')}
             className="absolute right-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
             type="button"
             onClick={() => scrollByViewport(1)}

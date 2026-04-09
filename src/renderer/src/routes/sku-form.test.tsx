@@ -74,7 +74,7 @@ describe('SkuFormRoute', () => {
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
     expect(screen.getByRole('heading', { level: 2, name: 'Core details' })).toBeInTheDocument();
     expect(screen.getByText('Name the SKU the way staff will search for it.')).toBeInTheDocument();
-    expect(screen.getByText('Enter the current landed cost per unit.')).toBeInTheDocument();
+    expect(screen.getByText('Keep the current landed or replacement unit cost here.')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /sell as product/i })).toBeChecked();
     expect(screen.getByDisplayValue('sku-1')).toBeDisabled();
     expect(screen.getByDisplayValue('5')).toHaveValue(5);

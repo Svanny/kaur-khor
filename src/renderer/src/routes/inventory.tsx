@@ -13,9 +13,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { catalogViewFromSearchParams, matchesCatalogQuery, type CatalogView } from '@/lib/catalog';
+import { matchesCatalogQuery, type CatalogView } from '@/lib/catalog';
 import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { buildCatalogSearchParams, readCatalogView } from '@/lib/navigation-state';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import { linkedServiceIdsForSku, linkedSkuIdsForService } from '@/lib/sena-catalog';
@@ -34,26 +35,10 @@ function updateCatalogSearchParams(
     view?: CatalogView;
   },
 ) {
-  const next = new URLSearchParams(current);
-
-  if (updates.q !== undefined) {
-    const query = updates.q.trim();
-    if (query) {
-      next.set('q', query);
-    } else {
-      next.delete('q');
-    }
-  }
-
-  if (updates.view !== undefined) {
-    if (updates.view === 'all') {
-      next.delete('view');
-    } else {
-      next.set('view', updates.view);
-    }
-  }
-
-  return next;
+  return buildCatalogSearchParams(current, {
+    q: updates.q,
+    view: updates.view,
+  });
 }
 
 function matchesCatalogRow(parts: Array<string | null | undefined>, query: string) {
@@ -231,7 +216,7 @@ export function InventoryRoute() {
   const activeSnapshot = snapshot ?? projectedSnapshot;
 
   const query = searchParams.get('q') ?? '';
-  const view = catalogViewFromSearchParams(searchParams);
+  const view = readCatalogView(searchParams);
   const filteredSkus = useMemo(
     () =>
       catalog?.skus.filter((sku) =>

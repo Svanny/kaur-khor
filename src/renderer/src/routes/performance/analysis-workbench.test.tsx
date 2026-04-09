@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { SenaCatalog, SenaDiagnostics, SenaObservationRecord, SenaServiceDetail, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
+import { getTranslation } from '@/lib/translations';
 import { AnalysisWorkbench } from './analysis-workbench';
 import { deriveAnalysisViewModel } from './analysis-view-model';
 
@@ -11,7 +12,8 @@ const preferenceState = {
   language: 'en',
   showFloatingTitleActions: false,
   showRightRailCards: false,
-  t: (value: string) => value,
+  t: (key: string, variables?: Record<string, string | number | null | undefined>) =>
+    getTranslation('en', key as never, variables),
 };
 
 vi.mock('@/state/preferences', () => ({
@@ -283,13 +285,13 @@ describe('AnalysisWorkbench', () => {
     const setSection = vi.fn();
     render(<AnalysisWorkbench model={model} section="workbench" setSection={setSection} showRightRailCards={false} />);
 
-    expect(screen.getByRole('tab', { name: 'Fragility' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
 
     const tabList = screen.getByRole('tablist', { name: 'Select analysis surface' });
     expect(tabList.parentElement).toHaveClass('overflow-x-auto');
     expect(tabList.parentElement).not.toHaveClass('overflow-hidden');
 
-    await user.click(screen.getByRole('tab', { name: 'Fragility' }));
+    await user.click(screen.getByRole('tab', { name: 'Blockers' }));
 
     expect(setSection).toHaveBeenCalledWith('fragility');
   });
@@ -333,7 +335,7 @@ describe('AnalysisWorkbench', () => {
   test('does not mount the inspector rail on the fragility tab', () => {
     render(<AnalysisWorkbench model={buildModel()} section="fragility" setSection={vi.fn()} showRightRailCards />);
 
-    expect(screen.getByText('Supply fragility map')).toBeInTheDocument();
+    expect(screen.getByText('Service blocker map')).toBeInTheDocument();
     expect(document.querySelector('[data-analysis-inspector="true"]')).toBeNull();
   });
 
@@ -345,9 +347,9 @@ describe('AnalysisWorkbench', () => {
     expect(screen.getByRole('button', { name: 'Observations used help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Intervals in view help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Smoothing help' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Effective sample size help' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Predictive error help' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Coverage estimate help' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stability sample size help' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prediction gap help' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Coverage level help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Scope help' })).toBeInTheDocument();
   });
 
@@ -364,7 +366,7 @@ describe('AnalysisWorkbench', () => {
       />,
     );
 
-    const regimePoint = screen.getByRole('button', { name: /normal regime/i });
+    const regimePoint = screen.getByRole('button', { name: /sales pattern normal/i });
     const regimeScroller = regimePoint.closest('.hidden-scrollbar') as HTMLDivElement | null;
     expect(regimeScroller).not.toBeNull();
     if (!regimeScroller?.firstElementChild) {
@@ -405,7 +407,7 @@ describe('AnalysisWorkbench', () => {
         />,
       );
 
-      const regimePoint = screen.getByRole('button', { name: /normal regime/i });
+      const regimePoint = screen.getByRole('button', { name: /sales pattern normal/i });
       const regimeScroller = regimePoint.closest('.hidden-scrollbar') as HTMLDivElement | null;
       expect(regimeScroller).not.toBeNull();
       if (!regimeScroller?.firstElementChild) {
@@ -557,7 +559,7 @@ describe('AnalysisWorkbench', () => {
       const floatingChartIsland = document.querySelector('[data-slot="floating-chart-actions"]') as HTMLElement | null;
       expect(floatingChartIsland).not.toBeNull();
 
-      const regimePoint = screen.getByRole('button', { name: /normal regime/i });
+      const regimePoint = screen.getByRole('button', { name: /sales pattern normal/i });
       const regimeScroller = regimePoint.closest('.hidden-scrollbar') as HTMLDivElement | null;
       expect(regimeScroller?.firstElementChild).not.toBeNull();
       const content = regimeScroller?.firstElementChild as HTMLElement;
@@ -599,23 +601,22 @@ describe('AnalysisWorkbench', () => {
     );
 
     expect(container.querySelectorAll('[data-lane]').length).toBe(4);
-    expect(screen.getByText('Inventory band')).toBeInTheDocument();
-    expect(screen.getByText('Spread band')).toBeInTheDocument();
-    expect(screen.getByText('In-transit window')).toBeInTheDocument();
+    expect(screen.getAllByText('Likely range').length).toBeGreaterThan(0);
+    expect(screen.getByText('On-the-way window')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Expand Pipeline lane' }));
+    await user.click(screen.getByRole('button', { name: 'Expand Incoming stock' }));
 
     expect(container.querySelectorAll('[data-lane]').length).toBe(1);
-    expect(screen.queryByText('Inventory band')).toBeNull();
-    expect(screen.queryByText('Spread band')).toBeNull();
-    expect(screen.getByText('In-transit window')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Minimize Pipeline lane' })).toBeInTheDocument();
+    expect(screen.queryAllByText('Likely range')).toHaveLength(0);
+    expect(screen.getByText('On-the-way window')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Minimize Incoming stock' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Minimize Pipeline lane' }));
+    await user.click(screen.getByRole('button', { name: 'Minimize Incoming stock' }));
 
     expect(container.querySelectorAll('[data-lane]').length).toBe(4);
-    expect(screen.getByText('Inventory band')).toBeInTheDocument();
-    expect(screen.getByText('Spread band')).toBeInTheDocument();
+    expect(screen.getAllByText('Likely range').length).toBeGreaterThan(0);
+    expect(screen.getByText('Middle estimate')).toBeInTheDocument();
+    expect(screen.getByText('Typical timing')).toBeInTheDocument();
   });
 
   test('grows the focused chart surface when a lane is expanded', async () => {
@@ -636,7 +637,7 @@ describe('AnalysisWorkbench', () => {
     expect(inventoryChart).not.toBeNull();
     const initialHeight = inventoryChart?.style.height;
 
-    await user.click(screen.getByRole('button', { name: 'Expand Inventory + demand lane' }));
+    await user.click(screen.getByRole('button', { name: 'Expand Stock estimate and demand' }));
 
     const expandedInventoryChart = container.querySelector('[data-analysis-chart="inventory"]') as HTMLElement | null;
     expect(expandedInventoryChart).not.toBeNull();
@@ -661,7 +662,7 @@ describe('AnalysisWorkbench', () => {
     const section = container.querySelector('section');
     const beforeClassName = section?.className;
 
-    await user.click(screen.getByRole('button', { name: 'Expand Inventory + demand lane' }));
+    await user.click(screen.getByRole('button', { name: 'Expand Stock estimate and demand' }));
 
     expect(section?.className).toBe(beforeClassName);
   });
@@ -684,7 +685,7 @@ describe('AnalysisWorkbench', () => {
     expect(initialFlowCell).not.toBeNull();
     const initialFlowHeight = Number.parseFloat(initialFlowCell?.style.height ?? '0');
 
-    await user.click(screen.getByRole('button', { name: 'Expand Inventory + demand lane' }));
+    await user.click(screen.getByRole('button', { name: 'Expand Stock estimate and demand' }));
 
     const expandedFlowCell = container.querySelector('[data-analysis-flow-cell="inventory"]') as HTMLElement | null;
     const expandedInventoryLine = container.querySelector('[data-analysis-line="inventory"]') as SVGPolylineElement | null;
@@ -708,7 +709,7 @@ describe('AnalysisWorkbench', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Expand Lead-time lane' }));
+    await user.click(screen.getByRole('button', { name: 'Expand Delivery timing' }));
 
     const expandedLeadTimeLine = container.querySelector('[data-analysis-line="lead-time"]') as SVGPolylineElement | null;
     expect(expandedLeadTimeLine).not.toBeNull();
@@ -733,7 +734,7 @@ describe('AnalysisWorkbench', () => {
     expect(initialPipelinePill).not.toBeNull();
     const initialPillHeight = Number.parseFloat(initialPipelinePill?.style.height ?? '0');
 
-    await user.click(screen.getByRole('button', { name: 'Expand Pipeline lane' }));
+    await user.click(screen.getByRole('button', { name: 'Expand Incoming stock' }));
 
     const expandedPipelinePill = container.querySelector('[data-analysis-pipeline-pill="true"]') as HTMLElement | null;
     expect(expandedPipelinePill).not.toBeNull();
@@ -754,14 +755,14 @@ describe('AnalysisWorkbench', () => {
       />,
     );
 
-    const initialRegimeTile = screen.getByRole('button', { name: /normal regime/i });
+    const initialRegimeTile = screen.getByRole('button', { name: /sales pattern normal/i });
     const initialTileHeight = Number.parseFloat(initialRegimeTile.style.height || '0');
     const initialTileMarginLeft = Number.parseFloat(initialRegimeTile.style.marginLeft || '0');
     const initialTileMarginRight = Number.parseFloat(initialRegimeTile.style.marginRight || '0');
 
-    await user.click(screen.getByRole('button', { name: 'Expand Regime + price lane' }));
+    await user.click(screen.getByRole('button', { name: 'Expand Sales pattern and price' }));
 
-    const expandedRegimeTile = screen.getByRole('button', { name: /normal regime/i });
+    const expandedRegimeTile = screen.getByRole('button', { name: /sales pattern normal/i });
     const section = container.querySelector('section');
     expect(Number.parseFloat(expandedRegimeTile.style.height || '0')).toBeGreaterThan(initialTileHeight);
     expect(Number.parseFloat(expandedRegimeTile.style.height || '0')).toBeLessThanOrEqual(section?.clientHeight ?? Number.POSITIVE_INFINITY);

@@ -7,6 +7,7 @@ import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layo
 import { regimeIconFor } from '@/lib/icon-mappings';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { formatSenaDateTime } from '@/routes/sku-detail/format';
+import { usePreferences } from '@/state/preferences';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
 function RailBlock({
@@ -47,13 +48,14 @@ export function ServiceDetailRightRail({
   model: ServiceDetailViewModel;
   selection: ServiceInspectorSelection;
 }) {
+  const { language, t } = usePreferences();
   const contributor = selectedContributor(model, selection);
   const interval = selectedInterval(model, selection);
   const SelectedRegimeIcon = interval ? regimeIconFor(interval.dominantRegime) : null;
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
-      <RailBlock title="Act now">
+      <RailBlock title={t('catalogServiceRailActNowTitle')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.overviewTitle}</p>
         <div className="mt-4 space-y-2">
           {model.rail.overviewReason.map((line, index) => (
@@ -65,12 +67,12 @@ export function ServiceDetailRightRail({
       </RailBlock>
 
       {contributor ? (
-        <RailBlock title="Selected contributor">
+        <RailBlock title={t('catalogServiceRailSelectedContributorTitle')}>
           <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{contributor.name}</p>
           <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
             <p>{contributor.statusLabel}</p>
-            <p>{contributor.daysOfCoverLabel} cover</p>
-            <p>{contributor.probabilityLabel} limiting probability</p>
+            <p>{t('catalogServiceRailCoverLine', { value: contributor.daysOfCoverLabel })}</p>
+            <p>{t('catalogServiceRailLimitingProbabilityLine', { value: contributor.probabilityLabel })}</p>
             <p>{contributor.stockLabel}</p>
             <p>{contributor.inboundLabel}</p>
             {contributor.restockGuidance ? <p>{contributor.restockGuidance}</p> : null}
@@ -78,14 +80,14 @@ export function ServiceDetailRightRail({
           <Button asChild className="mt-4 w-full">
             <Link to={contributor.openSkuHref}>
               <ArrowUpRight className="size-4" />
-              Open SKU detail
+              {t('catalogServiceOpenSkuDetailAction')}
             </Link>
           </Button>
         </RailBlock>
       ) : null}
 
       {interval ? (
-        <RailBlock title="Selected interval">
+        <RailBlock title={t('catalogServiceRailSelectedIntervalTitle')}>
         <SelectedIntervalBrief
           headline={interval.changeHeadline}
           meta={[
@@ -96,17 +98,17 @@ export function ServiceDetailRightRail({
             </span>,
           ]}
           metrics={[
-              { label: 'Demand', value: interval.demandLabel },
-              { label: 'Sellable', value: interval.sellableLabel },
-              { label: 'Binding SKU', value: interval.bindingLabel, wide: true },
-              { label: 'Gap', value: interval.gapLabel },
+              { label: t('catalogServiceRailMetricDemand'), value: interval.demandLabel },
+              { label: t('catalogServiceRailMetricSellable'), value: interval.sellableLabel },
+              { label: t('catalogServiceRailMetricBindingSku'), value: interval.bindingLabel, wide: true },
+              { label: t('catalogServiceRailMetricGap'), value: interval.gapLabel },
             ]}
             notes={interval.changeLines}
           />
         </RailBlock>
       ) : null}
 
-      <RailBlock title="Bottleneck stack">
+      <RailBlock title={t('catalogServiceRailBottleneckStackTitle')}>
         <div className="divide-y divide-border/60">
           {model.rail.bottleneckStack.map((entry, index) => (
             <div key={entry.skuId} className="py-3 first:pt-0 last:pb-0">
@@ -119,7 +121,7 @@ export function ServiceDetailRightRail({
         </div>
       </RailBlock>
 
-      <RailBlock title="Recovery path">
+      <RailBlock title={t('catalogServiceRailRecoveryPathTitle')}>
         <div className="grid gap-2">
           {model.rail.recoveryPath.map((line) => (
             <p key={line} className="text-sm leading-6 text-muted-foreground">
@@ -129,13 +131,13 @@ export function ServiceDetailRightRail({
         </div>
       </RailBlock>
 
-      <RailBlock title="Next touch">
+      <RailBlock title={t('catalogServiceRailNextTouchTitle')}>
         <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{model.rail.nextTouch.dateLabel}</p>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{model.rail.nextTouch.reason}</p>
         <p className="mt-3 rounded-[1rem] border border-border/70 bg-background/70 px-3 py-2 text-sm text-muted-foreground">
           {model.actions?.latestObservedAt
-            ? `Latest bottleneck signal ${formatSenaDateTime(model.actions.latestObservedAt, 'en')}`
-            : 'No bottleneck stock update yet'}
+            ? t('catalogServiceRailLatestSignal', { date: formatSenaDateTime(model.actions.latestObservedAt, language) })
+            : t('catalogServiceRailNoSignal')}
         </p>
       </RailBlock>
     </aside>

@@ -100,77 +100,8 @@ const pressureTableLayout = createHeaderedTableLayout({
   gap: 4,
 });
 
-const NAV_OPTIONS: Array<{
-  value: AnalysisSection;
-  label: string;
-  leading: ReactNode;
-}> = [
-  { value: 'workbench', label: 'Workbench', leading: <Waypoints className="size-4" /> },
-  { value: 'pressure', label: 'Pressure', leading: <CircleGauge className="size-4" /> },
-  { value: 'observations', label: 'Observations', leading: <FileSearch className="size-4" /> },
-  { value: 'fragility', label: 'Fragility', leading: <Grid3x3 className="size-4" /> },
-  { value: 'settings', label: 'Parameters', leading: <Cog className="size-4" /> },
-];
-
 const ANALYSIS_BOARD_CLASS_NAME = `${cardFrameClassName} ${cardSurfaceClassName} relative z-[1] overflow-hidden rounded-[2rem]`;
 const ANALYSIS_RAIL_PANEL_CLASS_NAME = 'flex h-full flex-col bg-secondary/15 lg:rounded-l-none';
-
-const ANALYSIS_SETTINGS_FIELDS = [
-  {
-    key: 'run-id',
-    label: 'Run ID',
-    tooltip: 'Unique identifier for the current analysis run.',
-    valueKey: 'runId',
-  },
-  {
-    key: 'latest-observed',
-    label: 'Latest observed',
-    tooltip: 'Most recent observation included in this analysis window.',
-    valueKey: 'latestObservedAt',
-  },
-  {
-    key: 'observations-used',
-    label: 'Observations used',
-    tooltip: 'Number of saved observations included after filtering.',
-    valueKey: 'observationsUsed',
-  },
-  {
-    key: 'intervals-in-view',
-    label: 'Intervals in view',
-    tooltip: 'Number of modeled intervals currently shown.',
-    valueKey: 'intervalCount',
-  },
-  {
-    key: 'smoothing',
-    label: 'Smoothing',
-    tooltip: 'Whether smoothing was applied before the summaries were shown.',
-    valueKey: 'smoothingLabel',
-  },
-  {
-    key: 'effective-sample-size',
-    label: 'Effective sample size',
-    tooltip: 'Estimate of how much independent evidence the posterior behaves as if it contains.',
-    valueKey: 'effectiveSampleSize',
-  },
-  {
-    key: 'predictive-error',
-    label: 'Predictive error',
-    tooltip: 'Average gap between observed outcomes and model expectations.',
-    valueKey: 'predictiveError',
-  },
-  {
-    key: 'coverage-estimate',
-    label: 'Coverage estimate',
-    tooltip: 'Share of the expected evidence surface that was actually observed.',
-    valueKey: 'coverageEstimate',
-  },
-  {
-    key: 'scope',
-    label: 'Scope',
-    tooltip: 'Entity slice included in this run.',
-    valueKey: 'scopeSummary',
-  },
-] as const;
 
 function sectionSupportsRightRail(section: AnalysisSection) {
   return section !== 'observations' && section !== 'fragility';
@@ -372,8 +303,9 @@ function RegimeCueBadges({
   if (!showLabels) {
     return null;
   }
+  const { t } = usePreferences();
   if (priceCueCount === 0 && stockoutCueCount === 0) {
-    return <span className="text-[0.62rem] text-foreground/60">Quiet</span>;
+    return <span className="text-[0.62rem] text-foreground/60">{t('analysisWorkbenchQuiet')}</span>;
   }
   return (
     <>
@@ -392,8 +324,9 @@ function RegimeCueBadges({
 }
 
 function SignalsWrap({ values }: { values: string[] }) {
+  const { t } = usePreferences();
   if (values.length === 0) {
-    return <span className="text-xs text-muted-foreground">No signal</span>;
+    return <span className="text-xs text-muted-foreground">{t('analysisWorkbenchNoSignal')}</span>;
   }
 
   return (
@@ -495,10 +428,18 @@ function InternalNav({
   section: AnalysisSection;
   showRightRailCards: boolean;
 }) {
+  const { t } = usePreferences();
+  const navOptions: Array<{ value: AnalysisSection; label: string; leading: ReactNode }> = [
+    { value: 'workbench', label: t('analysisWorkbenchNavWorkbench'), leading: <Waypoints className="size-4" /> },
+    { value: 'pressure', label: t('analysisWorkbenchNavPressure'), leading: <CircleGauge className="size-4" /> },
+    { value: 'observations', label: t('analysisWorkbenchNavObservations'), leading: <FileSearch className="size-4" /> },
+    { value: 'fragility', label: t('analysisWorkbenchNavFragility'), leading: <Grid3x3 className="size-4" /> },
+    { value: 'settings', label: t('analysisWorkbenchNavSettings'), leading: <Cog className="size-4" /> },
+  ];
   return (
     <div className={`relative flex overflow-x-auto overflow-y-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
-      <ChromeTabsList aria-label="Select analysis surface" className="min-w-max">
-        {NAV_OPTIONS.map((option) => (
+      <ChromeTabsList aria-label={t('analysisWorkbenchSelectSurface')} className="min-w-max">
+        {navOptions.map((option) => (
           <ChromeTabsTrigger key={option.value} leading={option.leading} value={option.value}>
             {option.label}
           </ChromeTabsTrigger>
@@ -619,6 +560,7 @@ function SystemLedger({
   timeframe: AnalysisTimeframe;
 }) {
   const { language } = usePreferences();
+  const { t } = usePreferences();
   const intervalScrollRef = useRef<HTMLDivElement | null>(null);
   const regimeScrollRef = useRef<HTMLDivElement | null>(null);
   const inventoryScrollRef = useRef<HTMLDivElement | null>(null);
@@ -947,9 +889,9 @@ function SystemLedger({
     <>
       {floatingChartControlIslands}
       <PerformanceSectionShell
-        title="SENA system ledger"
-        tooltip="Interval-by-interval analysis across regime, inventory, pipeline, and lead time."
-        descriptor="Inspect how observations turned into the current system reading."
+        title={t('analysisWorkbenchLedgerTitle')}
+        tooltip={t('analysisWorkbenchLedgerTooltip')}
+        descriptor={t('analysisWorkbenchLedgerDescriptor')}
         headerActions={chartHeaderActions}
         className={cn(showRightRailCards && 'lg:rounded-r-none', expandedLaneViewportHeight > 0 && 'h-auto')}
         contentClassName="px-0 py-0"
@@ -990,9 +932,9 @@ function SystemLedger({
         >
           {visibleLaneOrder.includes('regime') ? <div className="grid h-full min-h-0 gap-3" data-lane="regime" style={laneGridStyle}>
             <LaneLabel
-              subtitle="Continuous regime state with price and stockout cues carried as lightweight markers instead of interval cards."
-              title="Regime + price lane"
-              tooltip="Dominant regime in each interval, with price and stockout cues."
+              subtitle={t('analysisWorkbenchLaneRegimeSubtitle')}
+              title={t('analysisWorkbenchLaneRegimeTitle')}
+              tooltip={t('analysisWorkbenchLaneRegimeTooltip')}
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
@@ -1009,16 +951,16 @@ function SystemLedger({
                     <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
                       P
                     </span>
-                    Price cue count
+                    {t('analysisWorkbenchPriceCueCount')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-white/78 px-2 py-0.5 text-[0.62rem] font-medium text-foreground">
                       S
                     </span>
-                    Stockout cue count
+                    {t('analysisWorkbenchStockoutCueCount')}
                   </span>
                 </div>
-                <LaneExpandButton expanded={isLaneExpanded('regime')} title="Regime + price lane" onClick={() => toggleLaneExpanded('regime')} />
+                <LaneExpandButton expanded={isLaneExpanded('regime')} title={t('analysisWorkbenchLaneRegimeTitle')} onClick={() => toggleLaneExpanded('regime')} />
               </div>
               <div
                 ref={regimeScrollRef}
@@ -1046,7 +988,10 @@ function SystemLedger({
                     {model.workbench.regimePriceLane.intervals.map((interval) => (
                       <button
                         key={`regime:${interval.intervalIndex}`}
-                        aria-label={`${interval.dominantRegime} regime, ${interval.cueSummary}`}
+                        aria-label={t('analysisWorkbenchRegimeIntervalAria', {
+                          regime: interval.dominantRegime,
+                          summary: interval.cueSummary,
+                        })}
                         className={cn(
                           'flex flex-col items-center justify-center gap-3 rounded-[1rem] border px-2 text-left transition-transform hover:-translate-y-0.5',
                           selectedIntervalIndex === interval.intervalIndex ? 'border-foreground/20 shadow-sm' : 'border-white/70',
@@ -1088,39 +1033,39 @@ function SystemLedger({
 
           {visibleLaneOrder.includes('inventory') ? <div className="grid h-full min-h-0 gap-3" data-lane="inventory" style={laneGridStyle}>
             <LaneLabel
-              subtitle="Inventory trajectory stays continuous while service demand, retail demand, receipts, and adjustments remain interval-native."
-              title="Inventory + demand lane"
-              tooltip="Reconstructed inventory with demand, receipts, and adjustments by interval."
+              subtitle={t('analysisWorkbenchLaneInventorySubtitle')}
+              title={t('analysisWorkbenchLaneInventoryTitle')}
+              tooltip={t('analysisWorkbenchLaneInventoryTooltip')}
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block h-2 w-6 rounded-[0.2rem] bg-foreground/12" />
-                    Inventory band
+                    {t('analysisWorkbenchInventoryBand')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block h-px w-7 bg-foreground" />
-                    Inventory mean
+                    {t('analysisWorkbenchInventoryMean')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="size-2 rounded-full bg-slate-500/70" />
-                    Service demand
+                    {t('analysisWorkbenchServiceDemand')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="size-2 rounded-full bg-slate-800/80" />
-                    Retail demand
+                    {t('analysisWorkbenchRetailDemand')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="size-2 rounded-full bg-emerald-600/80" />
-                    Receipts
+                    {t('analysisWorkbenchReceipts')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="size-2 rounded-full bg-amber-600/85" />
-                    Adjustments
+                    {t('analysisWorkbenchAdjustments')}
                   </span>
                 </div>
-                <LaneExpandButton expanded={isLaneExpanded('inventory')} title="Inventory + demand lane" onClick={() => toggleLaneExpanded('inventory')} />
+                <LaneExpandButton expanded={isLaneExpanded('inventory')} title={t('analysisWorkbenchLaneInventoryTitle')} onClick={() => toggleLaneExpanded('inventory')} />
               </div>
               <div
                 ref={inventoryScrollRef}
@@ -1184,7 +1129,10 @@ function SystemLedger({
                             </ClampedChartDataLabel>
                           ) : null}
                           <button
-                            aria-label={`Inventory ${Math.round(entry.inventoryMean)} units in interval ${entry.intervalIndex + 1}`}
+                            aria-label={t('analysisWorkbenchInventoryPointAria', {
+                              units: Math.round(entry.inventoryMean),
+                              interval: entry.intervalIndex + 1,
+                            })}
                             className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
                             style={{
                               left: point.x,
@@ -1225,7 +1173,12 @@ function SystemLedger({
                         return (
                           <button
                             key={`flow:${point.intervalIndex}`}
-                            aria-label={`Service demand ${Math.round(point.serviceDemandMean)}, retail demand ${Math.round(point.retailDemandMean)}, receipts ${Math.round(point.receiptsMean)}, adjustments ${Math.round(point.adjustmentsMean)}`}
+                            aria-label={t('analysisWorkbenchFlowCellAria', {
+                              service: Math.round(point.serviceDemandMean),
+                              retail: Math.round(point.retailDemandMean),
+                              receipts: Math.round(point.receiptsMean),
+                              adjustments: Math.round(point.adjustmentsMean),
+                            })}
                             className="relative"
                             style={{ height: inventoryFlowCellHeight }}
                             data-analysis-flow-cell="inventory"
@@ -1290,31 +1243,31 @@ function SystemLedger({
 
           {visibleLaneOrder.includes('pipeline') ? <div className="grid h-full min-h-0 gap-3" data-lane="pipeline" style={laneGridStyle}>
             <LaneLabel
-              subtitle="Aggregate transit windows approximate the pipeline story now, with order and receipt activity pulled out as explicit markers."
-              title="Pipeline lane"
-              tooltip="Estimated inbound pipeline, order timing, receipts, and transit age by interval."
+              subtitle={t('analysisWorkbenchLanePipelineSubtitle')}
+              title={t('analysisWorkbenchLanePipelineTitle')}
+              tooltip={t('analysisWorkbenchLanePipelineTooltip')}
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block h-3 w-8 rounded-full border border-emerald-700/25 bg-emerald-600/20" />
-                    In-transit window
+                    {t('analysisWorkbenchInTransitWindow')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block h-3 w-8 rounded-full border border-rose-300/70 bg-rose-100/75" />
-                    Overdue window
+                    {t('analysisWorkbenchOverdueWindow')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block size-2 rotate-45 rounded-[0.2rem] bg-sky-600/85" />
-                    Order cue
+                    {t('analysisWorkbenchOrderCue')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block size-2 rounded-full bg-emerald-600/85" />
-                    Receipt cue
+                    {t('analysisWorkbenchReceiptCue')}
                   </span>
                 </div>
-                <LaneExpandButton expanded={isLaneExpanded('pipeline')} title="Pipeline lane" onClick={() => toggleLaneExpanded('pipeline')} />
+                <LaneExpandButton expanded={isLaneExpanded('pipeline')} title={t('analysisWorkbenchLanePipelineTitle')} onClick={() => toggleLaneExpanded('pipeline')} />
               </div>
               <div
                 ref={pipelineScrollRef}
@@ -1366,7 +1319,11 @@ function SystemLedger({
                       return (
                         <button
                           key={span.key}
-                          aria-label={`${Math.round(span.inTransitMean)} in transit, ${Math.round(span.orderQuantityMean)} ordered, ${Math.round(span.receiptQuantityMean)} expected receipt`}
+                          aria-label={t('analysisWorkbenchPipelineSpanAria', {
+                            inTransit: Math.round(span.inTransitMean),
+                            ordered: Math.round(span.orderQuantityMean),
+                            receipt: Math.round(span.receiptQuantityMean),
+                          })}
                           className={cn(
                             'absolute flex items-center rounded-full border px-2 text-[0.62rem] font-medium transition-colors',
                             span.overdue
@@ -1379,7 +1336,11 @@ function SystemLedger({
                           type="button"
                           onClick={() => onIntervalChartLabelClick(span.intervalIndex, 'orders-transit-lead-time')}
                         >
-                          <span className="truncate">{Math.round(span.inTransitMean)} in transit</span>
+                          <span className="truncate">
+                            {t('analysisWorkbenchPipelinePillLabel', {
+                              count: Math.round(span.inTransitMean),
+                            })}
+                          </span>
                         </button>
                       );
                     })}
@@ -1389,7 +1350,10 @@ function SystemLedger({
                       return (
                         <button
                           key={marker.key}
-                          aria-label={`${marker.kind === 'order' ? 'Order' : 'Receipt'} cue ${Math.round(marker.quantityMean)} units`}
+                          aria-label={t('analysisWorkbenchPipelineMarkerAria', {
+                            kind: marker.kind === 'order' ? t('analysisWorkbenchOrderCueKind') : t('analysisWorkbenchReceiptCueKind'),
+                            quantity: Math.round(marker.quantityMean),
+                          })}
                           className="absolute z-[2] -translate-x-1/2"
                           data-analysis-datalabel="true"
                           style={{ left: x, top }}
@@ -1414,23 +1378,23 @@ function SystemLedger({
 
           {visibleLaneOrder.includes('lead-time') ? <div className="grid h-full min-h-0 gap-3" data-lane="lead-time" style={laneGridStyle}>
             <LaneLabel
-              subtitle="Lead-time drift reads as a trajectory with spread, while variability class stays available on selection instead of printed everywhere."
-              title="Lead-time lane"
-              tooltip="Estimated lead-time level and spread across intervals."
+              subtitle={t('analysisWorkbenchLaneLeadTimeSubtitle')}
+              title={t('analysisWorkbenchLaneLeadTimeTitle')}
+              tooltip={t('analysisWorkbenchLaneLeadTimeTooltip')}
             />
             <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block h-2 w-6 rounded-[0.2rem] bg-sky-600/14" />
-                    Spread band
+                    {t('analysisWorkbenchSpreadBand')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block h-px w-7 bg-sky-700/80" />
-                    Mean lead time
+                    {t('analysisWorkbenchMeanLeadTime')}
                   </span>
                 </div>
-                <LaneExpandButton expanded={isLaneExpanded('lead-time')} title="Lead-time lane" onClick={() => toggleLaneExpanded('lead-time')} />
+                <LaneExpandButton expanded={isLaneExpanded('lead-time')} title={t('analysisWorkbenchLaneLeadTimeTitle')} onClick={() => toggleLaneExpanded('lead-time')} />
               </div>
               <div
                 ref={leadTimeScrollRef}
@@ -1484,18 +1448,23 @@ function SystemLedger({
                       return (
                         <Fragment key={`lead-time:${entry.intervalIndex}`}>
                           {isSelected ? (
-                            <ClampedChartDataLabel
+                          <ClampedChartDataLabel
                               anchorX={point.x}
                               anchorY={pointTop}
                               containerWidth={contentWidth}
                               containerHeight={CHART_GUTTER_HEIGHT + leadTimePlotHeight}
                               className="whitespace-nowrap rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm"
                             >
-                              {`${entry.meanDays.toFixed(1)} ± ${spreadDays.toFixed(1)} Days`}
+                              {t('analysisWorkbenchLeadTimeSelectedLabel', {
+                                mean: entry.meanDays.toFixed(1),
+                                spread: spreadDays.toFixed(1),
+                              })}
                             </ClampedChartDataLabel>
                           ) : null}
                           <button
-                            aria-label={`Lead time ${entry.meanDays.toFixed(1)} days`}
+                            aria-label={t('analysisWorkbenchLeadTimePointAria', {
+                              days: entry.meanDays.toFixed(1),
+                            })}
                             className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
                             style={{
                               left: point.x,
@@ -1562,8 +1531,9 @@ function ObservationChannels({
 }
 
 function ObservationEntityList({ row }: { row: AnalysisObservationLedgerRow }) {
+  const { t } = usePreferences();
   if (row.affectedEntityLabels.length === 0) {
-    return <span className="text-sm text-muted-foreground">No named entity</span>;
+    return <span className="text-sm text-muted-foreground">{t('analysisWorkbenchNoNamedEntity')}</span>;
   }
 
   return (
@@ -1589,33 +1559,34 @@ function EntityPressureTable({
   selectedEntityId: string | null;
   setSelection: (value: AnalysisSelection) => void;
 }) {
+  const { t } = usePreferences();
   return (
     <HeaderedTable>
       <div className={pressureTableLayout.containerClassName} style={pressureTableLayout.style}>
         <HeaderedTableHeader className={pressureTableLayout.headerClassName}>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip="The service or SKU carrying the pressure signal.">
-              Item
+            <HeaderTooltipLabel tooltip={t('performanceRouteItemHeaderTooltip')}>
+              {t('performanceRouteItemHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="Composite pressure score from 0 to 100. Higher means stronger operational pressure.">
-              Pressure score
+            <HeaderTooltipLabel tooltip={t('analysisWorkbenchPressureScoreHeaderTooltip')}>
+              {t('analysisWorkbenchPressureScoreHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="How much inbound timing and pipeline posture are driving pressure.">
-              Pipeline risk
+            <HeaderTooltipLabel tooltip={t('analysisWorkbenchPipelineRiskHeaderTooltip')}>
+              {t('analysisWorkbenchPipelineRiskHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="How much lead-time delay or variability is driving pressure.">
-              Lead time risk
+            <HeaderTooltipLabel tooltip={t('analysisWorkbenchLeadTimeRiskHeaderTooltip')}>
+              {t('analysisWorkbenchLeadTimeRiskHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip="How much pricing conditions appear to be affecting pressure.">
-              Price sensitivity
+            <HeaderTooltipLabel tooltip={t('analysisWorkbenchPriceSensitivityHeaderTooltip')}>
+              {t('analysisWorkbenchPriceSensitivityHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
         </HeaderedTableHeader>
@@ -1640,7 +1611,7 @@ function EntityPressureTable({
                 </div>
               </div>
               <div className="flex items-center justify-center" data-pressure-cell="true">
-                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Pressure score</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>{t('analysisWorkbenchPressureScoreHeader')}</HeaderedTableMobileLabel>
                 <div className="flex items-center gap-2">
                   <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm', statusPillClassName(row.tone))}>
                     {row.pressureScoreLabel}
@@ -1649,19 +1620,19 @@ function EntityPressureTable({
                 </div>
               </div>
               <div className="flex items-center justify-center" data-pressure-cell="true">
-                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Pipeline risk</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>{t('analysisWorkbenchPipelineRiskHeader')}</HeaderedTableMobileLabel>
                 <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.pipelineRiskLabel)))}>
                   {row.pipelineRiskLabel}
                 </span>
               </div>
               <div className="flex items-center justify-center" data-pressure-cell="true">
-                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Lead time risk</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>{t('analysisWorkbenchLeadTimeRiskHeader')}</HeaderedTableMobileLabel>
                 <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.leadTimeRiskLabel)))}>
                   {row.leadTimeRiskLabel}
                 </span>
               </div>
               <div className="flex items-center justify-center" data-pressure-cell="true">
-                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>Price sensitivity</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>{t('analysisWorkbenchPriceSensitivityHeader')}</HeaderedTableMobileLabel>
                 <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.priceSensitivityLabel)))}>
                   {row.priceSensitivityLabel}
                 </span>
@@ -1679,6 +1650,7 @@ function ObservationLedgerCompact({
 }: {
   model: AnalysisWorkbenchViewModel;
 }) {
+  const { t } = usePreferences();
   const observationLedgerGridClassName = 'lg:grid lg:grid-cols-[minmax(18rem,1.3fr)_minmax(14rem,1fr)_minmax(12rem,0.9fr)] lg:gap-0 lg:[&>*]:px-3';
   const rowsPerPage = 5;
   const [pageIndex, setPageIndex] = useState(0);
@@ -1697,18 +1669,18 @@ function ObservationLedgerCompact({
       <HeaderedTable>
         <HeaderedTableHeader className={observationLedgerGridClassName}>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip="The saved observation record: when it was captured and what it said.">
-              Observed
+            <HeaderTooltipLabel tooltip={t('analysisWorkbenchObservedHeaderTooltip')}>
+              {t('analysisWorkbenchObservedHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip="Which evidence types were present in this observation.">
-              Observation channels
+            <HeaderTooltipLabel tooltip={t('analysisWorkbenchObservationChannelsHeaderTooltip')}>
+              {t('analysisWorkbenchObservationChannelsHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip="Services or SKUs tied to this observation.">
-              Affected entities
+            <HeaderTooltipLabel tooltip={t('analysisWorkbenchAffectedEntitiesHeaderTooltip')}>
+              {t('analysisWorkbenchAffectedEntitiesHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
         </HeaderedTableHeader>
@@ -1730,11 +1702,11 @@ function ObservationLedgerCompact({
                 />
               </div>
               <div className="min-w-0" data-observation-cell="true">
-                <HeaderedTableMobileLabel>Channels</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel>{t('analysisWorkbenchChannelsRailTitle')}</HeaderedTableMobileLabel>
                 <ObservationChannels row={row} />
               </div>
               <div className="min-w-0" data-observation-cell="true">
-                <HeaderedTableMobileLabel>Affected entities</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel>{t('analysisWorkbenchAffectedEntitiesHeader')}</HeaderedTableMobileLabel>
                 <ObservationEntityList row={row} />
               </div>
             </HeaderedTableRow>
@@ -1755,6 +1727,7 @@ function SupplyFragilityMap({
   setSelection: (value: AnalysisSelection) => void;
   showRightRailCards: boolean;
 }) {
+  const { t } = usePreferences();
   const measuredCellRefs = useRef(new Map<string, HTMLDivElement>());
   const measuredCellContentRefs = useRef(new Map<string, HTMLDivElement>());
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1883,9 +1856,9 @@ function SupplyFragilityMap({
 
   return (
     <PerformanceSectionShell
-      title="Supply fragility map"
-      tooltip="Matrix of services and linked SKUs, with contributor pressure in each cell."
-      descriptor="See which linked SKUs are most likely to limit each service."
+      title={t('analysisWorkbenchFragilityTitle')}
+      tooltip={t('analysisWorkbenchFragilityTooltip')}
+      descriptor={t('analysisWorkbenchFragilityDescriptor')}
       className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       contentClassName="px-0 py-0"
     >
@@ -1966,8 +1939,8 @@ function SupplyFragilityMap({
                 >
                   <div ref={setMeasuredCellContentRef(`${row.skuId}:${serviceId}`)} className="w-max max-w-none">
                     <p className="text-sm font-semibold capitalize text-foreground">{cell?.pressureLabel ?? '—'}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Usage: {cell?.usageLabel ?? '—'}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Bottleneck: {cell?.bottleneckLabel ?? '—'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t('analysisWorkbenchUsageLabel')}: {cell?.usageLabel ?? '—'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t('analysisWorkbenchBottleneckLabel')}: {cell?.bottleneckLabel ?? '—'}</p>
                     <p className="mt-1 text-xs text-muted-foreground">{cell?.reliefLabel ?? '—'}</p>
                     <p className="mt-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground lg:hidden">{serviceName}</p>
                   </div>
@@ -1982,23 +1955,24 @@ function SupplyFragilityMap({
 }
 
 function SelectedObservationRail({ row }: { row: AnalysisObservationLedgerRow }) {
+  const { t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<FileSearch className="size-4" />} title="Observation" tooltip="The saved observation currently selected.">
+      <AnalysisRailSection icon={<FileSearch className="size-4" />} title={t('analysisWorkbenchObservationRailTitle')} tooltip={t('analysisWorkbenchObservationRailTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{row.title}</p>
         <p className="text-sm text-muted-foreground">{row.observedAt}</p>
         <p className="text-sm leading-6 text-muted-foreground">{row.detail}</p>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<Radio className="size-4" />} title="Channels" tooltip="Evidence types present in this observation.">
+      <AnalysisRailSection icon={<Radio className="size-4" />} title={t('analysisWorkbenchChannelsRailTitle')} tooltip={t('analysisWorkbenchChannelsRailTooltip')}>
         <ObservationChannels row={row} />
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<ListTree className="size-4" />} title="Affected entities" tooltip="Services or SKUs linked to this observation.">
+      <AnalysisRailSection icon={<ListTree className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesRailTooltip')}>
         <AnalysisRailList>
           {row.affectedEntityLabels.length > 0 ? row.affectedEntityLabels.map((label) => (
             <AnalysisRailRow key={`${row.id}:${label}`} primary={<span className="text-muted-foreground">{label}</span>} />
-          )) : <AnalysisRailRow primary={<span className="text-muted-foreground">No named entity in this observation.</span>} />}
+          )) : <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchNoNamedEntityInObservation')}</span>} />}
         </AnalysisRailList>
       </AnalysisRailSection>
     </>
@@ -2012,12 +1986,13 @@ function IntervalRail({
   interval: AnalysisWorkbenchViewModel['intervals'][number];
   flashedSection: IntervalRailSectionKey | null;
 }) {
+  const { t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Interval explanation" tooltip="Banji's summary of the selected interval.">
+      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title={t('analysisWorkbenchIntervalExplanationTitle')} tooltip={t('analysisWorkbenchIntervalExplanationTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{interval.dateLabel}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
-          <p>{interval.dominantRegime} regime</p>
+          <p>{t('analysisWorkbenchSalesPatternLine', { value: interval.dominantRegime })}</p>
           <p>{interval.dominantDriver}</p>
           <p>{interval.priceOrStockoutSummary}</p>
         </div>
@@ -2026,46 +2001,46 @@ function IntervalRail({
       <AnalysisRailSection
         flash={flashedSection === 'observed-signals'}
         icon={<Radio className="size-4" />}
-        title="Observed signals"
-        tooltip="Observed evidence that touched this interval."
+        title={t('analysisWorkbenchObservedSignalsTitle')}
+        tooltip={t('analysisWorkbenchObservedSignalsTooltip')}
       >
         <SignalsWrap values={interval.observedSignals} />
         <AnalysisRailList className="mt-3">
           {interval.affectedEntities.length > 0 ? interval.affectedEntities.map((label) => (
             <AnalysisRailRow key={`${interval.key}:${label}`} primary={<span className="text-muted-foreground">{label}</span>} />
-          )) : <AnalysisRailRow primary={<span className="text-muted-foreground">No named entity resolved for this interval.</span>} />}
+          )) : <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchNoNamedEntityInInterval')}</span>} />}
         </AnalysisRailList>
       </AnalysisRailSection>
 
       <AnalysisRailSection
         flash={flashedSection === 'what-happened'}
         icon={<AudioLines className="size-4" />}
-        title="What happened"
-        tooltip="The main demand and inventory movements in this interval."
+        title={t('analysisWorkbenchWhatHappenedTitle')}
+        tooltip={t('analysisWorkbenchWhatHappenedTooltip')}
       >
         <AnalysisRailList>
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Service demand</span>} secondary={interval.serviceDemandLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Retail demand</span>} secondary={interval.retailDemandLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Receipts</span>} secondary={interval.receiptsLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Adjustments</span>} secondary={interval.adjustmentsLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchServiceDemand')}</span>} secondary={interval.serviceDemandLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchRetailDemand')}</span>} secondary={interval.retailDemandLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchReceipts')}</span>} secondary={interval.receiptsLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchAdjustments')}</span>} secondary={interval.adjustmentsLabel} />
         </AnalysisRailList>
       </AnalysisRailSection>
 
       <AnalysisRailSection
         flash={flashedSection === 'orders-transit-lead-time'}
         icon={<Waypoints className="size-4" />}
-        title="Orders, transit, lead time"
-        tooltip="Order, inbound, and lead-time conditions in this interval."
+        title={t('analysisWorkbenchOrdersTransitLeadTimeTitle')}
+        tooltip={t('analysisWorkbenchOrdersTransitLeadTimeTooltip')}
       >
         <AnalysisRailList>
-          <AnalysisRailRow primary={<span className="text-muted-foreground">In transit</span>} secondary={interval.inTransitLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Order probability</span>} secondary={interval.orderProbabilityLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Order quantity</span>} secondary={interval.orderQuantityLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Receipt quantity</span>} secondary={interval.receiptQuantityLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Transit age</span>} secondary={interval.ageDaysLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time mean</span>} secondary={interval.leadTimeMeanLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time spread</span>} secondary={interval.leadTimeSpreadLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time class</span>} secondary={interval.leadTimeVariabilityLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchInTransit')}</span>} secondary={interval.inTransitLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchOrderProbability')}</span>} secondary={interval.orderProbabilityLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchOrderQuantity')}</span>} secondary={interval.orderQuantityLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchReceiptQuantity')}</span>} secondary={interval.receiptQuantityLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchTransitAge')}</span>} secondary={interval.ageDaysLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchMeanLeadTime')}</span>} secondary={interval.leadTimeMeanLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchLeadTimeSpread')}</span>} secondary={interval.leadTimeSpreadLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchLeadTimeClass')}</span>} secondary={interval.leadTimeVariabilityLabel} />
         </AnalysisRailList>
       </AnalysisRailSection>
     </>
@@ -2073,12 +2048,13 @@ function IntervalRail({
 }
 
 function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
+  const { t } = usePreferences();
   return (
     <>
       <AnalysisRailSection
         icon={row.entityType === 'sku' ? <PackageSearch className="size-4" /> : <Store className="size-4" />}
-        title={row.entityType === 'sku' ? 'Selected SKU' : 'Selected service'}
-        tooltip="The entity currently selected in the analysis."
+        title={row.entityType === 'sku' ? t('analysisWorkbenchSelectedSkuTitle') : t('analysisWorkbenchSelectedServiceTitle')}
+        tooltip={t('analysisWorkbenchSelectedEntityTooltip')}
       >
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{row.name}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
@@ -2089,39 +2065,39 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
         <Button asChild className="mt-4 w-full">
           <Link to={row.href}>
             <ArrowUpRight className="size-4" />
-            Open detail
+            {t('analysisWorkbenchOpenDetail')}
           </Link>
         </Button>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Posterior state" tooltip="Current modeled state for demand, stock, reorder posture, and inbound exposure.">
+      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title={t('analysisWorkbenchPosteriorStateTitle')} tooltip={t('analysisWorkbenchPosteriorStateTooltip')}>
         <AnalysisRailList>
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Posterior units</span>} secondary={row.posteriorUnitsLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Demand per day</span>} secondary={row.demandPerDayLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Reorder trigger</span>} secondary={row.reorderTriggerLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">In transit</span>} secondary={row.inTransitExposureLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time mean</span>} secondary={row.leadTimeMeanLabel} />
-          <AnalysisRailRow primary={<span className="text-muted-foreground">Lead-time spread</span>} secondary={row.leadTimeSpreadLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchPosteriorUnits')}</span>} secondary={row.posteriorUnitsLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchDemandPerDay')}</span>} secondary={row.demandPerDayLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchReorderTrigger')}</span>} secondary={row.reorderTriggerLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchInTransit')}</span>} secondary={row.inTransitExposureLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchMeanLeadTime')}</span>} secondary={row.leadTimeMeanLabel} />
+          <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchLeadTimeSpread')}</span>} secondary={row.leadTimeSpreadLabel} />
         </AnalysisRailList>
       </AnalysisRailSection>
 
       {row.entityType === 'sku' && row.reorderPolicyLabels ? (
-        <AnalysisRailSection icon={<CircleGauge className="size-4" />} title="Reorder policy" tooltip="Shows the posterior order recommendation after current stock, inbound pipeline, demand, and lead time are accounted for.">
+        <AnalysisRailSection icon={<CircleGauge className="size-4" />} title={t('analysisWorkbenchReorderPolicyTitle')} tooltip={t('analysisWorkbenchReorderPolicyTooltip')}>
           <AnalysisRailList>
-            <AnalysisRailRow primary={<span className="text-muted-foreground">Need probability</span>} secondary={row.reorderPolicyLabels.needProbability} />
-            <AnalysisRailRow primary={<span className="text-muted-foreground">Recommended order</span>} secondary={row.reorderPolicyLabels.recommendedOrder} />
-            <AnalysisRailRow primary={<span className="text-muted-foreground">Likely range</span>} secondary={row.reorderPolicyLabels.likelyRange} />
-            <AnalysisRailRow primary={<span className="text-muted-foreground">Protection horizon</span>} secondary={row.reorderPolicyLabels.protectionHorizon} />
-            <AnalysisRailRow primary={<span className="text-muted-foreground">Policy basis</span>} secondary={row.reorderPolicyLabels.policyBasis} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchNeedProbability')}</span>} secondary={row.reorderPolicyLabels.needProbability} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchRecommendedOrder')}</span>} secondary={row.reorderPolicyLabels.recommendedOrder} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchLikelyRange')}</span>} secondary={row.reorderPolicyLabels.likelyRange} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchProtectionHorizon')}</span>} secondary={row.reorderPolicyLabels.protectionHorizon} />
+            <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchPolicyBasis')}</span>} secondary={row.reorderPolicyLabels.policyBasis} />
           </AnalysisRailList>
         </AnalysisRailSection>
       ) : null}
 
-      <AnalysisRailSection icon={<ListTree className="size-4" />} title="Contributor stack" tooltip="The strongest linked contributors behind this entity.">
+      <AnalysisRailSection icon={<ListTree className="size-4" />} title={t('analysisWorkbenchContributorStackTitle')} tooltip={t('analysisWorkbenchContributorStackTooltip')}>
         <AnalysisRailList>
           {row.contributorStack.length > 0 ? row.contributorStack.map((entry) => (
             <AnalysisRailRow key={`${row.id}:${entry}`} primary={<span className="text-muted-foreground">{entry}</span>} />
-          )) : <AnalysisRailRow primary={<span className="text-muted-foreground">No contributor stack available for this entity.</span>} />}
+          )) : <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchNoContributorStack')}</span>} />}
         </AnalysisRailList>
       </AnalysisRailSection>
     </>
@@ -2129,17 +2105,18 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
 }
 
 function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
+  const { t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<Radar className="size-4" />} title="Current system state" tooltip="Summary of the current system when nothing specific is selected.">
+      <AnalysisRailSection icon={<Radar className="size-4" />} title={t('analysisWorkbenchOverviewTitle')} tooltip={t('analysisWorkbenchOverviewTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.inspectorOverview.dominantRegime}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
-          <p>Change-point probability {model.inspectorOverview.changePointProbability}</p>
+          <p>{t('analysisWorkbenchChangePointProbability', { value: model.inspectorOverview.changePointProbability })}</p>
           <p>{model.inspectorOverview.coverageSummary}</p>
         </div>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<ChartNoAxesColumnIncreasing className="size-4" />} title="Strongest channels" tooltip="Evidence channels contributing most to the current system read.">
+      <AnalysisRailSection icon={<ChartNoAxesColumnIncreasing className="size-4" />} title={t('analysisWorkbenchStrongestChannelsTitle')} tooltip={t('analysisWorkbenchStrongestChannelsTooltip')}>
         <AnalysisRailList>
           {model.inspectorOverview.strongestChannels.map((entry, index) => (
             <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -2147,7 +2124,7 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
         </AnalysisRailList>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<Boxes className="size-4" />} title="Affected entities" tooltip="Entities currently carrying the most structural pressure.">
+      <AnalysisRailSection icon={<Boxes className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesHeaderTooltip')}>
         <AnalysisRailList>
           {model.inspectorOverview.affectedEntities.map((entry, index) => (
             <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -2325,12 +2302,13 @@ function PressureSurface({
   setSelection: (value: AnalysisSelection) => void;
   showRightRailCards: boolean;
 }) {
+  const { t } = usePreferences();
   return (
     <div className="grid gap-6">
       <PerformanceSectionShell
-        title="Entity pressure explorer"
-        tooltip="Ranked table of entities showing where structural pressure comes from."
-        descriptor="Compare whether pressure is coming from demand, pipeline, lead time, or price."
+        title={t('analysisWorkbenchPressureTitle')}
+        tooltip={t('analysisWorkbenchPressureTooltip')}
+        descriptor={t('analysisWorkbenchPressureDescriptor')}
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
       >
@@ -2349,12 +2327,13 @@ function ObservationsSurface({
   setSelection: (value: AnalysisSelection) => void;
   showRightRailCards: boolean;
 }) {
+  const { t } = usePreferences();
   return (
     <div className="grid gap-6">
       <PerformanceSectionShell
-        title="Observation ledger"
-        tooltip="Ledger of saved observations and the evidence channels each one carried."
-        descriptor="Review which observation channels were present in each saved record."
+        title={t('analysisWorkbenchObservationsTitle')}
+        tooltip={t('analysisWorkbenchObservationsTooltip')}
+        descriptor={t('analysisWorkbenchObservationsDescriptor')}
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
       >
@@ -2387,16 +2366,28 @@ function SettingsSurface({
   model: AnalysisWorkbenchViewModel;
   showRightRailCards: boolean;
 }) {
+  const { t } = usePreferences();
+  const analysisSettingsFields = [
+    { key: 'run-id', label: t('analysisWorkbenchSettingsRunIdLabel'), tooltip: t('analysisWorkbenchSettingsRunIdTooltip'), valueKey: 'runId' },
+    { key: 'latest-observed', label: t('analysisWorkbenchSettingsLatestObservedLabel'), tooltip: t('analysisWorkbenchSettingsLatestObservedTooltip'), valueKey: 'latestObservedAt' },
+    { key: 'observations-used', label: t('analysisWorkbenchSettingsObservationsUsedLabel'), tooltip: t('analysisWorkbenchSettingsObservationsUsedTooltip'), valueKey: 'observationsUsed' },
+    { key: 'intervals-in-view', label: t('analysisWorkbenchSettingsIntervalsLabel'), tooltip: t('analysisWorkbenchSettingsIntervalsTooltip'), valueKey: 'intervalCount' },
+    { key: 'smoothing', label: t('analysisWorkbenchSettingsSmoothingLabel'), tooltip: t('analysisWorkbenchSettingsSmoothingTooltip'), valueKey: 'smoothingLabel' },
+    { key: 'effective-sample-size', label: t('analysisWorkbenchSettingsSampleSizeLabel'), tooltip: t('analysisWorkbenchSettingsSampleSizeTooltip'), valueKey: 'effectiveSampleSize' },
+    { key: 'predictive-error', label: t('analysisWorkbenchSettingsPredictiveErrorLabel'), tooltip: t('analysisWorkbenchSettingsPredictiveErrorTooltip'), valueKey: 'predictiveError' },
+    { key: 'coverage-estimate', label: t('analysisWorkbenchSettingsCoverageLabel'), tooltip: t('analysisWorkbenchSettingsCoverageTooltip'), valueKey: 'coverageEstimate' },
+    { key: 'scope', label: t('analysisWorkbenchSettingsScopeLabel'), tooltip: t('analysisWorkbenchSettingsScopeTooltip'), valueKey: 'scopeSummary' },
+  ] as const;
   return (
     <div className="grid gap-6">
       <PerformanceSectionShell
-        title="Analysis Parameters"
-        tooltip="Read-only model and evidence metadata for the current analysis window."
-        descriptor="Check the run settings and evidence coverage behind this analysis."
+        title={t('analysisWorkbenchSettingsTitle')}
+        tooltip={t('analysisWorkbenchSettingsTooltip')}
+        descriptor={t('analysisWorkbenchSettingsDescriptor')}
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {ANALYSIS_SETTINGS_FIELDS.map((field) => {
+          {analysisSettingsFields.map((field) => {
             const value = model.settings[field.valueKey];
 
             return (

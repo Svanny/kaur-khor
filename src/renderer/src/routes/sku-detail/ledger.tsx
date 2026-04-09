@@ -574,8 +574,10 @@ export function SkuDetailLedger({
           className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}
         >
           <LaneTitle
-            title={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLane') : 'Regime lane'}
-            tooltip={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLaneTooltip') : 'Dominant demand regime across the visible intervals.'}
+            title={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLane') : t('catalogSenaSkuRegimeLane')}
+            tooltip={
+              showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLaneTooltip') : t('catalogSenaSkuRegimeLaneTooltip')
+            }
           />
           <div className={cn('grid gap-3', isLaneExpanded('regime') && 'min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
             <div className="flex items-start justify-between gap-3 px-1">
@@ -590,14 +592,18 @@ export function SkuDetailLedger({
                 {showsPriceSurfaces ? (
                   <span className="inline-flex items-center gap-2">
                     <span aria-hidden="true" className="relative inline-flex h-4 w-8 items-center">
-                      <span className="block h-px w-full bg-foreground/70" />
-                      <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/55 bg-background" />
-                    </span>
-                    Retail price line
+                    <span className="block h-px w-full bg-foreground/70" />
+                    <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/55 bg-background" />
+                  </span>
+                    {t('catalogSenaSkuRetailPriceLine')}
                   </span>
                 ) : null}
               </div>
-              <LaneExpandButton expanded={isLaneExpanded('regime')} title={showsPriceSurfaces ? 'Regime + price lane' : 'Regime lane'} onClick={() => toggleLaneExpanded('regime')} />
+              <LaneExpandButton
+                expanded={isLaneExpanded('regime')}
+                title={showsPriceSurfaces ? t('catalogSenaSkuRegimePriceLane') : t('catalogSenaSkuRegimeLane')}
+                onClick={() => toggleLaneExpanded('regime')}
+              />
             </div>
             <div ref={priceScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain', isLaneExpanded('regime') && 'min-h-0 h-full')} onScroll={handleScrollerScroll}>
               <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + expandedLinePlotHeight }}>

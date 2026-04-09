@@ -125,7 +125,7 @@ export function SkuFormRoute() {
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
     enabled: hasUnsavedSkuChanges,
-    description: 'You have unsaved SKU changes. Leave this page and discard the current draft?',
+    description: t('skuEditorUnsavedLeavePrompt'),
     onDiscard: resetSkuDraft,
   });
 

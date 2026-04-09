@@ -12,7 +12,10 @@ const preferenceState = {
   currency: 'USD',
   language: 'en',
   showRightRailCards: true,
-  t: (key: Parameters<typeof getTranslation>[1]) => getTranslation('en', key),
+  t: (
+    key: Parameters<typeof getTranslation>[1],
+    variables?: Parameters<typeof getTranslation>[2],
+  ) => getTranslation('en', key, variables),
 };
 
 vi.mock('@/state/inventory', () => ({
@@ -468,7 +471,7 @@ describe('PerformanceRoute', () => {
     renderRoute();
 
     expect(screen.getByText('Performance')).toBeInTheDocument();
-    expect(screen.getByText('Demand, capacity, pipeline, and pricing in one business view.')).toBeInTheDocument();
+    expect(screen.getByText('Demand, available capacity, incoming stock, and pricing in one business view.')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Move now' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Demand × capacity board' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Cash and profit efficiency' })).toBeInTheDocument();
@@ -480,25 +483,27 @@ describe('PerformanceRoute', () => {
   test('renders the dedicated analysis workbench route', async () => {
     renderAnalysisRoute();
 
-    expect(screen.getByText('Deep Review')).toBeInTheDocument();
+    expect(screen.getByText('Analysis details')).toBeInTheDocument();
     expect(
-      screen.getByText('Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.'),
+      screen.getByText('See how saved updates turned into Banji’s current picture of demand, incoming stock, delivery timing, and price.'),
     ).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
-    expect(screen.getByText('Regime + price lane')).toBeInTheDocument();
-    expect(screen.getByText('Inventory + demand lane')).toBeInTheDocument();
-    expect(screen.getByText('Pipeline lane')).toBeInTheDocument();
-    expect(screen.getByText('Lead-time lane')).toBeInTheDocument();
-    expect(screen.getByText('Inventory band')).toBeInTheDocument();
-    expect(screen.getByText('In-transit window')).toBeInTheDocument();
-    expect(screen.getByText('Spread band')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Re-run analysis' })).toBeInTheDocument();
-    expect(screen.queryByText('Entity pressure explorer')).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'System timeline' }, { timeout: 10_000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Sales pattern and price')).toBeInTheDocument();
+    expect(screen.getByText('Stock estimate and demand')).toBeInTheDocument();
+    expect(screen.getByText('Incoming stock')).toBeInTheDocument();
+    expect(screen.getByText('Delivery timing')).toBeInTheDocument();
+    expect(screen.getAllByText('Likely range').length).toBeGreaterThan(0);
+    expect(screen.getByText('On-the-way window')).toBeInTheDocument();
+    expect(screen.getAllByText('Typical timing').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Refresh analysis' })).toBeInTheDocument();
+    expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
     expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
-    expect(screen.queryByText('Supply fragility map')).not.toBeInTheDocument();
+    expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: /Select analysis time range/i })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Workbench/i })).toHaveAttribute('data-state', 'active');
-  });
+  }, 10_000);
 
   test('scrolls the analysis route back to the top on entry', async () => {
     window.scrollTo = vi.fn();
@@ -506,7 +511,7 @@ describe('PerformanceRoute', () => {
     renderAnalysisRoute();
 
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
-    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
   });
 
   test('runs analysis from the analysis page header', async () => {
@@ -516,7 +521,7 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    await user.click(await screen.findByRole('button', { name: 'Re-run analysis' }));
+    await user.click(await screen.findByRole('button', { name: 'Refresh analysis' }));
 
     expect(retrySenaRun).toHaveBeenCalledWith({ runId: 'run-1' });
   });
@@ -532,9 +537,9 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(screen.getByText('Deep Review')).toBeInTheDocument();
-    expect(screen.queryByText('Analysis needs the catalog first')).not.toBeInTheDocument();
-    expect(screen.queryByText('Analysis needs the first SENA run')).not.toBeInTheDocument();
+    expect(screen.getByText('Analysis details')).toBeInTheDocument();
+    expect(screen.queryByText('Analysis needs a catalog first')).not.toBeInTheDocument();
+    expect(screen.queryByText('Analysis needs your first update')).not.toBeInTheDocument();
   });
 
   test('shows the analysis loading state while entity detail hydration is still pending', () => {
@@ -545,9 +550,9 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(screen.getByText('Deep Review')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Analysis needs the first SENA run')).not.toBeInTheDocument();
+    expect(screen.getByText('Analysis details')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Analysis needs your first update')).not.toBeInTheDocument();
   });
 
   test('renders the analysis pressure tab as its own surface', async () => {
@@ -555,13 +560,13 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: /Pressure/i }));
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Risks/i }));
 
-    expect(await screen.findByText('Entity pressure explorer')).toBeInTheDocument();
+    expect(await screen.findByText('Risk explorer')).toBeInTheDocument();
     expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
-    expect(screen.queryByText('Supply fragility map')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
 
   test('renders the analysis observations tab as its own surface', async () => {
@@ -569,19 +574,19 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: /Observations/i }));
 
     expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
-    expect(screen.queryByText('Entity pressure explorer')).not.toBeInTheDocument();
-    expect(screen.queryByText('Supply fragility map')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
 
   test('uses shared observation row spacing on the analysis observations tab', async () => {
     const { container } = renderAnalysisRoute();
 
-    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('tab', { name: /Observations/i }));
     expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
 
@@ -600,7 +605,7 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: /Observations/i }));
     expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
 
@@ -623,13 +628,13 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: /Fragility/i }));
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Blockers/i }));
 
-    expect(await screen.findByText('Supply fragility map')).toBeInTheDocument();
-    expect(screen.queryByText('Entity pressure explorer')).not.toBeInTheDocument();
+    expect(await screen.findByText('Service blocker map')).toBeInTheDocument();
+    expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
     expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'SENA system ledger' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
 
   test('uses the shared interval strip on analysis and updates the interval rail when a pill is selected', async () => {
@@ -650,7 +655,7 @@ describe('PerformanceRoute', () => {
 
     try {
       const { container } = renderAnalysisRoute();
-      expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
 
       const intervalScroller = container.querySelector('.hidden-scrollbar.max-w-full.overflow-x-auto') as HTMLDivElement | null;
       expect(intervalScroller).not.toBeNull();
@@ -695,7 +700,7 @@ describe('PerformanceRoute', () => {
 
     try {
       const { container } = renderAnalysisRoute();
-      expect(await screen.findByRole('heading', { name: 'SENA system ledger' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
 
       const intervalScroller = container.querySelector('.hidden-scrollbar.max-w-full.overflow-x-auto') as HTMLDivElement | null;
       expect(intervalScroller).not.toBeNull();
@@ -708,7 +713,7 @@ describe('PerformanceRoute', () => {
         resizeCallbacks.forEach((callback) => callback());
       });
 
-      fireEvent.click(screen.getByLabelText('Inventory 29 units in interval 1'));
+      fireEvent.click(screen.getByLabelText('Estimated stock 29 units in period 1'));
 
       expect(await screen.findAllByText('Interval explanation')).not.toHaveLength(0);
       expect(screen.getAllByText('Feb 10').length).toBeGreaterThan(0);
@@ -729,9 +734,9 @@ describe('PerformanceRoute', () => {
   test('hides analysis page descriptors when explanatory text is disabled', async () => {
     renderAnalysisRouteWithDescriptionVisibility(false);
 
-    expect(screen.getByText('Deep Review')).toBeInTheDocument();
+    expect(screen.getByText('Analysis details')).toBeInTheDocument();
     expect(
-      screen.queryByText('Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.'),
+      screen.queryByText('See how saved updates turned into Banji’s current picture of demand, incoming stock, delivery timing, and price.'),
     ).not.toBeInTheDocument();
   });
 

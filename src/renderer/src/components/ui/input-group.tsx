@@ -104,18 +104,23 @@ function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
   );
 }
 
-function InputGroupInput({ className, ...props }: React.ComponentProps<'input'>) {
-  return (
-    <Input
-      className={cn(
-        'flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent',
-        className,
-      )}
-      data-slot="input-group-control"
-      {...props}
-    />
-  );
-}
+const InputGroupInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
+  ({ className, ...props }, ref) => {
+    return (
+      <Input
+        ref={ref}
+        className={cn(
+          'flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent',
+          className,
+        )}
+        data-slot="input-group-control"
+        {...props}
+      />
+    );
+  },
+);
+
+InputGroupInput.displayName = 'InputGroupInput';
 
 function InputGroupTextarea({ className, ...props }: React.ComponentProps<'textarea'>) {
   return (

@@ -15,7 +15,7 @@ import {
   type SenaEngineParameters,
 } from '@shared/ipc';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
-import { currencyLabel, getTranslation, type TranslationKey } from '../lib/translations';
+import { currencyLabel, getTranslation, type TranslationKey, type TranslationVariables } from '../lib/translations';
 
 interface PreferencesContextValue {
   language: AppLanguage;
@@ -58,8 +58,8 @@ interface PreferencesContextValue {
   }>) => Promise<void>;
   resetPreferences: () => void;
   hasPendingChanges: boolean;
-  t: (key: TranslationKey) => string;
-  rawT: (key: TranslationKey) => string;
+  t: (key: TranslationKey, variables?: TranslationVariables) => string;
+  rawT: (key: TranslationKey, variables?: TranslationVariables) => string;
   currencyLabel: (value: AppCurrency) => string;
 }
 
@@ -272,8 +272,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         showRightRailCards !== persistedShowRightRailCards ||
         overviewStaleUpdateReminderSnoozeUntil !== persistedOverviewStaleUpdateReminderSnoozeUntil ||
         !senaEngineParametersEqual(senaEngineParameters, persistedSenaEngineParameters),
-      t: (key) => getTranslation(language, key),
-      rawT: (key) => getTranslation(language, key),
+      t: (key, variables) => getTranslation(language, key, variables),
+      rawT: (key, variables) => getTranslation(language, key, variables),
       currencyLabel: (next) => currencyLabel(language, next),
     }),
     [

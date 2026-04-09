@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { generatePath, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from '@/components/banji-shell';
+import { CommandPaletteProvider } from '@/components/command-palette';
 import { AnalysisRoute } from '@/routes/analysis';
 import { DashboardRoute } from '@/routes/dashboard';
 import { InventoryRoute } from '@/routes/inventory';
@@ -70,9 +71,11 @@ export function AppRoutes() {
 function AppFrame() {
   return (
     <NavigationHistoryProvider>
-      <BanjiShell>
-        <AppRoutes />
-      </BanjiShell>
+      <CommandPaletteProvider>
+        <BanjiShell>
+          <AppRoutes />
+        </BanjiShell>
+      </CommandPaletteProvider>
     </NavigationHistoryProvider>
   );
 }

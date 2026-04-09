@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { getTranslation } from '@/lib/translations';
 import { AnalysisContent } from './analysis-content';
 
 const analysisWorkbenchMock = vi.fn();
@@ -29,6 +30,8 @@ vi.mock('./analysis-view-model', () => ({
 vi.mock('@/state/preferences', () => ({
   usePreferences: () => ({
     showFloatingTitleActions: false,
+    t: (key: string, variables?: Record<string, string | number | null | undefined>) =>
+      getTranslation('en', key as never, variables),
   }),
 }));
 
@@ -276,7 +279,7 @@ describe('AnalysisContent', () => {
       />,
     );
 
-    const button = screen.getByRole('button', { name: 'Re-run analysis' });
+    const button = screen.getByRole('button', { name: 'Refresh analysis' });
     await user.click(button);
 
     expect(retrySenaRun).toHaveBeenCalledWith({ runId: 'run-1' });

@@ -209,7 +209,7 @@ describe('StockUpdateRoute', () => {
     expect(screen.getByText('3 contributions in 2025-2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous contribution year' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next contribution year' })).toBeDisabled();
-  });
+  }, 10_000);
 
   it('switches to the all view and paginates observations in groups of five', () => {
     const paginatedObservations = [

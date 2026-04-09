@@ -277,7 +277,7 @@ export function ServiceFormRoute() {
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
     enabled: hasUnsavedServiceChanges,
-    description: 'You have unsaved service changes. Leave this page and discard the current draft?',
+    description: t('serviceEditorUnsavedLeavePrompt'),
     onDiscard: resetServiceDraft,
   });
 

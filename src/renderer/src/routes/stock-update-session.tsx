@@ -126,10 +126,10 @@ const EMPTY_SIST_OVERVIEW: SistOverview = {
   metadata: null,
 };
 
-const STOCK_VIEW_OPTIONS: Array<{ value: StockView; label: string }> = [
-  { value: 'priority', label: 'Priority' },
-  { value: 'counted', label: 'Counted' },
-  { value: 'all', label: 'All SKUs' },
+const STOCK_VIEW_OPTIONS: Array<{ value: StockView; labelKey: 'stockUpdateViewPriority' | 'stockUpdateViewCounted' | 'stockUpdateViewAllSkus' }> = [
+  { value: 'priority', labelKey: 'stockUpdateViewPriority' },
+  { value: 'counted', labelKey: 'stockUpdateViewCounted' },
+  { value: 'all', labelKey: 'stockUpdateViewAllSkus' },
 ];
 
 const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:v1';
@@ -155,26 +155,42 @@ const serviceSignalsTableLayoutWithFlags = createHeaderedTableLayout({
   gap: 5,
 });
 
-const STOCK_UPDATE_STEP_COPY: Record<StockUpdateStepId, { title: string; description: string }> = {
+const STOCK_UPDATE_STEP_COPY: Record<
+  StockUpdateStepId,
+  {
+    descriptionKey:
+      | 'stockUpdateStepContextDescription'
+      | 'stockUpdateStepStockDescription'
+      | 'stockUpdateStepServiceDescription'
+      | 'stockUpdateStepRankingsDescription'
+      | 'stockUpdateStepReviewDescription';
+    titleKey:
+      | 'stockUpdateStepContextTitle'
+      | 'stockUpdateStepStockTitle'
+      | 'stockUpdateStepServiceTitle'
+      | 'stockUpdateStepRankingsTitle'
+      | 'stockUpdateStepReviewTitle';
+  }
+> = {
   context: {
-    title: 'Record interval context',
-    description: 'Confirm the observed time, add optional notes, and choose an optional regime.',
+    titleKey: 'stockUpdateStepContextTitle',
+    descriptionKey: 'stockUpdateStepContextDescription',
   },
   stock: {
-    title: 'Count SKU stock',
-    description: 'Count only SKUs you checked. Add row flags for orders, receipts, or availability events.',
+    titleKey: 'stockUpdateStepStockTitle',
+    descriptionKey: 'stockUpdateStepStockDescription',
   },
   service: {
-    title: 'Add service signals',
-    description: 'Add service price or availability signals only when they changed this interval.',
+    titleKey: 'stockUpdateStepServiceTitle',
+    descriptionKey: 'stockUpdateStepServiceDescription',
   },
   rankings: {
-    title: 'Rank selling order',
-    description: 'Optional. Drag only when real demand order shifted.',
+    titleKey: 'stockUpdateStepRankingsTitle',
+    descriptionKey: 'stockUpdateStepRankingsDescription',
   },
   review: {
-    title: 'Review update',
-    description: 'Review the sparse update package before saving.',
+    titleKey: 'stockUpdateStepReviewTitle',
+    descriptionKey: 'stockUpdateStepReviewDescription',
   },
 };
 
@@ -702,11 +718,12 @@ function RankingSignalEditor({
   seedValues: string[];
   values: string[];
 }) {
+  const { t } = usePreferences();
   const displayedValues = values.length > 0 ? values : seedValues;
   const rankingTooltip =
     entryType === 'service'
-      ? 'Drag services into the real-world selling order for this interval.'
-      : 'Drag retail SKUs into the real-world selling order for this interval.';
+      ? t('stockUpdateTopServicesLabel')
+      : t('stockUpdateTopRetailItemsLabel');
   const snapshot = useMemo(
     () => buildRankingSnapshot({ catalog, entryType, rankedIds: displayedValues }),
     [catalog, displayedValues, entryType],
@@ -730,12 +747,12 @@ function RankingSignalEditor({
           <p className="text-sm font-medium text-foreground">
             <SectionLabel tooltip={rankingTooltip} tooltipLabel={`${label} details`}>{label}</SectionLabel>
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">Optional. Add only when the real selling order changed.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('stockUpdateRankingOptional')}</p>
         </div>
         {values.length > 0 ? (
           <Button type="button" variant="ghost" onClick={() => onChange([])}>
             <RotateCcw className="size-4" />
-            Clear ranking
+            {t('stockUpdateClearRanking')}
           </Button>
         ) : null}
       </div>
@@ -891,6 +908,7 @@ function StockCountStep({
   onStockViewChange: (value: StockView) => void;
   onToggleDebugCellBoundaries: () => void;
 }) {
+  const { t } = usePreferences();
   const showFlagColumn = anySkuFlags(skuSignalDrafts);
   const layout = showFlagColumn ? stockCountTableLayoutWithFlags : stockCountTableLayout;
   const includedRows = rows.filter((row) => stockRowChanged(catalog, stockBySku, row) || hasSkuFlags(skuSignalDrafts[row.skuId]));
@@ -913,13 +931,13 @@ function StockCountStep({
           </Button>
           <div className="flex items-center gap-2">
             <FieldHelpLabel
-              label="Stock count view"
-              tooltip="Priority shows suggested SKUs, Counted shows changed or flagged rows, and All SKUs shows the full catalog."
+              label={t('stockUpdateStockViewAria')}
+              tooltip={t('stockUpdateStockViewTooltip')}
             >
-              View
+              {t('stockUpdateStockViewLabel')}
             </FieldHelpLabel>
             <ToggleGroup
-              aria-label="Stock count view"
+              aria-label={t('stockUpdateStockViewAria')}
               className="rounded-2xl"
               spacing={1}
               type="single"
@@ -932,20 +950,20 @@ function StockCountStep({
             >
               {STOCK_VIEW_OPTIONS.map((option) => (
                 <ToggleGroupItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.labelKey)}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
           </div>
         </WorkspaceActionRow>
       }
-      descriptor={STOCK_UPDATE_STEP_COPY.stock.description}
+      descriptor={t(STOCK_UPDATE_STEP_COPY.stock.descriptionKey)}
       title={
         <SectionLabel
-          tooltip="Only changed stock rows and active row flags are saved; unchanged SKUs are left latent."
-          tooltipLabel="Stock count details"
+          tooltip={t('stockUpdateStockStepTooltip')}
+          tooltipLabel={t('stockUpdateStockStepTooltipLabel')}
         >
-          {STOCK_UPDATE_STEP_COPY.stock.title}
+          {t(STOCK_UPDATE_STEP_COPY.stock.titleKey)}
         </SectionLabel>
       }
     >
@@ -954,17 +972,17 @@ function StockCountStep({
         <HeaderedTable variant="framed">
           <div className={layout.containerClassName} style={layout.style}>
             <HeaderedTableHeader className={cn(layout.headerClassName, debugTrackClassName, debugFlushClassName)}>
-              <HeaderedTableHeaderCell>SKU / latest observation</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Units in stock</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Cost if changed</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>Retail price if changed</HeaderedTableHeaderCell>
-              {showFlagColumn ? <HeaderedTableHeaderCell>Flags</HeaderedTableHeaderCell> : null}
+              <HeaderedTableHeaderCell>{t('stockUpdateSkuLatestObservation')}</HeaderedTableHeaderCell>
+              <HeaderedTableHeaderCell>{t('stockUpdateUnitsInStock')}</HeaderedTableHeaderCell>
+              <HeaderedTableHeaderCell>{t('stockUpdateCostIfChanged')}</HeaderedTableHeaderCell>
+              <HeaderedTableHeaderCell>{t('stockUpdateRetailPriceIfChanged')}</HeaderedTableHeaderCell>
+              {showFlagColumn ? <HeaderedTableHeaderCell>{t('stockUpdateFlags')}</HeaderedTableHeaderCell> : null}
               <HeaderedTableHeaderCell align="right" className="pr-2 whitespace-nowrap">
                 <SectionLabel
-                  tooltip="Add interval events for this SKU, such as order placed, receipt arrived, or blocked availability."
-                  tooltipLabel="SKU flags details"
+                  tooltip={t('stockUpdateSkuFlagsTooltip')}
+                  tooltipLabel={t('stockUpdateSkuFlagsTooltipLabel')}
                 >
-                  Add flags
+                  {t('stockUpdateAddFlags')}
                 </SectionLabel>
               </HeaderedTableHeaderCell>
             </HeaderedTableHeader>
@@ -996,8 +1014,10 @@ function StockCountStep({
                               {row.skuId}
                             </span>
                             <span className="mt-1 block text-sm text-muted-foreground">
-                              Latest {latestStock?.unitsInStock ?? 0} units
-                              {latestCountedAt ? ` · counted ${formatSenaLongDate(latestCountedAt, 'en')}` : ' · never counted'}
+                              {t('stockUpdateLatestUnits', { count: latestStock?.unitsInStock ?? 0 })}
+                              {latestCountedAt
+                                ? ` · ${t('stockUpdateCountedOn', { date: formatSenaLongDate(latestCountedAt, 'en') })}`
+                                : ` · ${t('stockUpdateNeverCounted')}`}
                             </span>
                           </span>
                         }
@@ -1005,10 +1025,10 @@ function StockCountStep({
                     </div>
 
                     <div className="min-w-0">
-                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Units in stock</HeaderedTableMobileLabel>
+                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateUnitsInStock')}</HeaderedTableMobileLabel>
                       <div className="flex justify-start pr-3">
                         <Input
-                          aria-label="Units in stock"
+                          aria-label={t('stockUpdateUnitsInStock')}
                           className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                           min="0"
                           step="1"
@@ -1020,10 +1040,10 @@ function StockCountStep({
                     </div>
 
                     <div className="min-w-0">
-                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Cost if changed</HeaderedTableMobileLabel>
+                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateCostIfChanged')}</HeaderedTableMobileLabel>
                       <div className="flex justify-start pr-3">
                         <Input
-                          aria-label="Cost if changed"
+                          aria-label={t('stockUpdateCostIfChanged')}
                           className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                           min="0"
                           step={moneyInputStep(currency)}
@@ -1042,11 +1062,11 @@ function StockCountStep({
 
                     <div className="min-w-0">
                       <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>
-                        Retail price if changed
+                        {t('stockUpdateRetailPriceIfChanged')}
                       </HeaderedTableMobileLabel>
                       <div className="flex justify-start pr-3">
                         <Input
-                          aria-label="Retail price if changed"
+                          aria-label={t('stockUpdateRetailPriceIfChanged')}
                           className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                           disabled={!sku?.soldAsProduct}
                           min="0"
@@ -1066,13 +1086,13 @@ function StockCountStep({
 
                     {showFlagColumn ? (
                       <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Flags</HeaderedTableMobileLabel>
+                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateFlags')}</HeaderedTableMobileLabel>
                         {flagIds.length > 0 ? (
                           <div className="grid">
                             {draft.orderEnabled ? (
                               <FlagSection
-                                label="Order"
-                                removeLabel={`Remove order flag for ${sku?.name ?? row.skuId}`}
+                                label={t('stockUpdateOrderFlag')}
+                                removeLabel={t('stockUpdateRemoveOrderFlagFor', { name: sku?.name ?? row.skuId })}
                                 onRemove={() =>
                                   updateSkuSignalDraft(row.skuId, (current) => ({
                                     ...current,
@@ -1082,10 +1102,10 @@ function StockCountStep({
                                 }
                               >
                                 <Input
-                                  aria-label={`Ordered quantity for ${sku?.name ?? row.skuId}`}
+                                  aria-label={t('stockUpdateOrderedQuantityAria', { name: sku?.name ?? row.skuId })}
                                   className={flagControlClassName}
                                   min="0"
-                                  placeholder="Ordered quantity"
+                                  placeholder={t('stockUpdateOrderedQuantity')}
                                   step="1"
                                   type="number"
                                   value={draft.orderedQuantity}
@@ -1101,8 +1121,8 @@ function StockCountStep({
                             ) : null}
                             {draft.receiptEnabled ? (
                               <FlagSection
-                                label="Receipt"
-                                removeLabel={`Remove receipt flag for ${sku?.name ?? row.skuId}`}
+                                label={t('stockUpdateReceiptFlag')}
+                                removeLabel={t('stockUpdateRemoveReceiptFlagFor', { name: sku?.name ?? row.skuId })}
                                 onRemove={() =>
                                   updateSkuSignalDraft(row.skuId, (current) => ({
                                     ...current,
@@ -1112,10 +1132,10 @@ function StockCountStep({
                                 }
                               >
                                 <Input
-                                  aria-label={`Receipt quantity for ${sku?.name ?? row.skuId}`}
+                                  aria-label={t('stockUpdateReceiptQuantityAria', { name: sku?.name ?? row.skuId })}
                                   className={flagControlClassName}
                                   min="0"
-                                  placeholder="Received quantity"
+                                  placeholder={t('stockUpdateReceivedQuantity')}
                                   step="1"
                                   type="number"
                                   value={draft.receiptQuantity}
@@ -1131,8 +1151,8 @@ function StockCountStep({
                             ) : null}
                             {draft.blockedEnabled ? (
                               <FlagSection
-                                label="Event"
-                                removeLabel={`Remove event flag for ${sku?.name ?? row.skuId}`}
+                                label={t('stockUpdateEventFlag')}
+                                removeLabel={t('stockUpdateRemoveEventFlagFor', { name: sku?.name ?? row.skuId })}
                                 onRemove={() =>
                                   updateSkuSignalDraft(row.skuId, (current) => ({
                                     ...current,
@@ -1152,32 +1172,32 @@ function StockCountStep({
                                   }
                                 >
                                   <SelectTrigger
-                                    aria-label={`Blocked or stockout for ${sku?.name ?? row.skuId}`}
+                                    aria-label={t('stockUpdateBlockedStateAria', { name: sku?.name ?? row.skuId })}
                                     className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
                                   >
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="blocked">Blocked</SelectItem>
-                                    <SelectItem value="stockout">Stockout</SelectItem>
+                                    <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
+                                    <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </FlagSection>
                             ) : null}
                           </div>
                         ) : (
-                          <p className="text-sm text-muted-foreground">No row flags added.</p>
+                          <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
                         )}
                       </div>
                     ) : null}
 
                       <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Add flags</HeaderedTableMobileLabel>
+                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateAddFlags')}</HeaderedTableMobileLabel>
                       <FlagActionMenu
                         actions={[
                           {
                             key: 'ordered',
-                            label: draft?.orderEnabled ? 'Remove order' : 'Add order',
+                            label: draft?.orderEnabled ? t('stockUpdateRemoveOrder') : t('stockUpdateAddOrder'),
                             icon: <PackagePlus className="size-4" />,
                             onSelect: () =>
                               updateSkuSignalDraft(row.skuId, (current) => ({
@@ -1188,7 +1208,7 @@ function StockCountStep({
                           },
                           {
                             key: 'received',
-                            label: draft?.receiptEnabled ? 'Remove receipt' : 'Add receipt',
+                            label: draft?.receiptEnabled ? t('stockUpdateRemoveReceipt') : t('stockUpdateAddReceipt'),
                             icon: <Truck className="size-4" />,
                             onSelect: () =>
                               updateSkuSignalDraft(row.skuId, (current) => ({
@@ -1199,7 +1219,7 @@ function StockCountStep({
                           },
                           {
                             key: 'blocked',
-                            label: draft?.blockedEnabled ? 'Remove event' : 'Add event',
+                            label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
                             icon: <Ban className="size-4" />,
                             onSelect: () =>
                               updateSkuSignalDraft(row.skuId, (current) => ({
@@ -1209,7 +1229,7 @@ function StockCountStep({
                               })),
                           },
                         ]}
-                        label={`Add flags for ${sku?.name ?? row.skuId}`}
+                        label={t('stockUpdateAddFlagsFor', { name: sku?.name ?? row.skuId })}
                       />
                     </div>
                   </HeaderedTableRow>
@@ -1220,11 +1240,11 @@ function StockCountStep({
         </HeaderedTable>
         {visibleRows.length === 0 ? (
           <p className="rounded-[1.25rem] border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
-            No SKUs match this stock view yet.
+            {t('stockUpdateNoSkuMatches')}
           </p>
         ) : null}
         <p className="text-sm text-muted-foreground">
-          {includedRows.length} SKU row{includedRows.length === 1 ? '' : 's'} included in this update.
+          {t('stockUpdateSkuRowsIncluded', { count: includedRows.length, suffix: includedRows.length === 1 ? '' : 's' })}
         </p>
       </div>
     </WorkspacePanel>
@@ -1252,6 +1272,7 @@ function ServiceSignalsStep({
   updateServiceSignalDraft: (serviceId: string, updater: (draft: ServiceSignalDraft) => ServiceSignalDraft) => void;
   onToggleDebugCellBoundaries: () => void;
 }) {
+  const { t } = usePreferences();
   const showFlagColumn = anyServiceFlags(serviceSignalDrafts);
   const layout = showFlagColumn ? serviceSignalsTableLayoutWithFlags : serviceSignalsTableLayout;
   const debugTrackClassName = debugCellBoundaries ? tableDebugTrackClassName : '';
@@ -1271,13 +1292,13 @@ function ServiceSignalsStep({
           Cell boundaries
         </Button>
       }
-      descriptor={STOCK_UPDATE_STEP_COPY.service.description}
+      descriptor={t(STOCK_UPDATE_STEP_COPY.service.descriptionKey)}
       title={
         <SectionLabel
-          tooltip="Service signals apply to the service row, not to individual SKU stock counts."
-          tooltipLabel="Service signals details"
+          tooltip={t('stockUpdateServiceStepTooltip')}
+          tooltipLabel={t('stockUpdateServiceStepTooltipLabel')}
         >
-          {STOCK_UPDATE_STEP_COPY.service.title}
+          {t(STOCK_UPDATE_STEP_COPY.service.titleKey)}
         </SectionLabel>
       }
     >
@@ -1286,15 +1307,15 @@ function ServiceSignalsStep({
       <HeaderedTable variant="framed">
         <div className={layout.containerClassName} style={layout.style}>
           <HeaderedTableHeader className={cn(layout.headerClassName, debugTrackClassName, debugFlushClassName)}>
-            <HeaderedTableHeaderCell>Service</HeaderedTableHeaderCell>
-            <HeaderedTableHeaderCell align="center">Latest price</HeaderedTableHeaderCell>
-            {showFlagColumn ? <HeaderedTableHeaderCell>Flags</HeaderedTableHeaderCell> : null}
+            <HeaderedTableHeaderCell>{t('stockUpdateServiceHeader')}</HeaderedTableHeaderCell>
+            <HeaderedTableHeaderCell align="center">{t('stockUpdateLatestPrice')}</HeaderedTableHeaderCell>
+            {showFlagColumn ? <HeaderedTableHeaderCell>{t('stockUpdateFlags')}</HeaderedTableHeaderCell> : null}
             <HeaderedTableHeaderCell align="right" className="pr-2 whitespace-nowrap">
               <SectionLabel
-                tooltip="Add service-level price changes or blocks that affected sellability."
-                tooltipLabel="Service flags details"
+                tooltip={t('stockUpdateServiceFlagsTooltip')}
+                tooltipLabel={t('stockUpdateServiceFlagsTooltipLabel')}
               >
-                Add flags
+                {t('stockUpdateAddFlags')}
               </SectionLabel>
             </HeaderedTableHeaderCell>
           </HeaderedTableHeader>
@@ -1326,7 +1347,7 @@ function ServiceSignalsStep({
                             {service.serviceId}
                           </span>
                           <span className="mt-1 block text-sm text-muted-foreground">
-                            {linkedSkuCount} linked SKU{linkedSkuCount === 1 ? '' : 's'}
+                            {t('stockUpdateLinkedSkuCount', { count: linkedSkuCount, suffix: linkedSkuCount === 1 ? '' : 's' })}
                           </span>
                         </span>
                       }
@@ -1334,7 +1355,7 @@ function ServiceSignalsStep({
                   </div>
 
                   <div className="min-w-0">
-                    <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Latest price</HeaderedTableMobileLabel>
+                    <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateLatestPrice')}</HeaderedTableMobileLabel>
                     <p className="text-center text-sm font-medium text-foreground">
                       {formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
                     </p>
@@ -1342,13 +1363,13 @@ function ServiceSignalsStep({
 
                   {showFlagColumn ? (
                     <div className="min-w-0">
-                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Flags</HeaderedTableMobileLabel>
+                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateFlags')}</HeaderedTableMobileLabel>
                       {flagIds.length > 0 ? (
                         <div className="grid">
                           {draft.priceEnabled ? (
                             <FlagSection
-                              label="Price if changed"
-                              removeLabel={`Remove price flag for ${service.name}`}
+                              label={t('stockUpdatePriceIfChanged')}
+                              removeLabel={t('stockUpdateRemovePriceFlagFor', { name: service.name })}
                               onRemove={() =>
                                 updateServiceSignalDraft(service.serviceId, (current) => ({
                                   ...current,
@@ -1358,10 +1379,10 @@ function ServiceSignalsStep({
                               }
                             >
                                 <Input
-                                  aria-label={`Price if changed for ${service.name}`}
+                                  aria-label={t('stockUpdatePriceChangedAria', { name: service.name })}
                                   className={flagControlClassName}
                                   min="0"
-                                  placeholder="New price"
+                                  placeholder={t('stockUpdateNewPrice')}
                                   step={moneyInputStep(currency)}
                                   type="number"
                                   value={draft.price}
@@ -1377,8 +1398,8 @@ function ServiceSignalsStep({
                           ) : null}
                           {draft.blockedEnabled ? (
                             <FlagSection
-                              label="Event"
-                              removeLabel={`Remove event flag for ${service.name}`}
+                              label={t('stockUpdateEventFlag')}
+                              removeLabel={t('stockUpdateRemoveEventFlagFor', { name: service.name })}
                               onRemove={() =>
                                 updateServiceSignalDraft(service.serviceId, (current) => ({
                                   ...current,
@@ -1398,32 +1419,32 @@ function ServiceSignalsStep({
                                 }
                               >
                                 <SelectTrigger
-                                  aria-label={`Blocked or stockout for ${service.name}`}
+                                  aria-label={t('stockUpdateBlockedStateAria', { name: service.name })}
                                   className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
                                 >
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="blocked">Blocked</SelectItem>
-                                  <SelectItem value="stockout">Stockout</SelectItem>
+                                  <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
+                                  <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
                                 </SelectContent>
                               </Select>
                             </FlagSection>
                           ) : null}
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground">No row flags added.</p>
+                        <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
                       )}
                     </div>
                   ) : null}
 
                   <div className="min-w-0">
-                    <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Add flags</HeaderedTableMobileLabel>
+                    <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateAddFlags')}</HeaderedTableMobileLabel>
                     <FlagActionMenu
                       actions={[
                         {
                           key: 'price',
-                          label: draft?.priceEnabled ? 'Remove price change' : 'Add price change',
+                          label: draft?.priceEnabled ? t('stockUpdateRemovePriceChange') : t('stockUpdateAddPriceChange'),
                           icon: <PackagePlus className="size-4" />,
                           onSelect: () =>
                             updateServiceSignalDraft(service.serviceId, (current) => ({
@@ -1434,7 +1455,7 @@ function ServiceSignalsStep({
                         },
                         {
                           key: 'blocked',
-                          label: draft?.blockedEnabled ? 'Remove event' : 'Add event',
+                          label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
                           icon: <Ban className="size-4" />,
                           onSelect: () =>
                             updateServiceSignalDraft(service.serviceId, (current) => ({
@@ -1444,7 +1465,7 @@ function ServiceSignalsStep({
                             })),
                         },
                       ]}
-                      label={`Add flags for ${service.name}`}
+                      label={t('stockUpdateAddFlagsFor', { name: service.name })}
                     />
                   </div>
                 </HeaderedTableRow>
@@ -1458,16 +1479,6 @@ function ServiceSignalsStep({
   );
 }
 
-const REGIME_OPTIONS: Array<{ value: SenaObservationRegimeHint; label: string; detail: string }> = [
-  { value: 'normal', label: 'Normal regime', detail: 'Baseline interval with no strong distortion signal.' },
-  { value: 'spike', label: 'Spike regime', detail: 'Demand lifted sharply beyond a normal window.' },
-  { value: 'lull', label: 'Lull regime', detail: 'Demand softened materially during this interval.' },
-  { value: 'stockout_constrained', label: 'Stockout constrained regime', detail: 'Observed movement was capped by limited availability.' },
-  { value: 'promo', label: 'Promo regime', detail: 'Promotional pressure or campaign behavior shaped the interval.' },
-  { value: 'correction', label: 'Correction regime', detail: 'Bookkeeping or cleanup behavior dominated the signal.' },
-];
-const REGIME_SCOPE_HELP_TEXT = 'Regime stays observation-level and applies to the full update package.';
-
 function RegimeFields({
   regimeHint,
   setRegimeHint,
@@ -1475,28 +1486,37 @@ function RegimeFields({
   regimeHint: SenaObservationRegimeHint | '';
   setRegimeHint: (value: SenaObservationRegimeHint | '') => void;
 }) {
-  const selectedRegime = REGIME_OPTIONS.find((option) => option.value === regimeHint) ?? null;
+  const { t } = usePreferences();
+  const regimeOptions: Array<{ value: SenaObservationRegimeHint; label: string; detail: string }> = [
+    { value: 'normal', label: t('stockUpdateRegimeNormal'), detail: t('stockUpdateRegimeNormalDetail') },
+    { value: 'spike', label: t('stockUpdateRegimeSpike'), detail: t('stockUpdateRegimeSpikeDetail') },
+    { value: 'lull', label: t('stockUpdateRegimeLull'), detail: t('stockUpdateRegimeLullDetail') },
+    { value: 'stockout_constrained', label: t('stockUpdateRegimeStockout'), detail: t('stockUpdateRegimeStockoutDetail') },
+    { value: 'promo', label: t('stockUpdateRegimePromo'), detail: t('stockUpdateRegimePromoDetail') },
+    { value: 'correction', label: t('stockUpdateRegimeCorrection'), detail: t('stockUpdateRegimeCorrectionDetail') },
+  ];
+  const selectedRegime = regimeOptions.find((option) => option.value === regimeHint) ?? null;
   const SelectedIcon = regimeIconFor(selectedRegime?.value ?? 'normal');
-  const regimeDescription = selectedRegime?.detail ?? 'Leave this empty when the interval does not need a single dominant regime explanation.';
+  const regimeDescription = selectedRegime?.detail ?? t('stockUpdateRegimeDescriptionEmpty');
 
   return (
     <div className="grid gap-2">
       <label className="grid gap-1 text-sm font-medium text-foreground">
         <span className="inline-flex items-baseline gap-1.5">
-          <span>Overall regime</span>
-          <span className="font-normal text-muted-foreground">(optional)</span>
-          <HelpTooltip content={REGIME_SCOPE_HELP_TEXT} label="Overall regime" className="self-center" />
+          <span>{t('stockUpdateOverallRegime')}</span>
+          <span className="font-normal text-muted-foreground">{t('stockUpdateOptional')}</span>
+          <HelpTooltip content={t('stockUpdateRegimeHelp')} label={t('stockUpdateOverallRegime')} className="self-center" />
         </span>
         <Select value={regimeHint || 'none'} onValueChange={(value) => setRegimeHint(value === 'none' ? '' : (value as SenaObservationRegimeHint))}>
           <SelectTrigger
-            aria-label="Overall regime optional"
+            aria-label={`${t('stockUpdateOverallRegime')} ${t('stockUpdateOptional')}`}
             className={cn('w-full', recordUpdateSelectTriggerClassName)}
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">No regime signal</SelectItem>
-            {REGIME_OPTIONS.map((option) => {
+            <SelectItem value="none">{t('stockUpdateNoRegimeSignal')}</SelectItem>
+            {regimeOptions.map((option) => {
               const Icon = regimeIconFor(option.value);
               return (
                 <SelectItem key={option.value} value={option.value}>
@@ -1537,15 +1557,16 @@ function ReviewStep({
   skuSignalDrafts: Record<string, SkuSignalDraft>;
   payload: ReturnType<typeof createEmptyObservationInput>;
 }) {
+  const { t } = usePreferences();
   return (
     <WorkspacePanel
-      descriptor={STOCK_UPDATE_STEP_COPY.review.description}
+      descriptor={t(STOCK_UPDATE_STEP_COPY.review.descriptionKey)}
       title={
         <SectionLabel
-          tooltip="Banji saves only changed rows and active signals, then refreshes SENA surfaces."
-          tooltipLabel="Save summary details"
+          tooltip={t('stockUpdateReviewTooltip')}
+          tooltipLabel={t('stockUpdateReviewTooltipLabel')}
         >
-          {STOCK_UPDATE_STEP_COPY.review.title}
+          {t(STOCK_UPDATE_STEP_COPY.review.titleKey)}
         </SectionLabel>
       }
     >
@@ -1561,10 +1582,10 @@ function ReviewStep({
         ) : null}
         <div className="rounded-[1.25rem] border border-border/70 bg-secondary/25 px-4 py-4">
           <p className="font-medium text-foreground">
-            {previewParts.length > 0 ? previewParts.join(' · ') : 'No structured signals yet'}
+            {previewParts.length > 0 ? previewParts.join(' · ') : t('stockUpdateNoStructuredSignals')}
           </p>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Banji will refresh stock and sellability, update Overview tasks, refresh Performance moves, and add evidence to Analysis.
+            {t('stockUpdateReviewBody')}
           </p>
         </div>
         {payload.retailStockouts.length > 0 || payload.serviceStockouts.length > 0 || payload.servicePrices.length > 0 ? (
@@ -1572,14 +1593,21 @@ function ReviewStep({
             {[
               ...payload.servicePrices.map(
                 (event) =>
-                  `Price: ${catalog?.services.find((service) => service.serviceId === event.serviceId)?.name ?? event.serviceId}`,
+                  t('stockUpdatePriceBadge', {
+                    name: catalog?.services.find((service) => service.serviceId === event.serviceId)?.name ?? event.serviceId,
+                  }),
               ),
               ...payload.retailStockouts.map(
-                (skuId) => `Stockout: ${catalog?.skus.find((sku) => sku.skuId === skuId)?.name ?? skuId}`,
+                (skuId) =>
+                  t('stockUpdateStockoutBadge', {
+                    name: catalog?.skus.find((sku) => sku.skuId === skuId)?.name ?? skuId,
+                  }),
               ),
               ...payload.serviceStockouts.map(
                 (serviceId) =>
-                  `Stockout: ${catalog?.services.find((service) => service.serviceId === serviceId)?.name ?? serviceId}`,
+                  t('stockUpdateStockoutBadge', {
+                    name: catalog?.services.find((service) => service.serviceId === serviceId)?.name ?? serviceId,
+                  }),
               ),
             ].map((label) => (
               <span key={label} className="rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-muted-foreground">
@@ -1589,10 +1617,10 @@ function ReviewStep({
           </div>
         ) : null}
         {Object.values(skuSignalDrafts).some((draft) => draft.orderEnabled || draft.receiptEnabled) ? (
-          <p className="text-sm text-muted-foreground">Ordered and receipt quantities will be saved as interval order signals.</p>
+          <p className="text-sm text-muted-foreground">{t('stockUpdateOrderSignalSaved')}</p>
         ) : null}
         {Object.values(serviceSignalDrafts).some((draft) => draft.priceEnabled) ? (
-          <p className="text-sm text-muted-foreground">Service prices are saved only for rows whose new price differs from the latest catalog value.</p>
+          <p className="text-sm text-muted-foreground">{t('stockUpdateServicePriceSaved')}</p>
         ) : null}
         {error ? (
           <p className="rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -1606,7 +1634,7 @@ function ReviewStep({
 
 export function StockUpdateSessionRoute() {
   const { catalog, ingestSenaObservation, isSaving, observations, triggerSenaRun, workspaceSummary } = useInventory();
-  const { currency, language, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const latestAt = latestObservationAt(observations);
   const initialObservedAtRef = useRef(localDateTimeInputValue(null));
   const draftHydrationCheckedRef = useRef(false);
@@ -1883,37 +1911,37 @@ export function StockUpdateSessionRoute() {
   const stepStates = [
     {
       id: 'stock',
-      title: STOCK_UPDATE_STEP_COPY.stock.title,
+      title: t(STOCK_UPDATE_STEP_COPY.stock.titleKey),
       description:
         skuFlagCount > 0
-          ? `${skuFlagCount} flag${skuFlagCount === 1 ? '' : 's'} added`
+          ? t('stockUpdateStepSignalsAdded', { count: skuFlagCount, suffix: skuFlagCount === 1 ? '' : 's' })
           : isFirstObservation
-            ? 'Count at least one SKU'
-            : 'Optional on later updates',
+            ? t('stockUpdateStepCountAtLeastOneSku')
+            : t('stockUpdateStepOptionalLater'),
       complete: stockStepSatisfied && skuFlagsValid,
     },
     {
       id: 'service',
-      title: STOCK_UPDATE_STEP_COPY.service.title,
-      description: serviceFlagCount > 0 ? `${serviceFlagCount} flag${serviceFlagCount === 1 ? '' : 's'} added` : 'Optional',
+      title: t(STOCK_UPDATE_STEP_COPY.service.titleKey),
+      description: serviceFlagCount > 0 ? t('stockUpdateStepSignalsAdded', { count: serviceFlagCount, suffix: serviceFlagCount === 1 ? '' : 's' }) : t('stockUpdateStepOptional'),
       complete: (serviceFlagCount > 0 && serviceFlagsValid) || currentStepIndex > 1,
     },
     {
       id: 'rankings',
-      title: STOCK_UPDATE_STEP_COPY.rankings.title,
-      description: rankingSignalCount > 0 ? `${rankingSignalCount} ranking${rankingSignalCount === 1 ? '' : 's'} added` : 'Optional',
+      title: t(STOCK_UPDATE_STEP_COPY.rankings.titleKey),
+      description: rankingSignalCount > 0 ? t('stockUpdateStepSignalsAdded', { count: rankingSignalCount, suffix: rankingSignalCount === 1 ? '' : 's' }) : t('stockUpdateStepOptional'),
       complete: rankingSignalCount > 0 || currentStepIndex > 2,
     },
     {
       id: 'context',
-      title: STOCK_UPDATE_STEP_COPY.context.title,
-      description: regimeHint ? `Regime: ${regimeHint.replaceAll('_', ' ')}` : 'Observed at, notes, regime',
+      title: t(STOCK_UPDATE_STEP_COPY.context.titleKey),
+      description: regimeHint ? t('stockUpdateStepRegimeSummary', { value: regimeHint.replaceAll('_', ' ') }) : t('stockUpdateStepContextSummary'),
       complete: Boolean(observedAtIso),
     },
     {
       id: 'review',
-      title: STOCK_UPDATE_STEP_COPY.review.title,
-      description: submitDisabled ? 'Not ready yet' : 'Ready to save',
+      title: t(STOCK_UPDATE_STEP_COPY.review.titleKey),
+      description: submitDisabled ? t('stockUpdateStepNotReady') : t('stockUpdateStepReadyToSave'),
       complete: !submitDisabled,
     },
   ] satisfies Array<{ id: StockUpdateStepId; title: string; description: string; complete: boolean }>;
@@ -1929,31 +1957,31 @@ export function StockUpdateSessionRoute() {
 
   const stepGuidance =
     currentStepId === 'context' && !observedAtIso
-      ? 'Choose a valid observed-at time before continuing.'
+      ? t('stockUpdateGuidanceChooseObservedAt')
       : currentStepId === 'stock' && !stockStepSatisfied
-        ? 'Count at least one SKU before continuing so Banji can anchor the first update.'
+        ? t('stockUpdateGuidanceCountOneSku')
         : currentStepId === 'stock' && !skuFlagsValid
-          ? 'Fill in every enabled SKU flag value or remove the empty flag before continuing.'
+          ? t('stockUpdateGuidanceFillSkuFlags')
           : currentStepId === 'service' && !serviceFlagsValid
-            ? 'Fill in every enabled service flag value or remove the empty flag before continuing.'
+            ? t('stockUpdateGuidanceFillServiceFlags')
         : currentStepId === 'review' && !skuFlagsValid
-            ? 'Fill in every enabled SKU flag value or remove the empty flag before saving.'
+            ? t('stockUpdateGuidanceFillSkuFlagsSave')
             : currentStepId === 'review' && !serviceFlagsValid
-              ? 'Fill in every enabled service flag value or remove the empty flag before saving.'
+              ? t('stockUpdateGuidanceFillServiceFlagsSave')
               : currentStepId === 'review' && !hasStructuredObservationSignal(previewPayload)
-                ? 'Add at least one stock count, row flag, regime, or ranking signal before saving.'
+                ? t('stockUpdateGuidanceAddSignal')
           : currentStepId === 'review' && isFirstObservation && previewPayload.stockSnapshot.length === 0
-            ? 'The first update must include at least one counted SKU so Banji can anchor inventory.'
+            ? t('stockUpdateGuidanceFirstUpdateNeedsCount')
             : null;
 
   const reviewBlockers = [
-    ...(!skuFlagsValid ? ['Fill in every enabled SKU flag value or remove the empty flag before saving.'] : []),
-    ...(!serviceFlagsValid ? ['Fill in every enabled service flag value or remove the empty flag before saving.'] : []),
+    ...(!skuFlagsValid ? [t('stockUpdateGuidanceFillSkuFlagsSave')] : []),
+    ...(!serviceFlagsValid ? [t('stockUpdateGuidanceFillServiceFlagsSave')] : []),
     ...(!hasStructuredObservationSignal(previewPayload)
-      ? ['Add at least one stock count, row flag, regime, or ranking signal before saving.']
+      ? [t('stockUpdateGuidanceAddSignal')]
       : []),
     ...(isFirstObservation && previewPayload.stockSnapshot.length === 0
-      ? ['The first update must include at least one counted SKU so Banji can anchor inventory.']
+      ? [t('stockUpdateGuidanceFirstUpdateNeedsCount')]
       : []),
   ];
 
@@ -2009,24 +2037,24 @@ export function StockUpdateSessionRoute() {
     event.preventDefault();
     setError(null);
     if (!observedAtIso) {
-      setError('Choose a valid observed-at time before saving.');
+      setError(t('stockUpdateSaveObservedAtError'));
       return;
     }
     const payload = buildPayload();
     if (!skuFlagsValid) {
-      setError('Fill in every enabled SKU flag value or remove the empty flag before saving.');
+      setError(t('stockUpdateGuidanceFillSkuFlagsSave'));
       return;
     }
     if (!serviceFlagsValid) {
-      setError('Fill in every enabled service flag value or remove the empty flag before saving.');
+      setError(t('stockUpdateGuidanceFillServiceFlagsSave'));
       return;
     }
     if (!hasStructuredObservationSignal(payload)) {
-      setError('Add at least one stock count, row flag, regime, or ranking signal before saving.');
+      setError(t('stockUpdateGuidanceAddSignal'));
       return;
     }
     if (isFirstObservation && payload.stockSnapshot.length === 0) {
-      setError('The first update must include at least one counted SKU so Banji can anchor inventory.');
+      setError(t('stockUpdateGuidanceFirstUpdateNeedsCount'));
       return;
     }
     try {
@@ -2038,13 +2066,13 @@ export function StockUpdateSessionRoute() {
       setDraftWasRestored(false);
       resetRecordUpdateState();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Banji could not save this update. Try again.');
+      setError(nextError instanceof Error ? nextError.message : t('stockUpdateSaveFailed'));
     }
   }
 
   const canDiscardChanges = hasMeaningfulChanges || hasSavedDraft || draftWasRestored;
   const discardChangesDescription =
-    'This clears the saved draft and resets the record update form. This cannot be undone.';
+    t('stockSessionDiscardDescription');
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: canDiscardChanges,
     description: discardChangesDescription,
@@ -2056,11 +2084,11 @@ export function StockUpdateSessionRoute() {
     onDiscard: handleDiscardChanges,
   });
   const draftStatusLabel = draftWasRestored
-    ? 'Draft resumed'
+    ? t('stockSessionDraftResumed')
     : hasMeaningfulChanges
-      ? 'Draft will save on exit'
+      ? t('stockSessionDraftWillSaveOnExit')
       : hasSavedDraft
-        ? 'Draft available'
+        ? t('stockSessionDraftAvailable')
         : null;
 
   const navigationActions = (
@@ -2068,17 +2096,17 @@ export function StockUpdateSessionRoute() {
       {currentStepIndex > 0 ? (
         <Button type="button" variant="outline" onClick={goToPreviousStep}>
           <ChevronLeft className="size-4" />
-          Back
+          {t('stockSessionBack')}
         </Button>
       ) : null}
       {isLastStep ? (
         <Button disabled={submitDisabled} form="stock-update-session-form" type="submit">
           <Save className="size-4" />
-          {isSaving ? 'Saving…' : 'Save update'}
+          {isSaving ? t('catalogSenaSkuSaving') : t('stockDone')}
         </Button>
       ) : (
         <Button disabled={!canContinueCurrentStep} type="button" onClick={goToNextStep}>
-          Next
+          {t('stockSessionNext')}
           <ChevronRight className="size-4" />
         </Button>
       )}
@@ -2090,13 +2118,13 @@ export function StockUpdateSessionRoute() {
       {draftStatusLabel ? <span className="px-1 text-sm text-muted-foreground">{draftStatusLabel}</span> : null}
       <Button
         disabled={!canDiscardChanges}
-        title={canDiscardChanges ? undefined : 'No changes to discard'}
+        title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
         type="button"
         variant="ghost"
         onClick={() => requestDiscard()}
       >
         <Trash2 className="size-4" />
-        Discard changes
+        {t('stockUpdateDiscardChanges')}
       </Button>
       {navigationActions}
     </WorkspaceActionRow>
@@ -2105,18 +2133,18 @@ export function StockUpdateSessionRoute() {
   const summaryRibbonItems = [
     {
       key: 'latest-update',
-      label: 'Last confirmed update',
-      value: latestAt ? formatSenaLongDate(latestAt, 'en') : 'No prior update',
+      label: t('stockUpdateSummaryLastConfirmed'),
+      value: latestAt ? formatSenaLongDate(latestAt, 'en') : t('stockUpdateSummaryNoPriorUpdate'),
     },
     {
       key: 'interval-length',
-      label: 'Interval length',
-      value: intervalDays == null ? 'First interval' : `${intervalDays} days`,
+      label: t('stockUpdateSummaryIntervalLength'),
+      value: intervalDays == null ? t('stockUpdateSummaryFirstInterval') : t('stockUpdateSummaryIntervalDays', { days: intervalDays }),
     },
     {
       key: 'coverage',
-      label: 'Untouched SKUs stay latent',
-      value: fullUpdate ? 'Full update' : 'Partial update',
+      label: t('stockUpdateSummaryUntouchedSkus'),
+      value: fullUpdate ? t('stockUpdateSummaryFullUpdate') : t('stockUpdateSummaryPartialUpdate'),
     },
   ];
 
@@ -2129,11 +2157,17 @@ export function StockUpdateSessionRoute() {
         floatingActions={<WorkspaceActionRow>{navigationActions}</WorkspaceActionRow>}
         descriptor={
           latestAt
-            ? `Covers changes since ${formatSenaDateTime(latestAt, 'en')}${intervalDays == null ? '' : ` · ${intervalDays}-day interval`}.`
-            : 'Start Banji with one counted SKU, then future updates can stay sparse.'
+            ? t('stockUpdateDescriptorWithHistory', {
+                date: formatSenaDateTime(latestAt, language),
+                suffix:
+                  intervalDays == null
+                    ? ''
+                    : t('stockUpdateDescriptorIntervalSuffix', { days: intervalDays }),
+              })
+            : t('stockUpdateDescriptorFirst')
         }
-        eyebrow="Operations"
-        title="Record update"
+        eyebrow={t('stockUpdateEyebrow')}
+        title={t('stockUpdateTitle')}
       >
         <div className="grid gap-5">
           <StepWizard
@@ -2151,22 +2185,22 @@ export function StockUpdateSessionRoute() {
       <form id="stock-update-session-form" className="grid gap-6" onSubmit={(event) => void handleSubmit(event)}>
         {currentStepId === 'context' ? (
           <WorkspacePanel
-            descriptor={STOCK_UPDATE_STEP_COPY.context.description}
+            descriptor={t(STOCK_UPDATE_STEP_COPY.context.descriptionKey)}
             footer={
               stepGuidance ? (
                 <p className="text-sm text-muted-foreground">{stepGuidance}</p>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Leave regime empty when the interval does not need one dominant explanation.
+                  {t('stockUpdateContextFooterEmpty')}
                 </p>
               )
             }
             title={
               <SectionLabel
-                tooltip="Set the observation timestamp, add optional notes, and choose an optional regime for the full update package."
-                tooltipLabel="Record interval details"
+                tooltip={t('stockUpdateContextTooltip')}
+                tooltipLabel={t('stockUpdateContextTooltipLabel')}
               >
-                {STOCK_UPDATE_STEP_COPY.context.title}
+                {t(STOCK_UPDATE_STEP_COPY.context.titleKey)}
               </SectionLabel>
             }
           >
@@ -2174,10 +2208,10 @@ export function StockUpdateSessionRoute() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
                 <label className="grid gap-2 text-sm font-medium text-foreground">
                   <FieldHelpLabel
-                    label="Observed at"
-                    tooltip="This timestamp anchors the interval since the last confirmed update."
+                    label={t('stockUpdateObservedAt')}
+                    tooltip={t('stockUpdateObservedAtTooltip')}
                   >
-                    Observed at
+                    {t('stockUpdateObservedAt')}
                   </FieldHelpLabel>
                   <Input
                     required
@@ -2186,19 +2220,19 @@ export function StockUpdateSessionRoute() {
                     onChange={(event) => setObservedAt(event.target.value)}
                   />
                   <span className="text-xs font-normal leading-5 text-muted-foreground">
-                    Start defaults to the last saved update; edit only the update end time here.
+                    {t('stockUpdateObservedAtHelp')}
                   </span>
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-foreground">
                   <FieldHelpLabel
-                    label="Notes"
-                    tooltip="Use notes for human context. Add structured signals when the model should learn from the change."
+                    label={t('stockReportNotes')}
+                    tooltip={t('stockUpdateNotesTooltip')}
                   >
-                    Notes
+                    {t('stockReportNotes')}
                   </FieldHelpLabel>
                   <Textarea className="min-h-24" value={notes} onChange={(event) => setNotes(event.target.value)} />
                   <span className="text-xs font-normal leading-5 text-muted-foreground">
-                    Notes explain the update, but they do not count as a model signal by themselves.
+                    {t('stockUpdateNotesHelp')}
                   </span>
                 </label>
               </div>
@@ -2243,13 +2277,13 @@ export function StockUpdateSessionRoute() {
 
         {currentStepId === 'rankings' ? (
           <WorkspacePanel
-            descriptor={STOCK_UPDATE_STEP_COPY.rankings.description}
+            descriptor={t(STOCK_UPDATE_STEP_COPY.rankings.descriptionKey)}
             title={
               <SectionLabel
-                tooltip="Rankings are sellability evidence. Leave them unchanged if the selling order did not meaningfully change."
-                tooltipLabel="Ranking details"
+                tooltip={t('stockUpdateRankingsTooltip')}
+                tooltipLabel={t('stockUpdateRankingsTooltipLabel')}
               >
-                {STOCK_UPDATE_STEP_COPY.rankings.title}
+                {t(STOCK_UPDATE_STEP_COPY.rankings.titleKey)}
               </SectionLabel>
             }
           >
@@ -2257,7 +2291,7 @@ export function StockUpdateSessionRoute() {
               <RankingSignalEditor
                 catalog={catalog}
                 entryType="service"
-                label="Top services this interval"
+                label={t('stockUpdateTopServicesLabel')}
                 seedValues={defaultServiceRankingIds}
                 values={serviceRankings}
                 onChange={setServiceRankings}
@@ -2265,7 +2299,7 @@ export function StockUpdateSessionRoute() {
               <RankingSignalEditor
                 catalog={catalog}
                 entryType="sku"
-                label="Top retail items this interval"
+                label={t('stockUpdateTopRetailItemsLabel')}
                 seedValues={defaultRetailRankingIds}
                 values={retailRankings}
                 onChange={setRetailRankings}

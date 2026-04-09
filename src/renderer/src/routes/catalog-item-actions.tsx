@@ -48,6 +48,8 @@ export type ServiceActionMode = 'stock' | 'receipt' | 'price';
 export interface SkuMutationActionsProps {
   actionContext: SenaSkuDetailViewModel['actionContext'];
   skuId: string;
+  mode?: SkuActionMode | null;
+  onModeChange?: (mode: SkuActionMode | null) => void;
   onComplete: () => Promise<void>;
   onActionStart?: (mode: SkuActionMode) => void;
   showEditButton?: boolean;
@@ -57,6 +59,8 @@ export interface SkuMutationActionsProps {
 
 export interface ServiceMutationActionsProps {
   actions: ServiceDetailViewModel['actions'];
+  mode?: ServiceActionMode | null;
+  onModeChange?: (mode: ServiceActionMode | null) => void;
   onComplete: () => Promise<void>;
   onActionStart?: (mode: ServiceActionMode) => void;
   showEditButton?: boolean;
@@ -182,9 +186,29 @@ function parseMoneyDraft(value: string, currency: 'USD' | 'KHR', usdToKhrExchang
   return usdMoneyFromDisplay(Number(value), currency, usdToKhrExchangeRate);
 }
 
+function useControllableMode<TMode extends string>(
+  controlledMode: TMode | null | undefined,
+  onModeChange: ((mode: TMode | null) => void) | undefined,
+) {
+  const [uncontrolledMode, setUncontrolledMode] = useState<TMode | null>(null);
+  const isControlled = controlledMode !== undefined;
+  const mode = isControlled ? controlledMode ?? null : uncontrolledMode;
+
+  function setMode(nextMode: TMode | null) {
+    if (!isControlled) {
+      setUncontrolledMode(nextMode);
+    }
+    onModeChange?.(nextMode);
+  }
+
+  return [mode, setMode] as const;
+}
+
 export function SkuMutationActions({
   actionContext,
   skuId,
+  mode: controlledMode,
+  onModeChange,
   onComplete,
   onActionStart,
   showEditButton = true,
@@ -193,7 +217,7 @@ export function SkuMutationActions({
 }: SkuMutationActionsProps) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
   const { currency, t, usdToKhrExchangeRate } = usePreferences();
-  const [mode, setMode] = useState<SkuActionMode | null>(null);
+  const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actionContext.latestObservationAt));
   const [notes, setNotes] = useState('');
   const [unitsInStock, setUnitsInStock] = useState(String(Math.round(actionContext.currentStock)));
@@ -423,7 +447,7 @@ export function SkuMutationActions({
     JSON.stringify(skuActionDraftSnapshot(mode)) !== JSON.stringify(skuActionBaselineSnapshot(mode));
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: hasUnsavedSheetChanges,
-    description: 'You have unsaved action changes. Close this panel and discard the current draft?',
+    description: t('sheetUnsavedLeavePrompt'),
     onDiscard: () => setError(null),
   });
 
@@ -655,6 +679,8 @@ export function SkuMutationActions({
 
 export function ServiceMutationActions({
   actions,
+  mode: controlledMode,
+  onModeChange,
   onComplete,
   onActionStart,
   showEditButton = true,
@@ -664,7 +690,7 @@ export function ServiceMutationActions({
 }: ServiceMutationActionsProps) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
   const { currency, t, usdToKhrExchangeRate } = usePreferences();
-  const [mode, setMode] = useState<ServiceActionMode | null>(null);
+  const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actions.latestObservedAt));
   const [notes, setNotes] = useState('');
   const [unitsInStock, setUnitsInStock] = useState(
@@ -886,7 +912,7 @@ export function ServiceMutationActions({
     JSON.stringify(serviceActionDraftSnapshot(mode)) !== JSON.stringify(serviceActionBaselineSnapshot(mode));
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: hasUnsavedSheetChanges,
-    description: 'You have unsaved action changes. Close this panel and discard the current draft?',
+    description: t('sheetUnsavedLeavePrompt'),
     onDiscard: () => setError(null),
   });
 

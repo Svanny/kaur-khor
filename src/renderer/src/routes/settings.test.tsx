@@ -76,7 +76,7 @@ describe('SettingsRoute', () => {
     expect(await screen.findByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('Desktop preferences')).toBeInTheDocument();
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show optional help/i });
+    const checkbox = await screen.findByRole('checkbox', { name: /show extra guidance/i });
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -176,9 +176,9 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('Preferences controls')).toBeInTheDocument();
-    expect(screen.getByText('SENA engine parameters')).toBeInTheDocument();
-    expect(screen.getByText('Local workspace storage')).toBeInTheDocument();
+    expect(await screen.findByText('Workspace preferences')).toBeInTheDocument();
+    expect(screen.getByText('Planning detail settings')).toBeInTheDocument();
+    expect(screen.getByText('Local workspace data')).toBeInTheDocument();
     expect(screen.getByText('Credits')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /export logs: csv/i })).toHaveTextContent(
       'Export Logs: CSV',
@@ -187,9 +187,9 @@ describe('SettingsRoute', () => {
     expect(screen.getByRole('button', { name: /export sena data: csv/i })).toHaveTextContent(
       'Export SENA data: CSV',
     );
-    expect(screen.getByRole('combobox', { name: /export sena data format/i })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /choose planning data format/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/analysis profile/i)).not.toBeInTheDocument();
-    const particleInput = screen.getByLabelText(/particle count/i);
+    const particleInput = screen.getByLabelText(/analysis sample count/i);
     expect(particleInput).toHaveDisplayValue('256');
 
     fireEvent.change(particleInput, { target: { value: '384' } });
@@ -221,11 +221,11 @@ describe('SettingsRoute', () => {
     });
 
     const pageText = document.body.textContent ?? '';
-    expect(pageText.indexOf('Preferences controls')).toBeLessThan(
-      pageText.indexOf('SENA engine parameters'),
+    expect(pageText.indexOf('Workspace preferences')).toBeLessThan(
+      pageText.indexOf('Planning detail settings'),
     );
-    expect(pageText.indexOf('SENA engine parameters')).toBeLessThan(
-      pageText.indexOf('Local workspace storage'),
+    expect(pageText.indexOf('Planning detail settings')).toBeLessThan(
+      pageText.indexOf('Local workspace data'),
     );
 
     fireEvent.click(screen.getByRole('button', { name: /expand credits/i }));
@@ -251,7 +251,7 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const recommendationQuantileInput = await screen.findByLabelText(/recommendation quantile/i);
+    const recommendationQuantileInput = await screen.findByLabelText(/recommended order level/i);
     expect(recommendationQuantileInput).toHaveDisplayValue('0.7');
 
     fireEvent.change(recommendationQuantileInput, { target: { value: '0.' } });
@@ -287,7 +287,7 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const particleInput = await screen.findByLabelText(/particle count/i);
+    const particleInput = await screen.findByLabelText(/analysis sample count/i);
     fireEvent.change(particleInput, { target: { value: '5000' } });
 
     expect(particleInput).toHaveDisplayValue('5000');
@@ -314,9 +314,9 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const rangeLowInput = await screen.findByLabelText(/range low quantile/i);
-    const rangeHighInput = screen.getByLabelText(/range high quantile/i);
-    const recommendationInput = screen.getByLabelText(/recommendation quantile/i);
+    const rangeLowInput = await screen.findByLabelText(/suggested range start/i);
+    const rangeHighInput = screen.getByLabelText(/suggested range end/i);
+    const recommendationInput = screen.getByLabelText(/recommended order level/i);
 
     fireEvent.change(rangeLowInput, { target: { value: '0.95' } });
     fireEvent.change(rangeHighInput, { target: { value: '0.9' } });
@@ -346,9 +346,9 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const recommendationInput = await screen.findByLabelText(/recommendation quantile/i);
-    const rangeLowInput = screen.getByLabelText(/range low quantile/i);
-    const rangeHighInput = screen.getByLabelText(/range high quantile/i);
+    const recommendationInput = await screen.findByLabelText(/recommended order level/i);
+    const rangeLowInput = screen.getByLabelText(/suggested range start/i);
+    const rangeHighInput = screen.getByLabelText(/suggested range end/i);
 
     fireEvent.change(rangeLowInput, { target: { value: '0.8' } });
     fireEvent.change(rangeHighInput, { target: { value: '0.9' } });
@@ -386,7 +386,7 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show optional help/i });
+    const checkbox = await screen.findByRole('checkbox', { name: /show extra guidance/i });
     fireEvent.click(checkbox);
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
 

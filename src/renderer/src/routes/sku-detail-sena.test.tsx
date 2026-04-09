@@ -685,7 +685,7 @@ describe('SKU detail SENA helpers', () => {
     });
 
     expect(model.heartbeat.headlineUnits).toContain('11 units likely on hand');
-    expect(model.heartbeat.heroSentence).toContain('reorder trigger');
+    expect(model.heartbeat.heroSentence).toContain('reorder signal');
     expect(model.rail.selectedIntervalSummary.dominantRegime).toBe('spike');
     expect(model.rail.actNow.headline).toBe('Reorder now');
     expect(model.rail.actNow.quantityBand).toBe('Recommended order 15 units');
@@ -726,7 +726,7 @@ describe('SKU detail SENA helpers', () => {
       language: 'en',
     });
 
-    expect(model.rail.actNow.headline).toBe('Monitor');
+    expect(model.rail.actNow.headline).toBe('Keep watching');
     expect(model.rail.actNow.quantityBand).toBe('No order quantity recommended · optional order 8 units');
     expect(model.actionContext.recommendedOrderQuantity).toBe(8);
     expect(model.actionContext.reorderRecommendation.quietLabel).toBe('Keep watching · optional order 8 units · order likelihood 34%');
@@ -1096,7 +1096,7 @@ describe('SKU detail route', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByText('SENA needs at least two observations')).toBeInTheDocument();
+      expect(screen.getByText('Banji needs at least two updates for this detail view')).toBeInTheDocument();
     });
 
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
@@ -1196,7 +1196,7 @@ describe('SKU detail route', () => {
 
     resolveSnapshot?.(snapshot);
     await waitFor(() => {
-      expect(screen.getByText('SENA needs at least two observations')).toBeInTheDocument();
+      expect(screen.getByText('Banji needs at least two updates for this detail view')).toBeInTheDocument();
     });
   });
 });

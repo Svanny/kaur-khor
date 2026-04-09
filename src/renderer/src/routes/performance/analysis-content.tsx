@@ -4,6 +4,7 @@ import { WorkspaceActionRow, WorkspacePage, WorkspaceTitleCard } from '@/compone
 import { Button } from '@/components/ui/button';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { usePreferences } from '@/state/preferences';
 import { AnalysisWorkbench } from './analysis-workbench';
 import {
   type AnalysisScope,
@@ -54,6 +55,7 @@ export function AnalysisContent({
   timeframe,
   timeframeHydrationProgress,
 }: AnalysisContentProps) {
+  const { t } = usePreferences();
   const [isRunningAnalysis, setIsRunningAnalysis] = useState(false);
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
   const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
@@ -150,14 +152,14 @@ export function AnalysisContent({
         visible={showsLoadingIsland}
       />
       <WorkspaceTitleCard
-        eyebrow="Analysis"
-        title="Deep Review"
-        descriptor="Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations."
+        eyebrow={t('analysisRouteEyebrow')}
+        title={t('analysisRouteTitle')}
+        descriptor={t('analysisRouteDescriptor')}
         actions={(
           <WorkspaceActionRow className="justify-end">
             {section === 'fragility' ? null : (
               <ToggleGroup
-                aria-label="Select analysis scope"
+                aria-label={t('analysisRouteScopeAria')}
                 className="rounded-full"
                 spacing={1}
                 type="single"
@@ -170,15 +172,15 @@ export function AnalysisContent({
               >
                 <ToggleGroupItem value="all">
                   <Layers3 data-icon="inline-start" />
-                  All
+                  {t('analysisRouteScopeAll')}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="services">
                   <Store data-icon="inline-start" />
-                  Services
+                  {t('analysisRouteScopeServices')}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="skus">
                   <Package data-icon="inline-start" />
-                  SKUs
+                  {t('analysisRouteScopeSkus')}
                 </ToggleGroupItem>
                 </ToggleGroup>
             )}
@@ -191,14 +193,14 @@ export function AnalysisContent({
               <span aria-hidden="true" className={isRunningAnalysis ? 'inline-flex animate-spin' : 'inline-flex'}>
                 <RefreshCcw className="size-4 -scale-x-100" />
               </span>
-              {inventory.latestRun ? 'Re-run analysis' : 'Run analysis'}
+              {inventory.latestRun ? t('analysisRouteRerunAnalysis') : t('analysisRouteRunAnalysis')}
             </Button>
           </WorkspaceActionRow>
         )}
       >
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span>{model.lastUpdatedLabel}</span>
-          {isHydratingDetails ? <span>Hydrating entity posteriors…</span> : null}
+          {isHydratingDetails ? <span>{t('analysisRouteLoadingDetails')}</span> : null}
           <span>{model.internalNavSummary}</span>
         </div>
       </WorkspaceTitleCard>

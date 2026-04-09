@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { type ChartTimeframe } from '@/components/system/chart-timeframe';
 import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
+import { readSkuAction } from '@/lib/navigation-state';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from '../loading-wireframes';
@@ -93,6 +94,7 @@ export function SkuDetailRoute() {
   const { currency, language, showRightRailCards, t, usdToKhrExchangeRate } = usePreferences();
   const inventory = useInventory();
   const { skuId = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [bootstrap, setBootstrap] = useState<BootstrapSkuDetailResult | null>(() => emptyBootstrap());
   const [selectedIntervalIndex, setSelectedIntervalIndex] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -100,6 +102,17 @@ export function SkuDetailRoute() {
   const [timeframe, setTimeframe] = useState<ChartTimeframe>('Recent');
   const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
+  const actionMode = readSkuAction(searchParams);
+
+  function updateActionMode(nextMode: typeof actionMode, replace = false) {
+    const nextSearchParams = new URLSearchParams(searchParams);
+    if (nextMode) {
+      nextSearchParams.set('action', nextMode);
+    } else {
+      nextSearchParams.delete('action');
+    }
+    setSearchParams(nextSearchParams, { replace });
+  }
 
   async function loadPage() {
     setIsRefreshing(true);
@@ -260,7 +273,15 @@ export function SkuDetailRoute() {
         ) : null}
 
         <SkuDetailHero
-          actions={<SkuDetailActions actionContext={model.actionContext} skuId={skuId} onComplete={loadPage} />}
+          actions={(
+            <SkuDetailActions
+              actionContext={model.actionContext}
+              mode={actionMode}
+              onModeChange={(nextMode) => updateActionMode(nextMode, true)}
+              skuId={skuId}
+              onComplete={loadPage}
+            />
+          )}
           model={model}
         />
 

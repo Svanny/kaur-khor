@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
+import type { TranslationKey } from '@/lib/translations';
 
 const selectClassName =
   'h-14 w-full appearance-none rounded-xl border border-border bg-background px-3 pr-12 text-base shadow-none outline-none';
@@ -50,83 +51,86 @@ const EXPORT_FORMAT_OPTIONS = [
   { value: 'json', label: 'JSON' },
 ] as const;
 
-const SENA_ENGINE_PARAMETER_FIELDS = [
+const SENA_ENGINE_PARAMETER_FIELD_META = [
   {
     key: 'particleCount',
-    label: 'Particle count',
-    helper: 'More particles make posterior reads steadier, but runs take longer.',
-    tooltip:
-      'Particle count controls how much sampling SENA uses during inference. Keep it lower for fast local refreshes and higher when comparing steadier reads.',
+    labelKey: 'settingsParticleCount',
+    helperKey: 'settingsParticleCountTooltip',
+    tooltipKey: 'settingsParticleCountTooltip',
     min: 32,
     max: 2048,
     step: 1,
   },
   {
     key: 'targetServiceLevel',
-    label: 'Target service level',
-    helper: 'Stock-availability goal used when Banji calculates safety stock.',
-    tooltip:
-      'Target service level is the planning goal behind the reorder point. Higher targets usually protect more demand with more stock.',
+    labelKey: 'settingsTargetServiceLevel',
+    helperKey: 'settingsTargetServiceLevelTooltip',
+    tooltipKey: 'settingsTargetServiceLevelTooltip',
     min: 0.5,
     max: 0.999,
     step: 0.001,
   },
   {
     key: 'recommendationQuantile',
-    label: 'Recommendation quantile',
-    helper: 'Posterior order-gap percentile Banji uses for the recommended quantity.',
-    tooltip:
-      'This picks which percentile of the simulated replenishment gap becomes the order quantity recommendation.',
+    labelKey: 'settingsRecommendationQuantileLabel',
+    helperKey: 'settingsRecommendationQuantileHelp',
+    tooltipKey: 'settingsRecommendationQuantileTooltip',
     min: 0,
     max: 1,
     step: 0.01,
   },
   {
     key: 'intervalLowQuantile',
-    label: 'Range low quantile',
-    helper: 'Lower percentile for the order quantity range.',
-    tooltip:
-      'Banji uses this percentile as the low side of the likely order quantity band.',
+    labelKey: 'settingsRangeLowQuantileLabel',
+    helperKey: 'settingsRangeLowQuantileHelp',
+    tooltipKey: 'settingsRangeLowQuantileTooltip',
     min: 0,
     max: 1,
     step: 0.01,
   },
   {
     key: 'intervalHighQuantile',
-    label: 'Range high quantile',
-    helper: 'Upper percentile for the order quantity range.',
-    tooltip:
-      'Banji uses this percentile as the high side of the likely order quantity band.',
+    labelKey: 'settingsRangeHighQuantileLabel',
+    helperKey: 'settingsRangeHighQuantileHelp',
+    tooltipKey: 'settingsRangeHighQuantileTooltip',
     min: 0,
     max: 1,
     step: 0.01,
   },
   {
     key: 'needProbabilityGate',
-    label: 'Need probability gate',
-    helper: 'Minimum order-need probability before Banji issues a reorder.',
-    tooltip:
-      'SENA can still estimate an optional quantity below this gate, but Banji will not treat it as an issued reorder recommendation.',
+    labelKey: 'settingsNeedProbabilityGateLabel',
+    helperKey: 'settingsNeedProbabilityGateHelp',
+    tooltipKey: 'settingsNeedProbabilityGateTooltip',
     min: 0,
     max: 1,
     step: 0.01,
   },
   {
     key: 'reviewDelayDays',
-    label: 'Review delay days',
-    helper: 'Extra days Banji protects before sizing the order.',
-    tooltip:
-      'Review delay is added to lead time so the recommendation covers time until the next practical replenishment decision.',
+    labelKey: 'settingsReviewDelayDaysLabel',
+    helperKey: 'settingsReviewDelayDaysHelp',
+    tooltipKey: 'settingsReviewDelayDaysTooltip',
     min: 0,
     max: 365,
     step: 1,
   },
 ] as const;
 
-type SenaEngineNumberField = (typeof SENA_ENGINE_PARAMETER_FIELDS)[number]['key'];
+type SenaEngineNumberField = (typeof SENA_ENGINE_PARAMETER_FIELD_META)[number]['key'];
 type ExportFormat = (typeof EXPORT_FORMAT_OPTIONS)[number]['value'];
 type SenaEngineNumberDrafts = Record<SenaEngineNumberField, string>;
 type SenaEngineNumberErrors = Partial<Record<SenaEngineNumberField, string>>;
+type TranslateFn = ReturnType<typeof usePreferences>['t'];
+
+function buildSenaEngineParameterFields(t: TranslateFn) {
+  return SENA_ENGINE_PARAMETER_FIELD_META.map((field) => ({
+    ...field,
+    label: t(field.labelKey as TranslationKey),
+    helper: t(field.helperKey as TranslationKey),
+    tooltip: t(field.tooltipKey as TranslationKey),
+  }));
+}
 
 function exportFormatLabel(value: ExportFormat) {
   return EXPORT_FORMAT_OPTIONS.find((option) => option.value === value)?.label ?? 'CSV';
@@ -298,34 +302,48 @@ function formatSenaParameterValue(value: number) {
   return Number.isInteger(value) ? String(value) : String(value);
 }
 
-function senaParameterRangeMessage(field: (typeof SENA_ENGINE_PARAMETER_FIELDS)[number]) {
-  return `Valid range: ${formatSenaParameterValue(field.min)} to ${formatSenaParameterValue(field.max)}.`;
+function senaParameterRangeMessage(
+  field: (typeof SENA_ENGINE_PARAMETER_FIELD_META)[number],
+  t: TranslateFn,
+) {
+  return t('settingsParameterRangeMessage', {
+    min: formatSenaParameterValue(field.min),
+    max: formatSenaParameterValue(field.max),
+  });
 }
 
 function validateSenaEngineNumberDraft(
-  field: (typeof SENA_ENGINE_PARAMETER_FIELDS)[number],
+  field: (typeof SENA_ENGINE_PARAMETER_FIELD_META)[number],
   rawValue: string,
+  t: TranslateFn,
 ) {
   const trimmedValue = rawValue.trim();
   if (trimmedValue.length === 0) {
-    return `Enter a value. ${senaParameterRangeMessage(field)}`;
+    return t('settingsParameterEnterValue', {
+      range: senaParameterRangeMessage(field, t),
+    });
   }
 
   const parsedValue = Number(trimmedValue);
   if (!Number.isFinite(parsedValue)) {
-    return `Enter a valid number. ${senaParameterRangeMessage(field)}`;
+    return t('settingsParameterEnterNumber', {
+      range: senaParameterRangeMessage(field, t),
+    });
   }
 
   if (parsedValue < field.min || parsedValue > field.max) {
-    return senaParameterRangeMessage(field);
+    return senaParameterRangeMessage(field, t);
   }
 
   return null;
 }
 
-function validateSenaEngineNumberDrafts(drafts: SenaEngineNumberDrafts): SenaEngineNumberErrors {
-  const errors = SENA_ENGINE_PARAMETER_FIELDS.reduce<SenaEngineNumberErrors>((nextErrors, field) => {
-    const message = validateSenaEngineNumberDraft(field, drafts[field.key]);
+function validateSenaEngineNumberDrafts(
+  drafts: SenaEngineNumberDrafts,
+  t: TranslateFn,
+): SenaEngineNumberErrors {
+  const errors = SENA_ENGINE_PARAMETER_FIELD_META.reduce<SenaEngineNumberErrors>((nextErrors, field) => {
+    const message = validateSenaEngineNumberDraft(field, drafts[field.key], t);
     if (message) {
       nextErrors[field.key] = message;
     }
@@ -336,8 +354,8 @@ function validateSenaEngineNumberDrafts(drafts: SenaEngineNumberDrafts): SenaEng
     const intervalLowQuantile = Number(drafts.intervalLowQuantile.trim());
     const intervalHighQuantile = Number(drafts.intervalHighQuantile.trim());
     if (intervalLowQuantile > intervalHighQuantile) {
-      errors.intervalLowQuantile = 'Range low quantile cannot be higher than range high quantile.';
-      errors.intervalHighQuantile = 'Range high quantile must be at least as high as range low quantile.';
+      errors.intervalLowQuantile = t('settingsRangeLowAboveHigh');
+      errors.intervalHighQuantile = t('settingsRangeHighBelowLow');
     }
 
     if (!errors.recommendationQuantile) {
@@ -346,8 +364,7 @@ function validateSenaEngineNumberDrafts(drafts: SenaEngineNumberDrafts): SenaEng
         Number.isFinite(recommendationQuantile) &&
         (recommendationQuantile < intervalLowQuantile || recommendationQuantile > intervalHighQuantile)
       ) {
-        errors.recommendationQuantile =
-          'Recommendation quantile must be between range low quantile and range high quantile.';
+        errors.recommendationQuantile = t('settingsRecommendationOutsideRange');
       }
     }
   }
@@ -360,7 +377,7 @@ function applySenaEngineNumberDrafts(
   drafts: SenaEngineNumberDrafts,
 ): SenaEngineParameters {
   return normalizeSenaEngineParameters(
-    SENA_ENGINE_PARAMETER_FIELDS.reduce<Partial<SenaEngineParameters>>(
+    SENA_ENGINE_PARAMETER_FIELD_META.reduce<Partial<SenaEngineParameters>>(
       (nextParameters, parameter) => {
         const parsedValue = Number(drafts[parameter.key]);
         nextParameters[parameter.key] = Number.isFinite(parsedValue)
@@ -436,6 +453,7 @@ export function SettingsRoute() {
     showFloatingTitleActions,
     showRightRailCards,
     showExplanatoryTooltips,
+    t,
   } = usePreferences();
   const [localDataInfo, setLocalDataInfo] = useState<DesktopLocalDataInfo | null>(null);
   const [localDataError, setLocalDataError] = useState<string | null>(null);
@@ -460,12 +478,13 @@ export function SettingsRoute() {
   const exchangeRateValue = Number(exchangeRateDraft);
   const exchangeRateError =
     exchangeRateDraft.trim().length === 0
-      ? 'Enter an exchange rate.'
+      ? t('settingsExchangeRateRequired')
       : !Number.isFinite(exchangeRateValue) || exchangeRateValue <= 0
-        ? 'Exchange rate must be greater than 0.'
+        ? t('settingsExchangeRatePositive')
         : null;
   const exchangeRateChanged = exchangeRateDraft !== String(usdToKhrExchangeRate);
   const hasUnsavedSettingsChanges = hasPendingChanges || senaParametersChanged || exchangeRateChanged;
+  const senaEngineParameterFields = buildSenaEngineParameterFields(t);
 
   function handleDiscardSettingsChanges() {
     resetPreferences();
@@ -477,7 +496,7 @@ export function SettingsRoute() {
 
   const { discardConfirmDialog } = useRouteLeaveConfirm({
     enabled: hasUnsavedSettingsChanges,
-    description: 'You have unsaved settings changes. Leave this page and discard the current draft?',
+    description: t('settingsUnsavedLeavePrompt'),
     onDiscard: handleDiscardSettingsChanges,
   });
 
@@ -502,7 +521,7 @@ export function SettingsRoute() {
       })
       .catch((error) => {
         if (!cancelled) {
-          setLocalDataError(error instanceof Error ? error.message : 'Failed to load local workspace info.');
+          setLocalDataError(error instanceof Error ? error.message : t('settingsLocalWorkspaceInfoFailed'));
         }
       });
 
@@ -519,14 +538,14 @@ export function SettingsRoute() {
   }
 
   async function handleSavePreferences() {
-    const nextErrors = validateSenaEngineNumberDrafts(senaEngineNumberDrafts);
+    const nextErrors = validateSenaEngineNumberDrafts(senaEngineNumberDrafts, t);
     if (Object.keys(nextErrors).length > 0) {
       setSenaEngineNumberErrors(nextErrors);
-      setSenaRunStatus('Fix the highlighted SENA parameters before saving.');
+      setSenaRunStatus(t('settingsSenaParametersFixErrors'));
       return;
     }
     if (exchangeRateError) {
-      setSenaRunStatus('Fix the highlighted preference before saving.');
+      setSenaRunStatus(t('settingsPreferencesFixErrors'));
       return;
     }
     const nextSenaEngineParameters = pendingSenaEngineParameters;
@@ -542,9 +561,9 @@ export function SettingsRoute() {
     if (shouldRerunSena) {
       try {
         await rerunSenaWithParameters(nextSenaEngineParameters);
-        setSenaRunStatus('SENA reran with the saved engine parameters.');
+        setSenaRunStatus(t('settingsSenaRerunSaved'));
       } catch (error) {
-        setSenaRunStatus(error instanceof Error ? error.message : 'SENA rerun failed.');
+        setSenaRunStatus(error instanceof Error ? error.message : t('settingsSenaRerunFailed'));
       }
     }
   }
@@ -556,9 +575,9 @@ export function SettingsRoute() {
     await applySenaEngineParameters(defaultParameters);
     try {
       await rerunSenaWithParameters(defaultParameters);
-      setSenaRunStatus('SENA reran with default engine parameters.');
+      setSenaRunStatus(t('settingsSenaRerunDefaults'));
     } catch (error) {
-      setSenaRunStatus(error instanceof Error ? error.message : 'SENA rerun failed.');
+      setSenaRunStatus(error instanceof Error ? error.message : t('settingsSenaRerunFailed'));
     }
   }
 
@@ -574,9 +593,9 @@ export function SettingsRoute() {
             ? wrapExcelDocument('Banji logs', [toExcelTable('Logs', rows)])
             : toCsv(rows);
       downloadTextFile(filename, content, exportMimeType(format));
-      setExportStatus(`Exported logs as ${exportFormatLabel(format)}.`);
+      setExportStatus(t('settingsLogsExported', { format: exportFormatLabel(format) }));
     } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : 'Failed to export logs.');
+      setExportStatus(error instanceof Error ? error.message : t('settingsLogsExportFailed'));
     }
   }
 
@@ -619,14 +638,14 @@ export function SettingsRoute() {
           )
           : format === 'excel'
             ? wrapExcelDocument(
-              'Banji SENA data',
+              t('settingsSenaDataWorkbookTitle'),
               sections.map(([title, rows]) => toExcelTable(title, rows)),
             )
             : sections.map(([title, rows]) => toCsvSection(title, rows)).join('\n\n');
       downloadTextFile(filename, content, exportMimeType(format));
-      setExportStatus(`Exported SENA data as ${exportFormatLabel(format)}.`);
+      setExportStatus(t('settingsParameterRunStatusExported', { format: exportFormatLabel(format) }));
     } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : 'Failed to export SENA data.');
+      setExportStatus(error instanceof Error ? error.message : t('settingsParameterRunStatusFailed'));
     }
   }
 
@@ -634,9 +653,9 @@ export function SettingsRoute() {
     <WorkspacePage>
       {discardConfirmDialog}
       <WorkspaceTitleCard
-        eyebrow="Settings"
-        title="Desktop preferences"
-        descriptor="Choose how much optional guidance Banji shows and how the desktop shell behaves on this device."
+        eyebrow={t('settingsTitle')}
+        title={t('settingsDesktopPreferencesTitle')}
+        descriptor={t('settingsDesktopPreferencesDescription')}
         actions={
           <WorkspaceActionRow className="justify-end">
             <Button
@@ -645,15 +664,18 @@ export function SettingsRoute() {
               onClick={() => void handleSavePreferences()}
             >
               <Save data-icon="inline-start" />
-              Save preferences
+              {t('settingsSavePreferencesAction')}
             </Button>
           </WorkspaceActionRow>
         }
       />
-      <WorkspacePanel title="Preferences controls" descriptor="These settings change only this desktop workspace.">
+      <WorkspacePanel
+        title={t('settingsPreferencesControlsTitle')}
+        descriptor={t('settingsPreferencesControlsDescription')}
+      >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(16rem,0.8fr)]">
           <label className="grid content-start gap-2 text-sm">
-            <span>Language</span>
+            <span>{t('settingsLanguage')}</span>
             <div className="relative">
               <select
                 className={selectClassName}
@@ -670,7 +692,7 @@ export function SettingsRoute() {
             </div>
           </label>
           <label className="grid content-start gap-2 text-sm">
-            <span>Currency</span>
+            <span>{t('settingsCurrency')}</span>
             <div className="relative">
               <select
                 className={selectClassName}
@@ -687,11 +709,11 @@ export function SettingsRoute() {
             </div>
           </label>
           <label className="grid content-start gap-2 text-sm">
-            <span>Exchange rate</span>
+            <span>{t('settingsExchangeRateLabel')}</span>
             <div className="flex h-14 items-center overflow-hidden rounded-xl border border-border bg-background text-base shadow-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
               <span className="shrink-0 border-r border-border/70 px-3 text-muted-foreground">$1 =</span>
               <input
-                aria-label="Exchange rate for 1 USD in KHR"
+                aria-label={t('settingsExchangeRateInputLabel')}
                 className="h-full min-w-0 flex-1 bg-transparent px-3 outline-none"
                 min="1"
                 step="1"
@@ -704,37 +726,37 @@ export function SettingsRoute() {
             {exchangeRateError ? (
               <span className="text-xs leading-5 text-destructive">{exchangeRateError}</span>
             ) : (
-              <span className="text-xs leading-5 text-muted-foreground">Used only when formatting KHR; saved values stay in USD.</span>
+              <span className="text-xs leading-5 text-muted-foreground">{t('settingsExchangeRateHelp')}</span>
             )}
           </label>
         </div>
         <div className="mt-4 grid gap-1">
-          <p className="font-heading text-base font-medium tracking-[-0.02em] text-foreground">Interface visibility</p>
+          <p className="font-heading text-base font-medium tracking-[-0.02em] text-foreground">{t('settingsInterfaceVisibilityTitle')}</p>
           <p className="text-sm leading-6 text-muted-foreground">
-            These toggles define the sidebar view mode: all on is Maximal, and turning any off switches to Minimal.
+            {t('settingsInterfaceVisibilityDescription')}
           </p>
         </div>
         <div className="divide-y divide-border/60">
           <CheckboxRow
             checked={showExplanatoryTooltips}
             className="pt-2"
-            helper="Show tooltips, section descriptors, and optional hints. Required field guidance stays visible."
+            helper={t('settingsShowOptionalHelpHelp')}
             icon={<BadgeHelp className="size-4" />}
-            label="Show optional help"
+            label={t('settingsShowOptionalHelpLabel')}
             variant="flat"
             onCheckedChange={setShowExplanatoryTooltips}
           />
           <CheckboxRow
             checked={showFloatingTitleActions}
-            helper="Keep page actions visible after the header scrolls off screen."
+            helper={t('settingsShowFloatingActionsHelp')}
             icon={<PanelsTopLeft className="size-4" />}
-            label="Show floating title actions"
+            label={t('settingsShowFloatingActionsLabel')}
             variant="flat"
             onCheckedChange={setShowFloatingTitleActions}
           />
           <CheckboxRow
             checked={showRightRailCards}
-            helper="Show the right-side context panels on analysis, performance, and detail pages."
+            helper={t('settingsShowRightRailCardsHelp')}
             icon={<PanelRight className="size-4" />}
             label="Show right rail cards"
             variant="flat"
@@ -744,8 +766,8 @@ export function SettingsRoute() {
       </WorkspacePanel>
 
       <WorkspacePanel
-        title="SENA engine parameters"
-        descriptor="Tune how local SENA runs sample uncertainty and turn the posterior into reorder guidance."
+        title={t('settingsSenaParametersPanelTitle')}
+        descriptor={t('settingsSenaParametersPanelDescription')}
         action={
           <Button
             disabled={
@@ -757,7 +779,7 @@ export function SettingsRoute() {
             onClick={() => void handleResetSenaDefaults()}
           >
             <RotateCcw data-icon="inline-start" />
-            Reset to defaults
+            {t('settingsResetDefaultsAction')}
           </Button>
         }
       >
@@ -766,8 +788,8 @@ export function SettingsRoute() {
             <div className={parameterTileClassName}>
               <ParameterLabel
                 inputId="sena-parameter-algorithm-version"
-                label="Analysis profile"
-                tooltip="Analysis profile selects the local SENA runner version. Keep the current profile unless you are comparing analysis builds."
+                label={t('settingsAnalysisProfileLabel')}
+                tooltip={t('settingsAnalysisProfileTooltip')}
               />
               <input
                 className={numberInputClassName}
@@ -782,10 +804,10 @@ export function SettingsRoute() {
                   )
                 }
               />
-              <span className={parameterHelperClassName}>Local runner version used for the next SENA refresh.</span>
+              <span className={parameterHelperClassName}>{t('settingsAnalysisProfileHelp')}</span>
             </div>
           ) : null}
-          {SENA_ENGINE_PARAMETER_FIELDS.map((parameter) => (
+          {senaEngineParameterFields.map((parameter) => (
             <div
               key={parameter.key}
               className={parameterTileClassName}
@@ -805,7 +827,7 @@ export function SettingsRoute() {
                 type="text"
                 value={senaEngineNumberDrafts[parameter.key]}
                 onBlur={() => {
-                  const nextErrors = validateSenaEngineNumberDrafts(senaEngineNumberDrafts);
+                  const nextErrors = validateSenaEngineNumberDrafts(senaEngineNumberDrafts, t);
                   setSenaEngineNumberErrors(nextErrors);
                   if (Object.keys(nextErrors).length > 0) {
                     return;
@@ -820,7 +842,7 @@ export function SettingsRoute() {
                         ...current,
                         [parameter.key]: nextValue,
                       };
-                      setSenaEngineNumberErrors(validateSenaEngineNumberDrafts(nextDrafts));
+                      setSenaEngineNumberErrors(validateSenaEngineNumberDrafts(nextDrafts, t));
                       return nextDrafts;
                     });
                   }
@@ -842,10 +864,10 @@ export function SettingsRoute() {
           ))}
           <CheckboxRow
             checked={senaEngineParameters.smoothingEnabled}
-            helper="Smooth posterior traces before Banji summarizes them."
+            helper={t('settingsEnableSmoothingHelp')}
             label={
-              <SectionLabel tooltip="Smoothing can make sparse traces easier to scan, but it also softens abrupt observation changes.">
-                Enable smoothing
+              <SectionLabel tooltip={t('settingsEnableSmoothingTooltip')}>
+                {t('settingsEnableSmoothingLabel')}
               </SectionLabel>
             }
             variant="flat"
@@ -862,27 +884,30 @@ export function SettingsRoute() {
         {senaRunStatus ? (
           <p className="text-sm text-muted-foreground">{senaRunStatus}</p>
         ) : hasSenaParameterErrors ? (
-          <p className="text-sm text-destructive">Fix the highlighted SENA parameters before saving.</p>
+          <p className="text-sm text-destructive">{t('settingsSenaParametersFixErrors')}</p>
         ) : senaParametersChanged ? (
           <p className="text-sm text-muted-foreground">
-            Saving preferences will rerun SENA with these engine parameters.
+            {t('settingsSenaParametersRerunHint')}
           </p>
         ) : null}
       </WorkspacePanel>
 
-      <WorkspacePanel title="Local workspace storage" descriptor="Banji stores workspace data locally in SQLite on this device.">
+      <WorkspacePanel
+        title={t('settingsLocalWorkspaceStorageTitle')}
+        descriptor={t('settingsLocalWorkspaceStorageDescription')}
+      >
         {localDataInfo ? (
           <div className="grid gap-4">
             <div>
-              <p className="text-sm font-medium text-foreground">Data directory</p>
+              <p className="text-sm font-medium text-foreground">{t('settingsDataDirectoryLabel')}</p>
               <p className="text-sm text-muted-foreground">{localDataInfo.dataDirectoryPath}</p>
             </div>
             <div>
-              <p className="text-sm font-medium text-foreground">Workspace store</p>
+              <p className="text-sm font-medium text-foreground">{t('settingsWorkspaceStoreLabel')}</p>
               <p className="text-sm text-muted-foreground">{localDataInfo.workspaceStorePath}</p>
             </div>
             <div>
-              <p className="text-sm font-medium text-foreground">Preferences file</p>
+              <p className="text-sm font-medium text-foreground">{t('settingsPreferencesFileLabel')}</p>
               <p className="text-sm text-muted-foreground">{localDataInfo.preferencesPath}</p>
             </div>
             <WorkspaceActionRow>
@@ -893,20 +918,20 @@ export function SettingsRoute() {
                 onClick={() => void window.banjiDesktop.system.openLocalDataFolder()}
               >
                 <FolderOpen data-icon="inline-start" />
-                Open local data folder
+                {t('settingsOpenLocalDataFolderAction')}
               </Button>
               <ExportFormatSelect
                 ariaLabel="Export logs format"
                 icon={<FileDown className="size-4" />}
-                label="Export Logs"
+                label={t('settingsExportLogsAction')}
                 onExport={() => void handleExportLogs(logExportFormat)}
                 value={logExportFormat}
                 onValueChange={setLogExportFormat}
               />
               <ExportFormatSelect
-                ariaLabel="Export SENA data format"
+                ariaLabel={t('settingsSenaDataExportFormatLabel')}
                 icon={<DatabaseBackup className="size-4" />}
-                label="Export SENA data"
+                label={t('settingsExportSenaDataAction')}
                 onExport={() => void handleExportSenaData(senaExportFormat)}
                 value={senaExportFormat}
                 onValueChange={setSenaExportFormat}
@@ -916,14 +941,14 @@ export function SettingsRoute() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {localDataError ?? 'Loading local workspace information…'}
+            {localDataError ?? t('settingsLoadLocalWorkspaceInfo')}
           </p>
         )}
       </WorkspacePanel>
 
       <WorkspacePanel
         title="Credits"
-        descriptor="One last small note from the builder."
+        descriptor={t('settingsCreditsDescription')}
         action={
           <div className="flex h-full items-center">
             <Button
@@ -931,7 +956,7 @@ export function SettingsRoute() {
               variant="ghost"
               size="icon-lg"
               className="size-12"
-              aria-label={creditsOpen ? 'Collapse credits' : 'Expand credits'}
+              aria-label={creditsOpen ? t('settingsCollapseCredits') : t('settingsExpandCredits')}
               onClick={() => setCreditsOpen((current) => !current)}
             >
               {creditsOpen ? <ChevronUp /> : <ChevronDown />}
@@ -941,9 +966,9 @@ export function SettingsRoute() {
       >
         {creditsOpen ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Made with</span>
+            <span>{t('settingsMadeWith')}</span>
             <Heart aria-hidden="true" className="size-4 fill-current text-rose-500" />
-            <span>by Monysovann Ly.</span>
+            <span>{t('settingsMadeBy')}</span>
           </p>
         ) : null}
       </WorkspacePanel>

@@ -52,6 +52,8 @@ describe('BanjiShell', () => {
           openNavigation: 'Open navigation',
           collapseNavigation: 'Collapse navigation',
           skipToContent: 'Skip to content',
+          shellViewModeMaximal: 'Maximal View',
+          shellViewModeMinimal: 'Minimal View',
         };
         return translations[key] ?? key;
       },
@@ -143,6 +145,8 @@ describe('BanjiShell', () => {
           skipToContent: 'Skip to content',
           openNavigation: 'Open navigation',
           collapseNavigation: 'Collapse navigation',
+          shellViewModeMaximal: 'Maximal View',
+          shellViewModeMinimal: 'Minimal View',
         }[key] ?? key),
     });
 

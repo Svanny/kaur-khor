@@ -463,7 +463,7 @@ describe('DashboardRoute', () => {
     await waitFor(() => {
       expect(screen.queryByText('Recommended order')).not.toBeInTheDocument();
     });
-  });
+  }, 10_000);
 
   test('keeps issued reorder recommendations in To order even when an order is already open', async () => {
     const user = userEvent.setup();

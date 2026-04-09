@@ -25,7 +25,8 @@ vi.mock('../state/preferences', () => ({
     currency: preferenceState.currency,
     language: preferenceState.language,
     showRightRailCards: preferenceState.showRightRailCards,
-    t: (key: string) => getTranslation('en', key as never),
+    t: (key: string, variables?: Record<string, string | number | null | undefined>) =>
+      getTranslation('en', key as never, variables),
   }),
 }));
 
@@ -322,8 +323,8 @@ describe('SENA routes', () => {
 
     expect(screen.getByText('Log order for SKU 1')).toBeInTheDocument();
 
-    expect(screen.queryByText('Open pipeline')).not.toBeInTheDocument();
-    expect(screen.queryByText('Next touch')).not.toBeInTheDocument();
+    expect(screen.queryByText('Incoming stock')).not.toBeInTheDocument();
+    expect(screen.queryByText('Next check')).not.toBeInTheDocument();
 
     expect(screen.queryByRole('heading', { name: 'Ledger' })).not.toBeInTheDocument();
   });
@@ -374,10 +375,10 @@ describe('SENA routes', () => {
 
     expect(screen.getByText('Update price for Service 1')).toBeInTheDocument();
 
-    expect(screen.queryByText('Recovery path')).not.toBeInTheDocument();
-    expect(screen.queryByText('Bottleneck stack')).not.toBeInTheDocument();
+    expect(screen.queryByText('What could restore service')).not.toBeInTheDocument();
+    expect(screen.queryByText('Main blockers')).not.toBeInTheDocument();
 
-    expect(screen.queryByRole('heading', { name: 'Service viability ledger' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Service availability timeline' })).not.toBeInTheDocument();
   });
 
   test('asks before closing a dirty service action sheet', async () => {
@@ -544,7 +545,7 @@ describe('SENA routes', () => {
     fireEvent.click(disabledLogReceiptButton.parentElement as HTMLElement);
 
     await waitFor(() => {
-      expect(screen.getByRole('tooltip', { name: 'No limiting contributor is active right now.' })).toBeInTheDocument();
+      expect(screen.getByRole('tooltip', { name: 'No linked SKU is limiting this service right now.' })).toBeInTheDocument();
     });
   });
 
@@ -575,7 +576,7 @@ describe('SENA routes', () => {
 
     expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', { limit: INTERVAL_PAGE_SIZE });
     expect(inventoryHook().loadInventorySnapshot).not.toHaveBeenCalled();
-    expect(screen.getAllByText('Dependency impact').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Service impact').length).toBeGreaterThan(0);
   });
 
   test('renders SENA SKU detail even when the legacy snapshot is stale', async () => {
@@ -612,11 +613,11 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Service viability ledger' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Service availability timeline' })).toBeInTheDocument();
     });
 
     expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1', { limit: INTERVAL_PAGE_SIZE });
-    expect(screen.getByText('Dependency impact')).toBeInTheDocument();
+    expect(screen.getByText('Linked SKU impact')).toBeInTheDocument();
     expect(screen.getByText('Log receipt')).toBeInTheDocument();
     expect(screen.getByText('Record stock')).toBeInTheDocument();
     expect(screen.getByText('Update price')).toBeInTheDocument();
@@ -632,8 +633,8 @@ describe('SENA routes', () => {
       expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('Selected interval')).not.toBeInTheDocument();
-    expect(screen.queryByText('Act now')).not.toBeInTheDocument();
+    expect(screen.queryByText('Selected period')).not.toBeInTheDocument();
+    expect(screen.queryByText('Next step')).not.toBeInTheDocument();
   });
 
   test('hides the service detail right rail when the global toggle is off', async () => {
@@ -642,12 +643,12 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Service viability ledger' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Service availability timeline' })).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('Act now')).not.toBeInTheDocument();
-    expect(screen.queryByText('Recovery path')).not.toBeInTheDocument();
-    expect(screen.queryByText('Next touch')).not.toBeInTheDocument();
+    expect(screen.queryByText('Next step')).not.toBeInTheDocument();
+    expect(screen.queryByText('What could restore service')).not.toBeInTheDocument();
+    expect(screen.queryByText('Next check')).not.toBeInTheDocument();
   });
 
   test('opens service receipt sheet with bottleneck SKU context', async () => {
@@ -681,7 +682,7 @@ describe('SENA routes', () => {
     });
 
     fireEvent.change(screen.getByDisplayValue('15'), { target: { value: '18' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh view' }));
 
     await waitFor(() => {
       expect(context.submitLegacyReport).toHaveBeenCalledWith(

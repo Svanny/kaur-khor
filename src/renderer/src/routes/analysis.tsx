@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scroll';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,10 @@ import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+import {
+  buildAnalysisSearchParams,
+  readAnalysisRouteState,
+} from '@/lib/navigation-state';
 import { WireframeRightRailLayout, WireframeRows, WorkspaceTitleCardWireframe } from './loading-wireframes';
 import {
   type AnalysisScope,
@@ -30,6 +34,8 @@ const AnalysisContent = lazy(async () => {
 });
 
 function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: boolean }) {
+  const { t } = usePreferences();
+
   return (
     <div className="grid gap-6">
       <WorkspaceTitleCardWireframe
@@ -40,9 +46,9 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
             ))}
           </div>
         }
-        descriptor="Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations."
-        eyebrow="Analysis"
-        title="Deep Review"
+        descriptor={t('analysisRouteDescriptor')}
+        eyebrow={t('analysisRouteEyebrow')}
+        title={t('analysisRouteTitle')}
       >
         <div className="mt-1 flex flex-wrap gap-3">
           <Skeleton className="h-5 w-32 rounded-full" />
@@ -101,10 +107,12 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
 
 export function AnalysisRoute() {
   const inventory = useInventory();
-  const { currency, language, showRightRailCards } = usePreferences();
-  const [scope, setScope] = useState<AnalysisScope>('all');
-  const [section, setSection] = useState<AnalysisSection>('workbench');
-  const [timeframe, setTimeframe] = useState<AnalysisTimeframe>('Recent');
+  const { currency, language, showRightRailCards, t } = usePreferences();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const routeState = readAnalysisRouteState(searchParams);
+  const scope = routeState.scope as AnalysisScope;
+  const section = routeState.section as AnalysisSection;
+  const timeframe = routeState.timeframe as AnalysisTimeframe;
   const {
     hasOlderIntervals,
     isHydratingDetails,
@@ -126,6 +134,10 @@ export function AnalysisRoute() {
   const isPreparingInitialAnalysis =
     (!hasCatalog && inventory.isLoading) ||
     (hasCatalog && hasWorkspaceSummary && expectedHydratedEntityCount > 0 && hydratedEntityCount === 0);
+
+  function updateRouteState(nextState: Parameters<typeof buildAnalysisSearchParams>[1], replace = false) {
+    setSearchParams(buildAnalysisSearchParams(searchParams, nextState), { replace });
+  }
 
   useLayoutEffect(() => {
     scrollWorkspaceViewportToTop();
@@ -149,11 +161,11 @@ export function AnalysisRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="Analysis needs the catalog first"
-          hint="Create the first SKU so Analysis has real entities to inspect."
+          title={t('analysisRouteNeedCatalogTitle')}
+          hint={t('analysisRouteNeedCatalogHint')}
           action={
             <Button asChild>
-              <Link to="/catalog/skus/new">Create first SKU</Link>
+              <Link to="/catalog/skus/new">{t('catalogEmptyPrimaryAction')}</Link>
             </Button>
           }
         />
@@ -165,15 +177,15 @@ export function AnalysisRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="Analysis needs the first SENA run"
-          hint="Capture a live observation so Analysis can explain how sparse signals became the current system story."
+          title={t('analysisRouteNeedRunTitle')}
+          hint={t('analysisRouteNeedRunHint')}
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/record-update">Start update</Link>
+                <Link to="/record-update">{t('overviewStaleReminderAction')}</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/">Open Overview</Link>
+                <Link to="/">{t('analysisRouteOpenOverview')}</Link>
               </Button>
             </WorkspaceActionRow>
           }
@@ -196,9 +208,9 @@ export function AnalysisRoute() {
         scope={scope}
         section={section}
         serviceDetailsById={serviceDetailsById}
-        setScope={setScope}
-        setSection={setSection}
-        setTimeframe={setTimeframe}
+        setScope={(nextScope) => updateRouteState({ scope: nextScope as typeof scope })}
+        setSection={(nextSection) => updateRouteState({ section: nextSection as typeof section })}
+        setTimeframe={(nextTimeframe) => updateRouteState({ timeframe: nextTimeframe as typeof timeframe })}
         showRightRailCards={showRightRailCards}
         skuDetailsById={skuDetailsById}
         timeframe={timeframe}

@@ -47,6 +47,7 @@ import {
 } from '@/routes/sku-detail/ledger';
 import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDate, formatSenaWideIntervalDate } from '@/routes/sku-detail/format';
 import { SectionLabel, SectionTitle } from '@/routes/sku-detail/section-heading';
+import type { TranslationKey } from '@/lib/translations';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
 const DEFAULT_SLOT_WIDTH = 72;
@@ -184,12 +185,17 @@ function responsivePillLabel(fullLabel: string, compactLabel: string, slotWidth:
   return '';
 }
 
-function intervalTooltipLabel(endAt: string | null, intervalIndex: number, language: 'en' | 'km') {
+function intervalTooltipLabel(
+  endAt: string | null,
+  intervalIndex: number,
+  language: 'en' | 'km',
+  t: (key: TranslationKey) => string,
+) {
   const fullDate = formatSenaLongDate(endAt, language);
   if (fullDate !== '—') {
     return fullDate;
   }
-  return `Interval ${intervalIndex + 1}`;
+  return t('intervalLabel').replace('{index}', String(intervalIndex + 1));
 }
 
 function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: string; tooltip: string }) {
@@ -277,12 +283,13 @@ function IntervalStrip({
   slotWidth: number;
   onSelect: (index: number) => void;
 }) {
+  const { t } = usePreferences();
   return (
     <TooltipProvider>
       <div className="relative mt-4 min-h-12">
         {canScrollLeft ? (
           <button
-            aria-label="Scroll intervals left"
+            aria-label={t('scrollIntervalsLeft')}
             className="absolute left-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
             type="button"
             onClick={() => scrollByViewport(-1)}
@@ -301,11 +308,16 @@ function IntervalStrip({
             }}
           >
             {intervals.map((interval) => {
-              const tooltipLabel = intervalTooltipLabel(interval.endAt, interval.intervalIndex, language);
+              const tooltipLabel = intervalTooltipLabel(interval.endAt, interval.intervalIndex, language, t);
               const compactDate = formatSenaCompactIntervalDate(interval.endAt);
               const compactDay = formatSenaCompactIntervalDay(interval.endAt);
               const wideDate = formatSenaWideIntervalDate(interval.endAt);
-              const fullLabel = slotWidth >= 132 && wideDate !== '—' ? wideDate : compactDate !== '—' ? compactDate : `Interval ${interval.intervalIndex + 1}`;
+              const fullLabel =
+                slotWidth >= 132 && wideDate !== '—'
+                  ? wideDate
+                  : compactDate !== '—'
+                    ? compactDate
+                    : t('intervalLabel').replace('{index}', String(interval.intervalIndex + 1));
               return (
                 <div key={interval.intervalIndex} className="flex min-h-10 items-center justify-center px-1">
                   <ResponsivePillButton
@@ -325,7 +337,7 @@ function IntervalStrip({
         </div>
         {canScrollRight ? (
           <button
-            aria-label="Scroll intervals right"
+            aria-label={t('scrollIntervalsRight')}
             className="absolute right-0 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/95 text-foreground shadow-sm"
             type="button"
             onClick={() => scrollByViewport(1)}
@@ -427,7 +439,7 @@ export function ServiceDetailLedger({
   setSelection: (value: ServiceInspectorSelection) => void;
   timeframe: ChartTimeframe;
 }) {
-  const { language } = usePreferences();
+  const { language, t } = usePreferences();
   const intervalScrollRef = useRef<HTMLDivElement | null>(null);
   const priceScrollRef = useRef<HTMLDivElement | null>(null);
   const flowScrollRef = useRef<HTMLDivElement | null>(null);
@@ -576,11 +588,11 @@ export function ServiceDetailLedger({
       <section className={`${cardFrameClassName} ${cardSurfaceClassName} min-w-0 rounded-[2rem] px-6 py-5`}>
       <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">SENA</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{t('appBrand')}</p>
           <div className="mt-1">
             <SectionTitle
-              title="Service viability ledger"
-              tooltip="Interval-by-interval view of service sellability, contributor pressure, and recovery signals."
+              title={t('catalogServiceLedgerTitle')}
+              tooltip={t('catalogServiceLedgerTooltip')}
             />
           </div>
         </div>
@@ -624,14 +636,14 @@ export function ServiceDetailLedger({
           className={cn('pb-5', isLaneExpanded('regime') && 'grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')}
         >
           <LaneTitle
-            title="Regime + price lane"
+            title={t('catalogServiceRegimePriceLane')}
             subtitle={selectedIntervalIndex == null ? intervals.at(-1)?.priceLabel : intervalsByIndex.get(selectedIntervalIndex)?.priceLabel ?? intervals.at(-1)?.priceLabel}
-            tooltip="Demand regime and service price context across the selected intervals."
+            tooltip={t('catalogServiceRegimePriceLaneTooltip')}
           />
           <div className={cn('grid gap-3', isLaneExpanded('regime') && 'min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
             <div className="flex items-start justify-between gap-3 px-1">
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                <span className="sr-only">Regime</span>
+                <span className="sr-only">{t('catalogServiceRegimeLegendLabel')}</span>
                 {visibleRegimes.map((regime) => (
                   <span key={regime} className="inline-flex items-center gap-2">
                     <span aria-hidden="true" className="inline-block size-4 rounded-[0.2rem]" style={{ backgroundColor: regimeTint(regime, true) }} />
@@ -643,10 +655,14 @@ export function ServiceDetailLedger({
                     <span className="block h-px w-full bg-foreground/70" />
                     <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/55 bg-background" />
                   </span>
-                  Service price line
+                  {t('catalogServiceServicePriceLine')}
                 </span>
               </div>
-              <LaneExpandButton expanded={isLaneExpanded('regime')} title="Regime + price lane" onClick={() => toggleLaneExpanded('regime')} />
+              <LaneExpandButton
+                expanded={isLaneExpanded('regime')}
+                title={t('catalogServiceRegimePriceLane')}
+                onClick={() => toggleLaneExpanded('regime')}
+              />
             </div>
             <div
               ref={priceScrollRef}
@@ -719,7 +735,11 @@ export function ServiceDetailLedger({
                         </ClampedChartDataLabel>
                       ) : null}
                       <button
-                        aria-label={marker ? `Price ${marker.price}` : `Price point ${index + 1}`}
+                        aria-label={
+                          marker
+                            ? t('catalogServicePricePointLabel').replace('{price}', String(marker.price))
+                            : t('catalogServicePricePointIndexLabel').replace('{index}', String(index + 1))
+                        }
                         className="absolute z-[2] -translate-x-1/2 -translate-y-1/2"
                         style={{
                           left: point.x,
@@ -745,17 +765,21 @@ export function ServiceDetailLedger({
         {visibleLaneOrder.includes('flow') ? (
         <div className={cn('border-t border-border/60 py-5', isLaneExpanded('flow') && 'grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)]')}>
           <LaneTitle
-            title="Demand and sellability lane"
-            tooltip="Gap between demand and sellable capacity in each interval."
+            title={t('catalogServiceDemandSellabilityLane')}
+            tooltip={t('catalogServiceDemandSellabilityLaneTooltip')}
           />
           <div className="mb-3 flex items-start justify-between gap-3 px-2">
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-2">
                 <span className="size-2 rounded-full bg-foreground/70" />
-                Sellable minus demand
+                {t('catalogServiceSellableMinusDemand')}
               </span>
             </div>
-            <LaneExpandButton expanded={isLaneExpanded('flow')} title="Demand and sellability lane" onClick={() => toggleLaneExpanded('flow')} />
+            <LaneExpandButton
+              expanded={isLaneExpanded('flow')}
+              title={t('catalogServiceDemandSellabilityLane')}
+              onClick={() => toggleLaneExpanded('flow')}
+            />
           </div>
           <div
             ref={flowScrollRef}
@@ -793,9 +817,9 @@ export function ServiceDetailLedger({
                           fontSize: flowVisual.dataLabelFontSize,
                         }}
                       >
-                        <span className="whitespace-nowrap text-foreground">{`Demand: ${interval.demandLabel}`}</span>
-                        <span className="whitespace-nowrap text-foreground">{`Sellable: ${interval.sellableLabel}`}</span>
-                        <span className="whitespace-nowrap text-foreground">{`Gap: ${gapValue > 0 ? '+' : ''}${gapValue.toFixed(2).replace(/\.00$/, '')}`}</span>
+                        <span className="whitespace-nowrap text-foreground">{`${t('catalogServiceDemandLabel')}: ${interval.demandLabel}`}</span>
+                        <span className="whitespace-nowrap text-foreground">{`${t('catalogServiceSellableLabel')}: ${interval.sellableLabel}`}</span>
+                        <span className="whitespace-nowrap text-foreground">{`${t('catalogServiceGapLabel')}: ${gapValue > 0 ? '+' : ''}${gapValue.toFixed(2).replace(/\.00$/, '')}`}</span>
                         <span className="whitespace-nowrap text-foreground">{interval.tensionLabel}</span>
                       </ClampedChartDataLabel>
                     ) : null}
@@ -835,8 +859,8 @@ export function ServiceDetailLedger({
         {showSupplementalLanes ? (
         <div className="border-t border-border/60 py-5">
           <LaneTitle
-            title="Contributor pressure lane"
-            tooltip="Linked SKUs ranked by how strongly they limit this service."
+            title={t('catalogServiceContributorPressureLane')}
+            tooltip={t('catalogServiceContributorPressureLaneTooltip')}
           />
           <div className="grid gap-3">
             {model.contributors.map((contributor) => {
@@ -865,7 +889,7 @@ export function ServiceDetailLedger({
                   <div className="grid content-between gap-3">
                     <div>
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>Pressure</span>
+                        <span>{t('catalogServicePressure')}</span>
                         <span>{Math.round(contributor.limitingProbability * 100)}%</span>
                       </div>
                       <div className="mt-2 h-2 rounded-full bg-border/60">
@@ -890,8 +914,8 @@ export function ServiceDetailLedger({
         {showSupplementalLanes ? (
         <div className="border-t border-border/60 pt-5">
           <LaneTitle
-            title="Restoration pipeline lane"
-            tooltip="Inbound linked-SKU events that can restore service capacity."
+            title={t('catalogServiceRestorationPipelineLane')}
+            tooltip={t('catalogServiceRestorationPipelineLaneTooltip')}
           />
           {model.restoration.length > 0 ? (
             <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-border/60 bg-background/70">
@@ -901,7 +925,7 @@ export function ServiceDetailLedger({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-base font-semibold tracking-[-0.02em] text-foreground">{event.headline}</p>
                       <span className="rounded-full border border-border/70 bg-muted/45 px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                        {event.state === 'open' ? 'Open inbound' : 'Receipt logged'}
+                        {event.state === 'open' ? t('catalogServiceOpenInbound') : t('catalogServiceReceiptLogged')}
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -922,7 +946,7 @@ export function ServiceDetailLedger({
             </div>
           ) : (
             <div className="rounded-[1.2rem] border border-dashed border-border/70 bg-background/70 px-4 py-5 text-sm leading-6 text-muted-foreground">
-              No restoration event is visible yet. Log linked SKU orders or receipts to refresh the recovery path.
+              {t('catalogServiceRestorationEmpty')}
             </div>
           )}
         </div>

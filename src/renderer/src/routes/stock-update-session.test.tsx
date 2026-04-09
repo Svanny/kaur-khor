@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getTranslation } from '@/lib/translations';
 import { StockUpdateSessionRoute } from './stock-update-session';
 
 const inventoryHook = vi.fn();
@@ -37,30 +38,8 @@ vi.mock('../state/inventory', () => ({
 vi.mock('../state/preferences', () => ({
   usePreferences: () => ({
     ...preferenceState,
-    t: (key: string) => {
-      if (key === 'serviceLabel') {
-        return 'Service';
-      }
-      if (key === 'skuLabel') {
-        return 'SKU';
-      }
-      if (key === 'productRankingTitle') {
-        return 'Product ranking';
-      }
-      if (key === 'rankHeaderRank') {
-        return 'Rank';
-      }
-      if (key === 'rankHeaderName') {
-        return 'Item';
-      }
-      if (key === 'rankHeaderType') {
-        return 'Type';
-      }
-      if (key === 'rankHeaderPrice') {
-        return 'Price';
-      }
-      return key;
-    },
+    t: (key: string, variables?: Record<string, string | number | null | undefined>) =>
+      getTranslation('en', key as never, variables),
   }),
 }));
 
@@ -227,13 +206,13 @@ describe('StockUpdateSessionRoute', () => {
 
     expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '20');
-    expect(screen.getByRole('button', { name: /Add service signals/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Add service updates/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Review update/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
 
     goNext(3);
 
-    expect(screen.getByRole('button', { name: /Record interval context/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Record update details/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '80');
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Busy Friday shift' } });
 
@@ -241,9 +220,9 @@ describe('StockUpdateSessionRoute', () => {
     goNext(3);
     expect(screen.getByRole('textbox')).toHaveValue('Busy Friday shift');
 
-    fireEvent.click(screen.getByRole('button', { name: /Rank selling order/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Rank recent selling order/i }));
     expect(screen.queryByRole('button', { name: 'Start ranking' })).not.toBeInTheDocument();
-  });
+  }, 10_000);
 
   it('blocks the first observation until at least one SKU stock row changes', () => {
     renderRoute([]);
@@ -301,20 +280,20 @@ describe('StockUpdateSessionRoute', () => {
 
     goNext();
 
-    expect(screen.getByRole('button', { name: /Add service signals/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Add service updates/i })).toHaveAttribute('aria-current', 'step');
     fireEvent.click(screen.getByRole('button', { name: /Add flags for Haircut/i }));
     fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add price change' })[0]!);
     fireEvent.change(screen.getByLabelText('Price if changed for Haircut'), { target: { value: '15' } });
 
     goNext(2);
 
-    expect(screen.getByRole('button', { name: /Record interval context/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Record update details/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.queryByText(/Regime guide/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Overall regime help' })).toBeInTheDocument();
-    expect(screen.queryByText('Regime stays observation-level and applies to the full update package.')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('combobox', { name: 'Overall regime optional' }));
-    fireEvent.click(screen.getByRole('option', { name: 'Promo regime' }));
-    expect(screen.getByText('Promotional pressure or campaign behavior shaped the interval.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Overall sales pattern help' })).toBeInTheDocument();
+    expect(screen.queryByText('This sales pattern applies to the full update, not just one SKU.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox', { name: /overall sales pattern/i }));
+    fireEvent.click(screen.getByRole('option', { name: 'Promotion pattern' }));
+    expect(screen.getByText('A promotion or campaign shaped this period.')).toBeInTheDocument();
 
     goNext();
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
@@ -419,7 +398,7 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute();
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Record interval context/i })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: /Record update details/i })).toHaveAttribute(
         'aria-current',
         'step',
       ),

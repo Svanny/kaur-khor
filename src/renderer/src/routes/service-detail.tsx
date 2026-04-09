@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaServiceDetail, SenaServiceDetailPage } from '@shared/sena';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
@@ -12,6 +12,7 @@ import { rightRailLayoutClassName } from '@/components/system/right-rail-layout'
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
+import { readServiceAction } from '@/lib/navigation-state';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { usePreferences } from '@/state/preferences';
@@ -62,7 +63,7 @@ function ServiceDetailLoadingState({
 }
 
 export function ServiceDetailRoute() {
-  const { currency, language, showRightRailCards, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, showRightRailCards, t, usdToKhrExchangeRate } = usePreferences();
   const {
     catalog,
     listStockReports,
@@ -75,6 +76,7 @@ export function ServiceDetailRoute() {
     workspaceSummary,
   } = useInventory();
   const { serviceId = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [detailPage, setDetailPage] = useState<SenaServiceDetailPage | null>(null);
   const [loadedSnapshot, setLoadedSnapshot] = useState<InventorySnapshot | null>(null);
   const [loadedReports, setLoadedReports] = useState<StockReport[] | null>(null);
@@ -85,6 +87,17 @@ export function ServiceDetailRoute() {
   const [timeframe, setTimeframe] = useState<ChartTimeframe>('Recent');
   const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
+  const actionMode = readServiceAction(searchParams);
+
+  function updateActionMode(nextMode: typeof actionMode, replace = false) {
+    const nextSearchParams = new URLSearchParams(searchParams);
+    if (nextMode) {
+      nextSearchParams.set('action', nextMode);
+    } else {
+      nextSearchParams.delete('action');
+    }
+    setSearchParams(nextSearchParams, { replace });
+  }
 
   useLayoutEffect(() => {
     if (!serviceId) {
@@ -281,11 +294,11 @@ export function ServiceDetailRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="Service not found"
-          hint="This service is not present in the current catalog."
+          title={t('catalogServiceDetailNotFoundTitle')}
+          hint={t('catalogServiceDetailNotFoundDescription')}
           action={
             <Button asChild variant="outline">
-              <Link to="/catalog">Return to catalog</Link>
+              <Link to="/catalog">{t('backToCatalog')}</Link>
             </Button>
           }
         />
@@ -294,7 +307,7 @@ export function ServiceDetailRoute() {
   }
 
   if (!model && (isLoading || !activeSnapshot)) {
-    const loadingTitle = service?.name ?? catalogService?.name ?? serviceId ?? 'Service detail';
+    const loadingTitle = service?.name ?? catalogService?.name ?? serviceId ?? t('catalogServiceDetailTitle');
     return (
       <WorkspacePage>
         <ServiceDetailLoadingState
@@ -309,11 +322,11 @@ export function ServiceDetailRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="SENA service detail unavailable"
-          hint={error ?? 'No service viability detail is available for this service yet.'}
+          title={t('catalogServiceDetailUnavailableTitle')}
+          hint={error ?? t('catalogServiceDetailUnavailableDescription')}
           action={
             <Button asChild variant="outline">
-              <Link to="/catalog">Return to catalog</Link>
+              <Link to="/catalog">{t('backToCatalog')}</Link>
             </Button>
           }
         />
@@ -336,7 +349,14 @@ export function ServiceDetailRoute() {
         ) : null}
 
         <ServiceDetailHero
-          actions={<ServiceDetailActions actions={model.actions} onComplete={refreshPage} />}
+          actions={(
+            <ServiceDetailActions
+              actions={model.actions}
+              mode={actionMode}
+              onModeChange={(nextMode) => updateActionMode(nextMode, true)}
+              onComplete={refreshPage}
+            />
+          )}
           model={model}
         />
 

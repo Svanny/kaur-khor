@@ -188,7 +188,8 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
 
   const showSidebarText = isMobile || state === 'expanded';
   const mainContentInset = 'var(--spacing-page)';
-  const viewModeLabel = displayViewMode === 'maximal' ? 'Maximal View' : 'Minimal View';
+  const viewModeLabel =
+    displayViewMode === 'maximal' ? t('shellViewModeMaximal') : t('shellViewModeMinimal');
   const ViewModeIcon = displayViewMode === 'maximal' ? Rows3 : Rows2;
 
   return (
@@ -228,7 +229,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   </span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={10}>Close sidebar</TooltipContent>
+              <TooltipContent side="right" sideOffset={10}>{t('collapseNavigation')}</TooltipContent>
             </Tooltip>
           ) : (
             <Tooltip>
@@ -243,7 +244,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   <PanelRight aria-hidden="true" className="size-4.5 -scale-x-100" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={10}>Open sidebar</TooltipContent>
+              <TooltipContent side="right" sideOffset={10}>{t('openNavigation')}</TooltipContent>
             </Tooltip>
           )}
         </SidebarHeader>
