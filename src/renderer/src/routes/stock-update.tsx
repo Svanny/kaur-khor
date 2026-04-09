@@ -1,11 +1,20 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ClipboardPlus, Grid3X3, Layers3, List, Package, Store } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ActionClipboardAddIcon, ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
+import {
+  EntityLayersIcon,
+  EntityServiceIcon,
+  EntitySkuIcon,
+} from '@icons/entities';
+import { NavigationGridIcon, NavigationListIcon, NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
+import type { IconComponent } from '@icons';
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
 import { SearchInput } from '@/components/system/search-input';
+import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
+import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
@@ -13,6 +22,7 @@ import {
   buildOperationsSearchParams,
   readOperationsRouteState,
 } from '@/lib/navigation-state';
+import { translateUiLiteral } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { PagedPanelNavigation } from './detail-panels';
@@ -74,18 +84,16 @@ interface HeatmapBuckets {
 
 const DAYS_IN_WINDOW = 365;
 const REPORTS_PER_PAGE = 5;
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const VIEW_OPTIONS = {
   heatmap: {
-    icon: Grid3X3,
+    icon: NavigationGridIcon,
     label: 'Heatmap',
   },
   all: {
-    icon: List,
+    icon: NavigationListIcon,
     label: 'All',
   },
-} satisfies Record<ObservationView, { icon: typeof Grid3X3; label: string }>;
+} satisfies Record<ObservationView, { icon: IconComponent; label: string }>;
 
 function hasSkuObservation(observation: SenaObservationRecord) {
   return (
@@ -228,7 +236,10 @@ function dayKey(value: Date | string) {
 
 function formatDayCellLabel(day: DayBucket, language: AppLanguage) {
   const dateLabel = formatSenaLongDate(day.isoValue, language);
-  const suffix = day.count === 1 ? '1 observation' : `${day.count} observations`;
+  const suffix =
+    day.count === 1
+      ? translateUiLiteral(language, '1 observation')
+      : translateUiLiteral(language, '{count} observations', { count: day.count });
   return `${dateLabel}, ${suffix}`;
 }
 
@@ -302,15 +313,22 @@ function heatLevelForCount(count: number, buckets: HeatmapBuckets): HeatLevel {
   return 1;
 }
 
-function monthLabel(value: Date) {
-  return MONTH_LABELS[value.getMonth()] ?? '—';
+function monthLabel(value: Date, language: AppLanguage) {
+  return new Intl.DateTimeFormat(language === 'km' ? 'km-KH' : 'en-US', { month: 'short' }).format(value);
 }
 
-function heatmapTitle(window: VisibleHeatmapWindow) {
+function heatmapTitle(window: VisibleHeatmapWindow, language: AppLanguage) {
   if (window.start.getFullYear() === window.end.getFullYear()) {
-    return `${window.totalContributions} contributions in ${window.end.getFullYear()}`;
+    return translateUiLiteral(language, '{count} contributions in {year}', {
+      count: window.totalContributions,
+      year: window.end.getFullYear(),
+    });
   }
-  return `${window.totalContributions} contributions in ${window.start.getFullYear()}-${window.end.getFullYear()}`;
+  return translateUiLiteral(language, '{count} contributions in {startYear}-{endYear}', {
+    count: window.totalContributions,
+    startYear: window.start.getFullYear(),
+    endYear: window.end.getFullYear(),
+  });
 }
 
 function buildHeatmapRange(baseAnchorDay: Date, yearOffset: number): HeatmapRange {
@@ -332,6 +350,7 @@ function buildHeatmapRange(baseAnchorDay: Date, yearOffset: number): HeatmapRang
 function buildHeatmapWindow(
   observations: SenaObservationRecord[],
   range: HeatmapRange,
+  language: AppLanguage,
 ): VisibleHeatmapWindow {
   const start = startOfLocalDay(range.start);
   const end = startOfLocalDay(range.end);
@@ -386,7 +405,7 @@ function buildHeatmapWindow(
         monthKeys.add(key);
         monthLabels.push({
           key,
-          label: monthLabel(firstInWindowDay.date),
+          label: monthLabel(firstInWindowDay.date, language),
           column: weeks.length,
         });
       }
@@ -494,22 +513,83 @@ function previousObservationAt(observation: SenaObservationRecord, observations:
     .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
 }
 
-function observationIntervalLabel(observation: SenaObservationRecord, observations: SenaObservationRecord[]) {
+function observationIntervalLabel(
+  observation: SenaObservationRecord,
+  observations: SenaObservationRecord[],
+  language: AppLanguage,
+) {
   const previousAt = previousObservationAt(observation, observations);
   const intervalDays = intervalDaysBetween(previousAt, observation.input.observedAt);
   if (!previousAt || intervalDays == null) {
-    return 'first update';
+    return translateUiLiteral(language, 'first update');
   }
-  return `${intervalDays}-day interval`;
+  return translateUiLiteral(language, '{days}-day interval', { days: intervalDays });
+}
+
+function weekdayLabels(language: AppLanguage) {
+  const formatter = new Intl.DateTimeFormat(language === 'km' ? 'km-KH' : 'en-US', { weekday: 'short' });
+  const start = new Date(Date.UTC(2024, 0, 7));
+  return Array.from({ length: 7 }, (_, index) => formatter.format(new Date(start.getTime() + index * 24 * 60 * 60 * 1000)));
+}
+
+function observationDeleteToken(observation: SenaObservationRecord) {
+  return `confirm delete report`;
+}
+
+function ObservationCard({
+  language,
+  observation,
+  observations,
+  onDelete,
+  onEdit,
+}: {
+  language: AppLanguage;
+  observation: SenaObservationRecord;
+  observations: SenaObservationRecord[];
+  onDelete: () => void;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="rounded-[1.25rem] border border-border/70 bg-background/70 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-foreground">
+            {formatSenaDateTime(observation.input.observedAt, language)}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {formatSenaWeekdayShort(observation.input.observedAt, language)} · {observationIntervalLabel(observation, observations, language)} ·{' '}
+            {observationCompositionLabel(observation.input, language)}
+          </p>
+          {observation.input.notes ? (
+            <p className="mt-2 text-sm text-muted-foreground">{observation.input.notes}</p>
+          ) : null}
+        </div>
+        <WorkspaceActionRow className="shrink-0 gap-2">
+          <Button size="sm" type="button" variant="outline" onClick={onEdit}>
+            <ActionEditIcon className="size-4" />
+            {translateUiLiteral(language, 'Edit report')}
+          </Button>
+          <Button size="sm" type="button" variant="outline" onClick={onDelete}>
+            <ActionDeleteIcon className="size-4" />
+            {translateUiLiteral(language, 'Delete report')}
+          </Button>
+        </WorkspaceActionRow>
+      </div>
+    </div>
+  );
 }
 
 export function StockUpdateRoute() {
   const {
     catalog,
+    deleteSenaObservation,
     isLoading,
+    isSaving,
     observations,
+    triggerSenaRun,
   } = useInventory();
   const { t, language } = usePreferences();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
@@ -519,6 +599,8 @@ export function StockUpdateRoute() {
   const [yearOffset, setYearOffset] = useState(0);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<SenaObservationRecord | null>(null);
+  const [deleteTokenValue, setDeleteTokenValue] = useState('');
 
   function updateRouteState(nextState: Parameters<typeof buildOperationsSearchParams>[1], replace = false) {
     setSearchParams(buildOperationsSearchParams(searchParams, nextState), { replace });
@@ -570,8 +652,8 @@ export function StockUpdateRoute() {
     [baseAnchorDay, yearOffset],
   );
   const heatmapWindow = useMemo(
-    () => buildHeatmapWindow(filteredObservations, heatmapRange),
-    [filteredObservations, heatmapRange],
+    () => buildHeatmapWindow(filteredObservations, heatmapRange, language),
+    [filteredObservations, heatmapRange, language],
   );
   const currentPresentation = useMemo(
     () => buildPresentation(heatmapWindow, selectedDayKey),
@@ -598,12 +680,15 @@ export function StockUpdateRoute() {
   );
   const selectedDayTitle = selectedDay
     ? `${formatSenaLongDate(selectedDay.isoValue, language)} (${selectedDayObservations.length})`
-    : 'Selected day';
+    : translateUiLiteral(language, 'Selected day');
   const selectedDayDescription = selectedDay
-    ? `Filtered observations captured on ${formatSenaLongDate(selectedDay.isoValue, language)}.`
-    : 'Choose a day in the heatmap to inspect the filtered observations captured on that date.';
+    ? translateUiLiteral(language, 'Filtered observations captured on {date}.', {
+        date: formatSenaLongDate(selectedDay.isoValue, language),
+      })
+    : translateUiLiteral(language, 'Choose a day in the heatmap to inspect the filtered observations captured on that date.');
   const selectedView = VIEW_OPTIONS[view];
   const SelectedViewIcon = selectedView.icon;
+  const localizedWeekdayLabels = weekdayLabels(language);
 
   useEffect(() => {
     if (page !== clampedPage) {
@@ -611,18 +696,69 @@ export function StockUpdateRoute() {
     }
   }, [clampedPage, page]);
 
+  async function handleConfirmDelete() {
+    if (!deleteTarget) {
+      return;
+    }
+    const remainingObservationCount = observations.filter(
+      (observation) => observation.observationId !== deleteTarget.observationId,
+    ).length;
+    await deleteSenaObservation({ observationId: deleteTarget.observationId });
+    if (remainingObservationCount > 0) {
+      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+    }
+    setDeleteTarget(null);
+    setDeleteTokenValue('');
+  }
+
+  function handleEditObservation(observation: SenaObservationRecord) {
+    navigate('/record-update', {
+      state: {
+        editSession: createRecordUpdateEditSession(observation),
+      },
+    });
+  }
+
   return (
     <WorkspacePage>
+      <TypedConfirmDialog
+        cancelLabel={translateUiLiteral(language, 'Cancel')}
+        confirmLabel={translateUiLiteral(language, 'Delete report')}
+        confirmationToken={deleteTarget ? observationDeleteToken(deleteTarget) : ''}
+        description={
+          deleteTarget ? (
+            <>
+              <p>{translateUiLiteral(language, 'Type this exactly to permanently delete the report:')}</p>
+              <p className="mt-2 font-mono text-xs text-foreground">{observationDeleteToken(deleteTarget)}</p>
+            </>
+          ) : undefined
+        }
+        isConfirmDisabled={
+          !deleteTarget ||
+          deleteTokenValue.trim() !== observationDeleteToken(deleteTarget) ||
+          isSaving
+        }
+        isSubmitting={isSaving}
+        open={deleteTarget != null}
+        title={translateUiLiteral(language, 'Delete report')}
+        value={deleteTokenValue}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteTokenValue('');
+        }}
+        onConfirm={() => void handleConfirmDelete()}
+        onValueChange={setDeleteTokenValue}
+      />
       <WorkspaceTitleCard
-        eyebrow="Logs"
-        title="Update history"
-        descriptor="Search saved updates, see when real-world activity was captured, and inspect the signal package behind each interval."
+        eyebrow={translateUiLiteral(language, 'Logs')}
+        title={translateUiLiteral(language, 'Update history')}
+        descriptor={translateUiLiteral(language, 'Search saved updates, see when real-world activity was captured, and inspect the signal package behind each interval.')}
         actions={
           <WorkspaceActionRow>
             <Button asChild>
               <Link to="/record-update">
-                <ClipboardPlus aria-hidden="true" className="size-4" />
-                Start update
+                <ActionClipboardAddIcon aria-hidden="true" className="size-4" />
+                {translateUiLiteral(language, 'Start update')}
               </Link>
             </Button>
           </WorkspaceActionRow>
@@ -631,7 +767,7 @@ export function StockUpdateRoute() {
         <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-start lg:gap-4">
           <div className="w-full max-w-xl">
             <SearchInput
-              ariaLabel="Search observations"
+              ariaLabel={translateUiLiteral(language, 'Search observations')}
               placeholder={t('searchPlaceholder')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -650,26 +786,26 @@ export function StockUpdateRoute() {
             }}
           >
             <ToggleGroupItem value="all">
-              <Layers3 data-icon="inline-start" />
+              <EntityLayersIcon data-icon="inline-start" />
               {t('operationsFilterEverything')}
             </ToggleGroupItem>
             <ToggleGroupItem value="skus">
-              <Package data-icon="inline-start" />
+              <EntitySkuIcon data-icon="inline-start" />
               {t('filterSku')}
             </ToggleGroupItem>
             <ToggleGroupItem value="services">
-              <Store data-icon="inline-start" />
+              <EntityServiceIcon data-icon="inline-start" />
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
           <Select value={view} onValueChange={(nextValue) => updateRouteState({ view: nextValue as ObservationView })}>
             <SelectTrigger
-              aria-label="Select log view"
+              aria-label={translateUiLiteral(language, 'Select log view')}
               className="h-11 rounded-2xl border border-border/70 bg-background/80 px-4 text-sm font-medium text-foreground shadow-xs data-[size=default]:h-11 [&_svg]:opacity-100"
             >
               <span className="inline-flex items-center gap-2 text-foreground">
                 <SelectedViewIcon className="size-4" />
-                <span>{`View: ${selectedView.label}`}</span>
+                <span>{translateUiLiteral(language, 'View: {value}', { value: translateUiLiteral(language, selectedView.label) })}</span>
               </span>
             </SelectTrigger>
             <SelectContent align="start" position="popper">
@@ -679,7 +815,7 @@ export function StockUpdateRoute() {
                   return (
                     <SelectItem key={value} value={value}>
                       <OptionIcon className="size-4" />
-                      {option.label}
+                      {translateUiLiteral(language, option.label)}
                     </SelectItem>
                   );
                 },
@@ -693,32 +829,32 @@ export function StockUpdateRoute() {
           <WorkspacePanel
             title={
               isLoading && !settledPresentation
-                ? 'Loading contributions…'
-                : heatmapTitle(visibleHeatmapWindow)
+                ? translateUiLiteral(language, 'Loading contributions…')
+                : heatmapTitle(visibleHeatmapWindow, language)
             }
-            descriptor="Review the activity footprint across the last 365 days, then pick a day to inspect."
+            descriptor={translateUiLiteral(language, 'Review the activity footprint across the last 365 days, then pick a day to inspect.')}
             action={
               <WorkspaceActionRow className="gap-2">
                 <Button
-                  aria-label="Previous contribution year"
+                  aria-label={translateUiLiteral(language, 'Previous contribution year')}
                   size="sm"
                   type="button"
                   variant="outline"
                   onClick={() => setYearOffset((current) => Math.min(current + 1, maxYearOffset))}
                 >
-                  <ChevronLeft aria-hidden="true" className="size-4" />
-                  Previous year
+                  <NavigationPreviousIcon aria-hidden="true" className="size-4" />
+                  {translateUiLiteral(language, 'Previous year')}
                 </Button>
                 <Button
-                  aria-label="Next contribution year"
+                  aria-label={translateUiLiteral(language, 'Next contribution year')}
                   disabled={yearOffset === 0}
                   size="sm"
                   type="button"
                   variant="outline"
                   onClick={() => setYearOffset((current) => Math.max(current - 1, 0))}
                 >
-                  Next year
-                  <ChevronRight aria-hidden="true" className="size-4" />
+                  {translateUiLiteral(language, 'Next year')}
+                  <NavigationNextIcon aria-hidden="true" className="size-4" />
                 </Button>
               </WorkspaceActionRow>
             }
@@ -742,14 +878,14 @@ export function StockUpdateRoute() {
                     ))}
                   </div>
                   <div className="grid grid-rows-7 gap-1 pt-1 text-xs text-muted-foreground">
-                    {WEEKDAY_LABELS.map((label, index) => (
+                    {localizedWeekdayLabels.map((label, index) => (
                       <span key={label} className="h-3 leading-3">
                         {index % 2 === 1 ? label : ''}
                       </span>
                     ))}
                   </div>
                   <div
-                    aria-label="Observation contribution heatmap"
+                    aria-label={translateUiLiteral(language, 'Observation contribution heatmap')}
                     className="grid gap-1"
                     style={{ gridTemplateColumns: `repeat(${visibleHeatmapWindow.weeks.length}, minmax(0, 1fr))` }}
                   >
@@ -780,11 +916,13 @@ export function StockUpdateRoute() {
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-4 border-t border-border/60 pt-4 text-sm text-muted-foreground">
                   <p>
-                    {formatSenaLongDate(visibleHeatmapWindow.start.toISOString(), language)} to{' '}
-                    {formatSenaLongDate(visibleHeatmapWindow.end.toISOString(), language)}
+                    {translateUiLiteral(language, '{start} to {end}', {
+                      start: formatSenaLongDate(visibleHeatmapWindow.start.toISOString(), language),
+                      end: formatSenaLongDate(visibleHeatmapWindow.end.toISOString(), language),
+                    })}
                   </p>
                   <div className="flex items-center gap-2">
-                    <span>Less</span>
+                    <span>{translateUiLiteral(language, 'Less')}</span>
                     {[0, 1, 2, 3, 4].map((level) => (
                       <span
                         key={level}
@@ -792,7 +930,7 @@ export function StockUpdateRoute() {
                         className={cn('size-3 rounded-[3px]', heatLevelClassName(level as HeatLevel, false, true))}
                       />
                     ))}
-                    <span>More</span>
+                    <span>{translateUiLiteral(language, 'More')}</span>
                   </div>
                 </div>
               </div>
@@ -803,77 +941,76 @@ export function StockUpdateRoute() {
               selectedDayObservations.length > 0 ? (
                 <div className="grid gap-3">
                   {selectedDayObservations.map((observation) => (
-                    <div
+                    <ObservationCard
                       key={observation.observationId}
-                      className="rounded-[1.25rem] border border-border/70 bg-background/70 p-4"
-                    >
-                      <p className="font-medium text-foreground">
-                        {formatSenaDateTime(observation.input.observedAt, language)}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatSenaWeekdayShort(observation.input.observedAt, language)} · {observationIntervalLabel(observation, filteredObservations)} ·{' '}
-                        {observationCompositionLabel(observation.input)}
-                      </p>
-                      {observation.input.notes ? (
-                        <p className="mt-2 text-sm text-muted-foreground">{observation.input.notes}</p>
-                      ) : null}
-                    </div>
+                      language={language}
+                      observation={observation}
+                      observations={filteredObservations}
+                      onDelete={() => {
+                        setDeleteTarget(observation);
+                        setDeleteTokenValue('');
+                      }}
+                      onEdit={() => handleEditObservation(observation)}
+                    />
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No filtered observations were captured on this day.
+                  {translateUiLiteral(language, 'No filtered observations were captured on this day.')}
                 </p>
               )
             ) : (
               <p className="text-sm text-muted-foreground">
                 {isLoading && !settledPresentation
-                  ? 'Loading observations…'
-                  : 'No observations match the current filters in this visible year. Adjust the search, scope, or year window.'}
+                  ? translateUiLiteral(language, 'Loading observations…')
+                  : translateUiLiteral(language, 'No observations match the current filters in this visible year. Adjust the search, scope, or year window.')}
               </p>
             )}
           </WorkspacePanel>
         </>
       ) : (
         <WorkspacePanel
-          title={`All observations (${filteredObservations.length})`}
+          title={translateUiLiteral(language, 'All observations ({count})', { count: filteredObservations.length })}
           descriptor={
             filteredObservations.length > 0
-              ? `Showing ${paginatedRange.start}-${paginatedRange.end} of ${filteredObservations.length} filtered observations.`
-              : 'No observations match the current filters.'
+              ? translateUiLiteral(language, 'Showing {start}-{end} of {count} filtered observations.', {
+                  start: paginatedRange.start,
+                  end: paginatedRange.end,
+                  count: filteredObservations.length,
+                })
+              : translateUiLiteral(language, 'No observations match the current filters.')
           }
         >
           {paginatedObservations.length > 0 ? (
             <>
               <div className="grid gap-3">
                 {paginatedObservations.map((observation) => (
-                  <div
+                  <ObservationCard
                     key={observation.observationId}
-                    className="rounded-[1.25rem] border border-border/70 bg-background/70 p-4"
-                  >
-                    <p className="font-medium text-foreground">
-                      {formatSenaDateTime(observation.input.observedAt, language)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatSenaWeekdayShort(observation.input.observedAt, language)} · {observationIntervalLabel(observation, filteredObservations)} ·{' '}
-                      {observationCompositionLabel(observation.input)}
-                    </p>
-                    {observation.input.notes ? (
-                      <p className="mt-2 text-sm text-muted-foreground">{observation.input.notes}</p>
-                    ) : null}
-                  </div>
+                    language={language}
+                    observation={observation}
+                    observations={filteredObservations}
+                    onDelete={() => {
+                      setDeleteTarget(observation);
+                      setDeleteTokenValue('');
+                    }}
+                    onEdit={() => handleEditObservation(observation)}
+                  />
                 ))}
               </div>
               {totalPages > 1 ? (
                 <PagedPanelNavigation
                   className="-mx-6 -mb-6 mt-3 rounded-b-[1.5rem]"
-                  firstLabel="First"
-                  lastLabel="Last"
-                  nextAriaLabel="Next report page"
+                  firstLabel={translateUiLiteral(language, 'First')}
+                  lastLabel={translateUiLiteral(language, 'Last')}
+                  nextAriaLabel={translateUiLiteral(language, 'Next report page')}
                   pageCount={totalPages}
                   pageIndex={clampedPage - 1}
-                  pageLabel={`Page ${clampedPage} of ${totalPages}`}
-                  previousAriaLabel="Previous report page"
+                  pageLabel={translateUiLiteral(language, 'Page {current} of {total}', {
+                    current: clampedPage,
+                    total: totalPages,
+                  })}
+                  previousAriaLabel={translateUiLiteral(language, 'Previous report page')}
                   setPageIndex={(value) => {
                     if (typeof value === 'function') {
                       setPage((current) => value(current - 1) + 1);
@@ -887,8 +1024,8 @@ export function StockUpdateRoute() {
           ) : (
             <p className="text-sm text-muted-foreground">
               {isLoading && !settledPresentation
-                ? 'Loading observations…'
-                : 'No observations match the current filters. Adjust the search or scope to broaden the list.'}
+                ? translateUiLiteral(language, 'Loading observations…')
+                : translateUiLiteral(language, 'No observations match the current filters. Adjust the search or scope to broaden the list.')}
             </p>
           )}
         </WorkspacePanel>

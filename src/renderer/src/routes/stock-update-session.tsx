@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Ban, ChevronLeft, ChevronRight, Flag, PackagePlus, RotateCcw, Save, Trash2, Truck } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  ActionCreatePackageIcon,
+  ActionDeleteIcon,
+  ActionSaveIcon,
+  ActionUndoIcon,
+} from '@icons/actions';
+import { getRegimeIcon } from '@icons/domain';
+import { EntityFlagIcon, EntityTransitIcon } from '@icons/entities';
+import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
+import { StatusUnavailableIcon } from '@icons/status';
 import type { SenaCatalog, SenaObservationRegimeHint, SenaStockSnapshot } from '@shared/sena';
 import type { InventorySnapshot, RankingEntry, RankingEntryType, SistOverview } from '@shared/inventory';
 import {
@@ -15,17 +25,20 @@ import {
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
 import { StepWizard } from '@/components/system/step-wizard';
+import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
-import { useDiscardChangesConfirm, useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
+import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { displayMoneyFromUsd, formatCurrency, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
-import { regimeIconFor } from '@/lib/icon-mappings';
+import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { activeSenaCatalog } from '@/lib/sena-catalog';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -95,6 +108,15 @@ interface StockUpdateDraftState {
   stockBySku: Map<string, SenaStockSnapshot>;
   stockView: StockView;
   unlockedStepCount: number;
+}
+
+interface EditSessionState {
+  observationId: string;
+  input: ReturnType<typeof createEmptyObservationInput>;
+}
+
+interface PendingNavigationState {
+  continueNavigation: () => void;
 }
 
 const EMPTY_SIST_OVERVIEW: SistOverview = {
@@ -565,6 +587,89 @@ function writeStockUpdateDraft(state: StockUpdateDraftState) {
   return true;
 }
 
+function buildFullObservationPayload({
+  currency,
+  editSession,
+  notes,
+  observedAtIso,
+  regimeHint,
+  retailRankings,
+  rows,
+  serviceRankings,
+  serviceSignalDrafts,
+  skuSignalDrafts,
+  usdToKhrExchangeRate,
+  catalog,
+  stockBySku,
+}: {
+  currency: 'USD' | 'KHR';
+  editSession: EditSessionState;
+  notes: string;
+  observedAtIso: string | null;
+  regimeHint: SenaObservationRegimeHint | '';
+  retailRankings: string[];
+  rows: StockRow[];
+  serviceRankings: string[];
+  serviceSignalDrafts: Record<string, ServiceSignalDraft>;
+  skuSignalDrafts: Record<string, SkuSignalDraft>;
+  usdToKhrExchangeRate: number;
+  catalog: SenaCatalog | null;
+  stockBySku: Map<string, SenaStockSnapshot>;
+}) {
+  const payload = createEmptyObservationInput({
+    observedAt: observedAtIso ?? new Date().toISOString(),
+    notes: notes.trim() || null,
+  });
+  payload.stockSnapshot = rows
+    .filter((row) => shouldIncludeStockRowInEditPayload({ editSession, row, stockBySku }))
+    .map((row) => ({
+      skuId: row.skuId,
+      unitsInStock: row.unitsInStock,
+      costPerUnit: row.costPerUnit,
+      productPrice: row.productPrice,
+    }));
+  payload.serviceRankings = serviceRankings;
+  payload.retailRankings = retailRankings;
+  payload.orderSignals = Object.entries(skuSignalDrafts).flatMap(([skuId, draft]) => {
+    const nextSignals = [];
+    if (draft.orderEnabled) {
+      nextSignals.push({
+        skuId,
+        orderPlaced: true,
+        receiptArrived: false,
+        approximateOrderQuantity: draft.orderedQuantity.trim() === '' ? null : Number(draft.orderedQuantity),
+        approximateReceiptQuantity: null,
+      });
+    }
+    if (draft.receiptEnabled) {
+      nextSignals.push({
+        skuId,
+        orderPlaced: false,
+        receiptArrived: true,
+        approximateOrderQuantity: null,
+        approximateReceiptQuantity: draft.receiptQuantity.trim() === '' ? null : Number(draft.receiptQuantity),
+      });
+    }
+    return nextSignals;
+  });
+  payload.servicePrices = Object.entries(serviceSignalDrafts)
+    .filter(([, draft]) => draft.priceEnabled)
+    .map(([serviceId, draft]) => ({
+      serviceId,
+      price: usdMoneyFromDisplay(Number(draft.price), currency, usdToKhrExchangeRate),
+    }));
+  payload.retailPrices = [];
+  payload.retailStockouts = Object.entries(skuSignalDrafts)
+    .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(catalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
+    .map(([skuId]) => skuId);
+  payload.serviceStockouts = Object.entries(serviceSignalDrafts)
+    .filter(([, draft]) => draft.blockedEnabled)
+    .map(([serviceId]) => serviceId);
+  payload.adjustmentSignals = [];
+  payload.regimeHint = regimeHint || null;
+  return payload;
+}
+
 const tableDebugTrackClassName = '[&>*]:outline [&>*]:outline-1 [&>*]:outline-rose-500/50 [&>*]:outline-offset-[-1px]';
 const tableDebugFlushClassName = 'outline outline-1 outline-amber-500/40 outline-offset-[-1px]';
 
@@ -618,6 +723,121 @@ function buildInitialRows(catalog: SenaCatalog | null, observations: ReturnType<
       productPrice: sku.productPrice,
     }),
   }));
+}
+
+function buildDraftsFromObservationInput({
+  baselineRows,
+  catalog,
+  currency,
+  input,
+  usdToKhrExchangeRate,
+}: {
+  baselineRows: StockRow[];
+  catalog: SenaCatalog;
+  currency: 'USD' | 'KHR';
+  input: ReturnType<typeof createEmptyObservationInput>;
+  usdToKhrExchangeRate: number;
+}) {
+  const rowsBySkuId = new Map(baselineRows.map((row) => [row.skuId, row]));
+  for (const snapshot of input.stockSnapshot) {
+    rowsBySkuId.set(snapshot.skuId, {
+      skuId: snapshot.skuId,
+      unitsInStock: snapshot.unitsInStock,
+      costPerUnit: snapshot.costPerUnit,
+      productPrice: snapshot.productPrice,
+    });
+  }
+
+  const skuSignalDrafts: Record<string, SkuSignalDraft> = {};
+  for (const signal of input.orderSignals) {
+    const existing = skuSignalDrafts[signal.skuId] ?? createEmptySkuSignalDraft();
+    skuSignalDrafts[signal.skuId] = {
+      ...existing,
+      orderEnabled: existing.orderEnabled || signal.orderPlaced,
+      orderedQuantity:
+        signal.orderPlaced && signal.approximateOrderQuantity != null
+          ? String(signal.approximateOrderQuantity)
+          : existing.orderedQuantity,
+      receiptEnabled: existing.receiptEnabled || signal.receiptArrived,
+      receiptQuantity:
+        signal.receiptArrived && signal.approximateReceiptQuantity != null
+          ? String(signal.approximateReceiptQuantity)
+          : existing.receiptQuantity,
+    };
+  }
+  for (const skuId of input.retailStockouts) {
+    skuSignalDrafts[skuId] = {
+      ...(skuSignalDrafts[skuId] ?? createEmptySkuSignalDraft()),
+      blockedEnabled: true,
+      blockedState: 'stockout',
+    };
+  }
+
+  const serviceSignalDrafts: Record<string, ServiceSignalDraft> = {};
+  for (const servicePrice of input.servicePrices) {
+    serviceSignalDrafts[servicePrice.serviceId] = {
+      ...(serviceSignalDrafts[servicePrice.serviceId] ?? createEmptyServiceSignalDraft()),
+      priceEnabled: true,
+      price: String(displayMoneyFromUsd(servicePrice.price, currency, usdToKhrExchangeRate)),
+    };
+  }
+  for (const serviceId of input.serviceStockouts) {
+    serviceSignalDrafts[serviceId] = {
+      ...(serviceSignalDrafts[serviceId] ?? createEmptyServiceSignalDraft()),
+      blockedEnabled: true,
+      blockedState: 'stockout',
+    };
+  }
+
+  const retailSkuIds = new Set(catalog.skus.filter((sku) => sku.soldAsProduct).map((sku) => sku.skuId));
+  const baselineRowIds = new Set(baselineRows.map((row) => row.skuId));
+  const appendedRows = input.stockSnapshot
+    .filter((snapshot) => !baselineRowIds.has(snapshot.skuId))
+    .map<StockRow>((snapshot) => ({
+      skuId: snapshot.skuId,
+      unitsInStock: snapshot.unitsInStock,
+      costPerUnit: snapshot.costPerUnit,
+      productPrice: snapshot.productPrice,
+    }));
+
+  return {
+    currentStepId: 'stock' as const,
+    unlockedStepCount: STOCK_UPDATE_STEP_ORDER.length,
+    observedAt: localDateTimeInputValue(input.observedAt),
+    notes: input.notes ?? '',
+    stockView: 'counted' as const,
+    rows: [...baselineRows.map((row) => rowsBySkuId.get(row.skuId) ?? row), ...appendedRows],
+    skuSignalDrafts,
+    serviceSignalDrafts,
+    regimeHint: input.regimeHint ?? '',
+    serviceRankings: input.serviceRankings.filter((serviceId) =>
+      catalog.services.some((service) => service.serviceId === serviceId),
+    ),
+    retailRankings: input.retailRankings.filter((skuId) => retailSkuIds.has(skuId)),
+  };
+}
+
+function shouldIncludeStockRowInEditPayload({
+  editSession,
+  row,
+  stockBySku,
+}: {
+  editSession: EditSessionState;
+  row: StockRow;
+  stockBySku: Map<string, SenaStockSnapshot>;
+}) {
+  const originalRow = editSession.input.stockSnapshot.find((snapshot) => snapshot.skuId === row.skuId) ?? null;
+  const liveBaseline = stockBySku.get(row.skuId) ?? null;
+  if (originalRow) {
+    return true;
+  }
+
+  return (
+    liveBaseline == null ||
+    row.unitsInStock !== liveBaseline.unitsInStock ||
+    row.costPerUnit !== liveBaseline.costPerUnit ||
+    row.productPrice !== liveBaseline.productPrice
+  );
 }
 
 function baselineStockRow(
@@ -751,7 +971,7 @@ function RankingSignalEditor({
         </div>
         {values.length > 0 ? (
           <Button type="button" variant="ghost" onClick={() => onChange([])}>
-            <RotateCcw className="size-4" />
+            <ActionUndoIcon className="size-4" />
             {t('stockUpdateClearRanking')}
           </Button>
         ) : null}
@@ -813,7 +1033,7 @@ function FlagActionMenu({
         variant="outline"
         onClick={() => setOpen((current) => !current)}
       >
-        <Flag className="size-4" />
+        <EntityFlagIcon className="size-4" />
       </Button>
       <div
         className={cn(
@@ -865,7 +1085,7 @@ function FlagSection({
         variant="ghost"
         onClick={onRemove}
       >
-        <Trash2 className="size-4" />
+        <ActionDeleteIcon className="size-4" />
       </Button>
     </div>
   );
@@ -1198,7 +1418,7 @@ function StockCountStep({
                           {
                             key: 'ordered',
                             label: draft?.orderEnabled ? t('stockUpdateRemoveOrder') : t('stockUpdateAddOrder'),
-                            icon: <PackagePlus className="size-4" />,
+                            icon: <ActionCreatePackageIcon className="size-4" />,
                             onSelect: () =>
                               updateSkuSignalDraft(row.skuId, (current) => ({
                                 ...current,
@@ -1209,7 +1429,7 @@ function StockCountStep({
                           {
                             key: 'received',
                             label: draft?.receiptEnabled ? t('stockUpdateRemoveReceipt') : t('stockUpdateAddReceipt'),
-                            icon: <Truck className="size-4" />,
+                            icon: <EntityTransitIcon className="size-4" />,
                             onSelect: () =>
                               updateSkuSignalDraft(row.skuId, (current) => ({
                                 ...current,
@@ -1220,7 +1440,7 @@ function StockCountStep({
                           {
                             key: 'blocked',
                             label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
-                            icon: <Ban className="size-4" />,
+                            icon: <StatusUnavailableIcon className="size-4" />,
                             onSelect: () =>
                               updateSkuSignalDraft(row.skuId, (current) => ({
                                 ...current,
@@ -1445,7 +1665,7 @@ function ServiceSignalsStep({
                         {
                           key: 'price',
                           label: draft?.priceEnabled ? t('stockUpdateRemovePriceChange') : t('stockUpdateAddPriceChange'),
-                          icon: <PackagePlus className="size-4" />,
+                          icon: <ActionCreatePackageIcon className="size-4" />,
                           onSelect: () =>
                             updateServiceSignalDraft(service.serviceId, (current) => ({
                               ...current,
@@ -1456,7 +1676,7 @@ function ServiceSignalsStep({
                         {
                           key: 'blocked',
                           label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
-                          icon: <Ban className="size-4" />,
+                          icon: <StatusUnavailableIcon className="size-4" />,
                           onSelect: () =>
                             updateServiceSignalDraft(service.serviceId, (current) => ({
                               ...current,
@@ -1496,7 +1716,7 @@ function RegimeFields({
     { value: 'correction', label: t('stockUpdateRegimeCorrection'), detail: t('stockUpdateRegimeCorrectionDetail') },
   ];
   const selectedRegime = regimeOptions.find((option) => option.value === regimeHint) ?? null;
-  const SelectedIcon = regimeIconFor(selectedRegime?.value ?? 'normal');
+  const SelectedIcon = getRegimeIcon(selectedRegime?.value ?? 'normal');
   const regimeDescription = selectedRegime?.detail ?? t('stockUpdateRegimeDescriptionEmpty');
 
   return (
@@ -1517,7 +1737,7 @@ function RegimeFields({
           <SelectContent>
             <SelectItem value="none">{t('stockUpdateNoRegimeSignal')}</SelectItem>
             {regimeOptions.map((option) => {
-              const Icon = regimeIconFor(option.value);
+              const Icon = getRegimeIcon(option.value);
               return (
                 <SelectItem key={option.value} value={option.value}>
                   <span className="flex items-center gap-2">
@@ -1633,14 +1853,27 @@ function ReviewStep({
 }
 
 export function StockUpdateSessionRoute() {
-  const { catalog, ingestSenaObservation, isSaving, observations, triggerSenaRun, workspaceSummary } = useInventory();
+  const { catalog, ingestSenaObservation, isSaving, observations, triggerSenaRun, updateSenaObservation, workspaceSummary } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
+  const location = useLocation();
+  const navigate = useNavigate();
   const latestAt = latestObservationAt(observations);
+  const incomingEditSession = useMemo(() => readRecordUpdateEditSession(location.state), [location.state]);
   const initialObservedAtRef = useRef(localDateTimeInputValue(null));
   const draftHydrationCheckedRef = useRef(false);
   const latestDraftStateRef = useRef<StockUpdateDraftState | null>(null);
   const skipNextDraftPersistRef = useRef(false);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
+  const [editSession, setEditSession] = useState<EditSessionState | null>(() =>
+    incomingEditSession
+      ? {
+          observationId: incomingEditSession.observationId,
+          input: incomingEditSession.input,
+        }
+      : null,
+  );
+  const [pendingEditSession, setPendingEditSession] = useState<EditSessionState | null>(null);
+  const [replaceDraftDialogOpen, setReplaceDraftDialogOpen] = useState(false);
   const [currentStepId, setCurrentStepId] = useState<StockUpdateStepId>('stock');
   const [unlockedStepCount, setUnlockedStepCount] = useState(1);
   const [observedAt, setObservedAt] = useState(() => initialObservedAtRef.current);
@@ -1656,16 +1889,19 @@ export function StockUpdateSessionRoute() {
   const [error, setError] = useState<string | null>(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(() => hasStoredStockUpdateDraft());
   const [draftWasRestored, setDraftWasRestored] = useState(false);
+  const [leaveDraftDialogOpen, setLeaveDraftDialogOpen] = useState(false);
+  const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
+  const workingCatalog = editSession ? catalog : visibleCatalog;
 
-  const stockBySku = useMemo(() => latestStockBySku(catalog, observations), [catalog, observations]);
+  const stockBySku = useMemo(() => latestStockBySku(workingCatalog, observations), [observations, workingCatalog]);
   const countedAtBySku = useMemo(() => latestCountedAtBySku(observations), [observations]);
   const highRiskIds = new Set(workspaceSummary?.highRiskSkuIds ?? []);
   const serviceLinkedSkuIds = useMemo(
-    () => new Set((catalog?.sharingMask ?? []).filter((entry) => entry.enabled).map((entry) => entry.skuId)),
-    [catalog],
+    () => new Set((workingCatalog?.sharingMask ?? []).filter((entry) => entry.enabled).map((entry) => entry.skuId)),
+    [workingCatalog],
   );
   const prioritySkuIds = useMemo(() => {
-    const scored = (catalog?.skus ?? []).map((sku, index) => ({
+    const scored = (workingCatalog?.skus ?? []).map((sku, index) => ({
       skuId: sku.skuId,
       score:
         (highRiskIds.has(sku.skuId) ? 100 : 0) +
@@ -1674,11 +1910,11 @@ export function StockUpdateSessionRoute() {
         index / 100,
     }));
     return new Set(scored.sort((left, right) => right.score - left.score).slice(0, 8).map((entry) => entry.skuId));
-  }, [catalog?.skus, countedAtBySku, highRiskIds, serviceLinkedSkuIds]);
+  }, [countedAtBySku, highRiskIds, serviceLinkedSkuIds, workingCatalog?.skus]);
 
   const visibleRows = rows.filter((row) => {
     if (stockView === 'counted') {
-      return stockRowChanged(catalog, stockBySku, row) || hasSkuFlags(skuSignalDrafts[row.skuId]);
+      return stockRowChanged(workingCatalog, stockBySku, row) || hasSkuFlags(skuSignalDrafts[row.skuId]);
     }
     if (stockView === 'priority') {
       return prioritySkuIds.has(row.skuId);
@@ -1689,10 +1925,10 @@ export function StockUpdateSessionRoute() {
   const observedAtIso = dateTimeInputToIso(observedAt);
   const intervalDays = intervalDaysBetween(latestAt, observedAtIso);
   const isFirstObservation = observations.length === 0;
-  const countedSkuCount = rows.filter((row) => stockRowChanged(catalog, stockBySku, row)).length;
-  const fullUpdate = rows.length > 0 && rows.every((row) => stockRowChanged(catalog, stockBySku, row));
-  const defaultServiceRankingIds = (catalog?.services ?? []).map((service) => service.serviceId);
-  const defaultRetailRankingIds = (catalog?.skus ?? []).filter((sku) => sku.soldAsProduct).map((sku) => sku.skuId);
+  const countedSkuCount = rows.filter((row) => stockRowChanged(workingCatalog, stockBySku, row)).length;
+  const fullUpdate = rows.length > 0 && rows.every((row) => stockRowChanged(workingCatalog, stockBySku, row));
+  const defaultServiceRankingIds = (workingCatalog?.services ?? []).map((service) => service.serviceId);
+  const defaultRetailRankingIds = (workingCatalog?.skus ?? []).filter((sku) => sku.soldAsProduct).map((sku) => sku.skuId);
   const currentStepIndex = STOCK_UPDATE_STEP_ORDER.indexOf(currentStepId);
   const isLastStep = currentStepIndex === STOCK_UPDATE_STEP_ORDER.length - 1;
   const skuFlagCount = Object.values(skuSignalDrafts).reduce((count, draft) => count + activeSkuFlagIds(draft).length, 0);
@@ -1703,7 +1939,7 @@ export function StockUpdateSessionRoute() {
   const serviceFlagsValid = !serviceFlagsHaveEmptyRequiredValues(serviceSignalDrafts);
   const draftState = useMemo<StockUpdateDraftState>(
     () => ({
-      catalog,
+      catalog: workingCatalog,
       currentStepId,
       initialObservedAt: initialObservedAtRef.current,
       notes,
@@ -1719,7 +1955,7 @@ export function StockUpdateSessionRoute() {
       unlockedStepCount,
     }),
     [
-      catalog,
+      workingCatalog,
       currentStepId,
       notes,
       observedAt,
@@ -1735,19 +1971,82 @@ export function StockUpdateSessionRoute() {
     ],
   );
   const hasMeaningfulChanges = useMemo(() => hasMeaningfulStockUpdateChanges(draftState), [draftState]);
+  const canDiscardChanges = hasMeaningfulChanges || hasSavedDraft || draftWasRestored;
+  const hasAnyLiveDraft = canDiscardChanges;
+
+  function applyHydratedDraftState({
+    hydratedState,
+    nextEditSession,
+  }: {
+    hydratedState: ReturnType<typeof buildDraftsFromObservationInput>;
+    nextEditSession: EditSessionState | null;
+  }) {
+    initialObservedAtRef.current = hydratedState.observedAt;
+    setEditSession(nextEditSession);
+    setCurrentStepId(hydratedState.currentStepId);
+    setUnlockedStepCount(hydratedState.unlockedStepCount);
+    setObservedAt(hydratedState.observedAt);
+    setNotes(hydratedState.notes);
+    setStockView(hydratedState.stockView);
+    setRows(hydratedState.rows);
+    setSkuSignalDrafts(hydratedState.skuSignalDrafts);
+    setServiceSignalDrafts(hydratedState.serviceSignalDrafts);
+    setRegimeHint(hydratedState.regimeHint);
+    setServiceRankings(hydratedState.serviceRankings);
+    setRetailRankings(hydratedState.retailRankings);
+  }
+
+  function hydrateEditSession(nextEditSession: EditSessionState, baselineRows: StockRow[]) {
+    const editCatalog = catalog ?? visibleCatalog;
+    if (!editCatalog) {
+      return;
+    }
+    const hydratedEditState = buildDraftsFromObservationInput({
+      baselineRows,
+      catalog: editCatalog,
+      currency,
+      input: nextEditSession.input,
+      usdToKhrExchangeRate,
+    });
+    applyHydratedDraftState({
+      hydratedState: hydratedEditState,
+      nextEditSession,
+    });
+    setHasSavedDraft(false);
+    setDraftWasRestored(false);
+    setPendingEditSession(null);
+    setReplaceDraftDialogOpen(false);
+    navigate(location.pathname, { replace: true, state: null });
+  }
 
   useEffect(() => {
-    if (!catalog) {
-      setRows(buildInitialRows(catalog, observations));
+    if (!workingCatalog) {
+      setRows(buildInitialRows(workingCatalog, observations));
       return;
     }
 
-    const baselineRows = buildInitialRows(catalog, observations);
+    const baselineRows = buildInitialRows(workingCatalog, observations);
+    const nextEditSession = incomingEditSession
+      ? {
+          observationId: incomingEditSession.observationId,
+          input: incomingEditSession.input,
+        }
+      : null;
     if (!draftHydrationCheckedRef.current) {
       draftHydrationCheckedRef.current = true;
+      if (nextEditSession) {
+        if (hasAnyLiveDraft) {
+          setPendingEditSession(nextEditSession);
+          setReplaceDraftDialogOpen(true);
+          return;
+        }
+        hydrateEditSession(nextEditSession, baselineRows);
+        return;
+      }
+
       const hydratedDraft = hydrateStockUpdateDraft({
         baselineRows,
-        catalog,
+        catalog: workingCatalog,
         draft: readStockUpdateDraft(),
       });
 
@@ -1773,8 +2072,45 @@ export function StockUpdateSessionRoute() {
       setDraftWasRestored(false);
     }
 
-    setRows(baselineRows);
-  }, [catalog, observations]);
+    if (!hasAnyLiveDraft && !editSession) {
+      setRows(baselineRows);
+    }
+  }, [currency, editSession, hasAnyLiveDraft, incomingEditSession, location.pathname, navigate, observations, usdToKhrExchangeRate, workingCatalog]);
+
+  useEffect(() => {
+    if (!(catalog ?? visibleCatalog) || !draftHydrationCheckedRef.current || !incomingEditSession) {
+      return;
+    }
+
+    const nextEditSession = {
+      observationId: incomingEditSession.observationId,
+      input: incomingEditSession.input,
+    } satisfies EditSessionState;
+    if (editSession?.observationId === nextEditSession.observationId) {
+      navigate(location.pathname, { replace: true, state: null });
+      return;
+    }
+    if (pendingEditSession?.observationId === nextEditSession.observationId) {
+      return;
+    }
+    if (hasAnyLiveDraft) {
+      setPendingEditSession(nextEditSession);
+      setReplaceDraftDialogOpen(true);
+      return;
+    }
+
+    hydrateEditSession(nextEditSession, buildInitialRows(catalog ?? visibleCatalog, observations));
+  }, [
+    catalog,
+    editSession?.observationId,
+    hasAnyLiveDraft,
+    incomingEditSession,
+    location.pathname,
+    navigate,
+    observations,
+    pendingEditSession?.observationId,
+    visibleCatalog,
+  ]);
 
   useEffect(() => {
     latestDraftStateRef.current = draftState;
@@ -1812,6 +2148,7 @@ export function StockUpdateSessionRoute() {
   useEffect(() => {
     function persistLatestDraft() {
       if (skipNextDraftPersistRef.current) {
+        skipNextDraftPersistRef.current = false;
         return;
       }
       const latestState = latestDraftStateRef.current;
@@ -1850,11 +2187,32 @@ export function StockUpdateSessionRoute() {
   }
 
   function buildPayload() {
+    if (editSession) {
+      return buildFullObservationPayload({
+        currency,
+        editSession,
+        notes,
+        observedAtIso,
+        regimeHint,
+        retailRankings,
+        rows,
+        serviceRankings,
+        serviceSignalDrafts,
+        skuSignalDrafts,
+        usdToKhrExchangeRate,
+        catalog: workingCatalog,
+        stockBySku,
+      });
+    }
     const payload = createEmptyObservationInput({
       observedAt: observedAtIso ?? new Date().toISOString(),
       notes: notes.trim() || null,
     });
-    payload.stockSnapshot = rows.filter((row) => stockRowChanged(catalog, stockBySku, row));
+    payload.stockSnapshot = rows.filter((row) =>
+      editSession
+        ? shouldIncludeStockRowInEditPayload({ editSession, row, stockBySku })
+        : stockRowChanged(catalog, stockBySku, row),
+    );
     payload.serviceRankings = serviceRankings;
     payload.retailRankings = retailRankings;
     payload.orderSignals = Object.entries(skuSignalDrafts).flatMap(([skuId, draft]) => {
@@ -1889,7 +2247,7 @@ export function StockUpdateSessionRoute() {
         price: usdMoneyFromDisplay(Number(draft.price), currency, usdToKhrExchangeRate),
       }));
     payload.retailStockouts = Object.entries(skuSignalDrafts)
-      .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(draft.blockedState) && Boolean(catalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
+      .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(draft.blockedState) && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
       .map(([skuId]) => skuId);
     payload.serviceStockouts = Object.entries(serviceSignalDrafts)
       .filter(([, draft]) => draft.blockedEnabled && Boolean(draft.blockedState))
@@ -2011,6 +2369,9 @@ export function StockUpdateSessionRoute() {
   function resetRecordUpdateState() {
     const nextObservedAt = localDateTimeInputValue(null);
     initialObservedAtRef.current = nextObservedAt;
+    setEditSession(null);
+    setPendingEditSession(null);
+    setReplaceDraftDialogOpen(false);
     setCurrentStepId('stock');
     setUnlockedStepCount(1);
     setObservedAt(nextObservedAt);
@@ -2058,19 +2419,26 @@ export function StockUpdateSessionRoute() {
       return;
     }
     try {
-      await ingestSenaObservation(payload);
+      if (editSession) {
+        await updateSenaObservation({
+          observationId: editSession.observationId,
+          input: payload,
+        });
+      } else {
+        await ingestSenaObservation(payload);
+      }
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
       skipNextDraftPersistRef.current = true;
       removeStockUpdateDraft();
       setHasSavedDraft(false);
       setDraftWasRestored(false);
       resetRecordUpdateState();
+      navigate(location.pathname, { replace: true, state: null });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('stockUpdateSaveFailed'));
     }
   }
 
-  const canDiscardChanges = hasMeaningfulChanges || hasSavedDraft || draftWasRestored;
   const discardChangesDescription =
     t('stockSessionDiscardDescription');
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
@@ -2078,11 +2446,95 @@ export function StockUpdateSessionRoute() {
     description: discardChangesDescription,
     onDiscard: handleDiscardChanges,
   });
-  const { discardConfirmDialog: routeDiscardConfirmDialog } = useRouteLeaveConfirm({
-    enabled: canDiscardChanges,
-    description: discardChangesDescription,
-    onDiscard: handleDiscardChanges,
-  });
+  const pendingNavigationRef = useRef<PendingNavigationState | null>(null);
+
+  function persistDraftForLater() {
+    const latestState = latestDraftStateRef.current;
+    if (!latestState) {
+      return;
+    }
+    const wroteDraft = writeStockUpdateDraft(latestState);
+    setHasSavedDraft(wroteDraft);
+    setDraftWasRestored(false);
+  }
+
+  useEffect(() => {
+    function resolveTargetPath(anchor: HTMLAnchorElement) {
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin) {
+        return null;
+      }
+      if (url.hash.startsWith('#/')) {
+        return url.hash.slice(1);
+      }
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+
+    function currentBrowserPath() {
+      if (window.location.hash.startsWith('#/')) {
+        return window.location.hash.slice(1);
+      }
+      return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    }
+
+    function queueNavigation(continueNavigation: () => void) {
+      pendingNavigationRef.current = { continueNavigation };
+      setLeaveDraftDialogOpen(true);
+    }
+
+    function handleDocumentClick(event: MouseEvent) {
+      if (!canDiscardChanges || event.defaultPrevented || event.button !== 0) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const anchor = target.closest('a[href]');
+      if (!(anchor instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      const currentPath = `${location.pathname}${location.search}${location.hash}`;
+      const nextPath = resolveTargetPath(anchor);
+      if (!nextPath || nextPath === currentPath) {
+        return;
+      }
+
+      event.preventDefault();
+      queueNavigation(() => navigate(nextPath));
+    }
+
+    function handleHistoryNavigation() {
+      if (!canDiscardChanges) {
+        return;
+      }
+
+      const previousPath = `${location.pathname}${location.search}${location.hash}`;
+      const nextPath = currentBrowserPath();
+      if (nextPath === previousPath) {
+        return;
+      }
+
+      navigate(previousPath, { replace: true });
+      queueNavigation(() => navigate(nextPath));
+    }
+
+    document.addEventListener('click', handleDocumentClick, true);
+    window.addEventListener('popstate', handleHistoryNavigation);
+    window.addEventListener('hashchange', handleHistoryNavigation);
+
+    return () => {
+      document.removeEventListener('click', handleDocumentClick, true);
+      window.removeEventListener('popstate', handleHistoryNavigation);
+      window.removeEventListener('hashchange', handleHistoryNavigation);
+    };
+  }, [canDiscardChanges, location.hash, location.pathname, location.search, navigate]);
   const draftStatusLabel = draftWasRestored
     ? t('stockSessionDraftResumed')
     : hasMeaningfulChanges
@@ -2095,19 +2547,19 @@ export function StockUpdateSessionRoute() {
     <>
       {currentStepIndex > 0 ? (
         <Button type="button" variant="outline" onClick={goToPreviousStep}>
-          <ChevronLeft className="size-4" />
+          <NavigationPreviousIcon className="size-4" />
           {t('stockSessionBack')}
         </Button>
       ) : null}
       {isLastStep ? (
         <Button disabled={submitDisabled} form="stock-update-session-form" type="submit">
-          <Save className="size-4" />
+          <ActionSaveIcon className="size-4" />
           {isSaving ? t('catalogSenaSkuSaving') : t('stockDone')}
         </Button>
       ) : (
         <Button disabled={!canContinueCurrentStep} type="button" onClick={goToNextStep}>
           {t('stockSessionNext')}
-          <ChevronRight className="size-4" />
+          <NavigationNextIcon className="size-4" />
         </Button>
       )}
     </>
@@ -2123,7 +2575,7 @@ export function StockUpdateSessionRoute() {
         variant="ghost"
         onClick={() => requestDiscard()}
       >
-        <Trash2 className="size-4" />
+        <ActionDeleteIcon className="size-4" />
         {t('stockUpdateDiscardChanges')}
       </Button>
       {navigationActions}
@@ -2150,8 +2602,49 @@ export function StockUpdateSessionRoute() {
 
   return (
     <WorkspacePage>
+      <ConfirmActionDialog
+        cancelLabel={translateUiLiteral(language, 'Cancel')}
+        confirmLabel={translateUiLiteral(language, 'Replace draft')}
+        confirmVariant="default"
+        description={translateUiLiteral(language, 'You already have an in-progress logs update on this device. Replace it with the saved report you chose to edit?')}
+        open={replaceDraftDialogOpen}
+        title={translateUiLiteral(language, 'Replace saved draft?')}
+        onCancel={() => {
+          draftHydrationCheckedRef.current = false;
+          setPendingEditSession(null);
+          setReplaceDraftDialogOpen(false);
+          navigate(location.pathname, { replace: true, state: null });
+        }}
+        onConfirm={() => {
+          if (!(catalog ?? visibleCatalog) || !pendingEditSession) {
+            setReplaceDraftDialogOpen(false);
+            return;
+          }
+          skipNextDraftPersistRef.current = true;
+          removeStockUpdateDraft();
+          hydrateEditSession(pendingEditSession, buildInitialRows(catalog ?? visibleCatalog, observations));
+        }}
+      />
       {discardConfirmDialog}
-      {routeDiscardConfirmDialog}
+      <ConfirmActionDialog
+        cancelLabel={translateUiLiteral(language, 'Keep editing')}
+        confirmLabel={translateUiLiteral(language, 'Save draft and leave')}
+        confirmVariant="default"
+        description={translateUiLiteral(language, 'Save this in-progress record update as a draft before leaving?')}
+        open={leaveDraftDialogOpen}
+        title={translateUiLiteral(language, 'Leave record update?')}
+        onCancel={() => {
+          pendingNavigationRef.current = null;
+          setLeaveDraftDialogOpen(false);
+        }}
+        onConfirm={() => {
+          const pendingNavigation = pendingNavigationRef.current;
+          pendingNavigationRef.current = null;
+          persistDraftForLater();
+          setLeaveDraftDialogOpen(false);
+          pendingNavigation?.continueNavigation();
+        }}
+      />
       <WorkspaceTitleCard
         actions={titleActions}
         floatingActions={<WorkspaceActionRow>{navigationActions}</WorkspaceActionRow>}
@@ -2243,7 +2736,7 @@ export function StockUpdateSessionRoute() {
 
         {currentStepId === 'stock' ? (
           <StockCountStep
-            catalog={catalog}
+            catalog={workingCatalog}
             countedAtBySku={countedAtBySku}
             currency={currency}
             debugCellBoundaries={debugCellBoundaries}
@@ -2263,7 +2756,7 @@ export function StockUpdateSessionRoute() {
 
         {currentStepId === 'service' ? (
           <ServiceSignalsStep
-            catalog={catalog}
+            catalog={workingCatalog}
             currency={currency}
             debugCellBoundaries={debugCellBoundaries}
             guidance={currentStepId === 'service' ? stepGuidance : null}
@@ -2289,7 +2782,7 @@ export function StockUpdateSessionRoute() {
           >
             <div className="grid items-start gap-6 lg:grid-cols-2">
               <RankingSignalEditor
-                catalog={catalog}
+                catalog={workingCatalog}
                 entryType="service"
                 label={t('stockUpdateTopServicesLabel')}
                 seedValues={defaultServiceRankingIds}
@@ -2297,7 +2790,7 @@ export function StockUpdateSessionRoute() {
                 onChange={setServiceRankings}
               />
               <RankingSignalEditor
-                catalog={catalog}
+                catalog={workingCatalog}
                 entryType="sku"
                 label={t('stockUpdateTopRetailItemsLabel')}
                 seedValues={defaultRetailRankingIds}
@@ -2311,7 +2804,7 @@ export function StockUpdateSessionRoute() {
         {currentStepId === 'review' ? (
           <ReviewStep
             blockers={reviewBlockers}
-            catalog={catalog}
+            catalog={workingCatalog}
             error={error}
             payload={previewPayload}
             previewParts={previewParts}

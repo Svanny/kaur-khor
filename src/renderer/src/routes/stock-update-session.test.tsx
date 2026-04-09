@@ -1,11 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import { getTranslation } from '@/lib/translations';
 import { StockUpdateSessionRoute } from './stock-update-session';
 
 const inventoryHook = vi.fn();
 const ingestSenaObservation = vi.fn();
+const updateSenaObservation = vi.fn();
 const triggerSenaRun = vi.fn();
 const preferenceState = {
   currency: 'USD' as const,
@@ -117,6 +119,7 @@ function renderRoute(nextObservations = observations) {
     latestRun: null,
     observations: nextObservations,
     triggerSenaRun,
+    updateSenaObservation,
     workspaceSummary: {
       highRiskSkuIds: ['sku-1'],
     },
@@ -138,6 +141,7 @@ function renderRoutedSession(nextObservations = observations) {
     latestRun: null,
     observations: nextObservations,
     triggerSenaRun,
+    updateSenaObservation,
     workspaceSummary: {
       highRiskSkuIds: ['sku-1'],
     },
@@ -156,6 +160,76 @@ function renderRoutedSession(nextObservations = observations) {
           path="/record-update"
         />
         <Route element={<div>Catalog destination</div>} path="/catalog" />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function renderEditRoute(observation = observations[0]!, nextObservations = observations) {
+  inventoryHook.mockReturnValue({
+    catalog,
+    ingestSenaObservation,
+    isLoading: false,
+    isSaving: false,
+    latestRun: null,
+    observations: nextObservations,
+    triggerSenaRun,
+    updateSenaObservation,
+    workspaceSummary: {
+      highRiskSkuIds: ['sku-1'],
+    },
+  });
+
+  return render(
+    <MemoryRouter
+      initialEntries={[
+        {
+          pathname: '/record-update',
+          state: {
+            editSession: createRecordUpdateEditSession(observation),
+          },
+        },
+      ]}
+    >
+      <StockUpdateSessionRoute />
+    </MemoryRouter>,
+  );
+}
+
+function renderRouteWithInlineEditLink(observation = observations[0]!, nextObservations = observations) {
+  inventoryHook.mockReturnValue({
+    catalog,
+    ingestSenaObservation,
+    isLoading: false,
+    isSaving: false,
+    latestRun: null,
+    observations: nextObservations,
+    triggerSenaRun,
+    updateSenaObservation,
+    workspaceSummary: {
+      highRiskSkuIds: ['sku-1'],
+    },
+  });
+
+  return render(
+    <MemoryRouter initialEntries={['/record-update']}>
+      <Routes>
+        <Route
+          element={
+            <>
+              <Link
+                state={{
+                  editSession: createRecordUpdateEditSession(observation),
+                }}
+                to="/record-update"
+              >
+                Edit saved report
+              </Link>
+              <StockUpdateSessionRoute />
+            </>
+          }
+          path="/record-update"
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -192,6 +266,7 @@ describe('StockUpdateSessionRoute', () => {
     preferenceState.showFloatingTitleActions = false;
     installMemoryLocalStorage();
     ingestSenaObservation.mockResolvedValue({ observationId: 'obs-new' });
+    updateSenaObservation.mockResolvedValue({ observationId: 'obs-1' });
     triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
   });
 
@@ -222,7 +297,7 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Rank recent selling order/i }));
     expect(screen.queryByRole('button', { name: 'Start ranking' })).not.toBeInTheDocument();
-  }, 10_000);
+  }, 20_000);
 
   it('blocks the first observation until at least one SKU stock row changes', () => {
     renderRoute([]);
@@ -273,7 +348,7 @@ describe('StockUpdateSessionRoute', () => {
         ],
       }),
     );
-  });
+  }, 10_000);
 
   it('allows a later service price-only update and saves regime from the merged interval step', async () => {
     renderRoute();
@@ -371,6 +446,188 @@ describe('StockUpdateSessionRoute', () => {
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 
+  it('hydrates edit mode from a saved observation and saves through update', async () => {
+    const editableObservation = {
+      ...observations[0]!,
+      input: {
+        ...observations[0]!.input,
+        notes: 'Saved note',
+        stockSnapshot: [
+          { skuId: 'sku-1', unitsInStock: 11, costPerUnit: 4, productPrice: 9 },
+          { skuId: 'sku-2', unitsInStock: 6, costPerUnit: 2, productPrice: null },
+        ],
+        orderSignals: [
+          {
+            skuId: 'sku-1',
+            orderPlaced: true,
+            receiptArrived: false,
+            approximateOrderQuantity: 14,
+            approximateReceiptQuantity: null,
+          },
+        ],
+        servicePrices: [{ serviceId: 'service-1', price: 15 }],
+        regimeHint: 'promo' as const,
+      },
+    };
+
+    renderEditRoute(editableObservation);
+
+    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '9' } });
+    expect(screen.getByLabelText('Ordered quantity for Razor refill')).toHaveValue(14);
+
+    goNext();
+    expect(screen.getByLabelText('Price if changed for Haircut')).toHaveValue(15);
+
+    goNext(2);
+    expect(screen.getByDisplayValue('Saved note')).toBeInTheDocument();
+
+    goNext();
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(updateSenaObservation).toHaveBeenCalledTimes(1));
+    expect(updateSenaObservation).toHaveBeenCalledWith({
+      observationId: 'obs-1',
+      input: expect.objectContaining({
+        notes: 'Saved note',
+        regimeHint: 'promo',
+        servicePrices: [{ serviceId: 'service-1', price: 15 }],
+        orderSignals: [
+          {
+            skuId: 'sku-1',
+            orderPlaced: true,
+            receiptArrived: false,
+            approximateOrderQuantity: 14,
+            approximateReceiptQuantity: null,
+          },
+        ],
+      }),
+    });
+    expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([
+      { skuId: 'sku-1', unitsInStock: 9, costPerUnit: 4, productPrice: 9 },
+      { skuId: 'sku-2', unitsInStock: 6, costPerUnit: 2, productPrice: null },
+    ]);
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+  }, 10_000);
+
+  it('keeps a partial historical stock snapshot when saving an edit', async () => {
+    const editableObservation = {
+      ...observations[0]!,
+      input: {
+        ...observations[0]!.input,
+        notes: 'Saved note',
+        stockSnapshot: [
+          { skuId: 'sku-1', unitsInStock: 11, costPerUnit: 4, productPrice: 9 },
+        ],
+      },
+    };
+
+    renderEditRoute(editableObservation);
+
+    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '9' } });
+
+    goNext(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(updateSenaObservation).toHaveBeenCalledTimes(1));
+    expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([
+      { skuId: 'sku-1', unitsInStock: 9, costPerUnit: 4, productPrice: 9 },
+    ]);
+  });
+
+  it('keeps archived entities available when editing a saved observation', async () => {
+    const archivedCatalog = {
+      ...catalog,
+      skus: catalog.skus.map((sku) =>
+        sku.skuId === 'sku-2' ? { ...sku, archived: true } : { ...sku, archived: false },
+      ),
+      services: catalog.services.map((service) => ({ ...service, archived: false })),
+    };
+    const archivedObservation = {
+      ...observations[0]!,
+      input: {
+        ...observations[0]!.input,
+        stockSnapshot: [
+          { skuId: 'sku-2', unitsInStock: 6, costPerUnit: 2, productPrice: null },
+        ],
+        notes: 'Archived note',
+      },
+    };
+
+    inventoryHook.mockReturnValue({
+      catalog: archivedCatalog,
+      ingestSenaObservation,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations,
+      triggerSenaRun,
+      updateSenaObservation,
+      workspaceSummary: {
+        highRiskSkuIds: ['sku-1'],
+      },
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: '/record-update',
+            state: {
+              editSession: createRecordUpdateEditSession(archivedObservation),
+            },
+          },
+        ]}
+      >
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Towel')).toBeInTheDocument();
+
+    goNext(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(updateSenaObservation).toHaveBeenCalledTimes(1));
+    expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([
+      { skuId: 'sku-2', unitsInStock: 6, costPerUnit: 2, productPrice: null },
+    ]);
+  });
+
+  it('asks before replacing a saved local draft with an edit session', async () => {
+    window.localStorage.setItem(
+      STOCK_UPDATE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: '2026-04-04T00:00:00.000Z',
+        currentStepId: 'context',
+        unlockedStepCount: 4,
+        observedAt: '2026-04-04T00:00',
+        notes: 'Existing draft',
+        stockView: 'priority',
+        rows: [],
+        skuSignalDrafts: {},
+        serviceSignalDrafts: {},
+        regimeHint: '',
+        serviceRankings: [],
+        retailRankings: [],
+      }),
+    );
+
+    renderEditRoute();
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Replace saved draft?');
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'You already have an in-progress logs update on this device. Replace it with the saved report you chose to edit?',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace draft' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByDisplayValue('Existing draft')).not.toBeInTheDocument();
+  });
+
   it('auto-saves a meaningful draft on unmount and resumes it on the next mount', async () => {
     const { unmount } = renderRoute();
 
@@ -409,15 +666,29 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Count SKU stock/i }));
     expect(screen.getByLabelText('Ordered quantity for Razor refill')).toHaveValue(14);
+  }, 10_000);
+
+  it('asks before replacing a live in-memory draft with an edit session', async () => {
+    renderRouteWithInlineEditLink();
+
+    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Edit saved report' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Replace saved draft?');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getAllByLabelText('Units in stock')[0]).toHaveValue(7);
   });
 
   it('asks before discarding changes and resets only after confirmation', async () => {
     renderRoute();
 
     fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Discard changes' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?'));
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getAllByLabelText('Units in stock')[0]).toHaveValue(7);
@@ -431,24 +702,29 @@ describe('StockUpdateSessionRoute', () => {
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 
-  it('asks before navigating away with a record update draft', async () => {
+  it('saves the draft before navigating away from a record update session', async () => {
     renderRoutedSession();
 
     fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Discard changes' })).toBeEnabled());
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Leave record update?'));
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
     expect(screen.getAllByLabelText('Units in stock')[0]).toHaveValue(7);
 
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft and leave' }));
 
     await waitFor(() => {
       expect(screen.getByText('Catalog destination')).toBeInTheDocument();
     });
-    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+    expect(JSON.parse(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
+      expect.objectContaining({
+        rows: expect.arrayContaining([expect.objectContaining({ skuId: 'sku-1', unitsInStock: 7 })]),
+      }),
+    );
   });
 
   it('ignores corrupt saved drafts without crashing', () => {

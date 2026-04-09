@@ -5,20 +5,28 @@ import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { SettingsRoute } from './settings';
 import { PreferencesProvider } from '@/state/preferences';
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 function firstSavePreferencesButton() {
-  return screen.getAllByRole('button', { name: /save preferences/i })[0];
+  return screen.getAllByRole('button').find((button) =>
+    ['Save preferences', 'រក្សាទុកចំណូលចិត្ត'].includes(button.textContent?.trim() ?? ''),
+  ) as HTMLButtonElement;
 }
 
 describe('SettingsRoute', () => {
   const getPreferences = vi.fn();
   const savePreferences = vi.fn();
   const getLocalDataInfo = vi.fn();
+  const revealPath = vi.fn();
   const triggerRun = vi.fn();
 
   beforeEach(() => {
     getPreferences.mockReset();
     savePreferences.mockReset();
     getLocalDataInfo.mockReset();
+    revealPath.mockReset();
     triggerRun.mockReset();
     getPreferences.mockResolvedValue({
       language: 'en',
@@ -59,7 +67,7 @@ describe('SettingsRoute', () => {
       system: {
         ...(window.banjiDesktop?.system ?? {}),
         getLocalDataInfo,
-        openLocalDataFolder: vi.fn(),
+        revealPath,
       },
     };
   });
@@ -88,6 +96,50 @@ describe('SettingsRoute', () => {
         currency: 'USD',
         usdToKhrExchangeRate: 4000,
         showExplanatoryTooltips: false,
+        showFloatingTitleActions: true,
+        showRightRailCards: true,
+        senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      }));
+    });
+  });
+
+  it('renders and saves language and currency through the shared select controls', async () => {
+    savePreferences.mockImplementation(async (payload) => ({
+      language: payload.language ?? 'en',
+      currency: payload.currency ?? 'USD',
+      usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+    }));
+
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const [languageSelect, currencySelect] = await screen.findAllByRole('combobox');
+    expect(languageSelect).toHaveTextContent('abc');
+    expect(languageSelect).toHaveTextContent('English');
+    fireEvent.click(languageSelect);
+    fireEvent.click(screen.getByRole('option', { name: 'កខគKhmer' }));
+
+    expect(currencySelect).toHaveTextContent('USD');
+    fireEvent.click(currencySelect);
+    fireEvent.click(screen.getByRole('option', { name: 'KHR' }));
+
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        language: 'km',
+        currency: 'KHR',
+        usdToKhrExchangeRate: 4000,
+        showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: true,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
@@ -180,15 +232,17 @@ describe('SettingsRoute', () => {
     expect(screen.getByText('Planning detail settings')).toBeInTheDocument();
     expect(screen.getByText('Local workspace data')).toBeInTheDocument();
     expect(screen.getByText('Credits')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /export logs: csv/i })).toHaveTextContent(
-      'Export Logs: CSV',
+    expect(await screen.findByRole('button', { name: /export logs: excel/i })).toHaveTextContent(
+      'Export Logs: Excel',
     );
     expect(screen.getByRole('combobox', { name: /export logs format/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /export sena data: csv/i })).toHaveTextContent(
-      'Export SENA data: CSV',
+    expect(screen.getByRole('button', { name: /export sena data: excel/i })).toHaveTextContent(
+      'Export SENA data: Excel',
     );
     expect(screen.getByRole('combobox', { name: /choose planning data format/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/analysis profile/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /open local data folder/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^\/tmp\/banji$/i })).toBeInTheDocument();
     const particleInput = screen.getByLabelText(/analysis sample count/i);
     expect(particleInput).toHaveDisplayValue('256');
 
@@ -222,15 +276,33 @@ describe('SettingsRoute', () => {
 
     const pageText = document.body.textContent ?? '';
     expect(pageText.indexOf('Workspace preferences')).toBeLessThan(
-      pageText.indexOf('Planning detail settings'),
-    );
-    expect(pageText.indexOf('Planning detail settings')).toBeLessThan(
       pageText.indexOf('Local workspace data'),
+    );
+    expect(pageText.indexOf('Local workspace data')).toBeLessThan(
+      pageText.indexOf('Planning detail settings'),
     );
 
     fireEvent.click(screen.getByRole('button', { name: /expand credits/i }));
     expect(screen.getByText('Made with')).toBeInTheDocument();
     expect(screen.getByText('by Monysovann Ly.')).toBeInTheDocument();
+  });
+
+  it('reveals each local workspace path from the inline links', async () => {
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /^\/tmp\/banji$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/workspace\.sqlite$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/desktop-preferences\.json$/i }));
+
+    expect(revealPath).toHaveBeenNthCalledWith(1, '/tmp/banji');
+    expect(revealPath).toHaveBeenNthCalledWith(2, '/tmp/banji/workspace.sqlite');
+    expect(revealPath).toHaveBeenNthCalledWith(3, '/tmp/banji/desktop-preferences.json');
   });
 
   it('keeps SENA number fields directly editable while typing partial numeric values', async () => {

@@ -13,13 +13,27 @@ import type { SenaEngineParameters } from '@shared/ipc';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaObservationDeletePayload,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaObservationUpdatePayload,
+  SenaService,
   SenaServiceDetailPage,
+  SenaSku,
   SenaSkuDetailPage,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import { normalizeSenaCatalog } from '@/lib/sena-catalog';
+import {
+  archiveSenaService,
+  archiveSenaSku,
+  type SenaCatalogEntityType,
+  unarchiveSenaService,
+  unarchiveSenaSku,
+  upsertSenaService,
+  upsertSenaSku,
+} from '@/lib/sena-catalog';
 
 type ReadCacheValue =
   | InventorySnapshot
@@ -41,6 +55,19 @@ type SenaMetaCache = {
   lastCompletedRunId: string | null;
 };
 
+type RenameCatalogEntityPayload =
+  | {
+      entityType: 'sku';
+      previousId: string;
+      nextSku: SenaSku;
+    }
+  | {
+      entityType: 'service';
+      previousId: string;
+      nextService: SenaService;
+      skuIds: string[];
+    };
+
 export interface InventoryContextValue {
   snapshot: InventorySnapshot | null;
   reports: StockReport[];
@@ -58,8 +85,13 @@ export interface InventoryContextValue {
   listStockReports: () => Promise<StockReport[]>;
   submitLegacyReport: (payload: StockReportSubmission) => Promise<StockReport>;
   upsertSenaCatalog: (payload: SenaCatalog) => Promise<SenaCatalog>;
+  renameCatalogEntity: (payload: RenameCatalogEntityPayload) => Promise<SenaCatalog>;
+  archiveCatalogEntity: (payload: { entityId: string; entityType: 'sku' | 'service' }) => Promise<SenaCatalog>;
+  unarchiveCatalogEntity: (payload: { entityId: string; entityType: 'sku' | 'service' }) => Promise<SenaCatalog>;
   loadSenaCatalog: () => Promise<SenaCatalog | null>;
   ingestSenaObservation: (payload: SenaObservationInput) => Promise<SenaObservationRecord>;
+  updateSenaObservation: (payload: SenaObservationUpdatePayload) => Promise<SenaObservationRecord>;
+  deleteSenaObservation: (payload: SenaObservationDeletePayload) => Promise<void>;
   listSenaObservations: () => Promise<SenaObservationRecord[]>;
   loadSenaObservations: () => Promise<SenaObservationRecord[]>;
   triggerSenaRun: (payload?: { algorithmVersion?: string; parameters?: SenaEngineParameters }) => Promise<SenaAnalysisRunRecord>;
@@ -99,6 +131,90 @@ function isSenaDetailCacheKey(key: string, entityType: 'sku' | 'service', entity
   return key.startsWith(`sena:${entityType}:${entityId}:`);
 }
 
+function replaceEntityId(values: string[], previousId: string, nextId: string) {
+  return values.map((value) => (value === previousId ? nextId : value));
+}
+
+function rewriteObservationInputForRenamedEntity(
+  input: SenaObservationInput,
+  payload: RenameCatalogEntityPayload,
+): SenaObservationInput {
+  if (payload.previousId === (payload.entityType === 'sku' ? payload.nextSku.skuId : payload.nextService.serviceId)) {
+    return input;
+  }
+
+  if (payload.entityType === 'sku') {
+    const nextId = payload.nextSku.skuId;
+    const retailRankings = input.retailRankings ?? [];
+    const retailStockouts = input.retailStockouts ?? [];
+    const orderSignals = input.orderSignals ?? [];
+    const retailPrices = input.retailPrices ?? [];
+    const leadTimeHints = input.leadTimeHints ?? [];
+    const adjustmentSignals = input.adjustmentSignals ?? [];
+    const recipeUsageHints = input.recipeUsageHints ?? [];
+    const hasChange =
+      input.stockSnapshot.some((snapshot) => snapshot.skuId === payload.previousId) ||
+      retailRankings.includes(payload.previousId) ||
+      retailStockouts.includes(payload.previousId) ||
+      orderSignals.some((signal) => signal.skuId === payload.previousId) ||
+      retailPrices.some((price) => price.skuId === payload.previousId) ||
+      leadTimeHints.some((hint) => hint.skuId === payload.previousId) ||
+      adjustmentSignals.some((signal) => signal.skuId === payload.previousId) ||
+      recipeUsageHints.some((hint) => hint.skuId === payload.previousId);
+    if (!hasChange) {
+      return input;
+    }
+    return {
+      ...input,
+      stockSnapshot: input.stockSnapshot.map((snapshot) =>
+        snapshot.skuId === payload.previousId ? { ...snapshot, skuId: nextId } : snapshot,
+      ),
+      retailRankings: replaceEntityId(retailRankings, payload.previousId, nextId),
+      retailStockouts: replaceEntityId(retailStockouts, payload.previousId, nextId),
+      orderSignals: orderSignals.map((signal) =>
+        signal.skuId === payload.previousId ? { ...signal, skuId: nextId } : signal,
+      ),
+      retailPrices: retailPrices.map((price) =>
+        price.skuId === payload.previousId ? { ...price, skuId: nextId } : price,
+      ),
+      leadTimeHints: leadTimeHints.map((hint) =>
+        hint.skuId === payload.previousId ? { ...hint, skuId: nextId } : hint,
+      ),
+      adjustmentSignals: adjustmentSignals.map((signal) =>
+        signal.skuId === payload.previousId ? { ...signal, skuId: nextId } : signal,
+      ),
+      recipeUsageHints: recipeUsageHints.map((hint) =>
+        hint.skuId === payload.previousId ? { ...hint, skuId: nextId } : hint,
+      ),
+    };
+  }
+
+  const nextId = payload.nextService.serviceId;
+  const serviceRankings = input.serviceRankings ?? [];
+  const serviceStockouts = input.serviceStockouts ?? [];
+  const servicePrices = input.servicePrices ?? [];
+  const recipeUsageHints = input.recipeUsageHints ?? [];
+  const hasChange =
+    serviceRankings.includes(payload.previousId) ||
+    serviceStockouts.includes(payload.previousId) ||
+    servicePrices.some((price) => price.serviceId === payload.previousId) ||
+    recipeUsageHints.some((hint) => hint.serviceId === payload.previousId);
+  if (!hasChange) {
+    return input;
+  }
+  return {
+    ...input,
+    serviceRankings: replaceEntityId(serviceRankings, payload.previousId, nextId),
+    serviceStockouts: replaceEntityId(serviceStockouts, payload.previousId, nextId),
+    servicePrices: servicePrices.map((price) =>
+      price.serviceId === payload.previousId ? { ...price, serviceId: nextId } : price,
+    ),
+    recipeUsageHints: recipeUsageHints.map((hint) =>
+      hint.serviceId === payload.previousId ? { ...hint, serviceId: nextId } : hint,
+    ),
+  };
+}
+
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => emptyState());
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
@@ -131,6 +247,27 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       }
     }
   }, []);
+
+  const clearLocalSenaDetailCache = useCallback((entityType: SenaCatalogEntityType, entityId: string) => {
+    for (const key of readCacheRef.current.keys()) {
+      if (isSenaDetailCacheKey(key, entityType, entityId)) {
+        readCacheRef.current.delete(key);
+      }
+    }
+    for (const key of inflightRef.current.keys()) {
+      if (isSenaDetailCacheKey(key, entityType, entityId)) {
+        inflightRef.current.delete(key);
+      }
+    }
+  }, []);
+
+  const clearSenaDetailCache = useCallback(
+    async (entityType: SenaCatalogEntityType, entityId: string) => {
+      clearLocalSenaDetailCache(entityType, entityId);
+      await window.banjiDesktop.sena.clearDetailCache({ entityId, entityType });
+    },
+    [clearLocalSenaDetailCache],
+  );
 
   const loadWithCache = useCallback(async <T extends ReadCacheValue>(key: string, loader: () => Promise<T>) => {
     if (readCacheRef.current.has(key)) {
@@ -174,7 +311,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       readCacheRef.current.clear();
       inflightRef.current.clear();
       const [catalog, workspaceSummary, diagnostics, observations] = await Promise.all([
-        window.banjiDesktop.sena.getCatalog(),
+        window.banjiDesktop.sena.getCatalog().then(normalizeSenaCatalog),
         window.banjiDesktop.sena.getWorkspaceSummary(),
         window.banjiDesktop.sena.getDiagnostics(),
         window.banjiDesktop.sena.listObservations(),
@@ -257,14 +394,109 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       upsertSenaCatalog: async (payload) =>
         withSaving(async () => {
-          const catalog = await window.banjiDesktop.sena.upsertCatalog(payload);
+          const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(payload));
+          invalidateSenaReads();
+          readCacheRef.current.set('sena:catalog', catalog);
+          setStatePartial({ catalog });
+          return catalog;
+        }),
+      renameCatalogEntity: async (payload) =>
+        withSaving(async () => {
+          const currentCatalog = normalizeSenaCatalog(state.catalog);
+          if (!currentCatalog) {
+            throw new Error('Catalog is not loaded.');
+          }
+
+          const nextId = payload.entityType === 'sku' ? payload.nextSku.skuId : payload.nextService.serviceId;
+          const nextCatalog =
+            payload.entityType === 'sku'
+              ? upsertSenaSku(currentCatalog, payload.nextSku, payload.previousId)
+              : upsertSenaService(currentCatalog, payload.nextService, payload.skuIds, payload.previousId);
+          const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(nextCatalog));
+
+          const existingObservations = await window.banjiDesktop.sena.listObservations();
+          for (const observation of existingObservations) {
+            const nextInput = rewriteObservationInputForRenamedEntity(observation.input, payload);
+            if (nextInput !== observation.input) {
+              await window.banjiDesktop.sena.updateObservation({
+                observationId: observation.observationId,
+                input: nextInput,
+              });
+            }
+          }
+
+          const observations = await window.banjiDesktop.sena.listObservations();
+          const run =
+            payload.previousId !== nextId
+              ? await window.banjiDesktop.sena.triggerRun({
+                  algorithmVersion: state.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
+                })
+              : null;
+          const [workspaceSummary, diagnostics] = await Promise.all([
+            window.banjiDesktop.sena.getWorkspaceSummary(),
+            window.banjiDesktop.sena.getDiagnostics(),
+          ]);
+
+          invalidateSenaReads();
+          await Promise.all([
+            clearSenaDetailCache(payload.entityType, payload.previousId),
+            ...(payload.previousId === nextId ? [] : [clearSenaDetailCache(payload.entityType, nextId)]),
+          ]);
+          readCacheRef.current.set('sena:catalog', catalog);
+          readCacheRef.current.set('sena:observations', observations);
+          readCacheRef.current.set('sena:summary', workspaceSummary);
+          readCacheRef.current.set('sena:diagnostics', diagnostics);
+          if (run) {
+            readCacheRef.current.set(`sena:run:${run.runId}`, run);
+            if (run.status === 'succeeded') {
+              updateSenaMeta({ lastCompletedRunId: run.runId });
+            }
+          }
+          setStatePartial({
+            catalog,
+            diagnostics,
+            latestRun: run ?? state.latestRun,
+            observations,
+            workspaceSummary,
+          });
+          return catalog;
+        }),
+      archiveCatalogEntity: async ({ entityId, entityType }) =>
+        withSaving(async () => {
+          const currentCatalog = normalizeSenaCatalog(state.catalog);
+          if (!currentCatalog) {
+            throw new Error('Catalog is not loaded.');
+          }
+          const nextCatalog =
+            entityType === 'sku'
+              ? archiveSenaSku(currentCatalog, entityId)
+              : archiveSenaService(currentCatalog, entityId);
+          const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(nextCatalog));
+          invalidateSenaReads();
+          readCacheRef.current.set('sena:catalog', catalog);
+          setStatePartial({ catalog });
+          return catalog;
+        }),
+      unarchiveCatalogEntity: async ({ entityId, entityType }) =>
+        withSaving(async () => {
+          const currentCatalog = normalizeSenaCatalog(state.catalog);
+          if (!currentCatalog) {
+            throw new Error('Catalog is not loaded.');
+          }
+          const nextCatalog =
+            entityType === 'sku'
+              ? unarchiveSenaSku(currentCatalog, entityId)
+              : unarchiveSenaService(currentCatalog, entityId);
+          const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(nextCatalog));
           invalidateSenaReads();
           readCacheRef.current.set('sena:catalog', catalog);
           setStatePartial({ catalog });
           return catalog;
         }),
       loadSenaCatalog: async () => {
-        const catalog = await loadWithCache('sena:catalog', () => window.banjiDesktop.sena.getCatalog());
+        const catalog = await loadWithCache('sena:catalog', () =>
+          window.banjiDesktop.sena.getCatalog().then(normalizeSenaCatalog),
+        );
         setStatePartial({ catalog });
         return catalog;
       },
@@ -276,6 +508,35 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           readCacheRef.current.set('sena:observations', observations);
           setStatePartial({ observations });
           return observation;
+        }),
+      updateSenaObservation: async (payload) =>
+        withSaving(async () => {
+          const observation = await window.banjiDesktop.sena.updateObservation(payload);
+          invalidateSenaReads();
+          const observations = await window.banjiDesktop.sena.listObservations();
+          readCacheRef.current.set('sena:observations', observations);
+          setStatePartial({ observations });
+          return observation;
+        }),
+      deleteSenaObservation: async (payload) =>
+        withSaving(async () => {
+          await window.banjiDesktop.sena.deleteObservation(payload);
+          invalidateSenaReads();
+          const observations = await window.banjiDesktop.sena.listObservations();
+          readCacheRef.current.set('sena:observations', observations);
+          if (observations.length === 0) {
+            readCacheRef.current.set('sena:summary', null);
+            readCacheRef.current.set('sena:diagnostics', null);
+            updateSenaMeta({ lastCompletedRunId: null });
+            setStatePartial({
+              diagnostics: null,
+              latestRun: null,
+              observations,
+              workspaceSummary: null,
+            });
+            return;
+          }
+          setStatePartial({ observations });
         }),
       listSenaObservations: async () => {
         const observations = await loadWithCache('sena:observations', () => window.banjiDesktop.sena.listObservations());
@@ -357,32 +618,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           () => window.banjiDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }),
         );
       },
-      clearSenaSkuDetailCache: async (skuId) => {
-        for (const key of readCacheRef.current.keys()) {
-          if (isSenaDetailCacheKey(key, 'sku', skuId)) {
-            readCacheRef.current.delete(key);
-          }
-        }
-        for (const key of inflightRef.current.keys()) {
-          if (isSenaDetailCacheKey(key, 'sku', skuId)) {
-            inflightRef.current.delete(key);
-          }
-        }
-        await window.banjiDesktop.sena.clearDetailCache({ entityId: skuId, entityType: 'sku' });
-      },
-      clearSenaServiceDetailCache: async (serviceId) => {
-        for (const key of readCacheRef.current.keys()) {
-          if (isSenaDetailCacheKey(key, 'service', serviceId)) {
-            readCacheRef.current.delete(key);
-          }
-        }
-        for (const key of inflightRef.current.keys()) {
-          if (isSenaDetailCacheKey(key, 'service', serviceId)) {
-            inflightRef.current.delete(key);
-          }
-        }
-        await window.banjiDesktop.sena.clearDetailCache({ entityId: serviceId, entityType: 'service' });
-      },
+      clearSenaSkuDetailCache: async (skuId) => clearSenaDetailCache('sku', skuId),
+      clearSenaServiceDetailCache: async (serviceId) => clearSenaDetailCache('service', serviceId),
       loadSenaDiagnostics: async () => {
         const diagnostics = await loadWithCache('sena:diagnostics', () => window.banjiDesktop.sena.getDiagnostics());
         setStatePartial({ diagnostics });
@@ -399,7 +636,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return run;
       },
     }),
-    [invalidateSenaReads, loadLatestRun, loadWithCache, reload, setStatePartial, state, updateSenaMeta, withSaving],
+    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadWithCache, reload, setStatePartial, state, updateSenaMeta, withSaving],
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;

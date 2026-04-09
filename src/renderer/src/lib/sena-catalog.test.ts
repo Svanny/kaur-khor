@@ -1,0 +1,133 @@
+import type { SenaCatalog } from '@shared/sena';
+import { hasCatalogEntityIdConflict, upsertSenaService, upsertSenaSku } from './sena-catalog';
+
+const sampleCatalog: SenaCatalog = {
+  schemaVersion: 1,
+  skus: [
+    {
+      skuId: 'sku-1',
+      name: 'SKU 1',
+      description: 'Primary SKU',
+      costPerUnit: 4,
+      archived: false,
+      soldAsProduct: true,
+      productPrice: 9,
+      leadTimeMeanDaysHint: 5,
+      leadTimeStdDaysHint: 1,
+    },
+    {
+      skuId: 'sku-archived',
+      name: 'Archived SKU',
+      description: 'Archived',
+      costPerUnit: 6,
+      archived: true,
+      soldAsProduct: false,
+      productPrice: null,
+      leadTimeMeanDaysHint: null,
+      leadTimeStdDaysHint: null,
+    },
+  ],
+  services: [
+    {
+      serviceId: 'service-1',
+      name: 'Service 1',
+      description: 'Primary service',
+      price: 20,
+      archived: false,
+      bundle: false,
+    },
+    {
+      serviceId: 'service-archived',
+      name: 'Archived service',
+      description: 'Archived',
+      price: 18,
+      archived: true,
+      bundle: false,
+    },
+  ],
+  bundles: [
+    {
+      bundleId: 'bundle-1',
+      serviceId: 'service-1',
+      name: 'Bundle 1',
+    },
+  ],
+  sharingMask: [
+    {
+      enabled: true,
+      serviceId: 'service-1',
+      skuId: 'sku-1',
+      usageProbability: null,
+    },
+  ],
+};
+
+describe('sena catalog helpers', () => {
+  it('renames a sku and rewrites sharing mask references', () => {
+    const nextCatalog = upsertSenaSku(
+      sampleCatalog,
+      {
+        ...sampleCatalog.skus[0],
+        skuId: 'sku-1-renamed',
+      },
+      'sku-1',
+    );
+
+    expect(nextCatalog.skus[0]).toMatchObject({
+      skuId: 'sku-1-renamed',
+      archived: false,
+    });
+    expect(nextCatalog.sharingMask).toEqual([
+      {
+        enabled: true,
+        serviceId: 'service-1',
+        skuId: 'sku-1-renamed',
+        usageProbability: null,
+      },
+    ]);
+  });
+
+  it('renames a service and rewrites sharing mask and bundle references', () => {
+    const nextCatalog = upsertSenaService(
+      sampleCatalog,
+      {
+        ...sampleCatalog.services[0],
+        serviceId: 'service-1-renamed',
+      },
+      ['sku-1'],
+      'service-1',
+    );
+
+    expect(nextCatalog.services[0]).toMatchObject({
+      serviceId: 'service-1-renamed',
+      archived: false,
+    });
+    expect(nextCatalog.bundles).toEqual([
+      {
+        bundleId: 'bundle-1',
+        serviceId: 'service-1-renamed',
+        name: 'Bundle 1',
+      },
+    ]);
+    expect(nextCatalog.sharingMask).toEqual([
+      {
+        enabled: true,
+        serviceId: 'service-1-renamed',
+        skuId: 'sku-1',
+        usageProbability: null,
+      },
+    ]);
+  });
+
+  it('treats archived ids as conflicts', () => {
+    expect(hasCatalogEntityIdConflict(sampleCatalog, 'sku', 'sku-archived')).toBe(true);
+    expect(hasCatalogEntityIdConflict(sampleCatalog, 'service', 'service-archived')).toBe(true);
+  });
+
+  it('treats cross-type ids as conflicts and allows unchanged ids while editing', () => {
+    expect(hasCatalogEntityIdConflict(sampleCatalog, 'sku', 'service-1')).toBe(true);
+    expect(hasCatalogEntityIdConflict(sampleCatalog, 'service', 'sku-1')).toBe(true);
+    expect(hasCatalogEntityIdConflict(sampleCatalog, 'sku', 'sku-1', 'sku-1')).toBe(false);
+    expect(hasCatalogEntityIdConflict(sampleCatalog, 'service', 'service-1', 'service-1')).toBe(false);
+  });
+});

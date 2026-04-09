@@ -20,6 +20,7 @@ const sampleCatalog: SenaCatalog = {
   schemaVersion: 1,
   skus: [
     {
+      archived: false,
       costPerUnit: 4,
       description: 'Cotton tee',
       leadTimeMeanDaysHint: 5,
@@ -32,6 +33,7 @@ const sampleCatalog: SenaCatalog = {
   ],
   services: [
     {
+      archived: false,
       bundle: false,
       description: 'Service',
       name: 'Service 1',
@@ -215,7 +217,7 @@ describe('InventoryProvider', () => {
       system: {
         getAppContext: vi.fn(),
         getLocalDataInfo: vi.fn(),
-        openLocalDataFolder: vi.fn(),
+        revealPath: vi.fn(),
       },
       inventory: {
         loadSnapshot: vi.fn(async () => sampleSnapshot),
@@ -231,12 +233,15 @@ describe('InventoryProvider', () => {
         listObservations: vi.fn(async () => [sampleObservation]),
         upsertCatalog: vi.fn(async (payload: SenaCatalog) => payload),
         ingestObservation: vi.fn(async () => sampleObservation),
+        updateObservation: vi.fn(async ({ input }) => ({ ...sampleObservation, input })),
+        deleteObservation: vi.fn(async () => undefined),
         triggerRun: vi.fn(async () => sampleRun),
         retryRun: vi.fn(async () => sampleRun),
         getWorkspaceSummary: vi.fn(async () => sampleWorkspace),
         getSkuDetail: vi.fn(async () => sampleSkuDetail),
         getDiagnostics: vi.fn(async () => sampleDiagnostics),
         getServiceDetail: vi.fn(async () => sampleServiceDetail),
+        clearDetailCache: vi.fn(async () => undefined),
         getRunStatus: vi.fn(async () => sampleRun),
       },
     };
@@ -288,5 +293,292 @@ describe('InventoryProvider', () => {
       expect(window.banjiDesktop.sena.triggerRun).toHaveBeenCalledTimes(1);
     });
     expect(window.banjiDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it('updates and deletes observations through the bridge and refreshes cached observations', async () => {
+    function ObservationHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="observation-count">{inventory.observations.length}</div>
+          <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <div data-testid="latest-run">{inventory.latestRun?.runId ?? 'none'}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.updateSenaObservation({
+                observationId: 'obs-1',
+                input: {
+                  ...sampleObservation.input,
+                  notes: 'Edited',
+                },
+              })
+            }
+          >
+            update observation
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.deleteSenaObservation({
+                observationId: 'obs-1',
+              })
+            }
+          >
+            delete observation
+          </button>
+        </div>
+      );
+    }
+
+    const listObservations = vi
+      .fn()
+      .mockResolvedValueOnce([sampleObservation])
+      .mockResolvedValueOnce([{ ...sampleObservation, input: { ...sampleObservation.input, notes: 'Edited' } }])
+      .mockResolvedValueOnce([]);
+    window.banjiDesktop.sena.listObservations = listObservations;
+
+    render(
+      <InventoryProvider>
+        <ObservationHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('observation-count').textContent).toBe('1');
+      expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
+      expect(screen.getByTestId('latest-run').textContent).toBe('run-1');
+    });
+
+    fireEvent.click(screen.getByText('update observation'));
+
+    await waitFor(() => {
+      expect(window.banjiDesktop.sena.updateObservation).toHaveBeenCalledWith({
+        observationId: 'obs-1',
+        input: {
+          ...sampleObservation.input,
+          notes: 'Edited',
+        },
+      });
+    });
+
+    fireEvent.click(screen.getByText('delete observation'));
+
+    await waitFor(() => {
+      expect(window.banjiDesktop.sena.deleteObservation).toHaveBeenCalledWith({ observationId: 'obs-1' });
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('observation-count').textContent).toBe('0');
+      expect(screen.getByTestId('workspace-run').textContent).toBe('none');
+      expect(screen.getByTestId('latest-run').textContent).toBe('none');
+    });
+  });
+
+  it('normalizes missing archive flags on load and persists archive mutations', async () => {
+    function ArchiveHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="sku-archived">{String(inventory.catalog?.skus[0]?.archived ?? null)}</div>
+          <button type="button" onClick={() => void inventory.archiveCatalogEntity({ entityId: 'sku-1', entityType: 'sku' })}>
+            archive sku
+          </button>
+          <button type="button" onClick={() => void inventory.unarchiveCatalogEntity({ entityId: 'sku-1', entityType: 'sku' })}>
+            unarchive sku
+          </button>
+        </div>
+      );
+    }
+
+    const legacyCatalog = {
+      ...sampleCatalog,
+      skus: sampleCatalog.skus.map(({ archived: _archived, ...sku }) => sku),
+      services: sampleCatalog.services.map(({ archived: _archived, ...service }) => service),
+    };
+    const upsertCatalog = vi.fn(async (payload: SenaCatalog) => payload);
+    window.banjiDesktop.sena.getCatalog = vi.fn(async () => legacyCatalog as SenaCatalog);
+    window.banjiDesktop.sena.upsertCatalog = upsertCatalog;
+
+    render(
+      <InventoryProvider>
+        <ArchiveHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-archived').textContent).toBe('false');
+    });
+
+    fireEvent.click(screen.getByText('archive sku'));
+
+    await waitFor(() => {
+      expect(upsertCatalog).toHaveBeenCalledWith(expect.objectContaining({
+        skus: [expect.objectContaining({ skuId: 'sku-1', archived: true })],
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-archived').textContent).toBe('true');
+    });
+
+    fireEvent.click(screen.getByText('unarchive sku'));
+
+    await waitFor(() => {
+      expect(upsertCatalog).toHaveBeenLastCalledWith(expect.objectContaining({
+        skus: [expect.objectContaining({ skuId: 'sku-1', archived: false })],
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-archived').textContent).toBe('false');
+    });
+  });
+
+  it('renames a sku, rewrites observation references, clears old and new detail caches, and refreshes the run', async () => {
+    const richObservation: SenaObservationRecord = {
+      ...sampleObservation,
+      input: {
+        ...sampleObservation.input,
+        retailRankings: ['sku-1'],
+        retailStockouts: ['sku-1'],
+        orderSignals: [
+          {
+            skuId: 'sku-1',
+            orderPlaced: true,
+            receiptArrived: false,
+            approximateOrderQuantity: 4,
+            approximateReceiptQuantity: null,
+          },
+        ],
+        retailPrices: [{ skuId: 'sku-1', price: 9 }],
+        leadTimeHints: [{ skuId: 'sku-1', typicalDays: 5, lowDays: null, highDays: null, variabilityClass: null }],
+        adjustmentSignals: [{ skuId: 'sku-1', quantityDelta: -1, reason: 'write_off' }],
+        recipeUsageHints: [
+          {
+            serviceId: 'service-1',
+            skuId: 'sku-1',
+            usageProbability: 0.5,
+            typicalUnitsPerInstance: 1,
+            variability: 0.2,
+          },
+        ],
+      },
+    };
+    const renamedObservation: SenaObservationRecord = {
+      ...richObservation,
+      input: {
+        ...richObservation.input,
+        stockSnapshot: [{ skuId: 'sku-renamed', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+        retailRankings: ['sku-renamed'],
+        retailStockouts: ['sku-renamed'],
+        orderSignals: [
+          {
+            skuId: 'sku-renamed',
+            orderPlaced: true,
+            receiptArrived: false,
+            approximateOrderQuantity: 4,
+            approximateReceiptQuantity: null,
+          },
+        ],
+        retailPrices: [{ skuId: 'sku-renamed', price: 9 }],
+        leadTimeHints: [{ skuId: 'sku-renamed', typicalDays: 5, lowDays: null, highDays: null, variabilityClass: null }],
+        adjustmentSignals: [{ skuId: 'sku-renamed', quantityDelta: -1, reason: 'write_off' }],
+        recipeUsageHints: [
+          {
+            serviceId: 'service-1',
+            skuId: 'sku-renamed',
+            usageProbability: 0.5,
+            typicalUnitsPerInstance: 1,
+            variability: 0.2,
+          },
+        ],
+      },
+    };
+    const renamedRun: SenaAnalysisRunRecord = {
+      ...sampleRun,
+      runId: 'run-2',
+    };
+    const renamedWorkspace: SenaWorkspaceSummary = {
+      ...sampleWorkspace,
+      runId: 'run-2',
+      highRiskSkuIds: ['sku-renamed'],
+    };
+    const listObservations = vi
+      .fn()
+      .mockResolvedValueOnce([richObservation])
+      .mockResolvedValueOnce([richObservation])
+      .mockResolvedValueOnce([renamedObservation]);
+    const updateObservation = vi.fn(async ({ input }) => ({ ...sampleObservation, input }));
+
+    window.banjiDesktop.sena.listObservations = listObservations;
+    window.banjiDesktop.sena.updateObservation = updateObservation;
+    window.banjiDesktop.sena.triggerRun = vi.fn(async () => renamedRun);
+    window.banjiDesktop.sena.getWorkspaceSummary = vi
+      .fn()
+      .mockResolvedValueOnce(sampleWorkspace)
+      .mockResolvedValueOnce(renamedWorkspace);
+
+    function RenameHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="sku-id">{inventory.catalog?.skus[0]?.skuId ?? 'none'}</div>
+          <div data-testid="observation-sku">{inventory.observations[0]?.input.stockSnapshot[0]?.skuId ?? 'none'}</div>
+          <div data-testid="latest-run-id">{inventory.latestRun?.runId ?? 'none'}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.renameCatalogEntity({
+                entityType: 'sku',
+                previousId: 'sku-1',
+                nextSku: {
+                  ...sampleCatalog.skus[0],
+                  skuId: 'sku-renamed',
+                },
+              })
+            }
+          >
+            rename sku
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <InventoryProvider>
+        <RenameHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-id').textContent).toBe('sku-1');
+    });
+
+    fireEvent.click(screen.getByText('rename sku'));
+
+    await waitFor(() => {
+      expect(window.banjiDesktop.sena.upsertCatalog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skus: [expect.objectContaining({ skuId: 'sku-renamed' })],
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(updateObservation).toHaveBeenCalledWith({
+        observationId: 'obs-1',
+        input: renamedObservation.input,
+      });
+    });
+    expect(window.banjiDesktop.sena.clearDetailCache).toHaveBeenCalledWith({ entityId: 'sku-1', entityType: 'sku' });
+    expect(window.banjiDesktop.sena.clearDetailCache).toHaveBeenCalledWith({
+      entityId: 'sku-renamed',
+      entityType: 'sku',
+    });
+    await waitFor(() => {
+      expect(window.banjiDesktop.sena.triggerRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-id').textContent).toBe('sku-renamed');
+      expect(screen.getByTestId('observation-sku').textContent).toBe('sku-renamed');
+      expect(screen.getByTestId('latest-run-id').textContent).toBe('run-2');
+    });
   });
 });

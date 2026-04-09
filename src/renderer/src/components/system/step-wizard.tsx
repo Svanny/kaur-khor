@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { ActionConfirmIcon } from '@icons/actions';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -125,7 +125,7 @@ function WizardStepButton({
             disabled && 'border-border/50 text-muted-foreground/80',
           )}
         >
-          {complete ? <Check className="size-4" /> : index + 1}
+          {complete ? <ActionConfirmIcon className="size-4" /> : index + 1}
         </span>
         <span className="min-w-0">
           <span className="block truncate font-medium text-foreground">{title}</span>

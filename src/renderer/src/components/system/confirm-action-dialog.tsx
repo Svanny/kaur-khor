@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { StatusAlertIcon } from '@icons/status';
 import { Button } from '@/components/ui/button';
 
 export function ConfirmActionDialog({
@@ -47,7 +47,7 @@ export function ConfirmActionDialog({
       >
         <div className="flex items-start gap-3">
           <span className="mt-0.5 rounded-full border border-destructive/20 bg-destructive/10 p-2 text-destructive">
-            <AlertTriangle className="size-4" />
+            <StatusAlertIcon className="size-4" />
           </span>
           <div className="min-w-0">
             <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{title}</p>

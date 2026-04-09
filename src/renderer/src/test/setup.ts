@@ -12,8 +12,10 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
   value: ResizeObserverMock,
 });
 
-Object.defineProperty(window, 'scrollTo', {
-  configurable: true,
-  writable: true,
-  value: () => {},
-});
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value: () => {},
+  });
+}

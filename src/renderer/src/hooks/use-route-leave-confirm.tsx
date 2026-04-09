@@ -92,17 +92,9 @@ export function useRouteLeaveConfirm({
   });
   const requestDiscardRef = useRef(requestDiscard);
 
-  useEffect(() => {
-    enabledRef.current = enabled;
-  }, [enabled]);
-
-  useEffect(() => {
-    requestDiscardRef.current = requestDiscard;
-  }, [requestDiscard]);
-
-  useEffect(() => {
-    currentPathRef.current = `${location.pathname}${location.search}${location.hash}`;
-  }, [location]);
+  currentPathRef.current = `${location.pathname}${location.search}${location.hash}`;
+  enabledRef.current = enabled;
+  requestDiscardRef.current = requestDiscard;
 
   useEffect(() => {
     function resolveTargetPath(anchor: HTMLAnchorElement) {

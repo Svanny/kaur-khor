@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { StockReportSubmission } from '@shared/inventory';
+import type { AppLanguage, StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
   compatibilityRangeForClass,
-  leadTimeVariabilityLabel,
   leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
-import { ArrowUpRight, BadgePlus, ClipboardPlus, PackageCheck, Save, SquarePen, Tags } from 'lucide-react';
+import {
+  ActionAddBadgeIcon,
+  ActionClipboardAddIcon,
+  ActionEditIcon,
+  ActionOpenExternalIcon,
+  ActionReceiveInventoryIcon,
+  ActionSaveIcon,
+} from '@icons/actions';
+import { EntityTagsIcon } from '@icons/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -29,6 +36,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Textarea } from '@/components/ui/textarea';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { translateUiLiteral } from '@/lib/translations';
+import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { cn } from '@/lib/utils';
 import {
   ActionSheetField,
@@ -170,9 +179,13 @@ function formatCatalogSheetTitle(
   actionLabel: string,
   layout: 'row' | 'menu',
   catalogEntityName?: string,
+  language: AppLanguage = 'en',
 ) {
   if (layout === 'menu' && catalogEntityName) {
-    return `${actionLabel} for ${catalogEntityName}`;
+    return translateUiLiteral(language, '{action} for {name}', {
+      action: actionLabel,
+      name: catalogEntityName,
+    });
   }
 
   return actionLabel;
@@ -216,7 +229,7 @@ export function SkuMutationActions({
   catalogEntityName,
 }: SkuMutationActionsProps) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
-  const { currency, t, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actionContext.latestObservationAt));
   const [notes, setNotes] = useState('');
@@ -462,27 +475,27 @@ export function SkuMutationActions({
     <>
       <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
         <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'default'} onClick={() => resetForm('stock')}>
-          <BadgePlus className="size-4" />
+          <ActionAddBadgeIcon className="size-4" />
           {t('catalogSenaSkuRecordStock')}
         </ActionButton>
         <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('order')}>
-          <ClipboardPlus className="size-4" />
+          <ActionClipboardAddIcon className="size-4" />
           {t('catalogSenaSkuLogOrder')}
         </ActionButton>
         <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('receipt')}>
-          <PackageCheck className="size-4" />
+          <ActionReceiveInventoryIcon className="size-4" />
           {t('catalogSenaSkuLogReceipt')}
         </ActionButton>
         {actionContext.soldAsProduct ? (
           <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('price')}>
-            <Tags className="size-4" />
+            <EntityTagsIcon className="size-4" />
             {t('catalogSenaSkuUpdatePrice')}
           </ActionButton>
         ) : null}
         {showEditButton ? (
           <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
             <Link to={`/catalog/skus/${skuId}/edit`}>
-              <SquarePen className="size-4" />
+              <ActionEditIcon className="size-4" />
               {t('catalogSkuEditAction')}
             </Link>
           </Button>
@@ -500,10 +513,11 @@ export function SkuMutationActions({
                   : mode === 'order'
                     ? t('catalogSenaSkuLogOrder')
                     : mode === 'receipt'
-                      ? t('catalogSenaSkuLogReceipt')
+                    ? t('catalogSenaSkuLogReceipt')
                       : t('catalogSenaSkuUpdatePrice'),
                 layout,
                 catalogEntityName,
+                language,
               )}
             </SheetTitle>
             <SheetDescription className="max-w-2xl text-base leading-7">
@@ -611,7 +625,7 @@ export function SkuMutationActions({
                       <SelectItem value="__none__">{t('catalogSkuLeadTimeVariabilityPlaceholder')}</SelectItem>
                       {leadTimeVariabilityOptions().map((option) => (
                         <SelectItem key={option} value={option}>
-                          {leadTimeVariabilityLabel(option)}
+                          {translateLeadTimeVariabilityLabel(language, option)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -667,7 +681,7 @@ export function SkuMutationActions({
               type="button"
               onClick={() => void submit(mode as SkuActionMode)}
             >
-              <Save data-icon="inline-start" />
+              <ActionSaveIcon data-icon="inline-start" />
               {isSaving ? t('catalogSenaSkuSaving') : t('catalogSenaSkuSaveAndRefresh')}
             </Button>
           </SheetFooter>
@@ -689,7 +703,7 @@ export function ServiceMutationActions({
   catalogEntityName,
 }: ServiceMutationActionsProps) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
-  const { currency, t, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actions.latestObservedAt));
   const [notes, setNotes] = useState('');
@@ -929,8 +943,8 @@ export function ServiceMutationActions({
         {showPrimarySkuButton ? (
           <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'default'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
             <Link to={actions.primarySkuHref}>
-              <ArrowUpRight className="size-4" />
-              Open bottleneck SKU
+              <ActionOpenExternalIcon className="size-4" />
+              {translateUiLiteral(language, 'Open bottleneck SKU')}
             </Link>
           </Button>
         ) : null}
@@ -942,8 +956,8 @@ export function ServiceMutationActions({
           variant={layout === 'menu' ? 'ghost' : 'outline'}
           onClick={() => resetForm('receipt')}
         >
-          <ClipboardPlus className="size-4" />
-          Log receipt
+          <ActionClipboardAddIcon className="size-4" />
+          {translateUiLiteral(language, 'Log receipt')}
         </ActionButton>
         <ActionButton
           className={layout === 'menu' ? 'w-full justify-start' : undefined}
@@ -953,18 +967,18 @@ export function ServiceMutationActions({
           variant={layout === 'menu' ? 'ghost' : 'outline'}
           onClick={() => resetForm('stock')}
         >
-          <PackageCheck className="size-4" />
-          Record stock
+          <ActionReceiveInventoryIcon className="size-4" />
+          {translateUiLiteral(language, 'Record stock')}
         </ActionButton>
         <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('price')}>
-          <Tags className="size-4" />
-          Update price
+          <EntityTagsIcon className="size-4" />
+          {translateUiLiteral(language, 'Update price')}
         </ActionButton>
         {showEditButton ? (
           <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
             <Link to={actions.editServiceHref}>
-              <SquarePen className="size-4" />
-              Edit service
+              <ActionEditIcon className="size-4" />
+              {translateUiLiteral(language, 'Edit service')}
             </Link>
           </Button>
         ) : null}
@@ -976,23 +990,32 @@ export function ServiceMutationActions({
           <SheetHeader className="gap-3 border-b border-border/60 px-8 py-7">
             <SheetTitle>
               {formatCatalogSheetTitle(
-                mode === 'stock' ? 'Record stock' : mode === 'receipt' ? 'Log receipt' : 'Update price',
+                mode === 'stock'
+                  ? translateUiLiteral(language, 'Record stock')
+                  : mode === 'receipt'
+                    ? translateUiLiteral(language, 'Log receipt')
+                    : translateUiLiteral(language, 'Update price'),
                 layout,
                 catalogEntityName,
+                language,
               )}
             </SheetTitle>
             <SheetDescription className="max-w-2xl text-base leading-7">
               {mode === 'price'
-                ? `Update the latest observed price for ${actions.servicePrice.serviceName}.`
+                ? translateUiLiteral(language, 'Update the latest observed price for {name}.', {
+                    name: actions.servicePrice.serviceName,
+                  })
                 : actions.bottleneckSku
-                  ? `Capture a fresh bottleneck signal for ${actions.bottleneckSku.name}.`
+                  ? translateUiLiteral(language, 'Capture a fresh bottleneck signal for {name}.', {
+                      name: actions.bottleneckSku.name,
+                    })
                   : actions.noBottleneckHint}
             </SheetDescription>
           </SheetHeader>
           <div className="grid gap-5 px-8 py-7">
-            <ActionSheetField label="Observed at">
+            <ActionSheetField label={translateUiLiteral(language, 'Observed at')}>
               <Input
-                aria-label="Observed at"
+                aria-label={translateUiLiteral(language, 'Observed at')}
                 className={actionSheetInputClassName}
                 required
                 type="datetime-local"
@@ -1003,9 +1026,9 @@ export function ServiceMutationActions({
 
             {(mode === 'stock' || mode === 'receipt') ? (
               <>
-                <ActionSheetField label="Units in stock">
+                <ActionSheetField label={translateUiLiteral(language, 'Units in stock')}>
                   <Input
-                    aria-label="Units in stock"
+                    aria-label={translateUiLiteral(language, 'Units in stock')}
                     className={actionSheetInputClassName}
                     min="0"
                     step="1"
@@ -1014,9 +1037,9 @@ export function ServiceMutationActions({
                     onChange={(event) => setUnitsInStock(event.target.value)}
                   />
                 </ActionSheetField>
-                <ActionSheetField label="Cost per unit">
+                <ActionSheetField label={translateUiLiteral(language, 'Cost per unit')}>
                   <Input
-                    aria-label="Cost per unit"
+                    aria-label={translateUiLiteral(language, 'Cost per unit')}
                     className={actionSheetInputClassName}
                     min="0"
                     step={moneyInputStep(currency)}
@@ -1026,9 +1049,9 @@ export function ServiceMutationActions({
                   />
                 </ActionSheetField>
                 {mode === 'stock' && actions.bottleneckSku?.soldAsProduct ? (
-                  <ActionSheetField label="Product price">
+                  <ActionSheetField label={translateUiLiteral(language, 'Product price')}>
                     <Input
-                      aria-label="Product price"
+                      aria-label={translateUiLiteral(language, 'Product price')}
                       className={actionSheetInputClassName}
                       min="0"
                       step={moneyInputStep(currency)}
@@ -1042,9 +1065,9 @@ export function ServiceMutationActions({
             ) : null}
 
             {mode === 'receipt' ? (
-              <ActionSheetField label="Approximate receipt quantity">
+              <ActionSheetField label={translateUiLiteral(language, 'Approximate receipt quantity')}>
                 <Input
-                  aria-label="Approximate receipt quantity"
+                  aria-label={translateUiLiteral(language, 'Approximate receipt quantity')}
                   className={actionSheetInputClassName}
                   min="0"
                   step="1"
@@ -1056,9 +1079,9 @@ export function ServiceMutationActions({
             ) : null}
 
             {mode === 'price' ? (
-              <ActionSheetField label="Service price">
+              <ActionSheetField label={translateUiLiteral(language, 'Service price')}>
                 <Input
-                  aria-label="Service price"
+                  aria-label={translateUiLiteral(language, 'Service price')}
                   className={actionSheetInputClassName}
                   min="0"
                   step={moneyInputStep(currency)}
@@ -1069,9 +1092,9 @@ export function ServiceMutationActions({
               </ActionSheetField>
             ) : null}
 
-            <ActionSheetField label="Notes">
+            <ActionSheetField label={translateUiLiteral(language, 'Notes')}>
               <Textarea
-                aria-label="Notes"
+                aria-label={translateUiLiteral(language, 'Notes')}
                 className={actionSheetTextareaClassName}
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
@@ -1088,7 +1111,7 @@ export function ServiceMutationActions({
               type="button"
               onClick={() => void submit(mode as ServiceActionMode)}
             >
-              <Save data-icon="inline-start" />
+              <ActionSaveIcon data-icon="inline-start" />
               {isSaving ? t('catalogSenaSkuSaving') : t('catalogSenaSkuSaveAndRefresh')}
             </Button>
           </SheetFooter>

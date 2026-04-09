@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StockUpdateRoute } from './stock-update';
 
 const inventoryHook = vi.fn();
+const deleteSenaObservation = vi.fn();
+const triggerSenaRun = vi.fn();
 
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
@@ -166,12 +168,13 @@ function makeObservation(observationId: string, observedAt: string, notes: strin
 function renderRoute(overrides?: Record<string, unknown>) {
   inventoryHook.mockReturnValue({
     catalog: sampleCatalog,
+    deleteSenaObservation,
     isLoading: false,
     isSaving: false,
     latestRun: null,
     observations: sampleObservations,
     retrySenaRun: vi.fn(),
-    triggerSenaRun: vi.fn(),
+    triggerSenaRun,
     workspaceSummary: null,
     ...overrides,
   });
@@ -179,6 +182,35 @@ function renderRoute(overrides?: Record<string, unknown>) {
   return render(
     <MemoryRouter>
       <StockUpdateRoute />
+    </MemoryRouter>,
+  );
+}
+
+function renderRouteWithDestination() {
+  inventoryHook.mockReturnValue({
+    catalog: sampleCatalog,
+    deleteSenaObservation,
+    isLoading: false,
+    isSaving: false,
+    latestRun: null,
+    observations: sampleObservations,
+    retrySenaRun: vi.fn(),
+    triggerSenaRun,
+    workspaceSummary: null,
+  });
+
+  function Destination() {
+    const location = useLocation();
+    const state = location.state as { editSession?: { observationId: string } } | null;
+    return <div>edit target: {state?.editSession?.observationId ?? 'none'}</div>;
+  }
+
+  return render(
+    <MemoryRouter initialEntries={['/operations']}>
+      <Routes>
+        <Route element={<StockUpdateRoute />} path="/operations" />
+        <Route element={<Destination />} path="/record-update" />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -192,6 +224,11 @@ describe('StockUpdateRoute', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  beforeEach(() => {
+    deleteSenaObservation.mockResolvedValue(undefined);
+    triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
   });
 
   it('renders the reusable logs title card, actions, and heatmap summary', () => {
@@ -256,6 +293,31 @@ describe('StockUpdateRoute', () => {
     expect(screen.getByText('Supplier order logged')).toBeInTheDocument();
     expect(screen.getByText('Razor refill checked')).toBeInTheDocument();
     expect(screen.queryByText('Haircut price updated')).not.toBeInTheDocument();
+  });
+
+  it('renders edit and delete actions for observation cards and navigates edit with observation state', () => {
+    renderRouteWithDestination();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit report' })[0]!);
+
+    expect(screen.getByText('edit target: obs-sku-same-day')).toBeInTheDocument();
+  });
+
+  it('requires typed confirmation before deleting an observation card', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete report' })[0]!);
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Type this exactly to permanently delete the report:');
+    fireEvent.change(within(dialog).getByLabelText('Deletion confirmation token'), { target: { value: 'confirm delete report' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete report' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(deleteSenaObservation).toHaveBeenCalledWith({ observationId: 'obs-sku-same-day' });
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
   });
 
   it('aggregates multiple observations on one day and updates details when another day is selected', () => {

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Save } from 'lucide-react';
+import { ActionSaveIcon } from '@icons/actions';
 import { DescriptionText, hasDescriptionText, useDescriptionTextVisible } from '@/components/system/description-text';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { Button } from '@/components/ui/button';
@@ -87,7 +87,7 @@ export function EditorHeader({
             type={formId ? 'submit' : 'button'}
             onClick={formId ? undefined : onSave}
           >
-            <Save data-icon="inline-start" />
+            <ActionSaveIcon data-icon="inline-start" />
             {saveLabel}
           </Button>
         </div>

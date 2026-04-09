@@ -1,4 +1,4 @@
-import { ChevronDown, Save } from 'lucide-react';
+import { ActionSaveIcon } from '@icons/actions';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SenaLeadTimeVariabilityClass, SenaSku } from '@shared/sena';
@@ -6,19 +6,21 @@ import {
   classifyLeadTimeVariability,
   compatibilityStdDaysForClass,
   impliedLeadTimeRangeFromMeanStd,
-  leadTimeVariabilityLabel,
   leadTimeVariabilityOptions,
   relativeLeadTimeWidth,
 } from '@shared/sena-lead-time';
 import { CheckboxRow } from '@/components/system/checkbox-row';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, moneyInputStep, usdMoneyFromDisplay } from '@/lib/format';
-import { emptySenaCatalog, upsertSenaSku } from '@/lib/sena-catalog';
+import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
+import { emptySenaCatalog, upsertSenaSku, validateCatalogEntityId } from '@/lib/sena-catalog';
 import { useInventory } from '@/state/inventory';
 import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { catalogItemIdErrorMessage } from './catalog-id-validation';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { SkuPageHero } from './sku-page-hero';
 import { SectionLabel, SectionTitle } from './sku-detail/section-heading';
@@ -29,6 +31,7 @@ function emptySku(skuId = ''): SenaSku {
     name: '',
     description: '',
     costPerUnit: 0,
+    archived: false,
     soldAsProduct: false,
     productPrice: null,
     leadTimeMeanDaysHint: null,
@@ -36,8 +39,9 @@ function emptySku(skuId = ''): SenaSku {
   };
 }
 
-const nativeSelectClassName =
-  'h-14 w-full appearance-none rounded-xl border border-border bg-background px-3 pr-12 text-base shadow-none outline-none';
+const editorSelectTriggerClassName =
+  'h-14 w-full rounded-xl border-border bg-background px-3 text-base shadow-none data-[size=default]:h-14';
+const leadTimeVariabilityPlaceholderValue = '__none__';
 
 function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTimeVariabilityClass | '') {
   return {
@@ -67,12 +71,15 @@ function deriveCatalogVariabilityClass(sku: SenaSku): SenaLeadTimeVariabilityCla
 export function SkuFormRoute() {
   const navigate = useNavigate();
   const { skuId } = useParams();
-  const { catalog, isSaving, upsertSenaCatalog } = useInventory();
+  const { catalog, isSaving, renameCatalogEntity, upsertSenaCatalog } = useInventory();
   const { canGoBack, goBack } = useNavigationHistory();
-  const { currency, t, usdToKhrExchangeRate } = usePreferences();
-  const [form, setForm] = useState<SenaSku>(() => emptySku(skuId));
-  const [leadTimeVariability, setLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>('');
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const editing = Boolean(skuId);
+  const initialExistingSku = catalog?.skus.find((entry) => entry.skuId === skuId) ?? null;
+  const [form, setForm] = useState<SenaSku>(() => initialExistingSku ?? emptySku(skuId));
+  const [leadTimeVariability, setLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>(
+    () => deriveCatalogVariabilityClass(initialExistingSku ?? emptySku(skuId)) ?? '',
+  );
   const formId = 'sku-editor-form';
   const existingSku = useMemo(
     () => catalog?.skus.find((entry) => entry.skuId === skuId) ?? null,
@@ -117,6 +124,14 @@ export function SkuFormRoute() {
     () => normalizedSkuDirtySnapshot(normalizedBaseline, baselineLeadTimeVariability),
     [baselineLeadTimeVariability, normalizedBaseline],
   );
+  const idError = useMemo(
+    () =>
+      catalogItemIdErrorMessage(
+        t,
+        validateCatalogEntityId(catalog, 'sku', form.skuId, editing ? normalizedBaseline.skuId : null),
+      ),
+    [catalog, editing, form.skuId, normalizedBaseline.skuId, t],
+  );
   const hasUnsavedSkuChanges = JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot);
   function resetSkuDraft() {
     setForm(normalizedBaseline);
@@ -131,9 +146,20 @@ export function SkuFormRoute() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (idError) {
+      return;
+    }
     const baseCatalog = catalog ?? emptySenaCatalog();
-    const nextCatalog = upsertSenaSku(baseCatalog, normalizedDraft);
-    await upsertSenaCatalog(nextCatalog);
+    if (editing && normalizedBaseline.skuId !== normalizedDraft.skuId) {
+      await renameCatalogEntity({
+        entityType: 'sku',
+        previousId: normalizedBaseline.skuId,
+        nextSku: normalizedDraft,
+      });
+    } else {
+      const nextCatalog = upsertSenaSku(baseCatalog, normalizedDraft, normalizedBaseline.skuId);
+      await upsertSenaCatalog(nextCatalog);
+    }
     await navigate(`/catalog/skus/${normalizedDraft.skuId}`);
   }
 
@@ -143,8 +169,8 @@ export function SkuFormRoute() {
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
-            <Button disabled={!hasUnsavedSkuChanges || isSaving} form={formId} type="submit">
-              <Save data-icon="inline-start" />
+            <Button disabled={!hasUnsavedSkuChanges || isSaving || idError != null} form={formId} type="submit">
+              <ActionSaveIcon data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}
             </Button>
           </WorkspaceActionRow>
@@ -171,13 +197,14 @@ export function SkuFormRoute() {
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
               <EditorField
+                error={idError ?? undefined}
                 helper={editing ? t('catalogSkuEditorIdentifierDescription') : t('catalogSkuEditorIdentifierHelper')}
                 label={t('fieldId')}
                 tooltip={t('catalogSkuEditorDetailsTooltip')}
               >
                 <input
+                  aria-invalid={idError ? 'true' : 'false'}
                   className={editorInputClassName}
-                  disabled={editing}
                   required
                   value={form.skuId}
                   onChange={(event) => setForm((current) => ({ ...current, skuId: event.target.value }))}
@@ -300,26 +327,28 @@ export function SkuFormRoute() {
             label={t('fieldLeadTimeVariability')}
             tooltip={t('catalogSkuEditorLeadTimeVariabilityTooltip')}
           >
-            <div className="relative">
-              <select
-                aria-label={t('fieldLeadTimeVariability')}
-                className={nativeSelectClassName}
-                value={leadTimeVariability}
-                onChange={(event) =>
-                  setLeadTimeVariability((event.target.value as SenaLeadTimeVariabilityClass | '') || '')
-                }
-              >
-                <option value="">{t('catalogSkuLeadTimeVariabilityPlaceholder')}</option>
+            <Select
+              value={leadTimeVariability || leadTimeVariabilityPlaceholderValue}
+              onValueChange={(value) =>
+                setLeadTimeVariability(
+                  value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass),
+                )
+              }
+            >
+              <SelectTrigger aria-label={t('fieldLeadTimeVariability')} className={editorSelectTriggerClassName}>
+                <SelectValue placeholder={t('catalogSkuLeadTimeVariabilityPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value={leadTimeVariabilityPlaceholderValue}>
+                  {t('catalogSkuLeadTimeVariabilityPlaceholder')}
+                </SelectItem>
                 {leadTimeVariabilityOptions().map((option) => (
-                  <option key={option} value={option}>
-                    {leadTimeVariabilityLabel(option)}
-                  </option>
+                  <SelectItem key={option} value={option}>
+                    {translateLeadTimeVariabilityLabel(language, option)}
+                  </SelectItem>
                 ))}
-              </select>
-              <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-foreground">
-                <ChevronDown className="size-5" />
-              </span>
-            </div>
+              </SelectContent>
+            </Select>
           </EditorField>
         </WorkspacePanel>
       </form>

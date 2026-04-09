@@ -1,17 +1,18 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  BadgeHelp,
-  ChevronDown,
-  ChevronUp,
-  DatabaseBackup,
-  FileDown,
-  FolderOpen,
-  Heart,
-  PanelsTopLeft,
-  PanelRight,
-  RotateCcw,
-  Save,
-} from 'lucide-react';
+  ActionExportIcon,
+  ActionOpenFolderIcon,
+  ActionSaveIcon,
+  ActionUndoIcon,
+} from '@icons/actions';
+import { EntityBackupIcon, EntityFavoriteIcon } from '@icons/entities';
+import {
+  NavigationExpandIcon,
+  NavigationCollapseIcon,
+  NavigationRightPanelIcon,
+  NavigationWorkspacePanelsIcon,
+} from '@icons/navigation';
+import { StatusHelpBadgeIcon } from '@icons/status';
 import {
   DEFAULT_SENA_ENGINE_PARAMETERS,
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
@@ -24,14 +25,12 @@ import { CheckboxRow } from '@/components/system/checkbox-row';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
+import { createWorkbook } from '@/lib/xlsx';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
 import type { TranslationKey } from '@/lib/translations';
-
-const selectClassName =
-  'h-14 w-full appearance-none rounded-xl border border-border bg-background px-3 pr-12 text-base shadow-none outline-none';
 
 const numberInputClassName =
   'h-11 w-full rounded-xl border border-border bg-background px-3 text-base shadow-none outline-none';
@@ -40,14 +39,16 @@ const parameterLabelClassName =
   'text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground';
 const parameterHelperClassName = 'leading-6 text-muted-foreground';
 const SHOW_SENA_ANALYSIS_PROFILE_PARAMETER = false;
+const preferenceSelectTriggerClassName =
+  'h-14 w-full rounded-xl border border-border bg-background px-3 text-base shadow-none data-[size=default]:h-14';
 const exportSelectTriggerClassName =
   'h-11 w-11 rounded-l-none rounded-r-2xl border border-l-0 border-border/70 bg-background/80 px-0 text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground data-[size=default]:h-11 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:mx-auto [&_svg]:opacity-100';
 const exportActionButtonClassName =
   'h-11 rounded-l-2xl rounded-r-none border-border/70 bg-background/80 text-foreground shadow-xs';
 
 const EXPORT_FORMAT_OPTIONS = [
-  { value: 'csv', label: 'CSV' },
   { value: 'excel', label: 'Excel' },
+  { value: 'csv', label: 'CSV' },
   { value: 'json', label: 'JSON' },
 ] as const;
 
@@ -137,7 +138,7 @@ function exportFormatLabel(value: ExportFormat) {
 }
 
 function exportFileExtension(format: ExportFormat) {
-  return format === 'excel' ? 'xls' : format;
+  return format === 'excel' ? 'xlsx' : format;
 }
 
 function exportMimeType(format: ExportFormat) {
@@ -145,7 +146,7 @@ function exportMimeType(format: ExportFormat) {
     return 'application/json;charset=utf-8';
   }
   if (format === 'excel') {
-    return 'application/vnd.ms-excel;charset=utf-8';
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   }
   return 'text/csv;charset=utf-8';
 }
@@ -154,7 +155,7 @@ function formatExportTimestamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
-function downloadTextFile(filename: string, content: string, mimeType: string) {
+function downloadFile(filename: string, content: BlobPart, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -191,38 +192,6 @@ function toCsv(rows: Array<Record<string, unknown>>) {
 
 function toCsvSection(title: string, rows: Array<Record<string, unknown>>) {
   return [`"${title.replace(/"/g, '""')}"`, toCsv(rows)].filter(Boolean).join('\n');
-}
-
-function htmlEscape(value: unknown) {
-  return serializeCell(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function toExcelTable(title: string, rows: Array<Record<string, unknown>>) {
-  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
-  return [
-    `<h2>${htmlEscape(title)}</h2>`,
-    '<table>',
-    `<thead><tr>${headers.map((header) => `<th>${htmlEscape(header)}</th>`).join('')}</tr></thead>`,
-    `<tbody>${rows.map((row) => `<tr>${headers.map((header) => `<td>${htmlEscape(row[header])}</td>`).join('')}</tr>`).join('')}</tbody>`,
-    '</table>',
-  ].join('');
-}
-
-function wrapExcelDocument(title: string, tables: string[]) {
-  return [
-    '<!doctype html>',
-    '<html>',
-    '<head><meta charset="utf-8" /></head>',
-    '<body>',
-    `<h1>${htmlEscape(title)}</h1>`,
-    ...tables,
-    '</body>',
-    '</html>',
-  ].join('');
 }
 
 function observationLogRows(observations: Awaited<ReturnType<typeof window.banjiDesktop.sena.listObservations>>) {
@@ -432,6 +401,46 @@ function ExportFormatSelect({
   );
 }
 
+function LanguageOptionLabel({
+  prefix,
+  label,
+}: {
+  prefix: string;
+  label: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-3">
+      <span className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {prefix}
+      </span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function LocalDataLocationLink({
+  label,
+  path,
+}: {
+  label: string;
+  path: string;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-medium text-foreground">{label}</p>
+      <Button
+        className="h-auto justify-start px-0 py-0 text-left text-sm font-normal text-muted-foreground whitespace-normal break-all hover:text-foreground"
+        type="button"
+        variant="link"
+        onClick={() => void window.banjiDesktop.system.revealPath(path)}
+      >
+        <ActionOpenFolderIcon className="mt-0.5 size-4 shrink-0 self-start" />
+        <span>{path}</span>
+      </Button>
+    </div>
+  );
+}
+
 export function SettingsRoute() {
   const {
     currency,
@@ -458,8 +467,8 @@ export function SettingsRoute() {
   const [localDataInfo, setLocalDataInfo] = useState<DesktopLocalDataInfo | null>(null);
   const [localDataError, setLocalDataError] = useState<string | null>(null);
   const [senaRunStatus, setSenaRunStatus] = useState<string | null>(null);
-  const [logExportFormat, setLogExportFormat] = useState<ExportFormat>('csv');
-  const [senaExportFormat, setSenaExportFormat] = useState<ExportFormat>('csv');
+  const [logExportFormat, setLogExportFormat] = useState<ExportFormat>('excel');
+  const [senaExportFormat, setSenaExportFormat] = useState<ExportFormat>('excel');
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [creditsOpen, setCreditsOpen] = useState(false);
   const [exchangeRateDraft, setExchangeRateDraft] = useState(() => String(usdToKhrExchangeRate));
@@ -590,9 +599,9 @@ export function SettingsRoute() {
         format === 'json'
           ? JSON.stringify({ exportedAt: new Date().toISOString(), observations }, null, 2)
           : format === 'excel'
-            ? wrapExcelDocument('Banji logs', [toExcelTable('Logs', rows)])
+            ? createWorkbook([{ name: 'Logs', rows }])
             : toCsv(rows);
-      downloadTextFile(filename, content, exportMimeType(format));
+      downloadFile(filename, content, exportMimeType(format));
       setExportStatus(t('settingsLogsExported', { format: exportFormatLabel(format) }));
     } catch (error) {
       setExportStatus(error instanceof Error ? error.message : t('settingsLogsExportFailed'));
@@ -637,12 +646,9 @@ export function SettingsRoute() {
             2,
           )
           : format === 'excel'
-            ? wrapExcelDocument(
-              t('settingsSenaDataWorkbookTitle'),
-              sections.map(([title, rows]) => toExcelTable(title, rows)),
-            )
+            ? createWorkbook(sections.map(([title, rows]) => ({ name: title, rows })))
             : sections.map(([title, rows]) => toCsvSection(title, rows)).join('\n\n');
-      downloadTextFile(filename, content, exportMimeType(format));
+      downloadFile(filename, content, exportMimeType(format));
       setExportStatus(t('settingsParameterRunStatusExported', { format: exportFormatLabel(format) }));
     } catch (error) {
       setExportStatus(error instanceof Error ? error.message : t('settingsParameterRunStatusFailed'));
@@ -663,7 +669,7 @@ export function SettingsRoute() {
               type="button"
               onClick={() => void handleSavePreferences()}
             >
-              <Save data-icon="inline-start" />
+              <ActionSaveIcon data-icon="inline-start" />
               {t('settingsSavePreferencesAction')}
             </Button>
           </WorkspaceActionRow>
@@ -676,37 +682,31 @@ export function SettingsRoute() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(16rem,0.8fr)]">
           <label className="grid content-start gap-2 text-sm">
             <span>{t('settingsLanguage')}</span>
-            <div className="relative">
-              <select
-                className={selectClassName}
-                value={language}
-                onChange={(event) => setLanguage(event.target.value as 'en' | 'km')}
-              >
-                <option value="en">English</option>
-                <option value="km">Khmer</option>
-              </select>
-              <ChevronDown
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-            </div>
+            <Select value={language} onValueChange={(value) => setLanguage(value as 'en' | 'km')}>
+              <SelectTrigger aria-label={t('settingsLanguage')} className={preferenceSelectTriggerClassName}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value="en">
+                  <LanguageOptionLabel prefix="abc" label="English" />
+                </SelectItem>
+                <SelectItem value="km">
+                  <LanguageOptionLabel prefix="កខគ" label="Khmer" />
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label className="grid content-start gap-2 text-sm">
             <span>{t('settingsCurrency')}</span>
-            <div className="relative">
-              <select
-                className={selectClassName}
-                value={currency}
-                onChange={(event) => setCurrency(event.target.value as 'USD' | 'KHR')}
-              >
-                <option value="USD">USD</option>
-                <option value="KHR">KHR</option>
-              </select>
-              <ChevronDown
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-            </div>
+            <Select value={currency} onValueChange={(value) => setCurrency(value as 'USD' | 'KHR')}>
+              <SelectTrigger aria-label={t('settingsCurrency')} className={preferenceSelectTriggerClassName}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value="USD">USD</SelectItem>
+                <SelectItem value="KHR">KHR</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label className="grid content-start gap-2 text-sm">
             <span>{t('settingsExchangeRateLabel')}</span>
@@ -741,7 +741,7 @@ export function SettingsRoute() {
             checked={showExplanatoryTooltips}
             className="pt-2"
             helper={t('settingsShowOptionalHelpHelp')}
-            icon={<BadgeHelp className="size-4" />}
+            icon={<StatusHelpBadgeIcon className="size-4" />}
             label={t('settingsShowOptionalHelpLabel')}
             variant="flat"
             onCheckedChange={setShowExplanatoryTooltips}
@@ -749,7 +749,7 @@ export function SettingsRoute() {
           <CheckboxRow
             checked={showFloatingTitleActions}
             helper={t('settingsShowFloatingActionsHelp')}
-            icon={<PanelsTopLeft className="size-4" />}
+            icon={<NavigationWorkspacePanelsIcon className="size-4" />}
             label={t('settingsShowFloatingActionsLabel')}
             variant="flat"
             onCheckedChange={setShowFloatingTitleActions}
@@ -757,12 +757,57 @@ export function SettingsRoute() {
           <CheckboxRow
             checked={showRightRailCards}
             helper={t('settingsShowRightRailCardsHelp')}
-            icon={<PanelRight className="size-4" />}
+            icon={<NavigationRightPanelIcon className="size-4" />}
             label="Show right rail cards"
             variant="flat"
             onCheckedChange={setShowRightRailCards}
           />
         </div>
+      </WorkspacePanel>
+
+      <WorkspacePanel
+        title={t('settingsLocalWorkspaceStorageTitle')}
+        descriptor={t('settingsLocalWorkspaceStorageDescription')}
+      >
+        {localDataInfo ? (
+          <div className="grid gap-4">
+            <LocalDataLocationLink
+              label={t('settingsDataDirectoryLabel')}
+              path={localDataInfo.dataDirectoryPath}
+            />
+            <LocalDataLocationLink
+              label={t('settingsWorkspaceStoreLabel')}
+              path={localDataInfo.workspaceStorePath}
+            />
+            <LocalDataLocationLink
+              label={t('settingsPreferencesFileLabel')}
+              path={localDataInfo.preferencesPath}
+            />
+            <WorkspaceActionRow>
+              <ExportFormatSelect
+                ariaLabel="Export logs format"
+                icon={<ActionExportIcon className="size-4" />}
+                label={t('settingsExportLogsAction')}
+                onExport={() => void handleExportLogs(logExportFormat)}
+                value={logExportFormat}
+                onValueChange={setLogExportFormat}
+              />
+              <ExportFormatSelect
+                ariaLabel={t('settingsSenaDataExportFormatLabel')}
+                icon={<EntityBackupIcon className="size-4" />}
+                label={t('settingsExportSenaDataAction')}
+                onExport={() => void handleExportSenaData(senaExportFormat)}
+                value={senaExportFormat}
+                onValueChange={setSenaExportFormat}
+              />
+            </WorkspaceActionRow>
+            {exportStatus ? <p className="text-sm text-muted-foreground">{exportStatus}</p> : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {localDataError ?? t('settingsLoadLocalWorkspaceInfo')}
+          </p>
+        )}
       </WorkspacePanel>
 
       <WorkspacePanel
@@ -778,7 +823,7 @@ export function SettingsRoute() {
             variant="outline"
             onClick={() => void handleResetSenaDefaults()}
           >
-            <RotateCcw data-icon="inline-start" />
+            <ActionUndoIcon data-icon="inline-start" />
             {t('settingsResetDefaultsAction')}
           </Button>
         }
@@ -893,61 +938,7 @@ export function SettingsRoute() {
       </WorkspacePanel>
 
       <WorkspacePanel
-        title={t('settingsLocalWorkspaceStorageTitle')}
-        descriptor={t('settingsLocalWorkspaceStorageDescription')}
-      >
-        {localDataInfo ? (
-          <div className="grid gap-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">{t('settingsDataDirectoryLabel')}</p>
-              <p className="text-sm text-muted-foreground">{localDataInfo.dataDirectoryPath}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">{t('settingsWorkspaceStoreLabel')}</p>
-              <p className="text-sm text-muted-foreground">{localDataInfo.workspaceStorePath}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">{t('settingsPreferencesFileLabel')}</p>
-              <p className="text-sm text-muted-foreground">{localDataInfo.preferencesPath}</p>
-            </div>
-            <WorkspaceActionRow>
-              <Button
-                className="h-11 rounded-2xl border-border/70 bg-background/80 text-foreground shadow-xs"
-                type="button"
-                variant="outline"
-                onClick={() => void window.banjiDesktop.system.openLocalDataFolder()}
-              >
-                <FolderOpen data-icon="inline-start" />
-                {t('settingsOpenLocalDataFolderAction')}
-              </Button>
-              <ExportFormatSelect
-                ariaLabel="Export logs format"
-                icon={<FileDown className="size-4" />}
-                label={t('settingsExportLogsAction')}
-                onExport={() => void handleExportLogs(logExportFormat)}
-                value={logExportFormat}
-                onValueChange={setLogExportFormat}
-              />
-              <ExportFormatSelect
-                ariaLabel={t('settingsSenaDataExportFormatLabel')}
-                icon={<DatabaseBackup className="size-4" />}
-                label={t('settingsExportSenaDataAction')}
-                onExport={() => void handleExportSenaData(senaExportFormat)}
-                value={senaExportFormat}
-                onValueChange={setSenaExportFormat}
-              />
-            </WorkspaceActionRow>
-            {exportStatus ? <p className="text-sm text-muted-foreground">{exportStatus}</p> : null}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {localDataError ?? t('settingsLoadLocalWorkspaceInfo')}
-          </p>
-        )}
-      </WorkspacePanel>
-
-      <WorkspacePanel
-        title="Credits"
+        title={t('settingsCreditsTitle')}
         descriptor={t('settingsCreditsDescription')}
         action={
           <div className="flex h-full items-center">
@@ -959,7 +950,7 @@ export function SettingsRoute() {
               aria-label={creditsOpen ? t('settingsCollapseCredits') : t('settingsExpandCredits')}
               onClick={() => setCreditsOpen((current) => !current)}
             >
-              {creditsOpen ? <ChevronUp /> : <ChevronDown />}
+              {creditsOpen ? <NavigationCollapseIcon /> : <NavigationExpandIcon />}
             </Button>
           </div>
         }
@@ -967,7 +958,7 @@ export function SettingsRoute() {
         {creditsOpen ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{t('settingsMadeWith')}</span>
-            <Heart aria-hidden="true" className="size-4 fill-current text-rose-500" />
+            <EntityFavoriteIcon aria-hidden="true" className="size-4 fill-current text-rose-500" />
             <span>{t('settingsMadeBy')}</span>
           </p>
         ) : null}

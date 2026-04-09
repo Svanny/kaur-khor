@@ -1,4 +1,4 @@
-import { Check, Save } from 'lucide-react';
+import { ActionConfirmIcon, ActionSaveIcon } from '@icons/actions';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SenaService } from '@shared/sena';
@@ -10,11 +10,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, moneyInputStep, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService } from '@/lib/sena-catalog';
+import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService, validateCatalogEntityId } from '@/lib/sena-catalog';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { catalogItemIdErrorMessage } from './catalog-id-validation';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { DetailHeroWireframe } from './loading-wireframes';
 import { SkuPageHero } from './sku-page-hero';
@@ -26,6 +27,7 @@ function emptyService(serviceId = ''): SenaService {
     name: '',
     description: '',
     price: 0,
+    archived: false,
     bundle: false,
   };
 }
@@ -163,7 +165,7 @@ function ServiceSkuGridTile({
               'peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50',
             )}
           >
-            <Check className="size-3.5" />
+            <ActionConfirmIcon className="size-3.5" />
           </div>
         </>
       )}
@@ -221,7 +223,7 @@ function ServiceFormLoadingState({ title }: { title: string }) {
 export function ServiceFormRoute() {
   const navigate = useNavigate();
   const { serviceId } = useParams();
-  const { catalog, isLoading, isSaving, upsertSenaCatalog } = useInventory();
+  const { catalog, isLoading, isSaving, renameCatalogEntity, upsertSenaCatalog } = useInventory();
   const { canGoBack, goBack } = useNavigationHistory();
   const { currency, t, usdToKhrExchangeRate } = usePreferences();
   const [form, setForm] = useState<SenaService>(() => emptyService(serviceId));
@@ -267,6 +269,14 @@ export function ServiceFormRoute() {
     () => normalizedServiceDirtySnapshot(normalizedBaseline),
     [normalizedBaseline],
   );
+  const idError = useMemo(
+    () =>
+      catalogItemIdErrorMessage(
+        t,
+        validateCatalogEntityId(catalog, 'service', form.serviceId, editing ? normalizedBaseline.serviceId : null),
+      ),
+    [catalog, editing, form.serviceId, normalizedBaseline.serviceId, t],
+  );
   const hasUnsavedServiceChanges =
     JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
     JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...baselineSelectedSkuIds].sort());
@@ -283,9 +293,21 @@ export function ServiceFormRoute() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (idError) {
+      return;
+    }
     const baseCatalog = catalog ?? emptySenaCatalog();
-    const nextCatalog = upsertSenaService(baseCatalog, normalizedDraft, selectedSkuIds);
-    await upsertSenaCatalog(nextCatalog);
+    if (editing && normalizedBaseline.serviceId !== normalizedDraft.serviceId) {
+      await renameCatalogEntity({
+        entityType: 'service',
+        previousId: normalizedBaseline.serviceId,
+        nextService: normalizedDraft,
+        skuIds: selectedSkuIds,
+      });
+    } else {
+      const nextCatalog = upsertSenaService(baseCatalog, normalizedDraft, selectedSkuIds, normalizedBaseline.serviceId);
+      await upsertSenaCatalog(nextCatalog);
+    }
     await navigate(`/catalog/services/${normalizedDraft.serviceId}`);
   }
 
@@ -326,8 +348,8 @@ export function ServiceFormRoute() {
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
-            <Button disabled={!hasUnsavedServiceChanges || isSaving} form={formId} type="submit">
-              <Save data-icon="inline-start" />
+            <Button disabled={!hasUnsavedServiceChanges || isSaving || idError != null} form={formId} type="submit">
+              <ActionSaveIcon data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}
             </Button>
           </WorkspaceActionRow>
@@ -348,13 +370,14 @@ export function ServiceFormRoute() {
         >
           <div className="grid items-start gap-4 md:grid-cols-2">
             <EditorField
+              error={idError ?? undefined}
               helper={editing ? t('catalogServiceEditorIdentifierDescription') : t('catalogServiceEditorIdentifierHelper')}
               label={t('fieldId')}
               tooltip={t('catalogServiceEditorDetailsTooltip')}
             >
               <input
+                aria-invalid={idError ? 'true' : 'false'}
                 className={editorInputClassName}
-                disabled={editing}
                 required
                 value={form.serviceId}
                 onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))}

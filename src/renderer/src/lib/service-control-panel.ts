@@ -10,6 +10,7 @@ import type {
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import { formatCurrency, formatNumber, formatWholeNumber } from '@/lib/format';
 import { computeServiceSellableUnits, serviceCoverageState, serviceLinkedSkus } from '@/lib/catalog';
+import { translateUiLiteral } from '@/lib/translations';
 
 export type ServiceHeartbeatState = 'available' | 'at-risk' | 'blocked' | 'unlinked';
 export type ContributorHealth = 'healthy' | 'at-risk' | 'blocked';
@@ -172,7 +173,7 @@ export function rankedServiceContributors(service: ServiceRecord, snapshot: Inve
   });
 }
 
-export function latestEvidenceHint(reports: StockReport[]) {
+export function latestEvidenceHint(reports: StockReport[], language: AppLanguage) {
   if (reports.length === 0) {
     return null;
   }
@@ -180,9 +181,9 @@ export function latestEvidenceHint(reports: StockReport[]) {
     (left, right) => new Date(right.reportedAt).getTime() - new Date(left.reportedAt).getTime(),
   )[0];
   if (latest.reportSource === 'manual' || latest.reportSource === 'compat-stock-update') {
-    return 'Reviewed in latest session';
+    return translateUiLiteral(language, 'Reviewed in latest session');
   }
-  return 'Reviewed in recent report';
+  return translateUiLiteral(language, 'Reviewed in recent update');
 }
 
 export function serviceHeartbeatSummary({
@@ -199,14 +200,15 @@ export function serviceHeartbeatSummary({
   const sellableUnits = computeServiceSellableUnits(service, snapshot);
   const contributors = rankedServiceContributors(service, snapshot);
   const bottleneck = contributors.find((entry) => entry.isBottleneck) ?? null;
-  const limiterText = bottleneck ? bottleneck.sku.name : 'no active limiter';
+  const blockerText = bottleneck ? bottleneck.sku.name : translateUiLiteral(language, 'no active blocker');
   return {
     state: serviceCoverageState(service, snapshot) as ServiceHeartbeatState,
-    summary: `${formatWholeNumber(sellableUnits, language)} sellable units across ${formatWholeNumber(
-      contributors.length,
-      language,
-    )} linked SKUs · ${limiterText}`,
-    evidenceHint: latestEvidenceHint(reports),
+    summary: translateUiLiteral(language, '{sellable} ready to serve across {count} linked SKUs · {blocker}', {
+      sellable: formatWholeNumber(sellableUnits, language),
+      count: formatWholeNumber(contributors.length, language),
+      blocker: blockerText,
+    }),
+    evidenceHint: latestEvidenceHint(reports, language),
   };
 }
 
@@ -313,29 +315,41 @@ export function mapServiceTimelineEvents({
 
     if (signal) {
       types.push('service-unavailable');
-      summaries.push('Service unavailable flag');
+      summaries.push(translateUiLiteral(language, 'Service became unavailable'));
     }
     if (priceAdjustment) {
       types.push('price-adjustment');
-      summaries.push(`Price adjusted to ${formatCurrency(priceAdjustment.price, currency, language, usdToKhrExchangeRate)}`);
+      summaries.push(
+        translateUiLiteral(language, 'Price changed to {price}', {
+          price: formatCurrency(priceAdjustment.price, currency, language, usdToKhrExchangeRate),
+        }),
+      );
     }
     if (linkedSkuObservation) {
       types.push('linked-sku-change');
-      summaries.push(`Coverage changed through ${linkedSkuObservation.skuId}`);
+      summaries.push(
+        translateUiLiteral(language, 'Availability changed through {sku}', {
+          sku: linkedSkuObservation.skuId,
+        }),
+      );
     }
     if (report.topServiceRanking.includes(service.serviceId)) {
       types.push('ranking-update');
-      summaries.push('Ranking updated');
+      summaries.push(translateUiLiteral(language, 'Selling order updated'));
     }
     if (reportLeader && priorLeader && reportLeader.skuId !== priorLeader.skuId) {
       types.push('limiter-shift');
-      summaries.push(`Limiter shifted to ${reportLeader.skuId}`);
+      summaries.push(
+        translateUiLiteral(language, 'Main blocker changed to {sku}', {
+          sku: reportLeader.skuId,
+        }),
+      );
     }
 
     return {
       report,
       types,
-      summary: summaries.join(' · ') || 'Relevant service evidence recorded',
+      summary: summaries.join(' · ') || translateUiLiteral(language, 'Relevant service update recorded'),
       secondary: report.notes?.trim() ? report.notes.trim() : null,
     };
   });

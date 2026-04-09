@@ -21,10 +21,12 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Triangle, type LucideIcon } from 'lucide-react';
+import { ActionDragHandleIcon } from '@icons/actions';
+import { rankingEntryTypeIcons } from '@icons/domain';
+import type { IconComponent } from '@icons';
+import { StatusDeltaTriangleIcon } from '@icons/status';
 import type { InventorySnapshot } from '@shared/inventory';
 import { formatCurrency, rankLabel } from '@/lib/format';
-import { rankingEntryTypeIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
@@ -45,7 +47,7 @@ type RankingRowModel = {
   index: number;
   costText: string;
   label: string;
-  kindIcon: LucideIcon;
+  kindIcon: IconComponent;
   kindLabel: string;
   movedFromBaseline: boolean;
   rankChangeDirection: 'up' | 'down' | null;
@@ -185,7 +187,7 @@ export function MerchandisingEditor({
           : (sku?.costPerUnit ?? 0);
       const fallbackPrice = entry.entryType === 'service' ? (service?.price ?? 0) : (sku?.productPrice ?? 0);
       const price = priceByEntryKey?.[entryKey] ?? fallbackPrice;
-      const KindIcon = rankingEntryTypeIconMap[entry.entryType];
+      const KindIcon = rankingEntryTypeIcons[entry.entryType];
 
       return {
         id: buildRankingEntryId(entry),
@@ -365,7 +367,7 @@ function SortableRankingRow({
           ref={setActivatorNodeRef}
           type="button"
         >
-          <GripVertical aria-hidden="true" className="size-4 cursor-grab" />
+          <ActionDragHandleIcon aria-hidden="true" className="size-4 cursor-grab" />
         </button>
       }
       index={index}
@@ -392,7 +394,7 @@ type RankingRowCardProps = HTMLAttributes<HTMLDivElement> & {
   handle: ReactNode;
   index: number;
   costText: string;
-  kindIcon: LucideIcon;
+  kindIcon: IconComponent;
   kindLabel: string;
   label: string;
   movedFromBaseline: boolean;
@@ -453,7 +455,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
         <div className="flex min-h-8 items-center justify-center gap-1.5 text-center text-lg font-medium tracking-tight text-foreground tabular-nums">
           <span>#{index + 1}</span>
           {rankChangeDirection ? (
-            <Triangle
+            <StatusDeltaTriangleIcon
               aria-hidden="true"
               className={cn(
                 'rank-change-triangle !size-2 fill-current',
@@ -485,7 +487,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
           <span className="text-center">{priceText}</span>
           <span className="flex justify-end">
             {priceChangeDirection ? (
-              <Triangle
+              <StatusDeltaTriangleIcon
                 aria-hidden="true"
                 className={cn(
                   'price-change-triangle',
@@ -504,7 +506,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
 function StaticGripHandle() {
   return (
     <div className="flex size-8 items-center justify-center rounded-md bg-white/70 text-muted-foreground shadow-sm">
-      <GripVertical aria-hidden="true" className="size-4" />
+      <ActionDragHandleIcon aria-hidden="true" className="size-4" />
     </div>
   );
 }

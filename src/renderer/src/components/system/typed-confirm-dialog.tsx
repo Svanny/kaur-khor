@@ -43,7 +43,9 @@ export function TypedConfirmDialog({
       }}
     >
       <div
+        aria-modal="true"
         className="w-full max-w-md rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+        role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
         <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{title}</p>

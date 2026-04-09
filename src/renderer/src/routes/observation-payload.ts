@@ -1,4 +1,7 @@
+import type { AppLanguage } from '@shared/inventory';
 import type { SenaObservationInput, SenaObservationRecord } from '@shared/sena';
+import { formatWholeNumber } from '@/lib/format';
+import { translateUiLiteral } from '@/lib/translations';
 
 export interface ObservationSignalCounts {
   stockSnapshot: number;
@@ -76,51 +79,101 @@ export function hasStructuredObservationSignal(input: SenaObservationInput) {
   );
 }
 
-export function observationCompositionParts(input: SenaObservationInput) {
+export function observationCompositionParts(input: SenaObservationInput, language: AppLanguage = 'en') {
   const counts = observationSignalCounts(input);
   const parts: string[] = [];
   if (counts.stockSnapshot > 0) {
-    parts.push(`${counts.stockSnapshot} counted SKU${counts.stockSnapshot === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} counted SKU{suffix}', {
+        count: formatWholeNumber(counts.stockSnapshot, language),
+        suffix: counts.stockSnapshot === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.orderPlaced > 0) {
-    parts.push(`${counts.orderPlaced} order${counts.orderPlaced === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} order{suffix}', {
+        count: formatWholeNumber(counts.orderPlaced, language),
+        suffix: counts.orderPlaced === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.receiptArrived > 0) {
-    parts.push(`${counts.receiptArrived} receipt${counts.receiptArrived === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} receipt{suffix}', {
+        count: formatWholeNumber(counts.receiptArrived, language),
+        suffix: counts.receiptArrived === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.servicePrices > 0) {
-    parts.push(`${counts.servicePrices} service price${counts.servicePrices === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} service price{suffix}', {
+        count: formatWholeNumber(counts.servicePrices, language),
+        suffix: counts.servicePrices === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.retailPrices > 0) {
-    parts.push(`${counts.retailPrices} retail price${counts.retailPrices === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} retail price{suffix}', {
+        count: formatWholeNumber(counts.retailPrices, language),
+        suffix: counts.retailPrices === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.serviceRankings > 0) {
-    parts.push(`${counts.serviceRankings} ranked service${counts.serviceRankings === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} ranked service{suffix}', {
+        count: formatWholeNumber(counts.serviceRankings, language),
+        suffix: counts.serviceRankings === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.retailRankings > 0) {
-    parts.push(`${counts.retailRankings} ranked retail item${counts.retailRankings === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} ranked retail item{suffix}', {
+        count: formatWholeNumber(counts.retailRankings, language),
+        suffix: counts.retailRankings === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.stockouts > 0) {
-    parts.push(`${counts.stockouts} stockout flag${counts.stockouts === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} stockout flag{suffix}', {
+        count: formatWholeNumber(counts.stockouts, language),
+        suffix: counts.stockouts === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.leadTimeHints > 0) {
-    parts.push(`${counts.leadTimeHints} lead-time hint${counts.leadTimeHints === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} delivery note{suffix}', {
+        count: formatWholeNumber(counts.leadTimeHints, language),
+        suffix: counts.leadTimeHints === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.adjustments > 0) {
-    parts.push(`${counts.adjustments} correction${counts.adjustments === 1 ? '' : 's'}`);
+    parts.push(
+      translateUiLiteral(language, '{count} adjustment{suffix}', {
+        count: formatWholeNumber(counts.adjustments, language),
+        suffix: counts.adjustments === 1 ? '' : 's',
+      }),
+    );
   }
   if (counts.regime > 0) {
-    parts.push('regime');
+    parts.push(translateUiLiteral(language, 'sales pattern'));
   }
   if (counts.notes > 0) {
-    parts.push('note');
+    parts.push(translateUiLiteral(language, 'note'));
   }
   return parts;
 }
 
-export function observationCompositionLabel(input: SenaObservationInput) {
-  const parts = observationCompositionParts(input);
-  return parts.length > 0 ? parts.join(' · ') : 'No structured signals';
+export function observationCompositionLabel(input: SenaObservationInput, language: AppLanguage = 'en') {
+  const parts = observationCompositionParts(input, language);
+  return parts.length > 0 ? parts.join(' · ') : translateUiLiteral(language, 'No structured signals');
 }
 
 export function latestObservationAt(observations: SenaObservationRecord[]) {

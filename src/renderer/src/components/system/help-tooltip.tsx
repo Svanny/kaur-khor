@@ -1,4 +1,4 @@
-import { CircleHelp } from 'lucide-react';
+import { StatusHelpIcon } from '@icons/status';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -29,7 +29,7 @@ export function HelpTooltip({
             }
             type="button"
           >
-            <CircleHelp className="size-3.5" />
+            <StatusHelpIcon className="size-3.5" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={8}>

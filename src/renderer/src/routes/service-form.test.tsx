@@ -22,6 +22,7 @@ const sampleCatalog = {
   schemaVersion: 1,
   skus: [
     {
+      archived: false,
       costPerUnit: 4,
       description: 'Cotton tee',
       leadTimeMeanDaysHint: 5,
@@ -32,6 +33,7 @@ const sampleCatalog = {
       soldAsProduct: true,
     },
     {
+      archived: true,
       costPerUnit: 8,
       description: 'Silk scarf',
       leadTimeMeanDaysHint: 6,
@@ -44,6 +46,7 @@ const sampleCatalog = {
   ],
   services: [
     {
+      archived: false,
       bundle: false,
       description: 'Style and fit',
       name: 'Service 1',
@@ -92,6 +95,7 @@ describe('ServiceFormRoute', () => {
       catalog: sampleCatalog,
       isLoading: false,
       isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
     });
   });
@@ -120,7 +124,7 @@ describe('ServiceFormRoute', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Linked SKUs' })).toBeInTheDocument();
     expect(screen.getByText('Name the service the way staff will recognize it.')).toBeInTheDocument();
     expect(screen.getByText('Choose every SKU normally consumed when this service is sold.')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('service-1')).toBeDisabled();
+    expect(screen.getByDisplayValue('service-1')).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search linked SKUs by name or id…')).toBeInTheDocument();
     expect(screen.getByText('2 Linked SKUs detected')).toBeInTheDocument();
@@ -156,6 +160,7 @@ describe('ServiceFormRoute', () => {
       catalog: sampleCatalog,
       isLoading: false,
       isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
       upsertSenaCatalog,
     });
 
@@ -190,6 +195,46 @@ describe('ServiceFormRoute', () => {
     await waitFor(() => {
       expect(screen.getByText('Service detail destination')).toBeInTheDocument();
     });
+  });
+
+  test('renames the service id through the coordinated rename mutation', async () => {
+    const renameCatalogEntity = vi.fn(async () => sampleCatalog);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity,
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('service-1'), { target: { value: 'service-1-renamed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(renameCatalogEntity).toHaveBeenCalledWith({
+        entityType: 'service',
+        previousId: 'service-1',
+        nextService: expect.objectContaining({ serviceId: 'service-1-renamed' }),
+        skuIds: ['sku-1'],
+      });
+    });
+  });
+
+  test('blocks duplicate active and archived ids while editing', () => {
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('service-1'), { target: { value: 'sku-1' } });
+    expect(screen.getByText('This identifier is already used by another catalog item, including archived items.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+
+    fireEvent.change(screen.getByDisplayValue('sku-1'), { target: { value: 'sku-2' } });
+    expect(screen.getByText('This identifier is already used by another catalog item, including archived items.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+
+    fireEvent.change(screen.getByDisplayValue('sku-2'), { target: { value: 'service-1' } });
+    expect(screen.queryByText('This identifier is already used by another catalog item, including archived items.')).not.toBeInTheDocument();
   });
 
   test('accepts KHR price input while saving USD internally', async () => {

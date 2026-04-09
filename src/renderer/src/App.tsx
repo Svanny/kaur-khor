@@ -4,6 +4,7 @@ import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from '@/components/banji-shell';
 import { CommandPaletteProvider } from '@/components/command-palette';
 import { AnalysisRoute } from '@/routes/analysis';
+import { ArchiveRoute } from '@/routes/archive';
 import { DashboardRoute } from '@/routes/dashboard';
 import { InventoryRoute } from '@/routes/inventory';
 import { PerformanceRoute } from '@/routes/performance';
@@ -61,6 +62,7 @@ export function AppRoutes() {
       <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />
       <Route element={<ServiceFormRoute />} path="/catalog/services/:serviceId/edit" />
       <Route element={<StockUpdateRoute />} path="/operations" />
+      <Route element={<ArchiveRoute />} path="/operations/archive" />
       <Route element={<RedirectWithSearch to="/record-update" />} path="/operations/session" />
       <Route element={<SettingsRoute />} path="/settings" />
       <Route element={<Navigate replace to="/" />} path="*" />
@@ -116,7 +118,7 @@ export default function App() {
             Loading local workspace…
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Starting the desktop core and opening the local SENA workspace.
+            Starting the desktop core and opening the local workspace.
           </p>
         </div>
       </div>
