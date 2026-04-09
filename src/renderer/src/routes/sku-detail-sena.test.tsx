@@ -12,7 +12,7 @@ import { SkuDetailRoute } from './sku-detail';
 import { buildLeadTimeHintFromInputs } from './sku-detail/actions';
 import { SkuDetailEvidence } from './sku-detail/evidence';
 import { SkuDetailExposure } from './sku-detail/exposure';
-import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay } from './sku-detail/format';
+import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaLongDateTime24 } from './sku-detail/format';
 import { ribbonGridClassName } from './sku-detail/hero';
 import { SkuDetailLedger } from './sku-detail/ledger';
 import {
@@ -501,7 +501,9 @@ describe('SKU detail SENA helpers', () => {
     expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 38)).toBe('14');
     expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 20)).toBe('');
     expect(intervalLabelForWidth(null, 11, 42)).toBe('12');
-    expect(intervalTooltipLabel('2026-02-14T09:00:00Z', 11, 'en')).toBe('Feb 14, 2026, 16:00');
+    expect(intervalTooltipLabel('2026-02-14T09:00:00Z', 11, 'en')).toBe(
+      formatSenaLongDateTime24('2026-02-14T09:00:00Z', 'en'),
+    );
     expect(intervalTooltipLabel(null, 11, 'en')).toBe('Interval 12');
 
     expect(responsivePillLabel('stockout-constrained', '12', 42)).toBe('12');

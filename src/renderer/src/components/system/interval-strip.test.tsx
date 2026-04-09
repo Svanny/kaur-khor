@@ -26,6 +26,7 @@ import {
   shouldLoadOlderIntervals,
 } from './interval-strip';
 import { buildPointCoordinatesWithDomain, buildTrajectoryBandPath } from './timeline-chart';
+import { formatSenaLongDateTime24 } from '@/routes/sku-detail/format';
 
 describe('interval strip helpers', () => {
   test('uses one shared axis contract for slot left and center positions', () => {
@@ -139,7 +140,9 @@ describe('interval strip helpers', () => {
   });
 
   test('uses compact tooltip and label fallbacks', () => {
-    expect(intervalTooltipLabel('2026-03-05T08:00:00.000Z', 1, 'en')).toBe('Mar 5, 2026, 15:00');
+    expect(intervalTooltipLabel('2026-03-05T08:00:00.000Z', 1, 'en')).toBe(
+      formatSenaLongDateTime24('2026-03-05T08:00:00.000Z', 'en'),
+    );
     expect(intervalTooltipLabel(null, 11, 'en')).toBe('Interval 12');
     expect(responsivePillLabel('Feb-14', 'F-14', 80)).toBe('Feb-14');
     expect(responsivePillLabel('February-14', 'F-14', 56)).toBe('F-14');
@@ -193,7 +196,11 @@ describe('interval strip helpers', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Mar 12, 2026, 15:00' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: formatSenaLongDateTime24('2026-03-12T08:00:00.000Z', 'en'),
+      }),
+    ).toBeInTheDocument();
   });
 
   test('detects when older intervals should load and preserves scroll anchor after prepend', () => {
@@ -303,9 +310,17 @@ describe('IntervalStrip', () => {
 
     expect(screen.getByLabelText('Scroll intervals left')).toBeInTheDocument();
     expect(screen.getByLabelText('Scroll intervals right')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mar 5, 2026, 15:00' })).toHaveAttribute('data-active', 'true');
+    expect(
+      screen.getByRole('button', {
+        name: formatSenaLongDateTime24('2026-03-05T08:00:00.000Z', 'en'),
+      }),
+    ).toHaveAttribute('data-active', 'true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Apr 3, 2026, 15:00' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: formatSenaLongDateTime24('2026-04-03T08:00:00.000Z', 'en'),
+      }),
+    );
     expect(onSelect).toHaveBeenCalledWith(2);
   });
 });

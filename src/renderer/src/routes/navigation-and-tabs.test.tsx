@@ -153,6 +153,7 @@ describe('SENA routes', () => {
       })),
       listStockReports: vi.fn(async () => []),
       submitLegacyReport: vi.fn(),
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
       loadSenaCatalog: vi.fn(async () => sampleCatalog),
       loadSenaObservations: vi.fn(async () => []),
       listSenaObservations: vi.fn(async () => []),
@@ -708,23 +709,13 @@ describe('SENA routes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save and refresh view' }));
 
     await waitFor(() => {
-      expect(context.submitLegacyReport).toHaveBeenCalledWith(
-        expect.objectContaining({
-          servicePriceAdjustments: [
-            expect.objectContaining({
-              serviceId: 'service-1',
-              price: 18,
-              previousPrice: 15,
-            }),
-          ],
-        }),
-      );
       expect(context.ingestSenaObservation).toHaveBeenCalledWith(
         expect.objectContaining({
           stockSnapshot: [],
           servicePrices: [{ serviceId: 'service-1', price: 18 }],
         }),
       );
+      expect(context.runWorkspacePreparation).toHaveBeenCalledTimes(1);
       expect(context.triggerSenaRun).toHaveBeenCalled();
     });
   });

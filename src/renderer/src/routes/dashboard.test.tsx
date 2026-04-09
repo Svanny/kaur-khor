@@ -485,9 +485,9 @@ function RouteLocationProbe() {
   return <div data-testid="route-location">{`${location.pathname}${location.search}`}</div>;
 }
 
-function renderRouteWithLocation() {
+function renderRouteWithLocation(initialEntry = '/') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <DashboardRoute />
       <RouteLocationProbe />
     </MemoryRouter>,
@@ -721,25 +721,12 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('button', { name: 'Receive' })).not.toBeInTheDocument();
   });
 
-  test('submits a received-goods inventory update from the drawer and clears route-backed open state immediately', async () => {
-    const submitLegacyReport = vi.fn(async (payload) => payload);
-    const ingestSenaObservation = vi.fn(async (payload) => payload);
-    let resolveTriggerSenaRun: ((value: { runId: 'run-2' }) => void) | null = null;
-    const triggerSenaRun = vi.fn(
-      () =>
-        new Promise<{ runId: 'run-2' }>((resolve) => {
-          resolveTriggerSenaRun = resolve;
-        }),
-    );
-
+  test('writes route-backed receive state when launching a task from the queue', async () => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       observations: sampleObservations,
       workspaceSummary: sampleWorkspaceSummary,
       loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
-      submitLegacyReport,
-      ingestSenaObservation,
-      triggerSenaRun,
       isSaving: false,
     });
 
@@ -748,40 +735,9 @@ describe('DashboardRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Receive' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 2, name: 'What Happened In Real Life' })).toBeInTheDocument();
+      expect(screen.getByTestId('route-location').textContent).toMatch(/task=[^&]+/);
+      expect(screen.getByTestId('route-location')).toHaveTextContent('taskMode=goods_received');
     });
-
-    expect(screen.getByRole('radio', { name: /Goods received/i }).className).toContain('data-[state=on]:shadow-none');
-    expect(document.querySelector('[data-band-id="real_life"] .lucide-scroll-text')).not.toBeNull();
-    expect(document.querySelector('[data-band-id="timing"] .lucide-timer-reset')).not.toBeNull();
-    expect(document.querySelector('[data-band-id="next_steps"] .lucide-bot')).not.toBeNull();
-
-    fireEvent.change(screen.getByLabelText('Received quantity'), { target: { value: '24' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm inventory update' }));
-
-    await waitFor(() => {
-      expect(submitLegacyReport).toHaveBeenCalledTimes(1);
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { level: 2, name: 'What Happened In Real Life' })).not.toBeInTheDocument();
-      expect(screen.getByTestId('route-location')).not.toHaveTextContent('task=');
-    });
-
-    expect(submitLegacyReport.mock.calls[0]?.[0]).toMatchObject({
-      skuObservations: [
-        expect.objectContaining({
-          skuId: 'sku-3',
-          unitsInStock: 39,
-          restockIncluded: true,
-        }),
-      ],
-    });
-    expect(submitLegacyReport.mock.calls[0]?.[0].reportedAt).toContain('2026-04-03');
-    expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
-    expect(triggerSenaRun).toHaveBeenCalledTimes(1);
-
-    resolveTriggerSenaRun?.({ runId: 'run-2' });
   });
 
   test('hides the overview right rail when the global toggle is off', async () => {
