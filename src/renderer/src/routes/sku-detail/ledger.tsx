@@ -48,10 +48,12 @@ import {
   deriveLabelGutterOffset,
 } from '@/components/system/timeline-chart';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { translateRegimeLabel } from '@/lib/localized-display';
+import { normalizeRegimeToneKey, REGIME_LEGEND_ORDER } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
+import { DetailRegimeLegendItem, DetailRegimeOverlay, regimeInitials } from '@/routes/detail-regime-overlay';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel, SectionTitle } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -114,16 +116,7 @@ function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: str
 }
 
 export function regimeCompactLabel(regime: string) {
-  const normalized = regime.trim().toLowerCase();
-  if (normalized === 'stockout-constrained') {
-    return 'SC';
-  }
-  return normalized
-    .split(/[\s-]+/)
-    .filter(Boolean)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
-    .slice(0, 2);
+  return regimeInitials(regime);
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -185,53 +178,12 @@ function pipelineTileLayout(slotWidth: number) {
 }
 
 function normalizeRegimeKey(regime: string) {
-  return regime.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return normalizeRegimeToneKey(regime);
 }
-
-function regimeTint(regime: string, isSelected: boolean) {
-  const key = normalizeRegimeKey(regime);
-  const palette: Record<string, { selected: string; idle: string }> = {
-    normal: {
-      selected: 'rgba(244, 223, 207, 0.72)',
-      idle: 'rgba(244, 223, 207, 0.48)',
-    },
-    promo: {
-      selected: 'rgba(248, 224, 184, 0.78)',
-      idle: 'rgba(248, 224, 184, 0.54)',
-    },
-    spike: {
-      selected: 'rgba(245, 196, 176, 0.78)',
-      idle: 'rgba(245, 196, 176, 0.5)',
-    },
-    lull: {
-      selected: 'rgba(216, 232, 222, 0.74)',
-      idle: 'rgba(216, 232, 222, 0.5)',
-    },
-    stockout_constrained: {
-      selected: 'rgba(239, 192, 192, 0.8)',
-      idle: 'rgba(239, 192, 192, 0.54)',
-    },
-    correction: {
-      selected: 'rgba(207, 218, 234, 0.78)',
-      idle: 'rgba(207, 218, 234, 0.52)',
-    },
-  };
-  const resolved = palette[key] ?? palette.normal;
-  return isSelected ? resolved.selected : resolved.idle;
-}
-
-const REGIME_LEGEND = [
-  'normal',
-  'promo',
-  'spike',
-  'lull',
-  'stockout_constrained',
-  'correction',
-] as const;
 
 function presentRegimes(regimes: string[]) {
   const present = new Set(regimes.map((regime) => normalizeRegimeKey(regime)));
-  return REGIME_LEGEND.filter((regime) => present.has(regime));
+  return REGIME_LEGEND_ORDER.filter((regime) => present.has(regime));
 }
 
 
@@ -243,6 +195,7 @@ function RegimeChartHighlightOverlay({
   intervals,
   language,
   onSelect,
+  slotWidth,
 }: {
   activeIndex: number | null;
   axisContentWidth: number;
@@ -251,45 +204,20 @@ function RegimeChartHighlightOverlay({
   intervals: SenaSkuDetailViewModel['lanes']['regimePriceLane']['intervals'];
   language: AppLanguage;
   onSelect: (index: number) => void;
+  slotWidth: number;
 }) {
   return (
-    <div
-      aria-hidden="true"
-      className="absolute inset-0 grid overflow-hidden rounded-[1rem]"
-      style={{
-        width: axisContentWidth,
-        paddingLeft: axisStartPadding,
-        paddingRight: axisEndPadding,
-        gridTemplateColumns: `repeat(${Math.max(intervals.length, 1)}, minmax(0, 1fr))`,
-      }}
-    >
-      {intervals.map((interval, intervalPosition) => {
-        const isSelected = activeIndex === interval.intervalIndex;
-        const regimeLabel = translateRegimeLabel(language, interval.dominantRegime);
-        return (
-          <Tooltip key={interval.intervalIndex}>
-            <TooltipTrigger asChild>
-              <button
-                aria-label={regimeLabel}
-                className={`relative border-r border-background/35 text-center text-xs text-foreground transition-colors last:border-r-0 ${isSelected ? '' : 'text-foreground/80'}`}
-                data-regime-slot="true"
-                data-selected={isSelected ? 'true' : 'false'}
-                style={{
-                  backgroundColor: regimeTint(interval.dominantRegime, isSelected),
-                  borderTopLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
-                  borderBottomLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
-                  borderTopRightRadius: intervalPosition === intervals.length - 1 ? '0.85rem' : undefined,
-                  borderBottomRightRadius: intervalPosition === intervals.length - 1 ? '0.85rem' : undefined,
-                }}
-                type="button"
-                onClick={() => onSelect(interval.intervalIndex)}
-              />
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>{regimeLabel}</TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </div>
+    <DetailRegimeOverlay
+      activeIndex={activeIndex}
+      axisContentWidth={axisContentWidth}
+      axisEndPadding={axisEndPadding}
+      axisStartPadding={axisStartPadding}
+      cellClassName="pb-2"
+      intervals={intervals}
+      language={language}
+      onSelect={onSelect}
+      slotWidth={slotWidth}
+    />
   );
 }
 
@@ -575,10 +503,11 @@ export function SkuDetailLedger({
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                 <span className="sr-only">{t('catalogSenaSkuRegimeLane')}</span>
                 {visibleRegimes.map((regime) => (
-                  <span key={regime} className="inline-flex items-center gap-2">
-                    <span aria-hidden="true" className="inline-block size-4 rounded-[0.2rem]" style={{ backgroundColor: regimeTint(regime, true) }} />
-                    {translateRegimeLabel(language, regime)}
-                  </span>
+                  <DetailRegimeLegendItem
+                    key={regime}
+                    language={language}
+                    regime={regime}
+                  />
                 ))}
                 {showsPriceSurfaces ? (
                   <span className="inline-flex items-center gap-2">
@@ -607,6 +536,7 @@ export function SkuDetailLedger({
                     intervals={model.lanes.regimePriceLane.intervals}
                     language={language}
                     onSelect={setSelectedIntervalIndex}
+                    slotWidth={stretchedSlotWidth}
                   />
                 </TooltipProvider>
                 <svg

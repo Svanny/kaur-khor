@@ -12,6 +12,7 @@ import {
   Bot,
   BrainCircuit,
   CalendarClock,
+  Circle,
   CircleGauge,
   CircleOff,
   ClipboardCheck,
@@ -79,7 +80,7 @@ export type RegimeIconKey =
   | 'unknown';
 
 export const regimeIcons: Record<RegimeIconKey, IconComponent> = {
-  normal: CircleGauge,
+  normal: Circle,
   promo: BadgePercent,
   spike: Flame,
   lull: MoonStar,

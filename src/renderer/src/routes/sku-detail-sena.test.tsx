@@ -501,7 +501,7 @@ describe('SKU detail SENA helpers', () => {
     expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 38)).toBe('14');
     expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 20)).toBe('');
     expect(intervalLabelForWidth(null, 11, 42)).toBe('12');
-    expect(intervalTooltipLabel('2026-02-14T09:00:00Z', 11, 'en')).toBe('Feb 14, 2026');
+    expect(intervalTooltipLabel('2026-02-14T09:00:00Z', 11, 'en')).toBe('Feb 14, 2026, 16:00');
     expect(intervalTooltipLabel(null, 11, 'en')).toBe('Interval 12');
 
     expect(responsivePillLabel('stockout-constrained', '12', 42)).toBe('12');
@@ -872,7 +872,7 @@ describe('SKU detail SENA helpers', () => {
     }
   });
 
-  test('renders regime highlight and price line legend instead of pill-style regime buttons', async () => {
+  test('renders regime highlight cells with in-cell glyphs and the price line legend', async () => {
     inventoryHook.mockReturnValue({
       snapshot,
       reports: [report],
@@ -913,6 +913,9 @@ describe('SKU detail SENA helpers', () => {
     expect(screen.getByText('Retail price line')).toBeInTheDocument();
     expect(document.querySelectorAll('[data-regime-slot="true"]').length).toBeGreaterThan(0);
     expect(document.querySelectorAll('button[data-regime-slot="true"][data-selected="true"]').length).toBe(1);
+    expect(document.querySelectorAll('button[data-regime-slot="true"][data-regime-glyph-mode="icon"]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('[data-regime-legend-item="true"] svg').length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-regime-legend-item="true"] > span')?.className).toContain('rounded-full');
   });
 
   test('renders the reorder point legend with a three-dot marker', async () => {
@@ -1000,7 +1003,7 @@ describe('SKU detail SENA helpers', () => {
       });
       const anchoredScrollLeft = intervalScroller!.scrollLeft;
 
-      fireEvent.click(screen.getByLabelText('Mar 10, 2026'));
+      fireEvent.click(screen.getByLabelText(/^Mar 10, 2026,/));
 
       await waitFor(() => {
         expect(intervalScroller!.scrollLeft).toBe(anchoredScrollLeft);

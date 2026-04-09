@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  getRegimeIcon,
   overviewDrawerBandIcons,
   overviewTaskActionIcons,
   overviewTaskFilterIcons,
@@ -61,5 +62,11 @@ describe('domain icon mappings', () => {
     const duplicateNames = iconNames.filter((name, index) => iconNames.indexOf(name) !== index);
 
     expect(duplicateNames).toEqual(['ClipboardList', 'Package']);
+  });
+
+  test('uses the shared neutral icon for the normal regime', () => {
+    const Icon = getRegimeIcon('normal');
+
+    expect(Icon.displayName ?? Icon.name).toBe('Circle');
   });
 });

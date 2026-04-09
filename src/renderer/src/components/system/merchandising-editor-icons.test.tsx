@@ -142,4 +142,19 @@ describe('MerchandisingEditor icons', () => {
 
     expect(container.querySelector('.rank-change-triangle')).toBeNull();
   });
+
+  test('keeps rank, item, cost, and price cell content vertically centered within a row', () => {
+    render(<MerchandisingEditor entries={entries} onChange={vi.fn()} snapshot={snapshot} />);
+
+    const serviceRow = screen.getByText('Market Styling').closest('[role="row"]');
+    expect(serviceRow).not.toBeNull();
+
+    const cells = serviceRow?.querySelectorAll('[role="cell"]');
+    expect(cells).toHaveLength(5);
+
+    expect(cells?.[1].querySelector('.min-h-8.items-center')).not.toBeNull();
+    expect(cells?.[2].querySelector('.min-h-8.items-center')).not.toBeNull();
+    expect(cells?.[3].querySelector('.min-h-8.items-center')).not.toBeNull();
+    expect(cells?.[4].querySelector('.min-h-8.items-center')).not.toBeNull();
+  });
 });

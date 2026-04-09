@@ -68,6 +68,8 @@ const dropAnimation = {
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
 
+const rankingCellContentClassName = 'flex min-h-8 items-center';
+
 export function buildEligibleReportRanking(snapshot: InventorySnapshot): RankingEntry[] {
   return [
     ...snapshot.services.map((service, index) => ({
@@ -452,7 +454,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
       </div>
       <div className="px-1 text-center" role="cell">
         <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Rank</HeaderedTableMobileLabel>
-        <div className="flex min-h-8 items-center justify-center gap-1.5 text-center text-lg font-medium tracking-tight text-foreground tabular-nums">
+        <div className={cn(rankingCellContentClassName, 'justify-center gap-1.5 text-center text-lg font-medium tracking-tight text-foreground tabular-nums')}>
           <span>#{index + 1}</span>
           {rankChangeDirection ? (
             <StatusDeltaTriangleIcon
@@ -468,7 +470,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
       <div aria-hidden="true" role="presentation" />
       <div className="min-w-0 px-2 pl-4 text-left" role="cell">
         <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Item</HeaderedTableMobileLabel>
-        <div className="flex min-w-0 items-center justify-start gap-2.5">
+        <div className={cn(rankingCellContentClassName, 'min-w-0 justify-start gap-2.5')}>
           <span className="shrink-0 text-muted-foreground">
             <KindIcon aria-hidden="true" className="size-4" />
             <span className="sr-only">{kindLabel}</span>
@@ -478,11 +480,14 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
       </div>
       <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums" role="cell">
         <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Cost</HeaderedTableMobileLabel>
-        <p className="text-center">{costText}</p>
+        <div className={cn(rankingCellContentClassName, 'justify-center')}>
+          <p className="text-center">{costText}</p>
+        </div>
       </div>
       <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums" role="cell">
         <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Price</HeaderedTableMobileLabel>
-        <div className="grid grid-cols-[0.75rem_auto_0.75rem] items-center justify-center">
+        <div className={cn(rankingCellContentClassName, 'justify-center')}>
+          <div className="grid grid-cols-[0.75rem_auto_0.75rem] items-center justify-center">
           <span aria-hidden="true" />
           <span className="text-center">{priceText}</span>
           <span className="flex justify-end">
@@ -497,6 +502,7 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
               />
             ) : null}
           </span>
+          </div>
         </div>
       </div>
     </HeaderedTableRow>

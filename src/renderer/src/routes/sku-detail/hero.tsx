@@ -57,10 +57,10 @@ export function SkuDetailHero({
             {t('catalogSenaSkuHeroTitle')}
           </SectionLabel>
         </p>
-        <h2 className="mt-4 text-5xl font-semibold tracking-[-0.06em] text-foreground sm:text-6xl">
+        <h2 className="mt-4 text-5xl leading-[1.18] font-semibold tracking-[-0.06em] text-foreground sm:text-6xl">
           {model.heartbeat.headlineUnits}
         </h2>
-        <p className="mx-auto mt-4 max-w-5xl text-base leading-7 text-muted-foreground">
+        <p className="mx-auto mt-6 max-w-5xl text-base leading-7 text-muted-foreground">
           {model.heartbeat.heroSentence}
         </p>
       </div>

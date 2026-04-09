@@ -296,9 +296,9 @@ describe('SENA routes', () => {
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
 
-    expect(within(skuRow!).getByRole('button', { name: 'Record stock' })).toBeInTheDocument();
-    expect(within(skuRow!).getByRole('button', { name: 'Log order' })).toBeInTheDocument();
-    expect(within(skuRow!).getByRole('button', { name: 'Log receipt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record stock' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Log order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Log receipt' })).toBeInTheDocument();
   });
 
   test('preloads visible service actions without repeatedly rehydrating the same service detail', async () => {
@@ -316,7 +316,7 @@ describe('SENA routes', () => {
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
-    fireEvent.click(within(skuRow!).getByRole('button', { name: 'Log order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Log order' }));
 
     await waitFor(() => {
       expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
@@ -336,7 +336,7 @@ describe('SENA routes', () => {
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
-    fireEvent.click(within(skuRow!).getByRole('button', { name: 'Log order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Log order' }));
 
     await waitFor(() => {
       expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
@@ -365,10 +365,10 @@ describe('SENA routes', () => {
 
     await waitFor(() => {
       fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      expect(within(serviceRow!).getByRole('button', { name: 'Update price' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Update price' })).toBeEnabled();
     });
 
-    fireEvent.click(within(serviceRow!).getByRole('button', { name: 'Update price' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Update price' }));
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('15')).toBeInTheDocument();
@@ -390,10 +390,10 @@ describe('SENA routes', () => {
 
     await waitFor(() => {
       fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      expect(within(serviceRow!).getByRole('button', { name: 'Update price' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Update price' })).toBeEnabled();
     });
 
-    fireEvent.click(within(serviceRow!).getByRole('button', { name: 'Update price' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Update price' }));
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('15')).toBeInTheDocument();
@@ -484,7 +484,7 @@ describe('SENA routes', () => {
     const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest('div.group');
     expect(unsellableRow).not.toBeNull();
     fireEvent.click(within(unsellableRow!).getByRole('button', { name: 'More actions for SKU 2' }));
-    expect(within(unsellableRow!).queryByRole('button', { name: 'Update price' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Update price' })).not.toBeInTheDocument();
   });
 
   test('disables catalog service stock mutations when no active bottleneck exists', async () => {
@@ -536,13 +536,12 @@ describe('SENA routes', () => {
       const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
       expect(serviceRow).not.toBeNull();
       fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      const serviceLogReceiptButton = within(serviceRow!).getByRole('button', { name: 'Log receipt' });
+      const serviceLogReceiptButton = screen.getByRole('button', { name: 'Log receipt' });
       expect(serviceLogReceiptButton).toBeDisabled();
-      expect(within(serviceRow!).getByRole('button', { name: 'Record stock' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Record stock' })).toBeDisabled();
     });
 
-    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
-    const disabledLogReceiptButton = within(serviceRow!).getByRole('button', { name: 'Log receipt' });
+    const disabledLogReceiptButton = screen.getByRole('button', { name: 'Log receipt' });
     fireEvent.click(disabledLogReceiptButton.parentElement as HTMLElement);
 
     await waitFor(() => {
@@ -634,6 +633,8 @@ describe('SENA routes', () => {
 
     expect(screen.getAllByText(translateRegimeLabel('en', 'normal')).length).toBeGreaterThan(0);
     expect(screen.getByText('Service price line')).toBeInTheDocument();
+    expect(document.querySelectorAll('button[data-regime-slot="true"][data-regime-glyph-mode="icon"]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('[data-regime-legend-item="true"] svg').length).toBeGreaterThan(0);
   });
 
   test('uses semantic status tones for service detail pills', async () => {

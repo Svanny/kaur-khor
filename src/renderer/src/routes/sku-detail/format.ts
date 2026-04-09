@@ -133,6 +133,30 @@ export function formatSenaLongDate(value: string | null, language: AppLanguage) 
   }).format(date);
 }
 
+export function formatSenaLongDateTime24(value: string | null, language: AppLanguage) {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return '—';
+  }
+  if (language === 'km') {
+    return `${formatKhmerMonthDayYear(date)} ${formatKhmerTime(date)}`;
+  }
+  return new Intl.DateTimeFormat(localeFor(language), {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(date)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function formatSenaDateTime(value: string | null, language: AppLanguage) {
   if (!value) {
     return '—';

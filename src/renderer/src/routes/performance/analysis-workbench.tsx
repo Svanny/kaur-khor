@@ -79,6 +79,7 @@ import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { translateObservationEvidenceLabel, translateRegimeLabel } from '@/lib/localized-display';
+import { regimeChartFill, regimeTintedSurfaceClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { statusPillClassName } from '@/lib/state-tones';
@@ -154,46 +155,6 @@ function selectionsEqual(left: AnalysisSelection, right: AnalysisSelection) {
 
 type IntervalRailSectionKey = 'observed-signals' | 'what-happened' | 'orders-transit-lead-time';
 type WorkbenchLaneKey = 'regime' | 'inventory' | 'pipeline' | 'lead-time';
-
-function regimeTint(regime: string) {
-  const normalized = regime.trim().toLowerCase();
-  if (normalized.includes('promo')) {
-    return 'border-amber-200/80 bg-amber-50/85';
-  }
-  if (normalized.includes('spike')) {
-    return 'border-rose-200/80 bg-rose-50/85';
-  }
-  if (normalized.includes('lull')) {
-    return 'border-emerald-200/80 bg-emerald-50/85';
-  }
-  if (normalized.includes('correction')) {
-    return 'border-sky-200/80 bg-sky-50/85';
-  }
-  if (normalized.includes('stockout')) {
-    return 'border-red-200/80 bg-red-50/85';
-  }
-  return 'border-stone-200/80 bg-stone-50/90';
-}
-
-function regimeFill(regime: string) {
-  const normalized = regime.trim().toLowerCase();
-  if (normalized.includes('promo')) {
-    return 'rgba(248, 224, 184, 0.72)';
-  }
-  if (normalized.includes('spike')) {
-    return 'rgba(245, 196, 176, 0.72)';
-  }
-  if (normalized.includes('lull')) {
-    return 'rgba(216, 232, 222, 0.72)';
-  }
-  if (normalized.includes('correction')) {
-    return 'rgba(207, 218, 234, 0.74)';
-  }
-  if (normalized.includes('stockout')) {
-    return 'rgba(239, 192, 192, 0.76)';
-  }
-  return 'rgba(244, 223, 207, 0.64)';
-}
 
 function regimeIcon(regime: string) {
   const Icon = getRegimeIcon(regime);
@@ -943,7 +904,7 @@ function SystemLedger({
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   {visibleRegimes.map((regime) => (
                     <span key={regime} className="inline-flex items-center gap-2">
-                      <span className={cn('inline-flex size-5 items-center justify-center rounded-full border border-foreground/10', regimeTint(regime))}>
+                      <span className={cn('inline-flex size-5 items-center justify-center rounded-full border border-foreground/10', regimeTintedSurfaceClassName(regime))}>
                         {regimeIcon(regime)}
                       </span>
                       {translateRegimeLabel(language, regime)}
@@ -999,7 +960,7 @@ function SystemLedger({
                           selectedIntervalIndex === interval.intervalIndex ? 'border-foreground/20 shadow-sm' : 'border-white/70',
                         )}
                         style={{
-                          backgroundColor: regimeFill(interval.dominantRegime),
+                          backgroundColor: regimeChartFill(interval.dominantRegime),
                           height: regimeChartMinHeight,
                           width: regimeTileLayout.width,
                           marginLeft: regimeTileLayout.inset,

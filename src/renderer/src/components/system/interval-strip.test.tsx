@@ -139,7 +139,7 @@ describe('interval strip helpers', () => {
   });
 
   test('uses compact tooltip and label fallbacks', () => {
-    expect(intervalTooltipLabel('2026-03-05T08:00:00.000Z', 1, 'en')).toBe('Mar 5, 2026');
+    expect(intervalTooltipLabel('2026-03-05T08:00:00.000Z', 1, 'en')).toBe('Mar 5, 2026, 15:00');
     expect(intervalTooltipLabel(null, 11, 'en')).toBe('Interval 12');
     expect(responsivePillLabel('Feb-14', 'F-14', 80)).toBe('Feb-14');
     expect(responsivePillLabel('February-14', 'F-14', 56)).toBe('F-14');
@@ -193,7 +193,7 @@ describe('interval strip helpers', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Mar 12, 2026' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mar 12, 2026, 15:00' })).toBeInTheDocument();
   });
 
   test('detects when older intervals should load and preserves scroll anchor after prepend', () => {
@@ -303,9 +303,9 @@ describe('IntervalStrip', () => {
 
     expect(screen.getByLabelText('Scroll intervals left')).toBeInTheDocument();
     expect(screen.getByLabelText('Scroll intervals right')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mar 5, 2026' })).toHaveAttribute('data-active', 'true');
+    expect(screen.getByRole('button', { name: 'Mar 5, 2026, 15:00' })).toHaveAttribute('data-active', 'true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Apr 3, 2026' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apr 3, 2026, 15:00' }));
     expect(onSelect).toHaveBeenCalledWith(2);
   });
 });
