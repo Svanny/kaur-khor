@@ -427,6 +427,7 @@ function createInventoryState(overrides: Record<string, unknown> = {}) {
 
 describe('PerformanceRoute', () => {
   beforeEach(() => {
+    preferenceState.language = 'en';
     preferenceState.showRightRailCards = true;
     inventoryHook.mockReturnValue(createInventoryState());
   });
@@ -478,6 +479,19 @@ describe('PerformanceRoute', () => {
     expect(screen.getByRole('heading', { name: 'Business timeline' })).toBeInTheDocument();
     expect(screen.getByText('Demand momentum')).toBeInTheDocument();
     expect(screen.getByText('Revenue at risk')).toBeInTheDocument();
+  });
+
+  test('uses a taller status pill line box for translated board labels', async () => {
+    preferenceState.language = 'km';
+
+    const { container } = renderRoute();
+
+    const statusPills = Array.from(container.querySelectorAll('span')).filter((node) =>
+      node.className.includes('min-h-8'),
+    );
+
+    expect(statusPills.length).toBeGreaterThan(0);
+    expect(statusPills[0]?.className).toContain('leading-[1.35]');
   });
 
   test('renders the dedicated analysis workbench route', async () => {

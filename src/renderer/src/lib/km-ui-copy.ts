@@ -163,6 +163,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ពិពណ៌នា SKU នេះ ដើម្បីឲ្យបុគ្គលិកអាចបែងចែកវាចេញពីធាតុស្រដៀងគ្នាបានរហ័ស។',
   catalogSkuEditorUnitsHelper: 'អាប់ដេតចំនួនស្តុកដែលបានរាប់ចុងក្រោយសម្រាប់ SKU នេះ។',
   catalogSkuEditorCostHelper: 'រក្សាតម្លៃថ្លៃដើមបច្ចុប្បន្ន ឬតម្លៃជំនួសក្នុងមួយឯកតានៅទីនេះ។',
+  catalogSkuEditorCostRequired: 'សូមបញ្ចូលថ្លៃដើមក្នុងមួយឯកតា មុនពេលរក្សាទុក។',
   catalogSkuEditorLeadTimeMeanHelper:
     'ពេលវេលាមកដល់ជាទូទៅពីអ្នកផ្គត់ផ្គង់ ដែល Banji គួរប្រើ មុនពេលមានភស្តុតាងថ្មីជាងនេះ។',
   catalogSkuEditorLeadTimeStdHelper:
@@ -508,7 +509,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateObservedAtTooltip:
     'ពេលវេលានេះជាគោលសម្រាប់រយៈពេលចាប់តាំងពីការអាប់ដេតដែលបានបញ្ជាក់ចុងក្រោយ។',
   stockUpdateObservedAtHelp:
-    'Banji ចាប់ផ្តើមពីពេលអាប់ដេតចុងក្រោយដែលបានរក្សាទុក ដូច្នេះកែតែពេលបញ្ចប់នៅទីនេះប៉ុណ្ណោះ។',
+    'Banji ចាប់ផ្តើមដោយប្រើកាលបរិច្ឆេទ និងម៉ោងបច្ចុប្បន្នរបស់ឧបករណ៍នេះ។ កែប្រែតែប៉ុណ្ណោះ ប្រសិនបើអ្នកបានសង្កេតការអាប់ដេតនេះមុននេះ។',
   stockUpdateNotesTooltip:
     'ប្រើកំណត់ចំណាំសម្រាប់បរិបទមនុស្ស។ បន្ថែមសញ្ញាមានរចនាសម្ព័ន្ធ នៅពេល Banji គួររៀនពីការផ្លាស់ប្តូរនេះ។',
   stockUpdateNotesHelp:
@@ -941,12 +942,20 @@ const operationsAndStockTranslations: Partial<Record<TranslationKey, string>> = 
   stockSessionNotesOptional: 'កំណត់ចំណាំជាជម្រើស ហើយនឹងត្រូវរក្សាទុកតែពេលវាមិនទទេប៉ុណ្ណោះ។',
   stockSessionServicesOptionalDescription:
     'រំលងផ្នែកនេះបាន បើមិនមានស្ថានភាពអស់ស្តុកសេវាកម្ម ឬការផ្លាស់ប្តូរតម្លៃសេវាកម្មត្រូវកត់ត្រា។',
+  stockUpdateNoSkusHelper:
+    'មិនទាន់មាន SKU ណាមួយនៅក្នុងកាតាឡុកទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែម SKU ជាមុនសិន បើត្រូវកត់ត្រាការអាប់ដេតស្តុក។',
+  stockUpdateNoServicesHelper:
+    'មិនទាន់មានសេវាកម្មណាមួយនៅក្នុងកាតាឡុកទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែមសេវាកម្មជាមុនសិន បើត្រូវកត់ត្រាការអាប់ដេតសេវាកម្ម។',
   stockSalesSignalSupportCopy:
     'រៀបលំដាប់សេវាកម្ម និង SKU ដែលអាចលក់បាន តាមតម្រូវការឬភាពពេញនិយមដែលបានឃើញថ្មីៗ។ ការប៉ាន់ស្មានមិនចាំបាច់ត្រូវបានតឹងរឹងពេកក៏បាន។',
   stockSalesSignalExplainerTitle: 'ហេតុអ្វីសញ្ញានេះសំខាន់',
   stockSalesSignalExplainerBody:
     'ប្រើលំដាប់លក់ថ្មីៗ ដើម្បីជួយបញ្ជីអានតម្រូវការ។ រៀបលំដាប់អ្វីដែលលក់មុន ឬលក់ញឹកញាប់ជាងគេថ្មីៗ។ នេះជាសញ្ញាតម្រូវការ មិនមែនបញ្ជីអ្វីដែលត្រូវរុញលក់ឡើយ។',
   stockSalesSignalEmptyDescription: 'បន្ថែមសេវាកម្ម ឬ SKU ដែលអាចលក់បាន មុនពេលប្រើជំហាននេះ។',
+  stockUpdateNoServicesRankingHelper:
+    'មិនទាន់មានសេវាកម្មណាមួយនៅក្នុងកាតាឡុកទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែមសេវាកម្មជាមុនសិន បើត្រូវរៀបលំដាប់តម្រូវការសេវាកម្ម។',
+  stockUpdateNoRetailRankingHelper:
+    'មិនទាន់មាន SKU ដែលអាចលក់បានសម្រាប់រៀបលំដាប់ទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬកំណត់ SKU មួយឲ្យលក់បានជាមុនសិន ដោយបើកការលក់ផ្ទាល់ និងកំណត់តម្លៃលក់។',
   stockServiceSummaryEmpty:
     'ឥឡូវនេះមិនមានភាពអស់ស្តុកសេវាកម្ម ឬតម្លៃជំនួសណាមួយកំពុងរង់ចាំទេ។ រំលងផ្នែកនេះបាន លុះត្រាតែមានអ្វីត្រូវពិនិត្យ។',
   stockServiceSummaryChangedPreview:

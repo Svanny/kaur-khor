@@ -9,7 +9,7 @@ import {
   EntitySkuIcon,
   EntityTransitIcon,
 } from '@icons/entities';
-import { NavigationForwardIcon, NavigationPerformanceIcon } from '@icons/navigation';
+import { NavigationDashboardIcon, NavigationForwardIcon, NavigationPerformanceIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { StatusAchievementIcon, StatusSavingsIcon, StatusWarningIcon } from '@icons/status';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
@@ -65,6 +65,8 @@ const demandCapacityBoardNormalLayout = createHeaderedTableLayout({
   columns: 'minmax(12rem,0.95fr) minmax(12rem,0.95fr) minmax(11rem,0.9fr) minmax(11rem,0.9fr) minmax(11rem,0.9fr) minmax(10rem,0.82fr)',
   gap: 4,
 });
+const performanceStatusPillClassName =
+  'inline-flex min-h-8 shrink-0 items-center rounded-full border px-2.5 py-1 text-[0.72rem] leading-[1.35] font-medium whitespace-nowrap';
 
 function SteeringPill({
   active,
@@ -416,10 +418,16 @@ export function PerformanceRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/record-update">{translateUiLiteral(language, 'Start update')}</Link>
+                <Link to="/record-update">
+                  <NavigationTaskListIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Start update')}
+                </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/">{translateUiLiteral(language, 'Open Overview')}</Link>
+                <Link to="/">
+                  <NavigationDashboardIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Open Overview')}
+                </Link>
               </Button>
             </WorkspaceActionRow>
           }
@@ -685,19 +693,19 @@ export function PerformanceRoute() {
                       {row.compareEnabled && row.previousStatusLabel && row.previousStatusTone ? (
                         <div className="inline-flex items-center gap-2 whitespace-nowrap xl:justify-center">
                           <span
-                            className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(
+                            className={`${performanceStatusPillClassName} ${statusPillClassName(
                               row.previousStatusTone,
                             )}`}
                           >
                             {row.previousStatusLabel}
                           </span>
                           <NavigationForwardIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                          <span className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(row.statusTone)}`}>
+                          <span className={`${performanceStatusPillClassName} ${statusPillClassName(row.statusTone)}`}>
                             {row.statusLabel}
                           </span>
                         </div>
                       ) : (
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(row.statusTone)}`}>
+                        <span className={`${performanceStatusPillClassName} ${statusPillClassName(row.statusTone)}`}>
                           {row.statusLabel}
                         </span>
                       )}

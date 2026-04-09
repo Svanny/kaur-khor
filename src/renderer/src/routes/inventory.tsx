@@ -22,6 +22,7 @@ import {
   WorkspacePanel,
   WorkspaceTitleCard,
 } from '@/components/system/workspace';
+import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -39,6 +40,7 @@ import {
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { translateUiLiteral } from '@/lib/translations';
 import { ServiceMutationActions, SkuMutationActions } from '@/routes/catalog-item-actions';
+import type { ServiceActionMode, SkuActionMode } from '@/routes/catalog-item-actions';
 import { WorkspaceTitleCardWireframe } from '@/routes/loading-wireframes';
 import type { SenaSkuDetailViewModel } from '@/routes/sku-detail/view-model';
 import { deriveServiceDetailViewModel, type ServiceDetailViewModel } from '@/routes/service-detail/view-model';
@@ -101,54 +103,105 @@ function CatalogActionMenu({
   children: (closeMenu: () => void) => ReactNode;
   label?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  return (
+    <AnchoredMenu
+      label={label}
+      triggerIcon={<EntityOverflowMenuIcon className="size-4" />}
+    >
+      {children}
+    </AnchoredMenu>
+  );
+}
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [open]);
+function CatalogSkuRowActions({
+  actionContext,
+  label,
+  name,
+  skuId,
+}: {
+  actionContext: SenaSkuDetailViewModel['actionContext'];
+  label: string;
+  name: string;
+  skuId: string;
+}) {
+  const [mode, setMode] = useState<SkuActionMode | null>(null);
 
   return (
-    <div ref={containerRef} className="relative">
-      <Button
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-label={label}
-        size="icon-sm"
-        type="button"
-        variant="outline"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <EntityOverflowMenuIcon className="size-4" />
-      </Button>
-      <div
-        className={`absolute right-0 top-full z-20 mt-2 min-w-48 rounded-xl border border-border/70 bg-background p-1 shadow-[0_18px_40px_rgba(48,31,20,0.16)] ${open ? 'block' : 'hidden'}`}
-        role="menu"
-      >
-        {children(() => setOpen(false))}
-      </div>
-    </div>
+    <>
+      <SkuMutationActions
+        actionContext={actionContext}
+        catalogEntityName={name}
+        layout="menu"
+        mode={mode}
+        onComplete={async () => {}}
+        onModeChange={setMode}
+        showActionButtons={false}
+        showEditButton={false}
+        skuId={skuId}
+      />
+      <CatalogActionMenu label={label}>
+        {(closeMenu) => (
+          <SkuMutationActions
+            actionContext={actionContext}
+            catalogEntityName={name}
+            layout="menu"
+            mode={mode}
+            onActionStart={() => {
+              closeMenu();
+            }}
+            onComplete={async () => {}}
+            onModeChange={setMode}
+            showEditButton={false}
+            skuId={skuId}
+          />
+        )}
+      </CatalogActionMenu>
+    </>
+  );
+}
+
+function CatalogServiceRowActions({
+  actions,
+  label,
+  name,
+}: {
+  actions: ServiceDetailViewModel['actions'];
+  label: string;
+  name: string;
+}) {
+  const [mode, setMode] = useState<ServiceActionMode | null>(null);
+
+  return (
+    <>
+      <ServiceMutationActions
+        actions={actions}
+        catalogEntityName={name}
+        layout="menu"
+        mode={mode}
+        onComplete={async () => {}}
+        onModeChange={setMode}
+        showActionButtons={false}
+        showEditButton={false}
+        showPrimarySkuButton={false}
+      />
+      <CatalogActionMenu label={label}>
+        {(closeMenu) => (
+          <ServiceMutationActions
+            actions={actions}
+            catalogEntityName={name}
+            layout="menu"
+            mode={mode}
+            onActionStart={() => {
+              closeMenu();
+            }}
+            onComplete={async () => {}}
+            onModeChange={setMode}
+            showEditButton={false}
+            showPrimarySkuButton={false}
+          />
+        )}
+      </CatalogActionMenu>
+    </>
   );
 }
 
@@ -562,23 +615,12 @@ export function InventoryRoute() {
                           <StatusArchiveIcon data-icon="inline-start" />
                           {translateUiLiteral(language, 'Archive')}
                         </Button>
-                        <CatalogActionMenu label={translateUiLiteral(language, 'More actions for {name}', { name: sku.name })}>
-                          {(closeMenu) => (
-                            <>
-                              <SkuMutationActions
-                                actionContext={fallbackSkuActionContext}
-                                catalogEntityName={sku.name}
-                                layout="menu"
-                                skuId={sku.skuId}
-                                showEditButton={false}
-                                onActionStart={() => {
-                                  closeMenu();
-                                }}
-                                onComplete={async () => {}}
-                              />
-                            </>
-                          )}
-                        </CatalogActionMenu>
+                        <CatalogSkuRowActions
+                          actionContext={fallbackSkuActionContext}
+                          label={translateUiLiteral(language, 'More actions for {name}', { name: sku.name })}
+                          name={sku.name}
+                          skuId={sku.skuId}
+                        />
                       </WorkspaceActionRow>
                     </div>
                   );
@@ -655,23 +697,11 @@ export function InventoryRoute() {
                           <StatusArchiveIcon data-icon="inline-start" />
                           {translateUiLiteral(language, 'Archive')}
                         </Button>
-                        <CatalogActionMenu label={translateUiLiteral(language, 'More actions for {name}', { name: service.name })}>
-                          {(closeMenu) => (
-                            <>
-                              <ServiceMutationActions
-                                actions={serviceModel?.actions ?? fallbackServiceActions}
-                                catalogEntityName={service.name}
-                                layout="menu"
-                                showEditButton={false}
-                                showPrimarySkuButton={false}
-                                onActionStart={() => {
-                                  closeMenu();
-                                }}
-                                onComplete={async () => {}}
-                              />
-                            </>
-                          )}
-                        </CatalogActionMenu>
+                        <CatalogServiceRowActions
+                          actions={serviceModel?.actions ?? fallbackServiceActions}
+                          label={translateUiLiteral(language, 'More actions for {name}', { name: service.name })}
+                          name={service.name}
+                        />
                       </WorkspaceActionRow>
                     </div>
                   );

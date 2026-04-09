@@ -421,6 +421,8 @@ export const enUiCopyV1 = {
     'Update the latest counted stock on hand for this SKU.',
   catalogSkuEditorCostHelper:
     'Keep the current landed or replacement unit cost here.',
+  catalogSkuEditorCostRequired:
+    'Enter a cost per unit before saving.',
   catalogSkuEditorLeadTimeMeanHelper:
     'Typical supplier lead time Banji should use before newer evidence arrives.',
   catalogSkuEditorLeadTimeStdHelper:
@@ -554,6 +556,10 @@ export const enUiCopyV1 = {
   stockSessionNotesOptional: 'Notes are optional and only saved when they are non-empty.',
   stockSessionServicesOptionalDescription:
     'Skip this section when there are no service stockouts or service price changes to log.',
+  stockUpdateNoSkusHelper:
+    'No SKUs are in the catalog yet. Skip this section, or add a SKU first if you need to record stock updates.',
+  stockUpdateNoServicesHelper:
+    'No services are in the catalog yet. Skip this section, or add a service first if you need to record a service update.',
   stockSalesSignalPanelTitle: 'Recent selling order',
   stockSalesSignalSupportCopy:
     'Rank services and sellable SKUs by recent observed demand/popularity. Noisy estimates are okay!',
@@ -568,6 +574,10 @@ export const enUiCopyV1 = {
   stockSalesSignalEmptyTitle: 'No recent selling order to capture',
   stockSalesSignalEmptyDescription:
     'Add a service or a sellable SKU before using this step.',
+  stockUpdateNoServicesRankingHelper:
+    'No services are in the catalog yet. Skip this section, or add a service first if you need to rank service demand.',
+  stockUpdateNoRetailRankingHelper:
+    'No sellable SKUs are ready for ranking yet. Skip this section, or mark a SKU sellable with a selling price first.',
   stockServiceSummaryEmpty:
     'No service stockouts or override prices are queued right now. Skip this section unless something needs review.',
   stockServiceSummaryChangedPreview:
@@ -951,6 +961,8 @@ export const enUiCopyV1 = {
     'Set the cost and direct-sell setup Banji should use for this SKU.',
   catalogSkuEditorRetailPriceHelper:
     'Enter a retail price only if customers buy this SKU directly.',
+  catalogSkuEditorRetailPriceEnableHint:
+    'To enter a selling price, click the Sell as product box below first.',
   catalogSkuEditorSellAsProductHelper:
     'Turn this on when customers can buy this SKU directly.',
   catalogSkuEditorPlanningDescriptor:
@@ -1892,7 +1904,7 @@ export const enUiCopyV1 = {
   stockUpdateObservedAtTooltip:
     'This timestamp anchors the interval since the last confirmed update.',
   stockUpdateObservedAtHelp:
-    'Start defaults to the last saved update; edit only the update end time here.',
+    'Banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
   stockUpdateNotesTooltip:
     'Use notes for human context. Add structured signals when the model should learn from the change.',
   stockUpdateNotesHelp:
@@ -2590,7 +2602,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   stockUpdateObservedAtTooltip:
     'This timestamp anchors the time period since the last confirmed update.',
   stockUpdateObservedAtHelp:
-    'Banji starts with the last saved update time; edit only the end time here.',
+    'Banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
   ...{
     backendReady: 'Local planning workspace ready',
     backendError: 'Local planning workspace unavailable',

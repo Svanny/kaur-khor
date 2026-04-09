@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { ServiceFormRoute } from './service-form';
@@ -65,14 +66,28 @@ const sampleCatalog = {
   ],
 };
 
-function renderWithProviders(route: string, element: ReactNode, path: string) {
+function renderWithProviders(
+  route: string,
+  element: ReactNode,
+  path: string,
+  options?: { initialEntries?: string[]; initialIndex?: number },
+) {
+  const initialEntries = options?.initialEntries ?? [route];
   return render(
-    <MemoryRouter initialEntries={[route]}>
+    <MemoryRouter initialEntries={initialEntries} initialIndex={options?.initialIndex}>
       <NavigationHistoryProvider>
         <Routes>
           <Route element={element} path={path} />
           <Route element={<div>Catalog destination</div>} path="/catalog" />
-          <Route element={<div>Service detail destination</div>} path="/catalog/services/:serviceId" />
+          <Route
+            element={
+              <>
+                <div>Service detail destination</div>
+                <RouteBackButton />
+              </>
+            }
+            path="/catalog/services/:serviceId"
+          />
         </Routes>
       </NavigationHistoryProvider>
     </MemoryRouter>,
@@ -194,6 +209,44 @@ describe('ServiceFormRoute', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Service detail destination')).toBeInTheDocument();
+    });
+  });
+
+  test('replaces the new service route so back from the created detail page returns to catalog', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+    window.sessionStorage.setItem(
+      'banji.navigation-history',
+      JSON.stringify([
+        { key: 'catalog', to: '/catalog' },
+        { key: 'service-new', to: '/catalog/services/new' },
+      ]),
+    );
+
+    renderWithProviders('/catalog/services/new', <ServiceFormRoute />, '/catalog/services/new');
+
+    const [serviceIdInput, serviceNameInput] = screen.getAllByRole('textbox');
+    const [priceInput] = screen.getAllByRole('spinbutton');
+    fireEvent.change(serviceIdInput, { target: { value: 'service-new' } });
+    fireEvent.change(serviceNameInput, { target: { value: 'Service New' } });
+    fireEvent.change(priceInput, { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Service detail destination')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
     });
   });
 

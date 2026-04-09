@@ -3,7 +3,6 @@
 import * as React from "react"
 import { Tooltip as TooltipPrimitive } from "radix-ui"
 
-import { useDescriptionTextVisible } from "@/components/system/description-text"
 import { cn } from "@/lib/utils"
 
 function TooltipProvider({
@@ -37,12 +36,6 @@ function TooltipContent({
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
-  const visible = useDescriptionTextVisible()
-
-  if (!visible) {
-    return null
-  }
-
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content

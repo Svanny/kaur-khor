@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
-import { ActionArchiveRestoreIcon } from '@icons/actions';
+import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { SearchInput } from '@/components/system/search-input';
 import {
@@ -176,6 +176,7 @@ export function ArchiveRoute() {
                 variant="outline"
                 onClick={() => setSearchParams(updateArchiveSearchParams(searchParams, { q: '', view: 'all' }))}
               >
+                <ActionResetIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'Clear filters')}
               </Button>
             </WorkspaceActionRow>

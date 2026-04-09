@@ -308,7 +308,7 @@ export function ServiceFormRoute() {
       const nextCatalog = upsertSenaService(baseCatalog, normalizedDraft, selectedSkuIds, normalizedBaseline.serviceId);
       await upsertSenaCatalog(nextCatalog);
     }
-    await navigate(`/catalog/services/${normalizedDraft.serviceId}`);
+    await navigate(`/catalog/services/${normalizedDraft.serviceId}`, { replace: !editing });
   }
 
   const filteredSkus = useMemo(() => {

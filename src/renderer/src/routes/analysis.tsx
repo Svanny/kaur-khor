@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { NavigationDashboardIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scroll';
 import { Button } from '@/components/ui/button';
@@ -184,10 +185,16 @@ export function AnalysisRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/record-update">{t('overviewStaleReminderAction')}</Link>
+                <Link to="/record-update">
+                  <NavigationTaskListIcon data-icon="inline-start" />
+                  {t('overviewStaleReminderAction')}
+                </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/">{t('analysisRouteOpenOverview')}</Link>
+                <Link to="/">
+                  <NavigationDashboardIcon data-icon="inline-start" />
+                  {t('analysisRouteOpenOverview')}
+                </Link>
               </Button>
             </WorkspaceActionRow>
           }

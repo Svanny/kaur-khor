@@ -15,6 +15,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, moneyInputStep, usdMoneyFromDisplay } from '@/lib/format';
+import {
+  leadTimeVariabilityPlaceholderValue,
+  shouldShowLeadTimeVariabilityPlaceholder,
+} from '@/lib/lead-time-variability-select';
 import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { emptySenaCatalog, upsertSenaSku, validateCatalogEntityId } from '@/lib/sena-catalog';
 import { useInventory } from '@/state/inventory';
@@ -41,8 +45,6 @@ function emptySku(skuId = ''): SenaSku {
 
 const editorSelectTriggerClassName =
   'h-14 w-full rounded-xl border-border bg-background px-3 text-base shadow-none data-[size=default]:h-14';
-const leadTimeVariabilityPlaceholderValue = '__none__';
-
 function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTimeVariabilityClass | '') {
   return {
     skuId: sku.skuId.trim(),
@@ -52,6 +54,7 @@ function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTime
     soldAsProduct: sku.soldAsProduct,
     productPrice: sku.productPrice,
     leadTimeMeanDaysHint: sku.leadTimeMeanDaysHint,
+    leadTimeStdDaysHint: sku.leadTimeStdDaysHint,
     leadTimeVariability: variabilityClass,
   };
 }
@@ -60,11 +63,33 @@ function parseOptionalNumber(value: string) {
   return value.trim() ? Number(value) : null;
 }
 
+function moneyDraftFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
+  if (amount == null) {
+    return '';
+  }
+  return String(displayMoneyFromUsd(amount, currency, usdToKhrExchangeRate));
+}
+
 function deriveCatalogVariabilityClass(sku: SenaSku): SenaLeadTimeVariabilityClass | null {
   if (sku.leadTimeMeanDaysHint == null || sku.leadTimeStdDaysHint == null) {
     return null;
   }
   const range = impliedLeadTimeRangeFromMeanStd(sku.leadTimeMeanDaysHint, sku.leadTimeStdDaysHint);
+  return classifyLeadTimeVariability(relativeLeadTimeWidth(range?.lowDays ?? null, range?.highDays ?? null));
+}
+
+function stdDaysDraftFromValue(value: number | null) {
+  return value == null ? '' : String(value);
+}
+
+function deriveVariabilityFromLeadTimeInputs(
+  meanDays: number | null,
+  stdDays: number | null,
+): SenaLeadTimeVariabilityClass | '' {
+  if (meanDays == null || stdDays == null) {
+    return '';
+  }
+  const range = impliedLeadTimeRangeFromMeanStd(meanDays, stdDays);
   return classifyLeadTimeVariability(relativeLeadTimeWidth(range?.lowDays ?? null, range?.highDays ?? null));
 }
 
@@ -77,6 +102,15 @@ export function SkuFormRoute() {
   const editing = Boolean(skuId);
   const initialExistingSku = catalog?.skus.find((entry) => entry.skuId === skuId) ?? null;
   const [form, setForm] = useState<SenaSku>(() => initialExistingSku ?? emptySku(skuId));
+  const [costPerUnitDraft, setCostPerUnitDraft] = useState(() =>
+    moneyDraftFromUsd((initialExistingSku ?? emptySku(skuId)).costPerUnit, currency, usdToKhrExchangeRate),
+  );
+  const [productPriceDraft, setProductPriceDraft] = useState(() =>
+    moneyDraftFromUsd((initialExistingSku ?? emptySku(skuId)).productPrice, currency, usdToKhrExchangeRate),
+  );
+  const [leadTimeStdDaysDraft, setLeadTimeStdDaysDraft] = useState(() =>
+    stdDaysDraftFromValue((initialExistingSku ?? emptySku(skuId)).leadTimeStdDaysHint),
+  );
   const [leadTimeVariability, setLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>(
     () => deriveCatalogVariabilityClass(initialExistingSku ?? emptySku(skuId)) ?? '',
   );
@@ -89,12 +123,18 @@ export function SkuFormRoute() {
   useEffect(() => {
     if (existingSku) {
       setForm(existingSku);
+      setCostPerUnitDraft(moneyDraftFromUsd(existingSku.costPerUnit, currency, usdToKhrExchangeRate));
+      setProductPriceDraft(moneyDraftFromUsd(existingSku.productPrice, currency, usdToKhrExchangeRate));
+      setLeadTimeStdDaysDraft(stdDaysDraftFromValue(existingSku.leadTimeStdDaysHint));
       setLeadTimeVariability(deriveCatalogVariabilityClass(existingSku) ?? '');
     } else if (!editing) {
       setForm(emptySku(''));
+      setCostPerUnitDraft(moneyDraftFromUsd(emptySku('').costPerUnit, currency, usdToKhrExchangeRate));
+      setProductPriceDraft('');
+      setLeadTimeStdDaysDraft('');
       setLeadTimeVariability('');
     }
-  }, [editing, existingSku]);
+  }, [currency, editing, existingSku, usdToKhrExchangeRate]);
 
   const normalizedBaseline = useMemo(() => existingSku ?? emptySku(editing ? (skuId ?? '') : ''), [editing, existingSku, skuId]);
   const baselineLeadTimeVariability = useMemo(
@@ -102,11 +142,13 @@ export function SkuFormRoute() {
     [normalizedBaseline],
   );
   const normalizedDraft = useMemo(() => {
+    const parsedLeadTimeStdDaysHint = parseOptionalNumber(leadTimeStdDaysDraft);
     const leadTimeStdDaysHint =
-      form.leadTimeMeanDaysHint === normalizedBaseline.leadTimeMeanDaysHint &&
+      parsedLeadTimeStdDaysHint ??
+      (form.leadTimeMeanDaysHint === normalizedBaseline.leadTimeMeanDaysHint &&
       leadTimeVariability === baselineLeadTimeVariability
         ? normalizedBaseline.leadTimeStdDaysHint
-        : compatibilityStdDaysForClass(form.leadTimeMeanDaysHint, leadTimeVariability || null);
+        : compatibilityStdDaysForClass(form.leadTimeMeanDaysHint, leadTimeVariability || null));
 
     return {
       ...form,
@@ -115,7 +157,7 @@ export function SkuFormRoute() {
       description: form.description.trim(),
       leadTimeStdDaysHint,
     };
-  }, [baselineLeadTimeVariability, form, leadTimeVariability, normalizedBaseline]);
+  }, [baselineLeadTimeVariability, form, leadTimeStdDaysDraft, leadTimeVariability, normalizedBaseline]);
   const draftDirtySnapshot = useMemo(
     () => normalizedSkuDirtySnapshot(form, leadTimeVariability),
     [form, leadTimeVariability],
@@ -132,9 +174,13 @@ export function SkuFormRoute() {
       ),
     [catalog, editing, form.skuId, normalizedBaseline.skuId, t],
   );
+  const costPerUnitError = !costPerUnitDraft.trim() ? t('catalogSkuEditorCostRequired') : null;
   const hasUnsavedSkuChanges = JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot);
   function resetSkuDraft() {
     setForm(normalizedBaseline);
+    setCostPerUnitDraft(moneyDraftFromUsd(normalizedBaseline.costPerUnit, currency, usdToKhrExchangeRate));
+    setProductPriceDraft(moneyDraftFromUsd(normalizedBaseline.productPrice, currency, usdToKhrExchangeRate));
+    setLeadTimeStdDaysDraft(stdDaysDraftFromValue(normalizedBaseline.leadTimeStdDaysHint));
     setLeadTimeVariability(baselineLeadTimeVariability);
   }
 
@@ -146,7 +192,7 @@ export function SkuFormRoute() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (idError) {
+    if (idError || costPerUnitError) {
       return;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
@@ -160,7 +206,7 @@ export function SkuFormRoute() {
       const nextCatalog = upsertSenaSku(baseCatalog, normalizedDraft, normalizedBaseline.skuId);
       await upsertSenaCatalog(nextCatalog);
     }
-    await navigate(`/catalog/skus/${normalizedDraft.skuId}`);
+    await navigate(`/catalog/skus/${normalizedDraft.skuId}`, { replace: !editing });
   }
 
   return (
@@ -169,7 +215,7 @@ export function SkuFormRoute() {
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
-            <Button disabled={!hasUnsavedSkuChanges || isSaving || idError != null} form={formId} type="submit">
+            <Button disabled={!hasUnsavedSkuChanges || isSaving || idError != null || costPerUnitError != null} form={formId} type="submit">
               <ActionSaveIcon data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}
             </Button>
@@ -235,25 +281,35 @@ export function SkuFormRoute() {
             title={<SectionTitle title={t('editorPricingTitle')} tooltip={t('catalogSkuEditorPricingTooltip')} />}
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
-              <EditorField helper={t('catalogSkuEditorCostHelper')} label={t('fieldCostPerUnit')}>
+              <EditorField error={costPerUnitError ?? undefined} helper={t('catalogSkuEditorCostHelper')} label={t('fieldCostPerUnit')}>
                 <input
+                  aria-invalid={costPerUnitError ? 'true' : 'false'}
                   className={editorInputClassName}
                   min="0"
                   required
                   step={moneyInputStep(currency)}
                   type="number"
-                  value={displayMoneyFromUsd(form.costPerUnit, currency, usdToKhrExchangeRate)}
-                  onChange={(event) =>
+                  value={costPerUnitDraft}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setCostPerUnitDraft(nextValue);
+                    if (!nextValue.trim()) {
+                      return;
+                    }
                     setForm((current) => ({
                       ...current,
-                      costPerUnit: usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate),
-                    }))
-                  }
+                      costPerUnit: usdMoneyFromDisplay(Number(nextValue), currency, usdToKhrExchangeRate),
+                    }));
+                  }}
                 />
               </EditorField>
 
               <EditorField
-                helper={t('catalogSkuEditorRetailPriceHelper')}
+                helper={
+                  form.soldAsProduct
+                    ? t('catalogSkuEditorRetailPriceHelper')
+                    : t('catalogSkuEditorRetailPriceEnableHint')
+                }
                 label={t('fieldProductPrice')}
                 tooltip={t('catalogSkuEditorRetailPriceTooltip')}
               >
@@ -263,16 +319,18 @@ export function SkuFormRoute() {
                   min="0"
                   step={moneyInputStep(currency)}
                   type="number"
-                  value={form.productPrice == null ? '' : displayMoneyFromUsd(form.productPrice, currency, usdToKhrExchangeRate)}
-                  onChange={(event) =>
+                  value={productPriceDraft}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setProductPriceDraft(nextValue);
                     setForm((current) => ({
                       ...current,
                       productPrice:
-                        event.target.value.trim().length > 0
-                          ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate)
+                        nextValue.trim().length > 0
+                          ? usdMoneyFromDisplay(Number(nextValue), currency, usdToKhrExchangeRate)
                           : null,
-                    }))
-                  }
+                    }));
+                  }}
                 />
               </EditorField>
             </div>
@@ -285,13 +343,14 @@ export function SkuFormRoute() {
                   {t('fieldSoldAsProduct')}
                 </SectionLabel>
               }
-              onCheckedChange={(checked) =>
+              onCheckedChange={(checked) => {
+                setProductPriceDraft(checked ? moneyDraftFromUsd(form.productPrice, currency, usdToKhrExchangeRate) : '');
                 setForm((current) => ({
                   ...current,
                   soldAsProduct: checked,
                   productPrice: checked ? current.productPrice : null,
-                }))
-              }
+                }));
+              }}
             />
           </WorkspacePanel>
         </div>
@@ -322,6 +381,26 @@ export function SkuFormRoute() {
           </EditorField>
 
           <EditorField
+            helper={t('overviewDrawerUncertaintyDescription')}
+            label={t('overviewDrawerUncertaintyLabel')}
+          >
+            <input
+              className={editorInputClassName}
+              min="0"
+              step="0.1"
+              type="number"
+              value={leadTimeStdDaysDraft}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setLeadTimeStdDaysDraft(nextValue);
+                setLeadTimeVariability(
+                  deriveVariabilityFromLeadTimeInputs(form.leadTimeMeanDaysHint, parseOptionalNumber(nextValue)),
+                );
+              }}
+            />
+          </EditorField>
+
+          <EditorField
             helper={t('catalogSkuEditorLeadTimeVariabilityHelper')}
             hint={t('catalogSkuEditorLeadTimeVariabilityHint')}
             label={t('fieldLeadTimeVariability')}
@@ -329,19 +408,24 @@ export function SkuFormRoute() {
           >
             <Select
               value={leadTimeVariability || leadTimeVariabilityPlaceholderValue}
-              onValueChange={(value) =>
-                setLeadTimeVariability(
-                  value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass),
-                )
-              }
+              onValueChange={(value) => {
+                const nextVariability =
+                  value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass);
+                setLeadTimeVariability(nextVariability);
+                setLeadTimeStdDaysDraft(
+                  stdDaysDraftFromValue(compatibilityStdDaysForClass(form.leadTimeMeanDaysHint, nextVariability || null)),
+                );
+              }}
             >
               <SelectTrigger aria-label={t('fieldLeadTimeVariability')} className={editorSelectTriggerClassName}>
                 <SelectValue placeholder={t('catalogSkuLeadTimeVariabilityPlaceholder')} />
               </SelectTrigger>
               <SelectContent align="start" position="popper">
-                <SelectItem value={leadTimeVariabilityPlaceholderValue}>
-                  {t('catalogSkuLeadTimeVariabilityPlaceholder')}
-                </SelectItem>
+                {shouldShowLeadTimeVariabilityPlaceholder(leadTimeVariability) ? (
+                  <SelectItem value={leadTimeVariabilityPlaceholderValue}>
+                    {t('catalogSkuLeadTimeVariabilityPlaceholder')}
+                  </SelectItem>
+                ) : null}
                 {leadTimeVariabilityOptions().map((option) => (
                   <SelectItem key={option} value={option}>
                     {translateLeadTimeVariabilityLabel(language, option)}
