@@ -17,7 +17,7 @@ import {
   EntitySkuIcon,
   EntityTransitIcon,
 } from '@icons/entities';
-import { NavigationTaskListIcon } from '@icons/navigation';
+import { NavigationCatalogIcon, NavigationTaskListIcon } from '@icons/navigation';
 import {
   WorkspaceActionRow,
   WorkspaceEmpty,
@@ -280,10 +280,16 @@ export function DashboardRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild className={overviewStartUpdateButtonClassName}>
-                <Link to="/record-update">{translateUiLiteral(language, 'Start update')}</Link>
+                <Link to="/record-update">
+                  <NavigationTaskListIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Start update')}
+                </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/catalog">{translateUiLiteral(language, 'Open catalog')}</Link>
+                <Link to="/catalog">
+                  <NavigationCatalogIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Open catalog')}
+                </Link>
               </Button>
             </WorkspaceActionRow>
           }
@@ -414,11 +420,11 @@ export function DashboardRoute() {
                         >
                           <div className="min-w-0">
                             {isOverviewSkuTask(task) ? (
-                              <button
-                                className="group min-w-0 text-left"
-                                type="button"
-                                onClick={() => updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode })}
-                              >
+                                <button
+                                  className="group min-w-0 text-left"
+                                  type="button"
+                                  onClick={() => updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode })}
+                                >
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
                                     {task.skuName}
@@ -673,7 +679,11 @@ export function DashboardRoute() {
         open={selectedTask != null}
         task={selectedTask}
         onModeChange={(nextMode) => updateRouteState({ taskMode: nextMode }, true)}
-        onOpenChange={(open) => updateRouteState({ taskId: open ? selectedTaskId : null, taskMode: open ? routeState.taskMode : null }, true)}
+        onOpenChange={(open) => {
+          if (!open) {
+            updateRouteState({ taskId: null, taskMode: null }, true);
+          }
+        }}
       />
     </WorkspacePage>
   );

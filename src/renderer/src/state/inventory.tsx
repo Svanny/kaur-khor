@@ -75,6 +75,7 @@ export interface InventoryContextValue {
   diagnostics: SenaDiagnostics | null;
   error: string | null;
   isLoading: boolean;
+  isPreparingWorkspace: boolean;
   isSaving: boolean;
   latestRun: SenaAnalysisRunRecord | null;
   observations: SenaObservationRecord[];
@@ -96,6 +97,7 @@ export interface InventoryContextValue {
   loadSenaObservations: () => Promise<SenaObservationRecord[]>;
   triggerSenaRun: (payload?: { algorithmVersion?: string; parameters?: SenaEngineParameters }) => Promise<SenaAnalysisRunRecord>;
   retrySenaRun: (payload: { runId: string }) => Promise<SenaAnalysisRunRecord>;
+  runWorkspacePreparation: <T>(task: () => Promise<T>) => Promise<T>;
   loadSenaWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
   loadSenaSkuDetail: (skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaSkuDetailPage | null>;
   loadSenaServiceDetail: (serviceId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaServiceDetailPage | null>;
@@ -116,6 +118,7 @@ function emptyState() {
     diagnostics: null as SenaDiagnostics | null,
     error: null as string | null,
     isLoading: true,
+    isPreparingWorkspace: false,
     isSaving: false,
     latestRun: null as SenaAnalysisRunRecord | null,
     observations: [] as SenaObservationRecord[],
@@ -219,6 +222,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => emptyState());
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
   const inflightRef = useRef<Map<string, Promise<ReadCacheValue>>>(new Map());
+  const workspacePreparationDepthRef = useRef(0);
   const senaMetaRef = useRef<SenaMetaCache>({
     catalogHash: null,
     lastBootstrapSkuId: null,
@@ -359,6 +363,33 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         isSaving: false,
       }));
       throw error;
+    }
+  }, []);
+
+  const runWorkspacePreparation = useCallback(async <T,>(task: () => Promise<T>) => {
+    workspacePreparationDepthRef.current += 1;
+    setState((current) => ({
+      ...current,
+      error: null,
+      isPreparingWorkspace: true,
+    }));
+
+    try {
+      return await task();
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Workspace preparation failed.',
+      }));
+      throw error;
+    } finally {
+      workspacePreparationDepthRef.current = Math.max(0, workspacePreparationDepthRef.current - 1);
+      if (workspacePreparationDepthRef.current === 0) {
+        setState((current) => ({
+          ...current,
+          isPreparingWorkspace: false,
+        }));
+      }
     }
   }, []);
 
@@ -596,6 +627,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           });
           return run;
         }),
+      runWorkspacePreparation,
       loadSenaWorkspaceSummary: async () => {
         const workspaceSummary = await loadWithCache('sena:summary', () => window.banjiDesktop.sena.getWorkspaceSummary());
         const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
@@ -636,7 +668,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return run;
       },
     }),
-    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadWithCache, reload, setStatePartial, state, updateSenaMeta, withSaving],
+    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadWithCache, reload, runWorkspacePreparation, setStatePartial, state, updateSenaMeta, withSaving],
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;

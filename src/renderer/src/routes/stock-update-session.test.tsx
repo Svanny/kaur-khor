@@ -7,6 +7,7 @@ import { StockUpdateSessionRoute } from './stock-update-session';
 
 const inventoryHook = vi.fn();
 const ingestSenaObservation = vi.fn();
+const runWorkspacePreparation = vi.fn();
 const updateSenaObservation = vi.fn();
 const triggerSenaRun = vi.fn();
 const preferenceState = {
@@ -118,6 +119,49 @@ function renderRoute(nextObservations = observations) {
     isSaving: false,
     latestRun: null,
     observations: nextObservations,
+    runWorkspacePreparation,
+    triggerSenaRun,
+    updateSenaObservation,
+    workspaceSummary: {
+      highRiskSkuIds: ['sku-1'],
+    },
+  });
+
+  return render(
+    <MemoryRouter>
+      <StockUpdateSessionRoute />
+    </MemoryRouter>,
+  );
+}
+
+function deferredPromise<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function localDateTimeValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function renderRouteWithCatalog(nextCatalog: typeof catalog, nextObservations = observations) {
+  inventoryHook.mockReturnValue({
+    catalog: nextCatalog,
+    ingestSenaObservation,
+    isLoading: false,
+    isSaving: false,
+    latestRun: null,
+    observations: nextObservations,
+    runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
     workspaceSummary: {
@@ -140,6 +184,7 @@ function renderRoutedSession(nextObservations = observations) {
     isSaving: false,
     latestRun: null,
     observations: nextObservations,
+    runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
     workspaceSummary: {
@@ -159,6 +204,7 @@ function renderRoutedSession(nextObservations = observations) {
           }
           path="/record-update"
         />
+        <Route element={<div>Overview destination</div>} path="/" />
         <Route element={<div>Catalog destination</div>} path="/catalog" />
       </Routes>
     </MemoryRouter>,
@@ -173,6 +219,7 @@ function renderEditRoute(observation = observations[0]!, nextObservations = obse
     isSaving: false,
     latestRun: null,
     observations: nextObservations,
+    runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
     workspaceSummary: {
@@ -268,6 +315,7 @@ describe('StockUpdateSessionRoute', () => {
     ingestSenaObservation.mockResolvedValue({ observationId: 'obs-new' });
     updateSenaObservation.mockResolvedValue({ observationId: 'obs-1' });
     triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
+    runWorkspacePreparation.mockImplementation(async (task: () => Promise<unknown>) => task());
   });
 
   afterEach(() => {
@@ -310,6 +358,26 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+  });
+
+  it('defaults observed at to the current local system date and time', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-09T16:44:00+07:00'));
+
+    try {
+      renderRoute();
+
+      goNext(3);
+
+      expect(screen.getByDisplayValue(localDateTimeValue(new Date()))).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'Banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
+        ),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('reveals the flags column for SKU rows and saves ordered quantities as order signals', async () => {
@@ -381,6 +449,71 @@ describe('StockUpdateSessionRoute', () => {
         regimeHint: 'promo',
       }),
     );
+  });
+
+  it('shows a helper in the service step when the catalog has no services', async () => {
+    renderRouteWithCatalog({
+      ...catalog,
+      services: [],
+      sharingMask: [],
+    });
+
+    goNext();
+    expect(screen.getByRole('button', { name: /Add service updates/i })).toHaveAttribute('aria-current', 'step');
+
+    expect(
+      screen.getByText(
+        'No services are in the catalog yet. Skip this section, or add a service first if you need to record a service update.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Latest price')).not.toBeInTheDocument();
+    expect(screen.queryByText('Add flags')).not.toBeInTheDocument();
+  });
+
+  it('shows a helper in the stock step when the catalog has no skus', async () => {
+    renderRouteWithCatalog({
+      ...catalog,
+      skus: [],
+      services: [],
+      sharingMask: [],
+    });
+
+    expect(
+      screen.getByText(
+        'No SKUs are in the catalog yet. Skip this section, or add a SKU first if you need to record stock updates.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('SKU / latest update')).not.toBeInTheDocument();
+    expect(screen.queryByText('Units in stock')).not.toBeInTheDocument();
+    expect(screen.queryByText('Add flags')).not.toBeInTheDocument();
+  });
+
+  it('shows helpers and hides ranking tables when nothing is eligible to rank', async () => {
+    renderRouteWithCatalog({
+      ...catalog,
+      services: [],
+      skus: catalog.skus.map((sku) => ({
+        ...sku,
+        soldAsProduct: false,
+        productPrice: null,
+      })),
+      sharingMask: [],
+    });
+
+    goNext(2);
+    expect(screen.getByRole('button', { name: /Rank recent selling order/i })).toHaveAttribute('aria-current', 'step');
+
+    expect(
+      screen.getByText(
+        'No services are in the catalog yet. Skip this section, or add a service first if you need to rank service demand.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'No sellable SKUs are ready for ranking yet. Skip this section, or mark a SKU sellable with a selling price first.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('reformats service price drafts when currency preferences change', async () => {
@@ -509,6 +642,27 @@ describe('StockUpdateSessionRoute', () => {
     expect(ingestSenaObservation).not.toHaveBeenCalled();
   }, 10_000);
 
+  it('resets the session immediately after saving and starts the rerun in the background', async () => {
+    const rerun = deferredPromise<void>();
+    triggerSenaRun.mockReturnValueOnce(rerun.promise);
+    runWorkspacePreparation.mockImplementationOnce(async (task: () => Promise<unknown>) => task());
+
+    renderRoutedSession();
+
+    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    goNext(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(runWorkspacePreparation).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' }));
+
+    await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+
+    rerun.resolve(undefined);
+  });
+
   it('keeps a partial historical stock snapshot when saving an edit', async () => {
     const editableObservation = {
       ...observations[0]!,
@@ -560,6 +714,7 @@ describe('StockUpdateSessionRoute', () => {
       isSaving: false,
       latestRun: null,
       observations,
+      runWorkspacePreparation,
       triggerSenaRun,
       updateSenaObservation,
       workspaceSummary: {

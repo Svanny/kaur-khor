@@ -234,11 +234,12 @@ export function BanjiShell({
 function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { applyDisplayViewMode, displayViewMode, language, t } = usePreferences();
-  const { error, isLoading, latestRun, reload } = useInventory();
+  const { error, isLoading, isPreparingWorkspace, isSaving, latestRun, reload } = useInventory();
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
   const isWorkspaceComputing = latestRun?.status === 'queued' || latestRun?.status === 'running';
+  const isSavingRecordUpdate = isSaving && matchesSection(location.pathname, '/record-update');
   const showGlobalLoadingScreen =
-    isWorkspaceComputing || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
+    isPreparingWorkspace || isWorkspaceComputing || isSavingRecordUpdate || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
 
   function handleSidebarNavigation() {
     if (isMobile) {

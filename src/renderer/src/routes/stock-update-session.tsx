@@ -30,6 +30,7 @@ import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { Button } from '@/components/ui/button';
+import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -234,10 +235,17 @@ function FieldHelpLabel({
 }
 
 function localDateTimeInputValue(value: string | null) {
-  if (!value) {
-    return new Date().toISOString().slice(0, 16);
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return '';
   }
-  return new Date(value).toISOString().slice(0, 16);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function dateTimeInputToIso(value: string) {
@@ -948,6 +956,13 @@ function RankingSignalEditor({
     () => buildRankingSnapshot({ catalog, entryType, rankedIds: displayedValues }),
     [catalog, displayedValues, entryType],
   );
+  const eligibleItemCount = useMemo(
+    () =>
+      entryType === 'service'
+        ? snapshot.services.length
+        : snapshot.skus.filter((sku) => sku.soldAsProduct && sku.productPrice !== null).length,
+    [entryType, snapshot.services.length, snapshot.skus],
+  );
   const entries = useMemo(() => buildRankingEntries(displayedValues, entryType), [displayedValues, entryType]);
   const rankChangeByEntryKey = useMemo(
     () =>
@@ -968,6 +983,11 @@ function RankingSignalEditor({
             <SectionLabel tooltip={rankingTooltip} tooltipLabel={`${label} details`}>{label}</SectionLabel>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">{t('stockUpdateRankingOptional')}</p>
+          {eligibleItemCount === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t(entryType === 'service' ? 'stockUpdateNoServicesRankingHelper' : 'stockUpdateNoRetailRankingHelper')}
+            </p>
+          ) : null}
         </div>
         {values.length > 0 ? (
           <Button type="button" variant="ghost" onClick={() => onChange([])}>
@@ -976,13 +996,15 @@ function RankingSignalEditor({
           </Button>
         ) : null}
       </div>
-      <MerchandisingEditor
-        entries={entries}
-        rankChangeByEntryKey={rankChangeByEntryKey}
-        snapshot={snapshot}
-        titleLabel={label}
-        onChange={(nextEntries) => onChange(reorderIdsFromEntries(nextEntries))}
-      />
+      {eligibleItemCount > 0 ? (
+        <MerchandisingEditor
+          entries={entries}
+          rankChangeByEntryKey={rankChangeByEntryKey}
+          snapshot={snapshot}
+          titleLabel={label}
+          onChange={(nextEntries) => onChange(reorderIdsFromEntries(nextEntries))}
+        />
+      ) : null}
     </div>
   );
 }
@@ -994,70 +1016,30 @@ function FlagActionMenu({
   actions: Array<{ key: string; label: string; icon: ReactNode; onSelect: () => void }>;
   label: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [open]);
-
   return (
-    <div ref={containerRef} className="relative flex justify-end">
-      <Button
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-label={label}
-        size="icon-sm"
-        type="button"
-        variant="outline"
-        onClick={() => setOpen((current) => !current)}
+    <div className="flex justify-end">
+      <AnchoredMenu
+        label={label}
+        triggerIcon={<EntityFlagIcon className="size-4" />}
       >
-        <EntityFlagIcon className="size-4" />
-      </Button>
-      <div
-        className={cn(
-          'absolute right-0 top-full z-20 mt-2 min-w-48 rounded-xl border border-border/70 bg-background p-1 shadow-[0_18px_40px_rgba(48,31,20,0.16)]',
-          open ? 'block' : 'hidden',
-        )}
-        role="menu"
-      >
-        {actions.map((action) => (
-          <button
-            key={action.key}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              action.onSelect();
-              setOpen(false);
-            }}
-          >
-            <span className="text-muted-foreground">{action.icon}</span>
-            {action.label}
-          </button>
-        ))}
-      </div>
+        {(closeMenu) =>
+          actions.map((action) => (
+            <button
+              key={action.key}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                action.onSelect();
+                closeMenu();
+              }}
+            >
+              <span className="text-muted-foreground">{action.icon}</span>
+              {action.label}
+            </button>
+          ))
+        }
+      </AnchoredMenu>
     </div>
   );
 }
@@ -1189,283 +1171,289 @@ function StockCountStep({
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
-        <HeaderedTable variant="framed">
-          <div className={layout.containerClassName} style={layout.style}>
-            <HeaderedTableHeader className={cn(layout.headerClassName, debugTrackClassName, debugFlushClassName)}>
-              <HeaderedTableHeaderCell>{t('stockUpdateSkuLatestObservation')}</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>{t('stockUpdateUnitsInStock')}</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>{t('stockUpdateCostIfChanged')}</HeaderedTableHeaderCell>
-              <HeaderedTableHeaderCell>{t('stockUpdateRetailPriceIfChanged')}</HeaderedTableHeaderCell>
-              {showFlagColumn ? <HeaderedTableHeaderCell>{t('stockUpdateFlags')}</HeaderedTableHeaderCell> : null}
-              <HeaderedTableHeaderCell align="right" className="pr-2 whitespace-nowrap">
-                <SectionLabel
-                  tooltip={t('stockUpdateSkuFlagsTooltip')}
-                  tooltipLabel={t('stockUpdateSkuFlagsTooltipLabel')}
-                >
-                  {t('stockUpdateAddFlags')}
-                </SectionLabel>
-              </HeaderedTableHeaderCell>
-            </HeaderedTableHeader>
-            <HeaderedTableBody className={layout.bodyClassName}>
-              {visibleRows.map((row) => {
-                const sku = catalog?.skus.find((entry) => entry.skuId === row.skuId);
-                const latestCountedAt = countedAtBySku.get(row.skuId);
-                const latestStock = stockBySku.get(row.skuId);
-                const draft = skuSignalDrafts[row.skuId];
-                const flagIds = activeSkuFlagIds(draft);
-
-                return (
-                  <HeaderedTableRow
-                    key={row.skuId}
-                    className={cn(
-                      rowHoverClassName,
-                      debugTrackClassName,
-                      debugFlushClassName,
-                      layout.rowClassName,
-                      (stockRowChanged(catalog, stockBySku, row) || flagIds.length > 0) && 'bg-primary/[0.04]',
-                    )}
+        {(catalog?.skus ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
+        ) : (
+          <HeaderedTable variant="framed">
+            <div className={layout.containerClassName} style={layout.style}>
+              <HeaderedTableHeader className={cn(layout.headerClassName, debugTrackClassName, debugFlushClassName)}>
+                <HeaderedTableHeaderCell>{t('stockUpdateSkuLatestObservation')}</HeaderedTableHeaderCell>
+                <HeaderedTableHeaderCell>{t('stockUpdateUnitsInStock')}</HeaderedTableHeaderCell>
+                <HeaderedTableHeaderCell>{t('stockUpdateCostIfChanged')}</HeaderedTableHeaderCell>
+                <HeaderedTableHeaderCell>{t('stockUpdateRetailPriceIfChanged')}</HeaderedTableHeaderCell>
+                {showFlagColumn ? <HeaderedTableHeaderCell>{t('stockUpdateFlags')}</HeaderedTableHeaderCell> : null}
+                <HeaderedTableHeaderCell align="right" className="pr-2 whitespace-nowrap">
+                  <SectionLabel
+                    tooltip={t('stockUpdateSkuFlagsTooltip')}
+                    tooltipLabel={t('stockUpdateSkuFlagsTooltipLabel')}
                   >
-                    <div className="min-w-0">
-                      <HeaderedTableCellStack
-                        primary={
-                          <span className="min-w-0">
-                            <span className="block font-medium text-foreground">{sku?.name ?? row.skuId}</span>
-                            <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                              {row.skuId}
-                            </span>
-                            <span className="mt-1 block text-sm text-muted-foreground">
-                              {t('stockUpdateLatestUnits', { count: latestStock?.unitsInStock ?? 0 })}
-                              {latestCountedAt
-                                ? ` · ${t('stockUpdateCountedOn', { date: formatSenaLongDate(latestCountedAt, 'en') })}`
-                                : ` · ${t('stockUpdateNeverCounted')}`}
-                            </span>
-                          </span>
-                        }
-                      />
-                    </div>
+                    {t('stockUpdateAddFlags')}
+                  </SectionLabel>
+                </HeaderedTableHeaderCell>
+              </HeaderedTableHeader>
+              <HeaderedTableBody className={layout.bodyClassName}>
+                {visibleRows.map((row) => {
+                  const sku = catalog?.skus.find((entry) => entry.skuId === row.skuId);
+                  const latestCountedAt = countedAtBySku.get(row.skuId);
+                  const latestStock = stockBySku.get(row.skuId);
+                  const draft = skuSignalDrafts[row.skuId];
+                  const flagIds = activeSkuFlagIds(draft);
 
-                    <div className="min-w-0">
-                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateUnitsInStock')}</HeaderedTableMobileLabel>
-                      <div className="flex justify-start pr-3">
-                        <Input
-                          aria-label={t('stockUpdateUnitsInStock')}
-                          className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
-                          min="0"
-                          step="1"
-                          type="number"
-                          value={row.unitsInStock}
-                          onChange={(event) => updateRow(row.skuId, { unitsInStock: Number(event.target.value) })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="min-w-0">
-                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateCostIfChanged')}</HeaderedTableMobileLabel>
-                      <div className="flex justify-start pr-3">
-                        <Input
-                          aria-label={t('stockUpdateCostIfChanged')}
-                          className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
-                          min="0"
-                          step={moneyInputStep(currency)}
-                          type="number"
-                          value={row.costPerUnit == null ? '' : displayMoneyFromUsd(row.costPerUnit, currency, usdToKhrExchangeRate)}
-                          onChange={(event) =>
-                            updateRow(row.skuId, {
-                              costPerUnit: event.target.value
-                                ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate)
-                                : null,
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="min-w-0">
-                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>
-                        {t('stockUpdateRetailPriceIfChanged')}
-                      </HeaderedTableMobileLabel>
-                      <div className="flex justify-start pr-3">
-                        <Input
-                          aria-label={t('stockUpdateRetailPriceIfChanged')}
-                          className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
-                          disabled={!sku?.soldAsProduct}
-                          min="0"
-                          step={moneyInputStep(currency)}
-                          type="number"
-                          value={row.productPrice == null ? '' : displayMoneyFromUsd(row.productPrice, currency, usdToKhrExchangeRate)}
-                          onChange={(event) =>
-                            updateRow(row.skuId, {
-                              productPrice: event.target.value
-                                ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate)
-                                : null,
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    {showFlagColumn ? (
+                  return (
+                    <HeaderedTableRow
+                      key={row.skuId}
+                      className={cn(
+                        rowHoverClassName,
+                        debugTrackClassName,
+                        debugFlushClassName,
+                        layout.rowClassName,
+                        (stockRowChanged(catalog, stockBySku, row) || flagIds.length > 0) && 'bg-primary/[0.04]',
+                      )}
+                    >
                       <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateFlags')}</HeaderedTableMobileLabel>
-                        {flagIds.length > 0 ? (
-                          <div className="grid">
-                            {draft.orderEnabled ? (
-                              <FlagSection
-                                label={t('stockUpdateOrderFlag')}
-                                removeLabel={t('stockUpdateRemoveOrderFlagFor', { name: sku?.name ?? row.skuId })}
-                                onRemove={() =>
-                                  updateSkuSignalDraft(row.skuId, (current) => ({
-                                    ...current,
-                                    orderEnabled: false,
-                                    orderedQuantity: '',
-                                  }))
-                                }
-                              >
-                                <Input
-                                  aria-label={t('stockUpdateOrderedQuantityAria', { name: sku?.name ?? row.skuId })}
-                                  className={flagControlClassName}
-                                  min="0"
-                                  placeholder={t('stockUpdateOrderedQuantity')}
-                                  step="1"
-                                  type="number"
-                                  value={draft.orderedQuantity}
-                                  onChange={(event) =>
+                        <HeaderedTableCellStack
+                          primary={
+                            <span className="min-w-0">
+                              <span className="block font-medium text-foreground">{sku?.name ?? row.skuId}</span>
+                              <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+                                {row.skuId}
+                              </span>
+                              <span className="mt-1 block text-sm text-muted-foreground">
+                                {t('stockUpdateLatestUnits', { count: latestStock?.unitsInStock ?? 0 })}
+                                {latestCountedAt
+                                  ? ` · ${t('stockUpdateCountedOn', { date: formatSenaLongDate(latestCountedAt, 'en') })}`
+                                  : ` · ${t('stockUpdateNeverCounted')}`}
+                              </span>
+                            </span>
+                          }
+                        />
+                      </div>
+
+                      <div className="min-w-0">
+                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateUnitsInStock')}</HeaderedTableMobileLabel>
+                        <div className="flex justify-start pr-3">
+                          <Input
+                            aria-label={t('stockUpdateUnitsInStock')}
+                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            min="0"
+                            step="1"
+                            type="number"
+                            value={row.unitsInStock}
+                            onChange={(event) => updateRow(row.skuId, { unitsInStock: Number(event.target.value) })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateCostIfChanged')}</HeaderedTableMobileLabel>
+                        <div className="flex justify-start pr-3">
+                          <Input
+                            aria-label={t('stockUpdateCostIfChanged')}
+                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            min="0"
+                            step={moneyInputStep(currency)}
+                            type="number"
+                            value={row.costPerUnit == null ? '' : displayMoneyFromUsd(row.costPerUnit, currency, usdToKhrExchangeRate)}
+                            onChange={(event) =>
+                              updateRow(row.skuId, {
+                                costPerUnit: event.target.value
+                                  ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate)
+                                  : null,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>
+                          {t('stockUpdateRetailPriceIfChanged')}
+                        </HeaderedTableMobileLabel>
+                        <div className="flex justify-start pr-3">
+                          <Input
+                            aria-label={t('stockUpdateRetailPriceIfChanged')}
+                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            disabled={!sku?.soldAsProduct}
+                            min="0"
+                            step={moneyInputStep(currency)}
+                            type="number"
+                            value={row.productPrice == null ? '' : displayMoneyFromUsd(row.productPrice, currency, usdToKhrExchangeRate)}
+                            onChange={(event) =>
+                              updateRow(row.skuId, {
+                                productPrice: event.target.value
+                                  ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate)
+                                  : null,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      {showFlagColumn ? (
+                        <div className="min-w-0">
+                          <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateFlags')}</HeaderedTableMobileLabel>
+                          {flagIds.length > 0 ? (
+                            <div className="grid">
+                              {draft.orderEnabled ? (
+                                <FlagSection
+                                  label={t('stockUpdateOrderFlag')}
+                                  removeLabel={t('stockUpdateRemoveOrderFlagFor', { name: sku?.name ?? row.skuId })}
+                                  onRemove={() =>
                                     updateSkuSignalDraft(row.skuId, (current) => ({
                                       ...current,
-                                      orderEnabled: true,
-                                      orderedQuantity: event.target.value,
-                                    }))
-                                  }
-                                />
-                              </FlagSection>
-                            ) : null}
-                            {draft.receiptEnabled ? (
-                              <FlagSection
-                                label={t('stockUpdateReceiptFlag')}
-                                removeLabel={t('stockUpdateRemoveReceiptFlagFor', { name: sku?.name ?? row.skuId })}
-                                onRemove={() =>
-                                  updateSkuSignalDraft(row.skuId, (current) => ({
-                                    ...current,
-                                    receiptEnabled: false,
-                                    receiptQuantity: '',
-                                  }))
-                                }
-                              >
-                                <Input
-                                  aria-label={t('stockUpdateReceiptQuantityAria', { name: sku?.name ?? row.skuId })}
-                                  className={flagControlClassName}
-                                  min="0"
-                                  placeholder={t('stockUpdateReceivedQuantity')}
-                                  step="1"
-                                  type="number"
-                                  value={draft.receiptQuantity}
-                                  onChange={(event) =>
-                                    updateSkuSignalDraft(row.skuId, (current) => ({
-                                      ...current,
-                                      receiptEnabled: true,
-                                      receiptQuantity: event.target.value,
-                                    }))
-                                  }
-                                />
-                              </FlagSection>
-                            ) : null}
-                            {draft.blockedEnabled ? (
-                              <FlagSection
-                                label={t('stockUpdateEventFlag')}
-                                removeLabel={t('stockUpdateRemoveEventFlagFor', { name: sku?.name ?? row.skuId })}
-                                onRemove={() =>
-                                  updateSkuSignalDraft(row.skuId, (current) => ({
-                                    ...current,
-                                    blockedEnabled: false,
-                                    blockedState: 'blocked',
-                                  }))
-                                }
-                              >
-                                <Select
-                                  value={draft.blockedState}
-                                  onValueChange={(value) =>
-                                    updateSkuSignalDraft(row.skuId, (current) => ({
-                                      ...current,
-                                      blockedEnabled: true,
-                                      blockedState: value as StockoutFlagValue,
+                                      orderEnabled: false,
+                                      orderedQuantity: '',
                                     }))
                                   }
                                 >
-                                  <SelectTrigger
-                                    aria-label={t('stockUpdateBlockedStateAria', { name: sku?.name ?? row.skuId })}
-                                    className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
+                                  <Input
+                                    aria-label={t('stockUpdateOrderedQuantityAria', { name: sku?.name ?? row.skuId })}
+                                    className={flagControlClassName}
+                                    min="0"
+                                    placeholder={t('stockUpdateOrderedQuantity')}
+                                    step="1"
+                                    type="number"
+                                    value={draft.orderedQuantity}
+                                    onChange={(event) =>
+                                      updateSkuSignalDraft(row.skuId, (current) => ({
+                                        ...current,
+                                        orderEnabled: true,
+                                        orderedQuantity: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </FlagSection>
+                              ) : null}
+                              {draft.receiptEnabled ? (
+                                <FlagSection
+                                  label={t('stockUpdateReceiptFlag')}
+                                  removeLabel={t('stockUpdateRemoveReceiptFlagFor', { name: sku?.name ?? row.skuId })}
+                                  onRemove={() =>
+                                    updateSkuSignalDraft(row.skuId, (current) => ({
+                                      ...current,
+                                      receiptEnabled: false,
+                                      receiptQuantity: '',
+                                    }))
+                                  }
+                                >
+                                  <Input
+                                    aria-label={t('stockUpdateReceiptQuantityAria', { name: sku?.name ?? row.skuId })}
+                                    className={flagControlClassName}
+                                    min="0"
+                                    placeholder={t('stockUpdateReceivedQuantity')}
+                                    step="1"
+                                    type="number"
+                                    value={draft.receiptQuantity}
+                                    onChange={(event) =>
+                                      updateSkuSignalDraft(row.skuId, (current) => ({
+                                        ...current,
+                                        receiptEnabled: true,
+                                        receiptQuantity: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </FlagSection>
+                              ) : null}
+                              {draft.blockedEnabled ? (
+                                <FlagSection
+                                  label={t('stockUpdateEventFlag')}
+                                  removeLabel={t('stockUpdateRemoveEventFlagFor', { name: sku?.name ?? row.skuId })}
+                                  onRemove={() =>
+                                    updateSkuSignalDraft(row.skuId, (current) => ({
+                                      ...current,
+                                      blockedEnabled: false,
+                                      blockedState: 'blocked',
+                                    }))
+                                  }
+                                >
+                                  <Select
+                                    value={draft.blockedState}
+                                    onValueChange={(value) =>
+                                      updateSkuSignalDraft(row.skuId, (current) => ({
+                                        ...current,
+                                        blockedEnabled: true,
+                                        blockedState: value as StockoutFlagValue,
+                                      }))
+                                    }
                                   >
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
-                                    <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </FlagSection>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
-                        )}
-                      </div>
-                    ) : null}
+                                    <SelectTrigger
+                                      aria-label={t('stockUpdateBlockedStateAria', { name: sku?.name ?? row.skuId })}
+                                      className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
+                                      <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </FlagSection>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
+                          )}
+                        </div>
+                      ) : null}
 
-                      <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateAddFlags')}</HeaderedTableMobileLabel>
-                      <FlagActionMenu
-                        actions={[
-                          {
-                            key: 'ordered',
-                            label: draft?.orderEnabled ? t('stockUpdateRemoveOrder') : t('stockUpdateAddOrder'),
-                            icon: <ActionCreatePackageIcon className="size-4" />,
-                            onSelect: () =>
-                              updateSkuSignalDraft(row.skuId, (current) => ({
-                                ...current,
-                                orderEnabled: !current.orderEnabled,
-                                orderedQuantity: current.orderEnabled ? '' : current.orderedQuantity,
-                              })),
-                          },
-                          {
-                            key: 'received',
-                            label: draft?.receiptEnabled ? t('stockUpdateRemoveReceipt') : t('stockUpdateAddReceipt'),
-                            icon: <EntityTransitIcon className="size-4" />,
-                            onSelect: () =>
-                              updateSkuSignalDraft(row.skuId, (current) => ({
-                                ...current,
-                                receiptEnabled: !current.receiptEnabled,
-                                receiptQuantity: current.receiptEnabled ? '' : current.receiptQuantity,
-                              })),
-                          },
-                          {
-                            key: 'blocked',
-                            label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
-                            icon: <StatusUnavailableIcon className="size-4" />,
-                            onSelect: () =>
-                              updateSkuSignalDraft(row.skuId, (current) => ({
-                                ...current,
-                                blockedEnabled: !current.blockedEnabled,
-                                blockedState: current.blockedEnabled ? 'blocked' : current.blockedState,
-                              })),
-                          },
-                        ]}
-                        label={t('stockUpdateAddFlagsFor', { name: sku?.name ?? row.skuId })}
-                      />
-                    </div>
-                  </HeaderedTableRow>
-                );
-              })}
-            </HeaderedTableBody>
-          </div>
-        </HeaderedTable>
-        {visibleRows.length === 0 ? (
+                        <div className="min-w-0">
+                          <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateAddFlags')}</HeaderedTableMobileLabel>
+                        <FlagActionMenu
+                          actions={[
+                            {
+                              key: 'ordered',
+                              label: draft?.orderEnabled ? t('stockUpdateRemoveOrder') : t('stockUpdateAddOrder'),
+                              icon: <ActionCreatePackageIcon className="size-4" />,
+                              onSelect: () =>
+                                updateSkuSignalDraft(row.skuId, (current) => ({
+                                  ...current,
+                                  orderEnabled: !current.orderEnabled,
+                                  orderedQuantity: current.orderEnabled ? '' : current.orderedQuantity,
+                                })),
+                            },
+                            {
+                              key: 'received',
+                              label: draft?.receiptEnabled ? t('stockUpdateRemoveReceipt') : t('stockUpdateAddReceipt'),
+                              icon: <EntityTransitIcon className="size-4" />,
+                              onSelect: () =>
+                                updateSkuSignalDraft(row.skuId, (current) => ({
+                                  ...current,
+                                  receiptEnabled: !current.receiptEnabled,
+                                  receiptQuantity: current.receiptEnabled ? '' : current.receiptQuantity,
+                                })),
+                            },
+                            {
+                              key: 'blocked',
+                              label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
+                              icon: <StatusUnavailableIcon className="size-4" />,
+                              onSelect: () =>
+                                updateSkuSignalDraft(row.skuId, (current) => ({
+                                  ...current,
+                                  blockedEnabled: !current.blockedEnabled,
+                                  blockedState: current.blockedEnabled ? 'blocked' : current.blockedState,
+                                })),
+                            },
+                          ]}
+                          label={t('stockUpdateAddFlagsFor', { name: sku?.name ?? row.skuId })}
+                        />
+                      </div>
+                    </HeaderedTableRow>
+                  );
+                })}
+              </HeaderedTableBody>
+            </div>
+          </HeaderedTable>
+        )}
+        {(catalog?.skus ?? []).length > 0 && visibleRows.length === 0 ? (
           <p className="rounded-[1.25rem] border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
             {t('stockUpdateNoSkuMatches')}
           </p>
         ) : null}
-        <p className="text-sm text-muted-foreground">
-          {t('stockUpdateSkuRowsIncluded', { count: includedRows.length, suffix: includedRows.length === 1 ? '' : 's' })}
-        </p>
+        {(catalog?.skus ?? []).length > 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t('stockUpdateSkuRowsIncluded', { count: includedRows.length, suffix: includedRows.length === 1 ? '' : 's' })}
+          </p>
+        ) : null}
       </div>
     </WorkspacePanel>
   );
@@ -1524,176 +1512,180 @@ function ServiceSignalsStep({
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
-      <HeaderedTable variant="framed">
-        <div className={layout.containerClassName} style={layout.style}>
-          <HeaderedTableHeader className={cn(layout.headerClassName, debugTrackClassName, debugFlushClassName)}>
-            <HeaderedTableHeaderCell>{t('stockUpdateServiceHeader')}</HeaderedTableHeaderCell>
-            <HeaderedTableHeaderCell align="center">{t('stockUpdateLatestPrice')}</HeaderedTableHeaderCell>
-            {showFlagColumn ? <HeaderedTableHeaderCell>{t('stockUpdateFlags')}</HeaderedTableHeaderCell> : null}
-            <HeaderedTableHeaderCell align="right" className="pr-2 whitespace-nowrap">
-              <SectionLabel
-                tooltip={t('stockUpdateServiceFlagsTooltip')}
-                tooltipLabel={t('stockUpdateServiceFlagsTooltipLabel')}
-              >
-                {t('stockUpdateAddFlags')}
-              </SectionLabel>
-            </HeaderedTableHeaderCell>
-          </HeaderedTableHeader>
-          <HeaderedTableBody className={layout.bodyClassName}>
-            {(catalog?.services ?? []).map((service) => {
-              const draft = serviceSignalDrafts[service.serviceId];
-              const flagIds = activeServiceFlagIds(draft);
-              const linkedSkuCount = (catalog?.sharingMask ?? []).filter(
-                (entry) => entry.enabled && entry.serviceId === service.serviceId,
-              ).length;
+        {(catalog?.services ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('stockUpdateNoServicesHelper')}</p>
+        ) : (
+          <HeaderedTable variant="framed">
+            <div className={layout.containerClassName} style={layout.style}>
+              <HeaderedTableHeader className={cn(layout.headerClassName, debugTrackClassName, debugFlushClassName)}>
+                <HeaderedTableHeaderCell>{t('stockUpdateServiceHeader')}</HeaderedTableHeaderCell>
+                <HeaderedTableHeaderCell align="center">{t('stockUpdateLatestPrice')}</HeaderedTableHeaderCell>
+                {showFlagColumn ? <HeaderedTableHeaderCell>{t('stockUpdateFlags')}</HeaderedTableHeaderCell> : null}
+                <HeaderedTableHeaderCell align="right" className="pr-2 whitespace-nowrap">
+                  <SectionLabel
+                    tooltip={t('stockUpdateServiceFlagsTooltip')}
+                    tooltipLabel={t('stockUpdateServiceFlagsTooltipLabel')}
+                  >
+                    {t('stockUpdateAddFlags')}
+                  </SectionLabel>
+                </HeaderedTableHeaderCell>
+              </HeaderedTableHeader>
+              <HeaderedTableBody className={layout.bodyClassName}>
+                {(catalog?.services ?? []).map((service) => {
+                  const draft = serviceSignalDrafts[service.serviceId];
+                  const flagIds = activeServiceFlagIds(draft);
+                  const linkedSkuCount = (catalog?.sharingMask ?? []).filter(
+                    (entry) => entry.enabled && entry.serviceId === service.serviceId,
+                  ).length;
 
-              return (
-                <HeaderedTableRow
-                  key={service.serviceId}
-                  className={cn(
-                    rowHoverClassName,
-                    debugTrackClassName,
-                    debugFlushClassName,
-                    layout.rowClassName,
-                    flagIds.length > 0 && 'bg-primary/[0.04]',
-                  )}
-                >
-                  <div className="min-w-0">
-                    <HeaderedTableCellStack
-                      primary={
-                        <span className="min-w-0">
-                          <span className="block font-medium text-foreground">{service.name}</span>
-                          <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                            {service.serviceId}
-                          </span>
-                          <span className="mt-1 block text-sm text-muted-foreground">
-                            {t('stockUpdateLinkedSkuCount', { count: linkedSkuCount, suffix: linkedSkuCount === 1 ? '' : 's' })}
-                          </span>
-                        </span>
-                      }
-                    />
-                  </div>
+                  return (
+                    <HeaderedTableRow
+                      key={service.serviceId}
+                      className={cn(
+                        rowHoverClassName,
+                        debugTrackClassName,
+                        debugFlushClassName,
+                        layout.rowClassName,
+                        flagIds.length > 0 && 'bg-primary/[0.04]',
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <HeaderedTableCellStack
+                          primary={
+                            <span className="min-w-0">
+                              <span className="block font-medium text-foreground">{service.name}</span>
+                              <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+                                {service.serviceId}
+                              </span>
+                              <span className="mt-1 block text-sm text-muted-foreground">
+                                {t('stockUpdateLinkedSkuCount', { count: linkedSkuCount, suffix: linkedSkuCount === 1 ? '' : 's' })}
+                              </span>
+                            </span>
+                          }
+                        />
+                      </div>
 
-                  <div className="min-w-0">
-                    <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateLatestPrice')}</HeaderedTableMobileLabel>
-                    <p className="text-center text-sm font-medium text-foreground">
-                      {formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
-                    </p>
-                  </div>
+                      <div className="min-w-0">
+                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateLatestPrice')}</HeaderedTableMobileLabel>
+                        <p className="text-center text-sm font-medium text-foreground">
+                          {formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
+                        </p>
+                      </div>
 
-                  {showFlagColumn ? (
-                    <div className="min-w-0">
-                      <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateFlags')}</HeaderedTableMobileLabel>
-                      {flagIds.length > 0 ? (
-                        <div className="grid">
-                          {draft.priceEnabled ? (
-                            <FlagSection
-                              label={t('stockUpdatePriceIfChanged')}
-                              removeLabel={t('stockUpdateRemovePriceFlagFor', { name: service.name })}
-                              onRemove={() =>
-                                updateServiceSignalDraft(service.serviceId, (current) => ({
-                                  ...current,
-                                  priceEnabled: false,
-                                  price: '',
-                                }))
-                              }
-                            >
-                                <Input
-                                  aria-label={t('stockUpdatePriceChangedAria', { name: service.name })}
-                                  className={flagControlClassName}
-                                  min="0"
-                                  placeholder={t('stockUpdateNewPrice')}
-                                  step={moneyInputStep(currency)}
-                                  type="number"
-                                  value={draft.price}
-                                  onChange={(event) =>
+                      {showFlagColumn ? (
+                        <div className="min-w-0">
+                          <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateFlags')}</HeaderedTableMobileLabel>
+                          {flagIds.length > 0 ? (
+                            <div className="grid">
+                              {draft.priceEnabled ? (
+                                <FlagSection
+                                  label={t('stockUpdatePriceIfChanged')}
+                                  removeLabel={t('stockUpdateRemovePriceFlagFor', { name: service.name })}
+                                  onRemove={() =>
                                     updateServiceSignalDraft(service.serviceId, (current) => ({
                                       ...current,
-                                      priceEnabled: true,
-                                      price: event.target.value,
+                                      priceEnabled: false,
+                                      price: '',
                                     }))
                                   }
-                              />
-                            </FlagSection>
-                          ) : null}
-                          {draft.blockedEnabled ? (
-                            <FlagSection
-                              label={t('stockUpdateEventFlag')}
-                              removeLabel={t('stockUpdateRemoveEventFlagFor', { name: service.name })}
-                              onRemove={() =>
+                                >
+                                    <Input
+                                      aria-label={t('stockUpdatePriceChangedAria', { name: service.name })}
+                                      className={flagControlClassName}
+                                      min="0"
+                                      placeholder={t('stockUpdateNewPrice')}
+                                      step={moneyInputStep(currency)}
+                                      type="number"
+                                      value={draft.price}
+                                      onChange={(event) =>
+                                        updateServiceSignalDraft(service.serviceId, (current) => ({
+                                          ...current,
+                                          priceEnabled: true,
+                                          price: event.target.value,
+                                        }))
+                                      }
+                                  />
+                                </FlagSection>
+                              ) : null}
+                              {draft.blockedEnabled ? (
+                                <FlagSection
+                                  label={t('stockUpdateEventFlag')}
+                                  removeLabel={t('stockUpdateRemoveEventFlagFor', { name: service.name })}
+                                  onRemove={() =>
+                                    updateServiceSignalDraft(service.serviceId, (current) => ({
+                                      ...current,
+                                      blockedEnabled: false,
+                                      blockedState: 'blocked',
+                                    }))
+                                  }
+                                >
+                                  <Select
+                                    value={draft.blockedState}
+                                    onValueChange={(value) =>
+                                      updateServiceSignalDraft(service.serviceId, (current) => ({
+                                        ...current,
+                                        blockedEnabled: true,
+                                        blockedState: value as StockoutFlagValue,
+                                      }))
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      aria-label={t('stockUpdateBlockedStateAria', { name: service.name })}
+                                      className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
+                                      <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </FlagSection>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
+                          )}
+                        </div>
+                      ) : null}
+
+                      <div className="min-w-0">
+                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateAddFlags')}</HeaderedTableMobileLabel>
+                        <FlagActionMenu
+                          actions={[
+                            {
+                              key: 'price',
+                              label: draft?.priceEnabled ? t('stockUpdateRemovePriceChange') : t('stockUpdateAddPriceChange'),
+                              icon: <ActionCreatePackageIcon className="size-4" />,
+                              onSelect: () =>
                                 updateServiceSignalDraft(service.serviceId, (current) => ({
                                   ...current,
-                                  blockedEnabled: false,
-                                  blockedState: 'blocked',
-                                }))
-                              }
-                            >
-                              <Select
-                                value={draft.blockedState}
-                                onValueChange={(value) =>
-                                  updateServiceSignalDraft(service.serviceId, (current) => ({
-                                    ...current,
-                                    blockedEnabled: true,
-                                    blockedState: value as StockoutFlagValue,
-                                  }))
-                                }
-                              >
-                                <SelectTrigger
-                                  aria-label={t('stockUpdateBlockedStateAria', { name: service.name })}
-                                  className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
-                                  <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </FlagSection>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
-                      )}
-                    </div>
-                  ) : null}
-
-                  <div className="min-w-0">
-                    <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateAddFlags')}</HeaderedTableMobileLabel>
-                    <FlagActionMenu
-                      actions={[
-                        {
-                          key: 'price',
-                          label: draft?.priceEnabled ? t('stockUpdateRemovePriceChange') : t('stockUpdateAddPriceChange'),
-                          icon: <ActionCreatePackageIcon className="size-4" />,
-                          onSelect: () =>
-                            updateServiceSignalDraft(service.serviceId, (current) => ({
-                              ...current,
-                              priceEnabled: !current.priceEnabled,
-                              price: current.priceEnabled ? '' : current.price,
-                            })),
-                        },
-                        {
-                          key: 'blocked',
-                          label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
-                          icon: <StatusUnavailableIcon className="size-4" />,
-                          onSelect: () =>
-                            updateServiceSignalDraft(service.serviceId, (current) => ({
-                              ...current,
-                              blockedEnabled: !current.blockedEnabled,
-                              blockedState: current.blockedEnabled ? 'blocked' : current.blockedState,
-                            })),
-                        },
-                      ]}
-                      label={t('stockUpdateAddFlagsFor', { name: service.name })}
-                    />
-                  </div>
-                </HeaderedTableRow>
-              );
-            })}
-          </HeaderedTableBody>
-        </div>
-      </HeaderedTable>
+                                  priceEnabled: !current.priceEnabled,
+                                  price: current.priceEnabled ? '' : current.price,
+                                })),
+                            },
+                            {
+                              key: 'blocked',
+                              label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
+                              icon: <StatusUnavailableIcon className="size-4" />,
+                              onSelect: () =>
+                                updateServiceSignalDraft(service.serviceId, (current) => ({
+                                  ...current,
+                                  blockedEnabled: !current.blockedEnabled,
+                                  blockedState: current.blockedEnabled ? 'blocked' : current.blockedState,
+                                })),
+                            },
+                          ]}
+                          label={t('stockUpdateAddFlagsFor', { name: service.name })}
+                        />
+                      </div>
+                    </HeaderedTableRow>
+                  );
+                })}
+              </HeaderedTableBody>
+            </div>
+          </HeaderedTable>
+        )}
       </div>
     </WorkspacePanel>
   );
@@ -1853,7 +1845,7 @@ function ReviewStep({
 }
 
 export function StockUpdateSessionRoute() {
-  const { catalog, ingestSenaObservation, isSaving, observations, triggerSenaRun, updateSenaObservation, workspaceSummary } = useInventory();
+  const { catalog, ingestSenaObservation, isSaving, observations, runWorkspacePreparation, triggerSenaRun, updateSenaObservation, workspaceSummary } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const location = useLocation();
   const navigate = useNavigate();
@@ -2427,16 +2419,18 @@ export function StockUpdateSessionRoute() {
       } else {
         await ingestSenaObservation(payload);
       }
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      skipNextDraftPersistRef.current = true;
-      removeStockUpdateDraft();
-      setHasSavedDraft(false);
-      setDraftWasRestored(false);
-      resetRecordUpdateState();
-      navigate(location.pathname, { replace: true, state: null });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('stockUpdateSaveFailed'));
+      return;
     }
+
+    skipNextDraftPersistRef.current = true;
+    removeStockUpdateDraft();
+    setHasSavedDraft(false);
+    setDraftWasRestored(false);
+    resetRecordUpdateState();
+    navigate('/', { replace: true, state: null });
+    void runWorkspacePreparation(() => triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' }));
   }
 
   const discardChangesDescription =

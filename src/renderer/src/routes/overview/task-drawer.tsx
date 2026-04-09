@@ -1,5 +1,4 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import type { StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
   deriveLeadTimeVariabilityClass,
@@ -37,6 +36,10 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import {
+  leadTimeVariabilityPlaceholderValue,
+  shouldShowLeadTimeVariabilityPlaceholder,
+} from '@/lib/lead-time-variability-select';
 import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { translateUiLiteral } from '@/lib/translations';
 import { statusPillClassName } from '@/lib/state-tones';
@@ -344,6 +347,19 @@ function RecommendedOrderPanel({
   );
 }
 
+function finalizeSuccessfulDrawerSave({
+  close,
+  prepareWorkspace,
+}: {
+  close: () => void;
+  prepareWorkspace: () => Promise<unknown>;
+}) {
+  close();
+  void prepareWorkspace().catch((error) => {
+    console.error('Failed to refresh overview after saving task drawer update.', error);
+  });
+}
+
 export function OverviewTaskDrawer({
   open,
   mode: controlledMode,
@@ -357,7 +373,7 @@ export function OverviewTaskDrawer({
   task: OverviewSkuTask | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
+  const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableDrawerMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(initialObservedAt(null));
@@ -371,6 +387,7 @@ export function OverviewTaskDrawer({
   const [receivedCost, setReceivedCost] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(() => clampDrawerWidth(DRAWER_DEFAULT_WIDTH));
+  const [dismissedAfterSave, setDismissedAfterSave] = useState(false);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
 
   useEffect(() => {
@@ -388,7 +405,11 @@ export function OverviewTaskDrawer({
     setReceivedQuantity(task.recentReceiptQuantity != null ? String(Math.round(task.recentReceiptQuantity)) : '');
     setReceivedCost(task.costPerUnit ? formatEditableMoneyFromUsd(task.costPerUnit, currency, usdToKhrExchangeRate) : '');
     setError(null);
-  }, [currency, setMode, task, usdToKhrExchangeRate]);
+  }, [currency, task?.id, usdToKhrExchangeRate]);
+
+  useEffect(() => {
+    setDismissedAfterSave(false);
+  }, [task?.id]);
 
   useEffect(() => {
     const previous = previousMoneyPreferencesRef.current;
@@ -488,8 +509,6 @@ export function OverviewTaskDrawer({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
     });
-    let legacyPayload: StockReportSubmission | null = null;
-
     if (mode === 'ordered_waiting' || mode === 'eta_changed') {
       senaPayload.orderSignals = [
         {
@@ -516,19 +535,6 @@ export function OverviewTaskDrawer({
       const nextCost = receivedCost
         ? usdMoneyFromDisplay(Number(receivedCost), currency, usdToKhrExchangeRate)
         : activeTask.costPerUnit;
-      legacyPayload = {
-        reportedAt: observedAtIso,
-        skuObservations: [
-          {
-            skuId: activeTask.skuId,
-            unitsInStock: updatedUnitsInStock,
-            costPerUnit: nextCost,
-            productPrice: activeTask.productPrice,
-            restockIncluded: true,
-          },
-        ],
-        notes: notes.trim() || null,
-      };
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
@@ -552,12 +558,15 @@ export function OverviewTaskDrawer({
         onOpenChange(false);
         return;
       }
-      if (legacyPayload) {
-        await submitLegacyReport(legacyPayload);
-      }
       await ingestSenaObservation(senaPayload);
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      onOpenChange(false);
+      finalizeSuccessfulDrawerSave({
+        close: () => {
+          setDismissedAfterSave(true);
+          onOpenChange(false);
+        },
+        prepareWorkspace: () =>
+          runWorkspacePreparation(() => triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' })),
+      });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('overviewDrawerSaveFailed'));
     }
@@ -619,7 +628,7 @@ export function OverviewTaskDrawer({
 
   return (
     <>
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Sheet open={open && !dismissedAfterSave} onOpenChange={handleOpenChange}>
       <SheetContent
         className="w-full max-w-none gap-0 overflow-hidden border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]"
         showCloseButton={false}
@@ -813,16 +822,22 @@ export function OverviewTaskDrawer({
                         label={t('overviewDrawerVariabilityLabel')}
                       >
                         <Select
-                          value={variabilityClass || '__none__'}
+                          value={variabilityClass || leadTimeVariabilityPlaceholderValue}
                           onValueChange={(value) =>
-                            setVariabilityClass(value === '__none__' ? '' : (value as SenaLeadTimeVariabilityClass))
+                            setVariabilityClass(
+                              value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass),
+                            )
                           }
                         >
                           <SelectTrigger aria-label={t('overviewDrawerVariabilityLabel')} className={actionSheetSelectTriggerClassName}>
                             <SelectValue placeholder={t('overviewDrawerVariabilityPlaceholder')} />
                           </SelectTrigger>
                           <SelectContent align="start">
-                            <SelectItem value="__none__">{t('overviewDrawerVariabilityPlaceholder')}</SelectItem>
+                            {shouldShowLeadTimeVariabilityPlaceholder(variabilityClass) ? (
+                              <SelectItem value={leadTimeVariabilityPlaceholderValue}>
+                                {t('overviewDrawerVariabilityPlaceholder')}
+                              </SelectItem>
+                            ) : null}
                             {leadTimeVariabilityOptions().map((option) => (
                               <SelectItem key={option} value={option}>
                                 {translateLeadTimeVariabilityLabel(language, option)}

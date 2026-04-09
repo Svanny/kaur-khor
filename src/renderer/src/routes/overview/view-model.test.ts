@@ -234,4 +234,70 @@ describe('buildOverviewModel stale update reminder', () => {
     expect(nextCheckLabel('2026-04-12T18:00:00.000Z', 'km')).toBe('ពិនិត្យថ្ងៃនេះ');
     expect(nextCheckLabel('2026-04-13T12:00:00.000Z', 'km')).toBe('ពិនិត្យថ្ងៃស្អែក');
   });
+
+  it('does not create a receipt-ready task from a stock-only update with no order signal', () => {
+    const model = buildOverviewModel({
+      catalog: taskCatalog,
+      detailBySkuId: {
+        'sku-1': {
+          summary: {
+            ...taskWorkspaceSummary.skuSummaries[0]!,
+            reorderQuantity: undefined,
+            reorderTriggerProbability: 0.05,
+            stockoutRisk: 0.1,
+            daysOfCover: 10,
+          },
+          inventoryPosterior: [],
+          demandPosterior: [],
+          pipelinePosterior: [
+            {
+              intervalIndex: 0,
+              startAt: '2026-04-01T00:00:00.000Z',
+              endAt: '2026-04-02T00:00:00.000Z',
+              pipelineMean: 0,
+              inTransitMean: 6,
+              low: 0,
+              high: 8,
+            },
+          ],
+          leadTimePosterior: [
+            {
+              intervalIndex: 0,
+              startAt: '2026-04-01T00:00:00.000Z',
+              endAt: '2026-04-02T00:00:00.000Z',
+              meanDays: 4,
+              stdDays: 1,
+              observedVariabilityClass: 'normal',
+            },
+          ],
+        },
+      },
+      language: 'en',
+      observations: [
+        {
+          ...makeObservation('2026-04-10T10:00:00.000Z'),
+          input: {
+            ...makeObservation('2026-04-10T10:00:00.000Z').input,
+            stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 12, costPerUnit: 5, productPrice: 20 }],
+          },
+        },
+      ],
+      workspaceSummary: {
+        ...taskWorkspaceSummary,
+        latestObservedAt: '2026-04-10T10:00:00.000Z',
+        skuSummaries: [
+          {
+            ...taskWorkspaceSummary.skuSummaries[0]!,
+            reorderQuantity: undefined,
+            reorderTriggerProbability: 0.05,
+            stockoutRisk: 0.1,
+            daysOfCover: 10,
+          },
+        ],
+      },
+    });
+
+    expect(model.tasks).toHaveLength(0);
+    expect(model.todayCounts.readyToReceive).toBe(0);
+  });
 });

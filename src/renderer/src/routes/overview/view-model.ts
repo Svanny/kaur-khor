@@ -356,26 +356,21 @@ function receiptWindowSummary({
   language,
   latestOrderAt,
   summary,
-  workspaceLatestObservedAt,
 }: {
   detail: SenaSkuDetail | null;
   language: AppLanguage;
   latestOrderAt: string | null;
   summary: SenaSkuSummary;
-  workspaceLatestObservedAt: string | null;
 }): ReceiptWindowSummary | null {
   const latestPipeline = detail?.pipelinePosterior.at(-1) ?? null;
   const latestLeadTime = detail?.leadTimePosterior.at(-1) ?? null;
-  const inTransitMean = latestPipeline?.inTransitMean ?? 0;
-  const hasOpenPipeline = inTransitMean > 0.5 || latestOrderAt != null;
-
-  if (!hasOpenPipeline) {
+  if (!latestOrderAt) {
     return null;
   }
 
   const meanDays = latestLeadTime?.meanDays ?? summary.leadTimeMeanDays;
   const stdDays = latestLeadTime?.stdDays ?? summary.leadTimeStdDays;
-  const baseDate = latestOrderAt ?? workspaceLatestObservedAt;
+  const baseDate = latestOrderAt;
 
   if (meanDays == null || stdDays == null || !baseDate) {
     return {
@@ -682,7 +677,6 @@ function buildTask({
     language,
     latestOrderAt: observationSignals.latestOrderAt,
     summary,
-    workspaceLatestObservedAt,
   });
   const state = deriveTaskState({
     latestOrderAt: observationSignals.latestOrderAt,

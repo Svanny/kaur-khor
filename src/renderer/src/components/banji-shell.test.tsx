@@ -26,6 +26,8 @@ describe('BanjiShell', () => {
     inventoryHook.mockReturnValue({
       error: null,
       isLoading: false,
+      isPreparingWorkspace: false,
+      isSaving: false,
       reload: vi.fn(),
     });
     preferencesHook.mockReturnValue({
@@ -223,11 +225,38 @@ describe('BanjiShell', () => {
     expect(screen.getByText('ស្វែងរក')).toBeInTheDocument();
   });
 
+  test('shows the global workspace-preparing screen during a post-save preparation run', () => {
+    inventoryHook.mockReturnValue({
+      error: null,
+      isLoading: false,
+      isPreparingWorkspace: true,
+      isSaving: false,
+      latestRun: null,
+      reload: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Catalog screen</div>} path="/catalog" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
+    expect(screen.queryByText('Catalog screen')).not.toBeInTheDocument();
+  });
+
   test('offers a retry action when workspace loading fails', () => {
     const reload = vi.fn();
     inventoryHook.mockReturnValue({
       error: 'Workspace failed to load',
       isLoading: false,
+      isPreparingWorkspace: false,
+      isSaving: false,
+      latestRun: null,
       reload,
     });
 
@@ -249,6 +278,9 @@ describe('BanjiShell', () => {
     inventoryHook.mockReturnValue({
       error: null,
       isLoading: true,
+      isPreparingWorkspace: false,
+      isSaving: false,
+      latestRun: null,
       reload: vi.fn(),
     });
 
@@ -272,7 +304,9 @@ describe('BanjiShell', () => {
     inventoryHook.mockReturnValue({
       error: null,
       isLoading: true,
+      isPreparingWorkspace: false,
       latestRun: null,
+      isSaving: false,
       reload: vi.fn(),
     });
 
@@ -294,6 +328,8 @@ describe('BanjiShell', () => {
     inventoryHook.mockReturnValue({
       error: null,
       isLoading: true,
+      isPreparingWorkspace: false,
+      isSaving: false,
       latestRun: { status: 'running' },
       reload: vi.fn(),
     });
@@ -310,6 +346,30 @@ describe('BanjiShell', () => {
 
     expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
     expect(screen.queryByText('Catalog screen')).not.toBeInTheDocument();
+  });
+
+  test('shows the full-screen computing state while a record update is saving', () => {
+    inventoryHook.mockReturnValue({
+      error: null,
+      isLoading: false,
+      isPreparingWorkspace: false,
+      isSaving: true,
+      latestRun: null,
+      reload: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/record-update']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Record update screen</div>} path="/record-update" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
+    expect(screen.queryByText('Record update screen')).not.toBeInTheDocument();
   });
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { AppLanguage, StockReportSubmission } from '@shared/inventory';
+import type { AppLanguage } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
   compatibilityRangeForClass,
@@ -36,6 +36,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Textarea } from '@/components/ui/textarea';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import {
+  leadTimeVariabilityPlaceholderValue,
+  shouldShowLeadTimeVariabilityPlaceholder,
+} from '@/lib/lead-time-variability-select';
 import { translateUiLiteral } from '@/lib/translations';
 import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { cn } from '@/lib/utils';
@@ -62,6 +66,7 @@ export interface SkuMutationActionsProps {
   onComplete: () => Promise<void>;
   onActionStart?: (mode: SkuActionMode) => void;
   showEditButton?: boolean;
+  showActionButtons?: boolean;
   layout?: 'row' | 'menu';
   catalogEntityName?: string;
 }
@@ -74,6 +79,7 @@ export interface ServiceMutationActionsProps {
   onActionStart?: (mode: ServiceActionMode) => void;
   showEditButton?: boolean;
   showPrimarySkuButton?: boolean;
+  showActionButtons?: boolean;
   layout?: 'row' | 'menu';
   catalogEntityName?: string;
 }
@@ -191,6 +197,19 @@ function formatCatalogSheetTitle(
   return actionLabel;
 }
 
+function finalizeSuccessfulSheetMutation({
+  close,
+  prepareWorkspace,
+}: {
+  close: () => void;
+  prepareWorkspace: () => Promise<unknown>;
+}) {
+  close();
+  void prepareWorkspace().catch((error) => {
+    console.error('Failed to refresh parent view after catalog sheet save.', error);
+  });
+}
+
 function formatMoneyDraft(value: number, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
   return formatEditableMoneyFromUsd(value, currency, usdToKhrExchangeRate);
 }
@@ -225,10 +244,11 @@ export function SkuMutationActions({
   onComplete,
   onActionStart,
   showEditButton = true,
+  showActionButtons = true,
   layout = 'row',
   catalogEntityName,
 }: SkuMutationActionsProps) {
-  const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
+  const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actionContext.latestObservationAt));
@@ -342,21 +362,7 @@ export function SkuMutationActions({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
     });
-    let legacyPayload: StockReportSubmission | null = null;
-
     if (modeValue === 'stock') {
-      legacyPayload = {
-        reportedAt: observedAtIso,
-        skuObservations: [
-          {
-            skuId,
-            unitsInStock: Number(unitsInStock),
-            costPerUnit: parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate),
-            productPrice: actionContext.soldAsProduct && productPrice !== '' ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) : null,
-          },
-        ],
-        notes: notes.trim() || null,
-      };
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
@@ -388,19 +394,6 @@ export function SkuMutationActions({
     }
 
     if (modeValue === 'receipt') {
-      legacyPayload = {
-        reportedAt: observedAtIso,
-        skuObservations: [
-          {
-            skuId,
-            unitsInStock: Number(unitsInStock),
-            costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actionContext.costPerUnit,
-            productPrice: actionContext.productPrice,
-            restockIncluded: true,
-          },
-        ],
-        notes: notes.trim() || null,
-      };
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
@@ -420,29 +413,19 @@ export function SkuMutationActions({
     }
 
     if (modeValue === 'price') {
-      legacyPayload = {
-        reportedAt: observedAtIso,
-        skuObservations: [
-          {
-            skuId,
-            unitsInStock: actionContext.currentStock,
-            costPerUnit: actionContext.costPerUnit,
-            productPrice: parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate),
-          },
-        ],
-        notes: notes.trim() || null,
-      };
       senaPayload.retailPrices = [{ skuId, price: parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) }];
     }
 
     try {
-      if (legacyPayload) {
-        await submitLegacyReport(legacyPayload);
-      }
       await ingestSenaObservation(senaPayload);
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      await onComplete();
-      setMode(null);
+      finalizeSuccessfulSheetMutation({
+        close: () => setMode(null),
+        prepareWorkspace: () =>
+          runWorkspacePreparation(async () => {
+            await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+            await onComplete();
+          }),
+      });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('catalogSenaSkuMutationFailed'));
     }
@@ -473,34 +456,36 @@ export function SkuMutationActions({
 
   return (
     <>
-      <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
-        <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'default'} onClick={() => resetForm('stock')}>
-          <ActionAddBadgeIcon className="size-4" />
-          {t('catalogSenaSkuRecordStock')}
-        </ActionButton>
-        <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('order')}>
-          <ActionClipboardAddIcon className="size-4" />
-          {t('catalogSenaSkuLogOrder')}
-        </ActionButton>
-        <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('receipt')}>
-          <ActionReceiveInventoryIcon className="size-4" />
-          {t('catalogSenaSkuLogReceipt')}
-        </ActionButton>
-        {actionContext.soldAsProduct ? (
-          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('price')}>
-            <EntityTagsIcon className="size-4" />
-            {t('catalogSenaSkuUpdatePrice')}
+      {showActionButtons ? (
+        <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
+          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'default'} onClick={() => resetForm('stock')}>
+            <ActionAddBadgeIcon className="size-4" />
+            {t('catalogSenaSkuRecordStock')}
           </ActionButton>
-        ) : null}
-        {showEditButton ? (
-          <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-            <Link to={`/catalog/skus/${skuId}/edit`}>
-              <ActionEditIcon className="size-4" />
-              {t('catalogSkuEditAction')}
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('order')}>
+            <ActionClipboardAddIcon className="size-4" />
+            {t('catalogSenaSkuLogOrder')}
+          </ActionButton>
+          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('receipt')}>
+            <ActionReceiveInventoryIcon className="size-4" />
+            {t('catalogSenaSkuLogReceipt')}
+          </ActionButton>
+          {actionContext.soldAsProduct ? (
+            <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('price')}>
+              <EntityTagsIcon className="size-4" />
+              {t('catalogSenaSkuUpdatePrice')}
+            </ActionButton>
+          ) : null}
+          {showEditButton ? (
+            <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
+              <Link to={`/catalog/skus/${skuId}/edit`}>
+                <ActionEditIcon className="size-4" />
+                {t('catalogSkuEditAction')}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <Sheet open={mode != null} onOpenChange={handleSheetOpenChange}>
         <SheetContent className="w-full max-w-2xl gap-0 overflow-y-auto border-l border-border/70 bg-white px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-2xl">
@@ -613,16 +598,22 @@ export function SkuMutationActions({
                   label={t('catalogSenaSkuLeadTimeVariability')}
                 >
                   <Select
-                    value={leadTimeVariability || '__none__'}
+                    value={leadTimeVariability || leadTimeVariabilityPlaceholderValue}
                     onValueChange={(value) =>
-                      setLeadTimeVariability(value === '__none__' ? '' : (value as SenaLeadTimeVariabilityClass))
+                      setLeadTimeVariability(
+                        value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass),
+                      )
                     }
                   >
                     <SelectTrigger aria-label={t('catalogSenaSkuLeadTimeVariability')} className={actionSheetSelectTriggerClassName}>
                       <SelectValue placeholder={t('catalogSkuLeadTimeVariabilityPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent align="start">
-                      <SelectItem value="__none__">{t('catalogSkuLeadTimeVariabilityPlaceholder')}</SelectItem>
+                      {shouldShowLeadTimeVariabilityPlaceholder(leadTimeVariability) ? (
+                        <SelectItem value={leadTimeVariabilityPlaceholderValue}>
+                          {t('catalogSkuLeadTimeVariabilityPlaceholder')}
+                        </SelectItem>
+                      ) : null}
                       {leadTimeVariabilityOptions().map((option) => (
                         <SelectItem key={option} value={option}>
                           {translateLeadTimeVariabilityLabel(language, option)}
@@ -699,10 +690,11 @@ export function ServiceMutationActions({
   onActionStart,
   showEditButton = true,
   showPrimarySkuButton = true,
+  showActionButtons = true,
   layout = 'row',
   catalogEntityName,
 }: ServiceMutationActionsProps) {
-  const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
+  const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(() => initialObservedAt(actions.latestObservedAt));
@@ -817,26 +809,11 @@ export function ServiceMutationActions({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
     });
-    let legacyPayload: StockReportSubmission | null = null;
-
     if (modeValue === 'stock') {
       if (!baselineSnapshot || !actions.bottleneckSku) {
         setError(actions.noBottleneckHint);
         return;
       }
-      legacyPayload = {
-        reportedAt: observedAtIso,
-        skuObservations: [
-          {
-            skuId: actions.bottleneckSku.skuId,
-            unitsInStock: Number(unitsInStock),
-            costPerUnit: parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate),
-            productPrice:
-              actions.bottleneckSku.soldAsProduct && productPrice !== '' ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) : null,
-          },
-        ],
-        notes: notes.trim() || null,
-      };
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
@@ -853,19 +830,6 @@ export function ServiceMutationActions({
         setError(actions.noBottleneckHint);
         return;
       }
-      legacyPayload = {
-        reportedAt: observedAtIso,
-        skuObservations: [
-          {
-            skuId: actions.bottleneckSku.skuId,
-            unitsInStock: Number(unitsInStock),
-            costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actions.bottleneckSku.costPerUnit,
-            productPrice: actions.bottleneckSku.productPrice,
-            restockIncluded: true,
-          },
-        ],
-        notes: notes.trim() || null,
-      };
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
@@ -885,29 +849,19 @@ export function ServiceMutationActions({
     }
 
     if (modeValue === 'price') {
-      legacyPayload = {
-        reportedAt: observedAtIso,
-        skuObservations: [],
-        servicePriceAdjustments: [
-          {
-            serviceId: actions.servicePrice.serviceId,
-            price: parseMoneyDraft(servicePrice, currency, usdToKhrExchangeRate),
-            previousPrice: actions.servicePrice.currentPrice,
-          },
-        ],
-        notes: notes.trim() || null,
-      };
       senaPayload.servicePrices = [{ serviceId: actions.servicePrice.serviceId, price: parseMoneyDraft(servicePrice, currency, usdToKhrExchangeRate) }];
     }
 
     try {
-      if (legacyPayload) {
-        await submitLegacyReport(legacyPayload);
-      }
       await ingestSenaObservation(senaPayload);
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      await onComplete();
-      setMode(null);
+      finalizeSuccessfulSheetMutation({
+        close: () => setMode(null),
+        prepareWorkspace: () =>
+          runWorkspacePreparation(async () => {
+            await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+            await onComplete();
+          }),
+      });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('catalogSenaSkuMutationFailed'));
     }
@@ -939,50 +893,52 @@ export function ServiceMutationActions({
 
   return (
     <>
-      <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
-        {showPrimarySkuButton ? (
-          <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'default'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-            <Link to={actions.primarySkuHref}>
-              <ActionOpenExternalIcon className="size-4" />
-              {translateUiLiteral(language, 'Open bottleneck SKU')}
-            </Link>
-          </Button>
-        ) : null}
-        <ActionButton
-          className={layout === 'menu' ? 'w-full justify-start' : undefined}
-          disabled={bottleneckUnavailable}
-          disabledReason={bottleneckUnavailable ? actions.noBottleneckHint : undefined}
-          type="button"
-          variant={layout === 'menu' ? 'ghost' : 'outline'}
-          onClick={() => resetForm('receipt')}
-        >
-          <ActionClipboardAddIcon className="size-4" />
-          {translateUiLiteral(language, 'Log receipt')}
-        </ActionButton>
-        <ActionButton
-          className={layout === 'menu' ? 'w-full justify-start' : undefined}
-          disabled={bottleneckUnavailable}
-          disabledReason={bottleneckUnavailable ? actions.noBottleneckHint : undefined}
-          type="button"
-          variant={layout === 'menu' ? 'ghost' : 'outline'}
-          onClick={() => resetForm('stock')}
-        >
-          <ActionReceiveInventoryIcon className="size-4" />
-          {translateUiLiteral(language, 'Record stock')}
-        </ActionButton>
-        <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('price')}>
-          <EntityTagsIcon className="size-4" />
-          {translateUiLiteral(language, 'Update price')}
-        </ActionButton>
-        {showEditButton ? (
-          <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-            <Link to={actions.editServiceHref}>
-              <ActionEditIcon className="size-4" />
-              {translateUiLiteral(language, 'Edit service')}
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+      {showActionButtons ? (
+        <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
+          {showPrimarySkuButton ? (
+            <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'default'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
+              <Link to={actions.primarySkuHref}>
+                <ActionOpenExternalIcon className="size-4" />
+                {translateUiLiteral(language, 'Open bottleneck SKU')}
+              </Link>
+            </Button>
+          ) : null}
+          <ActionButton
+            className={layout === 'menu' ? 'w-full justify-start' : undefined}
+            disabled={bottleneckUnavailable}
+            disabledReason={bottleneckUnavailable ? actions.noBottleneckHint : undefined}
+            type="button"
+            variant={layout === 'menu' ? 'ghost' : 'outline'}
+            onClick={() => resetForm('receipt')}
+          >
+            <ActionClipboardAddIcon className="size-4" />
+            {translateUiLiteral(language, 'Log receipt')}
+          </ActionButton>
+          <ActionButton
+            className={layout === 'menu' ? 'w-full justify-start' : undefined}
+            disabled={bottleneckUnavailable}
+            disabledReason={bottleneckUnavailable ? actions.noBottleneckHint : undefined}
+            type="button"
+            variant={layout === 'menu' ? 'ghost' : 'outline'}
+            onClick={() => resetForm('stock')}
+          >
+            <ActionReceiveInventoryIcon className="size-4" />
+            {translateUiLiteral(language, 'Record stock')}
+          </ActionButton>
+          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('price')}>
+            <EntityTagsIcon className="size-4" />
+            {translateUiLiteral(language, 'Update price')}
+          </ActionButton>
+          {showEditButton ? (
+            <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
+              <Link to={actions.editServiceHref}>
+                <ActionEditIcon className="size-4" />
+                {translateUiLiteral(language, 'Edit service')}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <Sheet open={mode != null} onOpenChange={handleSheetOpenChange}>
         <SheetContent className="w-full max-w-2xl gap-0 overflow-y-auto border-l border-border/70 bg-white px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-2xl">

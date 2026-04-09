@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
 import { createContext, useContext } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SenaSkuDetail } from '@shared/sena';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
@@ -480,6 +480,20 @@ function renderRoute() {
   );
 }
 
+function RouteLocationProbe() {
+  const location = useLocation();
+  return <div data-testid="route-location">{`${location.pathname}${location.search}`}</div>;
+}
+
+function renderRouteWithLocation() {
+  return render(
+    <MemoryRouter>
+      <DashboardRoute />
+      <RouteLocationProbe />
+    </MemoryRouter>,
+  );
+}
+
 function renderRouteWithOptionalHelp(visible: boolean) {
   return render(
     <DescriptionTextVisibilityProvider visible={visible}>
@@ -707,10 +721,16 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('button', { name: 'Receive' })).not.toBeInTheDocument();
   });
 
-  test.skip('submits a received-goods inventory update from the drawer', async () => {
+  test('submits a received-goods inventory update from the drawer and clears route-backed open state immediately', async () => {
     const submitLegacyReport = vi.fn(async (payload) => payload);
     const ingestSenaObservation = vi.fn(async (payload) => payload);
-    const triggerSenaRun = vi.fn(async () => ({ runId: 'run-2' }));
+    let resolveTriggerSenaRun: ((value: { runId: 'run-2' }) => void) | null = null;
+    const triggerSenaRun = vi.fn(
+      () =>
+        new Promise<{ runId: 'run-2' }>((resolve) => {
+          resolveTriggerSenaRun = resolve;
+        }),
+    );
 
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -723,7 +743,7 @@ describe('DashboardRoute', () => {
       isSaving: false,
     });
 
-    renderRoute();
+    renderRouteWithLocation();
 
     fireEvent.click(screen.getByRole('button', { name: 'Receive' }));
 
@@ -743,6 +763,11 @@ describe('DashboardRoute', () => {
       expect(submitLegacyReport).toHaveBeenCalledTimes(1);
     });
 
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { level: 2, name: 'What Happened In Real Life' })).not.toBeInTheDocument();
+      expect(screen.getByTestId('route-location')).not.toHaveTextContent('task=');
+    });
+
     expect(submitLegacyReport.mock.calls[0]?.[0]).toMatchObject({
       skuObservations: [
         expect.objectContaining({
@@ -755,6 +780,8 @@ describe('DashboardRoute', () => {
     expect(submitLegacyReport.mock.calls[0]?.[0].reportedAt).toContain('2026-04-03');
     expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
     expect(triggerSenaRun).toHaveBeenCalledTimes(1);
+
+    resolveTriggerSenaRun?.({ runId: 'run-2' });
   });
 
   test('hides the overview right rail when the global toggle is off', async () => {
