@@ -2,12 +2,30 @@
   "name": "banji",
   "version": "0.1.0",
   "private": true,
+  "description": "Electron desktop inventory workspace for Banji, with a bundled Rust desktop-core runtime for local persistence and analysis flows.",
+  "author": {
+    "name": "Svanny",
+    "email": "svanny@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/Svanny/banji",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Svanny/banji.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Svanny/banji/issues"
+  },
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.32.1",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev --watch",
     "build": "electron-vite build",
     "build:icon": "bash ./scripts/build-macos-icon.sh",
+    "package:mac": "bash ./scripts/package-mac.sh",
+    "package:linux": "bash ./scripts/package-linux.sh",
+    "package:win:native": "node ./scripts/package-win-native.mjs",
     "preview": "electron-vite preview",
     "refresh:tree": "bash ./scripts/refresh-tree.sh",
     "refresh:tree:zsh": "zsh ./scripts/refresh-tree.zsh",
@@ -48,6 +66,7 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "30.5.1",
+    "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
     "jsdom": "^27.2.0",
     "shadcn": "^3.5.0",
@@ -56,5 +75,13 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.1.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "msw"
+    ]
   }
 }

@@ -27,6 +27,7 @@ migrate_working_dir/
 # Local build and tooling outputs
 /build/
 /dist/
+/release/
 /coverage/
 /apps/api/target/
 /apps/desktop-core/target/
