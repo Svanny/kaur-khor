@@ -1,86 +1,71 @@
 # Banji
 
-Banji is a macOS-first inventory platform prototype with:
-- A root Electron app built with Vite, React, and TypeScript.
-- A Rust API workstream in `apps/api`.
-- A Rust desktop-core runtime in `apps/desktop-core` for local inventory persistence and desktop IPC-backed workflows.
+Banji is a desktop inventory workspace for small teams that want a local-first tool with built-in analysis.
 
-## What Is Implemented
+It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app for keeping a catalog, recording stock changes and real-world signals, and letting Banji's local analysis layer turn those updates into practical next actions.
 
-- Electron main/preload/renderer runtime at the repo root.
-- Dashboard, catalog, operations, planning, and settings workspaces.
-- SKU and service create/edit flows with shared validation and opaque ID generation.
-- Local stock update history plus guided update sessions.
-- Planning handoff for merchandising/ranking decisions.
-- Desktop-backed local persistence and ranking/state management through Rust desktop endpoints.
+[Download latest release](https://github.com/Svanny/banji/releases/latest) · [Browse releases](https://github.com/Svanny/banji/releases) · [Report an issue](https://github.com/Svanny/banji/issues)
 
-## Tech Stack
+## Screenshots
 
-- Frontend: Electron, Vite, React, TypeScript
-- Backend/runtime: Rust (`axum`, `sqlx`, `tokio`)
-- Data and infra workstreams: PostgreSQL, Redis, RabbitMQ, object storage
+| Overview | Record update |
+| --- | --- |
+| ![Banji overview workspace](docs/readme/overview.png) | ![Banji record update flow](docs/readme/record-update.png) |
 
-## Project Structure
+| Catalog | Analysis |
+| --- | --- |
+| ![Banji catalog workspace](docs/readme/catalog.png) | ![Banji analysis workspace](docs/readme/analysis.png) |
 
-- `src/main/`: Electron lifecycle, desktop-core bootstrap, preferences, and main-process tests
-- `src/icons/`: centralized semantic icon modules shared across renderer and native helpers
-- `src/preload/`: preload bridge exposed to the renderer
-- `src/renderer/src/`: routes, state providers, UI primitives, and renderer tests
-- `src/shared/`: IPC and desktop inventory types shared across main/preload/renderer
-- `resources/mac/`: canonical macOS icon assets
-- `apps/api/`: Rust API service and backend modules
-- `apps/desktop-core/`: local desktop-core runtime used by Electron
-- `tool/security/`: secret scanning and Electron hardening checks
-- `docs/`: architecture, operations, and security contracts
+## What To Expect
 
-## System Architecture
+- A desktop app with downloadable releases for macOS, Windows, and Linux.
+- A bundled local runtime and local workspace storage inside the app.
+- A workflow centered on catalog management, update logging, operational follow-up, and analysis.
+- A product that is opinionated about Banji's current inventory model rather than a blank-slate platform.
+- A repository where the README is for users first and the development notes live lower down.
 
-![Banji System Architecture](SYSTEM_ARCHITECTURE.svg)
+## What's Included
 
-Source:
-- `SYSTEM_ARCHITECTURE.mmd`
+- Catalog management for SKUs and services.
+- A guided record-update flow for stock counts, service updates, ordering signals, delivery timing, and notes.
+- Overview and operations surfaces that turn updates into concrete follow-up tasks.
+- Analysis views that explain what the current inventory picture seems to be and why.
+- Local settings for language and currency, including English and Khmer plus USD and KHR support.
 
-## State and Contracts
+## Current Limits
 
-- Electron owns window lifecycle, preload IPC, and local desktop-core startup/shutdown.
-- The renderer uses the `banjiDesktop` preload bridge for inventory and preferences operations.
-- Canonical workspace routes:
-  - `/`
-  - `/catalog`
-  - `/catalog/skus/:skuId`
-  - `/catalog/services/:serviceId`
-  - `/operations`
-  - `/operations/session`
-  - `/planning`
-  - `/settings`
-- Legacy `/inventory*` deep links are preserved as redirects during the cutover.
-- Rust desktop endpoints remain:
-  - `GET /v1/desktop/inventory`
-  - `POST /v1/desktop/skus`
-  - `PUT /v1/desktop/skus/:sku_id`
-  - `POST /v1/desktop/services`
-  - `PUT /v1/desktop/services/:service_id`
-  - `POST /v1/desktop/stock-reports`
-  - `POST /v1/desktop/stock-updates`
-  - `GET /v1/desktop/ranking`
-  - `PUT /v1/desktop/ranking`
-  - `GET /v1/desktop/sist/sku/:sku_id`
-  - `PUT /v1/desktop/sist/settings`
+- Banji is desktop-first.
+- Banji is local-first.
+- It is not marketed here as a multi-user cloud suite, marketplace tool, or full back-office system.
+- It still reflects one specific operating model, so some teams will find it immediately useful and others will find it too opinionated.
 
-## Localization and Currency
+## SENA
 
-- Locales: English (`en`) and Khmer (`km`)
-- Currency switch: `USD` / `KHR`
-- Desktop translations live in [`src/renderer/src/lib/translations.ts`](/Users/svanny/banji/src/renderer/src/lib/translations.ts)
+Banji uses **SENA** as its local analysis engine. SENA is what turns saved observations into reorder pressure, timing risk, blocker detection, and explanation surfaces inside the app.
 
-## Getting Started
+If you want the reference document, see [References/SENA/SENA.pdf](/Users/svanny/banji/References/SENA/SENA.pdf).
+
+## Downloads
+
+Releases are published through GitHub Releases:
+
+- macOS: DMG builds for Intel and Apple Silicon
+- Windows: x64 installer
+- Linux: x64 AppImage and `.deb`
+
+Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts.
+
+## Development
 
 ### Prerequisites
 
 - Node.js 20+
 - `pnpm`
 - Rust toolchain
-- macOS for the current desktop-first workflow
+
+Install Node.js 20+ from [nodejs.org](https://nodejs.org/).
+
+Install Rust from [rust-lang.org/tools/install](https://rust-lang.org/tools/install/).
 
 ### Install
 
@@ -94,58 +79,17 @@ pnpm install
 pnpm dev
 ```
 
-The Electron main process:
-- boots the renderer
-- starts the Rust desktop-core locally
-- exposes the desktop bridge through preload IPC
-
-### Rebuild macOS icon assets
-
-```bash
-pnpm build:icon
-```
-
-## Testing
-
-Run the Electron app test suite:
+### Tests
 
 ```bash
 pnpm test
-```
-
-Run desktop-core tests:
-
-```bash
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 ```
 
-Run desktop-backed API tests:
+### Packaging
 
 ```bash
-cargo test --manifest-path apps/api/Cargo.toml desktop_inventory
+pnpm package:mac
+pnpm package:linux
+pnpm package:win:native
 ```
-
-## Security Gate
-
-```bash
-bash tool/security/run_security_checks.sh
-```
-
-This gate runs:
-1. `pnpm test`
-2. `cargo test --manifest-path apps/desktop-core/Cargo.toml`
-3. secret pattern checks
-4. Electron platform hardening checks
-
-## Design System
-
-- Active tokens live in [`src/renderer/src/globals.css`](/Users/svanny/banji/src/renderer/src/globals.css)
-- UI primitives live in [`src/renderer/src/components/ui`](/Users/svanny/banji/src/renderer/src/components/ui)
-- Banji-specific compositions live in [`src/renderer/src/components/system`](/Users/svanny/banji/src/renderer/src/components/system)
-- Reference guide: [`DESIGN_SYSTEM.md`](/Users/svanny/banji/DESIGN_SYSTEM.md)
-
-## Current Status
-
-- Electron is the only maintained app surface in this repository.
-- The Rust desktop-core provides local inventory CRUD, stock report history, ranking, and SIST settings persistence for the desktop app.
-- Backend architecture and infrastructure contracts continue to evolve in `apps/api` and the operations docs.
