@@ -1,7 +1,7 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import type { RefObject, UIEvent } from 'react';
 import { getTranslation } from '@/lib/translations';
-import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDate, formatSenaWideIntervalDate } from '@/routes/sku-detail/format';
+import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDate, formatSenaWideIntervalDate, formatSenaWideIntervalDateLocalized } from '@/routes/sku-detail/format';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export const SHARED_PILL_MIN_WIDTH = 48;
@@ -138,15 +138,25 @@ export function responsivePillLabelForMode(
   return '';
 }
 
-export function intervalLabelForWidth(endAt: string | null, intervalIndex: number, slotWidth: number) {
-  const compactDate = formatSenaCompactIntervalDate(endAt);
-  const wideDate = formatSenaWideIntervalDate(endAt);
+export function intervalLabelForWidth(
+  endAt: string | null,
+  intervalIndex: number,
+  slotWidth: number,
+  language: Parameters<typeof formatSenaDate>[1] = 'en',
+) {
+  const compactDate = formatSenaCompactIntervalDate(endAt, language);
+  const wideDate =
+    language === 'en' ? formatSenaWideIntervalDate(endAt) : formatSenaWideIntervalDateLocalized(endAt, language);
   if (compactDate !== '—') {
-    const compactDay = formatSenaCompactIntervalDay(endAt);
+    const compactDay = formatSenaCompactIntervalDay(endAt, language);
     return responsivePillLabel(fullLabelOrWide(wideDate, compactDate, slotWidth), compactDate, slotWidth) ||
       responsivePillLabel(compactDate, compactDay !== '—' ? compactDay : compactDate, slotWidth);
   }
-  return responsivePillLabel(`Interval ${intervalIndex + 1}`, String(intervalIndex + 1), slotWidth);
+  return responsivePillLabel(
+    getTranslation(language, 'intervalLabel', { index: intervalIndex + 1 }),
+    String(intervalIndex + 1),
+    slotWidth,
+  );
 }
 
 function fullLabelOrWide(wideDate: string, compactDate: string, slotWidth: number) {
@@ -162,7 +172,7 @@ export function intervalTooltipLabel(
   if (fullDate !== '—') {
     return fullDate;
   }
-  return `Interval ${intervalIndex + 1}`;
+  return getTranslation(language, 'intervalLabel', { index: intervalIndex + 1 });
 }
 
 export function deriveVisibleWindow(itemCount: number, scrollLeft: number, viewportWidth: number, slotWidth: number, gapWidth: number) {
@@ -525,12 +535,16 @@ export function IntervalStrip({
   slotWidth: number;
   onSelect: (index: number) => void;
 }) {
-  const t = (key: Parameters<typeof getTranslation>[1]) => getTranslation(language, key);
+  const t = (key: Parameters<typeof getTranslation>[1], variables?: Parameters<typeof getTranslation>[2]) =>
+    getTranslation(language, key, variables);
   const pillLabels = intervals.map((interval) => {
-    const compactDate = formatSenaCompactIntervalDate(interval.endAt);
-    const compactDay = formatSenaCompactIntervalDay(interval.endAt);
+    const compactDate = formatSenaCompactIntervalDate(interval.endAt, language);
+    const compactDay = formatSenaCompactIntervalDay(interval.endAt, language);
     return {
-      fullLabel: compactDate !== '—' ? compactDate : `Interval ${interval.intervalIndex + 1}`,
+      fullLabel:
+        compactDate !== '—'
+          ? compactDate
+          : t('intervalLabel', { index: interval.intervalIndex + 1 }),
       compactLabel: compactDate !== '—' ? compactDay : String(interval.intervalIndex + 1),
     };
   });
@@ -545,7 +559,7 @@ export function IntervalStrip({
             type="button"
             onClick={() => scrollByViewport(-1)}
           >
-            <ChevronLeft className="size-4" />
+            <NavigationPreviousIcon className="size-4" />
           </button>
         ) : null}
         <div ref={scrollRef} className="hidden-scrollbar max-w-full overflow-x-auto overscroll-contain px-1 py-1" onScroll={onScroll}>
@@ -560,8 +574,8 @@ export function IntervalStrip({
           >
             {intervals.map((interval) => {
               const tooltipLabel = intervalTooltipLabel(interval.endAt, interval.intervalIndex, language);
-              const compactDate = formatSenaCompactIntervalDate(interval.endAt);
-              const compactDay = formatSenaCompactIntervalDay(interval.endAt);
+              const compactDate = formatSenaCompactIntervalDate(interval.endAt, language);
+              const compactDay = formatSenaCompactIntervalDay(interval.endAt, language);
               return (
                 <div key={interval.intervalIndex} className="flex min-h-10 items-center justify-center px-1">
                   <ResponsivePillButton
@@ -569,7 +583,11 @@ export function IntervalStrip({
                     ariaLabel={tooltipLabel}
                     className={`w-full rounded-full border px-2 py-2 text-center text-sm leading-none ${activeIndex === interval.intervalIndex ? 'border-foreground bg-foreground text-background' : 'border-border/70 bg-background text-foreground'}`}
                     compactLabel={compactDate !== '—' ? compactDay : String(interval.intervalIndex + 1)}
-                    fullLabel={compactDate !== '—' ? compactDate : `Interval ${interval.intervalIndex + 1}`}
+                    fullLabel={
+                      compactDate !== '—'
+                        ? compactDate
+                        : t('intervalLabel', { index: interval.intervalIndex + 1 })
+                    }
                     labelMode={labelMode}
                     tooltipLabel={tooltipLabel}
                     onClick={() => onSelect(interval.intervalIndex)}
@@ -586,7 +604,7 @@ export function IntervalStrip({
             type="button"
             onClick={() => scrollByViewport(1)}
           >
-            <ChevronRight className="size-4" />
+            <NavigationNextIcon className="size-4" />
           </button>
         ) : null}
       </div>

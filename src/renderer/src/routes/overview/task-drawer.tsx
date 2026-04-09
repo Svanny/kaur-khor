@@ -3,15 +3,15 @@ import type { StockReportSubmission } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
   deriveLeadTimeVariabilityClass,
-  leadTimeVariabilityLabel,
   leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
 import {
-  Check,
-  PackageCheck,
-  Save,
-  X,
-} from 'lucide-react';
+  ActionCloseIcon,
+  ActionConfirmIcon,
+  ActionReceiveInventoryIcon,
+  ActionSaveIcon,
+} from '@icons/actions';
+import { overviewDrawerBandIcons } from '@icons/domain';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -36,8 +36,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
-import { overviewDrawerBandIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
+import { translateUiLiteral } from '@/lib/translations';
 import { statusPillClassName } from '@/lib/state-tones';
 import { cn } from '@/lib/utils';
 import {
@@ -49,7 +50,10 @@ import {
 import { createEmptyObservationInput, hasStructuredObservationSignal } from '@/routes/observation-payload';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+import type { TranslationKey, TranslationVariables } from '@/lib/translations';
 import type { OverviewDrawerBandId, OverviewSkuTask, OverviewTaskDrawerMode } from './view-model';
+
+type DrawerTranslate = (key: TranslationKey, variables?: TranslationVariables) => string;
 
 function initialObservedAt(value: string | null) {
   if (value) {
@@ -137,16 +141,32 @@ function useControllableDrawerMode(
   return [mode, setMode] as const;
 }
 
-const DRAWER_MODE_OPTIONS: Array<{
-  value: OverviewTaskDrawerMode;
-  title: string;
-  description: string;
-}> = [
-  { value: 'not_ordered', title: 'Not ordered yet', description: 'Leave this task open' },
-  { value: 'ordered_waiting', title: 'Ordered, waiting', description: 'Record the open order' },
-  { value: 'eta_changed', title: 'ETA changed', description: 'Update the arrival date' },
-  { value: 'goods_received', title: 'Goods received', description: 'Log the receipt' },
-];
+function drawerModeOptions(
+  t: DrawerTranslate,
+) {
+  return [
+    {
+      value: 'not_ordered' as const,
+      title: t('overviewDrawerModeNotOrderedTitle'),
+      description: t('overviewDrawerModeNotOrderedDescription'),
+    },
+    {
+      value: 'ordered_waiting' as const,
+      title: t('overviewDrawerModeOrderedWaitingTitle'),
+      description: t('overviewDrawerModeOrderedWaitingDescription'),
+    },
+    {
+      value: 'eta_changed' as const,
+      title: t('overviewDrawerModeEtaChangedTitle'),
+      description: t('overviewDrawerModeEtaChangedDescription'),
+    },
+    {
+      value: 'goods_received' as const,
+      title: t('overviewDrawerModeGoodsReceivedTitle'),
+      description: t('overviewDrawerModeGoodsReceivedDescription'),
+    },
+  ];
+}
 
 const DRAWER_MIN_WIDTH = 640;
 const DRAWER_MAX_WIDTH = 1040;
@@ -173,20 +193,26 @@ function drawerBandClassName() {
   return 'border-t border-border/50 py-5';
 }
 
-function drawerModeLabel(mode: OverviewTaskDrawerMode) {
-  return DRAWER_MODE_OPTIONS.find((option) => option.value === mode)?.title ?? 'Update';
+function drawerModeLabel(
+  t: DrawerTranslate,
+  mode: OverviewTaskDrawerMode,
+) {
+  return drawerModeOptions(t).find((option) => option.value === mode)?.title ?? t('overviewTaskActionReview');
 }
 
-function drawerModeSummary(mode: OverviewTaskDrawerMode) {
+function drawerModeSummary(
+  t: DrawerTranslate,
+  mode: OverviewTaskDrawerMode,
+) {
   switch (mode) {
     case 'goods_received':
-      return 'Banji will log the receipt and update stock.';
+      return t('overviewDrawerModeSummaryGoodsReceived');
     case 'ordered_waiting':
-      return 'Banji will save the order signal and the current arrival window.';
+      return t('overviewDrawerModeSummaryOrderedWaiting');
     case 'eta_changed':
-      return 'Banji will refresh the arrival window for this task.';
+      return t('overviewDrawerModeSummaryEtaChanged');
     case 'not_ordered':
-      return 'Banji will keep this task open until the order state changes.';
+      return t('overviewDrawerModeSummaryNotOrdered');
   }
 }
 
@@ -201,7 +227,7 @@ function DrawerBand({
   className?: string;
   title: string;
 }) {
-  const Icon = overviewDrawerBandIconMap[bandId];
+  const Icon = overviewDrawerBandIcons[bandId];
 
   return (
     <section className={cn(drawerBandClassName(), className)} data-band-id={bandId}>
@@ -271,7 +297,7 @@ function DrawerModeTile({
             : 'border-muted-foreground/45 bg-card text-transparent',
         )}
       >
-        <Check className="size-3.5" />
+        <ActionConfirmIcon className="size-3.5" />
       </div>
       <div className="min-w-0">
         <span className="block text-[0.92rem] font-semibold leading-5 tracking-[-0.02em]">{title}</span>
@@ -281,7 +307,13 @@ function DrawerModeTile({
   );
 }
 
-function RecommendedOrderPanel({ task }: { task: OverviewSkuTask }) {
+function RecommendedOrderPanel({
+  task,
+  t,
+}: {
+  task: OverviewSkuTask;
+  t: DrawerTranslate;
+}) {
   const recommendation = task.reorderRecommendation;
 
   return (
@@ -289,7 +321,7 @@ function RecommendedOrderPanel({ task }: { task: OverviewSkuTask }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Recommended order
+            {t('overviewDrawerRecommendedOrderTitle')}
           </p>
           <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
             {recommendation.recommendationIssued || recommendation.optionalOrderLabel
@@ -299,14 +331,14 @@ function RecommendedOrderPanel({ task }: { task: OverviewSkuTask }) {
         </div>
         {recommendation.recommendationIssued ? (
           <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            {recommendation.needProbabilityValueLabel} likely
+            {t('overviewDrawerRecommendedOrderLikely', { value: recommendation.needProbabilityValueLabel })}
           </span>
         ) : null}
       </div>
       <div className="mt-3 grid gap-1 text-sm leading-6 text-muted-foreground">
         <p>{recommendation.likelyRangeLabel}</p>
         {recommendation.recommendationIssued ? <p>{recommendation.needProbabilityLabel}</p> : null}
-        <p>Based on on hand + in transit + lead time.</p>
+        <p>{t('overviewDrawerRecommendedOrderBasis')}</p>
       </div>
     </div>
   );
@@ -326,7 +358,7 @@ export function OverviewTaskDrawer({
   onOpenChange: (open: boolean) => void;
 }) {
   const { ingestSenaObservation, isSaving, submitLegacyReport, triggerSenaRun } = useInventory();
-  const { currency, t, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableDrawerMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(initialObservedAt(null));
   const [notes, setNotes] = useState('');
@@ -527,7 +559,7 @@ export function OverviewTaskDrawer({
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
       onOpenChange(false);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Banji could not save this update. Try again.');
+      setError(nextError instanceof Error ? nextError.message : t('overviewDrawerSaveFailed'));
     }
   }
 
@@ -535,11 +567,11 @@ export function OverviewTaskDrawer({
   const receiptPreviewNextStock = Math.max(0, Math.round(task.currentStock) + receiptPreviewQuantity);
   const submitLabel =
     mode === 'goods_received'
-      ? 'Confirm inventory update'
+      ? t('overviewDrawerSubmitGoodsReceived')
       : mode === 'not_ordered'
-        ? 'Save note'
-        : 'Save and refresh';
-  const RealLifeIcon = overviewDrawerBandIconMap.real_life;
+        ? t('overviewDrawerSubmitNotOrdered')
+        : t('overviewDrawerSubmitDefault');
+  const RealLifeIcon = overviewDrawerBandIcons.real_life;
   const submitDisabled =
     isSaving ||
     (mode === 'ordered_waiting' && !orderedQuantity) ||
@@ -595,7 +627,7 @@ export function OverviewTaskDrawer({
       >
         {discardConfirmDialog}
         <div
-          aria-label="Resize drawer"
+          aria-label={translateUiLiteral(language, 'Resize drawer')}
           className="absolute inset-y-0 left-0 z-30 w-5 cursor-ew-resize touch-none"
           role="separator"
           tabIndex={-1}
@@ -632,8 +664,8 @@ export function OverviewTaskDrawer({
             </div>
 
             <SheetClose className="mt-1 inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/65 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-              <X className="size-5" />
-              <span className="sr-only">Close</span>
+              <ActionCloseIcon className="size-5" />
+              <span className="sr-only">{translateUiLiteral(language, 'Close')}</span>
             </SheetClose>
           </div>
         </SheetHeader>
@@ -644,13 +676,13 @@ export function OverviewTaskDrawer({
               <div className="flex items-center gap-2">
                 <RealLifeIcon className="size-4 text-primary" />
                 <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  What Happened In Real Life
+                  {t('overviewDrawerRealLifeTitle')}
                 </h2>
               </div>
 
               <div className="mt-5">
                 <MeasuredTileGrid
-                  items={DRAWER_MODE_OPTIONS}
+                  items={drawerModeOptions(t)}
                   maxColumns={2}
                   minColumns={2}
                   renderGrid={({ columnCount, gridRef }) => (
@@ -669,7 +701,7 @@ export function OverviewTaskDrawer({
                           }
                         }}
                       >
-                        {DRAWER_MODE_OPTIONS.map((option) => (
+                        {drawerModeOptions(t).map((option) => (
                           <ToggleGroupItem
                             key={option.value}
                             className="h-auto rounded-none border-none bg-transparent p-0 text-left shadow-none hover:bg-transparent data-[state=on]:bg-transparent data-[state=on]:shadow-none"
@@ -699,16 +731,20 @@ export function OverviewTaskDrawer({
                 />
               </div>
 
-              <RecommendedOrderPanel task={task} />
+              <RecommendedOrderPanel task={task} t={t} />
 
-              <DrawerBand bandId="timing" className="mt-6" title={mode === 'goods_received' ? 'Receipt timing' : 'Timing'}>
+              <DrawerBand
+                bandId="timing"
+                className="mt-6"
+                title={mode === 'goods_received' ? t('overviewDrawerReceiptTimingTitle') : t('overviewDrawerTimingTitle')}
+              >
                 <div className={cn(mode === 'goods_received' || mode === 'not_ordered' ? 'grid gap-5' : 'grid gap-5 md:grid-cols-2')}>
                   <ActionSheetField
-                    description={mode === 'goods_received' ? 'Choose when the receipt was confirmed.' : 'Choose when you confirmed this update.'}
-                    label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}
+                    description={mode === 'goods_received' ? t('overviewDrawerReceiptConfirmedDescription') : t('overviewDrawerObservedAtDescription')}
+                    label={mode === 'goods_received' ? t('overviewDrawerReceivedDateTimeLabel') : t('overviewDrawerObservedAtLabel')}
                   >
                     <Input
-                      aria-label={mode === 'goods_received' ? 'Received date/time' : 'Observed at'}
+                      aria-label={mode === 'goods_received' ? t('overviewDrawerReceivedDateTimeLabel') : t('overviewDrawerObservedAtLabel')}
                       className={actionSheetInputClassName}
                       required
                       type="datetime-local"
@@ -718,9 +754,12 @@ export function OverviewTaskDrawer({
                   </ActionSheetField>
 
                   {(mode === 'ordered_waiting' || mode === 'eta_changed') ? (
-                    <ActionSheetField description="Use the supplier's current best estimate." label="Expected arrival date">
+                    <ActionSheetField
+                      description={t('overviewDrawerExpectedArrivalDateDescription')}
+                      label={t('overviewDrawerExpectedArrivalDateLabel')}
+                    >
                       <Input
-                        aria-label="Expected arrival date"
+                        aria-label={t('overviewDrawerExpectedArrivalDateLabel')}
                         className={actionSheetInputClassName}
                         type="date"
                         value={expectedArrivalDate}
@@ -733,7 +772,7 @@ export function OverviewTaskDrawer({
 
               {(mode === 'ordered_waiting' || mode === 'eta_changed') ? (
                 <>
-                  <DrawerBand bandId="order_shape" title="Order shape">
+                  <DrawerBand bandId="order_shape" title={t('overviewDrawerOrderShapeTitle')}>
                     <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)]">
                       <ActionSheetField
                         description={
@@ -741,12 +780,12 @@ export function OverviewTaskDrawer({
                             ? `${task.reorderRecommendation.recommendedOrderLabel}. Edit if the supplier batch differs.`
                             : task.reorderRecommendation.optionalOrderLabel
                               ? `${task.reorderRecommendation.quietLabel}. Edit if the supplier batch differs.`
-                            : 'Enter the quantity already ordered.'
+                            : t('overviewDrawerOrderedQuantityFallback')
                         }
-                        label="Ordered quantity"
+                        label={t('overviewDrawerOrderedQuantityLabel')}
                       >
                         <Input
-                          aria-label="Ordered quantity"
+                          aria-label={t('overviewDrawerOrderedQuantityLabel')}
                           className={actionSheetInputClassName}
                           min="0"
                           step="1"
@@ -755,9 +794,12 @@ export function OverviewTaskDrawer({
                           onChange={(event) => setOrderedQuantity(event.target.value)}
                         />
                       </ActionSheetField>
-                      <ActionSheetField description="Add the likely plus/minus range around the arrival date." label="Uncertainty ± days">
+                      <ActionSheetField
+                        description={t('overviewDrawerUncertaintyDescription')}
+                        label={t('overviewDrawerUncertaintyLabel')}
+                      >
                         <Input
-                          aria-label="Uncertainty ± days"
+                          aria-label={t('overviewDrawerUncertaintyLabel')}
                           className={actionSheetInputClassName}
                           min="0"
                           step="1"
@@ -767,8 +809,8 @@ export function OverviewTaskDrawer({
                         />
                       </ActionSheetField>
                       <ActionSheetField
-                        description="Choose how steady or variable supplier timing has been."
-                        label="Variability"
+                        description={t('overviewDrawerVariabilityDescription')}
+                        label={t('overviewDrawerVariabilityLabel')}
                       >
                         <Select
                           value={variabilityClass || '__none__'}
@@ -776,14 +818,14 @@ export function OverviewTaskDrawer({
                             setVariabilityClass(value === '__none__' ? '' : (value as SenaLeadTimeVariabilityClass))
                           }
                         >
-                          <SelectTrigger aria-label="Variability" className={actionSheetSelectTriggerClassName}>
-                            <SelectValue placeholder="Choose variability" />
+                          <SelectTrigger aria-label={t('overviewDrawerVariabilityLabel')} className={actionSheetSelectTriggerClassName}>
+                            <SelectValue placeholder={t('overviewDrawerVariabilityPlaceholder')} />
                           </SelectTrigger>
                           <SelectContent align="start">
-                            <SelectItem value="__none__">Choose variability</SelectItem>
+                            <SelectItem value="__none__">{t('overviewDrawerVariabilityPlaceholder')}</SelectItem>
                             {leadTimeVariabilityOptions().map((option) => (
                               <SelectItem key={option} value={option}>
-                                {leadTimeVariabilityLabel(option)}
+                                {translateLeadTimeVariabilityLabel(language, option)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -792,14 +834,14 @@ export function OverviewTaskDrawer({
                     </div>
                   </DrawerBand>
 
-                  <DrawerBand bandId="optional_learning" title="Optional learning">
+                  <DrawerBand bandId="optional_learning" title={t('overviewDrawerOptionalLearningTitle')}>
                     <label className="flex items-start gap-3 rounded-[1.2rem] border border-border/70 bg-background/70 px-4 py-3 text-sm text-foreground">
                       <Checkbox
                         checked={useLeadTimeEstimate}
                         className="mt-0.5"
                         onCheckedChange={(checked) => setUseLeadTimeEstimate(checked === true)}
                       />
-                      <span>Use this update to refine future lead-time estimates.</span>
+                      <span>{t('overviewDrawerOptionalLearningDescription')}</span>
                     </label>
                   </DrawerBand>
                 </>
@@ -807,11 +849,14 @@ export function OverviewTaskDrawer({
 
               {mode === 'goods_received' ? (
                 <>
-                  <DrawerBand bandId="receipt_details" title="Receipt details">
+                  <DrawerBand bandId="receipt_details" title={t('overviewDrawerReceiptDetailsTitle')}>
                     <div className="grid gap-5 md:grid-cols-2">
-                      <ActionSheetField description="Enter the units that actually arrived." label="Received quantity">
+                      <ActionSheetField
+                        description={t('overviewDrawerReceivedQuantityDescription')}
+                        label={t('overviewDrawerReceivedQuantityLabel')}
+                      >
                         <Input
-                          aria-label="Received quantity"
+                          aria-label={t('overviewDrawerReceivedQuantityLabel')}
                           className={actionSheetInputClassName}
                           min="0"
                           step="1"
@@ -820,9 +865,12 @@ export function OverviewTaskDrawer({
                           onChange={(event) => setReceivedQuantity(event.target.value)}
                         />
                       </ActionSheetField>
-                      <ActionSheetField description="Only update this if the landed cost changed." label="Received cost if changed">
+                      <ActionSheetField
+                        description={t('overviewDrawerReceivedCostDescription')}
+                        label={t('overviewDrawerReceivedCostLabel')}
+                      >
                         <Input
-                          aria-label="Received cost if changed"
+                          aria-label={t('overviewDrawerReceivedCostLabel')}
                           className={actionSheetInputClassName}
                           min="0"
                           step={moneyInputStep(currency)}
@@ -834,26 +882,32 @@ export function OverviewTaskDrawer({
                     </div>
                   </DrawerBand>
 
-                  <DrawerBand bandId="preview" title="Preview">
+                  <DrawerBand bandId="preview" title={t('overviewDrawerPreviewTitle')}>
                     <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50/85 px-4 py-4 text-sm leading-6 text-emerald-900">
-                      Banji will add +{receiptPreviewQuantity || 0} units, close this receipt task, and move inventory to {receiptPreviewNextStock} units.
+                      {t('overviewDrawerPreviewDescription', {
+                        quantity: receiptPreviewQuantity || 0,
+                        stock: receiptPreviewNextStock,
+                      })}
                     </div>
                   </DrawerBand>
                 </>
               ) : null}
 
-              <DrawerBand bandId="note" title={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}>
+              <DrawerBand
+                bandId="note"
+                title={mode === 'ordered_waiting' || mode === 'eta_changed' ? t('overviewDrawerSupplierNoteTitle') : t('overviewDrawerNoteTitle')}
+              >
                 <DrawerBandField
                   description={
                     mode === 'ordered_waiting' || mode === 'eta_changed'
-                      ? 'Add context only if it changes the supplier follow-up.'
-                      : 'Add context only if someone will need it later.'
+                      ? t('overviewDrawerSupplierNoteDescription')
+                      : t('overviewDrawerNoteDescription')
                   }
-                  label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}
+                  label={mode === 'ordered_waiting' || mode === 'eta_changed' ? t('overviewDrawerSupplierNoteTitle') : t('overviewDrawerNoteTitle')}
                   showLabel={false}
                 >
                   <Textarea
-                    aria-label={mode === 'ordered_waiting' || mode === 'eta_changed' ? 'Supplier note' : 'Note'}
+                    aria-label={mode === 'ordered_waiting' || mode === 'eta_changed' ? t('overviewDrawerSupplierNoteTitle') : t('overviewDrawerNoteTitle')}
                     className={cn(
                       actionSheetTextareaClassName,
                       mode === 'not_ordered' ? 'min-h-24' : '',
@@ -865,7 +919,7 @@ export function OverviewTaskDrawer({
                 </DrawerBandField>
               </DrawerBand>
 
-              <DrawerBand bandId="next_steps" title="What Banji will do next">
+              <DrawerBand bandId="next_steps" title={t('overviewDrawerNextStepsTitle')}>
                 <div className="rounded-[1.35rem] border border-border/65 bg-secondary/35 px-4 py-4">
                   <div className="grid gap-3">
                     {task.nextSteps.map((line) => (
@@ -890,8 +944,8 @@ export function OverviewTaskDrawer({
         <SheetFooter className="sticky bottom-0 z-20 border-t border-border/50 bg-[#f8f4ef]/96 px-8 py-5 shadow-[0_-10px_24px_rgba(48,31,20,0.06)] backdrop-blur-sm">
           <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 sm:max-w-[18rem]">
-              <p className="text-sm font-medium text-foreground">Mode: {drawerModeLabel(mode)}</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">{drawerModeSummary(mode)}</p>
+              <p className="text-sm font-medium text-foreground">{t('overviewDrawerModeLabel', { value: drawerModeLabel(t, mode) })}</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{drawerModeSummary(t, mode)}</p>
             </div>
             <Button
               className="w-full sm:w-auto sm:min-w-[15rem]"
@@ -900,8 +954,8 @@ export function OverviewTaskDrawer({
               type="button"
               onClick={() => void submit()}
             >
-              {mode === 'goods_received' ? <PackageCheck className="size-4" /> : <Save className="size-4" />}
-              {isSaving ? 'Saving…' : submitLabel}
+              {mode === 'goods_received' ? <ActionReceiveInventoryIcon className="size-4" /> : <ActionSaveIcon className="size-4" />}
+              {isSaving ? translateUiLiteral(language, 'Saving…') : submitLabel}
             </Button>
           </div>
         </SheetFooter>

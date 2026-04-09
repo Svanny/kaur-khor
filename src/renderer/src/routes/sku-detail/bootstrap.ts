@@ -15,6 +15,7 @@ import type { AppLanguage } from '@shared/inventory';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import type { InventoryContextValue } from '@/state/inventory';
 import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
+import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { hashSenaCatalog, projectInventorySnapshotFromSena, seedSenaCatalogFromSnapshot } from './catalog-seed';
 
 export type SkuDetailUiState = 'ready' | 'bootstrapping' | 'running' | 'needs_observations' | 'degraded';
@@ -204,6 +205,7 @@ export async function bootstrapSkuDetail({
   const legacySnapshot = existingCatalog ? null : await inventory.loadInventorySnapshot();
   const reports = existingCatalog ? [] : await inventory.listStockReports();
   const catalog = existingCatalog ?? seedSenaCatalogFromSnapshot(legacySnapshot);
+  const visibleCatalog = activeSenaCatalog(catalog) ?? catalog;
   const catalogHash = hashSenaCatalog(catalog);
   if (!existingCatalog) {
     await inventory.upsertSenaCatalog(catalog);
@@ -224,7 +226,7 @@ export async function bootstrapSkuDetail({
   let latestRunObservationCount: number | null = null;
   let uiState: SkuDetailUiState = observations.length < 2 ? 'needs_observations' : 'bootstrapping';
   let error: string | null = null;
-  let projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
+  let projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations);
 
   try {
     workspaceSummary = await inventory.loadSenaWorkspaceSummary();
@@ -247,21 +249,21 @@ export async function bootstrapSkuDetail({
     ) {
       uiState = 'running';
       await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
+      projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations);
       const reloaded = await reloadSenaSkuData({ inventory, skuId, snapshot: projectedSnapshot });
       workspaceSummary = reloaded.workspaceSummary;
       detailPage = reloaded.detailPage;
       detail = reloaded.detail;
       diagnostics = reloaded.diagnostics;
       observations = reloaded.observations;
-      projectedSnapshot = projectInventorySnapshotFromSena(catalog, observations);
+      projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations);
       linkedServiceDetails = reloaded.linkedServiceDetails;
     } else if (observations.length >= 2) {
       linkedServiceDetails = await loadLinkedServiceDetails(inventory, projectedSnapshot, skuId);
     }
     uiState = observations.length < 2 ? 'needs_observations' : detail ? 'ready' : 'degraded';
   } catch (nextError) {
-    error = nextError instanceof Error ? nextError.message : 'Failed to prepare SENA SKU detail.';
+    error = nextError instanceof Error ? nextError.message : 'Failed to prepare the SKU detail view.';
     uiState = observations.length < 2 ? 'needs_observations' : 'degraded';
   }
 

@@ -7,6 +7,7 @@ const catalog: SenaCatalog = {
   bundles: [],
   services: [
     {
+      archived: false,
       bundle: false,
       description: 'Signature haircut',
       name: 'Haircut',
@@ -17,6 +18,7 @@ const catalog: SenaCatalog = {
   sharingMask: [{ enabled: true, serviceId: 'service-haircut', skuId: 'sku-razor', usageProbability: 1 }],
   skus: [
     {
+      archived: false,
       costPerUnit: 6,
       description: 'Refill cartridge',
       leadTimeMeanDaysHint: 5,
@@ -393,12 +395,12 @@ describe('deriveAnalysisViewModel', () => {
 
     expect(model.workbench.regimePriceLane.intervals).toHaveLength(2);
     expect(model.workbench.regimePriceLane.intervals[0]).toMatchObject({
-      dominantRegime: 'Normal',
+      dominantRegime: 'Normal pattern',
       priceCueCount: 1,
       stockoutCueCount: 0,
     });
     expect(model.workbench.regimePriceLane.intervals[1]).toMatchObject({
-      dominantRegime: 'Promo',
+      dominantRegime: 'Promotion pattern',
       priceCueCount: 0,
       stockoutCueCount: 1,
     });
@@ -439,7 +441,7 @@ describe('deriveAnalysisViewModel', () => {
     });
 
     expect(model.intervals[1]).toMatchObject({
-      dominantRegime: 'Promo',
+      dominantRegime: 'Promotion pattern',
       priceSignalLabel: 'No price cue',
       leadTimeMeanLabel: '6D',
       leadTimeSpreadLabel: '2D',
@@ -563,6 +565,31 @@ describe('deriveAnalysisViewModel', () => {
       likelyRange: '10-18 units',
       policyBasis: 'on hand + in transit',
     });
+  });
+
+  test('keeps risk semantics stable when labels are translated to Khmer', () => {
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics,
+      language: 'km',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    const skuRow = model.entityRows.find((row) => row.id === 'sku-razor');
+    expect(skuRow).toMatchObject({
+      pipelineRiskLevel: 'high',
+      leadTimeRiskLevel: 'low',
+      priceSensitivityLevel: 'medium',
+      pipelineRiskLabel: 'ខ្ពស់',
+      leadTimeRiskLabel: 'ទាប',
+      priceSensitivityLabel: 'មធ្យម',
+    });
+    expect(skuRow?.reorderPolicyLabels?.likelyRange).toBe('10-18 ឯកតា');
   });
 
   test('deduplicates observation entity labels when the same name appears through multiple ranking channels', () => {

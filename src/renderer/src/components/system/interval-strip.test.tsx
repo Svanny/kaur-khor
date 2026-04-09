@@ -18,6 +18,7 @@ import {
   deriveVisibleWindow,
   handleIntervalChartWheel,
   IntervalStrip,
+  intervalLabelForWidth,
   intervalTooltipLabel,
   MIN_SLOT_WIDTH,
   responsivePillLabelForMode,
@@ -163,6 +164,11 @@ describe('interval strip helpers', () => {
     expect(responsivePillLabelForMode('N-12', '12', 'full')).toBe('N-12');
     expect(responsivePillLabelForMode('N-12', '12', 'compact')).toBe('12');
     expect(responsivePillLabelForMode('N-12', '12', 'hidden')).toBe('');
+  });
+
+  test('localizes compact interval labels and fallbacks in Khmer', () => {
+    expect(intervalLabelForWidth('2026-02-14T09:00:00Z', 11, 120, 'km')).not.toBe('F-14');
+    expect(intervalTooltipLabel(null, 11, 'km')).toBe('ចន្លោះ 12');
   });
 
   test('uses the long-date accessible label for interval pills', () => {

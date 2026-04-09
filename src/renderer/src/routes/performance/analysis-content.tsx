@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Layers3, Package, RefreshCcw, Store } from 'lucide-react';
+import { ActionResetIcon } from '@icons/actions';
+import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { WorkspaceActionRow, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { usePreferences } from '@/state/preferences';
 import { AnalysisWorkbench } from './analysis-workbench';
 import {
@@ -60,13 +62,14 @@ export function AnalysisContent({
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
   const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
   const [pendingTimeframe, setPendingTimeframe] = useState<AnalysisTimeframe | null>(null);
+  const visibleCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const model = useMemo(() => {
-    if (!inventory.catalog || !inventory.workspaceSummary) {
+    if (!visibleCatalog || !inventory.workspaceSummary) {
       return null;
     }
 
     return deriveAnalysisViewModel({
-      catalog: inventory.catalog,
+      catalog: visibleCatalog,
       currency,
       diagnostics: inventory.diagnostics,
       language,
@@ -78,7 +81,7 @@ export function AnalysisContent({
     });
   }, [
     currency,
-    inventory.catalog,
+    visibleCatalog,
     inventory.diagnostics,
     inventory.observations,
     inventory.workspaceSummary,
@@ -171,15 +174,15 @@ export function AnalysisContent({
                 }}
               >
                 <ToggleGroupItem value="all">
-                  <Layers3 data-icon="inline-start" />
+                  <EntityLayersIcon data-icon="inline-start" />
                   {t('analysisRouteScopeAll')}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="services">
-                  <Store data-icon="inline-start" />
+                  <EntityServiceIcon data-icon="inline-start" />
                   {t('analysisRouteScopeServices')}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="skus">
-                  <Package data-icon="inline-start" />
+                  <EntitySkuIcon data-icon="inline-start" />
                   {t('analysisRouteScopeSkus')}
                 </ToggleGroupItem>
                 </ToggleGroup>
@@ -191,7 +194,7 @@ export function AnalysisContent({
               onClick={() => void handleRun()}
             >
               <span aria-hidden="true" className={isRunningAnalysis ? 'inline-flex animate-spin' : 'inline-flex'}>
-                <RefreshCcw className="size-4 -scale-x-100" />
+                <ActionResetIcon className="size-4 -scale-x-100" />
               </span>
               {inventory.latestRun ? t('analysisRouteRerunAnalysis') : t('analysisRouteRunAnalysis')}
             </Button>

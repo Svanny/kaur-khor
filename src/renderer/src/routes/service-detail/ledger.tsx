@@ -9,7 +9,8 @@ import {
   type UIEvent,
   type WheelEvent,
 } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
+import type { AppLanguage } from '@shared/inventory';
 import type { SenaServiceDetailPage } from '@shared/sena';
 import type { ChartTimeframe } from '@/components/system/chart-timeframe';
 import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '@/components/system/chart-workspace';
@@ -27,6 +28,8 @@ import {
 } from '@/components/system/interval-strip';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { translateRegimeLabel } from '@/lib/localized-display';
+import { statusPillClassName, type StatusPillTone } from '@/lib/state-tones';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import {
@@ -45,9 +48,10 @@ import {
   deriveSlotCenterX,
   isPinchZoomGesture,
 } from '@/routes/sku-detail/ledger';
-import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDate, formatSenaWideIntervalDate } from '@/routes/sku-detail/format';
+import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDate, formatSenaWideIntervalDate, formatSenaWideIntervalDateLocalized } from '@/routes/sku-detail/format';
 import { SectionLabel, SectionTitle } from '@/routes/sku-detail/section-heading';
 import type { TranslationKey } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/translations';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
 const DEFAULT_SLOT_WIDTH = 72;
@@ -68,6 +72,20 @@ const LINE_POINT_MARKER_MIN_SLOT_WIDTH = 20;
 const EXPANDED_LANE_HEADER_ALLOWANCE = 136;
 const RESTORATION_PAGE_SIZE = 10;
 const EXPANDED_LANE_HEIGHT_MULTIPLIER = 4;
+
+function contributorRoleTone(roleKey: ServiceDetailViewModel['contributors'][number]['roleKey']): StatusPillTone {
+  if (roleKey === 'limiting_now') {
+    return 'danger';
+  }
+  if (roleKey === 'next_likely_limiter') {
+    return 'warning';
+  }
+  return 'success';
+}
+
+function restorationEventTone(state: ServiceDetailViewModel['restoration'][number]['state']): StatusPillTone {
+  return state === 'open' ? 'info' : 'success';
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -113,14 +131,6 @@ function normalizeRegimeKey(regime: string) {
   return regime.trim().toLowerCase().replace(/[\s-]+/g, '_');
 }
 
-function formatRegimeLabel(regime: string) {
-  return regime
-    .split(/[_\s-]+/g)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 function regimeTint(regime: string, isSelected: boolean) {
   const key = normalizeRegimeKey(regime);
   const palette: Record<string, { selected: string; idle: string }> = {
@@ -161,13 +171,6 @@ const REGIME_LEGEND = [
   'stockout_constrained',
   'correction',
 ] as const;
-
-function regimeLegendLabel(regime: (typeof REGIME_LEGEND)[number]) {
-  if (regime === 'stockout_constrained') {
-    return 'Stockout constrained regime';
-  }
-  return `${regime.charAt(0).toUpperCase()}${regime.slice(1).replace(/_/g, ' ')} regime`;
-}
 
 function presentRegimes(regimes: string[]) {
   const present = new Set(regimes.map((regime) => normalizeRegimeKey(regime)));
@@ -294,7 +297,7 @@ function IntervalStrip({
             type="button"
             onClick={() => scrollByViewport(-1)}
           >
-            <ChevronLeft className="size-4" />
+            <NavigationPreviousIcon className="size-4" />
           </button>
         ) : null}
         <div ref={scrollRef} className="hidden-scrollbar max-w-full overflow-x-auto overscroll-contain px-1 py-1" onScroll={onScroll}>
@@ -309,9 +312,12 @@ function IntervalStrip({
           >
             {intervals.map((interval) => {
               const tooltipLabel = intervalTooltipLabel(interval.endAt, interval.intervalIndex, language, t);
-              const compactDate = formatSenaCompactIntervalDate(interval.endAt);
-              const compactDay = formatSenaCompactIntervalDay(interval.endAt);
-              const wideDate = formatSenaWideIntervalDate(interval.endAt);
+              const compactDate = formatSenaCompactIntervalDate(interval.endAt, language);
+              const compactDay = formatSenaCompactIntervalDay(interval.endAt, language);
+              const wideDate =
+                language === 'en'
+                  ? formatSenaWideIntervalDate(interval.endAt)
+                  : formatSenaWideIntervalDateLocalized(interval.endAt, language);
               const fullLabel =
                 slotWidth >= 132 && wideDate !== '—'
                   ? wideDate
@@ -342,7 +348,7 @@ function IntervalStrip({
             type="button"
             onClick={() => scrollByViewport(1)}
           >
-            <ChevronRight className="size-4" />
+            <NavigationNextIcon className="size-4" />
           </button>
         ) : null}
       </div>
@@ -356,13 +362,15 @@ function RegimeChartHighlightOverlay({
   axisEndPadding,
   axisStartPadding,
   intervals,
+  language,
   onSelect,
 }: {
   activeIndex: number | null;
   axisContentWidth: number;
   axisEndPadding: number;
   axisStartPadding: number;
-  intervals: Array<{ intervalIndex: number; dominantRegime: string }>;
+  intervals: Array<{ intervalIndex: number; regimeKey: string }>;
+  language: AppLanguage;
   onSelect: (index: number) => void;
 }) {
   return (
@@ -378,16 +386,17 @@ function RegimeChartHighlightOverlay({
     >
       {intervals.map((interval, intervalPosition) => {
         const isSelected = activeIndex === interval.intervalIndex;
+        const regimeLabel = translateRegimeLabel(language, interval.regimeKey);
         return (
           <Tooltip key={interval.intervalIndex}>
             <TooltipTrigger asChild>
               <button
-                aria-label={interval.dominantRegime}
+                aria-label={regimeLabel}
                 className={`relative border-r border-background/35 text-center text-xs text-foreground transition-colors last:border-r-0 ${isSelected ? '' : 'text-foreground/80'}`}
                 data-regime-slot="true"
                 data-selected={isSelected ? 'true' : 'false'}
                 style={{
-                  backgroundColor: regimeTint(interval.dominantRegime, isSelected),
+                  backgroundColor: regimeTint(interval.regimeKey, isSelected),
                   borderTopLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
                   borderBottomLeftRadius: intervalPosition === 0 ? '0.85rem' : undefined,
                   borderTopRightRadius: intervalPosition === intervals.length - 1 ? '0.85rem' : undefined,
@@ -397,7 +406,7 @@ function RegimeChartHighlightOverlay({
                 onClick={() => onSelect(interval.intervalIndex)}
               />
             </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>{interval.dominantRegime}</TooltipContent>
+            <TooltipContent side="top" sideOffset={6}>{regimeLabel}</TooltipContent>
           </Tooltip>
         );
       })}
@@ -449,7 +458,7 @@ export function ServiceDetailLedger({
   const selectedIntervalIndex = selectedIntervalIndexFromSelection(model, selection);
   const indices = useMemo(() => intervals.map((entry) => entry.intervalIndex), [intervals]);
   const visibleRegimes = useMemo(
-    () => presentRegimes(intervals.map((interval) => interval.dominantRegime)),
+    () => presentRegimes(intervals.map((interval) => interval.regimeKey)),
     [intervals],
   );
   const intervalsByIndex = useMemo(
@@ -463,7 +472,7 @@ export function ServiceDetailLedger({
   const regimeOverlayIntervals = useMemo(
     () => intervals.map((interval) => ({
       intervalIndex: interval.intervalIndex,
-      dominantRegime: interval.dominantRegime,
+      regimeKey: interval.regimeKey,
     })),
     [intervals],
   );
@@ -647,7 +656,7 @@ export function ServiceDetailLedger({
                 {visibleRegimes.map((regime) => (
                   <span key={regime} className="inline-flex items-center gap-2">
                     <span aria-hidden="true" className="inline-block size-4 rounded-[0.2rem]" style={{ backgroundColor: regimeTint(regime, true) }} />
-                    {regimeLegendLabel(regime)}
+                    {translateRegimeLabel(language, regime)}
                   </span>
                 ))}
                 <span className="inline-flex items-center gap-2">
@@ -677,6 +686,7 @@ export function ServiceDetailLedger({
                     axisEndPadding={axisEndPadding}
                     axisStartPadding={axisStartPadding}
                     intervals={regimeOverlayIntervals}
+                    language={language}
                     onSelect={(index) => setSelection({ type: 'interval', intervalIndex: index })}
                   />
                 </TooltipProvider>
@@ -729,7 +739,7 @@ export function ServiceDetailLedger({
                             className="whitespace-nowrap uppercase tracking-[0.14em] text-muted-foreground"
                             style={{ fontSize: Math.max(9, regimeVisual.dataLabelFontSize - 1) }}
                           >
-                            {formatRegimeLabel(intervals[index]?.dominantRegime ?? '')}
+                            {intervals[index]?.dominantRegime ?? ''}
                           </span>
                           <span className="whitespace-nowrap">{intervals[index]?.priceLabel ?? ''}</span>
                         </ClampedChartDataLabel>
@@ -877,12 +887,13 @@ export function ServiceDetailLedger({
                   <div className="grid gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{contributor.name}</p>
-                      <span className="rounded-full border border-border/70 bg-muted/45 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                      <span className={cn('rounded-full border px-2.5 py-1 text-xs font-medium', statusPillClassName(contributorRoleTone(contributor.roleKey)))}>
                         {contributor.roleLabel}
                       </span>
                     </div>
                     <p className="text-sm leading-6 text-muted-foreground">
-                      {contributor.daysOfCoverLabel} cover · {contributor.probabilityLabel} limiting probability · {contributor.usageLabel} usage share
+                      {t('catalogServiceRailCoverLine', { value: contributor.daysOfCoverLabel })} · {t('catalogServiceRailLimitingProbabilityLine', { value: contributor.probabilityLabel })} ·{' '}
+                      {translateUiLiteral(language, '{value} usage share', { value: contributor.usageLabel })}
                     </p>
                     <p className="text-sm leading-6 text-muted-foreground">{contributor.recoveryNote}</p>
                   </div>
@@ -924,7 +935,7 @@ export function ServiceDetailLedger({
                   <div key={event.key} className="rounded-[1.2rem] border border-border/70 bg-white p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-base font-semibold tracking-[-0.02em] text-foreground">{event.headline}</p>
-                      <span className="rounded-full border border-border/70 bg-muted/45 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                      <span className={cn('rounded-full border px-2.5 py-1 text-xs font-medium', statusPillClassName(restorationEventTone(event.state)))}>
                         {event.state === 'open' ? t('catalogServiceOpenInbound') : t('catalogServiceReceiptLogged')}
                       </span>
                     </div>

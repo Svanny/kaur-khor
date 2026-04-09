@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { ArrowUpRight, Sparkles } from 'lucide-react';
+import { ActionOpenExternalIcon } from '@icons/actions';
+import { StatusInsightIcon } from '@icons/status';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -331,7 +332,7 @@ export function WorkspaceEmpty({
     <Empty className={cn('border-border/80 bg-card/45', !showDescription && 'gap-3 p-10')}>
       <EmptyHeader className={cn(!showDescription && 'gap-1')}>
         <EmptyMedia variant="icon">
-          <Sparkles />
+          <StatusInsightIcon />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         {showDescription ? (
@@ -369,7 +370,7 @@ export function ActionButtonLink({
   return (
     <Button className="rounded-full px-4" variant={variant}>
       {children}
-      <ArrowUpRight data-icon="inline-end" />
+      <ActionOpenExternalIcon data-icon="inline-end" />
     </Button>
   );
 }

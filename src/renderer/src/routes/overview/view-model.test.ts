@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SenaCatalog, SenaObservationRecord, SenaWorkspaceSummary } from '@shared/sena';
-import { buildOverviewModel } from './view-model';
+import { buildOverviewModel, nextCheckLabel, relativeReceiptLabel } from './view-model';
 
 const taskCatalog: SenaCatalog = {
   schemaVersion: 1,
   skus: [
     {
+      archived: false,
       skuId: 'sku-1',
       name: 'Shampoo Classic',
       description: 'Retail shampoo',
@@ -208,5 +209,29 @@ describe('buildOverviewModel stale update reminder', () => {
     expect(model.signals.some((signal) => signal.text.includes('Shampoo Classic'))).toBe(true);
     expect(model.signals.some((signal) => signal.text.includes('promo'))).toBe(false);
     expect(model.signals).toHaveLength(2);
+  });
+
+  it('does not build SKU tasks for archived catalog items', () => {
+    const model = buildOverviewModel({
+      catalog: {
+        ...taskCatalog,
+        skus: taskCatalog.skus.map((sku) => ({ ...sku, archived: true })),
+      },
+      detailBySkuId: {},
+      language: 'en',
+      observations: [],
+      workspaceSummary: taskWorkspaceSummary,
+    });
+
+    expect(model.tasks).toHaveLength(0);
+  });
+
+  it('formats relative receipt and next-check labels in Khmer without forced English dates', () => {
+    expect(relativeReceiptLabel(null, 'km')).toBe('ថ្មីៗ');
+    expect(relativeReceiptLabel('2026-04-12T08:00:00.000Z', 'km')).toBe('ថ្ងៃនេះ');
+    expect(relativeReceiptLabel('2026-04-11T00:00:00.000Z', 'km')).toBe('ម្សិលមិញ');
+    expect(nextCheckLabel(null, 'km')).toBe('កំពុងរង់ចាំពេលពិនិត្យបន្ទាប់');
+    expect(nextCheckLabel('2026-04-12T18:00:00.000Z', 'km')).toBe('ពិនិត្យថ្ងៃនេះ');
+    expect(nextCheckLabel('2026-04-13T12:00:00.000Z', 'km')).toBe('ពិនិត្យថ្ងៃស្អែក');
   });
 });

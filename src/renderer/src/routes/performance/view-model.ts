@@ -12,6 +12,7 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
+import { translateUiLiteral } from '@/lib/translations';
 import { getTranslation } from '@/lib/translations';
 import {
   formatSenaReorderQuantity,
@@ -193,6 +194,10 @@ function translate(language: AppLanguage, key: Parameters<typeof getTranslation>
   return getTranslation(language, key, variables);
 }
 
+function literal(language: AppLanguage, englishTemplate: string, variables?: Record<string, string | number | null | undefined>) {
+  return translateUiLiteral(language, englishTemplate, variables);
+}
+
 function daysForTimeRange(timeRange: PerformanceTimeRange) {
   if (timeRange === '7d') {
     return 7;
@@ -203,8 +208,10 @@ function daysForTimeRange(timeRange: PerformanceTimeRange) {
   return 30;
 }
 
-function windowLabel(timeRange: PerformanceTimeRange) {
-  return `last ${daysForTimeRange(timeRange)}d`;
+function windowLabel(timeRange: PerformanceTimeRange, language: AppLanguage) {
+  return translateUiLiteral(language, 'last {days}d', {
+    days: daysForTimeRange(timeRange),
+  });
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -326,28 +333,43 @@ function compareToneFromDelta(delta: number, neutralThreshold = 0.08): StatusPil
   return 'neutral';
 }
 
-function compareTrendText(currentScore: number, previousScore: number) {
+function compareTrendText(currentScore: number, previousScore: number, language: AppLanguage) {
   if (currentScore <= 0 && previousScore <= 0) {
-    return { direction: 'flat', text: 'Limited comparison', tone: 'neutral' as const, delta: 0 };
+    return { direction: 'flat', text: literal(language, 'Limited comparison'), tone: 'neutral' as const, delta: 0 };
   }
   const deltaRatio = previousScore <= 0 ? 0.2 : (currentScore - previousScore) / Math.max(previousScore, 0.25);
   if (deltaRatio > 0.18) {
-    return { direction: 'up', text: `vs prior ${trendGlyph('up')} stronger`, tone: 'success' as const, delta: deltaRatio };
+    return {
+      direction: 'up',
+      text: literal(language, 'vs prior {glyph} stronger', { glyph: trendGlyph('up') }),
+      tone: 'success' as const,
+      delta: deltaRatio,
+    };
   }
   if (deltaRatio < -0.18) {
-    return { direction: 'down', text: `vs prior ${trendGlyph('down')} softer`, tone: 'warning' as const, delta: deltaRatio };
+    return {
+      direction: 'down',
+      text: literal(language, 'vs prior {glyph} softer', { glyph: trendGlyph('down') }),
+      tone: 'warning' as const,
+      delta: deltaRatio,
+    };
   }
-  return { direction: 'flat', text: `vs prior ${trendGlyph('flat')} flat`, tone: 'neutral' as const, delta: deltaRatio };
+  return {
+    direction: 'flat',
+    text: literal(language, 'vs prior {glyph} flat', { glyph: trendGlyph('flat') }),
+    tone: 'neutral' as const,
+    delta: deltaRatio,
+  };
 }
 
-function signalLabelForTone(tone: TrendTone) {
+function signalLabelForTone(language: AppLanguage, tone: TrendTone) {
   if (tone === 'up') {
-    return 'Strong';
+    return literal(language, 'Strong');
   }
   if (tone === 'down') {
-    return 'Soft';
+    return literal(language, 'Soft');
   }
-  return 'Steady';
+  return literal(language, 'Steady');
 }
 
 function previousToneFromCompare({
@@ -399,30 +421,30 @@ function windowPipelineStateForService(linkedSkuIds: string[], observations: Sen
   return 'quiet';
 }
 
-function pipelineCompareText(currentState: WindowPipelineState, previousState: WindowPipelineState) {
+function pipelineCompareText(currentState: WindowPipelineState, previousState: WindowPipelineState, language: AppLanguage) {
   if (currentState === previousState) {
-    return { text: 'no change', tone: 'neutral' as const, delta: 0 };
+    return { text: literal(language, 'no change'), tone: 'neutral' as const, delta: 0 };
   }
   if (currentState === 'inbound-open' && previousState === 'quiet') {
-    return { text: 'new inbound', tone: 'success' as const, delta: 0.7 };
+    return { text: literal(language, 'new inbound'), tone: 'success' as const, delta: 0.7 };
   }
   if (currentState === 'receipt-arrived' && previousState === 'inbound-open') {
-    return { text: 'receipt closed', tone: 'success' as const, delta: 0.8 };
+    return { text: literal(language, 'receipt closed'), tone: 'success' as const, delta: 0.8 };
   }
   if (currentState === 'quiet' && previousState !== 'quiet') {
-    return { text: 'pipeline slipped', tone: 'warning' as const, delta: -0.7 };
+    return { text: literal(language, 'pipeline slipped'), tone: 'warning' as const, delta: -0.7 };
   }
   if (currentState === 'receipt-arrived') {
-    return { text: 'recovery landed', tone: 'success' as const, delta: 0.6 };
+    return { text: literal(language, 'recovery landed'), tone: 'success' as const, delta: 0.6 };
   }
-  return { text: 'window shifted', tone: 'info' as const, delta: 0.15 };
+  return { text: literal(language, 'window shifted'), tone: 'info' as const, delta: 0.15 };
 }
 
-function statusTransitionText(currentLabel: string, previousLabel: string) {
+function statusTransitionText(currentLabel: string, previousLabel: string, language: AppLanguage) {
   if (currentLabel === previousLabel) {
     return { text: null, delta: 0 };
   }
-  return { text: `${currentLabel} from ${previousLabel}`, delta: 1 };
+  return { text: literal(language, '{current} from {previous}', { current: currentLabel, previous: previousLabel }), delta: 1 };
 }
 
 function coverCompareText({
@@ -435,29 +457,43 @@ function coverCompareText({
   language: AppLanguage;
 }) {
   if (currentDays == null || previousDays == null) {
-    return { text: 'Limited comparison', tone: 'neutral' as const, delta: 0 };
+    return { text: literal(language, 'Limited comparison'), tone: 'neutral' as const, delta: 0 };
   }
   const delta = currentDays - previousDays;
   if (Math.abs(delta) < 0.75) {
-    return { text: `from ${formatSenaDays(previousDays, language)} cover`, tone: 'neutral' as const, delta };
+    return {
+      text: literal(language, 'from {value} cover', { value: formatSenaDays(previousDays, language) }),
+      tone: 'neutral' as const,
+      delta,
+    };
   }
   return {
-    text: `cover ${delta > 0 ? 'up' : 'down'} ${formatSenaDays(Math.abs(delta), language)}`,
+    text: literal(language, 'cover {direction} {value}', {
+      direction: literal(language, delta > 0 ? 'up' : 'down'),
+      value: formatSenaDays(Math.abs(delta), language),
+    }),
     tone: delta > 0 ? ('success' as const) : ('warning' as const),
     delta,
   };
 }
 
-function coverageCompareText(currentRatio: number, previousRatio: number, previousSupportLabel: string) {
+function coverageCompareText(currentRatio: number, previousRatio: number, previousSupportLabel: string, language: AppLanguage) {
   if (Number.isNaN(previousRatio)) {
-    return { text: 'Limited comparison', tone: 'neutral' as const, delta: 0 };
+    return { text: literal(language, 'Limited comparison'), tone: 'neutral' as const, delta: 0 };
   }
   const deltaPoints = Math.round((currentRatio - previousRatio) * 100);
   if (Math.abs(deltaPoints) < 6) {
-    return { text: `from ${previousSupportLabel.toLowerCase()}`, tone: 'neutral' as const, delta: deltaPoints / 100 };
+    return {
+      text: literal(language, 'from {value}', { value: previousSupportLabel.toLowerCase() }),
+      tone: 'neutral' as const,
+      delta: deltaPoints / 100,
+    };
   }
   return {
-    text: `cover ${deltaPoints > 0 ? 'up' : 'down'} ${Math.abs(deltaPoints)} pts`,
+    text: literal(language, 'cover {direction} {value} pts', {
+      direction: literal(language, deltaPoints > 0 ? 'up' : 'down'),
+      value: Math.abs(deltaPoints),
+    }),
     tone: deltaPoints > 0 ? ('success' as const) : ('warning' as const),
     delta: deltaPoints / 100,
   };
@@ -466,41 +502,47 @@ function coverageCompareText(currentRatio: number, previousRatio: number, previo
 function priceCompareText({
   current,
   previous,
+  language,
 }: {
   current: PriceSignal | null;
   previous: PriceSignal | null;
+  language: AppLanguage;
 }) {
   if (!current && !previous) {
-    return { text: 'unchanged', tone: 'neutral' as const, delta: 0 };
+    return { text: literal(language, 'unchanged'), tone: 'neutral' as const, delta: 0 };
   }
   if (current && !previous) {
-    return { text: 'new price move', tone: current.delta < 0 ? ('warning' as const) : ('success' as const), delta: 0.7 };
+    return { text: literal(language, 'new price move'), tone: current.delta < 0 ? ('warning' as const) : ('success' as const), delta: 0.7 };
   }
   if (!current && previous) {
-    return { text: 'unchanged', tone: 'neutral' as const, delta: -0.25 };
+    return { text: literal(language, 'unchanged'), tone: 'neutral' as const, delta: -0.25 };
   }
   const currentDelta = current?.delta ?? 0;
   const previousDelta = previous?.delta ?? 0;
   const shift = currentDelta - previousDelta;
   if (Math.abs(shift) < 0.5) {
-    return { text: 'unchanged', tone: 'neutral' as const, delta: 0 };
+    return { text: literal(language, 'unchanged'), tone: 'neutral' as const, delta: 0 };
   }
   if (currentDelta < previousDelta) {
-    return { text: 'price drag worsened', tone: 'warning' as const, delta: -0.6 };
+    return { text: literal(language, 'price drag worsened'), tone: 'warning' as const, delta: -0.6 };
   }
   if (currentDelta > previousDelta) {
-    return { text: currentDelta > 0 ? 'margin recovered' : 'price drag eased', tone: 'success' as const, delta: 0.6 };
+    return {
+      text: literal(language, currentDelta > 0 ? 'margin recovered' : 'price drag eased'),
+      tone: 'success' as const,
+      delta: 0.6,
+    };
   }
-  return { text: 'unchanged', tone: 'neutral' as const, delta: 0 };
+  return { text: literal(language, 'unchanged'), tone: 'neutral' as const, delta: 0 };
 }
 
-function compareSummary(parts: string[]) {
+function compareSummary(language: AppLanguage, parts: string[]) {
   const filtered = parts.filter(Boolean);
   if (filtered.length === 0) {
     return null;
   }
   const [first, second, third] = filtered;
-  return [first, second, third].filter(Boolean).join(' while ');
+  return [first, second, third].filter(Boolean).join(` ${literal(language, 'while')} `);
 }
 
 function dominantRegime(summary: SenaSkuSummary | null) {
@@ -623,6 +665,7 @@ function buildReceiptSignal({
 function statusForSku({
   demandPerDay,
   daysOfCover,
+  language,
   linkedServiceRevenue,
   marginRatio,
   priceSignal,
@@ -633,6 +676,7 @@ function statusForSku({
 }: {
   demandPerDay: number;
   daysOfCover: number | null;
+  language: AppLanguage;
   linkedServiceRevenue: number;
   marginRatio: number | null;
   priceSignal: PriceSignal | null;
@@ -645,51 +689,53 @@ function statusForSku({
   const slowMover = demandPerDay <= 1.2 && units >= 12;
 
   if (reorderRecommendationIssued || stockoutRisk >= 0.65 || (daysOfCover != null && daysOfCover <= 3 && linkedServiceRevenue > 0)) {
-    return { status: 'unblock', label: 'Unblock', tone: 'danger' };
+    return { status: 'unblock', label: literal(language, 'Unblock'), tone: 'danger' };
   }
   if (priceDrag || (marginRatio != null && marginRatio < 0.4)) {
-    return { status: 'review', label: 'Review price', tone: 'warning' };
+    return { status: 'review', label: literal(language, 'Review price'), tone: 'warning' };
   }
   if (slowMover && (!receiptSignal || receiptSignal.inTransitUnits <= 0)) {
-    return { status: 'clear', label: 'Clear cash', tone: 'neutral' };
+    return { status: 'clear', label: literal(language, 'Clear cash'), tone: 'neutral' };
   }
   if (demandPerDay >= 2.8 && stockoutRisk < 0.45) {
-    return { status: 'push', label: 'Push', tone: 'success' };
+    return { status: 'push', label: literal(language, 'Push'), tone: 'success' };
   }
-  return { status: 'steady', label: 'Stable', tone: 'info' };
+  return { status: 'steady', label: literal(language, 'Stable'), tone: 'info' };
 }
 
 function statusForService({
   activityMean,
   coverageRatio,
   grossMarginRatio,
+  language,
   priceSignal,
 }: {
   activityMean: number;
   coverageRatio: number;
   grossMarginRatio: number;
+  language: AppLanguage;
   priceSignal: PriceSignal | null;
 }): { status: BusinessStatus; label: string; tone: StatusPillTone } {
   if (coverageRatio < 0.7) {
-    return { status: 'unblock', label: 'Unblock', tone: 'danger' };
+    return { status: 'unblock', label: literal(language, 'Unblock'), tone: 'danger' };
   }
   if ((priceSignal && priceSignal.delta < 0) || grossMarginRatio < 0.42) {
-    return { status: 'review', label: 'Review price', tone: 'warning' };
+    return { status: 'review', label: literal(language, 'Review price'), tone: 'warning' };
   }
   if (activityMean >= 2.5 && coverageRatio >= 0.9 && grossMarginRatio >= 0.5) {
-    return { status: 'push', label: 'Push', tone: 'success' };
+    return { status: 'push', label: literal(language, 'Push'), tone: 'success' };
   }
-  return { status: 'steady', label: 'Stable', tone: 'info' };
+  return { status: 'steady', label: literal(language, 'Stable'), tone: 'info' };
 }
 
-function trendFromScore(score: number): { tone: TrendTone; label: string } {
+function trendFromScore(score: number, language: AppLanguage): { tone: TrendTone; label: string } {
   if (score > 0.2) {
-    return { tone: 'up', label: 'Rising' };
+    return { tone: 'up', label: literal(language, 'Rising') };
   }
   if (score < -0.15) {
-    return { tone: 'down', label: 'Softening' };
+    return { tone: 'down', label: literal(language, 'Softening') };
   }
-  return { tone: 'flat', label: 'Steady' };
+  return { tone: 'flat', label: literal(language, 'Steady') };
 }
 
 function sparklinePointsFromValues(values: number[], targetLength = 6) {
@@ -776,16 +822,18 @@ function compareTrendSignal({
   compareDirection,
   currentPoints,
   currentTone,
+  language,
   previousPoints,
 }: {
   compareDirection: 'up' | 'down' | 'flat';
   currentPoints: number[];
   currentTone: TrendTone;
+  language: AppLanguage;
   previousPoints: number[];
 }) {
   const previousTone = previousToneFromCompare({ compareDirection, currentTone });
   return {
-    label: `${signalLabelForTone(previousTone)} -> ${signalLabelForTone(currentTone)}`,
+    label: `${signalLabelForTone(language, previousTone)} -> ${signalLabelForTone(language, currentTone)}`,
     points: [...previousPoints, ...currentPoints],
     splitIndex: previousPoints.length,
     tone: currentTone,
@@ -797,15 +845,27 @@ function formatPipelineSupport(signal: ReceiptSignal | null, language: AppLangua
     return translate(language, 'performanceVmNoIncomingRelief');
   }
   if (signal.stateLabel === translate(language, 'performanceVmOverdue')) {
-    return `${translate(language, 'performanceVmOverdue')} · ${formatWholeNumber(signal.inTransitUnits, language)} units`;
+    return translateUiLiteral(language, '{state} · {count} units', {
+      state: translate(language, 'performanceVmOverdue'),
+      count: formatWholeNumber(signal.inTransitUnits, language),
+    });
   }
   if (signal.stateLabel === translate(language, 'performanceVmPartialReceived')) {
-    return `${translate(language, 'performanceVmPartialReceived')} · ${formatWholeNumber(signal.inTransitUnits, language)} in motion`;
+    return translateUiLiteral(language, '{state} · {count} in motion', {
+      state: translate(language, 'performanceVmPartialReceived'),
+      count: formatWholeNumber(signal.inTransitUnits, language),
+    });
   }
   if (signal.dueAt) {
-    return `${signal.stateLabel} · ${formatSenaDate(signal.dueAt, language)}`;
+    return translateUiLiteral(language, '{state} · {date}', {
+      state: signal.stateLabel,
+      date: formatSenaDate(signal.dueAt, language),
+    });
   }
-  return `${signal.stateLabel} · ${formatWholeNumber(signal.inTransitUnits, language)} units`;
+  return translateUiLiteral(language, '{state} · {count} units', {
+    state: signal.stateLabel,
+    count: formatWholeNumber(signal.inTransitUnits, language),
+  });
 }
 
 function marginToneLabel({
@@ -899,26 +959,33 @@ function lastUpdatedAt(workspaceSummary: SenaWorkspaceSummary | null, observatio
   return workspaceSummary?.latestObservedAt ?? observations[0]?.input.observedAt ?? null;
 }
 
-function actionForRow(row: SkuBusinessRow | ServiceBusinessRow): { label: PerformanceMoveRow['ctaLabel']; href: string } {
+function actionForRow(
+  row: SkuBusinessRow | ServiceBusinessRow,
+  language: AppLanguage,
+): { label: PerformanceMoveRow['ctaLabel']; href: string } {
   if (row.type === 'service') {
-    return { label: 'Open service', href: row.href };
+    return { label: translateUiLiteral(language, 'Open service'), href: row.href };
   }
   if (row.status === 'unblock') {
-    return { label: 'Open queue', href: '/' };
+    return { label: translateUiLiteral(language, 'Open queue'), href: '/' };
   }
-  return { label: 'Open SKU', href: row.href };
+  return { label: translateUiLiteral(language, 'Open SKU'), href: row.href };
 }
 
-function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
+function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: AppLanguage) {
   if (row.type === 'service') {
     if (row.status === 'push') {
       return {
         moveEntityName: row.name,
         moveEntityType: row.type,
-        moveVerb: 'Push',
-        move: `Push ${row.name}`,
-        whyNow: `${row.trendLabel.toLowerCase()} demand, ${row.supportLabel.toLowerCase()}, ${row.grossMarginLabel.toLowerCase()}`,
-        expectedEffect: 'Capture upside while capacity is still holding',
+        moveVerb: translateUiLiteral(language, 'Push'),
+        move: translateUiLiteral(language, 'Push {name}', { name: row.name }),
+        whyNow: translateUiLiteral(language, '{trend} demand, {support}, {margin}', {
+          trend: row.trendLabel.toLowerCase(),
+          support: row.supportLabel.toLowerCase(),
+          margin: row.grossMarginLabel.toLowerCase(),
+        }),
+        expectedEffect: translateUiLiteral(language, 'Capture upside while capacity is still holding'),
         restockGuidance: null,
       };
     }
@@ -926,20 +993,26 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
       return {
         moveEntityName: row.name,
         moveEntityType: row.type,
-        moveVerb: 'Recover',
-        move: `Recover ${row.name}`,
-        whyNow: `${row.supportLabel.toLowerCase()} with ${row.pipelineLabel.toLowerCase()}`,
-        expectedEffect: 'Restore sellable capacity and recover blocked revenue',
+        moveVerb: translateUiLiteral(language, 'Recover'),
+        move: translateUiLiteral(language, 'Recover {name}', { name: row.name }),
+        whyNow: translateUiLiteral(language, '{support} with {pipeline}', {
+          support: row.supportLabel.toLowerCase(),
+          pipeline: row.pipelineLabel.toLowerCase(),
+        }),
+        expectedEffect: translateUiLiteral(language, 'Restore sellable capacity and recover blocked revenue'),
         restockGuidance: null,
       };
     }
     return {
       moveEntityName: row.name,
       moveEntityType: row.type,
-      moveVerb: 'Review',
-      move: `Review ${row.name} pricing`,
-      whyNow: `${row.grossMarginLabel.toLowerCase()} and ${row.trendLabel.toLowerCase()} demand`,
-      expectedEffect: 'Protect margin without stalling service demand',
+      moveVerb: translateUiLiteral(language, 'Review'),
+      move: translateUiLiteral(language, 'Review {name} pricing', { name: row.name }),
+      whyNow: translateUiLiteral(language, '{margin} and {trend} demand', {
+        margin: row.grossMarginLabel.toLowerCase(),
+        trend: row.trendLabel.toLowerCase(),
+      }),
+      expectedEffect: translateUiLiteral(language, 'Protect margin without stalling service demand'),
       restockGuidance: null,
     };
   }
@@ -948,12 +1021,17 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
     return {
       moveEntityName: row.name,
       moveEntityType: row.type,
-      moveVerb: 'Restock',
-      move: `Restock ${row.name}`,
-      whyNow: `${row.supportLabel.toLowerCase()} with ${row.pipelineLabel.toLowerCase()}`,
+      moveVerb: translateUiLiteral(language, 'Restock'),
+      move: translateUiLiteral(language, 'Restock {name}', { name: row.name }),
+      whyNow: translateUiLiteral(language, '{support} with {pipeline}', {
+        support: row.supportLabel.toLowerCase(),
+        pipeline: row.pipelineLabel.toLowerCase(),
+      }),
       expectedEffect: row.restockGuidance
-        ? `Restore service capacity and stop revenue leakage · ${row.restockGuidance}`
-        : 'Restore service capacity and stop revenue leakage',
+        ? translateUiLiteral(language, 'Restore service capacity and stop revenue leakage · {value}', {
+            value: row.restockGuidance,
+          })
+        : translateUiLiteral(language, 'Restore service capacity and stop revenue leakage'),
       restockGuidance: row.restockGuidance,
     };
   }
@@ -961,10 +1039,13 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
     return {
       moveEntityName: row.name,
       moveEntityType: row.type,
-      moveVerb: 'Review',
-      move: `Review ${row.name} pricing`,
-      whyNow: `${row.marginLabel.toLowerCase()} while ${row.trendLabel.toLowerCase()} demand is visible`,
-      expectedEffect: 'Recover velocity or margin before the drag hardens',
+      moveVerb: translateUiLiteral(language, 'Review'),
+      move: translateUiLiteral(language, 'Review {name} pricing', { name: row.name }),
+      whyNow: translateUiLiteral(language, '{margin} while {trend} demand is visible', {
+        margin: row.marginLabel.toLowerCase(),
+        trend: row.trendLabel.toLowerCase(),
+      }),
+      expectedEffect: translateUiLiteral(language, 'Recover velocity or margin before the drag hardens'),
       restockGuidance: null,
     };
   }
@@ -972,20 +1053,26 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow) {
     return {
       moveEntityName: row.name,
       moveEntityType: row.type,
-      moveVerb: 'Clear',
-      move: `Clear ${row.name}`,
-      whyNow: `${row.trendLabel.toLowerCase()} demand with ${row.unitsLabel.toLowerCase()}`,
-      expectedEffect: 'Free cash tied up in slow-moving stock',
+      moveVerb: translateUiLiteral(language, 'Clear'),
+      move: translateUiLiteral(language, 'Clear {name}', { name: row.name }),
+      whyNow: translateUiLiteral(language, '{trend} demand with {units}', {
+        trend: row.trendLabel.toLowerCase(),
+        units: row.unitsLabel.toLowerCase(),
+      }),
+      expectedEffect: translateUiLiteral(language, 'Free cash tied up in slow-moving stock'),
       restockGuidance: null,
     };
   }
   return {
     moveEntityName: row.name,
     moveEntityType: row.type,
-    moveVerb: 'Push',
-    move: `Push ${row.name}`,
-    whyNow: `${row.trendLabel.toLowerCase()} demand with ${row.marginLabel.toLowerCase()}`,
-    expectedEffect: 'Capture stronger retail or service-led demand',
+    moveVerb: translateUiLiteral(language, 'Push'),
+    move: translateUiLiteral(language, 'Push {name}', { name: row.name }),
+    whyNow: translateUiLiteral(language, '{trend} demand with {margin}', {
+      trend: row.trendLabel.toLowerCase(),
+      margin: row.marginLabel.toLowerCase(),
+    }),
+    expectedEffect: translateUiLiteral(language, 'Capture stronger retail or service-led demand'),
     restockGuidance: null,
   };
 }
@@ -1069,8 +1156,8 @@ export function derivePerformanceViewModel({
 }): PerformanceViewModel {
   const observedAt = lastUpdatedAt(workspaceSummary, observations);
   const rangeDays = daysForTimeRange(timeRange);
-  const activeWindowLabel = windowLabel(timeRange);
-  const priorWindowLabel = `prior ${rangeDays}d`;
+  const activeWindowLabel = windowLabel(timeRange, language);
+  const priorWindowLabel = translateUiLiteral(language, 'prior {days}d', { days: rangeDays });
   const recentObservations = filterObservationsForWindow({
     observations,
     endAt: observedAt,
@@ -1113,25 +1200,39 @@ export function derivePerformanceViewModel({
     const receiptSignal = buildReceiptSignal({ detail: skuDetailsById[sku.skuId], observedAt, language });
     const linkedServices = linkedServicesBySkuId.get(sku.skuId) ?? [];
     const marginRatio = sku.productPrice ? (sku.productPrice - sku.costPerUnit) / sku.productPrice : null;
-    const trend = trendFromScore(regimeMomentum(summary) + ((summary?.demandPerDayMean ?? 0) >= 2.8 ? 0.12 : 0));
+    const trend = trendFromScore(
+      regimeMomentum(summary) + ((summary?.demandPerDayMean ?? 0) >= 2.8 ? 0.12 : 0),
+      language,
+    );
     const linkedServiceRevenue = linkedServices.reduce((sum, service) => sum + service.price, 0);
     const units = summary?.latestPosteriorUnits ?? 0;
     const reorderRecommendation = formatSenaReorderQuantity(summary?.reorderQuantity, language);
     const restockGuidance = reorderRecommendation.recommendationIssued
-      ? `Order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
+      ? literal(language, 'Order {value}u', {
+          value: formatWholeNumber(reorderRecommendation.recommendedUnits, language),
+        })
       : reorderRecommendation.optionalOrderLabel
-        ? `Keep watching · optional order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
-      : null;
+        ? literal(language, 'Keep watching · optional order {value}u', {
+            value: formatWholeNumber(reorderRecommendation.recommendedUnits, language),
+          })
+        : null;
     const revenueAtRisk =
       Math.max(0, (summary?.expectedLeadTimeDemand ?? 0) - units) * (sku.productPrice ?? 0) +
       (linkedServices.length > 0 ? linkedServices.length * (summary?.stockoutRisk ?? 0) * 12 : 0);
     const supportLabel =
       summary?.daysOfCover != null && summary.daysOfCover <= 3
-        ? `${formatSenaDays(summary.daysOfCover, language)} cover · ${linkedServices.length} service links`
-        : `${formatWholeNumber(units, language)} on hand · ${linkedServices.length} service links`;
+        ? literal(language, '{cover} cover · {count} service links', {
+            cover: formatSenaDays(summary.daysOfCover, language),
+            count: linkedServices.length,
+          })
+        : literal(language, '{count} on hand · {links} service links', {
+            count: formatWholeNumber(units, language),
+            links: linkedServices.length,
+          });
     const status = statusForSku({
       demandPerDay: summary?.demandPerDayMean ?? 0,
       daysOfCover: summary?.daysOfCover ?? null,
+      language,
       linkedServiceRevenue,
       marginRatio,
       priceSignal,
@@ -1167,7 +1268,7 @@ export function derivePerformanceViewModel({
       trendLabel: trend.label,
       trendTone: trend.tone,
       type: 'sku',
-      unitsLabel: `${formatWholeNumber(units, language)} units`,
+      unitsLabel: literal(language, '{count} units', { count: formatWholeNumber(units, language) }),
     };
   });
 
@@ -1201,11 +1302,12 @@ export function derivePerformanceViewModel({
             language,
           )
         : translate(language, 'performanceVmNoIncomingSupport');
-    const trend = trendFromScore((activityMean - averageServiceDemand) / Math.max(1, averageServiceDemand));
+    const trend = trendFromScore((activityMean - averageServiceDemand) / Math.max(1, averageServiceDemand), language);
     const status = statusForService({
       activityMean,
       coverageRatio,
       grossMarginRatio,
+      language,
       priceSignal,
     });
 
@@ -1226,7 +1328,10 @@ export function derivePerformanceViewModel({
       pipelineLabel,
       priceSignal,
       revenueAtRisk: Math.max(0, activityMean - sellableUnits) * service.price,
-      sellableLabel: `${formatWholeNumber(sellableUnits, language)} sellable · ${formatSenaPercent(coverageRatio, language)} coverable`,
+      sellableLabel: literal(language, '{count} ready to serve · {ratio} can still be fulfilled', {
+        count: formatWholeNumber(sellableUnits, language),
+        ratio: formatSenaPercent(coverageRatio, language),
+      }),
       sellableUnits,
       status: status.status,
       statusLabel: status.label,
@@ -1249,8 +1354,8 @@ export function derivePerformanceViewModel({
 
   const moveCandidates = sortBusinessRows([...serviceRows, ...skuRows]).slice(0, 5);
   const moves = moveCandidates.map((row) => {
-    const description = moveDescription(row);
-    const action = actionForRow(row);
+    const description = moveDescription(row, language);
+    const action = actionForRow(row, language);
     return {
       id: row.id,
       move: description.move,
@@ -1274,14 +1379,15 @@ export function derivePerformanceViewModel({
   const recentActivityRate = activityRate(recentObservations, rangeDays);
   const previousActivityRate = activityRate(previousObservations, rangeDays);
   const demandScore = regimeDemandScore + clamp((recentActivityRate - previousActivityRate) * 2.2, -0.6, 0.6);
-  const demandTrend = trendFromScore(demandScore);
+  const demandTrend = trendFromScore(demandScore, language);
   const currentRibbonDemandPoints = ribbonDemandSeries(recentObservations);
   const previousRibbonDemandPoints = ribbonDemandSeries(previousObservations);
   const demandTrendSignal: PerformanceTrendSignal = compareMode
-    ? compareTrendSignal({
-        compareDirection: compareTrendText(recentActivityRate, previousActivityRate).direction,
+        ? compareTrendSignal({
+        compareDirection: compareTrendText(recentActivityRate, previousActivityRate, language).direction,
         currentPoints: currentRibbonDemandPoints,
         currentTone: demandTrend.tone,
+        language,
         previousPoints: previousRibbonDemandPoints,
       })
     : {
@@ -1310,37 +1416,58 @@ export function derivePerformanceViewModel({
       trendSignal: demandTrendSignal,
       detail:
         demandTrend.tone === 'up'
-          ? `${skuRows.filter((row) => row.trendTone === 'up').length} entities pulling ahead across ${activeWindowLabel}`
+          ? translateUiLiteral(language, '{count} entities pulling ahead across {window}', {
+              count: skuRows.filter((row) => row.trendTone === 'up').length,
+              window: activeWindowLabel,
+            })
           : demandTrend.tone === 'down'
-            ? `${skuRows.filter((row) => row.trendTone === 'down').length} entities softening across ${activeWindowLabel}`
-            : `Demand is broadly holding across ${activeWindowLabel}`,
+            ? translateUiLiteral(language, '{count} entities softening across {window}', {
+                count: skuRows.filter((row) => row.trendTone === 'down').length,
+                window: activeWindowLabel,
+              })
+            : translateUiLiteral(language, 'Demand is broadly holding across {window}', { window: activeWindowLabel }),
     },
     {
       key: 'capacity',
       label: translate(language, 'performanceVmRibbonSellableCapacity'),
-      value: `${formatSenaPercent(sellableCapacityRatio, language)} coverable`,
-      detail: `${activeWindowLabel} service demand that can still be served`,
+      value: literal(language, '{value} can still be fulfilled', {
+        value: formatSenaPercent(sellableCapacityRatio, language),
+      }),
+      detail: literal(language, '{window} service demand that can still be served', {
+        window: activeWindowLabel,
+      }),
     },
     {
       key: 'inbound',
       label: translate(language, 'performanceVmRibbonIncomingStock'),
-      value: `${formatWholeNumber(inboundRows.length, language)} receipts in motion`,
-      detail: overdueInboundCount > 0 ? `${overdueInboundCount} overdue` : 'Pipeline still within window',
+      value: literal(language, '{count} receipts in motion', {
+        count: formatWholeNumber(inboundRows.length, language),
+      }),
+      detail: overdueInboundCount > 0
+        ? literal(language, '{count} overdue', { count: overdueInboundCount })
+        : literal(language, 'Pipeline still within window'),
     },
     {
       key: 'margin',
       label: translate(language, 'performanceVmRibbonMarginHealth'),
-      value: priceWatchRows.length > 1 ? 'Watch' : 'Stable',
+      value: literal(language, priceWatchRows.length > 1 ? 'Watch' : 'Stable'),
       detail:
         priceWatchRows.length > 0
-          ? `${formatWholeNumber(priceWatchRows.length, language)} price or margin drags in ${activeWindowLabel}`
-          : `No immediate margin drag detected in ${activeWindowLabel}`,
+          ? literal(language, '{count} price or margin drags in {window}', {
+              count: formatWholeNumber(priceWatchRows.length, language),
+              window: activeWindowLabel,
+            })
+          : literal(language, 'No immediate margin drag detected in {window}', {
+              window: activeWindowLabel,
+            }),
     },
     {
       key: 'risk',
       label: translate(language, 'performanceVmRibbonRevenueAtRisk'),
       value: formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate),
-      detail: `Revenue currently blocked by capacity or stock pressure in ${activeWindowLabel}`,
+      detail: literal(language, 'Revenue currently blocked by capacity or stock pressure in {window}', {
+        window: activeWindowLabel,
+      }),
     },
   ];
 
@@ -1350,25 +1477,26 @@ export function derivePerformanceViewModel({
         const linkedSkuIds = linkedSkusByServiceId.get(row.id)?.map((entry) => entry.skuId) ?? [];
         const currentDemandScore = windowDemandScoreForService(row.id, recentObservations);
         const previousDemandScore = windowDemandScoreForService(row.id, previousObservations);
-        const demandCompare = compareTrendText(currentDemandScore, previousDemandScore);
+        const demandCompare = compareTrendText(currentDemandScore, previousDemandScore, language);
         const demandFactor = relativeFactor(currentDemandScore, previousDemandScore);
         const previousActivityMean = row.activityMean / demandFactor;
         const previousCoverageRatio = previousActivityMean > 0 ? Math.min(1, row.sellableUnits / previousActivityMean) : row.coverageRatio;
         const previousSupportLabel =
           previousCoverageRatio >= 0.9 ? 'Capacity holding' : previousCoverageRatio >= 0.7 ? 'Partially coverable' : 'Blocked by supply';
-        const supportCompare = coverageCompareText(row.coverageRatio, previousCoverageRatio, previousSupportLabel);
+        const supportCompare = coverageCompareText(row.coverageRatio, previousCoverageRatio, previousSupportLabel, language);
         const currentPipelineState = windowPipelineStateForService(linkedSkuIds, recentObservations);
         const previousPipelineState = windowPipelineStateForService(linkedSkuIds, previousObservations);
-        const pipelineCompare = pipelineCompareText(currentPipelineState, previousPipelineState);
+        const pipelineCompare = pipelineCompareText(currentPipelineState, previousPipelineState, language);
         const previousPriceSignal = latestServicePriceSignalForWindow(row.id, catalog.services.find((entry) => entry.serviceId === row.id)!, previousObservations);
-        const priceCompare = priceCompareText({ current: row.priceSignal, previous: previousPriceSignal });
+        const priceCompare = priceCompareText({ current: row.priceSignal, previous: previousPriceSignal, language });
         const previousStatus = statusForService({
           activityMean: previousActivityMean,
           coverageRatio: previousCoverageRatio,
           grossMarginRatio: row.grossMarginRatio,
+          language,
           priceSignal: previousPriceSignal,
         });
-        const statusCompare = statusTransitionText(row.statusLabel, previousStatus.label);
+        const statusCompare = statusTransitionText(row.statusLabel, previousStatus.label, language);
         const rowChangeScore =
           Math.abs(demandCompare.delta) * 1.4 +
           Math.abs(supportCompare.delta) * 1.2 +
@@ -1384,11 +1512,12 @@ export function derivePerformanceViewModel({
         const previousDemandPoints = serviceDemandSeries(row.id, previousObservations);
         const rowDemandTrendSignal: PerformanceTrendSignal = compareMode
           ? compareTrendSignal({
-              compareDirection: demandCompare.direction,
-              currentPoints: currentDemandPoints,
-              currentTone: row.trendTone,
-              previousPoints: previousDemandPoints,
-            })
+            compareDirection: demandCompare.direction,
+            currentPoints: currentDemandPoints,
+            currentTone: row.trendTone,
+            language,
+            previousPoints: previousDemandPoints,
+          })
           : {
               label: row.trendLabel,
               points: currentDemandPoints,
@@ -1408,15 +1537,15 @@ export function derivePerformanceViewModel({
           statusCompareText: statusCompare.text,
           rowCompareSummary:
             rowChangeScore >= 0.75
-              ? compareSummary([
-                  demandCompare.delta > 0.18 ? 'Demand strengthened' : demandCompare.delta < -0.18 ? 'Demand softened' : '',
-                  supportCompare.delta > 0.06 ? 'cover improved' : supportCompare.delta < -0.06 ? 'cover fell' : '',
-                  pipelineCompare.text === 'pipeline slipped'
-                    ? 'pipeline slipped'
-                    : pipelineCompare.text === 'new inbound'
-                      ? 'new inbound arrived'
-                      : pipelineCompare.text === 'receipt closed'
-                        ? 'receipt landed'
+              ? compareSummary(language, [
+                  demandCompare.delta > 0.18 ? literal(language, 'Demand strengthened') : demandCompare.delta < -0.18 ? literal(language, 'Demand softened') : '',
+                  supportCompare.delta > 0.06 ? literal(language, 'cover improved') : supportCompare.delta < -0.06 ? literal(language, 'cover fell') : '',
+                  pipelineCompare.text === literal(language, 'pipeline slipped')
+                    ? literal(language, 'pipeline slipped')
+                    : pipelineCompare.text === literal(language, 'new inbound')
+                      ? literal(language, 'new inbound arrived')
+                      : pipelineCompare.text === literal(language, 'receipt closed')
+                        ? literal(language, 'receipt landed')
                         : '',
                 ])
               : null,
@@ -1434,7 +1563,7 @@ export function derivePerformanceViewModel({
         observations: previousObservations,
         skuId: row.id,
       });
-      const demandCompare = compareTrendText(currentDemandScore, previousDemandScore);
+      const demandCompare = compareTrendText(currentDemandScore, previousDemandScore, language);
       const demandFactor = relativeFactor(currentDemandScore, previousDemandScore);
       const previousDemandPerDay = row.demandPerDay / demandFactor;
       const previousDaysOfCover = previousDemandPerDay > 0 ? (row.daysOfCover ?? 0) * (row.demandPerDay / previousDemandPerDay) : row.daysOfCover;
@@ -1445,13 +1574,14 @@ export function derivePerformanceViewModel({
       });
       const currentPipelineState = windowPipelineStateForSku(row.id, recentObservations);
       const previousPipelineState = windowPipelineStateForSku(row.id, previousObservations);
-      const pipelineCompare = pipelineCompareText(currentPipelineState, previousPipelineState);
+      const pipelineCompare = pipelineCompareText(currentPipelineState, previousPipelineState, language);
       const previousPriceSignal = latestRetailPriceSignalForWindow(row.id, catalog.skus.find((entry) => entry.skuId === row.id)!, previousObservations);
-      const priceCompare = priceCompareText({ current: row.priceSignal, previous: previousPriceSignal });
+      const priceCompare = priceCompareText({ current: row.priceSignal, previous: previousPriceSignal, language });
       const previousReceiptSignal = previousPipelineState === 'quiet' ? null : row.receiptSignal;
       const previousStatus = statusForSku({
         demandPerDay: previousDemandPerDay,
         daysOfCover: previousDaysOfCover,
+        language,
         linkedServiceRevenue: row.linkedServiceRevenue,
         marginRatio: row.marginRatio,
         priceSignal: previousPriceSignal,
@@ -1459,7 +1589,7 @@ export function derivePerformanceViewModel({
         stockoutRisk: row.stockoutRisk,
         units: row.daysOfCover && previousDaysOfCover ? (row.daysOfCover / previousDaysOfCover) * (row.daysOfCover ?? 0) : 0,
       });
-      const statusCompare = statusTransitionText(row.statusLabel, previousStatus.label);
+      const statusCompare = statusTransitionText(row.statusLabel, previousStatus.label, language);
       const rowChangeScore =
         Math.abs(demandCompare.delta) * 1.4 +
         Math.abs(supportCompare.delta) * 1.25 +
@@ -1485,6 +1615,7 @@ export function derivePerformanceViewModel({
             compareDirection: demandCompare.direction,
             currentPoints: currentDemandPoints,
             currentTone: row.trendTone,
+            language,
             previousPoints: previousDemandPoints,
           })
         : {
@@ -1506,15 +1637,15 @@ export function derivePerformanceViewModel({
         statusCompareText: statusCompare.text,
         rowCompareSummary:
           rowChangeScore >= 0.75
-            ? compareSummary([
-                demandCompare.delta > 0.18 ? 'Demand strengthened' : demandCompare.delta < -0.18 ? 'Demand softened' : '',
-                supportCompare.delta > 0.75 ? 'cover improved' : supportCompare.delta < -0.75 ? 'cover fell' : '',
-                pipelineCompare.text === 'pipeline slipped'
-                  ? 'pipeline slipped'
-                  : pipelineCompare.text === 'new inbound'
-                    ? 'new inbound opened'
-                    : pipelineCompare.text === 'receipt closed'
-                      ? 'receipt landed'
+            ? compareSummary(language, [
+                demandCompare.delta > 0.18 ? literal(language, 'Demand strengthened') : demandCompare.delta < -0.18 ? literal(language, 'Demand softened') : '',
+                supportCompare.delta > 0.75 ? literal(language, 'cover improved') : supportCompare.delta < -0.75 ? literal(language, 'cover fell') : '',
+                pipelineCompare.text === literal(language, 'pipeline slipped')
+                  ? literal(language, 'pipeline slipped')
+                  : pipelineCompare.text === literal(language, 'new inbound')
+                    ? literal(language, 'new inbound opened')
+                    : pipelineCompare.text === literal(language, 'receipt closed')
+                      ? literal(language, 'receipt landed')
                       : '',
                 ])
               : null,
@@ -1562,14 +1693,23 @@ export function derivePerformanceViewModel({
       entityType: row.type,
       label: row.name,
       href: row.href,
-      summary: `${row.unitsLabel} · ${row.trendLabel.toLowerCase()} demand`,
+      summary: translateUiLiteral(language, '{units} · {trend} demand', {
+        units: row.unitsLabel,
+        trend: row.trendLabel.toLowerCase(),
+      }),
       tone: 'neutral' as const,
     }));
 
   const operationalDrag = [
-    `${formatWholeNumber(serviceRows.filter((row) => row.coverageRatio < 1 && row.coverageRatio > 0).length, language)} services partially blocked`,
-    `${formatWholeNumber(overdueInboundCount, language)} overdue receipts`,
-    `${formatWholeNumber(skuRows.filter((row) => row.daysOfCover != null && row.daysOfCover <= 3).length, language)} SKUs below safe cover`,
+    translateUiLiteral(language, '{count} services partially blocked', {
+      count: formatWholeNumber(serviceRows.filter((row) => row.coverageRatio < 1 && row.coverageRatio > 0).length, language),
+    }),
+    translateUiLiteral(language, '{count} overdue receipts', {
+      count: formatWholeNumber(overdueInboundCount, language),
+    }),
+    translateUiLiteral(language, '{count} SKUs below safe cover', {
+      count: formatWholeNumber(skuRows.filter((row) => row.daysOfCover != null && row.daysOfCover <= 3).length, language),
+    }),
   ];
 
   const recoveryPipeline = inboundRows.slice(0, 3).map((row) => ({
@@ -1592,7 +1732,10 @@ export function derivePerformanceViewModel({
   }));
 
   const coverageEstimate = diagnostics?.coverageEstimate ?? 0;
-  const coverageLabel = coverageEstimate >= 0.85 ? 'Good' : coverageEstimate >= 0.7 ? 'Moderate' : 'Sparse';
+  const coverageLabel = translateUiLiteral(
+    language,
+    coverageEstimate >= 0.85 ? 'Good' : coverageEstimate >= 0.7 ? 'Moderate' : 'Sparse',
+  );
   const weakSpotLabel =
     sortBusinessRows(skuRows)
       .slice()
@@ -1605,40 +1748,44 @@ export function derivePerformanceViewModel({
       })
       .slice(0, 2)
       .map((row) => row.name)
-      .join(' · ') || 'Coverage concentrated in recent receipts';
+      .join(' · ') || translateUiLiteral(language, 'Coverage concentrated in recent receipts');
 
   const timeline: PerformanceTimelineEvent[] = [
     {
       id: 'timeline-demand',
-      title: 'Demand shift',
-      subtitle: demandTrend.tone === 'up' ? 'Upside building' : demandTrend.tone === 'down' ? 'Velocity softening' : 'Demand holding',
+      title: translateUiLiteral(language, 'Demand change'),
+      subtitle: translateUiLiteral(language, demandTrend.tone === 'up' ? 'Upside building' : demandTrend.tone === 'down' ? 'Demand easing' : 'Demand holding'),
       detail: ribbon[0].detail,
     },
     {
       id: 'timeline-stockout',
-      title: 'Stockout episode',
+      title: translateUiLiteral(language, 'Stock-limited period'),
       subtitle:
         blockedProfit[0]?.label ??
-        `${formatWholeNumber(serviceRows.filter((row) => row.coverageRatio < 1).length, language)} services exposed`,
-      detail: `${formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate)} tied up in blocked demand`,
+        translateUiLiteral(language, '{count} services exposed', {
+          count: formatWholeNumber(serviceRows.filter((row) => row.coverageRatio < 1).length, language),
+        }),
+      detail: translateUiLiteral(language, '{value} tied up in blocked demand', {
+        value: formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate),
+      }),
     },
     {
       id: 'timeline-receipt',
-      title: 'Receipt arrival',
-      subtitle: recoveryPipeline[0]?.label ?? 'No active inbound lane',
-      detail: recoveryPipeline[0]?.detail ?? 'Pipeline is quiet right now',
+      title: translateUiLiteral(language, 'Delivery arrivals'),
+      subtitle: recoveryPipeline[0]?.label ?? translateUiLiteral(language, 'No incoming delivery is active'),
+      detail: recoveryPipeline[0]?.detail ?? translateUiLiteral(language, 'No incoming movement right now'),
     },
     {
       id: 'timeline-price',
-      title: 'Price change',
-      subtitle: priceWatch[0]?.label ?? 'No recent price move',
-      detail: priceWatch[0]?.detail ?? 'Margin posture is stable',
+      title: translateUiLiteral(language, 'Price change'),
+      subtitle: priceWatch[0]?.label ?? translateUiLiteral(language, 'No recent price move'),
+      detail: priceWatch[0]?.detail ?? translateUiLiteral(language, 'Margin posture is stable'),
     },
     {
       id: 'timeline-recovery',
-      title: 'Promo / recovery',
-      subtitle: winners[0]?.label ?? 'Recovery still building',
-      detail: winners[0]?.summary ?? 'Use the move list to pick the next commercial push',
+      title: translateUiLiteral(language, 'Promotion / recovery'),
+      subtitle: winners[0]?.label ?? translateUiLiteral(language, 'Recovery still building'),
+      detail: winners[0]?.summary ?? translateUiLiteral(language, 'Use the move list to pick the next commercial push'),
     },
   ];
 
@@ -1649,8 +1796,12 @@ export function derivePerformanceViewModel({
     confidence: {
       coverageLabel,
       evidenceLabel: observedAt
-        ? `${formatWholeNumber(recentObservations.length, language)} observations in ${activeWindowLabel} · last strong evidence ${formatSenaDate(observedAt, language)}`
-        : 'No evidence window yet',
+        ? translateUiLiteral(language, '{count} observations in {window} · last strong evidence {date}', {
+            count: formatWholeNumber(recentObservations.length, language),
+            window: activeWindowLabel,
+            date: formatSenaDate(observedAt, language),
+          })
+        : translateUiLiteral(language, 'No evidence window yet'),
       weakSpotLabel,
     },
     lastUpdatedLabel: observedAt

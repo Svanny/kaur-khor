@@ -389,7 +389,7 @@ describe('DashboardRoute', () => {
     vi.restoreAllMocks();
   });
 
-  test('renders the SENA task queue and lets the user filter it', async () => {
+  test('renders the task queue and lets the user filter it', async () => {
     const user = userEvent.setup();
     const { container } = renderRoute();
 
@@ -423,7 +423,7 @@ describe('DashboardRoute', () => {
     });
   });
 
-  test('prefills the drawer order quantity from the SENA reorder recommendation', async () => {
+  test('prefills the drawer order quantity from the reorder recommendation', async () => {
     renderRoute();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
@@ -629,7 +629,7 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('heading', { level: 2, name: 'Today' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'In transit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'Recent receipts' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 2, name: 'SENA signals' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Business signals' })).not.toBeInTheDocument();
   });
 
   test('hides overview descriptors and empty-state hints when optional help is disabled', async () => {

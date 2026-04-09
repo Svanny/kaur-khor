@@ -12,6 +12,7 @@ import { rightRailLayoutClassName } from '@/components/system/right-rail-layout'
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
+import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { readServiceAction } from '@/lib/navigation-state';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
@@ -88,6 +89,7 @@ export function ServiceDetailRoute() {
   const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
   const actionMode = readServiceAction(searchParams);
+  const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
 
   function updateActionMode(nextMode: typeof actionMode, replace = false) {
     const nextSearchParams = new URLSearchParams(searchParams);
@@ -107,14 +109,14 @@ export function ServiceDetailRoute() {
     scrollWorkspaceViewportToTop();
   }, [serviceId]);
 
-  const catalogService = catalog?.services.find((entry) => entry.serviceId === serviceId) ?? null;
+  const catalogService = visibleCatalog?.services.find((entry) => entry.serviceId === serviceId) ?? null;
   const projectedSnapshot = useMemo(
-    () => (catalog ? projectInventorySnapshotFromSena(catalog, observations) : null),
-    [catalog, observations],
+    () => (visibleCatalog ? projectInventorySnapshotFromSena(visibleCatalog, observations) : null),
+    [observations, visibleCatalog],
   );
   const linkedSkuIds = useMemo(
-    () => (catalog ? linkedSkuIdsForService(catalog, serviceId) : []),
-    [catalog, serviceId],
+    () => (visibleCatalog ? linkedSkuIdsForService(visibleCatalog, serviceId) : []),
+    [serviceId, visibleCatalog],
   );
   const activeSnapshot = snapshot ?? loadedSnapshot ?? projectedSnapshot;
   const activeReports = reports.length > 0 ? reports : loadedReports ?? [];

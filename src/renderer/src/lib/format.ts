@@ -31,6 +31,15 @@ const shortDurationUnitLabel: Record<DurationUnit, string> = {
   year: 'Y',
 };
 
+const shortDurationUnitLabelKm: Record<DurationUnit, string> = {
+  minute: ' នាទី',
+  hour: ' ម៉ោង',
+  day: ' ថ្ងៃ',
+  week: ' សប្ដាហ៍',
+  month: ' ខែ',
+  year: ' ឆ្នាំ',
+};
+
 export function localeFor(language: AppLanguage): string {
   return language === 'km' ? 'km-KH' : 'en-US';
 }
@@ -176,7 +185,8 @@ export function formatDurationAuto(
       : sanitizeWholeNumberForDisplay(coerced.value);
 
   if (display === 'short') {
-    return `${formatWholeNumber(roundedValue, language)}${shortDurationUnitLabel[coerced.unit]}`;
+    const unitLabel = language === 'km' ? shortDurationUnitLabelKm[coerced.unit] : shortDurationUnitLabel[coerced.unit];
+    return `${formatWholeNumber(roundedValue, language)}${unitLabel}`;
   }
 
   return new Intl.NumberFormat(localeFor(language), {

@@ -2,7 +2,8 @@ import type { AppCurrency, AppLanguage, InventorySnapshot, ServiceRecord, StockR
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import type { SenaObservationRecord, SenaRegimePosteriorPoint, SenaServiceDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { computeServiceSellableUnits, serviceLinkedSkus } from '@/lib/catalog';
-import { getTranslation } from '@/lib/translations';
+import { translateRegimeLabel } from '@/lib/localized-display';
+import { getTranslation, translateUiLiteral } from '@/lib/translations';
 import {
   deriveFragilitySummary,
   mapServiceTimelineEvents,
@@ -32,6 +33,7 @@ export interface ServiceIntervalViewModel {
   intervalIndex: number;
   label: string;
   caption: string;
+  regimeKey: string;
   dominantRegime: string;
   endAt: string | null;
   priceLabel: string;
@@ -156,17 +158,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function titleCaseRegime(value: string | null | undefined) {
-  if (!value) {
-    return 'Normal';
-  }
-  return value
-    .split(/[_\s-]+/g)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 function regimeFactor(value: string | null | undefined) {
   switch (value) {
     case 'promo':
@@ -282,6 +273,29 @@ function contributorRolePriority(roleKey: ServiceContributorViewModel['roleKey']
     default:
       return 2;
   }
+}
+
+function contributorRoleKeyAtIndex(index: number): ServiceContributorViewModel['roleKey'] {
+  if (index === 0) {
+    return 'limiting_now';
+  }
+  if (index === 1) {
+    return 'next_likely_limiter';
+  }
+  return 'safe_contributor';
+}
+
+function contributorRoleLabel(
+  language: AppLanguage,
+  roleKey: ServiceContributorViewModel['roleKey'],
+) {
+  if (roleKey === 'limiting_now') {
+    return translate(language, 'serviceVmRoleLimitingNow');
+  }
+  if (roleKey === 'next_likely_limiter') {
+    return translate(language, 'serviceVmRoleNextLikelyLimiter');
+  }
+  return translate(language, 'serviceVmRoleSafeContributor');
 }
 
 function buildRestorationEvents({
@@ -521,7 +535,7 @@ export function deriveServiceDetailViewModel({
     usdToKhrExchangeRate,
   });
 
-  const contributors = rankedContributors.map<ServiceContributorViewModel>((entry, index) => {
+  const contributorDrafts = rankedContributors.map((entry, index) => {
     const relatedInbound = restoration.find((event) => event.skuId === entry.sku.skuId && event.state === 'open');
     const relatedReceipt = restoration.find((event) => event.skuId === entry.sku.skuId && event.state === 'logged');
     const contributorDetail = detail?.contributors.find((contributor) => contributor.skuId === entry.sku.skuId) ?? null;
@@ -531,26 +545,20 @@ export function deriveServiceDetailViewModel({
       : reorderRecommendation.optionalOrderLabel
         ? `${entry.sku.name} · keep watching · optional order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
         : null;
-    const roleKey: ServiceContributorViewModel['roleKey'] = entry.isBottleneck
-      ? 'limiting_now'
-      : index === 1
-        ? 'next_likely_limiter'
-        : 'safe_contributor';
-    const roleLabel =
-      roleKey === 'limiting_now'
-        ? translate(language, 'serviceVmRoleLimitingNow')
-        : roleKey === 'next_likely_limiter'
-          ? translate(language, 'serviceVmRoleNextLikelyLimiter')
-          : translate(language, 'serviceVmRoleSafeContributor');
+    const limitingProbability = clamp(
+      contributorDetail?.bottleneckProbability ?? entry.insight?.stockoutRisk ?? entry.insight?.reorderTriggerProbability ?? 0,
+      0,
+      1,
+    );
+    const usageProbability = clamp(contributorDetail?.usageProbability ?? 0, 0, 1);
 
     return {
       skuId: entry.sku.skuId,
       name: entry.sku.name,
-      statusLabel: roleLabel,
-      roleKey,
-      roleLabel,
-      probabilityLabel: formatSenaPercent(entry.insight?.stockoutRisk ?? entry.insight?.reorderTriggerProbability ?? contributorDetail?.bottleneckProbability ?? 0, language),
-      usageLabel: formatSenaPercent(contributorDetail?.usageProbability ?? 0, language),
+      baseRank: index + 1,
+      limitingProbability,
+      usageProbability,
+      snapshotIsBottleneck: entry.isBottleneck,
       daysOfCoverLabel: entry.insight?.daysOfCover != null ? formatSenaDays(entry.insight.daysOfCover, language) : translate(language, 'serviceVmCoveragePending'),
       stockLabel: translate(language, 'serviceVmInStock', {
         count: formatWholeNumber(entry.sku.unitsInStock, language),
@@ -568,15 +576,45 @@ export function deriveServiceDetailViewModel({
           ? translate(language, 'serviceVmRecoveryFast')
           : translate(language, 'serviceVmRecoveryMonitor')),
       restockGuidance,
-      limitingProbability: clamp(
-        contributorDetail?.bottleneckProbability ?? entry.insight?.stockoutRisk ?? 0,
-        0,
-        1,
-      ),
-      orderRank: index + 1,
       openSkuHref: `/catalog/skus/${entry.sku.skuId}`,
     };
   });
+  const contributors = [...contributorDrafts]
+    .sort((left, right) => {
+      if (right.limitingProbability !== left.limitingProbability) {
+        return right.limitingProbability - left.limitingProbability;
+      }
+      if (right.usageProbability !== left.usageProbability) {
+        return right.usageProbability - left.usageProbability;
+      }
+      if (left.snapshotIsBottleneck !== right.snapshotIsBottleneck) {
+        return Number(right.snapshotIsBottleneck) - Number(left.snapshotIsBottleneck);
+      }
+      return left.baseRank - right.baseRank;
+    })
+    .map<ServiceContributorViewModel>((entry, index) => {
+      const roleKey = contributorRoleKeyAtIndex(index);
+      const roleLabel = contributorRoleLabel(language, roleKey);
+      return {
+        skuId: entry.skuId,
+        name: entry.name,
+        statusLabel: roleLabel,
+        roleKey,
+        roleLabel,
+        probabilityLabel: formatSenaPercent(entry.limitingProbability, language),
+        usageLabel: formatSenaPercent(entry.usageProbability, language),
+        daysOfCoverLabel: entry.daysOfCoverLabel,
+        stockLabel: entry.stockLabel,
+        healthLabel: entry.healthLabel,
+        inboundLabel: entry.inboundLabel,
+        recentSignal: entry.recentSignal,
+        recoveryNote: entry.recoveryNote,
+        restockGuidance: entry.restockGuidance,
+        limitingProbability: entry.limitingProbability,
+        orderRank: index + 1,
+        openSkuHref: entry.openSkuHref,
+      };
+    });
 
   const intervalsSource = detail?.regimeTimeline.length ? detail.regimeTimeline : [fallbackInterval({ service, workspaceSummary })];
   const intervals = intervalsSource.map<ServiceIntervalViewModel>((interval) => {
@@ -609,19 +647,21 @@ export function deriveServiceDetailViewModel({
       service,
     });
     const tone = intervalTone({ demandValue, sellableValue: snapshotSellable });
-    const evidenceSummary = relevantEvidence[0]?.summary ?? 'No direct evidence in this interval.';
+    const evidenceSummary =
+      relevantEvidence[0]?.summary ?? translateUiLiteral(language, 'No direct evidence in this period.');
     const changeLines = relevantEvidence.length
       ? relevantEvidence.slice(0, 3).map((entry) => entry.summary)
       : relevantReports.length
-        ? ['Stock evidence adjusted contributor pressure.']
-        : ['No material change recorded in this interval.'];
+        ? [translateUiLiteral(language, 'A stock update changed contributor pressure.')]
+        : [translateUiLiteral(language, 'No meaningful change was recorded in this period.')];
 
     return {
       key: `interval:${interval.intervalIndex}`,
       intervalIndex: interval.intervalIndex,
       label: formatSenaDate(interval.endAt, language),
-      caption: titleCaseRegime(interval.dominantRegime),
-      dominantRegime: titleCaseRegime(interval.dominantRegime),
+      caption: translateRegimeLabel(language, interval.dominantRegime),
+      regimeKey: interval.dominantRegime,
+      dominantRegime: translateRegimeLabel(language, interval.dominantRegime),
       endAt: interval.endAt,
       priceLabel: formatCurrency(price, currency, language, usdToKhrExchangeRate),
       priceValue: displayMoneyFromUsd(price, currency, usdToKhrExchangeRate),
@@ -631,23 +671,25 @@ export function deriveServiceDetailViewModel({
       sellableLabel: formatWholeNumber(snapshotSellable, language),
       gapLabel:
         snapshotSellable > 0
-          ? `${formatWholeNumber(Math.max(0, Math.round(demandValue - snapshotSellable)), language)} at risk`
-          : 'Blocked',
+          ? translateUiLiteral(language, '{count} at risk', {
+              count: formatWholeNumber(Math.max(0, Math.round(demandValue - snapshotSellable)), language),
+            })
+          : translate(language, 'serviceVmAvailabilityBlocked'),
       tensionLabel:
         tone === 'blocked'
-          ? 'Demand outruns capacity'
+          ? translateUiLiteral(language, 'Demand is higher than service capacity')
           : tone === 'tight'
-            ? 'Demand is close to service capacity'
-            : 'Capacity stays ahead of demand',
+            ? translateUiLiteral(language, 'Demand is close to service capacity')
+            : translateUiLiteral(language, 'Service capacity stays ahead of demand'),
       tone,
       evidenceSummary,
-      bindingLabel: topContributor?.sku.name ?? 'No active bottleneck',
+      bindingLabel: topContributor?.sku.name ?? translateUiLiteral(language, 'No active blocker'),
       changeHeadline:
         tone === 'blocked'
-          ? 'Service was constrained in this interval'
+          ? translateUiLiteral(language, 'Service capacity was constrained in this period')
           : tone === 'tight'
-            ? 'The service was close to a disruption threshold'
-            : 'Capacity remained resilient in this interval',
+            ? translateUiLiteral(language, 'Service capacity was close to being constrained')
+            : translateUiLiteral(language, 'Service capacity stayed resilient in this period'),
       changeLines,
     };
   });
@@ -656,19 +698,19 @@ export function deriveServiceDetailViewModel({
     id: entry.report.reportId,
     title: entry.summary,
     observedAt: formatServiceEvidenceObservedAt(entry.report.reportedAt, language),
-    detail: entry.secondary ?? 'Evidence incorporated into service viability.',
+    detail: entry.secondary ?? translateUiLiteral(language, 'This update was included in the service availability picture.'),
     chips: entry.types.map((type) => {
       switch (type) {
         case 'service-unavailable':
-          return 'Service unavailable';
+          return translateUiLiteral(language, 'Service unavailable');
         case 'price-adjustment':
-          return 'Price changed';
+          return translateUiLiteral(language, 'Price changed');
         case 'linked-sku-change':
-          return 'Stock report';
+          return translateUiLiteral(language, 'Stock update');
         case 'ranking-update':
-          return 'Ranking update';
+          return translateUiLiteral(language, 'Selling order update');
         case 'limiter-shift':
-          return 'Blocker emerged';
+          return translateUiLiteral(language, 'Main blocker changed');
       }
     }),
   }));

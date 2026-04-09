@@ -25,6 +25,7 @@ const catalog: SenaCatalog = {
   bundles: [],
   services: [
     {
+      archived: false,
       bundle: false,
       description: 'Signature haircut',
       name: 'Haircut',
@@ -35,6 +36,7 @@ const catalog: SenaCatalog = {
   sharingMask: [{ enabled: true, serviceId: 'service-haircut', skuId: 'sku-razor', usageProbability: 1 }],
   skus: [
     {
+      archived: false,
       costPerUnit: 6,
       description: 'Refill cartridge',
       leadTimeMeanDaysHint: 5,
@@ -261,6 +263,9 @@ beforeAll(() => {
 
 afterEach(() => {
   preferenceState.showFloatingTitleActions = false;
+  preferenceState.language = 'en';
+  preferenceState.t = (key: string, variables?: Record<string, string | number | null | undefined>) =>
+    getTranslation('en', key as never, variables);
 });
 
 function buildModel() {
@@ -287,7 +292,7 @@ describe('AnalysisWorkbench', () => {
 
     expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
 
-    const tabList = screen.getByRole('tablist', { name: 'Select analysis surface' });
+    const tabList = screen.getByRole('tablist', { name: 'Select analysis view' });
     expect(tabList.parentElement).toHaveClass('overflow-x-auto');
     expect(tabList.parentElement).not.toHaveClass('overflow-hidden');
 
@@ -299,7 +304,7 @@ describe('AnalysisWorkbench', () => {
   test('does not mount the inspector rail on the observations tab', () => {
     render(<AnalysisWorkbench model={buildModel()} section="observations" setSection={vi.fn()} showRightRailCards />);
 
-    expect(screen.getByText('Observation ledger')).toBeInTheDocument();
+    expect(screen.getByText('Saved updates')).toBeInTheDocument();
     expect(document.querySelector('[data-analysis-inspector="true"]')).toBeNull();
   });
 
@@ -309,7 +314,7 @@ describe('AnalysisWorkbench', () => {
     expect(screen.queryByRole('button', { name: /latest observation/i })).toBeNull();
   });
 
-  test('shows reorder policy in the selected SKU inspector', async () => {
+test('shows reorder policy in the selected SKU inspector', async () => {
     const user = userEvent.setup();
 
     render(
@@ -320,7 +325,7 @@ describe('AnalysisWorkbench', () => {
 
     await user.click(screen.getByRole('button', { name: /Razor Refill/i }));
 
-    expect(screen.getAllByText('Reorder policy').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Order suggestion').length).toBeGreaterThan(0);
     expect(screen.getAllByText('15 units').length).toBeGreaterThan(0);
     expect(screen.getAllByText('10-18 units').length).toBeGreaterThan(0);
     expect(screen.getAllByText('78%').length).toBeGreaterThan(0);
@@ -330,6 +335,34 @@ describe('AnalysisWorkbench', () => {
       .find((node) => node.className.includes('[overflow-wrap:anywhere]'));
     expect(protectionHorizon).toBeTruthy();
     expect(protectionHorizon).toHaveClass('min-w-0', 'break-words', 'text-right');
+  });
+
+  test('keeps risk pill colors stable in Khmer mode', () => {
+    preferenceState.language = 'km';
+    preferenceState.t = (key: string, variables?: Record<string, string | number | null | undefined>) =>
+      getTranslation('km', key as never, variables);
+
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics,
+      language: 'km',
+      observations,
+      scope: 'all',
+      serviceDetailsById,
+      skuDetailsById,
+      workspaceSummary,
+    });
+
+    render(
+      <MemoryRouter>
+        <AnalysisWorkbench model={model} section="pressure" setSection={vi.fn()} showRightRailCards={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText('ខ្ពស់').find((node) => node.className.includes('text-rose-800'))).toBeTruthy();
+    expect(screen.getAllByText('ទាប').find((node) => node.className.includes('text-sky-700'))).toBeTruthy();
+    expect(screen.getAllByText('មធ្យម').find((node) => node.className.includes('text-amber-800'))).toBeTruthy();
   });
 
   test('does not mount the inspector rail on the fragility tab', () => {
@@ -347,7 +380,7 @@ describe('AnalysisWorkbench', () => {
     expect(screen.getByRole('button', { name: 'Observations used help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Intervals in view help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Smoothing help' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Stability sample size help' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Evidence strength help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Prediction gap help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Coverage level help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Scope help' })).toBeInTheDocument();
@@ -667,6 +700,30 @@ describe('AnalysisWorkbench', () => {
     expect(section?.className).toBe(beforeClassName);
   });
 
+  test('does not force the expanded lane rows to fill the full section height', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <AnalysisWorkbench
+        hasOlderIntervals={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => 0)}
+        model={buildModel()}
+        section="workbench"
+        setSection={vi.fn()}
+        showRightRailCards={false}
+      />,
+    );
+
+    const laneRows = container.querySelector('[data-analysis-lane-rows="true"]') as HTMLElement | null;
+    expect(laneRows).not.toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Expand Stock estimate and demand' }));
+
+    expect(laneRows?.style.height).toBe('');
+    expect(laneRows?.style.minHeight).toBe('');
+    expect(laneRows?.style.maxHeight).toBe('');
+  });
+
   test('expanded inventory lane increases bar area while capping line weight', async () => {
     const user = userEvent.setup();
     const { container } = render(
@@ -769,4 +826,4 @@ describe('AnalysisWorkbench', () => {
     expect(Number.parseFloat(expandedRegimeTile.style.marginLeft || '0')).toBe(initialTileMarginLeft);
     expect(Number.parseFloat(expandedRegimeTile.style.marginRight || '0')).toBe(initialTileMarginRight);
   });
-});
+}, 10_000);

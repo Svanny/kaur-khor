@@ -60,4 +60,11 @@ describe('format helpers', () => {
     expect(formatDurationAuto(2, 'day', 'en')).toBe('2 days');
     expect(formatDurationAuto(0.000001, 'hour', 'en')).toBe('1 minute');
   });
+
+  it('uses Khmer-safe short duration labels instead of English abbreviations', () => {
+    expect(formatDurationAuto(0.2, 'week', 'km', 'short')).toBe('1 ថ្ងៃ');
+    expect(formatDurationAuto(0.01, 'hour', 'km', 'short')).toBe('1 នាទី');
+    expect(formatDurationAuto(2, 'month', 'km', 'short')).toBe('2 ខែ');
+    expect(formatDurationAuto(3, 'year', 'km', 'short')).toBe('3 ឆ្នាំ');
+  });
 });

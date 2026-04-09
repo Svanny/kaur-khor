@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { pillHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
@@ -76,7 +76,7 @@ export function PagedPanelNavigation({
           type="button"
           onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
         >
-          <ChevronLeft className="size-4" />
+          <NavigationPreviousIcon className="size-4" />
         </button>
         <button
           className={`rounded-full border border-border/70 px-3 py-1 text-sm text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
@@ -104,7 +104,7 @@ export function PagedPanelNavigation({
           type="button"
           onClick={() => setPageIndex((current) => Math.min(pageCount - 1, current + 1))}
         >
-          <ChevronRight className="size-4" />
+          <NavigationNextIcon className="size-4" />
         </button>
       </div>
     </div>

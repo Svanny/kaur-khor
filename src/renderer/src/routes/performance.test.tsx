@@ -485,7 +485,7 @@ describe('PerformanceRoute', () => {
 
     expect(screen.getByText('Analysis details')).toBeInTheDocument();
     expect(
-      screen.getByText('See how saved updates turned into Banji’s current picture of demand, incoming stock, delivery timing, and price.'),
+      screen.getByText('Inspect how saved updates shaped Banji’s current picture of demand, orders, deliveries, timing shifts, and price effects.'),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole('heading', { name: 'System timeline' }, { timeout: 10_000 }),
@@ -499,7 +499,7 @@ describe('PerformanceRoute', () => {
     expect(screen.getAllByText('Typical timing').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Refresh analysis' })).toBeInTheDocument();
     expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
-    expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saved updates')).not.toBeInTheDocument();
     expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: /Select analysis time range/i })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Workbench/i })).toHaveAttribute('data-state', 'active');
@@ -564,7 +564,7 @@ describe('PerformanceRoute', () => {
     await user.click(screen.getByRole('tab', { name: /Risks/i }));
 
     expect(await screen.findByText('Risk explorer')).toBeInTheDocument();
-    expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saved updates')).not.toBeInTheDocument();
     expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
@@ -577,7 +577,7 @@ describe('PerformanceRoute', () => {
     expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: /Observations/i }));
 
-    expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
+    expect(await screen.findByText('Saved updates')).toBeInTheDocument();
     expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
     expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
@@ -588,7 +588,7 @@ describe('PerformanceRoute', () => {
 
     expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('tab', { name: /Observations/i }));
-    expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
+    expect(await screen.findByText('Saved updates')).toBeInTheDocument();
 
     const observationCells = Array.from(container.querySelectorAll('[data-observation-cell="true"]'));
     expect(observationCells.length).toBeGreaterThan(0);
@@ -607,7 +607,7 @@ describe('PerformanceRoute', () => {
 
     expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: /Observations/i }));
-    expect(await screen.findByText('Observation ledger')).toBeInTheDocument();
+    expect(await screen.findByText('Saved updates')).toBeInTheDocument();
 
     expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
     expect(screen.getByText('Observation note 7')).toBeInTheDocument();
@@ -633,7 +633,7 @@ describe('PerformanceRoute', () => {
 
     expect(await screen.findByText('Service blocker map')).toBeInTheDocument();
     expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
-    expect(screen.queryByText('Observation ledger')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saved updates')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
 

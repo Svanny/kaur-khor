@@ -1,6 +1,16 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, ArrowUpRight, BadgeDollarSign, GitCompareArrows, Layers3, Package, PiggyBank, RefreshCw, Store, Trophy, TrendingUp, Truck, TriangleAlert } from 'lucide-react';
+import { ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
+import {
+  EntityComparisonIcon,
+  EntityLayersIcon,
+  EntityRevenueIcon,
+  EntityServiceIcon,
+  EntitySkuIcon,
+  EntityTransitIcon,
+} from '@icons/entities';
+import { NavigationForwardIcon, NavigationPerformanceIcon } from '@icons/navigation';
+import { StatusAchievementIcon, StatusSavingsIcon, StatusWarningIcon } from '@icons/status';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
@@ -17,10 +27,12 @@ import { Button } from '@/components/ui/button';
 import { CompactSparkline } from '@/components/ui/compact-sparkline';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { activeSenaCatalog } from '@/lib/sena-catalog';
 import {
   buildPerformanceSearchParams,
   readPerformanceRouteState,
 } from '@/lib/navigation-state';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
@@ -138,7 +150,7 @@ function TrendSignalInline({
       {labelBelow && leftLabel && rightLabel ? (
         <span className={compareLabelClassName}>
           <span>{leftLabel}</span>
-          <ArrowRight className="size-3.5 text-muted-foreground" />
+          <NavigationForwardIcon className="size-3.5 text-muted-foreground" />
           <span>{rightLabel}</span>
         </span>
       ) : (
@@ -150,10 +162,10 @@ function TrendSignalInline({
 
 function ItemTypeIcon({ type }: { type: string }) {
   if (type === 'Service') {
-    return <Store className="mt-0.5 size-4 text-muted-foreground" aria-hidden="true" />;
+    return <EntityServiceIcon className="mt-0.5 size-4 text-muted-foreground" aria-hidden="true" />;
   }
 
-  return <Package className="mt-0.5 size-4 text-muted-foreground" aria-hidden="true" />;
+  return <EntitySkuIcon className="mt-0.5 size-4 text-muted-foreground" aria-hidden="true" />;
 }
 
 function CashBandColumn({
@@ -169,7 +181,8 @@ function CashBandColumn({
   emptyMessage: string;
   rows: PerformanceBandEntry[];
 }) {
-  const HeaderIcon = band === 'winners' ? Trophy : band === 'blockedProfit' ? TriangleAlert : PiggyBank;
+  const HeaderIcon =
+    band === 'winners' ? StatusAchievementIcon : band === 'blockedProfit' ? StatusWarningIcon : StatusSavingsIcon;
 
   return (
     <div className="min-w-0">
@@ -213,14 +226,14 @@ function TimelineStep({
 }) {
   const Icon =
     event.id === 'timeline-demand'
-      ? TrendingUp
+      ? NavigationPerformanceIcon
       : event.id === 'timeline-stockout'
-        ? TriangleAlert
+        ? StatusWarningIcon
         : event.id === 'timeline-receipt'
-          ? Truck
+          ? EntityTransitIcon
           : event.id === 'timeline-price'
-            ? BadgeDollarSign
-            : RefreshCw;
+            ? EntityRevenueIcon
+            : ActionRefreshIcon;
 
   return (
     <div className="group flex min-w-[220px] flex-1 items-stretch">
@@ -239,7 +252,7 @@ function TimelineStep({
       {showConnector ? (
         <div className="hidden w-10 shrink-0 self-stretch pt-14 lg:flex">
           <div className="flex flex-1 items-center justify-center text-muted-foreground">
-            <ArrowUpRight className="size-4 rotate-45" />
+            <ActionOpenExternalIcon className="size-4 rotate-45" />
           </div>
         </div>
       ) : null}
@@ -313,7 +326,7 @@ function MoveNowTable({
               <div className="flex items-start lg:justify-center">
                 <Button asChild className="w-full justify-center lg:w-[132px]" size="sm" variant={row.tone === 'danger' ? 'default' : 'outline'}>
                   <Link className="inline-flex w-full items-center justify-center gap-2" to={row.ctaHref}>
-                    <ArrowUpRight className="size-3.5 shrink-0" />
+                    <ActionOpenExternalIcon className="size-3.5 shrink-0" />
                     <span className="truncate">{row.ctaLabel}</span>
                   </Link>
                 </Button>
@@ -336,18 +349,19 @@ export function PerformanceRoute() {
   const compareMode = routeState.compare;
   const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
+  const visibleCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
 
   function updateRouteState(nextState: Parameters<typeof buildPerformanceSearchParams>[1], replace = false) {
     setSearchParams(buildPerformanceSearchParams(searchParams, nextState), { replace });
   }
 
   const model = useMemo(() => {
-    if (!inventory.catalog || !inventory.workspaceSummary) {
+    if (!visibleCatalog || !inventory.workspaceSummary) {
       return null;
     }
 
     return derivePerformanceViewModel({
-      catalog: inventory.catalog,
+      catalog: visibleCatalog,
       compareMode,
       currency,
       usdToKhrExchangeRate,
@@ -363,7 +377,7 @@ export function PerformanceRoute() {
   }, [
     currency,
     compareMode,
-    inventory.catalog,
+    visibleCatalog,
     inventory.diagnostics,
     inventory.observations,
     inventory.workspaceSummary,
@@ -377,16 +391,16 @@ export function PerformanceRoute() {
   const latestUpdateAt = latestObservationAt(inventory.observations);
   const latestUpdateAgeDays = intervalDaysBetween(latestUpdateAt, new Date().toISOString());
 
-  if (!inventory.catalog) {
+  if (!visibleCatalog || (visibleCatalog.skus.length === 0 && visibleCatalog.services.length === 0)) {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
           title={t('performanceRouteEmptyCatalogTitle')}
           hint={t('performanceRouteEmptyCatalogHint')}
           action={
-            <Button asChild>
-              <Link to="/catalog/skus/new">Create first SKU</Link>
-            </Button>
+              <Button asChild>
+                <Link to="/catalog/skus/new">{translateUiLiteral(language, 'Create first SKU')}</Link>
+              </Button>
           }
         />
       </WorkspacePage>
@@ -402,10 +416,10 @@ export function PerformanceRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/record-update">Start update</Link>
+                <Link to="/record-update">{translateUiLiteral(language, 'Start update')}</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/">Open Overview</Link>
+                <Link to="/">{translateUiLiteral(language, 'Open Overview')}</Link>
               </Button>
             </WorkspaceActionRow>
           }
@@ -417,13 +431,13 @@ export function PerformanceRoute() {
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
-        eyebrow="Performance"
+        eyebrow={translateUiLiteral(language, 'Performance')}
         title={t('performanceRouteTitle')}
         descriptor={t('performanceRouteDescriptor')}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <ToggleGroup
-              aria-label="Select performance time range"
+              aria-label={translateUiLiteral(language, 'Select performance time range')}
               className="rounded-full"
               spacing={1}
               type="single"
@@ -434,13 +448,13 @@ export function PerformanceRoute() {
                 }
               }}
             >
-              <ToggleGroupItem value="7d">7D</ToggleGroupItem>
-              <ToggleGroupItem value="30d">30D</ToggleGroupItem>
-              <ToggleGroupItem value="90d">90D</ToggleGroupItem>
+              <ToggleGroupItem value="7d">{translateUiLiteral(language, '7D')}</ToggleGroupItem>
+              <ToggleGroupItem value="30d">{translateUiLiteral(language, '30D')}</ToggleGroupItem>
+              <ToggleGroupItem value="90d">{translateUiLiteral(language, '90D')}</ToggleGroupItem>
             </ToggleGroup>
 
             <ToggleGroup
-              aria-label="Select performance scope"
+              aria-label={translateUiLiteral(language, 'Select performance scope')}
               className="rounded-full"
               spacing={1}
               type="single"
@@ -452,21 +466,21 @@ export function PerformanceRoute() {
               }}
             >
               <ToggleGroupItem value="all">
-                <Layers3 data-icon="inline-start" />
+                <EntityLayersIcon data-icon="inline-start" />
                 {t('performanceRouteScopeAll')}
               </ToggleGroupItem>
               <ToggleGroupItem value="services">
-                <Store data-icon="inline-start" />
+                <EntityServiceIcon data-icon="inline-start" />
                 {t('performanceRouteScopeServices')}
               </ToggleGroupItem>
               <ToggleGroupItem value="skus">
-                <Package data-icon="inline-start" />
+                <EntitySkuIcon data-icon="inline-start" />
                 {t('performanceRouteScopeSkus')}
               </ToggleGroupItem>
             </ToggleGroup>
 
             <SteeringPill active={compareMode} onClick={() => updateRouteState({ compare: !compareMode })}>
-              <GitCompareArrows className="size-4" />
+              <EntityComparisonIcon className="size-4" />
               {compareMode ? t('performanceRouteCompareView') : t('performanceRouteSingleView')}
             </SteeringPill>
           </div>
@@ -677,7 +691,7 @@ export function PerformanceRoute() {
                           >
                             {row.previousStatusLabel}
                           </span>
-                          <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
+                          <NavigationForwardIcon className="size-3.5 shrink-0 text-muted-foreground" />
                           <span className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(row.statusTone)}`}>
                             {row.statusLabel}
                           </span>
@@ -777,7 +791,10 @@ export function PerformanceRoute() {
               <p className="text-sm leading-6 text-muted-foreground">
                 {latestUpdateAt
                   ? t('performanceRouteConfidenceLastUpdate', {
-                      value: latestUpdateAgeDays == null ? model.lastUpdatedLabel : `${latestUpdateAgeDays} days ago`,
+                      value:
+                        latestUpdateAgeDays == null
+                          ? model.lastUpdatedLabel
+                          : translateUiLiteral(language, '{days} days ago', { days: latestUpdateAgeDays }),
                     })
                   : t('performanceRouteConfidenceThin')}
               </p>
@@ -790,8 +807,8 @@ export function PerformanceRoute() {
               </p>
               <Button asChild className="w-full" size="sm" variant="outline">
                 <Link to="/record-update">
-                  <ArrowUpRight className="size-4" />
-                  Start update
+                  <ActionOpenExternalIcon className="size-4" />
+                  {translateUiLiteral(language, 'Start update')}
                 </Link>
               </Button>
             </div>

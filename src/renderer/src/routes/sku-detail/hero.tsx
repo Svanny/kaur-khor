@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { regimeIconFor } from '@/lib/icon-mappings';
+import { getRegimeIcon } from '@icons/domain';
+import { translateRegimeLabel } from '@/lib/localized-display';
 import { SkuPageHero } from '@/routes/sku-page-hero';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel } from './section-heading';
@@ -25,8 +26,9 @@ export function SkuDetailHero({
   actions: ReactNode;
   model: SenaSkuDetailViewModel;
 }) {
-  const { t } = usePreferences();
-  const TopRegimeIcon = regimeIconFor(model.identity.topRegime);
+  const { language, t } = usePreferences();
+  const TopRegimeIcon = getRegimeIcon(model.identity.topRegime);
+  const topRegimeLabel = translateRegimeLabel(language, model.identity.topRegime);
 
   return (
     <SkuPageHero
@@ -39,7 +41,7 @@ export function SkuDetailHero({
           <span className="rounded-md border border-border/70 bg-muted/45 px-3 py-1 text-sm font-medium text-muted-foreground">
             <span className="inline-flex items-center gap-2">
               <TopRegimeIcon className="size-4" />
-              <span>{model.identity.topRegime}</span>
+              <span>{topRegimeLabel}</span>
             </span>
           </span>
           <span className="rounded-md border border-border/70 bg-muted/45 px-3 py-1 text-sm font-medium text-muted-foreground">

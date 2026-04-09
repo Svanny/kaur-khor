@@ -1,26 +1,29 @@
 import { Fragment, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type RefObject, type UIEvent, type WheelEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowUpRight,
-  AudioLines,
-  Boxes,
-  ChartNoAxesColumnIncreasing,
-  CircleGauge,
-  Cog,
-  FileSearch,
-  Grid3x3,
-  ListTree,
-  Map as MapIcon,
-  CalendarClock,
-  PackageSearch,
-  Package,
-  Radar,
-  Radio,
-  Rows3,
-  SearchCheck,
-  Store,
-  Waypoints,
-} from 'lucide-react';
+  ActionOpenExternalIcon,
+} from '@icons/actions';
+import { getRegimeIcon } from '@icons/domain';
+import {
+  EntityEvidenceIcon,
+  EntityPackageSearchIcon,
+  EntityServiceIcon,
+  EntitySignalIcon,
+  EntitySkuIcon,
+  EntityWaypointsIcon,
+} from '@icons/entities';
+import {
+  NavigationCatalogIcon,
+  NavigationDenseGridIcon,
+  NavigationHierarchyIcon,
+} from '@icons/navigation';
+import {
+  StatusGaugeIcon,
+  StatusRadarIcon,
+  StatusSettingsControlIcon,
+  StatusTrendChartIcon,
+  StatusWaveformIcon,
+} from '@icons/status';
 import {
   AXIS_END_PADDING,
   AXIS_START_PADDING,
@@ -75,7 +78,8 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { regimeIconFor } from '@/lib/icon-mappings';
+import { translateObservationEvidenceLabel, translateRegimeLabel } from '@/lib/localized-display';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { statusPillClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
@@ -85,6 +89,7 @@ import { PagedPanelNavigation } from '@/routes/detail-panels';
 import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './chrome';
 import type {
   AnalysisEntityPressureRow,
+  AnalysisRiskLevel,
   AnalysisObservationLedgerRow,
   AnalysisScope,
   AnalysisSection,
@@ -111,11 +116,11 @@ function analysisRailBlockClassName() {
   return 'border-t border-border/60 px-5 py-5 first:border-t-0';
 }
 
-function scoreCellTone(label: string) {
-  if (label === 'critical' || label === 'high') {
+function scoreCellTone(level: AnalysisRiskLevel) {
+  if (level === 'critical' || level === 'high') {
     return 'danger';
   }
-  if (label === 'medium') {
+  if (level === 'medium') {
     return 'warning';
   }
   return 'info';
@@ -123,9 +128,9 @@ function scoreCellTone(label: string) {
 
 function entityIcon(type: AnalysisEntityPressureRow['entityType']) {
   if (type === 'sku') {
-    return <Package className="size-4 text-muted-foreground" />;
+    return <EntitySkuIcon className="size-4 text-muted-foreground" />;
   }
-  return <Store className="size-4 text-muted-foreground" />;
+  return <EntityServiceIcon className="size-4 text-muted-foreground" />;
 }
 
 function selectionsEqual(left: AnalysisSelection, right: AnalysisSelection) {
@@ -191,7 +196,7 @@ function regimeFill(regime: string) {
 }
 
 function regimeIcon(regime: string) {
-  const Icon = regimeIconFor(regime);
+  const Icon = getRegimeIcon(regime);
   return <Icon className="size-4" />;
 }
 
@@ -430,11 +435,11 @@ function InternalNav({
 }) {
   const { t } = usePreferences();
   const navOptions: Array<{ value: AnalysisSection; label: string; leading: ReactNode }> = [
-    { value: 'workbench', label: t('analysisWorkbenchNavWorkbench'), leading: <Waypoints className="size-4" /> },
-    { value: 'pressure', label: t('analysisWorkbenchNavPressure'), leading: <CircleGauge className="size-4" /> },
-    { value: 'observations', label: t('analysisWorkbenchNavObservations'), leading: <FileSearch className="size-4" /> },
-    { value: 'fragility', label: t('analysisWorkbenchNavFragility'), leading: <Grid3x3 className="size-4" /> },
-    { value: 'settings', label: t('analysisWorkbenchNavSettings'), leading: <Cog className="size-4" /> },
+    { value: 'workbench', label: t('analysisWorkbenchNavWorkbench'), leading: <EntityWaypointsIcon className="size-4" /> },
+    { value: 'pressure', label: t('analysisWorkbenchNavPressure'), leading: <StatusGaugeIcon className="size-4" /> },
+    { value: 'observations', label: t('analysisWorkbenchNavObservations'), leading: <EntityEvidenceIcon className="size-4" /> },
+    { value: 'fragility', label: t('analysisWorkbenchNavFragility'), leading: <NavigationDenseGridIcon className="size-4" /> },
+    { value: 'settings', label: t('analysisWorkbenchNavSettings'), leading: <StatusSettingsControlIcon className="size-4" /> },
   ];
   return (
     <div className={`relative flex overflow-x-auto overflow-y-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
@@ -878,8 +883,8 @@ function SystemLedger({
   const laneOrder: WorkbenchLaneKey[] = ['regime', 'inventory', 'pipeline', 'lead-time'];
   const visibleLaneOrder = expandedLane == null ? laneOrder : [expandedLane];
   const laneRowsStyle = useMemo(
-    () => ({ gridTemplateRows: visibleLaneOrder.map(() => 'minmax(0,1fr)').join(' ') }),
-    [visibleLaneOrder],
+    () => ({ gridTemplateRows: visibleLaneOrder.map(() => (expandedLane == null ? 'minmax(0,1fr)' : 'auto')).join(' ') }),
+    [expandedLane, visibleLaneOrder],
   );
   const isLaneExpanded = (laneKey: WorkbenchLaneKey) => expandedLane === laneKey;
   const toggleLaneExpanded = (laneKey: WorkbenchLaneKey) => {
@@ -896,7 +901,12 @@ function SystemLedger({
         className={cn(showRightRailCards && 'lg:rounded-r-none', expandedLaneViewportHeight > 0 && 'h-auto')}
         contentClassName="px-0 py-0"
       >
-        <div className="grid h-full gap-4 px-6 py-5 [grid-template-rows:auto_minmax(0,1fr)]">
+        <div
+          className={cn(
+            'grid gap-4 px-6 py-5',
+            expandedLane == null ? 'h-full [grid-template-rows:auto_minmax(0,1fr)]' : '[grid-template-rows:auto_auto]',
+          )}
+        >
         <div className="grid gap-3" style={laneGridStyle}>
           <div />
           <IntervalStrip
@@ -919,16 +929,8 @@ function SystemLedger({
         <div
           ref={laneRowsRef}
           className="grid min-h-0 gap-4"
-          style={{
-            ...laneRowsStyle,
-            ...(expandedLaneViewportHeight > 0
-              ? {
-                  height: expandedLaneViewportHeight,
-                  minHeight: expandedLaneViewportHeight,
-                  maxHeight: expandedLaneViewportHeight,
-                }
-              : {}),
-          }}
+          data-analysis-lane-rows="true"
+          style={laneRowsStyle}
         >
           {visibleLaneOrder.includes('regime') ? <div className="grid h-full min-h-0 gap-3" data-lane="regime" style={laneGridStyle}>
             <LaneLabel
@@ -944,7 +946,7 @@ function SystemLedger({
                       <span className={cn('inline-flex size-5 items-center justify-center rounded-full border border-foreground/10', regimeTint(regime))}>
                         {regimeIcon(regime)}
                       </span>
-                      {regime}
+                      {translateRegimeLabel(language, regime)}
                     </span>
                   ))}
                   <span className="inline-flex items-center gap-2">
@@ -989,7 +991,7 @@ function SystemLedger({
                       <button
                         key={`regime:${interval.intervalIndex}`}
                         aria-label={t('analysisWorkbenchRegimeIntervalAria', {
-                          regime: interval.dominantRegime,
+                          regime: translateRegimeLabel(language, interval.dominantRegime),
                           summary: interval.cueSummary,
                         })}
                         className={cn(
@@ -1559,7 +1561,7 @@ function EntityPressureTable({
   selectedEntityId: string | null;
   setSelection: (value: AnalysisSelection) => void;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   return (
     <HeaderedTable>
       <div className={pressureTableLayout.containerClassName} style={pressureTableLayout.style}>
@@ -1621,19 +1623,19 @@ function EntityPressureTable({
               </div>
               <div className="flex items-center justify-center" data-pressure-cell="true">
                 <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>{t('analysisWorkbenchPipelineRiskHeader')}</HeaderedTableMobileLabel>
-                <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.pipelineRiskLabel)))}>
+                <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.pipelineRiskLevel)))}>
                   {row.pipelineRiskLabel}
                 </span>
               </div>
               <div className="flex items-center justify-center" data-pressure-cell="true">
                 <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>{t('analysisWorkbenchLeadTimeRiskHeader')}</HeaderedTableMobileLabel>
-                <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.leadTimeRiskLabel)))}>
+                <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.leadTimeRiskLevel)))}>
                   {row.leadTimeRiskLabel}
                 </span>
               </div>
               <div className="flex items-center justify-center" data-pressure-cell="true">
                 <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>{t('analysisWorkbenchPriceSensitivityHeader')}</HeaderedTableMobileLabel>
-                <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.priceSensitivityLabel)))}>
+                <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-sm capitalize', statusPillClassName(scoreCellTone(row.priceSensitivityLevel)))}>
                   {row.priceSensitivityLabel}
                 </span>
               </div>
@@ -1883,7 +1885,7 @@ function SupplyFragilityMap({
                   type="button"
                   onClick={() => setSelection({ type: 'entity', entityId: service.entityId, entityType: service.entityType })}
                 >
-                  <Store className="size-4 shrink-0" />
+                  <EntityServiceIcon className="size-4 shrink-0" />
                   <span>{service.name}</span>
                 </button>
               ))}
@@ -1906,7 +1908,7 @@ function SupplyFragilityMap({
               type="button"
               onClick={() => setSelection({ type: 'entity', entityId: service.entityId, entityType: service.entityType })}
             >
-              <Store className="size-4 shrink-0" />
+              <EntityServiceIcon className="size-4 shrink-0" />
               <span>{service.name}</span>
             </button>
           ))}
@@ -1916,7 +1918,7 @@ function SupplyFragilityMap({
               <div className="flex items-center rounded-[1rem] border border-border/60 bg-white px-3 py-3" style={{ gridColumnStart: 1, gridRowStart: rowIndex + 2 }}>
                 <div className="max-w-full min-w-0">
                   <p className="flex items-center gap-2 font-medium text-foreground">
-                    <Package className="size-4 shrink-0 text-muted-foreground" />
+                    <EntitySkuIcon className="size-4 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 break-words">{row.name}</span>
                   </p>
                 </div>
@@ -1958,17 +1960,17 @@ function SelectedObservationRail({ row }: { row: AnalysisObservationLedgerRow })
   const { t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<FileSearch className="size-4" />} title={t('analysisWorkbenchObservationRailTitle')} tooltip={t('analysisWorkbenchObservationRailTooltip')}>
+      <AnalysisRailSection icon={<EntityEvidenceIcon className="size-4" />} title={t('analysisWorkbenchObservationRailTitle')} tooltip={t('analysisWorkbenchObservationRailTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{row.title}</p>
         <p className="text-sm text-muted-foreground">{row.observedAt}</p>
         <p className="text-sm leading-6 text-muted-foreground">{row.detail}</p>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<Radio className="size-4" />} title={t('analysisWorkbenchChannelsRailTitle')} tooltip={t('analysisWorkbenchChannelsRailTooltip')}>
+      <AnalysisRailSection icon={<EntitySignalIcon className="size-4" />} title={t('analysisWorkbenchChannelsRailTitle')} tooltip={t('analysisWorkbenchChannelsRailTooltip')}>
         <ObservationChannels row={row} />
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<ListTree className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesRailTooltip')}>
+      <AnalysisRailSection icon={<NavigationHierarchyIcon className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesRailTooltip')}>
         <AnalysisRailList>
           {row.affectedEntityLabels.length > 0 ? row.affectedEntityLabels.map((label) => (
             <AnalysisRailRow key={`${row.id}:${label}`} primary={<span className="text-muted-foreground">{label}</span>} />
@@ -1986,13 +1988,13 @@ function IntervalRail({
   interval: AnalysisWorkbenchViewModel['intervals'][number];
   flashedSection: IntervalRailSectionKey | null;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title={t('analysisWorkbenchIntervalExplanationTitle')} tooltip={t('analysisWorkbenchIntervalExplanationTooltip')}>
+      <AnalysisRailSection icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchIntervalExplanationTitle')} tooltip={t('analysisWorkbenchIntervalExplanationTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{interval.dateLabel}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
-          <p>{t('analysisWorkbenchSalesPatternLine', { value: interval.dominantRegime })}</p>
+          <p>{t('analysisWorkbenchSalesPatternLine', { value: translateRegimeLabel(language, interval.dominantRegime) })}</p>
           <p>{interval.dominantDriver}</p>
           <p>{interval.priceOrStockoutSummary}</p>
         </div>
@@ -2000,7 +2002,7 @@ function IntervalRail({
 
       <AnalysisRailSection
         flash={flashedSection === 'observed-signals'}
-        icon={<Radio className="size-4" />}
+        icon={<EntitySignalIcon className="size-4" />}
         title={t('analysisWorkbenchObservedSignalsTitle')}
         tooltip={t('analysisWorkbenchObservedSignalsTooltip')}
       >
@@ -2014,7 +2016,7 @@ function IntervalRail({
 
       <AnalysisRailSection
         flash={flashedSection === 'what-happened'}
-        icon={<AudioLines className="size-4" />}
+        icon={<StatusWaveformIcon className="size-4" />}
         title={t('analysisWorkbenchWhatHappenedTitle')}
         tooltip={t('analysisWorkbenchWhatHappenedTooltip')}
       >
@@ -2028,7 +2030,7 @@ function IntervalRail({
 
       <AnalysisRailSection
         flash={flashedSection === 'orders-transit-lead-time'}
-        icon={<Waypoints className="size-4" />}
+        icon={<EntityWaypointsIcon className="size-4" />}
         title={t('analysisWorkbenchOrdersTransitLeadTimeTitle')}
         tooltip={t('analysisWorkbenchOrdersTransitLeadTimeTooltip')}
       >
@@ -2048,29 +2050,29 @@ function IntervalRail({
 }
 
 function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   return (
     <>
       <AnalysisRailSection
-        icon={row.entityType === 'sku' ? <PackageSearch className="size-4" /> : <Store className="size-4" />}
+        icon={row.entityType === 'sku' ? <EntityPackageSearchIcon className="size-4" /> : <EntityServiceIcon className="size-4" />}
         title={row.entityType === 'sku' ? t('analysisWorkbenchSelectedSkuTitle') : t('analysisWorkbenchSelectedServiceTitle')}
         tooltip={t('analysisWorkbenchSelectedEntityTooltip')}
       >
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{row.name}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
-          <p>{row.pressureScoreLabel} pressure score</p>
+          <p>{translateUiLiteral(language, '{value} pressure score', { value: row.pressureScoreLabel })}</p>
           <p>{row.driverLabel}</p>
           <p>{row.summary}</p>
         </div>
         <Button asChild className="mt-4 w-full">
           <Link to={row.href}>
-            <ArrowUpRight className="size-4" />
+            <ActionOpenExternalIcon className="size-4" />
             {t('analysisWorkbenchOpenDetail')}
           </Link>
         </Button>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<CircleGauge className="size-4" />} title={t('analysisWorkbenchPosteriorStateTitle')} tooltip={t('analysisWorkbenchPosteriorStateTooltip')}>
+      <AnalysisRailSection icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchPosteriorStateTitle')} tooltip={t('analysisWorkbenchPosteriorStateTooltip')}>
         <AnalysisRailList>
           <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchPosteriorUnits')}</span>} secondary={row.posteriorUnitsLabel} />
           <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchDemandPerDay')}</span>} secondary={row.demandPerDayLabel} />
@@ -2082,7 +2084,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
       </AnalysisRailSection>
 
       {row.entityType === 'sku' && row.reorderPolicyLabels ? (
-        <AnalysisRailSection icon={<CircleGauge className="size-4" />} title={t('analysisWorkbenchReorderPolicyTitle')} tooltip={t('analysisWorkbenchReorderPolicyTooltip')}>
+        <AnalysisRailSection icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchReorderPolicyTitle')} tooltip={t('analysisWorkbenchReorderPolicyTooltip')}>
           <AnalysisRailList>
             <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchNeedProbability')}</span>} secondary={row.reorderPolicyLabels.needProbability} />
             <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchRecommendedOrder')}</span>} secondary={row.reorderPolicyLabels.recommendedOrder} />
@@ -2093,7 +2095,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
         </AnalysisRailSection>
       ) : null}
 
-      <AnalysisRailSection icon={<ListTree className="size-4" />} title={t('analysisWorkbenchContributorStackTitle')} tooltip={t('analysisWorkbenchContributorStackTooltip')}>
+      <AnalysisRailSection icon={<NavigationHierarchyIcon className="size-4" />} title={t('analysisWorkbenchContributorStackTitle')} tooltip={t('analysisWorkbenchContributorStackTooltip')}>
         <AnalysisRailList>
           {row.contributorStack.length > 0 ? row.contributorStack.map((entry) => (
             <AnalysisRailRow key={`${row.id}:${entry}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -2105,26 +2107,31 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
 }
 
 function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<Radar className="size-4" />} title={t('analysisWorkbenchOverviewTitle')} tooltip={t('analysisWorkbenchOverviewTooltip')}>
-        <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.inspectorOverview.dominantRegime}</p>
+      <AnalysisRailSection icon={<StatusRadarIcon className="size-4" />} title={t('analysisWorkbenchOverviewTitle')} tooltip={t('analysisWorkbenchOverviewTooltip')}>
+        <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">
+          {translateRegimeLabel(language, model.inspectorOverview.dominantRegime)}
+        </p>
         <div className="grid gap-1 text-sm text-muted-foreground">
           <p>{t('analysisWorkbenchChangePointProbability', { value: model.inspectorOverview.changePointProbability })}</p>
           <p>{model.inspectorOverview.coverageSummary}</p>
         </div>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<ChartNoAxesColumnIncreasing className="size-4" />} title={t('analysisWorkbenchStrongestChannelsTitle')} tooltip={t('analysisWorkbenchStrongestChannelsTooltip')}>
+      <AnalysisRailSection icon={<StatusTrendChartIcon className="size-4" />} title={t('analysisWorkbenchStrongestChannelsTitle')} tooltip={t('analysisWorkbenchStrongestChannelsTooltip')}>
         <AnalysisRailList>
           {model.inspectorOverview.strongestChannels.map((entry, index) => (
-            <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
+            <AnalysisRailRow
+              key={`${entry}:${index}`}
+              primary={<span className="text-muted-foreground">{translateObservationEvidenceLabel(language, entry)}</span>}
+            />
           ))}
         </AnalysisRailList>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<Boxes className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesHeaderTooltip')}>
+      <AnalysisRailSection icon={<NavigationCatalogIcon className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesHeaderTooltip')}>
         <AnalysisRailList>
           {model.inspectorOverview.affectedEntities.map((entry, index) => (
             <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />

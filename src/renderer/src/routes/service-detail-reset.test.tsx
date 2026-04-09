@@ -263,6 +263,6 @@ describe('ServiceDetailRoute reset wiring', () => {
     );
 
     await waitFor(() => expect(screen.getByText('Hero')).toBeInTheDocument());
-    expect(screen.queryByText('Preparing SENA view')).not.toBeInTheDocument();
+    expect(screen.queryByText('Preparing details')).not.toBeInTheDocument();
   });
 });

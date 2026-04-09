@@ -11,6 +11,7 @@ import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { readSkuAction } from '@/lib/navigation-state';
+import { hasActiveSenaSku } from '@/lib/sena-catalog';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from '../loading-wireframes';
@@ -115,6 +116,11 @@ export function SkuDetailRoute() {
   }
 
   async function loadPage() {
+    if (inventory.catalog && !hasActiveSenaSku(inventory.catalog, skuId)) {
+      setBootstrap(emptyBootstrap());
+      setSelectedIntervalIndex(null);
+      return;
+    }
     setIsRefreshing(true);
     try {
       const result = await bootstrapSkuDetail({ inventory, skuId, language });
@@ -134,7 +140,7 @@ export function SkuDetailRoute() {
     setTimeframe('Recent');
     setChartZoomResetToken(0);
     void loadPage();
-  }, [skuId]);
+  }, [inventory.catalog, skuId]);
 
   const snapshotSku = bootstrap?.snapshot.skus.find((entry) => entry.skuId === skuId) ?? null;
   const {

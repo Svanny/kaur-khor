@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { InventorySnapshot, ServiceRecord } from '@shared/inventory';
 import type { SenaServiceDetail, SenaWorkspaceSummary } from '@shared/sena';
+import { translateRegimeLabel } from '@/lib/localized-display';
 import { deriveServiceDetailViewModel } from './view-model';
 
 const service: ServiceRecord = {
@@ -81,6 +82,34 @@ const detail: SenaServiceDetail = {
 };
 
 describe('deriveServiceDetailViewModel', () => {
+  test('keeps semantic regime keys separate from translated display labels', () => {
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail: {
+        ...detail,
+        regimeTimeline: [
+          {
+            intervalIndex: 0,
+            startAt: '2026-04-01T00:00:00Z',
+            endAt: '2026-04-01T23:59:00Z',
+            dominantRegime: 'promo',
+            regimeProbabilities: { promo: 0.8, normal: 0.2 },
+          },
+        ],
+      },
+      language: 'en',
+      observations: [],
+      reports: [],
+      service,
+      snapshot,
+      workspaceSummary,
+    });
+
+    expect(model.intervals[0]?.regimeKey).toBe('promo');
+    expect(model.intervals[0]?.dominantRegime).toBe(translateRegimeLabel('en', 'promo'));
+    expect(model.intervals[0]?.caption).toBe(translateRegimeLabel('en', 'promo'));
+  });
+
   test('maps contributor reorder quantity as SKU-scoped restock guidance', () => {
     const model = deriveServiceDetailViewModel({
       currency: 'USD',
@@ -98,7 +127,7 @@ describe('deriveServiceDetailViewModel', () => {
     expect(model.rail.recoveryPath).toContain('Razor refill · order 15u');
   });
 
-  test('orders the bottleneck stack with the next likely limiter above safe contributors', () => {
+  test('orders contributor roles from the strongest limiting probability signal', () => {
     const serviceWithThreeLinks: ServiceRecord = {
       ...service,
       skuIds: ['sku-safe-1', 'sku-risk', 'sku-safe-2'],
@@ -187,11 +216,106 @@ describe('deriveServiceDetailViewModel', () => {
       },
     });
 
-    expect(model.rail.bottleneckStack.map((entry) => `${entry.label}:${entry.role}`)).toEqual([
-      'Lotus Rib Tank:Next likely blocker',
-      'Boardwalk Camp Shirt:Safe support',
-      'Tailor Pleat Trouser:Safe support',
+    expect(model.contributors.map((entry) => `${entry.name}:${entry.roleLabel}:${entry.probabilityLabel}`)).toEqual([
+      'Lotus Rib Tank:Main blocker now:20%',
+      'Tailor Pleat Trouser:Next likely blocker:0%',
+      'Boardwalk Camp Shirt:Safe support:0%',
     ]);
+
+    expect(model.rail.bottleneckStack.map((entry) => `${entry.label}:${entry.role}`)).toEqual([
+      'Lotus Rib Tank:Main blocker now',
+      'Tailor Pleat Trouser:Next likely blocker',
+      'Boardwalk Camp Shirt:Safe support',
+    ]);
+  });
+
+  test('does not leave a high-pressure contributor labeled as safe support', () => {
+    const serviceWithFourLinks: ServiceRecord = {
+      ...service,
+      skuIds: ['sku-1', 'sku-2', 'sku-3', 'sku-4'],
+    };
+
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail: {
+        ...detail,
+        serviceId: serviceWithFourLinks.serviceId,
+        contributors: [
+          { skuId: 'sku-1', usageProbability: 0.8, bottleneckProbability: 0, reorderQuantity: null },
+          { skuId: 'sku-2', usageProbability: 0.5, bottleneckProbability: 0, reorderQuantity: null },
+          { skuId: 'sku-3', usageProbability: 0.95, bottleneckProbability: 0, reorderQuantity: null },
+          { skuId: 'sku-4', usageProbability: 0.65, bottleneckProbability: 1, reorderQuantity: null },
+        ],
+      },
+      language: 'en',
+      observations: [],
+      reports: [],
+      service: serviceWithFourLinks,
+      snapshot: {
+        ...snapshot,
+        skus: [
+          {
+            skuId: 'sku-1',
+            name: 'Boardwalk Camp Shirt',
+            description: 'Linked SKU',
+            unitsInStock: 0,
+            costPerUnit: 10,
+            soldAsProduct: true,
+            productPrice: 22,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+          {
+            skuId: 'sku-2',
+            name: 'Cropped Twill Vest',
+            description: 'Linked SKU',
+            unitsInStock: 0,
+            costPerUnit: 11,
+            soldAsProduct: true,
+            productPrice: 24,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+          {
+            skuId: 'sku-3',
+            name: 'Lotus Rib Tank',
+            description: 'Linked SKU',
+            unitsInStock: 0,
+            costPerUnit: 12,
+            soldAsProduct: true,
+            productPrice: 26,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+          {
+            skuId: 'sku-4',
+            name: 'Satin Slip Dress',
+            description: 'Linked SKU',
+            unitsInStock: 0,
+            costPerUnit: 13,
+            soldAsProduct: true,
+            productPrice: 28,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+        ],
+        services: [serviceWithFourLinks],
+        sist: {
+          ...snapshot.sist,
+          highRiskSkuIds: [],
+        },
+      },
+      workspaceSummary: {
+        ...workspaceSummary,
+        serviceCount: 1,
+        skuCount: 4,
+        highRiskSkuIds: [],
+      },
+    });
+
+    expect(model.contributors[0]?.name).toBe('Satin Slip Dress');
+    expect(model.contributors[0]?.roleLabel).toBe('Main blocker now');
+    expect(model.contributors[0]?.probabilityLabel).toBe('100%');
   });
 
   test('keeps bottleneck ordering stable when contributor labels are translated', () => {
@@ -284,8 +408,8 @@ describe('deriveServiceDetailViewModel', () => {
 
     expect(model.rail.bottleneckStack.map((entry) => entry.label)).toEqual([
       'Lotus Rib Tank',
-      'Boardwalk Camp Shirt',
       'Tailor Pleat Trouser',
+      'Boardwalk Camp Shirt',
     ]);
   });
 });

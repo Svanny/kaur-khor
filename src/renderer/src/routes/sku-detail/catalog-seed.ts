@@ -1,14 +1,16 @@
 import type { InventorySnapshot } from '@shared/inventory';
 import { SENA_SCHEMA_VERSION, type SenaCatalog } from '@shared/sena';
+import { normalizeSenaCatalog } from '@/lib/sena-catalog';
 export { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 
 function normalizeCatalog(catalog: SenaCatalog): SenaCatalog {
+  const normalizedCatalog = normalizeSenaCatalog(catalog) ?? catalog;
   return {
-    ...catalog,
-    skus: [...catalog.skus].sort((left, right) => left.skuId.localeCompare(right.skuId)),
-    services: [...catalog.services].sort((left, right) => left.serviceId.localeCompare(right.serviceId)),
-    bundles: [...catalog.bundles].sort((left, right) => left.bundleId.localeCompare(right.bundleId)),
-    sharingMask: [...catalog.sharingMask].sort((left, right) =>
+    ...normalizedCatalog,
+    skus: [...normalizedCatalog.skus].sort((left, right) => left.skuId.localeCompare(right.skuId)),
+    services: [...normalizedCatalog.services].sort((left, right) => left.serviceId.localeCompare(right.serviceId)),
+    bundles: [...normalizedCatalog.bundles].sort((left, right) => left.bundleId.localeCompare(right.bundleId)),
+    sharingMask: [...normalizedCatalog.sharingMask].sort((left, right) =>
       `${left.serviceId}:${left.skuId}`.localeCompare(`${right.serviceId}:${right.skuId}`),
     ),
   };
@@ -22,6 +24,7 @@ export function seedSenaCatalogFromSnapshot(snapshot: InventorySnapshot): SenaCa
       name: sku.name,
       description: sku.description,
       costPerUnit: sku.costPerUnit,
+      archived: false,
       soldAsProduct: sku.soldAsProduct,
       productPrice: sku.productPrice,
       leadTimeMeanDaysHint: sku.leadTimeMeanDays,
@@ -32,6 +35,7 @@ export function seedSenaCatalogFromSnapshot(snapshot: InventorySnapshot): SenaCa
       name: service.name,
       description: service.description,
       price: service.price,
+      archived: false,
       bundle: false,
     })),
     bundles: [],

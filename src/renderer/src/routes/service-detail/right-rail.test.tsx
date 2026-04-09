@@ -37,6 +37,7 @@ function renderRightRail(selection: ServiceInspectorSelection) {
         intervalIndex: 1,
         changeHeadline: 'Demand steady',
         label: 'Mar 24-Apr 7',
+        regimeKey: 'normal',
         dominantRegime: 'normal',
         demandLabel: '10',
         sellableLabel: '12',

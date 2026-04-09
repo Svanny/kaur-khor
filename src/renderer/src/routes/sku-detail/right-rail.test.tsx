@@ -6,6 +6,7 @@ import type { SenaSkuDetailViewModel } from './view-model';
 
 vi.mock('@/state/preferences', () => ({
   usePreferences: () => ({
+    language: 'en',
     t: (key: string) => getTranslation('en', key as never),
   }),
 }));
@@ -46,9 +47,9 @@ describe('SkuDetailRightRail', () => {
 
     render(<SkuDetailRightRail model={model} />);
 
-    const actNow = screen.getByText('Act now');
+    const actNow = screen.getByText('Next step');
 
-    expectBefore(actNow, screen.getByText('Selected interval'));
+    expectBefore(actNow, screen.getByText('Selected period'));
     expectBefore(actNow, screen.getByText('Incoming stock'));
     expectBefore(actNow, screen.getByText('Next check'));
     expect(screen.getByText('Service demand led this interval')).toBeInTheDocument();

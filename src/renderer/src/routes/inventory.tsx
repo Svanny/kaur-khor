@@ -1,8 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EllipsisVertical, Eye, Layers3, Package, PackagePlus, Pencil, Store } from 'lucide-react';
+import {
+  ActionCreatePackageIcon,
+  ActionEditPencilIcon,
+} from '@icons/actions';
+import { NewServiceIcon } from '@icons/custom';
+import {
+  EntityLayersIcon,
+  EntityOverflowMenuIcon,
+  EntityPreviewIcon,
+  EntityServiceIcon,
+  EntitySkuIcon,
+} from '@icons/entities';
+import { StatusArchiveIcon } from '@icons/status';
 import { Link, useSearchParams } from 'react-router-dom';
-import { NewServiceIcon } from '@/components/system/new-service-icon';
 import { SearchInput } from '@/components/system/search-input';
+import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import {
   WorkspaceActionRow,
   WorkspaceEmpty,
@@ -19,8 +31,13 @@ import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildCatalogSearchParams, readCatalogView } from '@/lib/navigation-state';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
-import { linkedServiceIdsForSku, linkedSkuIdsForService } from '@/lib/sena-catalog';
+import {
+  activeSenaCatalog,
+  linkedServiceIdsForSku,
+  linkedSkuIdsForService,
+} from '@/lib/sena-catalog';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
+import { translateUiLiteral } from '@/lib/translations';
 import { ServiceMutationActions, SkuMutationActions } from '@/routes/catalog-item-actions';
 import { WorkspaceTitleCardWireframe } from '@/routes/loading-wireframes';
 import type { SenaSkuDetailViewModel } from '@/routes/sku-detail/view-model';
@@ -56,13 +73,24 @@ function skuMetaLine(
     usdToKhrExchangeRate: number;
   },
 ) {
-  const parts = [`${linkedServiceCount} linked services`, options.soldAsProduct ? 'sellable' : 'not sellable'];
+  const parts = [
+    translateUiLiteral(options.language, '{count} linked services', { count: linkedServiceCount }),
+    translateUiLiteral(options.language, options.soldAsProduct ? 'sellable' : 'not sellable'),
+  ];
 
   if (options.soldAsProduct && options.productPrice != null) {
-    parts.push(`price ${formatCurrency(options.productPrice, options.currency, options.language, options.usdToKhrExchangeRate)}`);
+    parts.push(
+      translateUiLiteral(options.language, 'price {value}', {
+        value: formatCurrency(options.productPrice, options.currency, options.language, options.usdToKhrExchangeRate),
+      }),
+    );
   }
 
-  parts.push(`cost ${formatCurrency(options.costPerUnit, options.currency, options.language, options.usdToKhrExchangeRate)}`);
+  parts.push(
+    translateUiLiteral(options.language, 'cost {value}', {
+      value: formatCurrency(options.costPerUnit, options.currency, options.language, options.usdToKhrExchangeRate),
+    }),
+  );
   return parts.join(' · ');
 }
 
@@ -112,7 +140,7 @@ function CatalogActionMenu({
         variant="outline"
         onClick={() => setOpen((current) => !current)}
       >
-        <EllipsisVertical className="size-4" />
+        <EntityOverflowMenuIcon className="size-4" />
       </Button>
       <div
         className={`absolute right-0 top-full z-20 mt-2 min-w-48 rounded-xl border border-border/70 bg-background p-1 shadow-[0_18px_40px_rgba(48,31,20,0.16)] ${open ? 'block' : 'hidden'}`}
@@ -156,6 +184,8 @@ function CatalogLoadingRows({
 }
 
 function CatalogLoadingState() {
+  const { language } = usePreferences();
+
   return (
     <WorkspacePage>
       <WorkspaceTitleCardWireframe
@@ -165,9 +195,9 @@ function CatalogLoadingState() {
             <Skeleton className="h-10 w-32 rounded-full" />
           </WorkspaceActionRow>
         }
-        descriptor="Browse the catalog, search by name or id, and jump straight into the next edit."
-        eyebrow="Catalog"
-        title="SENA Integrated"
+        descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or id, and jump straight into the next edit.')}
+        eyebrow={translateUiLiteral(language, 'Catalog')}
+        title={translateUiLiteral(language, 'Catalog workspace')}
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
           <Skeleton className="h-11 w-full max-w-xl rounded-2xl" />
@@ -182,7 +212,7 @@ function CatalogLoadingState() {
       <div className="grid gap-6">
         <WorkspacePanel
           title="SKUs"
-          descriptor="Stock-carrying items Banji tracks directly."
+          descriptor={translateUiLiteral(language, 'Stock-carrying items Banji tracks directly.')}
         >
           <div className="grid gap-3">
             {CatalogLoadingRows({ count: 4 })}
@@ -190,8 +220,8 @@ function CatalogLoadingState() {
         </WorkspacePanel>
 
         <WorkspacePanel
-          title="Services"
-          descriptor="Sellable services and the SKUs that support them."
+          title={translateUiLiteral(language, 'Services')}
+          descriptor={translateUiLiteral(language, 'Sellable services and the SKUs that support them.')}
         >
           <div className="grid gap-3">
             {CatalogLoadingRows({ count: 3 })}
@@ -208,10 +238,16 @@ export function InventoryRoute() {
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const [serviceActionModels, setServiceActionModels] = useState<Record<string, ServiceDetailViewModel>>({});
+  const [pendingArchive, setPendingArchive] = useState<{
+    entityId: string;
+    entityName: string;
+    entityType: 'sku' | 'service';
+  } | null>(null);
+  const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
 
   const projectedSnapshot = useMemo(
-    () => (catalog ? projectInventorySnapshotFromSena(catalog, observations) : null),
-    [catalog, observations],
+    () => (visibleCatalog ? projectInventorySnapshotFromSena(visibleCatalog, observations) : null),
+    [observations, visibleCatalog],
   );
   const activeSnapshot = snapshot ?? projectedSnapshot;
 
@@ -219,17 +255,17 @@ export function InventoryRoute() {
   const view = readCatalogView(searchParams);
   const filteredSkus = useMemo(
     () =>
-      catalog?.skus.filter((sku) =>
+      visibleCatalog?.skus.filter((sku) =>
         matchesCatalogRow([sku.skuId, sku.name, sku.description], query),
       ) ?? [],
-    [catalog, query],
+    [query, visibleCatalog],
   );
   const filteredServices = useMemo(
     () =>
-      catalog?.services.filter((service) =>
+      visibleCatalog?.services.filter((service) =>
         matchesCatalogRow([service.serviceId, service.name, service.description], query),
       ) ?? [],
-    [catalog, query],
+    [query, visibleCatalog],
   );
   const filteredServiceIdsKey = useMemo(
     () => filteredServices.map((service) => service.serviceId).join('|'),
@@ -309,24 +345,24 @@ export function InventoryRoute() {
     return (
       <WorkspacePage>
         <WorkspaceTitleCard
-          eyebrow="Catalog"
-          title="Build the SENA catalog"
-          descriptor="Start with the first SKU. Banji uses the catalog to connect stock, services, and planning."
+          eyebrow={translateUiLiteral(language, 'Catalog')}
+          title={translateUiLiteral(language, 'Set up the catalog')}
+          descriptor={translateUiLiteral(language, 'Start with the first SKU. Banji uses the catalog to connect stock, services, and planning.')}
           actions={
             <Button asChild>
               <Link to="/catalog/skus/new">
-                <PackagePlus data-icon="inline-start" />
-                New SKU
+                <ActionCreatePackageIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'New SKU')}
               </Link>
             </Button>
           }
         />
         <WorkspaceEmpty
-          title="No catalog loaded yet"
-          hint="Create the first SKU to initialize the local catalog."
+          title={translateUiLiteral(language, 'No catalog loaded yet')}
+          hint={translateUiLiteral(language, 'Create the first SKU to initialize the local catalog.')}
           action={
             <Button asChild variant="outline">
-              <Link to="/catalog/skus/new">Create first SKU</Link>
+              <Link to="/catalog/skus/new">{translateUiLiteral(language, 'Create first SKU')}</Link>
             </Button>
           }
         />
@@ -337,21 +373,21 @@ export function InventoryRoute() {
   return (
     <WorkspacePage>
       <WorkspaceTitleCard
-        eyebrow="Catalog"
-        title="SENA Integrated"
-        descriptor="Browse the catalog, search by name or id, and jump straight into the next edit."
+        eyebrow={translateUiLiteral(language, 'Catalog')}
+        title={translateUiLiteral(language, 'Catalog workspace')}
+        descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or id, and jump straight into the next edit.')}
         actions={
           <WorkspaceActionRow>
             <Button asChild>
               <Link to="/catalog/skus/new">
-                <PackagePlus data-icon="inline-start" />
-                New SKU
+                <ActionCreatePackageIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'New SKU')}
               </Link>
             </Button>
             <Button asChild variant="outline">
               <Link to="/catalog/services/new">
                 <NewServiceIcon className="size-4 shrink-0" />
-                New service
+                {translateUiLiteral(language, 'New service')}
               </Link>
             </Button>
           </WorkspaceActionRow>
@@ -360,7 +396,7 @@ export function InventoryRoute() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
           <div className="w-full max-w-xl">
             <SearchInput
-              ariaLabel="Search catalog"
+              ariaLabel={translateUiLiteral(language, 'Search catalog')}
               placeholder={t('searchPlaceholder')}
               value={query}
               onChange={(event) => {
@@ -386,15 +422,15 @@ export function InventoryRoute() {
             }}
           >
             <ToggleGroupItem value="all">
-              <Layers3 data-icon="inline-start" />
-              All
+              <EntityLayersIcon data-icon="inline-start" />
+              {translateUiLiteral(language, 'All')}
             </ToggleGroupItem>
             <ToggleGroupItem value="skus">
-              <Package data-icon="inline-start" />
+              <EntitySkuIcon data-icon="inline-start" />
               {t('filterSku')}
             </ToggleGroupItem>
             <ToggleGroupItem value="services">
-              <Store data-icon="inline-start" />
+              <EntityServiceIcon data-icon="inline-start" />
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
@@ -403,8 +439,8 @@ export function InventoryRoute() {
 
       {!hasResults ? (
         <WorkspaceEmpty
-          title="No matching catalog items"
-          hint="Try another search or create a new item that fits this view."
+          title={translateUiLiteral(language, 'No matching catalog items')}
+          hint={translateUiLiteral(language, 'Try another search or create a new item that fits this view.')}
           action={
             <WorkspaceActionRow>
               <Button
@@ -412,10 +448,10 @@ export function InventoryRoute() {
                 variant="outline"
                 onClick={() => setSearchParams(updateCatalogSearchParams(searchParams, { q: '', view: 'all' }))}
               >
-                Clear filters
+                {translateUiLiteral(language, 'Clear filters')}
               </Button>
               <Button asChild>
-                <Link to="/catalog/skus/new">New SKU</Link>
+                <Link to="/catalog/skus/new">{translateUiLiteral(language, 'New SKU')}</Link>
               </Button>
             </WorkspaceActionRow>
           }
@@ -423,10 +459,43 @@ export function InventoryRoute() {
       ) : null}
 
       <div className="grid min-w-0 gap-6">
-          {showSkus && filteredSkus.length > 0 ? (
+      <ConfirmActionDialog
+        open={pendingArchive != null}
+        title={pendingArchive ? translateUiLiteral(language, 'Archive {name}?', { name: pendingArchive.entityName }) : ''}
+        description={
+          pendingArchive
+            ? translateUiLiteral(
+                language,
+                'Archived items disappear from active work, but their history stays available in Banji.',
+              )
+            : undefined
+        }
+        confirmLabel={translateUiLiteral(language, 'Archive')}
+        isSubmitting={inventory.isSaving}
+        onCancel={() => {
+          if (!inventory.isSaving) {
+            setPendingArchive(null);
+          }
+        }}
+        onConfirm={() => {
+          if (!pendingArchive) {
+            return;
+          }
+          void inventory
+            .archiveCatalogEntity({
+              entityId: pendingArchive.entityId,
+              entityType: pendingArchive.entityType,
+            })
+            .then(() => {
+              setPendingArchive(null);
+            });
+        }}
+      />
+
+      {showSkus && filteredSkus.length > 0 ? (
             <WorkspacePanel
               title={`SKUs (${filteredSkus.length})`}
-              descriptor="Stock-carrying items Banji tracks directly."
+              descriptor={translateUiLiteral(language, 'Stock-carrying items Banji tracks directly.')}
             >
               <div className="grid gap-3">
                 {filteredSkus.map((sku) => {
@@ -453,7 +522,7 @@ export function InventoryRoute() {
                           {sku.name}
                         </Link>
                         <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{sku.skuId}</p>
-                        <p className="text-sm text-muted-foreground">{sku.description || 'No description'}</p>
+                        <p className="text-sm text-muted-foreground">{sku.description || translateUiLiteral(language, 'No description')}</p>
                         <p className="text-xs text-muted-foreground">
                           {skuMetaLine(linkedServices.length, {
                             costPerUnit: sku.costPerUnit,
@@ -468,29 +537,46 @@ export function InventoryRoute() {
                       <WorkspaceActionRow>
                         <Button asChild size="sm" variant="outline">
                           <Link to={`/catalog/skus/${sku.skuId}`}>
-                            <Eye data-icon="inline-start" />
-                            Detail
+                            <EntityPreviewIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Detail')}
                           </Link>
                         </Button>
                         <Button asChild size="sm" variant="outline">
                           <Link to={`/catalog/skus/${sku.skuId}/edit`}>
-                            <Pencil data-icon="inline-start" />
-                            Edit
+                            <ActionEditPencilIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Edit')}
                           </Link>
                         </Button>
-                        <CatalogActionMenu label={`More actions for ${sku.name}`}>
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setPendingArchive({
+                              entityId: sku.skuId,
+                              entityName: sku.name,
+                              entityType: 'sku',
+                            });
+                          }}
+                        >
+                          <StatusArchiveIcon data-icon="inline-start" />
+                          {translateUiLiteral(language, 'Archive')}
+                        </Button>
+                        <CatalogActionMenu label={translateUiLiteral(language, 'More actions for {name}', { name: sku.name })}>
                           {(closeMenu) => (
-                            <SkuMutationActions
-                              actionContext={fallbackSkuActionContext}
-                              catalogEntityName={sku.name}
-                              layout="menu"
-                              skuId={sku.skuId}
-                              showEditButton={false}
-                              onActionStart={() => {
-                                closeMenu();
-                              }}
-                              onComplete={async () => {}}
-                            />
+                            <>
+                              <SkuMutationActions
+                                actionContext={fallbackSkuActionContext}
+                                catalogEntityName={sku.name}
+                                layout="menu"
+                                skuId={sku.skuId}
+                                showEditButton={false}
+                                onActionStart={() => {
+                                  closeMenu();
+                                }}
+                                onComplete={async () => {}}
+                              />
+                            </>
                           )}
                         </CatalogActionMenu>
                       </WorkspaceActionRow>
@@ -503,8 +589,8 @@ export function InventoryRoute() {
 
           {showServices && filteredServices.length > 0 ? (
             <WorkspacePanel
-              title={`Services (${filteredServices.length})`}
-              descriptor="Sellable services and the SKUs that support them."
+              title={`${translateUiLiteral(language, 'Services')} (${filteredServices.length})`}
+              descriptor={translateUiLiteral(language, 'Sellable services and the SKUs that support them.')}
             >
               <div className="grid gap-3">
                 {filteredServices.map((service) => {
@@ -514,7 +600,7 @@ export function InventoryRoute() {
                     primarySkuHref: '/catalog',
                     editServiceHref: `/catalog/services/${service.serviceId}/edit`,
                     latestObservedAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? null,
-                    noBottleneckHint: 'No limiting contributor is active right now.',
+                    noBottleneckHint: translateUiLiteral(language, 'No limiting contributor is active right now.'),
                     bottleneckSku: null,
                     servicePrice: {
                       serviceId: service.serviceId,
@@ -533,37 +619,57 @@ export function InventoryRoute() {
                           {service.name}
                         </Link>
                         <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{service.serviceId}</p>
-                        <p className="text-sm text-muted-foreground">{service.description || 'No description'}</p>
+                        <p className="text-sm text-muted-foreground">{service.description || translateUiLiteral(language, 'No description')}</p>
                         <p className="text-xs text-muted-foreground">
-                          {linkedSkus.length} linked SKUs · price {formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
+                          {translateUiLiteral(language, '{count} linked SKUs', { count: linkedSkus.length })} ·{' '}
+                          {translateUiLiteral(language, 'price {value}', {
+                            value: formatCurrency(service.price, currency, language, usdToKhrExchangeRate),
+                          })}
                         </p>
                       </div>
                       <WorkspaceActionRow>
                         <Button asChild size="sm" variant="outline">
                           <Link to={`/catalog/services/${service.serviceId}`}>
-                            <Eye data-icon="inline-start" />
-                            Detail
+                            <EntityPreviewIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Detail')}
                           </Link>
                         </Button>
                         <Button asChild size="sm" variant="outline">
                           <Link to={`/catalog/services/${service.serviceId}/edit`}>
-                            <Pencil data-icon="inline-start" />
-                            Edit
+                            <ActionEditPencilIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Edit')}
                           </Link>
                         </Button>
-                        <CatalogActionMenu label={`More actions for ${service.name}`}>
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setPendingArchive({
+                              entityId: service.serviceId,
+                              entityName: service.name,
+                              entityType: 'service',
+                            });
+                          }}
+                        >
+                          <StatusArchiveIcon data-icon="inline-start" />
+                          {translateUiLiteral(language, 'Archive')}
+                        </Button>
+                        <CatalogActionMenu label={translateUiLiteral(language, 'More actions for {name}', { name: service.name })}>
                           {(closeMenu) => (
-                            <ServiceMutationActions
-                              actions={serviceModel?.actions ?? fallbackServiceActions}
-                              catalogEntityName={service.name}
-                              layout="menu"
-                              showEditButton={false}
-                              showPrimarySkuButton={false}
-                              onActionStart={() => {
-                                closeMenu();
-                              }}
-                              onComplete={async () => {}}
-                            />
+                            <>
+                              <ServiceMutationActions
+                                actions={serviceModel?.actions ?? fallbackServiceActions}
+                                catalogEntityName={service.name}
+                                layout="menu"
+                                showEditButton={false}
+                                showPrimarySkuButton={false}
+                                onActionStart={() => {
+                                  closeMenu();
+                                }}
+                                onComplete={async () => {}}
+                              />
+                            </>
                           )}
                         </CatalogActionMenu>
                       </WorkspaceActionRow>

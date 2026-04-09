@@ -10,7 +10,8 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
-import { deriveLeadTimeVariabilityClass, leadTimeVariabilityLabel } from '@shared/sena-lead-time';
+import { deriveLeadTimeVariabilityClass } from '@shared/sena-lead-time';
+import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { getTranslation } from '@/lib/translations';
 import {
   formatSenaReorderQuantity,
@@ -175,7 +176,7 @@ function observedVariabilityLabel(value: SenaLeadTimeVariabilityClass | null, la
     return translate(language, 'skuVmNoRecentVariabilitySignal');
   }
   return translate(language, 'skuVmVariability', {
-    label: leadTimeVariabilityLabel(value),
+    label: translateLeadTimeVariabilityLabel(language, value),
   });
 }
 
@@ -383,7 +384,7 @@ export function extractEvidence(observations: SenaObservationRecord[], skuId: st
             : null,
           variabilityClass
             ? translate(language, 'skuVmVariability', {
-                label: leadTimeVariabilityLabel(variabilityClass),
+                label: translateLeadTimeVariabilityLabel(language, variabilityClass),
               })
             : null,
         ].filter((value): value is string => value != null);

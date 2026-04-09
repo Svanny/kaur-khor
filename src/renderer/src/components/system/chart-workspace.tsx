@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type UIEvent } from 'react';
-import { CalendarClock, Maximize2, Minimize2, Minus, Plus, Scan } from 'lucide-react';
+import {
+  ActionScanIcon,
+  ActionZoomInIcon,
+  ActionZoomOutIcon,
+} from '@icons/actions';
+import { StatusMaximizeIcon, StatusMinimizeIcon, StatusScheduleIcon } from '@icons/status';
 import {
   AXIS_END_PADDING,
   AXIS_START_PADDING,
@@ -22,6 +27,8 @@ import {
 import { FloatingActionsIsland, useFloatingTitleActions, useObservedFloatingIslandWidth } from '@/components/system/floating-title-actions';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { translateChartTimeframeLabel } from '@/lib/localized-display';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { CHART_TIMEFRAME_OPTIONS, type ChartTimeframe } from '@/components/system/chart-timeframe';
@@ -41,17 +48,19 @@ export function LaneExpandButton({
   title: string;
   onClick: () => void;
 }) {
+  const { language } = usePreferences();
+  const buttonLabel = translateUiLiteral(language, expanded ? 'Minimize' : 'Expand');
   return (
     <Button
-      aria-label={`${expanded ? 'Minimize' : 'Expand'} ${title}`}
+      aria-label={translateUiLiteral(language, `${expanded ? 'Minimize' : 'Expand'} {title}`, { title })}
       className="rounded-full px-4"
       size="sm"
       type="button"
       variant="outline"
       onClick={onClick}
     >
-      {expanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-      {expanded ? 'Minimize' : 'Expand'}
+      {expanded ? <StatusMinimizeIcon className="size-3.5" /> : <StatusMaximizeIcon className="size-3.5" />}
+      {buttonLabel}
     </Button>
   );
 }
@@ -69,18 +78,19 @@ function ChartZoomIsland({
   onZoomIn: () => void;
   onZoomOut: () => void;
 }) {
+  const { language } = usePreferences();
   const buttonClassName =
     'inline-flex size-9 items-center justify-center rounded-full text-foreground transition hover:bg-white/70 disabled:pointer-events-none disabled:opacity-45';
   return (
     <div className={cn('inline-flex h-[48px] items-center gap-1 rounded-full border border-border/70 bg-background/95 p-1 shadow-[0_12px_28px_rgba(48,31,20,0.09)] backdrop-blur', className)}>
-      <button aria-label="Zoom out chart" className={buttonClassName} disabled={disabled} type="button" onClick={onZoomOut}>
-        <Minus className="size-4" />
+      <button aria-label={translateUiLiteral(language, 'Zoom out chart')} className={buttonClassName} disabled={disabled} type="button" onClick={onZoomOut}>
+        <ActionZoomOutIcon className="size-4" />
       </button>
-      <button aria-label="Reset chart zoom" className={buttonClassName} disabled={disabled} type="button" onClick={onReset}>
-        <Scan className="size-4" />
+      <button aria-label={translateUiLiteral(language, 'Reset chart zoom')} className={buttonClassName} disabled={disabled} type="button" onClick={onReset}>
+        <ActionScanIcon className="size-4" />
       </button>
-      <button aria-label="Zoom in chart" className={buttonClassName} disabled={disabled} type="button" onClick={onZoomIn}>
-        <Plus className="size-4" />
+      <button aria-label={translateUiLiteral(language, 'Zoom in chart')} className={buttonClassName} disabled={disabled} type="button" onClick={onZoomIn}>
+        <ActionZoomInIcon className="size-4" />
       </button>
     </div>
   );
@@ -95,21 +105,22 @@ function TimeframeIsland({
   onValueChange: (value: ChartTimeframe) => void;
   value: ChartTimeframe;
 }) {
+  const { language } = usePreferences();
   return (
     <Select disabled={disabled} value={value} onValueChange={(nextValue) => onValueChange(nextValue as ChartTimeframe)}>
       <SelectTrigger
-        aria-label="Select chart timeframe"
+        aria-label={translateUiLiteral(language, 'Select chart timeframe')}
         className="h-[48px] min-h-[48px] rounded-full border border-border/70 bg-background/95 px-4 py-0 text-sm font-medium leading-none shadow-[0_12px_28px_rgba(48,31,20,0.09)] backdrop-blur data-[size=default]:h-[48px] [&_svg]:text-foreground [&_svg]:opacity-100"
       >
         <span className="inline-flex items-center gap-2 text-foreground">
-          <CalendarClock className="size-4" />
-          <span>{`Timeframe: ${value}`}</span>
+          <StatusScheduleIcon className="size-4" />
+          <span>{translateUiLiteral(language, 'Timeframe: {value}', { value: translateChartTimeframeLabel(language, value) })}</span>
         </span>
       </SelectTrigger>
       <SelectContent position="popper">
         {CHART_TIMEFRAME_OPTIONS.map((option) => (
           <SelectItem key={option} value={option}>
-            {option}
+            {translateChartTimeframeLabel(language, option)}
           </SelectItem>
         ))}
       </SelectContent>

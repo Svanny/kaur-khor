@@ -7,8 +7,10 @@ import type {
   SenaSkuSummary,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { deriveLeadTimeVariabilityClass } from '@shared/sena-lead-time';
 import { formatWholeNumber } from '@/lib/format';
+import { translateRegimeLabel } from '@/lib/localized-display';
 import {
   formatSenaReorderQuantity,
   isSenaReorderQuantityIssued,
@@ -16,7 +18,7 @@ import {
 } from '@/lib/sena-reorder-quantity';
 import { latestObservationAt } from '@/routes/observation-payload';
 import { formatSenaDate, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
-import { getTranslation } from '@/lib/translations';
+import { getTranslation, translateUiLiteral } from '@/lib/translations';
 
 export type OverviewTaskFilter =
   | 'all'
@@ -258,17 +260,6 @@ function diffDaysFromNow(value: string | null) {
     return null;
   }
   return (date.getTime() - Date.now()) / 86_400_000;
-}
-
-function titleCase(value: string | null | undefined) {
-  if (!value) {
-    return 'Normal';
-  }
-  return value
-    .split(/[_\s-]+/g)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
 }
 
 function summarizeObservations(observations: SenaObservationRecord[], skuId: string): ObservationSkuSignals {
@@ -533,10 +524,10 @@ function nextStepsForTask({
 
   const arrivalWindowLabel =
     arrivalWindowStart && arrivalWindowEnd
-      ? `${formatSenaDate(arrivalWindowStart, 'en')}-${formatSenaDate(arrivalWindowEnd, 'en')}`
+      ? `${formatSenaDate(arrivalWindowStart, language)}-${formatSenaDate(arrivalWindowEnd, language)}`
       : expectedArrivalDate
-        ? formatSenaDate(expectedArrivalDate, 'en')
-        : 'pending';
+        ? formatSenaDate(expectedArrivalDate, language)
+        : translate(language, 'overviewReceiptWindowPending');
 
   return [
     expectedArrivalDate
@@ -785,7 +776,7 @@ function buildTask({
             date: formatSenaDate(observationSignals.latestPriceAt, language),
           })
         : translate(language, 'overviewTaskHeartbeatPattern', {
-            pattern: titleCase(dominantRegime),
+            pattern: translateRegimeLabel(language, dominantRegime),
           }),
     ],
     nextSteps: nextStepsForTask({
@@ -814,7 +805,7 @@ function buildTask({
     latestReceiptAt: observationSignals.latestReceiptAt,
     hasRecentPriceSignal: Boolean(observationSignals.latestPriceAt),
     regimeKey: dominantRegime,
-    regimeLabel: titleCase(dominantRegime),
+    regimeLabel: translateRegimeLabel(language, dominantRegime),
     stockoutRisk: summary.stockoutRisk,
     reorderTriggerProbability: summary.reorderTriggerProbability,
     reorderRecommendation,
@@ -957,10 +948,25 @@ export function buildOverviewModel({
     };
   }
 
+  const visibleCatalog = activeSenaCatalog(catalog);
+  if (!visibleCatalog) {
+    return {
+      tasks: [],
+      inTransit: [],
+      recentReceipts: [],
+      signals: [],
+      todayCounts: {
+        toOrder: 0,
+        followUpToday: 0,
+        readyToReceive: 0,
+      },
+    };
+  }
+
   const tasks = workspaceSummary.skuSummaries
     .map((summary) =>
       buildTask({
-        catalog,
+        catalog: visibleCatalog,
         detail: detailBySkuId[summary.skuId] ?? null,
         language,
         observations,
@@ -1075,35 +1081,35 @@ export function isOverviewSkuTask(task: OverviewTask): task is OverviewSkuTask {
   return task.kind === 'sku';
 }
 
-export function relativeReceiptLabel(value: string | null) {
+export function relativeReceiptLabel(value: string | null, language: AppLanguage) {
   if (!value) {
-    return 'Recent';
+    return translateUiLiteral(language, 'Recent');
   }
   if (isSameLocalDay(value)) {
-    return 'Today';
+    return translateUiLiteral(language, 'Today');
   }
   const start = todayStart();
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) {
-    return 'Recent';
+    return translateUiLiteral(language, 'Recent');
   }
   const diffDays = Math.round((date.getTime() - start.getTime()) / 86_400_000);
   if (diffDays === -1) {
-    return 'Yesterday';
+    return translateUiLiteral(language, 'Yesterday');
   }
-  return diffDays <= -2 ? formatSenaDate(value, 'en') : 'Recent';
+  return diffDays <= -2 ? formatSenaDate(value, language) : translateUiLiteral(language, 'Recent');
 }
 
-export function nextCheckLabel(value: string | null) {
+export function nextCheckLabel(value: string | null, language: AppLanguage) {
   const days = diffDaysFromNow(value);
   if (days == null) {
-    return 'Next check pending';
+    return translateUiLiteral(language, 'Next check pending');
   }
   if (days <= 0.5) {
-    return 'Check today';
+    return translateUiLiteral(language, 'Check today');
   }
   if (days <= 1.5) {
-    return 'Check tomorrow';
+    return translateUiLiteral(language, 'Check tomorrow');
   }
-  return `Check ${formatSenaDate(value, 'en')}`;
+  return translateUiLiteral(language, 'Check {date}', { date: formatSenaDate(value, language) });
 }

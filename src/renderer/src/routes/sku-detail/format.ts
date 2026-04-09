@@ -8,6 +8,46 @@ import {
   localeFor,
 } from '@/lib/format';
 
+const KHMER_MONTH_SHORT = [
+  'មករា',
+  'កុម្ភៈ',
+  'មីនា',
+  'មេសា',
+  'ឧសភា',
+  'មិថុនា',
+  'កក្កដា',
+  'សីហា',
+  'កញ្ញា',
+  'តុលា',
+  'វិច្ឆិកា',
+  'ធ្នូ',
+] as const;
+
+const KHMER_WEEKDAY_SHORT = ['អា', 'ច', 'អ', 'ពុ', 'ព្រ', 'សុ', 'ស'] as const;
+
+function formatKhmerMonthDay(date: Date) {
+  return `${formatWholeNumber(date.getDate(), 'km')} ${KHMER_MONTH_SHORT[date.getMonth()] ?? '—'}`;
+}
+
+function formatKhmerMonthDayYear(date: Date) {
+  const year = new Intl.NumberFormat(localeFor('km'), {
+    maximumFractionDigits: 0,
+    useGrouping: false,
+  }).format(date.getFullYear());
+  return `${formatWholeNumber(date.getDate(), 'km')} ${KHMER_MONTH_SHORT[date.getMonth()] ?? '—'} ${year}`;
+}
+
+function formatKhmerTime(date: Date) {
+  return new Intl.DateTimeFormat(localeFor('km'), {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(date)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function formatSenaUnits(value: number | null, language: AppLanguage) {
   if (value == null) {
     return '—';
@@ -66,6 +106,9 @@ export function formatSenaDate(value: string | null, language: AppLanguage) {
   if (Number.isNaN(date.valueOf())) {
     return '—';
   }
+  if (language === 'km') {
+    return formatKhmerMonthDay(date);
+  }
   return new Intl.DateTimeFormat(localeFor(language), {
     month: 'short',
     day: 'numeric',
@@ -79,6 +122,9 @@ export function formatSenaLongDate(value: string | null, language: AppLanguage) 
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) {
     return '—';
+  }
+  if (language === 'km') {
+    return formatKhmerMonthDayYear(date);
   }
   return new Intl.DateTimeFormat(localeFor(language), {
     month: 'short',
@@ -94,6 +140,9 @@ export function formatSenaDateTime(value: string | null, language: AppLanguage) 
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) {
     return '—';
+  }
+  if (language === 'km') {
+    return `${formatKhmerMonthDay(date)} ${formatKhmerTime(date)}`;
   }
   return new Intl.DateTimeFormat(localeFor(language), {
     month: 'short',
@@ -111,6 +160,9 @@ export function formatSenaWeekdayShort(value: string | null, language: AppLangua
   if (Number.isNaN(date.valueOf())) {
     return '—';
   }
+  if (language === 'km') {
+    return KHMER_WEEKDAY_SHORT[date.getDay()] ?? '—';
+  }
   return new Intl.DateTimeFormat(localeFor(language), {
     weekday: 'short',
   }).format(date);
@@ -120,30 +172,45 @@ const ENGLISH_MONTH_INITIALS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O'
 const ENGLISH_MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
 export function formatSenaWideIntervalDate(value: string | null) {
-  if (!value) {
-    return '—';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.valueOf())) {
-    return '—';
-  }
-  const monthShort = ENGLISH_MONTH_SHORT[date.getMonth()] ?? '—';
-  return `${monthShort}-${date.getDate()}`;
+  return formatSenaWideIntervalDateLocalized(value, 'en');
 }
 
-export function formatSenaCompactIntervalDate(value: string | null) {
+export function formatSenaWideIntervalDateLocalized(value: string | null, language: AppLanguage) {
   if (!value) {
     return '—';
   }
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) {
     return '—';
+  }
+  if (language === 'km') {
+    return formatKhmerMonthDay(date);
+  }
+  return new Intl.DateTimeFormat(localeFor(language), {
+    month: 'short',
+    day: 'numeric',
+  })
+    .format(date)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function formatSenaCompactIntervalDate(value: string | null, language: AppLanguage = 'en') {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return '—';
+  }
+  if (language !== 'en') {
+    return formatSenaWideIntervalDateLocalized(value, language);
   }
   const monthInitial = ENGLISH_MONTH_INITIALS[date.getMonth()] ?? '—';
   return `${monthInitial}-${date.getDate()}`;
 }
 
-export function formatSenaCompactIntervalDay(value: string | null) {
+export function formatSenaCompactIntervalDay(value: string | null, language: AppLanguage = 'en') {
   if (!value) {
     return '—';
   }
@@ -151,5 +218,7 @@ export function formatSenaCompactIntervalDay(value: string | null) {
   if (Number.isNaN(date.valueOf())) {
     return '—';
   }
-  return String(date.getDate());
+  return new Intl.NumberFormat(localeFor(language), {
+    maximumFractionDigits: 0,
+  }).format(date.getDate());
 }

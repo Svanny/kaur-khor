@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
+import { getRegimeIcon } from '@icons/domain';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
-import { regimeIconFor } from '@/lib/icon-mappings';
+import { translateRegimeLabel } from '@/lib/localized-display';
+import { translateUiLiteral } from '@/lib/translations';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { usePreferences } from '@/state/preferences';
 import { formatSenaDateTime } from './format';
@@ -31,7 +33,8 @@ function RailBlock({
 
 export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel }) {
   const { language, t } = usePreferences();
-  const SelectedRegimeIcon = regimeIconFor(model.rail.selectedIntervalSummary.dominantRegime);
+  const SelectedRegimeIcon = getRegimeIcon(model.rail.selectedIntervalSummary.dominantRegime);
+  const selectedRegimeLabel = translateRegimeLabel(language, model.rail.selectedIntervalSummary.dominantRegime);
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
@@ -54,14 +57,14 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
             model.rail.selectedIntervalSummary.label,
             <span className="inline-flex items-center gap-2">
               <SelectedRegimeIcon className="size-4" />
-              <span>{model.rail.selectedIntervalSummary.dominantRegime}</span>
+              <span>{selectedRegimeLabel}</span>
             </span>,
           ]}
           metrics={[
-            { label: 'Service', value: model.rail.selectedIntervalSummary.serviceDemand },
-            { label: 'Retail', value: model.rail.selectedIntervalSummary.retailDemand },
-            { label: 'Receipts', value: model.rail.selectedIntervalSummary.receipts },
-            { label: 'Adjustments', value: model.rail.selectedIntervalSummary.adjustments },
+            { label: translateUiLiteral(language, 'Service'), value: model.rail.selectedIntervalSummary.serviceDemand },
+            { label: translateUiLiteral(language, 'Retail'), value: model.rail.selectedIntervalSummary.retailDemand },
+            { label: translateUiLiteral(language, 'Receipts'), value: model.rail.selectedIntervalSummary.receipts },
+            { label: translateUiLiteral(language, 'Adjustments'), value: model.rail.selectedIntervalSummary.adjustments },
           ]}
           notes={model.rail.selectedIntervalSummary.notes}
         />
@@ -92,8 +95,10 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{model.rail.nextTouch.reason}</p>
         <p className="mt-3 rounded-[1rem] border border-border/70 bg-background/70 px-3 py-2 text-sm text-muted-foreground">
           {model.actionContext?.latestObservationAt
-            ? `Last counted ${formatSenaDateTime(model.actionContext.latestObservationAt, language)}`
-            : 'No counted stock update yet'}
+            ? translateUiLiteral(language, 'Last counted {date}', {
+                date: formatSenaDateTime(model.actionContext.latestObservationAt, language),
+              })
+            : translateUiLiteral(language, 'No counted stock update yet')}
         </p>
       </RailBlock>
     </aside>

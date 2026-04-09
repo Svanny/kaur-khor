@@ -1,6 +1,7 @@
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaReorderQuantityRecommendation } from '@shared/sena';
 import { formatWholeNumber, localeFor } from '@/lib/format';
+import { translateUiLiteral } from '@/lib/translations';
 
 export interface SenaReorderQuantityDisplay {
   hasBackendRecommendation: boolean;
@@ -37,7 +38,9 @@ function formatPercent(value: number | null | undefined, language: AppLanguage) 
 }
 
 function formatUnits(value: number, language: AppLanguage) {
-  return `${formatWholeNumber(value, language)} units`;
+  return translateUiLiteral(language, '{count} units', {
+    count: formatWholeNumber(value, language),
+  });
 }
 
 function formatCompactUnits(value: number, language: AppLanguage) {
@@ -69,32 +72,51 @@ export function formatSenaReorderQuantity(
     : recommendedUnits > 0;
   const rangeLow = ceilUnits(recommendation?.likelyRangeLow);
   const rangeHigh = ceilUnits(recommendation?.likelyRangeHigh);
-  const likelyRangeValueLabel = `${formatWholeNumber(rangeLow, language)}-${formatWholeNumber(Math.max(rangeLow, rangeHigh), language)} units`;
+  const likelyRangeValueLabel = translateUiLiteral(language, '{low}-{high} units', {
+    low: formatWholeNumber(rangeLow, language),
+    high: formatWholeNumber(Math.max(rangeLow, rangeHigh), language),
+  });
   const needProbability = formatPercent(recommendation?.needProbability, language);
   const recommendedUnitsLabel = formatUnits(recommendedUnits, language);
   const optionalOrderLabel = !recommendationIssued && recommendedUnits > 0
-    ? `Optional order ${recommendedUnitsLabel}`
+    ? translateUiLiteral(language, 'Optional order {count} units', {
+        count: formatWholeNumber(recommendedUnits, language),
+      })
     : null;
   const recommendedOrderLabel = recommendationIssued
-    ? `Recommended order ${recommendedUnitsLabel}`
+    ? translateUiLiteral(language, 'Recommended order {count} units', {
+        count: formatWholeNumber(recommendedUnits, language),
+      })
     : optionalOrderLabel
-      ? `No order quantity recommended · ${optionalOrderLabel.toLowerCase()}`
-    : 'No order quantity recommended';
+      ? translateUiLiteral(language, 'No order quantity recommended · optional order {count} units', {
+          count: formatWholeNumber(recommendedUnits, language),
+        })
+      : translateUiLiteral(language, 'No order quantity recommended');
   const likelyRangeLabel = hasBackendRecommendation
-    ? `Recommended range ${likelyRangeValueLabel}`
+    ? translateUiLiteral(language, 'Recommended range {low}-{high} units', {
+        low: formatWholeNumber(rangeLow, language),
+        high: formatWholeNumber(Math.max(rangeLow, rangeHigh), language),
+      })
     : fallbackRecommendedUnits != null && recommendedUnits > 0
-      ? `Estimated recommendation ${recommendedUnitsLabel}`
-      : 'Recommended range pending';
+      ? translateUiLiteral(language, 'Estimated recommendation {count} units', {
+          count: formatWholeNumber(recommendedUnits, language),
+        })
+      : translateUiLiteral(language, 'Recommended range pending');
   const needProbabilityLabel = hasBackendRecommendation
-    ? `Order likelihood ${needProbability}`
-    : 'Order likelihood pending';
+    ? translateUiLiteral(language, 'Order likelihood {value}', { value: needProbability })
+    : translateUiLiteral(language, 'Order likelihood pending');
   const quietLabel = hasBackendRecommendation
     ? optionalOrderLabel
-      ? `Keep watching · ${optionalOrderLabel.toLowerCase()} · order likelihood ${needProbability}`
-      : `Keep watching · order likelihood ${needProbability}`
+      ? translateUiLiteral(language, 'Keep watching · optional order {count} units · order likelihood {value}', {
+          count: formatWholeNumber(recommendedUnits, language),
+          value: needProbability,
+        })
+      : translateUiLiteral(language, 'Keep watching · order likelihood {value}', { value: needProbability })
     : recommendedUnits > 0
-      ? `Estimated order ${recommendedUnitsLabel}`
-      : 'Recommendation pending · enter quantity manually';
+      ? translateUiLiteral(language, 'Estimated recommendation {count} units', {
+          count: formatWholeNumber(recommendedUnits, language),
+        })
+      : translateUiLiteral(language, 'Recommendation pending · enter quantity manually');
 
   return {
     hasBackendRecommendation,
@@ -113,7 +135,11 @@ export function formatSenaReorderQuantity(
     needProbabilityLabel,
     needProbabilityValueLabel: needProbability,
     quietLabel,
-    protectionHorizonLabel: `Protection horizon: lead time + ${formatWholeNumber(ceilUnits(recommendation?.reviewDelayDays), language)}d review delay`,
-    policyBasisLabel: 'Policy basis: on hand + in transit',
+    protectionHorizonLabel: translateUiLiteral(
+      language,
+      'Protection horizon: lead time + {days}d review delay',
+      { days: formatWholeNumber(ceilUnits(recommendation?.reviewDelayDays), language) },
+    ),
+    policyBasisLabel: translateUiLiteral(language, 'Policy basis: on hand + in transit'),
   };
 }

@@ -11,6 +11,7 @@ import {
   buildAnalysisSearchParams,
   readAnalysisRouteState,
 } from '@/lib/navigation-state';
+import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { WireframeRightRailLayout, WireframeRows, WorkspaceTitleCardWireframe } from './loading-wireframes';
 import {
   type AnalysisScope,
@@ -123,11 +124,12 @@ export function AnalysisRoute() {
     skuDetailsById,
     timeframeHydrationProgress,
   } = useSenaDetailHydration(timeframe);
-  const hasCatalog = Boolean(inventory.catalog);
+  const visibleCatalog = activeSenaCatalog(inventory.catalog);
+  const hasCatalog = Boolean(visibleCatalog && (visibleCatalog.skus.length > 0 || visibleCatalog.services.length > 0));
   const hasWorkspaceSummary = Boolean(inventory.workspaceSummary);
   const expectedHydratedEntityCount =
-    (inventory.catalog?.services.length ?? 0) +
-    (inventory.catalog?.skus.length ?? 0);
+    (visibleCatalog?.services.length ?? 0) +
+    (visibleCatalog?.skus.length ?? 0);
   const hydratedEntityCount =
     Object.keys(serviceDetailsById).length +
     Object.keys(skuDetailsById).length;
@@ -157,7 +159,7 @@ export function AnalysisRoute() {
     );
   }
 
-  if (!inventory.catalog) {
+  if (!hasCatalog) {
     return (
       <WorkspacePage>
         <WorkspaceEmpty

@@ -2,16 +2,22 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { SenaSkuDetail } from '@shared/sena';
 import {
-  ArrowUpRight,
-  ClipboardList,
-  Layers3,
-  Package,
-  ReceiptText,
-  Radio,
-  SearchSlash,
-  Store,
-  Truck,
-} from 'lucide-react';
+  ActionOpenExternalIcon,
+  ActionSearchOffIcon,
+} from '@icons/actions';
+import {
+  overviewTaskActionIcons,
+  overviewTaskFilterIcons,
+} from '@icons/domain';
+import {
+  EntityLayersIcon,
+  EntityReceiptDocumentIcon,
+  EntityServiceIcon,
+  EntitySignalIcon,
+  EntitySkuIcon,
+  EntityTransitIcon,
+} from '@icons/entities';
+import { NavigationTaskListIcon } from '@icons/navigation';
 import {
   WorkspaceActionRow,
   WorkspaceEmpty,
@@ -33,11 +39,11 @@ import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { overviewTaskActionIconMap, overviewTaskFilterIconMap } from '@/lib/icon-mappings';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildOverviewSearchParams, readOverviewRouteState } from '@/lib/navigation-state';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
+import { translateUiLiteral } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { OverviewTaskDrawer } from './overview/task-drawer';
@@ -49,25 +55,6 @@ import {
   type OverviewTask,
   type OverviewTaskFilter,
 } from './overview/view-model';
-
-const FILTER_OPTIONS: Array<{ value: OverviewTaskFilter; label: string }> = [
-  { value: 'all', label: 'All Tasks' },
-  { value: 'to_order', label: 'To order' },
-  { value: 'awaiting_receipt', label: 'Awaiting receipt' },
-  { value: 'follow_up_today', label: 'Follow up today' },
-  { value: 'ready_to_receive', label: 'Ready to receive' },
-  { value: 'received_today', label: 'Received today' },
-];
-
-const TODAY_FILTER_ROWS: Array<{
-  countKey: 'toOrder' | 'followUpToday' | 'readyToReceive';
-  filter: OverviewTaskFilter;
-  label: string;
-}> = [
-  { countKey: 'toOrder', filter: 'to_order', label: 'To order' },
-  { countKey: 'followUpToday', filter: 'follow_up_today', label: 'Follow up today' },
-  { countKey: 'readyToReceive', filter: 'ready_to_receive', label: 'Ready to receive' },
-];
 
 const overviewQueueTableLayout = createHeaderedTableLayout({
   breakpoint: 'lg',
@@ -95,6 +82,37 @@ function nextLocalDayStartIso(reference = new Date()) {
     reference.getDate() + 1,
   );
   return nextDayStart.toISOString();
+}
+
+function buildFilterOptions(language: 'en' | 'km'): Array<{ value: OverviewTaskFilter; label: string }> {
+  return [
+    { value: 'all', label: translateUiLiteral(language, 'All Tasks') },
+    { value: 'to_order', label: translateUiLiteral(language, 'To order') },
+    { value: 'awaiting_receipt', label: translateUiLiteral(language, 'Awaiting receipt') },
+    { value: 'follow_up_today', label: translateUiLiteral(language, 'Follow up today') },
+    { value: 'ready_to_receive', label: translateUiLiteral(language, 'Ready to receive') },
+    { value: 'received_today', label: translateUiLiteral(language, 'Received today') },
+  ];
+}
+
+function buildTodayFilterRows(language: 'en' | 'km'): Array<{
+  countKey: 'toOrder' | 'followUpToday' | 'readyToReceive';
+  filter: OverviewTaskFilter;
+  label: string;
+}> {
+  return [
+    { countKey: 'toOrder', filter: 'to_order', label: translateUiLiteral(language, 'To order') },
+    {
+      countKey: 'followUpToday',
+      filter: 'follow_up_today',
+      label: translateUiLiteral(language, 'Follow up today'),
+    },
+    {
+      countKey: 'readyToReceive',
+      filter: 'ready_to_receive',
+      label: translateUiLiteral(language, 'Ready to receive'),
+    },
+  ];
 }
 
 function matchesOverviewEntityScope(task: OverviewTask, scope: OverviewSearchScope) {
@@ -171,6 +189,8 @@ export function DashboardRoute() {
   const searchScope = routeState.scope;
   const filter = routeState.filter as OverviewTaskFilter;
   const selectedTaskId = routeState.taskId;
+  const filterOptions = buildFilterOptions(language);
+  const todayFilterRows = buildTodayFilterRows(language);
 
   function updateRouteState(nextState: Parameters<typeof buildOverviewSearchParams>[1], replace = false) {
     setSearchParams(buildOverviewSearchParams(searchParams, nextState), { replace });
@@ -239,11 +259,11 @@ export function DashboardRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="Overview needs the catalog first"
-          hint="Create the first SKU so Banji can build an action list from real stock work."
+          title={translateUiLiteral(language, 'Overview needs the catalog first')}
+          hint={translateUiLiteral(language, 'Create the first SKU so Banji can build an action list from real stock work.')}
           action={
             <Button asChild>
-              <Link to="/catalog/skus/new">Create first SKU</Link>
+              <Link to="/catalog/skus/new">{translateUiLiteral(language, 'Create first SKU')}</Link>
             </Button>
           }
         />
@@ -255,15 +275,15 @@ export function DashboardRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title="Overview needs the first SENA run"
-          hint="Capture a live observation so Banji can build the order, receipt, and follow-up queue."
+          title={translateUiLiteral(language, 'Overview needs your first update')}
+          hint={translateUiLiteral(language, 'Capture a live observation so Banji can build the order, receipt, and follow-up queue.')}
           action={
             <WorkspaceActionRow>
               <Button asChild className={overviewStartUpdateButtonClassName}>
-                <Link to="/record-update">Start update</Link>
+                <Link to="/record-update">{translateUiLiteral(language, 'Start update')}</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/catalog">Open catalog</Link>
+                <Link to="/catalog">{translateUiLiteral(language, 'Open catalog')}</Link>
               </Button>
             </WorkspaceActionRow>
           }
@@ -275,15 +295,15 @@ export function DashboardRoute() {
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
-        eyebrow="Overview"
-        title="Mission Control"
-        descriptor="See what needs attention next, what is already in motion, and when Banji will check back."
+        eyebrow={translateUiLiteral(language, 'Overview')}
+        title={translateUiLiteral(language, 'Mission Control')}
+        descriptor={translateUiLiteral(language, 'See what needs attention next, what is already in motion, and when Banji will check back.')}
         actions={
           <WorkspaceActionRow>
             <Button asChild className={overviewStartUpdateButtonClassName}>
               <Link to="/record-update">
-                <ClipboardList className="size-4" />
-                Start update
+                <NavigationTaskListIcon className="size-4" />
+                {translateUiLiteral(language, 'Start update')}
               </Link>
             </Button>
           </WorkspaceActionRow>
@@ -292,7 +312,7 @@ export function DashboardRoute() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
           <div className="w-full max-w-xl">
             <SearchInput
-              ariaLabel="Search overview"
+              ariaLabel={translateUiLiteral(language, 'Search overview')}
               placeholder={t('searchPlaceholder')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -311,15 +331,15 @@ export function DashboardRoute() {
             }}
           >
             <ToggleGroupItem value="all">
-              <Layers3 data-icon="inline-start" />
-              All
+              <EntityLayersIcon data-icon="inline-start" />
+              {translateUiLiteral(language, 'All')}
             </ToggleGroupItem>
             <ToggleGroupItem value="skus">
-              <Package data-icon="inline-start" />
+              <EntitySkuIcon data-icon="inline-start" />
               {t('filterSku')}
             </ToggleGroupItem>
             <ToggleGroupItem value="services">
-              <Store data-icon="inline-start" />
+              <EntityServiceIcon data-icon="inline-start" />
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
@@ -332,9 +352,9 @@ export function DashboardRoute() {
         onValueChange={(nextValue) => updateRouteState({ filter: nextValue as OverviewTaskFilter })}
       >
         <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
-          <ChromeTabsList aria-label="Filter overview tasks" className="min-w-0" collapseBehavior="progressive">
-            {FILTER_OPTIONS.map((option) => {
-              const FilterTabIcon = overviewTaskFilterIconMap[option.value];
+          <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
+            {filterOptions.map((option) => {
+              const FilterTabIcon = overviewTaskFilterIcons[option.value];
               return (
                 <ChromeTabsTrigger
                   key={option.value}
@@ -359,14 +379,16 @@ export function DashboardRoute() {
             <div className="border-b border-border/60 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold tracking-[-0.03em] text-foreground">Task queue</h2>
+                  <h2 className="text-xl font-semibold tracking-[-0.03em] text-foreground">
+                    {translateUiLiteral(language, 'Task queue')}
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    The human task ledger on top of SENA&apos;s order, receipt, and lead-time loop.
+                    {translateUiLiteral(language, "The task list built from Banji's orders, deliveries, and arrival timing.")}
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {visibleTasks.length} visible
-                  {isHydratingDetails ? ' · refining receipt windows…' : null}
+                  {translateUiLiteral(language, '{count} visible', { count: visibleTasks.length })}
+                  {isHydratingDetails ? ` · ${translateUiLiteral(language, 'refining receipt windows…')}` : null}
                 </p>
               </div>
             </div>
@@ -375,14 +397,14 @@ export function DashboardRoute() {
               <HeaderedTable>
                 <div className={overviewQueueTableLayout.containerClassName} style={overviewQueueTableLayout.style}>
                   <HeaderedTableHeader className={overviewQueueTableLayout.headerClassName}>
-                    <HeaderedTableHeaderCell>Item / impact</HeaderedTableHeaderCell>
-                    <HeaderedTableHeaderCell>Why now</HeaderedTableHeaderCell>
-                    <HeaderedTableHeaderCell>ETA / window</HeaderedTableHeaderCell>
-                    <HeaderedTableHeaderCell align="center">Action</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Item / impact')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Why now')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'ETA / window')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
                   </HeaderedTableHeader>
                   <HeaderedTableBody className={overviewQueueTableLayout.bodyClassName}>
                     {visibleTasks.map((task) => {
-                      const TaskActionIcon = overviewTaskActionIconMap[task.action];
+                      const TaskActionIcon = overviewTaskActionIcons[task.action];
 
                       return (
                         <HeaderedTableRow
@@ -416,7 +438,7 @@ export function DashboardRoute() {
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-base font-semibold text-foreground">
-                                    Capture a fresh update
+                                    {translateUiLiteral(language, 'Capture a fresh update')}
                                   </span>
                                   <span
                                     className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
@@ -425,7 +447,7 @@ export function DashboardRoute() {
                                   </span>
                                 </div>
                                 <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                                  Overview reminder
+                                  {translateUiLiteral(language, 'Overview reminder')}
                                 </p>
                                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
                               </div>
@@ -434,7 +456,7 @@ export function DashboardRoute() {
 
                           <div className="min-w-0">
                             <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
-                              Why now
+                              {translateUiLiteral(language, 'Why now')}
                             </HeaderedTableMobileLabel>
                             <p className="font-medium text-foreground">{task.whyNow}</p>
                             <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
@@ -445,7 +467,7 @@ export function DashboardRoute() {
 
                           <div className="min-w-0">
                             <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
-                              ETA / window
+                              {translateUiLiteral(language, 'ETA / window')}
                             </HeaderedTableMobileLabel>
                             <p className="font-medium text-foreground">{task.etaLabel}</p>
                             <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -485,7 +507,7 @@ export function DashboardRoute() {
                                   }
                                 >
                                   {(() => {
-                                    const SnoozeIcon = overviewTaskActionIconMap[task.snoozeAction];
+                                    const SnoozeIcon = overviewTaskActionIcons[task.snoozeAction];
                                     return SnoozeIcon ? <SnoozeIcon className="size-4" /> : null;
                                   })()}
                                   {task.snoozeActionLabel}
@@ -502,14 +524,16 @@ export function DashboardRoute() {
             ) : (
               <div className="grid place-items-center px-5 py-16 sm:px-6">
                 <div className="max-w-md text-center">
-                  <SearchSlash className="mx-auto size-9 text-muted-foreground/70" />
+                    <ActionSearchOffIcon className="mx-auto size-9 text-muted-foreground/70" />
                   <h3 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-foreground">
-                    {query || filter !== 'all' ? 'No tasks match this view' : 'No urgent tasks are crowding the queue'}
+                    {query || filter !== 'all'
+                      ? translateUiLiteral(language, 'No tasks match this view')
+                      : translateUiLiteral(language, 'No urgent tasks are crowding the queue')}
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     {query || filter !== 'all'
-                      ? 'Try a broader query or switch filters to bring more of the task ledger back into view.'
-                      : 'Banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.'}
+                      ? translateUiLiteral(language, 'Try a broader query or switch filters to bring more of the task ledger back into view.')
+                      : translateUiLiteral(language, 'Banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.')}
                   </p>
                 </div>
               </div>
@@ -520,11 +544,13 @@ export function DashboardRoute() {
           <aside className="flex h-full flex-col bg-secondary/15">
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
-                <ClipboardList className="size-4 text-primary" />
-                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">Today</h2>
+                <NavigationTaskListIcon className="size-4 text-primary" />
+                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                  {translateUiLiteral(language, 'Today')}
+                </h2>
               </div>
               <div className="divide-y divide-border/50">
-                {TODAY_FILTER_ROWS.map((row) => {
+                {todayFilterRows.map((row) => {
                   return (
                     <button
                       key={row.filter}
@@ -543,8 +569,10 @@ export function DashboardRoute() {
 
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
-                <Truck className="size-4 text-primary" />
-                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">In transit</h2>
+                <EntityTransitIcon className="size-4 text-primary" />
+                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                  {translateUiLiteral(language, 'In transit')}
+                </h2>
               </div>
               <div className="divide-y divide-border/50">
                 {model.inTransit.length > 0 ? (
@@ -562,7 +590,7 @@ export function DashboardRoute() {
                   ))
                 ) : (
                   <p className="py-3 text-sm text-muted-foreground">
-                    No active receipt windows are open right now.
+                    {translateUiLiteral(language, 'No active receipt windows are open right now.')}
                   </p>
                 )}
               </div>
@@ -570,8 +598,10 @@ export function DashboardRoute() {
 
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
-                <ReceiptText className="size-4 text-primary" />
-                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">Recent receipts</h2>
+                <EntityReceiptDocumentIcon className="size-4 text-primary" />
+                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                  {translateUiLiteral(language, 'Recent receipts')}
+                </h2>
               </div>
               <div className="divide-y divide-border/50">
                 {model.recentReceipts.length > 0 ? (
@@ -593,7 +623,7 @@ export function DashboardRoute() {
                   ))
                 ) : (
                   <p className="py-3 text-sm text-muted-foreground">
-                    Confirmed receipts will appear here as inventory closes the loop.
+                    {translateUiLiteral(language, 'Confirmed receipts will appear here as inventory closes the loop.')}
                   </p>
                 )}
               </div>
@@ -601,8 +631,10 @@ export function DashboardRoute() {
 
             <section className={`${railBlockClassName()} border-b border-border/60`}>
               <div className="mb-4 flex items-center gap-2">
-                <Radio className="size-4 text-primary" />
-                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">SENA signals</h2>
+                <EntitySignalIcon className="size-4 text-primary" />
+                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                  {translateUiLiteral(language, 'Business signals')}
+                </h2>
               </div>
               <div className="divide-y divide-border/50">
                 {model.signals.length > 0 ? (
@@ -616,7 +648,7 @@ export function DashboardRoute() {
                   ))
                 ) : (
                   <p className="py-3 text-sm text-muted-foreground">
-                    Regime and price shifts will surface here once SENA sees enough motion to narrate them.
+                    {translateUiLiteral(language, 'Sales-pattern and price changes will appear here once Banji has enough activity to explain them.')}
                   </p>
                 )}
               </div>
@@ -625,8 +657,8 @@ export function DashboardRoute() {
             <section className="mt-auto flex justify-center px-5 py-5">
               <Button asChild variant="outline">
                 <Link to="/operations">
-                  <ArrowUpRight className="size-4" />
-                  Open logs
+                  <ActionOpenExternalIcon className="size-4" />
+                  {translateUiLiteral(language, 'Open logs')}
                 </Link>
               </Button>
             </section>

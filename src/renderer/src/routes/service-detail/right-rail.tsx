@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight } from 'lucide-react';
+import { ActionOpenExternalIcon } from '@icons/actions';
+import { getRegimeIcon } from '@icons/domain';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
-import { regimeIconFor } from '@/lib/icon-mappings';
+import { translateRegimeLabel } from '@/lib/localized-display';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { formatSenaDateTime } from '@/routes/sku-detail/format';
 import { usePreferences } from '@/state/preferences';
@@ -51,7 +52,8 @@ export function ServiceDetailRightRail({
   const { language, t } = usePreferences();
   const contributor = selectedContributor(model, selection);
   const interval = selectedInterval(model, selection);
-  const SelectedRegimeIcon = interval ? regimeIconFor(interval.dominantRegime) : null;
+  const SelectedRegimeIcon = interval ? getRegimeIcon(interval.regimeKey) : null;
+  const selectedRegimeLabel = interval ? interval.dominantRegime : null;
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
@@ -79,7 +81,7 @@ export function ServiceDetailRightRail({
           </div>
           <Button asChild className="mt-4 w-full">
             <Link to={contributor.openSkuHref}>
-              <ArrowUpRight className="size-4" />
+              <ActionOpenExternalIcon className="size-4" />
               {t('catalogServiceOpenSkuDetailAction')}
             </Link>
           </Button>
@@ -94,7 +96,7 @@ export function ServiceDetailRightRail({
             interval.label,
             <span className="inline-flex items-center gap-2">
               {SelectedRegimeIcon ? <SelectedRegimeIcon className="size-4" /> : null}
-              <span>{interval.dominantRegime}</span>
+              <span>{selectedRegimeLabel}</span>
             </span>,
           ]}
           metrics={[

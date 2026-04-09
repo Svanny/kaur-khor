@@ -9,14 +9,17 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
+import { translateLeadTimeVariabilityLabel, translateRegimeLabel } from '@/lib/localized-display';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { formatWholeNumber } from '@/lib/format';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
+import { translateUiLiteral } from '@/lib/translations';
 import { formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity } from '@/routes/sku-detail/format';
 
 export type AnalysisScope = 'all' | 'skus' | 'services';
 export type AnalysisSection = 'workbench' | 'pressure' | 'observations' | 'fragility' | 'settings';
 export type AnalysisEntityType = 'sku' | 'service';
+export type AnalysisRiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type AnalysisSelection =
   | { type: 'overview' }
   | { type: 'interval'; intervalIndex: number }
@@ -74,8 +77,11 @@ export interface AnalysisEntityPressureRow {
   href: string;
   pressureScoreValue: number;
   pressureScoreLabel: string;
+  pipelineRiskLevel: AnalysisRiskLevel;
   pipelineRiskLabel: string;
+  leadTimeRiskLevel: AnalysisRiskLevel;
   leadTimeRiskLabel: string;
+  priceSensitivityLevel: AnalysisRiskLevel;
   priceSensitivityLabel: string;
   driverLabel: string;
   tone: StatusPillTone;
@@ -312,6 +318,10 @@ function normalizeRegimeLabel(value: string | null | undefined) {
     .join(' ');
 }
 
+function literal(language: AppLanguage, englishTemplate: string, variables?: Record<string, string | number | null | undefined>) {
+  return translateUiLiteral(language, englishTemplate, variables);
+}
+
 function coverTone(score: number): StatusPillTone {
   if (score >= 0.72) {
     return 'danger';
@@ -327,15 +337,28 @@ function coverTone(score: number): StatusPillTone {
 
 function labelForLevel(score: number) {
   if (score >= 0.82) {
-    return 'critical';
+    return 'critical' as const;
   }
   if (score >= 0.62) {
-    return 'high';
+    return 'high' as const;
   }
   if (score >= 0.38) {
-    return 'medium';
+    return 'medium' as const;
   }
-  return 'low';
+  return 'low' as const;
+}
+
+function riskLevelWeight(level: AnalysisRiskLevel) {
+  switch (level) {
+    case 'critical':
+      return 1;
+    case 'high':
+      return 0.75;
+    case 'medium':
+      return 0.45;
+    default:
+      return 0.2;
+  }
 }
 
 function coverageBand(score: number) {
@@ -343,7 +366,7 @@ function coverageBand(score: number) {
     return 'high';
   }
   if (score >= 0.72) {
-    return 'medium-high';
+    return 'strong';
   }
   if (score >= 0.52) {
     return 'medium';
@@ -354,12 +377,18 @@ function coverageBand(score: number) {
 function scopeSummary(scope: AnalysisScope) {
   switch (scope) {
     case 'skus':
-      return 'SKU-only evidence and posterior scan';
+      return 'SKU-only view';
     case 'services':
-      return 'Service-only system scan';
+      return 'Service-only view';
     default:
-      return 'Mixed system scan across SKUs and services';
+      return 'Combined SKU and service view';
   }
+}
+
+function stripSummaryPrefix(value: string) {
+  return value
+    .replace(/^[^:៖]+[:៖]\s*/, '')
+    .replace(/^(Recommended range|ជួរណែនាំ)\s+/, '');
 }
 
 function observationBelongsToScope({
@@ -533,41 +562,44 @@ function averageProbability(value: number, count: number) {
   return count > 0 ? value / count : 0;
 }
 
-function variabilityLabel(point: SenaLeadTimePosteriorPoint | null) {
-  if (!point?.observedVariabilityClass) {
-    return 'No class';
+function variabilityLabel(
+  value: SenaLeadTimePosteriorPoint['observedVariabilityClass'] | null | undefined,
+  language: AppLanguage,
+) {
+  if (!value) {
+    return literal(language, 'No timing label');
   }
-  return point.observedVariabilityClass.replace(/_/g, ' ');
+  return translateLeadTimeVariabilityLabel(language, value);
 }
 
-function accumulateSignals(observation: SenaObservationRecord) {
+function accumulateSignals(observation: SenaObservationRecord, language: AppLanguage) {
   const signals: string[] = [];
   if (observation.input.stockSnapshot.length > 0) {
-    signals.push('stock snapshot');
+    signals.push(literal(language, 'stock count'));
   }
   if (observation.input.serviceRankings.length > 0) {
-    signals.push('service ranking');
+    signals.push(literal(language, 'service priority'));
   }
   if (observation.input.retailRankings.length > 0) {
-    signals.push('retail ranking');
+    signals.push(literal(language, 'item priority'));
   }
   if (observation.input.serviceStockouts.length > 0 || observation.input.retailStockouts.length > 0) {
-    signals.push('stockout flags');
+    signals.push(literal(language, 'stockout flags'));
   }
   if (observation.input.orderSignals.some((signal) => signal.orderPlaced)) {
-    signals.push('order placed');
+    signals.push(literal(language, 'order placed'));
   }
   if (observation.input.orderSignals.some((signal) => signal.receiptArrived)) {
-    signals.push('receipt arrived');
+    signals.push(literal(language, 'receipt arrived'));
   }
   if (observation.input.servicePrices.length > 0 || observation.input.retailPrices.length > 0) {
-    signals.push('price signal');
+    signals.push(literal(language, 'price signal'));
   }
   if (observation.input.leadTimeHints.length > 0) {
-    signals.push('lead-time hint');
+    signals.push(literal(language, 'delivery note'));
   }
   if (observation.input.notes?.trim()) {
-    signals.push('note');
+    signals.push(literal(language, 'note'));
   }
   return signals;
 }
@@ -602,10 +634,10 @@ function summarizeDriver(seed: IntervalAggregateSeed, previous: IntervalAggregat
   return ranked[0]?.key ?? 'demand-led';
 }
 
-function signalCounter(observations: SenaObservationRecord[]) {
+function signalCounter(observations: SenaObservationRecord[], language: AppLanguage) {
   const counts = new Map<string, number>();
   for (const observation of observations) {
-    for (const signal of accumulateSignals(observation)) {
+    for (const signal of accumulateSignals(observation, language)) {
       counts.set(signal, (counts.get(signal) ?? 0) + 1);
     }
   }
@@ -836,7 +868,7 @@ export function deriveAnalysisViewModel({
 
     const intervalObservations = observationsInInterval(filteredObservations, interval);
     for (const observation of intervalObservations) {
-      for (const signal of accumulateSignals(observation)) {
+      for (const signal of accumulateSignals(observation, language)) {
         seed.observedSignals.add(signal);
       }
       seed.priceShiftCount += observation.input.servicePrices.length + observation.input.retailPrices.length;
@@ -874,18 +906,30 @@ export function deriveAnalysisViewModel({
     const averageLeadTimeStdDays = seed.leadTimeCount > 0 ? seed.leadTimeStdDays / seed.leadTimeCount : null;
     const priceOrStockoutSummary =
       seed.priceDeltaCount > 0 || seed.stockoutCueCount > 0
-        ? `${formatWholeNumber(seed.priceShiftCount, language)} price cues and ${formatWholeNumber(seed.stockoutCueCount, language)} stockout cues landed.`
-        : 'No material price or stockout cue in this interval';
+        ? literal(language, '{priceCount} price cues and {stockoutCount} stockout cues landed.', {
+            priceCount: formatWholeNumber(seed.priceShiftCount, language),
+            stockoutCount: formatWholeNumber(seed.stockoutCueCount, language),
+          })
+        : literal(language, 'No material price or stockout cue in this interval');
+    const intervalLabel = literal(language, 'Interval {count}', {
+      count: formatWholeNumber(seed.intervalIndex + 1, language),
+    });
+    const localizedRegime = translateRegimeLabel(language, seed.regime ?? 'normal');
 
     return {
       key: `interval:${seed.intervalIndex}`,
       intervalIndex: seed.intervalIndex,
-      label: `Interval ${seed.intervalIndex + 1}`,
-      dateLabel: seed.endAt ? formatSenaDate(seed.endAt, language) : `Interval ${seed.intervalIndex + 1}`,
+      label: intervalLabel,
+      dateLabel: seed.endAt ? formatSenaDate(seed.endAt, language) : intervalLabel,
       startAt: seed.startAt,
       endAt: seed.endAt,
-      dominantRegime: normalizeRegimeLabel(seed.regime),
-      priceSignalLabel: seed.priceShiftCount > 0 ? `${formatWholeNumber(seed.priceShiftCount, language)} price cues` : 'No price cue',
+      dominantRegime: localizedRegime,
+      priceSignalLabel:
+        seed.priceShiftCount > 0
+          ? literal(language, '{count} price cues', {
+              count: formatWholeNumber(seed.priceShiftCount, language),
+            })
+          : literal(language, 'No price cue'),
       serviceDemandLabel: formatSenaQuantity(seed.serviceDemandMean, language),
       retailDemandLabel: formatSenaQuantity(seed.retailDemandMean, language),
       realizedConsumptionLabel: formatSenaQuantity(seed.realizedConsumptionMean, language),
@@ -899,16 +943,16 @@ export function deriveAnalysisViewModel({
       ageDaysLabel: formatSenaDays(averageAgeDays, language),
       leadTimeMeanLabel: formatSenaDays(averageLeadTimeMeanDays, language),
       leadTimeSpreadLabel: formatSenaDays(averageLeadTimeStdDays, language),
-      leadTimeVariabilityLabel: seed.leadTimeVariabilityClass ? seed.leadTimeVariabilityClass.replace(/_/g, ' ') : 'No class',
+      leadTimeVariabilityLabel: variabilityLabel(seed.leadTimeVariabilityClass, language),
       dominantDriver,
       narrative:
         dominantDriver === 'lead-time-led'
-          ? 'Lead-time drift moved faster than the demand or receipt story.'
+          ? literal(language, 'Delivery timing changed faster than demand or delivery activity.')
           : dominantDriver === 'receipt-led'
-            ? 'Inbound movement explains most of the operational change in this slice.'
+            ? literal(language, 'Incoming stock explains most of the change in this period.')
             : dominantDriver === 'adjustment-led'
-              ? 'Adjustment noise outweighed clean demand and receipt evidence here.'
-              : 'Demand and consumption explain most of the posterior movement here.',
+              ? literal(language, 'Manual adjustments explain more of this period than demand or deliveries.')
+              : literal(language, 'Demand and usage explain most of the change in this period.'),
       observedSignals: [...seed.observedSignals],
       affectedEntities: [...seed.affectedEntities],
       priceOrStockoutSummary,
@@ -969,13 +1013,15 @@ export function deriveAnalysisViewModel({
         intervalPosition,
         startAt: seed.startAt,
         endAt: seed.endAt,
-        dominantRegime: normalizeRegimeLabel(seed.regime),
+        dominantRegime: translateRegimeLabel(language, seed.regime ?? 'normal'),
         priceCueCount: seed.priceShiftCount,
         stockoutCueCount: seed.stockoutCueCount,
         cueSummary:
           seed.priceDeltaCount > 0
-            ? `${formatWholeNumber(seed.priceDeltaCount, language)} price or stockout cues`
-            : 'No price or stockout cue',
+            ? literal(language, '{count} price or stockout cues', {
+                count: formatWholeNumber(seed.priceDeltaCount, language),
+              })
+            : literal(language, 'No price or stockout cue'),
       })),
     },
     inventoryDemandLane: {
@@ -1071,6 +1117,9 @@ export function deriveAnalysisViewModel({
     const pipelineRiskScore = clamp(summary.reorderTriggerProbability * 0.72 + ((pipeline?.inTransitMean ?? 0) > 0 ? 0.14 : 0), 0, 1);
     const pressureScore = clamp(summary.stockoutRisk * 0.42 + pipelineRiskScore * 0.32 + leadTimeRiskScore * 0.16 + priceSensitivityScore * 0.1, 0, 1);
     const tone = coverTone(pressureScore);
+    const pipelineRiskLevel = labelForLevel(pipelineRiskScore);
+    const leadTimeRiskLevel = labelForLevel(leadTimeRiskScore);
+    const priceSensitivityLevel = labelForLevel(priceSensitivityScore);
     const reorderRecommendation = formatSenaReorderQuantity(summary.reorderQuantity, language);
 
     entityRows.push({
@@ -1080,23 +1129,39 @@ export function deriveAnalysisViewModel({
       href: `/catalog/skus/${sku.skuId}`,
       pressureScoreValue: Math.round(pressureScore * 100),
       pressureScoreLabel: `${Math.round(pressureScore * 100)}`,
-      pipelineRiskLabel: labelForLevel(pipelineRiskScore),
-      leadTimeRiskLabel: labelForLevel(leadTimeRiskScore),
-      priceSensitivityLabel: labelForLevel(priceSensitivityScore),
-      driverLabel: pipelineRiskScore >= leadTimeRiskScore ? 'pipeline pressure' : 'lead-time drift',
+      pipelineRiskLevel,
+      pipelineRiskLabel: literal(language, pipelineRiskLevel),
+      leadTimeRiskLevel,
+      leadTimeRiskLabel: literal(language, leadTimeRiskLevel),
+      priceSensitivityLevel,
+      priceSensitivityLabel: literal(language, priceSensitivityLevel),
+      driverLabel: literal(language, pipelineRiskScore >= leadTimeRiskScore ? 'incoming stock risk' : 'delivery timing change'),
       tone,
-      summary: `${formatSenaQuantity(summary.latestPosteriorUnits, language)} posterior units · ${formatSenaPercent(summary.reorderTriggerProbability, language)} reorder trigger`,
+      summary: literal(language, '{units} latest estimate · reorder signal {trigger}', {
+        units: formatSenaQuantity(summary.latestPosteriorUnits, language),
+        trigger: formatSenaPercent(summary.reorderTriggerProbability, language),
+      }),
       selectedSummary: [
-        `${formatSenaQuantity(summary.latestPosteriorUnits, language)} posterior units`,
-        `${formatSenaQuantity(summary.demandPerDayMean, language)} demand per day`,
-        `${formatSenaPercent(summary.reorderTriggerProbability, language)} reorder trigger probability`,
-        `${formatSenaQuantity(pipeline?.inTransitMean ?? 0, language)} in transit`,
+        literal(language, 'latest estimate {value}', {
+          value: formatSenaQuantity(summary.latestPosteriorUnits, language),
+        }),
+        literal(language, '{value} demand per day', {
+          value: formatSenaQuantity(summary.demandPerDayMean, language),
+        }),
+        literal(language, 'reorder signal {value}', {
+          value: formatSenaPercent(summary.reorderTriggerProbability, language),
+        }),
+        literal(language, 'on the way {value}', {
+          value: formatSenaQuantity(pipeline?.inTransitMean ?? 0, language),
+        }),
       ],
       contributorStack: catalog.services
         .filter((service) => linkedSkuIdsForService(catalog, service.serviceId).includes(sku.skuId))
         .slice(0, 3)
         .map((service) => service.name),
-      activityLabel: `${formatSenaQuantity(summary.latestPosteriorUnits, language)} units in posterior`,
+      activityLabel: literal(language, 'estimated units {value}', {
+        value: formatSenaQuantity(summary.latestPosteriorUnits, language),
+      }),
       posteriorUnitsLabel: formatSenaQuantity(summary.latestPosteriorUnits, language),
       demandPerDayLabel: formatSenaQuantity(summary.demandPerDayMean, language),
       reorderTriggerLabel: formatSenaPercent(summary.reorderTriggerProbability, language),
@@ -1109,9 +1174,9 @@ export function deriveAnalysisViewModel({
             recommendedOrder: reorderRecommendation.recommendationIssued
               ? reorderRecommendation.recommendedUnitsLabel
               : reorderRecommendation.quietLabel,
-            likelyRange: reorderRecommendation.likelyRangeValueLabel,
-            protectionHorizon: reorderRecommendation.protectionHorizonLabel.replace(/^Protection horizon: /, ''),
-            policyBasis: reorderRecommendation.policyBasisLabel.replace(/^Policy basis: /, ''),
+            likelyRange: stripSummaryPrefix(reorderRecommendation.likelyRangeLabel),
+            protectionHorizon: stripSummaryPrefix(reorderRecommendation.protectionHorizonLabel),
+            policyBasis: stripSummaryPrefix(reorderRecommendation.policyBasisLabel),
           }
         : null,
     });
@@ -1125,12 +1190,15 @@ export function deriveAnalysisViewModel({
       .filter((row): row is AnalysisEntityPressureRow => Boolean(row));
     const pipelineRiskScore = linkedRows.reduce((sum, row) => sum + Number.parseInt(row.pressureScoreLabel, 10), 0) / Math.max(linkedRows.length * 100, 1);
     const leadTimeRiskScore =
-      linkedRows.reduce((sum, row) => sum + (row.leadTimeRiskLabel === 'critical' ? 1 : row.leadTimeRiskLabel === 'high' ? 0.78 : row.leadTimeRiskLabel === 'medium' ? 0.5 : 0.2), 0) /
+      linkedRows.reduce((sum, row) => sum + riskLevelWeight(row.leadTimeRiskLevel), 0) /
       Math.max(linkedRows.length, 1);
     const priceSensitivityScore = clamp(latestServicePriceCount(service.serviceId, filteredObservations) / Math.max(filteredObservations.length, 1), 0, 1);
     const bottleneckScore = detail?.bottleneckProbability ?? 0;
     const pressureScore = clamp(bottleneckScore * 0.48 + pipelineRiskScore * 0.24 + leadTimeRiskScore * 0.18 + priceSensitivityScore * 0.1, 0, 1);
     const tone = coverTone(pressureScore);
+    const pipelineRiskLevel = labelForLevel(pipelineRiskScore);
+    const leadTimeRiskLevel = labelForLevel(leadTimeRiskScore);
+    const priceSensitivityLevel = labelForLevel(priceSensitivityScore);
 
     entityRows.push({
       id: service.serviceId,
@@ -1139,23 +1207,37 @@ export function deriveAnalysisViewModel({
       href: `/catalog/services/${service.serviceId}`,
       pressureScoreValue: Math.round(pressureScore * 100),
       pressureScoreLabel: `${Math.round(pressureScore * 100)}`,
-      pipelineRiskLabel: labelForLevel(pipelineRiskScore),
-      leadTimeRiskLabel: labelForLevel(leadTimeRiskScore),
-      priceSensitivityLabel: labelForLevel(priceSensitivityScore),
-      driverLabel: bottleneckScore >= pipelineRiskScore ? 'contributor bottleneck' : 'linked supply pressure',
+      pipelineRiskLevel,
+      pipelineRiskLabel: literal(language, pipelineRiskLevel),
+      leadTimeRiskLevel,
+      leadTimeRiskLabel: literal(language, leadTimeRiskLevel),
+      priceSensitivityLevel,
+      priceSensitivityLabel: literal(language, priceSensitivityLevel),
+      driverLabel: literal(language, bottleneckScore >= pipelineRiskScore ? 'linked blocker' : 'linked supply risk'),
       tone,
-      summary: `${formatSenaPercent(detail?.bottleneckProbability ?? 0, language)} bottleneck probability · ${formatWholeNumber(linkedSkuIds.length, language)} linked SKUs`,
+      summary: literal(language, 'blocker risk {probability} · {count} linked SKUs', {
+        probability: formatSenaPercent(detail?.bottleneckProbability ?? 0, language),
+        count: formatWholeNumber(linkedSkuIds.length, language),
+      }),
       selectedSummary: [
-        `${formatSenaQuantity(detail?.activityMean ?? 0, language)} activity interval`,
-        `${formatSenaPercent(detail?.bottleneckProbability ?? 0, language)} bottleneck probability`,
-        `${formatWholeNumber(linkedSkuIds.length, language)} contributors linked`,
+        literal(language, '{value} activity interval', {
+          value: formatSenaQuantity(detail?.activityMean ?? 0, language),
+        }),
+        literal(language, 'blocker risk {value}', {
+          value: formatSenaPercent(detail?.bottleneckProbability ?? 0, language),
+        }),
+        literal(language, '{value} contributors linked', {
+          value: formatWholeNumber(linkedSkuIds.length, language),
+        }),
       ],
       contributorStack:
         detail?.contributors
           .map((contributor) => skuById.get(contributor.skuId)?.name)
           .filter((value): value is string => Boolean(value))
           .slice(0, 4) ?? [],
-      activityLabel: `${formatSenaQuantity(detail?.activityMean ?? 0, language)} activity`,
+      activityLabel: literal(language, '{value} activity', {
+        value: formatSenaQuantity(detail?.activityMean ?? 0, language),
+      }),
       posteriorUnitsLabel: '—',
       demandPerDayLabel: formatSenaQuantity(detail?.activityMean ?? 0, language),
       reorderTriggerLabel: '—',
@@ -1198,7 +1280,7 @@ export function deriveAnalysisViewModel({
       const intervalDays = previousObservedAt
         ? Math.round(intervalDurationDays(previousObservedAt, observation.input.observedAt))
         : null;
-      const channelsPresent = accumulateSignals(observation);
+      const channelsPresent = accumulateSignals(observation, language);
       const affectedEntityLabels = uniqueOrderedStrings(
         [
           ...observation.input.serviceRankings
@@ -1214,9 +1296,21 @@ export function deriveAnalysisViewModel({
       return {
         id: observation.observationId,
         observedAt: formatSenaDateTime(observation.input.observedAt, language),
-        intervalLabel: intervalDays == null ? 'first update' : `${formatSenaDays(intervalDays, language)} interval`,
-        title: index === 0 ? 'Latest observation' : `Observation ${filteredObservations.length - index}`,
-        detail: observation.input.notes?.trim() || 'Sparse evidence update with no operator note attached.',
+        intervalLabel:
+          intervalDays == null
+            ? literal(language, 'First saved update')
+            : literal(language, '{value} interval', {
+                value: formatSenaDays(intervalDays, language),
+              }),
+        title:
+          index === 0
+            ? literal(language, 'Latest saved update')
+            : literal(language, 'Update {count}', {
+                count: filteredObservations.length - index,
+              }),
+        detail: observation.input.notes?.trim()
+          ? literal(language, observation.input.notes.trim())
+          : literal(language, 'Saved update with no staff note attached.'),
         stockSnapshotLabel: stockSnapshotCount > 0 ? `${stockSnapshotCount}` : '—',
         serviceRankingLabel: serviceRankingCount > 0 ? `${serviceRankingCount}` : '—',
         retailRankingLabel: retailRankingCount > 0 ? `${retailRankingCount}` : '—',
@@ -1226,7 +1320,7 @@ export function deriveAnalysisViewModel({
         servicePriceLabel: servicePriceCount > 0 ? `${servicePriceCount}` : '—',
         retailPriceLabel: retailPriceCount > 0 ? `${retailPriceCount}` : '—',
         leadTimeHintLabel: leadTimeHintCount > 0 ? `${leadTimeHintCount}` : '—',
-        noteLabel: observation.input.notes?.trim() ? 'Yes' : '—',
+        noteLabel: observation.input.notes?.trim() ? literal(language, 'Yes') : '—',
         channelsPresent,
         affectedEntityLabels,
       };
@@ -1261,20 +1355,27 @@ export function deriveAnalysisViewModel({
             key: `${service.serviceId}:${column.skuId}`,
             skuId: column.skuId,
             intensity,
-            usageLabel: contributor ? formatSenaPercent(contributor.usageProbability, language) : linkedSkuIds.has(column.skuId) ? 'linked' : '—',
+            usageLabel:
+              contributor
+                ? formatSenaPercent(contributor.usageProbability, language)
+                : linkedSkuIds.has(column.skuId)
+                  ? literal(language, 'linked')
+                  : '—',
             bottleneckLabel: contributor ? formatSenaPercent(contributor.bottleneckProbability, language) : linkedSkuIds.has(column.skuId) ? '—' : '—',
-            pressureLabel: intensity > 0 ? labelForLevel(intensity) : '—',
-            reliefLabel: reliefSoon ? 'inbound soon' : linkedSkuIds.has(column.skuId) ? 'no relief' : '—',
+            pressureLabel: intensity > 0 ? literal(language, labelForLevel(intensity)) : '—',
+            reliefLabel: reliefSoon ? literal(language, 'inbound soon') : linkedSkuIds.has(column.skuId) ? literal(language, 'no relief') : '—',
             tone: intensity >= 0.6 ? 'danger' : intensity >= 0.35 ? 'warning' : intensity > 0 ? 'info' : 'neutral',
           };
         }),
       };
     });
 
-  const strongestChannels = signalCounter(filteredObservations).slice(0, 3).map(([label, count]) => {
+  const strongestChannels = signalCounter(filteredObservations, language).slice(0, 3).map(([label, count]) => {
     return `${label} (${formatWholeNumber(count, language)})`;
   });
-  const currentRegime = normalizeRegimeLabel(intervalRows.at(-1)?.dominantRegime ?? workspaceSummary.topRegime);
+  const currentRegime =
+    intervalRows.at(-1)?.dominantRegime ??
+    translateRegimeLabel(language, workspaceSummary.topRegime ?? 'normal');
   const priceShiftCount = filteredObservations.reduce((sum, observation) => {
     return sum + observation.input.servicePrices.length + observation.input.retailPrices.length;
   }, 0);
@@ -1286,57 +1387,73 @@ export function deriveAnalysisViewModel({
   const avgLeadTimeRisk =
     entityRows
       .filter((row) => row.entityType === 'sku')
-      .reduce((sum, row) => sum + (row.leadTimeRiskLabel === 'critical' ? 1 : row.leadTimeRiskLabel === 'high' ? 0.75 : row.leadTimeRiskLabel === 'medium' ? 0.45 : 0.2), 0) /
+      .reduce((sum, row) => sum + riskLevelWeight(row.leadTimeRiskLevel), 0) /
     Math.max(entityRows.filter((row) => row.entityType === 'sku').length, 1);
   const topEntity = entityRows[0] ?? null;
 
   const diagnosticsReadouts: AnalysisDiagnosticReadout[] = [
     {
       key: 'regime',
-      label: 'Current regime',
+      label: literal(language, 'Current sales pattern'),
       value: currentRegime,
-      detail: `${formatWholeNumber(intervalRows.length, language)} intervals in view`,
+      detail: literal(language, '{count} intervals in view', {
+        count: formatWholeNumber(intervalRows.length, language),
+      }),
       tone: 'info',
     },
     {
       key: 'pipeline',
-      label: 'Pipeline pressure',
-      value: labelForLevel(avgPipelinePressure),
-      detail: `${formatWholeNumber(workspaceSummary.pendingReorderCount, language)} pending reorder cues`,
+      label: literal(language, 'Incoming stock risk'),
+      value: literal(language, labelForLevel(avgPipelinePressure)),
+      detail: literal(language, '{count} pending reorder cues', {
+        count: formatWholeNumber(workspaceSummary.pendingReorderCount, language),
+      }),
       tone: coverTone(avgPipelinePressure),
     },
     {
       key: 'lead-time',
-      label: 'Lead-time stability',
-      value: avgLeadTimeRisk >= 0.62 ? 'drifting' : avgLeadTimeRisk >= 0.38 ? 'watching' : 'stable',
-      detail: `${formatSenaPercent(avgLeadTimeRisk, language)} composite risk`,
+      label: literal(language, 'Delivery timing stability'),
+      value: literal(language, avgLeadTimeRisk >= 0.62 ? 'drifting' : avgLeadTimeRisk >= 0.38 ? 'watching' : 'stable'),
+      detail: literal(language, '{value} composite risk', {
+        value: formatSenaPercent(avgLeadTimeRisk, language),
+      }),
       tone: coverTone(avgLeadTimeRisk),
     },
     {
       key: 'price',
-      label: 'Price shift activity',
-      value: priceShiftCount >= 4 ? 'active' : priceShiftCount > 0 ? 'watching' : 'quiet',
-      detail: `${formatWholeNumber(priceShiftCount, language)} price observations`,
+      label: literal(language, 'Price shift activity'),
+      value: literal(language, priceShiftCount >= 4 ? 'active' : priceShiftCount > 0 ? 'watching' : 'quiet'),
+      detail: literal(language, '{count} price observations', {
+        count: formatWholeNumber(priceShiftCount, language),
+      }),
       tone: priceShiftCount >= 4 ? 'price-up' : priceShiftCount > 0 ? 'warning' : 'neutral',
     },
     {
       key: 'coverage',
-      label: 'Model coverage',
-      value: coverageBand(diagnostics?.coverageEstimate ?? 0),
-      detail: `${formatSenaPercent(diagnostics?.coverageEstimate ?? 0, language)} coverage estimate`,
+      label: literal(language, 'Evidence coverage'),
+      value: literal(language, coverageBand(diagnostics?.coverageEstimate ?? 0)),
+      detail: literal(language, '{value} coverage estimate', {
+        value: formatSenaPercent(diagnostics?.coverageEstimate ?? 0, language),
+      }),
       tone: coverTone(1 - (diagnostics?.coverageEstimate ?? 0)),
     },
     {
       key: 'bottleneck',
-      label: 'Top structural bottleneck',
-      value: topEntity?.name ?? 'None',
-      detail: topEntity ? `${topEntity.pressureScoreLabel} pressure score` : 'No structural bottleneck detected',
+      label: literal(language, 'Main blocker'),
+      value: topEntity?.name ?? literal(language, 'None'),
+      detail: topEntity
+        ? literal(language, '{value} pressure score', { value: topEntity.pressureScoreLabel })
+        : literal(language, 'No clear blocker yet'),
       tone: topEntity?.tone ?? 'neutral',
     },
   ];
 
   return {
-    lastUpdatedLabel: latestObservedAt ? `Updated ${formatSenaDateTime(latestObservedAt, language)}` : 'No SENA observation loaded',
+    lastUpdatedLabel: latestObservedAt
+      ? literal(language, 'Updated {date}', {
+          date: formatSenaDateTime(latestObservedAt, language),
+        })
+      : literal(language, 'No saved update loaded yet'),
     diagnostics: diagnosticsReadouts,
     intervals: intervalRows,
     workbench,
@@ -1347,7 +1464,10 @@ export function deriveAnalysisViewModel({
     inspectorOverview: {
       dominantRegime: currentRegime,
       changePointProbability: formatSenaPercent(diagnostics?.changePointProbability ?? 0, language),
-      coverageSummary: `${formatWholeNumber(Math.round(diagnostics?.effectiveSampleSizeMean ?? 0), language)} ESS · ${coverageBand(diagnostics?.coverageEstimate ?? 0)} coverage`,
+      coverageSummary: literal(language, '{count} evidence points · {coverage} coverage', {
+        count: formatWholeNumber(Math.round(diagnostics?.effectiveSampleSizeMean ?? 0), language),
+        coverage: literal(language, coverageBand(diagnostics?.coverageEstimate ?? 0)),
+      }),
       strongestChannels,
       affectedEntities: topEntityNames(entityRows, 4),
     },
@@ -1356,12 +1476,16 @@ export function deriveAnalysisViewModel({
       latestObservedAt: formatSenaDateTime(latestObservedAt, language),
       observationsUsed: formatWholeNumber(filteredObservations.length, language),
       intervalCount: formatWholeNumber(intervalRows.length, language),
-      smoothingLabel: diagnostics?.smoothingEnabled ? 'Enabled' : 'Disabled',
+      smoothingLabel: literal(language, diagnostics?.smoothingEnabled ? 'Enabled' : 'Disabled'),
       effectiveSampleSize: formatWholeNumber(Math.round(diagnostics?.effectiveSampleSizeMean ?? 0), language),
       predictiveError: formatSenaPercent(diagnostics?.posteriorPredictiveErrorMean ?? 0, language),
       coverageEstimate: formatSenaPercent(diagnostics?.coverageEstimate ?? 0, language),
-      scopeSummary: scopeSummary(scope),
+      scopeSummary: literal(language, scopeSummary(scope)),
     },
-    internalNavSummary: `${scopeSummary(scope)} · ${formatWholeNumber(filteredObservations.length, language)} observations · ${formatWholeNumber(intervalRows.length, language)} intervals`,
+    internalNavSummary: literal(language, '{scope} · {observations} observations · {intervals} intervals', {
+      scope: literal(language, scopeSummary(scope)),
+      observations: formatWholeNumber(filteredObservations.length, language),
+      intervals: formatWholeNumber(intervalRows.length, language),
+    }),
   };
 }

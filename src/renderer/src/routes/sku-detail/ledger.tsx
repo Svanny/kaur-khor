@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject, type UIEvent, type WheelEvent } from 'react';
-import { Package } from 'lucide-react';
+import { EntitySkuIcon } from '@icons/entities';
+import type { AppLanguage } from '@shared/inventory';
 import type { SenaSkuDetailPage } from '@shared/sena';
 import type { ChartTimeframe } from '@/components/system/chart-timeframe';
 import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '@/components/system/chart-workspace';
@@ -48,6 +49,8 @@ import {
 } from '@/components/system/timeline-chart';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { translateRegimeLabel } from '@/lib/localized-display';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel, SectionTitle } from './section-heading';
@@ -97,14 +100,6 @@ function intervalEntries(model: SenaSkuDetailViewModel) {
     }
   }
   return [...entries.values()].sort((left, right) => left.intervalIndex - right.intervalIndex);
-}
-
-function formatRegimeLabel(regime: string) {
-  return regime
-    .split(/[_\s-]+/g)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
 }
 
 function LaneTitle({ title, subtitle, tooltip }: { title: string; subtitle?: string; tooltip: string }) {
@@ -234,13 +229,6 @@ const REGIME_LEGEND = [
   'correction',
 ] as const;
 
-function regimeLegendLabel(regime: (typeof REGIME_LEGEND)[number]) {
-  if (regime === 'stockout_constrained') {
-    return 'Stockout constrained regime';
-  }
-  return `${regime.charAt(0).toUpperCase()}${regime.slice(1).replace(/_/g, ' ')} regime`;
-}
-
 function presentRegimes(regimes: string[]) {
   const present = new Set(regimes.map((regime) => normalizeRegimeKey(regime)));
   return REGIME_LEGEND.filter((regime) => present.has(regime));
@@ -253,6 +241,7 @@ function RegimeChartHighlightOverlay({
   axisEndPadding,
   axisStartPadding,
   intervals,
+  language,
   onSelect,
 }: {
   activeIndex: number | null;
@@ -260,6 +249,7 @@ function RegimeChartHighlightOverlay({
   axisEndPadding: number;
   axisStartPadding: number;
   intervals: SenaSkuDetailViewModel['lanes']['regimePriceLane']['intervals'];
+  language: AppLanguage;
   onSelect: (index: number) => void;
 }) {
   return (
@@ -275,11 +265,12 @@ function RegimeChartHighlightOverlay({
     >
       {intervals.map((interval, intervalPosition) => {
         const isSelected = activeIndex === interval.intervalIndex;
+        const regimeLabel = translateRegimeLabel(language, interval.dominantRegime);
         return (
           <Tooltip key={interval.intervalIndex}>
             <TooltipTrigger asChild>
               <button
-                aria-label={interval.dominantRegime}
+                aria-label={regimeLabel}
                 className={`relative border-r border-background/35 text-center text-xs text-foreground transition-colors last:border-r-0 ${isSelected ? '' : 'text-foreground/80'}`}
                 data-regime-slot="true"
                 data-selected={isSelected ? 'true' : 'false'}
@@ -294,7 +285,7 @@ function RegimeChartHighlightOverlay({
                 onClick={() => onSelect(interval.intervalIndex)}
               />
             </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>{interval.dominantRegime}</TooltipContent>
+            <TooltipContent side="top" sideOffset={6}>{regimeLabel}</TooltipContent>
           </Tooltip>
         );
       })}
@@ -527,9 +518,9 @@ export function SkuDetailLedger({
     <>
       {floatingChartControlIslands}
       <section className={`${cardFrameClassName} ${cardSurfaceClassName} min-w-0 rounded-[2rem] px-6 py-5`}>
-      <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">SENA</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{t('appBrand')}</p>
           <div className="mt-1">
             <SectionTitle title="Ledger" tooltip={t('catalogSenaSkuLedgerTooltip')} />
           </div>
@@ -582,11 +573,11 @@ export function SkuDetailLedger({
           <div className={cn('grid gap-3', isLaneExpanded('regime') && 'min-h-0 grid-rows-[auto_minmax(0,1fr)]')}>
             <div className="flex items-start justify-between gap-3 px-1">
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                <span className="sr-only">Regime</span>
+                <span className="sr-only">{t('catalogSenaSkuRegimeLane')}</span>
                 {visibleRegimes.map((regime) => (
                   <span key={regime} className="inline-flex items-center gap-2">
                     <span aria-hidden="true" className="inline-block size-4 rounded-[0.2rem]" style={{ backgroundColor: regimeTint(regime, true) }} />
-                    {regimeLegendLabel(regime)}
+                    {translateRegimeLabel(language, regime)}
                   </span>
                 ))}
                 {showsPriceSurfaces ? (
@@ -614,6 +605,7 @@ export function SkuDetailLedger({
                     axisEndPadding={axisEndPadding}
                     axisStartPadding={axisStartPadding}
                     intervals={model.lanes.regimePriceLane.intervals}
+                    language={language}
                     onSelect={setSelectedIntervalIndex}
                   />
                 </TooltipProvider>
@@ -668,7 +660,7 @@ export function SkuDetailLedger({
                           className="whitespace-nowrap uppercase tracking-[0.14em] text-muted-foreground"
                           style={{ fontSize: Math.max(9, regimeVisual.dataLabelFontSize - 1) }}
                         >
-                          {formatRegimeLabel(marker == null ? '' : regimeIntervalsByIndex.get(marker.intervalIndex)?.dominantRegime ?? '')}
+                          {translateRegimeLabel(language, marker == null ? '' : regimeIntervalsByIndex.get(marker.intervalIndex)?.dominantRegime ?? '')}
                         </span>
                         <span className="whitespace-nowrap">{marker ? `$${marker.price}` : ''}</span>
                       </ClampedChartDataLabel>
@@ -734,7 +726,7 @@ export function SkuDetailLedger({
                 {t('catalogSenaSkuSafetyStock')}: {model.lanes.inventoryLane.safetyStockLabel}
               </span>
             </div>
-            <LaneExpandButton expanded={isLaneExpanded('inventory')} title="Inventory posterior lane" onClick={() => toggleLaneExpanded('inventory')} />
+            <LaneExpandButton expanded={isLaneExpanded('inventory')} title={t('catalogSenaSkuInventoryLane')} onClick={() => toggleLaneExpanded('inventory')} />
           </div>
           <div ref={inventoryScrollRef} className={cn('hidden-scrollbar overflow-x-auto overscroll-contain rounded-md bg-muted/25 px-2 py-3', isLaneExpanded('inventory') && 'min-h-0 h-full')} onScroll={handleScrollerScroll}>
               <div className="relative overflow-visible" style={{ width: contentWidth, height: LABEL_GUTTER_HEIGHT + expandedLinePlotHeight }}>
@@ -833,19 +825,19 @@ export function SkuDetailLedger({
             <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-2">
                 <span className="size-2 rounded-full bg-foreground/20" />
-                Service demand
+                {translateUiLiteral(language, 'Service demand')}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span className="size-2 rounded-full bg-foreground/45" />
-                Retail demand
+                {translateUiLiteral(language, 'Retail demand')}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span className="size-2 rounded-full bg-secondary" />
-                Receipts
+                {translateUiLiteral(language, 'Receipts')}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span className="size-2 rounded-full bg-amber-600/85" />
-                Adjustments
+                {translateUiLiteral(language, 'Adjustments')}
               </span>
             </div>
             <LaneExpandButton expanded={isLaneExpanded('flow')} title="Flow decomposition lane" onClick={() => toggleLaneExpanded('flow')} />
@@ -886,16 +878,24 @@ export function SkuDetailLedger({
                         }}
                       >
                         <span className="whitespace-nowrap text-foreground">
-                          {`Service: -${Math.round(interval.serviceDemandMean)}`}
+                          {translateUiLiteral(language, 'Service: {value}', {
+                            value: `-${Math.round(interval.serviceDemandMean)}`,
+                          })}
                         </span>
                         <span className="whitespace-nowrap text-foreground">
-                          {`Retail: -${Math.round(interval.retailDemandMean)}`}
+                          {translateUiLiteral(language, 'Retail: {value}', {
+                            value: `-${Math.round(interval.retailDemandMean)}`,
+                          })}
                         </span>
                         <span className="whitespace-nowrap text-foreground">
-                          {`Receipts: +${Math.round(interval.receiptsMean)}`}
+                          {translateUiLiteral(language, 'Receipts: {value}', {
+                            value: `+${Math.round(interval.receiptsMean)}`,
+                          })}
                         </span>
                         <span className="whitespace-nowrap text-foreground">
-                          {`Adjustments: ${interval.adjustmentsMean >= 0 ? '+' : ''}${Math.round(interval.adjustmentsMean)}`}
+                          {translateUiLiteral(language, 'Adjustments: {value}', {
+                            value: `${interval.adjustmentsMean >= 0 ? '+' : ''}${Math.round(interval.adjustmentsMean)}`,
+                          })}
                         </span>
                       </ClampedChartDataLabel>
                     ) : null}
@@ -991,11 +991,23 @@ export function SkuDetailLedger({
                       >
                         {usesExternalDataLabel ? (
                           <>
-                            <span className="whitespace-nowrap">{Math.round(interval.orderQuantityMean)} pending delivery</span>
-                            <span className="whitespace-nowrap">{Math.round(interval.inTransitMean)} in transit</span>
+                            <span className="whitespace-nowrap">
+                              {translateUiLiteral(language, '{count} pending delivery', {
+                                count: Math.round(interval.orderQuantityMean),
+                              })}
+                            </span>
+                            <span className="whitespace-nowrap">
+                              {translateUiLiteral(language, '{count} in transit', {
+                                count: Math.round(interval.inTransitMean),
+                              })}
+                            </span>
                           </>
                         ) : (
-                          <span className="whitespace-nowrap">{Math.round(interval.orderQuantityMean)} pending delivery</span>
+                          <span className="whitespace-nowrap">
+                            {translateUiLiteral(language, '{count} pending delivery', {
+                              count: Math.round(interval.orderQuantityMean),
+                            })}
+                          </span>
                         )}
                       </ClampedChartDataLabel>
                     ) : null}
@@ -1015,17 +1027,17 @@ export function SkuDetailLedger({
                     {usesExternalDataLabel ? null : isNumberOnly ? (
                       <span className={`flex flex-col items-center justify-center gap-1 text-sm leading-none ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
                         <span>{Math.round(interval.inTransitMean)}</span>
-                        <Package className="size-3.5" />
+                        <EntitySkuIcon className="size-3.5" />
                       </span>
                     ) : (
                       <span className={`inline-flex items-center justify-center gap-1 whitespace-nowrap text-sm leading-none ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
                         <span>{Math.round(interval.inTransitMean)}</span>
-                        <Package className="size-3.5" />
+                        <EntitySkuIcon className="size-3.5" />
                       </span>
                     )}
                     {!isCompact && !isNumberOnly ? (
                       <span className={`text-sm leading-tight ${isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
-                        in transit
+                        {translateUiLiteral(language, 'In transit')}
                       </span>
                     ) : null}
                     </button>

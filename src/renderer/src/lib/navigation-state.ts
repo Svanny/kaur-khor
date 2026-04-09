@@ -43,6 +43,9 @@ export type OperationsScopeValue = typeof operationsScopeValues[number];
 export const operationsViewValues = ['heatmap', 'all'] as const;
 export type OperationsViewValue = typeof operationsViewValues[number];
 
+export const archiveViewValues = ['all', 'skus', 'services'] as const;
+export type ArchiveViewValue = typeof archiveViewValues[number];
+
 export const skuActionValues = ['stock', 'order', 'receipt', 'price'] as const;
 export type SkuActionValue = typeof skuActionValues[number];
 
@@ -71,6 +74,11 @@ export type PerformanceRouteState = {
 export type OperationsRouteState = {
   scope: OperationsScopeValue;
   view: OperationsViewValue;
+};
+
+export type ArchiveRouteState = {
+  q: string | null;
+  view: ArchiveViewValue;
 };
 
 function readEnumValue<const T extends readonly string[]>(
@@ -266,6 +274,33 @@ export function buildOperationsHref(
   currentSearchParams?: URLSearchParams | null,
 ) {
   return createHref('/operations', buildOperationsSearchParams(currentSearchParams, nextState));
+}
+
+export function readArchiveRouteState(searchParams: URLSearchParams): ArchiveRouteState {
+  return {
+    q: searchParams.get('q')?.trim() ? searchParams.get('q')!.trim() : null,
+    view: readEnumValue(searchParams, 'view', archiveViewValues, 'all'),
+  };
+}
+
+export function buildArchiveSearchParams(
+  currentSearchParams?: URLSearchParams | null,
+  nextState?: Partial<ArchiveRouteState>,
+) {
+  const currentState = readArchiveRouteState(cloneSearchParams(currentSearchParams));
+  const searchParams = cloneSearchParams(currentSearchParams);
+  const resolvedState = { ...currentState, ...nextState };
+
+  writeOptionalValue(searchParams, 'q', resolvedState.q?.trim() ? resolvedState.q.trim() : null);
+  writeEnumValue(searchParams, 'view', resolvedState.view, 'all');
+  return searchParams;
+}
+
+export function buildOperationsArchiveHref(
+  nextState?: Partial<ArchiveRouteState>,
+  currentSearchParams?: URLSearchParams | null,
+) {
+  return createHref('/operations/archive', buildArchiveSearchParams(currentSearchParams, nextState));
 }
 
 export function readCatalogView(searchParams: URLSearchParams): CatalogViewValue {
