@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
   resolveCoreLaunchCommand,
+  resolveCoreLaunchCommands,
+  resolveCoreWorkingDirectory,
   resolveManagedCoreEnv,
   terminateManagedChildProcess,
 } from './backend';
@@ -50,6 +52,74 @@ describe('desktop core host helpers', () => {
       expect(command.args).toEqual([]);
     } finally {
       rmSync(resourcesPath, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores an invalid explicit core binary path and falls back to cargo', () => {
+    vi.stubEnv('BANJI_DESKTOP_CORE_BINARY', join(projectRoot, 'apps', 'desktop-core', 'Cargo.toml', 'missing'));
+
+    try {
+      const commands = resolveCoreLaunchCommands(projectRoot);
+
+      expect(commands[0]).toEqual({
+        command: 'cargo',
+        args: ['run', '--manifest-path', join(projectRoot, 'apps', 'desktop-core', 'Cargo.toml')],
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('prefers a valid explicit core binary path', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'banji-explicit-core-'));
+    const explicitBinary = join(tmpDir, 'banji-desktop-core');
+    writeFileSync(explicitBinary, 'stub');
+    vi.stubEnv('BANJI_DESKTOP_CORE_BINARY', explicitBinary);
+
+    try {
+      const command = resolveCoreLaunchCommand(projectRoot);
+
+      expect(command).toEqual({
+        command: explicitBinary,
+        args: [],
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('uses the resources directory as the working directory in packaged builds', () => {
+    const resourcesPath = mkdtempSync(join(tmpdir(), 'banji-packaged-resources-'));
+
+    try {
+      expect(
+        resolveCoreWorkingDirectory({
+          projectRoot: join(resourcesPath, 'app.asar'),
+          resourcesPath,
+          userDataPath: '/tmp/user-data',
+          isPackaged: true,
+        }),
+      ).toBe(resourcesPath);
+    } finally {
+      rmSync(resourcesPath, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to the parent directory when projectRoot points to a file', () => {
+    const root = mkdtempSync(join(tmpdir(), 'banji-project-root-'));
+    const projectRootFile = join(root, 'app.asar');
+    writeFileSync(projectRootFile, 'stub');
+
+    try {
+      expect(
+        resolveCoreWorkingDirectory({
+          projectRoot: projectRootFile,
+          userDataPath: '/tmp/user-data',
+        }),
+      ).toBe(root);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 

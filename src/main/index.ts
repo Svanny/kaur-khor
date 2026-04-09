@@ -59,9 +59,14 @@ const managedCore = createManagedCoreController({
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
 const INVENTORY_READ_TIMEOUT_MS = 60_000;
-const DEFAULT_ACTUAL_SIZE_ZOOM_LEVEL = -1;
+const PREFERRED_BASELINE_ZOOM_LEVEL = -1;
+const PREFERRED_BASELINE_ZOOM_FACTOR = 1.2 ** PREFERRED_BASELINE_ZOOM_LEVEL;
+const ZOOM_LEVEL_STEP = 0.5;
+const MIN_WINDOW_ZOOM_LEVEL = -3;
+const MAX_WINDOW_ZOOM_LEVEL = 3;
 const senaReadCache = new Map<string, unknown>();
 const senaInflightReads = new Map<string, Promise<unknown>>();
+const windowZoomLevels = new WeakMap<BrowserWindow, number>();
 let senaObservationFingerprint: string | null = null;
 
 function senaReadCachePath() {
@@ -227,9 +232,107 @@ async function loadCachedSenaRead<T>(key: string, loader: () => Promise<T>): Pro
   return (await request) as T;
 }
 
+function clampWindowZoomLevel(level: number) {
+  return Math.max(MIN_WINDOW_ZOOM_LEVEL, Math.min(MAX_WINDOW_ZOOM_LEVEL, level));
+}
+
+function getManagedWindowZoomLevel(window: BrowserWindow | null | undefined) {
+  if (!window) {
+    return PREFERRED_BASELINE_ZOOM_LEVEL;
+  }
+  return windowZoomLevels.get(window) ?? PREFERRED_BASELINE_ZOOM_LEVEL;
+}
+
+function applyManagedWindowZoomLevel(window: BrowserWindow | null | undefined) {
+  if (!window) {
+    return;
+  }
+  const zoomLevel = getManagedWindowZoomLevel(window);
+  window.webContents.setZoomLevel(zoomLevel);
+}
+
+function setManagedWindowZoomLevel(window: BrowserWindow | null | undefined, level: number) {
+  if (!window) {
+    return;
+  }
+  windowZoomLevels.set(window, clampWindowZoomLevel(level));
+  applyManagedWindowZoomLevel(window);
+}
+
+function changeFocusedWindowZoom(stepDelta: number) {
+  const window = BrowserWindow.getFocusedWindow();
+  if (!window) {
+    return;
+  }
+  setManagedWindowZoomLevel(window, getManagedWindowZoomLevel(window) + stepDelta * ZOOM_LEVEL_STEP);
+}
+
+function applyPreferredWindowZoomLevel(window: BrowserWindow | null | undefined) {
+  setManagedWindowZoomLevel(window, PREFERRED_BASELINE_ZOOM_LEVEL);
+}
+
+function installOptionalWindowZoomLimits(window: BrowserWindow) {
+  const { webContents } = window;
+
+  if (typeof webContents.setVisualZoomLevelLimits === 'function') {
+    webContents.setVisualZoomLevelLimits(1, 1).catch((error) => {
+      console.warn('[window] failed to disable visual zoom', error);
+    });
+  }
+
+  if (typeof (webContents as Electron.WebContents & {
+    setLayoutZoomLevelLimits?: (minimumLevel: number, maximumLevel: number) => void;
+  }).setLayoutZoomLevelLimits === 'function') {
+    (webContents as Electron.WebContents & {
+      setLayoutZoomLevelLimits: (minimumLevel: number, maximumLevel: number) => void;
+    }).setLayoutZoomLevelLimits(0, 0);
+  }
+}
+
+function installPreferredWindowZoomBehavior(window: BrowserWindow) {
+  const { webContents } = window;
+
+  // Banji owns zoom state itself so Chromium cannot drift to a different per-origin level and then
+  // snap back later. Reapply the managed zoom across every lifecycle edge that can recreate or
+  // reattach the renderer.
+  windowZoomLevels.set(window, PREFERRED_BASELINE_ZOOM_LEVEL);
+  installOptionalWindowZoomLimits(window);
+  applyManagedWindowZoomLevel(window);
+  webContents.on('did-start-loading', () => {
+    applyManagedWindowZoomLevel(window);
+  });
+  webContents.on('did-navigate', () => {
+    applyManagedWindowZoomLevel(window);
+  });
+  webContents.on('did-navigate-in-page', () => {
+    applyManagedWindowZoomLevel(window);
+  });
+  webContents.on('dom-ready', () => {
+    applyManagedWindowZoomLevel(window);
+  });
+  webContents.on('did-finish-load', () => {
+    applyManagedWindowZoomLevel(window);
+  });
+  window.on('focus', () => {
+    applyManagedWindowZoomLevel(window);
+  });
+}
+
+function createMainWindowWebPreferences(): Electron.BrowserWindowConstructorOptions['webPreferences'] {
+  return {
+    preload: join(__dirname, '../preload/index.mjs'),
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: false,
+    // Seed the preferred baseline into Chromium before the first paint so Banji never flashes at
+    // Electron's default 100% zoom and then snaps back out after load.
+    zoomFactor: PREFERRED_BASELINE_ZOOM_FACTOR,
+  };
+}
+
 function setFocusedWindowToActualSize() {
-  const focusedWindow = BrowserWindow.getFocusedWindow();
-  focusedWindow?.webContents.setZoomLevel(DEFAULT_ACTUAL_SIZE_ZOOM_LEVEL);
+  // Banji's "Actual Size" restores the app's preferred baseline zoom, not Electron's literal 100%.
+  applyPreferredWindowZoomLevel(BrowserWindow.getFocusedWindow());
 }
 
 function installApplicationMenu() {
@@ -287,8 +390,20 @@ function installApplicationMenu() {
         { type: 'separator' },
         { role: 'togglefullscreen' },
         { type: 'separator' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        {
+          label: 'Zoom In',
+          accelerator: 'CmdOrCtrl+Plus',
+          click: () => {
+            changeFocusedWindowZoom(1);
+          },
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'CmdOrCtrl+-',
+          click: () => {
+            changeFocusedWindowZoom(-1);
+          },
+        },
         {
           label: 'Actual Size',
           accelerator: 'CmdOrCtrl+0',
@@ -332,21 +447,16 @@ async function createMainWindow() {
     backgroundColor: '#f2e8d8',
     title: 'Banji Desktop',
     icon: process.platform === 'darwin' ? undefined : iconAssets.dockIconPath,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
+    webPreferences: createMainWindowWebPreferences(),
   });
+
+  installPreferredWindowZoomBehavior(mainWindow);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     await mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
     await mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
-
-  mainWindow.webContents.setZoomLevel(DEFAULT_ACTUAL_SIZE_ZOOM_LEVEL);
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
   });

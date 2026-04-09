@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -49,6 +49,11 @@ export interface StartManagedCoreOptions {
   userDataPath: string;
   resourcesPath?: string;
   isPackaged?: boolean;
+}
+
+interface CoreLaunchCommand {
+  command: string;
+  args: string[];
 }
 
 function signalProcessGroup(pid: number, signal: NodeJS.Signals) {
@@ -116,6 +121,30 @@ function resolveDesktopCoreBinaryName() {
   return process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core';
 }
 
+function isPathLikeCommand(command: string) {
+  return command.includes('/') || command.includes('\\');
+}
+
+function isValidExecutablePath(command: string) {
+  if (!isPathLikeCommand(command)) {
+    return true;
+  }
+
+  try {
+    return statSync(command).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function isDirectoryPath(path: string) {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export function resolveManagedCoreEnv({
   dataFilePath,
 }: {
@@ -131,23 +160,62 @@ export function resolveCoreLaunchCommand(
   projectRoot: string,
   resourcesPath?: string,
   isPackaged?: boolean,
-): { command: string; args: string[] } {
+): CoreLaunchCommand {
+  return resolveCoreLaunchCommands(projectRoot, resourcesPath, isPackaged)[0];
+}
+
+export function resolveCoreWorkingDirectory({
+  projectRoot,
+  resourcesPath,
+  isPackaged,
+}: StartManagedCoreOptions) {
+  if (isPackaged && resourcesPath && isDirectoryPath(resourcesPath)) {
+    return resourcesPath;
+  }
+
+  if (isDirectoryPath(projectRoot)) {
+    return projectRoot;
+  }
+
+  const parentDirectory = resolve(projectRoot, '..');
+  if (isDirectoryPath(parentDirectory)) {
+    return parentDirectory;
+  }
+
+  return undefined;
+}
+
+export function resolveCoreLaunchCommands(
+  projectRoot: string,
+  resourcesPath?: string,
+  isPackaged?: boolean,
+): CoreLaunchCommand[] {
+  const commands: CoreLaunchCommand[] = [];
   const explicitBinary = process.env.BANJI_DESKTOP_CORE_BINARY;
-  if (explicitBinary) {
-    return { command: explicitBinary, args: [] };
+  if (explicitBinary && isValidExecutablePath(explicitBinary)) {
+    commands.push({ command: explicitBinary, args: [] });
   }
 
   if (isPackaged && resourcesPath) {
     const packagedBinary = join(resourcesPath, 'bin', resolveDesktopCoreBinaryName());
-    if (existsSync(packagedBinary)) {
-      return { command: packagedBinary, args: [] };
+    if (existsSync(packagedBinary) && isValidExecutablePath(packagedBinary)) {
+      commands.push({ command: packagedBinary, args: [] });
     }
   }
 
-  return {
+  commands.push({
     command: 'cargo',
     args: ['run', '--manifest-path', resolve(projectRoot, 'apps/desktop-core/Cargo.toml')],
-  };
+  });
+
+  return commands;
+}
+
+function isRecoverableSpawnError(error: unknown) {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && ['EACCES', 'ENOENT', 'ENOTDIR'].includes(String((error as NodeJS.ErrnoException).code));
 }
 
 export async function startManagedCore(
@@ -156,14 +224,36 @@ export async function startManagedCore(
   const env = resolveManagedCoreEnv({
     dataFilePath: join(options.userDataPath, 'desktop-sena-store.sqlite3'),
   });
-  const { command, args } = resolveCoreLaunchCommand(
+  const launchCommands = resolveCoreLaunchCommands(
     options.projectRoot,
     options.resourcesPath,
     options.isPackaged,
   );
+  let lastRecoverableError: Error | null = null;
 
+  for (const { command, args } of launchCommands) {
+    try {
+      return await startManagedCoreAttempt(options, env, { command, args });
+    } catch (error) {
+      if (!isRecoverableSpawnError(error)) {
+        throw error;
+      }
+      lastRecoverableError = error as Error;
+    }
+  }
+
+  throw lastRecoverableError ?? new Error('failed to start desktop core');
+}
+
+async function startManagedCoreAttempt(
+  options: StartManagedCoreOptions,
+  env: NodeJS.ProcessEnv,
+  launchCommand: CoreLaunchCommand,
+): Promise<ManagedCoreProcess> {
+  const { command, args } = launchCommand;
+  const cwd = resolveCoreWorkingDirectory(options);
   const child = spawn(command, args, {
-    cwd: options.projectRoot,
+    cwd,
     detached: process.platform !== 'win32',
     env,
     stdio: 'pipe',
@@ -175,6 +265,7 @@ export async function startManagedCore(
   let nextId = 1;
   let stopped = false;
   let activeRequestId: number | null = null;
+  let launchError: Error | null = null;
 
   const stdoutInterface = createInterface({ input: child.stdout });
 
@@ -293,6 +384,13 @@ export async function startManagedCore(
     console.error(`[banji-desktop-core] ${text}`);
   });
 
+  child.once('error', (error) => {
+    launchError = error;
+    stopped = true;
+    stdoutInterface.close();
+    rejectPending(error);
+  });
+
   child.once('exit', (_code, signal) => {
     stopped = true;
     stdoutInterface.close();
@@ -340,12 +438,16 @@ export async function startManagedCore(
   try {
     await invoke('system.ping');
   } catch (error) {
-    terminateManagedChildProcess(child, 'SIGTERM');
+    if (!launchError && !child.killed && typeof child.pid === 'number') {
+      terminateManagedChildProcess(child, 'SIGTERM');
+    }
     const details = stderr.join('\n').trim();
     throw new Error(
       details
         ? `failed to start desktop core: ${details}`
-        : `failed to start desktop core: ${(error as Error).message}`,
+        : launchError?.message
+          ? `failed to start desktop core: ${launchError.message}`
+          : `failed to start desktop core: ${(error as Error).message}`,
     );
   }
 
