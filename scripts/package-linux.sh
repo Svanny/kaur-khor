@@ -11,8 +11,11 @@ case "${machine_arch}" in
   x86_64)
     target_arch="x64"
     ;;
+  aarch64 | arm64)
+    target_arch="arm64"
+    ;;
   *)
-    echo "Unsupported Linux architecture: ${machine_arch}. Release packaging currently targets x64 only." >&2
+    echo "Unsupported Linux architecture: ${machine_arch}. Release packaging currently targets x64 and arm64 only." >&2
     exit 1
     ;;
 esac
