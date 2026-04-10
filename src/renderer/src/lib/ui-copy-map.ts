@@ -1192,7 +1192,7 @@ export const enUiCopyV1 = {
     'Clear the current local workspace state and preferences while keeping saved snapshots.',
   settingsClearCurrentDataTitle: 'Clear current local data',
   settingsClearCurrentDataDescription:
-    'Type CLEAR to remove the current local workspace files. Banji will keep saved snapshots and create one more safety snapshot first.',
+    'Type DELETE CURRENT DATA to remove the current local workspace files. Banji will keep saved snapshots and create one more safety snapshot first.',
   settingsClearCurrentDataAction: 'Clear current data',
   settingsClearCurrentDataCancel: 'Cancel',
   settingsClearCurrentDataCompleted:
@@ -2238,7 +2238,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Clear the current local workspace state and preferences while keeping saved snapshots.',
   settingsClearCurrentDataTitle: 'Clear current local data',
   settingsClearCurrentDataDescription:
-    'Type CLEAR to remove the current local workspace files. Banji will keep saved snapshots and create one more safety snapshot first.',
+    'Type DELETE CURRENT DATA to remove the current local workspace files. Banji will keep saved snapshots and create one more safety snapshot first.',
   settingsClearCurrentDataAction: 'Clear current data',
   settingsClearCurrentDataCancel: 'Cancel',
   settingsClearCurrentDataCompleted:

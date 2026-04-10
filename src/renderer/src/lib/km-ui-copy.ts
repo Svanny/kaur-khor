@@ -421,7 +421,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'សម្អាតទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន និងចំណូលចិត្តបច្ចុប្បន្ន ខណៈពេលរក្សាទុកស្នាមចម្លងដែលបានរក្សាទុករួច។',
   settingsClearCurrentDataTitle: 'សម្អាតទិន្នន័យក្នុងម៉ាស៊ីនបច្ចុប្បន្ន',
   settingsClearCurrentDataDescription:
-    'វាយពាក្យ CLEAR ដើម្បីលុបឯកសារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ Banji នឹងរក្សាទុកស្នាមចម្លងដែលមានស្រាប់ ហើយបង្កើតស្នាមចម្លងសុវត្ថិភាពមួយទៀតជាមុន។',
+    'វាយពាក្យ DELETE CURRENT DATA ដើម្បីលុបឯកសារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ Banji នឹងរក្សាទុកស្នាមចម្លងដែលមានស្រាប់ ហើយបង្កើតស្នាមចម្លងសុវត្ថិភាពមួយទៀតជាមុន។',
   settingsClearCurrentDataAction: 'សម្អាតទិន្នន័យបច្ចុប្បន្ន',
   settingsClearCurrentDataCancel: 'បោះបង់',
   settingsClearCurrentDataCompleted:
