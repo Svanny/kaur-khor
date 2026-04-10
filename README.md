@@ -62,7 +62,7 @@ Releases are published through GitHub Releases:
 - Windows: x64 installer
 - Linux: x64 AppImage and `.deb`
 
-Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts.
+Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts. Release assets follow the repo packaging template `Banji-<version>-<os>-<arch>.<ext>`, matching `electron-builder.yml`.
 
 ### Running Unsigned Builds On macOS
 
@@ -73,6 +73,55 @@ If macOS blocks Banji because the app is unsigned:
 3. Re-open the app and confirm the final prompt.
 
 This allows Banji to run without disabling Gatekeeper globally.
+
+### Running Unsigned Builds On Windows
+
+To install Banji on Windows:
+
+1. Download the `.exe` installer from the `v0.1.5` GitHub release.
+2. Double-click the installer to start setup.
+
+If Windows shows a SmartScreen warning because the build is unsigned:
+
+1. Click `More info` in the warning dialog.
+2. Click `Run anyway`.
+3. Continue through the installer prompts.
+
+This allows Banji to install without changing SmartScreen system-wide.
+
+### Installing And Running Builds On Linux
+
+If you downloaded the `.deb` package on Ubuntu or Debian:
+
+```bash
+sudo apt install ./Banji-0.1.5-linux-x64.deb
+```
+
+Example:
+
+- `0.1.5` is the current release version in this repo
+- `x64` is the x64 Linux build artifact name
+- ARM Linux builds use `arm64`, for example `Banji-0.1.5-linux-arm64.deb`
+
+If you downloaded the AppImage:
+
+```bash
+chmod +x Banji-0.1.5-linux-x64.AppImage
+./Banji-0.1.5-linux-x64.AppImage
+```
+
+Example:
+
+- `Banji-0.1.5-linux-x64.AppImage` is for x64 Linux
+- `Banji-0.1.5-linux-arm64.AppImage` is for ARM64 Linux
+
+If Linux blocks the AppImage or warns that it is untrusted:
+
+1. Make the AppImage executable with `chmod +x`.
+2. Open the file from a terminal instead of double-clicking it first.
+3. If your desktop asks for confirmation, approve the launch for this file.
+
+Banji does not require disabling Linux security features globally. Most install friction comes from the file not being marked executable yet.
 
 ## Development
 
