@@ -8,9 +8,12 @@ It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app 
 
 ## User Guide
 
-Detailed end-user help lives in [docs/user-guide.md](docs/user-guide.md).
+Detailed end-user help lives in:
 
-The guide explains Banji's main workspaces, common workflows, important buttons and controls, glossary terms, and troubleshooting FAQ.
+- English: [docs/user-guide.md](docs/user-guide.md)
+- Khmer: [docs/user-guide.km.md](docs/user-guide.km.md)
+
+The guides explain Banji's main workspaces, common workflows, important buttons and controls, glossary terms, and troubleshooting FAQ.
 
 ## Screenshots
 
