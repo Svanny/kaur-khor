@@ -533,7 +533,7 @@ function weekdayLabels(language: AppLanguage) {
 }
 
 function observationDeleteToken(observation: SenaObservationRecord) {
-  return `confirm delete report`;
+  return `CONFIRM DELETE REPORT`;
 }
 
 function ObservationCard({
@@ -569,7 +569,7 @@ function ObservationCard({
             <ActionEditIcon className="size-4" />
             {translateUiLiteral(language, 'Edit report')}
           </Button>
-          <Button size="sm" type="button" variant="outline" onClick={onDelete}>
+          <Button size="sm" type="button" variant="destructive-outline" onClick={onDelete}>
             <ActionDeleteIcon className="size-4" />
             {translateUiLiteral(language, 'Delete report')}
           </Button>
