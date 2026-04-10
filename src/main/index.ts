@@ -570,11 +570,12 @@ ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, async () => {
     return null;
   }
 
-  await managedCore.stop();
-  const result: DesktopBackupRestoreResult = await restoreDesktopBackupSnapshot({
+  const restoreOperation = restoreDesktopBackupSnapshot({
     selectedPath: selection.filePaths[0]!,
     userDataPath: desktopDataPath,
   });
+  await managedCore.stop();
+  const result: DesktopBackupRestoreResult = await restoreOperation;
   await invalidateSenaReadCache();
   return result;
 });
