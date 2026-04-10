@@ -40,6 +40,9 @@ jobs:
         run: |
           set -euo pipefail
           release_version="${RELEASE_TAG#v}"
+          if [[ "${release_version}" == .* ]]; then
+            release_version="0${release_version}"
+          fi
           npm pkg set version="${release_version}"
           echo "Packaging version $(node -p "require('./package.json').version") from tag ${RELEASE_TAG}"
 
