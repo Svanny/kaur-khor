@@ -555,6 +555,22 @@ describe('PerformanceRoute', () => {
     expect(screen.queryByText('Analysis needs your first update')).not.toBeInTheDocument();
   });
 
+  test('renders the analysis empty-state create first SKU CTA with an icon', () => {
+    inventoryHook.mockReturnValue(createInventoryState({
+      catalog: null,
+      diagnostics: null,
+      isLoading: false,
+      observations: [],
+      workspaceSummary: null,
+    }));
+
+    renderAnalysisRoute();
+
+    const link = screen.getByRole('link', { name: 'Create first SKU' });
+    expect(link).toHaveAttribute('href', '/catalog/skus/new');
+    expect(link.querySelector('svg')).not.toBeNull();
+  });
+
   test('shows the analysis loading state while entity detail hydration is still pending', () => {
     inventoryHook.mockReturnValue(createInventoryState({
       loadSenaServiceDetail: vi.fn(() => new Promise(() => {})),

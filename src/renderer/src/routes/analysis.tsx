@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { NavigationDashboardIcon, NavigationTaskListIcon } from '@icons/navigation';
+import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scroll';
 import { Button } from '@/components/ui/button';
@@ -166,11 +167,7 @@ export function AnalysisRoute() {
         <WorkspaceEmpty
           title={t('analysisRouteNeedCatalogTitle')}
           hint={t('analysisRouteNeedCatalogHint')}
-          action={
-            <Button asChild>
-              <Link to="/catalog/skus/new">{t('catalogEmptyPrimaryAction')}</Link>
-            </Button>
-          }
+          action={<CreateFirstSkuButton />}
         />
       </WorkspacePage>
     );

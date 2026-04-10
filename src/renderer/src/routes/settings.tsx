@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ActionDatabaseDownloadIcon,
   ActionDatabaseUploadIcon,
@@ -354,6 +355,7 @@ function LocalDataLocationLink({
 }
 
 export function SettingsRoute() {
+  const navigate = useNavigate();
   const {
     currency,
     hasPendingChanges,
@@ -551,6 +553,7 @@ export function SettingsRoute() {
       setBackupStatus(formatClearCurrentDataStatus(result));
       setClearConfirmOpen(false);
       setClearConfirmValue('');
+      navigate('/', { replace: true });
       window.location.reload();
     } catch (error) {
       setBackupStatus(error instanceof Error ? error.message : t('settingsClearCurrentDataFailed'));

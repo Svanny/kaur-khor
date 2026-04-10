@@ -418,15 +418,15 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsRestoreSnapshotCancelled: 'បានបោះបង់ការស្តារស្នាមចម្លង។',
   settingsDangerZoneTitle: 'តំបន់គ្រោះថ្នាក់',
   settingsDangerZoneDescription:
-    'សម្អាតទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន និងចំណូលចិត្តបច្ចុប្បន្ន ខណៈពេលរក្សាទុកស្នាមចម្លងដែលបានរក្សាទុករួច។',
-  settingsClearCurrentDataTitle: 'សម្អាតទិន្នន័យក្នុងម៉ាស៊ីនបច្ចុប្បន្ន',
+    'លុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន និងចំណូលចិត្តបច្ចុប្បន្ន ខណៈពេលរក្សាទុកស្នាមចម្លងដែលបានរក្សាទុករួច។',
+  settingsClearCurrentDataTitle: 'លុបទិន្នន័យក្នុងម៉ាស៊ីនបច្ចុប្បន្ន',
   settingsClearCurrentDataDescription:
     'វាយពាក្យ DELETE CURRENT DATA ដើម្បីលុបឯកសារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ Banji នឹងរក្សាទុកស្នាមចម្លងដែលមានស្រាប់ ហើយបង្កើតស្នាមចម្លងសុវត្ថិភាពមួយទៀតជាមុន។',
-  settingsClearCurrentDataAction: 'សម្អាតទិន្នន័យបច្ចុប្បន្ន',
+  settingsClearCurrentDataAction: 'លុបទិន្នន័យបច្ចុប្បន្ន',
   settingsClearCurrentDataCancel: 'បោះបង់',
   settingsClearCurrentDataCompleted:
-    'បានសម្អាតទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ ស្នាមចម្លងសុវត្ថិភាពត្រូវបានរក្សាទុកនៅ {path}។',
-  settingsClearCurrentDataFailed: 'មិនអាចសម្អាតទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្នបានទេ។',
+    'បានលុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ ស្នាមចម្លងសុវត្ថិភាពត្រូវបានរក្សាទុកនៅ {path}។',
+  settingsClearCurrentDataFailed: 'មិនអាចលុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្នបានទេ។',
   settingsCreditsTitle: 'កិត្តិយស',
   settingsCreditsDescription: 'សារខ្លីពីអ្នកបង្កើត។',
   settingsParameterRunStatusExported: 'បាននាំចេញទិន្នន័យផែនការជា {format}។',

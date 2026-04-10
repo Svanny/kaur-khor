@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
+import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { SearchInput } from '@/components/system/search-input';
 import {
   WorkspaceActionRow,
@@ -72,11 +73,7 @@ export function ArchiveRoute() {
         <WorkspaceEmpty
           title={translateUiLiteral(language, 'No catalog loaded yet')}
           hint={translateUiLiteral(language, 'Create the first SKU to initialize the local catalog.')}
-          action={
-            <Button asChild>
-              <Link to="/catalog/skus/new">{translateUiLiteral(language, 'Create first SKU')}</Link>
-            </Button>
-          }
+          action={<CreateFirstSkuButton />}
         />
       </WorkspacePage>
     );

@@ -1189,15 +1189,15 @@ export const enUiCopyV1 = {
   settingsRestoreSnapshotCancelled: 'Snapshot restore cancelled.',
   settingsDangerZoneTitle: 'Danger zone',
   settingsDangerZoneDescription:
-    'Clear the current local workspace state and preferences while keeping saved snapshots.',
-  settingsClearCurrentDataTitle: 'Clear current local data',
+    'Delete the current local workspace state and preferences while keeping saved snapshots.',
+  settingsClearCurrentDataTitle: 'Delete current local data',
   settingsClearCurrentDataDescription:
     'Type DELETE CURRENT DATA to remove the current local workspace files. Banji will keep saved snapshots and create one more safety snapshot first.',
-  settingsClearCurrentDataAction: 'Clear current data',
+  settingsClearCurrentDataAction: 'Delete current data',
   settingsClearCurrentDataCancel: 'Cancel',
   settingsClearCurrentDataCompleted:
-    'Cleared current local workspace data. A safety snapshot was saved at {path}.',
-  settingsClearCurrentDataFailed: 'Failed to clear the current local workspace data.',
+    'Deleted current local workspace data. A safety snapshot was saved at {path}.',
+  settingsClearCurrentDataFailed: 'Failed to delete the current local workspace data.',
   settingsExportLogsAction: 'Export Logs',
   settingsExportSenaDataAction: 'Export SENA data',
   settingsLoadLocalWorkspaceInfo: 'Loading local workspace information…',
@@ -2235,15 +2235,15 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsRestoreSnapshotCancelled: 'Snapshot restore cancelled.',
   settingsDangerZoneTitle: 'Danger zone',
   settingsDangerZoneDescription:
-    'Clear the current local workspace state and preferences while keeping saved snapshots.',
-  settingsClearCurrentDataTitle: 'Clear current local data',
+    'Delete the current local workspace state and preferences while keeping saved snapshots.',
+  settingsClearCurrentDataTitle: 'Delete current local data',
   settingsClearCurrentDataDescription:
     'Type DELETE CURRENT DATA to remove the current local workspace files. Banji will keep saved snapshots and create one more safety snapshot first.',
-  settingsClearCurrentDataAction: 'Clear current data',
+  settingsClearCurrentDataAction: 'Delete current data',
   settingsClearCurrentDataCancel: 'Cancel',
   settingsClearCurrentDataCompleted:
-    'Cleared current local workspace data. A safety snapshot was saved at {path}.',
-  settingsClearCurrentDataFailed: "Couldn't clear the current local workspace data.",
+    'Deleted current local workspace data. A safety snapshot was saved at {path}.',
+  settingsClearCurrentDataFailed: "Couldn't delete the current local workspace data.",
   settingsOpenLocalDataFolderAction: 'Open local data folder',
   settingsLoadLocalWorkspaceInfo: 'Loading local workspace details…',
   settingsCreditsTitle: 'Credits',

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ActionCreatePackageIcon, ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
+import { ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
 import {
   EntityComparisonIcon,
   EntityLayersIcon,
@@ -12,6 +12,7 @@ import {
 import { NavigationDashboardIcon, NavigationForwardIcon, NavigationPerformanceIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { StatusAchievementIcon, StatusSavingsIcon, StatusWarningIcon } from '@icons/status';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
+import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
@@ -399,14 +400,7 @@ export function PerformanceRoute() {
         <WorkspaceEmpty
           title={t('performanceRouteEmptyCatalogTitle')}
           hint={t('performanceRouteEmptyCatalogHint')}
-          action={
-              <Button asChild>
-                <Link to="/catalog/skus/new">
-                  <ActionCreatePackageIcon data-icon="inline-start" />
-                  {translateUiLiteral(language, 'Create first SKU')}
-                </Link>
-              </Button>
-          }
+          action={<CreateFirstSkuButton />}
         />
       </WorkspacePage>
     );

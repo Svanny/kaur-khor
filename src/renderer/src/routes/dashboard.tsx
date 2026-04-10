@@ -24,6 +24,7 @@ import {
   WorkspacePage,
   WorkspaceTitleCard,
 } from '@/components/system/workspace';
+import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
@@ -261,11 +262,7 @@ export function DashboardRoute() {
         <WorkspaceEmpty
           title={translateUiLiteral(language, 'Overview needs the catalog first')}
           hint={translateUiLiteral(language, 'Create the first SKU so Banji can build an action list from real stock work.')}
-          action={
-            <Button asChild>
-              <Link to="/catalog/skus/new">{translateUiLiteral(language, 'Create first SKU')}</Link>
-            </Button>
-          }
+          action={<CreateFirstSkuButton />}
         />
       </WorkspacePage>
     );

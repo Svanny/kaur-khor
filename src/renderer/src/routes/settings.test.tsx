@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
@@ -21,6 +21,7 @@ describe('SettingsRoute', () => {
   const getLocalDataInfo = vi.fn();
   const createBackupSnapshot = vi.fn();
   const restoreBackupSnapshot = vi.fn();
+  const clearCurrentData = vi.fn();
   const revealPath = vi.fn();
   const triggerRun = vi.fn();
   const reloadLocation = vi.fn();
@@ -31,6 +32,7 @@ describe('SettingsRoute', () => {
     getLocalDataInfo.mockReset();
     createBackupSnapshot.mockReset();
     restoreBackupSnapshot.mockReset();
+    clearCurrentData.mockReset();
     revealPath.mockReset();
     triggerRun.mockReset();
     reloadLocation.mockReset();
@@ -75,6 +77,14 @@ describe('SettingsRoute', () => {
         trigger: 'manual',
       },
     });
+    clearCurrentData.mockResolvedValue({
+      safetySnapshot: {
+        createdAt: '2026-04-10T10:10:00.000Z',
+        fileCount: 3,
+        snapshotPath: '/tmp/banji/backup-snapshots/before-clear',
+        trigger: 'manual',
+      },
+    });
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: {
@@ -98,6 +108,7 @@ describe('SettingsRoute', () => {
         getLocalDataInfo,
         createBackupSnapshot,
         restoreBackupSnapshot,
+        clearCurrentData,
         revealPath,
       },
     };
@@ -372,6 +383,36 @@ describe('SettingsRoute', () => {
 
     await waitFor(() => {
       expect(restoreBackupSnapshot).toHaveBeenCalledTimes(1);
+    });
+    expect(reloadLocation).toHaveBeenCalledTimes(1);
+  });
+
+  it('redirects to overview after clearing current data', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <PreferencesProvider>
+          <Routes>
+            <Route element={<SettingsRoute />} path="/settings" />
+            <Route element={<div>Overview destination</div>} path="/" />
+          </Routes>
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /delete current data/i }));
+    fireEvent.change(
+      screen.getByLabelText(/deletion confirmation token/i),
+      { target: { value: 'DELETE CURRENT DATA' } },
+    );
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /delete current data/i }),
+    );
+
+    await waitFor(() => {
+      expect(clearCurrentData).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Overview destination')).toBeInTheDocument();
     });
     expect(reloadLocation).toHaveBeenCalledTimes(1);
   });
