@@ -6,6 +6,12 @@ It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app 
 
 [Download latest release](https://github.com/Svanny/banji/releases/latest) · [Browse releases](https://github.com/Svanny/banji/releases) · [Report an issue](https://github.com/Svanny/banji/issues)
 
+## User Guide
+
+Detailed end-user help lives in [docs/user-guide.md](docs/user-guide.md).
+
+The guide explains Banji's main workspaces, common workflows, important buttons and controls, glossary terms, and troubleshooting FAQ.
+
 ## Screenshots
 
 | Overview | Record update |
@@ -54,6 +60,16 @@ Releases are published through GitHub Releases:
 - Linux: x64 AppImage and `.deb`
 
 Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts.
+
+### Running Unsigned Builds On macOS
+
+If macOS blocks Banji because the app is unsigned:
+
+1. Try opening the app with `Control` + click, then choose `Open`.
+2. If macOS still blocks it, go to `System Settings` -> `Privacy & Security`, find the Banji warning near the bottom, and click `Open Anyway`.
+3. Re-open the app and confirm the final prompt.
+
+This allows Banji to run without disabling Gatekeeper globally.
 
 ## Development
 
