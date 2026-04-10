@@ -1,3 +1,4 @@
+import guideSourceKm from '../../../../docs/user-guide.km.md?raw';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -25,8 +26,8 @@ function translationsFor(language: 'en' | 'km') {
       helpIndexAriaLabel: 'ផ្នែកជំនួយ',
       helpIndexBestBadge: 'ល្អបំផុត',
       helpMoreTitle: 'ជំនួយបន្ថែម',
-      helpMoreDescriptor: 'មគ្គុទ្ទេសក៍ក្នុង repository ត្រូវគ្នាជាមួយទំព័រនេះ។',
-      helpOpenRepositoryCopy: 'បើកច្បាប់ចម្លងក្នុង repository',
+      helpMoreDescriptor: 'មគ្គុទ្ទេសក៍ក្នុងឃ្លាំងកូដ ត្រូវគ្នាជាមួយទំព័រនេះ។',
+      helpOpenRepositoryCopy: 'បើកច្បាប់ចម្លងក្នុងឃ្លាំងកូដ',
     };
   }
 
@@ -179,10 +180,37 @@ describe('HelpRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'បើកច្បាប់ចម្លងក្នុង repository' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'បើកច្បាប់ចម្លងក្នុងឃ្លាំងកូដ' })).toHaveAttribute(
       'href',
       'https://github.com/Svanny/banji/blob/main/docs/user-guide.km.md',
     );
+  });
+
+  test('keeps the Khmer guide free of unexpected Latin letters', () => {
+    const allowedLatinFragments = [
+      'Banji',
+      'banji',
+      'SKU',
+      'ERP',
+      'SaaS',
+      'USD',
+      'KHR',
+      'Cmd/Ctrl + K',
+      'Cmd',
+      'Ctrl',
+      'Excel',
+      'CSV',
+      'JSON',
+      'K',
+    ];
+
+    let sanitizedGuide = guideSourceKm;
+
+    for (const fragment of allowedLatinFragments) {
+      sanitizedGuide = sanitizedGuide.replaceAll(fragment, '');
+    }
+
+    expect(sanitizedGuide).not.toMatch(/[A-Za-z]/);
   });
 
   test('jumps to the matching guide card from the index', () => {
