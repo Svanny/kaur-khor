@@ -28,13 +28,13 @@ The guide explains Banji's main workspaces, common workflows, important buttons 
 - A bundled local runtime and local workspace storage inside the app.
 - A workflow centered on catalog management, update logging, operational follow-up, and analysis.
 - A product that is opinionated about Banji's current inventory model rather than a blank-slate platform.
-- A repository where the README is for users first and the development notes live lower down.
+- A repository where the README is the top-level overview and the deeper developer docs live in `docs/`.
 
 ## What's Included
 
 - Catalog management for SKUs and services.
 - A guided record-update flow for stock counts, service updates, ordering signals, delivery timing, and notes.
-- Overview and operations surfaces that turn updates into concrete follow-up tasks.
+- Overview and performance surfaces that turn updates into concrete follow-up tasks.
 - Analysis views that explain what the current inventory picture seems to be and why.
 - Local settings for language and currency, including English and Khmer plus USD and KHR support.
 
@@ -101,6 +101,21 @@ pnpm dev
 pnpm test
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 ```
+
+### Repo Shape
+
+The current local app is organized around these paths:
+
+- `src/main`: Electron main process, app boot, IPC handlers, local data paths, backup and restore behavior
+- `src/preload`: preload bridge that exposes `window.banjiDesktop`
+- `src/renderer`: React routes, settings flows, workspace UI, and command palette behavior
+- `src/shared`: shared IPC contracts and TypeScript types
+- `apps/desktop-core`: Rust desktop runtime used for local persistence and core workflows
+- `apps/sena-core`: Rust SENA analysis engine
+- `tool/security`: desktop security gate scripts
+- `tool/sync_design_tokens.sh`: design-token sync helper
+
+For contributor-oriented documentation, see [docs/README.md](docs/README.md).
 
 ### Packaging
 

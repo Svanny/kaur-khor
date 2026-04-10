@@ -1,6 +1,6 @@
 # Banji User Guide
 
-This guide explains how Banji works as a day-to-day desktop inventory workspace. It is written for operators and small teams using the product, not for contributors working on the codebase.
+This guide explains how Banji works as a day-to-day desktop inventory workspace. It is written for people using the app, not for contributors working on the codebase.
 
 Banji is local-first and desktop-first. It helps you keep a catalog, log real-world updates, review what changed, and use Banji's local analysis to decide what needs attention next.
 
@@ -27,7 +27,7 @@ Banji is for teams that want a practical inventory workspace on one machine with
 - keeping a working catalog of SKUs and services
 - capturing stock changes and service signals as they happen
 - seeing what needs action next
-- reviewing local planning and performance signals
+- reviewing local planning and performance signals on the same machine
 
 Banji is not trying to be:
 
@@ -66,7 +66,7 @@ Banji's left navigation is the main way to move through the product. The top-lev
 - **Analysis**: deeper explanation surfaces for SKUs and services
 - **Logs**: saved update history
 - **Archive**: archived catalog items
-- **Settings**: local preferences, exports, backups, and local planning controls
+- **Settings**: local preferences, exports, backup and restore actions, and local planning controls
 
 Global behaviors worth knowing:
 
