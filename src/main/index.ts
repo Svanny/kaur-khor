@@ -81,6 +81,7 @@ let senaObservationFingerprint: string | null = null;
 
 async function snapshotBeforeWorkspaceMutation(reason: string) {
   try {
+    await managedCore.stop();
     await createAutomaticDesktopBackupSnapshot({
       reason,
       userDataPath: desktopDataPath,
@@ -552,6 +553,7 @@ ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, async () => {
   return info;
 });
 ipcMain.handle(IPC_CHANNELS.systemCreateBackupSnapshot, async () => {
+  await managedCore.stop();
   const snapshot: DesktopBackupSnapshotResult = await createDesktopBackupSnapshot({
     reason: 'settings',
     trigger: 'manual',

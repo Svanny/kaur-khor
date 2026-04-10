@@ -3,15 +3,20 @@
 import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createAutomaticDesktopBackupSnapshot,
   createDesktopBackupSnapshot,
   desktopBackupDirectoryPath,
+  restoreWorkspaceFiles,
   restoreDesktopBackupSnapshot,
 } from './local-backup';
 
 describe('desktop local backup snapshots', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('copies current workspace files into a manual snapshot directory', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
@@ -92,5 +97,66 @@ describe('desktop local backup snapshots', () => {
     await expect(readFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('current-sqlite');
     await expect(readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8')).resolves.toBe('{"language":"en"}');
     await expect(readFile(join(restored.safetySnapshot.snapshotPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('new-sqlite');
+  });
+
+  it('captures SQLite sidecar files in the snapshot directory', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-wal-'));
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3-wal'), 'wal-data', 'utf8');
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3-shm'), 'shm-data', 'utf8');
+
+    const snapshot = await createDesktopBackupSnapshot({
+      now: () => new Date('2026-04-10T10:00:00.000Z'),
+      reason: 'settings',
+      trigger: 'manual',
+      userDataPath,
+    });
+
+    await expect(readFile(join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3-wal'), 'utf8')).resolves.toBe('wal-data');
+    await expect(readFile(join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3-shm'), 'utf8')).resolves.toBe('shm-data');
+  });
+
+  it('restores the original workspace files if writing the snapshot back fails', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-rollback-'));
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'current-sqlite', 'utf8');
+    await writeFile(join(userDataPath, 'desktop-preferences.json'), '{"language":"en"}', 'utf8');
+
+    const snapshot = await createDesktopBackupSnapshot({
+      now: () => new Date('2026-04-10T10:00:00.000Z'),
+      reason: 'settings',
+      trigger: 'manual',
+      userDataPath,
+    });
+
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'new-sqlite', 'utf8');
+    await writeFile(join(userDataPath, 'desktop-preferences.json'), '{"language":"km"}', 'utf8');
+
+    let restoreRenameCount = 0;
+    const fileOps = {
+      ...await import('node:fs/promises'),
+      rename: async (sourcePath: string | Buffer | URL, destinationPath: string | Buffer | URL) => {
+        if (typeof sourcePath === 'string' && sourcePath.includes('.banji-restore-staging-')) {
+          restoreRenameCount += 1;
+          if (restoreRenameCount === 1) {
+            throw new Error('disk full');
+          }
+        }
+        return (await import('node:fs/promises')).rename(sourcePath, destinationPath);
+      },
+    };
+
+    await expect(
+      restoreWorkspaceFiles(
+        userDataPath,
+        [
+          join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3'),
+          join(snapshot.snapshotPath, 'desktop-preferences.json'),
+        ],
+        fileOps,
+      ),
+    ).rejects.toThrow('disk full');
+
+    await expect(readFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('new-sqlite');
+    await expect(readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8')).resolves.toBe('{"language":"km"}');
   });
 });

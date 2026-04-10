@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import * as fs from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type {
   DesktopBackupRestoreResult,
@@ -33,6 +33,7 @@ const DEFAULT_AUTOMATIC_SNAPSHOT_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_MAX_BACKUP_SNAPSHOTS = 24;
 const backupQueues = new Map<string, Promise<unknown>>();
 const lastAutomaticSnapshotAt = new Map<string, number>();
+type FileOps = Pick<typeof fs, 'copyFile' | 'mkdir' | 'readdir' | 'readFile' | 'rename' | 'rm' | 'stat' | 'writeFile'>;
 
 export function desktopBackupDirectoryPath(userDataPath: string) {
   return join(userDataPath, BACKUP_DIRECTORY_NAME);
@@ -54,9 +55,9 @@ function slugifyReason(reason: string | undefined) {
     .slice(0, 48);
 }
 
-async function listSnapshotSourceFiles(userDataPath: string) {
-  await mkdir(userDataPath, { recursive: true });
-  const entries = await readdir(userDataPath, { withFileTypes: true });
+async function listSnapshotSourceFiles(userDataPath: string, fileOps: FileOps = fs) {
+  await fileOps.mkdir(userDataPath, { recursive: true });
+  const entries = await fileOps.readdir(userDataPath, { withFileTypes: true });
   return entries
     .filter((entry) =>
       entry.isFile()
@@ -67,8 +68,8 @@ async function listSnapshotSourceFiles(userDataPath: string) {
     .sort((left, right) => left.localeCompare(right));
 }
 
-async function listRestorableSnapshotFiles(snapshotPath: string) {
-  const entries = await readdir(snapshotPath, { withFileTypes: true });
+async function listRestorableSnapshotFiles(snapshotPath: string, fileOps: FileOps = fs) {
+  const entries = await fileOps.readdir(snapshotPath, { withFileTypes: true });
   return entries
     .filter((entry) =>
       entry.isFile()
@@ -81,14 +82,14 @@ async function listRestorableSnapshotFiles(snapshotPath: string) {
 
 async function pruneOldSnapshots(userDataPath: string, maxSnapshots: number) {
   const backupDirectoryPath = desktopBackupDirectoryPath(userDataPath);
-  const entries = await readdir(backupDirectoryPath, { withFileTypes: true }).catch(() => []);
+  const entries = await fs.readdir(backupDirectoryPath, { withFileTypes: true }).catch(() => []);
   const snapshotDirectories = entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort((left, right) => right.localeCompare(left));
 
   for (const snapshotName of snapshotDirectories.slice(maxSnapshots)) {
-    await rm(join(backupDirectoryPath, snapshotName), { force: true, recursive: true });
+    await fs.rm(join(backupDirectoryPath, snapshotName), { force: true, recursive: true });
   }
 }
 
@@ -105,6 +106,72 @@ function runBackupQueue<T>(userDataPath: string, task: () => Promise<T>): Promis
     ),
   );
   return next;
+}
+
+function temporaryWorkspaceDirectoryPath(userDataPath: string, label: string, now = new Date()) {
+  return join(userDataPath, `.banji-${label}-${timestampToken(now)}`);
+}
+
+async function removePaths(paths: string[], fileOps: FileOps = fs) {
+  await Promise.all(paths.map((path) => fileOps.rm(path, { force: true, recursive: true })));
+}
+
+async function copyFilesIntoDirectory(sourceFiles: string[], directoryPath: string, fileOps: FileOps = fs) {
+  await fileOps.mkdir(directoryPath, { recursive: true });
+  for (const sourcePath of sourceFiles) {
+    await fileOps.copyFile(sourcePath, join(directoryPath, basename(sourcePath)));
+  }
+}
+
+async function moveFilesIntoDirectory(sourceFiles: string[], directoryPath: string, fileOps: FileOps = fs) {
+  await fileOps.mkdir(directoryPath, { recursive: true });
+  for (const sourcePath of sourceFiles) {
+    await fileOps.rename(sourcePath, join(directoryPath, basename(sourcePath)));
+  }
+}
+
+export async function restoreWorkspaceFiles(
+  userDataPath: string,
+  snapshotFiles: string[],
+  fileOps: FileOps = fs,
+) {
+  const timestamp = new Date();
+  const stagedSnapshotDirectoryPath = temporaryWorkspaceDirectoryPath(
+    userDataPath,
+    'restore-staging',
+    timestamp,
+  );
+  const rollbackDirectoryPath = temporaryWorkspaceDirectoryPath(
+    userDataPath,
+    'restore-rollback',
+    timestamp,
+  );
+  const restoredPaths: string[] = [];
+
+  try {
+    await copyFilesIntoDirectory(snapshotFiles, stagedSnapshotDirectoryPath, fileOps);
+    const currentFiles = await listSnapshotSourceFiles(userDataPath, fileOps);
+    await moveFilesIntoDirectory(currentFiles, rollbackDirectoryPath, fileOps);
+
+    const stagedFiles = await listRestorableSnapshotFiles(stagedSnapshotDirectoryPath, fileOps);
+    for (const stagedFile of stagedFiles) {
+      const destinationPath = join(userDataPath, basename(stagedFile));
+      await fileOps.rename(stagedFile, destinationPath);
+      restoredPaths.push(destinationPath);
+    }
+
+    await fileOps.rm(stagedSnapshotDirectoryPath, { force: true, recursive: true });
+    await fileOps.rm(rollbackDirectoryPath, { force: true, recursive: true });
+  } catch (error) {
+    await removePaths(restoredPaths, fileOps);
+    const rollbackFiles = await listRestorableSnapshotFiles(rollbackDirectoryPath, fileOps).catch(() => []);
+    for (const rollbackFile of rollbackFiles) {
+      await fileOps.rename(rollbackFile, join(userDataPath, basename(rollbackFile)));
+    }
+    await fileOps.rm(stagedSnapshotDirectoryPath, { force: true, recursive: true }).catch(() => undefined);
+    await fileOps.rm(rollbackDirectoryPath, { force: true, recursive: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 async function createDesktopBackupSnapshotUnchecked({
@@ -124,12 +191,9 @@ async function createDesktopBackupSnapshotUnchecked({
   const snapshotPath = join(backupDirectoryPath, snapshotDirectoryName);
   const sourceFiles = await listSnapshotSourceFiles(userDataPath);
 
-  await mkdir(snapshotPath, { recursive: true });
-  for (const sourcePath of sourceFiles) {
-    await copyFile(sourcePath, join(snapshotPath, basename(sourcePath)));
-  }
-  await writeFile(
-    join(snapshotPath, 'snapshot-manifest.json'),
+  await copyFilesIntoDirectory(sourceFiles, snapshotPath, fs);
+  await fs.writeFile(
+    join(snapshotPath, SNAPSHOT_MANIFEST_FILENAME),
     JSON.stringify(
       {
         createdAt,
@@ -186,10 +250,10 @@ export async function createAutomaticDesktopBackupSnapshot({
 }
 
 async function resolveSnapshotDirectory(selectedPath: string) {
-  const selectedStats = await stat(selectedPath);
+  const selectedStats = await fs.stat(selectedPath);
   const snapshotPath = selectedStats.isDirectory() ? selectedPath : dirname(selectedPath);
   const manifestPath = join(snapshotPath, SNAPSHOT_MANIFEST_FILENAME);
-  await readFile(manifestPath, 'utf8');
+  await fs.readFile(manifestPath, 'utf8');
   return snapshotPath;
 }
 
@@ -209,14 +273,7 @@ export async function restoreDesktopBackupSnapshot({
       trigger: 'manual',
       userDataPath,
     });
-    const currentFiles = await listSnapshotSourceFiles(userDataPath);
-
-    for (const currentPath of currentFiles) {
-      await rm(currentPath, { force: true });
-    }
-    for (const snapshotFile of snapshotFiles) {
-      await copyFile(snapshotFile, join(userDataPath, basename(snapshotFile)));
-    }
+    await restoreWorkspaceFiles(userDataPath, snapshotFiles);
 
     return {
       restoredSnapshotPath: snapshotPath,
@@ -236,9 +293,7 @@ export async function clearCurrentDesktopData(
     });
     const currentFiles = await listSnapshotSourceFiles(userDataPath);
 
-    for (const currentPath of currentFiles) {
-      await rm(currentPath, { force: true });
-    }
+    await removePaths(currentFiles);
 
     return {
       clearedFileCount: currentFiles.length,
