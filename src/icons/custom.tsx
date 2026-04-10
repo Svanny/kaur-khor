@@ -69,3 +69,83 @@ export function NewServiceIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+export const DatabaseDownloadIcon = forwardRef<SVGSVGElement, IconProps>(
+  function DatabaseDownloadIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M3 12a9 3 0 0 0 5 2.69" />
+        <path d="M21 9.3V5" />
+        <path d="M3 5v14a9 3 0 0 0 6.47 2.88" />
+        <path d="M17 12v8" />
+        <path d="m14.5 17.5 2.5 2.5 2.5-2.5" />
+      </svg>
+    );
+  },
+);
+
+export const DatabaseUploadIcon = forwardRef<SVGSVGElement, IconProps>(
+  function DatabaseUploadIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M3 12a9 3 0 0 0 5 2.69" />
+        <path d="M21 9.3V5" />
+        <path d="M3 5v14a9 3 0 0 0 6.47 2.88" />
+        <path d="M17 20v-8" />
+        <path d="m14.5 14.5 2.5-2.5 2.5 2.5" />
+      </svg>
+    );
+  },
+);
+
+export const ExplosionIcon = forwardRef<SVGSVGElement, IconProps>(
+  function ExplosionIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <path d="M12 1.5 14.53 5.9 19.42 4.58 18.1 9.47 22.5 12 18.1 14.53 19.42 19.42 14.53 18.1 12 22.5 9.47 18.1 4.58 19.42 5.9 14.53 1.5 12 5.9 9.47 4.58 4.58 9.47 5.9 12 1.5Z" />
+        <path d="M12 9.4 13.03 10.98 14.6 12 13.03 13.03 12 14.6 10.98 13.03 9.4 12 10.98 10.98 12 9.4Z" />
+      </svg>
+    );
+  },
+);

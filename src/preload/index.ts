@@ -27,6 +27,9 @@ const desktopBridge: DesktopBridge = {
   system: {
     getAppContext: () => ipcRenderer.invoke(IPC_CHANNELS.systemGetAppContext),
     getLocalDataInfo: () => ipcRenderer.invoke(IPC_CHANNELS.systemGetLocalDataInfo),
+    createBackupSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.systemCreateBackupSnapshot),
+    restoreBackupSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.systemRestoreBackupSnapshot),
+    clearCurrentData: () => ipcRenderer.invoke(IPC_CHANNELS.systemClearCurrentData),
     revealPath: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.systemRevealPath, path),
   },
   inventory: {

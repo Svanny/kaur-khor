@@ -10,6 +10,18 @@ const applyDisplayViewMode = vi.fn(async () => {});
 const applySenaEngineParameters = vi.fn(async () => {});
 const archiveCatalogEntity = vi.fn(async () => null);
 const unarchiveCatalogEntity = vi.fn(async () => null);
+const createBackupSnapshot = vi.fn(async () => ({
+  createdAt: '2026-04-10T10:00:00.000Z',
+  fileCount: 2,
+  snapshotPath: '/tmp/banji/backup-snapshots/manual-snapshot',
+  trigger: 'manual',
+}));
+const restoreBackupSnapshot = vi.fn(async () => null);
+const listObservations = vi.fn(async () => []);
+const getCatalog = vi.fn(async () => null);
+const getWorkspaceSummary = vi.fn(async () => null);
+const getDiagnostics = vi.fn(async () => null);
+const getRunStatus = vi.fn(async () => null);
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -63,6 +75,12 @@ describe('CommandPaletteProvider', () => {
           navPerformance: 'Performance',
           navRecordUpdate: 'Record update',
           navSettings: 'Settings',
+          navHelp: 'Help',
+          settingsBackupSnapshotAction: 'Create backup snapshot',
+          settingsExportLogsAction: 'Export Logs',
+          settingsExportSenaDataAction: 'Export planning data',
+          settingsLocalWorkspaceStorageTitle: 'Local workspace data',
+          settingsRestoreSnapshotAction: 'Restore saved snapshot',
         }[key] ?? key),
     });
     savePreferences.mockClear();
@@ -70,6 +88,29 @@ describe('CommandPaletteProvider', () => {
     applySenaEngineParameters.mockClear();
     archiveCatalogEntity.mockClear();
     unarchiveCatalogEntity.mockClear();
+    createBackupSnapshot.mockClear();
+    restoreBackupSnapshot.mockClear();
+    listObservations.mockClear();
+    getCatalog.mockClear();
+    getWorkspaceSummary.mockClear();
+    getDiagnostics.mockClear();
+    getRunStatus.mockClear();
+    window.banjiDesktop = {
+      ...(window.banjiDesktop ?? {}),
+      system: {
+        ...(window.banjiDesktop?.system ?? {}),
+        createBackupSnapshot,
+        restoreBackupSnapshot,
+      },
+      sena: {
+        ...(window.banjiDesktop?.sena ?? {}),
+        listObservations,
+        getCatalog,
+        getWorkspaceSummary,
+        getDiagnostics,
+        getRunStatus,
+      },
+    };
   });
 
   test('opens from the global shortcut and navigates on selection', async () => {
@@ -139,6 +180,53 @@ describe('CommandPaletteProvider', () => {
     });
   });
 
+  test('runs local workspace backup actions from the command palette', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Settings screen</div>} path="/settings" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search commands' }), {
+      target: { value: 'backup snapshot' },
+    });
+    fireEvent.click(screen.getByRole('option', { name: /Create backup snapshot/ }));
+
+    await waitFor(() => {
+      expect(createBackupSnapshot).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test('runs local workspace exports from the command palette', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Settings screen</div>} path="/settings" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search commands' }), {
+      target: { value: 'planning data' },
+    });
+    fireEvent.click(screen.getByRole('option', { name: /Export planning data: Excel/ }));
+
+    await waitFor(() => {
+      expect(getCatalog).toHaveBeenCalledTimes(1);
+      expect(listObservations).toHaveBeenCalledTimes(1);
+      expect(getWorkspaceSummary).toHaveBeenCalledTimes(1);
+      expect(getDiagnostics).toHaveBeenCalledTimes(1);
+    });
+  });
+
   test('renders Khmer search chrome and result copy when the language is Khmer', () => {
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
@@ -161,6 +249,12 @@ describe('CommandPaletteProvider', () => {
           navPerformance: 'សុខភាពអាជីវកម្ម',
           navRecordUpdate: 'កត់ត្រាការអាប់ដេត',
           navSettings: 'ការកំណត់',
+          navHelp: 'ជំនួយ',
+          settingsBackupSnapshotAction: 'បង្កើតស្នាមចម្លងបម្រុងទុក',
+          settingsExportLogsAction: 'នាំចេញកំណត់ហេតុ',
+          settingsExportSenaDataAction: 'នាំចេញទិន្នន័យផែនការ',
+          settingsLocalWorkspaceStorageTitle: 'ទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន',
+          settingsRestoreSnapshotAction: 'ស្តារស្នាមចម្លងដែលបានរក្សាទុក',
           settingsPreferencesControlsTitle: 'ចំណូលចិត្តកន្លែងធ្វើការ',
           settingsSenaParametersPanelTitle: 'ការកំណត់លម្អិតផែនការ',
         }[key] ?? key),

@@ -28,7 +28,25 @@ export interface DesktopLocalDataInfo {
   dataDirectoryPath: string;
   workspaceStorePath: string;
   preferencesPath: string;
+  backupDirectoryPath: string;
   storageFormat: 'sqlite';
+}
+
+export interface DesktopBackupSnapshotResult {
+  createdAt: string;
+  fileCount: number;
+  snapshotPath: string;
+  trigger: 'manual' | 'automatic';
+}
+
+export interface DesktopBackupRestoreResult {
+  restoredSnapshotPath: string;
+  safetySnapshot: DesktopBackupSnapshotResult;
+}
+
+export interface DesktopClearCurrentDataResult {
+  clearedFileCount: number;
+  safetySnapshot: DesktopBackupSnapshotResult;
 }
 
 export interface DesktopPreferences {
@@ -111,6 +129,9 @@ export interface DesktopPreferencesBridge {
 export interface DesktopSystemBridge {
   getAppContext: () => Promise<DesktopAppContext>;
   getLocalDataInfo: () => Promise<DesktopLocalDataInfo>;
+  createBackupSnapshot: () => Promise<DesktopBackupSnapshotResult>;
+  restoreBackupSnapshot: () => Promise<DesktopBackupRestoreResult | null>;
+  clearCurrentData: () => Promise<DesktopClearCurrentDataResult>;
   revealPath: (path: string) => Promise<void>;
 }
 
@@ -124,6 +145,9 @@ export interface DesktopBridge {
 export const IPC_CHANNELS = {
   systemGetAppContext: 'banji:system:get-app-context',
   systemGetLocalDataInfo: 'banji:system:get-local-data-info',
+  systemCreateBackupSnapshot: 'banji:system:create-backup-snapshot',
+  systemRestoreBackupSnapshot: 'banji:system:restore-backup-snapshot',
+  systemClearCurrentData: 'banji:system:clear-current-data',
   systemRevealPath: 'banji:system:reveal-path',
   inventoryLoadSnapshot: 'banji:inventory:load-snapshot',
   inventoryListReports: 'banji:inventory:list-reports',

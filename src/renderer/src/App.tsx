@@ -6,6 +6,7 @@ import { CommandPaletteProvider } from '@/components/command-palette';
 import { AnalysisRoute } from '@/routes/analysis';
 import { ArchiveRoute } from '@/routes/archive';
 import { DashboardRoute } from '@/routes/dashboard';
+import { HelpRoute } from '@/routes/help';
 import { InventoryRoute } from '@/routes/inventory';
 import { PerformanceRoute } from '@/routes/performance';
 import { ServiceDetailRoute } from '@/routes/service-detail';
@@ -55,6 +56,7 @@ export function AppRoutes() {
       <Route element={<RedirectWithSearch to="/operations" />} path="/planning" />
       <Route element={<RedirectWithSearch to="/operations" />} path="/sist" />
       <Route element={<InventoryRoute />} path="/catalog" />
+      <Route element={<HelpRoute />} path="/help" />
       <Route element={<SkuFormRoute />} path="/catalog/skus/new" />
       <Route element={<SkuDetailRoute />} path="/catalog/skus/:skuId" />
       <Route element={<SkuFormRoute />} path="/catalog/skus/:skuId/edit" />

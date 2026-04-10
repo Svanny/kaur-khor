@@ -553,6 +553,7 @@ const mockLocalDataInfo: DesktopLocalDataInfo = {
   dataDirectoryPath: '/tmp/banji-browser-mock',
   workspaceStorePath: '/tmp/banji-browser-mock/sena.sqlite',
   preferencesPath: '/tmp/banji-browser-mock/preferences.json',
+  backupDirectoryPath: '/tmp/banji-browser-mock/backup-snapshots',
   storageFormat: 'sqlite',
 };
 
@@ -664,6 +665,30 @@ function installBrowserDesktopBridge() {
     system: {
       getAppContext: async () => clone(browserMockState.appContext),
       getLocalDataInfo: async () => clone(browserMockState.localDataInfo),
+      createBackupSnapshot: async () => ({
+        createdAt: nowIso(),
+        fileCount: 3,
+        snapshotPath: `${browserMockState.localDataInfo.backupDirectoryPath}/browser-manual-snapshot`,
+        trigger: 'manual',
+      }),
+      restoreBackupSnapshot: async () => ({
+        restoredSnapshotPath: `${browserMockState.localDataInfo.backupDirectoryPath}/browser-manual-snapshot`,
+        safetySnapshot: {
+          createdAt: nowIso(),
+          fileCount: 3,
+          snapshotPath: `${browserMockState.localDataInfo.backupDirectoryPath}/browser-before-restore`,
+          trigger: 'manual',
+        },
+      }),
+      clearCurrentData: async () => ({
+        clearedFileCount: 3,
+        safetySnapshot: {
+          createdAt: nowIso(),
+          fileCount: 3,
+          snapshotPath: `${browserMockState.localDataInfo.backupDirectoryPath}/browser-before-clear`,
+          trigger: 'manual',
+        },
+      }),
       revealPath: async () => {},
     },
     preferences: {

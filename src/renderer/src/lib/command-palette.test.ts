@@ -141,11 +141,13 @@ describe('command palette descriptors', () => {
           navPerformance: 'Performance',
           navRecordUpdate: 'Record update',
           navSettings: 'Settings',
+          navHelp: 'Help',
         }[key] ?? key),
     });
 
     expect(commands.some((command) => command.id === 'page:catalog')).toBe(true);
     expect(commands.some((command) => command.id === 'page:archive')).toBe(true);
+    expect(commands.some((command) => command.id === 'page:help')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:open:sku-1')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:archive:sku-1')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:sheet:order:sku-1')).toBe(true);
@@ -153,6 +155,9 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'service:archive:service-1')).toBe(true);
     expect(commands.some((command) => command.id === 'overview:task:sku-1:log_order')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:language:km')).toBe(true);
+    expect(commands.some((command) => command.id === 'settings:workspace:create-backup-snapshot')).toBe(true);
+    expect(commands.some((command) => command.id === 'settings:workspace:restore-backup-snapshot')).toBe(true);
+    expect(commands.some((command) => command.id === 'settings:workspace:export-planning-data')).toBe(true);
   });
 
   test('excludes archived entities from normal results and emits unarchive commands on the archive page', () => {
@@ -211,6 +216,7 @@ describe('command palette descriptors', () => {
           navPerformance: 'Performance',
           navRecordUpdate: 'Record update',
           navSettings: 'Settings',
+          navHelp: 'Help',
         }[key] ?? key),
     });
 

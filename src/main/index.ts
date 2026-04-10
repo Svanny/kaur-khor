@@ -1,14 +1,24 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, screen, session, shell } from 'electron';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 import { createManagedCoreController } from './core-manager';
 import { migrateLegacyDesktopData } from './data-migration';
+import {
+  clearCurrentDesktopData,
+  createAutomaticDesktopBackupSnapshot,
+  createDesktopBackupSnapshot,
+  desktopBackupDirectoryPath,
+  restoreDesktopBackupSnapshot,
+} from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import {
   IPC_CHANNELS,
   type DesktopAppContext,
+  type DesktopBackupRestoreResult,
+  type DesktopBackupSnapshotResult,
+  type DesktopClearCurrentDataResult,
   type DesktopLocalDataInfo,
   type DesktopPreferences,
   type SenaDetailCacheClearPayload,
@@ -68,6 +78,17 @@ const senaReadCache = new Map<string, unknown>();
 const senaInflightReads = new Map<string, Promise<unknown>>();
 const windowZoomLevels = new WeakMap<BrowserWindow, number>();
 let senaObservationFingerprint: string | null = null;
+
+async function snapshotBeforeWorkspaceMutation(reason: string) {
+  try {
+    await createAutomaticDesktopBackupSnapshot({
+      reason,
+      userDataPath: desktopDataPath,
+    });
+  } catch (error) {
+    console.warn(`[desktop-data] automatic backup snapshot skipped for ${reason}`, error);
+  }
+}
 
 function senaReadCachePath() {
   return join(desktopDataPath, SENA_READ_CACHE_FILENAME);
@@ -335,6 +356,18 @@ function setFocusedWindowToActualSize() {
   applyPreferredWindowZoomLevel(BrowserWindow.getFocusedWindow());
 }
 
+function navigateMainWindowToHashRoute(route: `/${string}`) {
+  const window = mainWindow ?? BrowserWindow.getFocusedWindow();
+  const currentUrl = window?.webContents.getURL();
+
+  if (!window || !currentUrl) {
+    return;
+  }
+
+  const baseUrl = currentUrl.replace(/#.*$/, '');
+  void window.loadURL(`${baseUrl}#${route}`);
+}
+
 function installApplicationMenu() {
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
@@ -428,7 +461,20 @@ function installApplicationMenu() {
     },
     {
       label: 'Help',
-      submenu: [],
+      submenu: [
+        {
+          label: 'User Guide',
+          click: () => {
+            navigateMainWindowToHashRoute('/help');
+          },
+        },
+        {
+          label: 'Report an Issue',
+          click: () => {
+            void shell.openExternal('https://github.com/Svanny/banji/issues');
+          },
+        },
+      ],
     },
   ];
 
@@ -500,9 +546,43 @@ ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, async () => {
     dataDirectoryPath: desktopDataPath,
     workspaceStorePath: join(desktopDataPath, SENA_STORE_FILENAME),
     preferencesPath: join(desktopDataPath, PREFERENCES_STORE_FILENAME),
+    backupDirectoryPath: desktopBackupDirectoryPath(desktopDataPath),
     storageFormat: 'sqlite',
   };
   return info;
+});
+ipcMain.handle(IPC_CHANNELS.systemCreateBackupSnapshot, async () => {
+  const snapshot: DesktopBackupSnapshotResult = await createDesktopBackupSnapshot({
+    reason: 'settings',
+    trigger: 'manual',
+    userDataPath: desktopDataPath,
+  });
+  return snapshot;
+});
+ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, async () => {
+  const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
+    buttonLabel: 'Restore snapshot',
+    defaultPath: desktopBackupDirectoryPath(desktopDataPath),
+    properties: ['openDirectory', 'openFile'],
+    title: 'Choose a saved snapshot to restore',
+  });
+  if (selection.canceled || selection.filePaths.length === 0) {
+    return null;
+  }
+
+  await managedCore.stop();
+  const result: DesktopBackupRestoreResult = await restoreDesktopBackupSnapshot({
+    selectedPath: selection.filePaths[0]!,
+    userDataPath: desktopDataPath,
+  });
+  await invalidateSenaReadCache();
+  return result;
+});
+ipcMain.handle(IPC_CHANNELS.systemClearCurrentData, async () => {
+  await managedCore.stop();
+  const result: DesktopClearCurrentDataResult = await clearCurrentDesktopData(desktopDataPath);
+  await invalidateSenaReadCache();
+  return result;
 });
 ipcMain.handle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string) => {
   if (typeof targetPath !== 'string' || targetPath.trim().length === 0) {
@@ -532,9 +612,10 @@ ipcMain.handle(IPC_CHANNELS.inventoryListReports, async () =>
     timeoutMs: INVENTORY_READ_TIMEOUT_MS,
   }),
 );
-ipcMain.handle(IPC_CHANNELS.inventorySubmitReport, async (_event, payload: StockReportSubmission) =>
-  managedCore.invoke<StockReport>('inventory.submitReport', payload),
-);
+ipcMain.handle(IPC_CHANNELS.inventorySubmitReport, async (_event, payload: StockReportSubmission) => {
+  await snapshotBeforeWorkspaceMutation('inventory-submit-report');
+  return managedCore.invoke<StockReport>('inventory.submitReport', payload);
+});
 ipcMain.handle(IPC_CHANNELS.senaGetCatalog, async () =>
   loadCachedSenaRead('catalog', () =>
     managedCore.invoke<SenaCatalog | null>('sena.getCatalog', undefined, {
@@ -550,6 +631,7 @@ ipcMain.handle(IPC_CHANNELS.senaListObservations, async () =>
   ),
 );
 ipcMain.handle(IPC_CHANNELS.senaUpsertCatalog, async (_event, payload: SenaCatalog) => {
+  await snapshotBeforeWorkspaceMutation('sena-upsert-catalog');
   const result = await managedCore.invoke<SenaCatalog>('sena.upsertCatalog', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
@@ -557,6 +639,7 @@ ipcMain.handle(IPC_CHANNELS.senaUpsertCatalog, async (_event, payload: SenaCatal
   return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaObservationInput) => {
+  await snapshotBeforeWorkspaceMutation('sena-ingest-observation');
   const result = await managedCore.invoke<SenaObservationRecord>('sena.ingestObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
@@ -564,6 +647,7 @@ ipcMain.handle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaO
   return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, async (_event, payload: SenaObservationUpdatePayload) => {
+  await snapshotBeforeWorkspaceMutation('sena-update-observation');
   const result = await managedCore.invoke<SenaObservationRecord>('sena.updateObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
@@ -571,12 +655,14 @@ ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, async (_event, payload: SenaO
   return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaDeleteObservation, async (_event, payload: SenaObservationDeletePayload) => {
+  await snapshotBeforeWorkspaceMutation('sena-delete-observation');
   await managedCore.invoke('sena.deleteObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
 });
 ipcMain.handle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) => {
+  await snapshotBeforeWorkspaceMutation('sena-trigger-run');
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
@@ -584,6 +670,7 @@ ipcMain.handle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTrigger
   return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaRetryRun, async (_event, payload: SenaRunLookupPayload) => {
+  await snapshotBeforeWorkspaceMutation('sena-retry-run');
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.retryRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
@@ -646,8 +733,10 @@ ipcMain.handle(IPC_CHANNELS.preferencesGet, async () =>
 );
 ipcMain.handle(
   IPC_CHANNELS.preferencesSave,
-  async (_event, payload: Partial<DesktopPreferences>) =>
-    saveDesktopPreferences(desktopDataPath, payload),
+  async (_event, payload: Partial<DesktopPreferences>) => {
+    await snapshotBeforeWorkspaceMutation('preferences-save');
+    return saveDesktopPreferences(desktopDataPath, payload);
+  },
 );
 
 app.whenReady().then(boot);
