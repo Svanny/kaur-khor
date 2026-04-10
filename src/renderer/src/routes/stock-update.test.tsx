@@ -325,6 +325,12 @@ describe('StockUpdateRoute', () => {
     });
   });
 
+  it('renders observation delete actions with destructive styling', () => {
+    renderRoute();
+
+    expect(screen.getAllByRole('button', { name: 'Delete report' })[0]).toHaveAttribute('data-variant', 'destructive-outline');
+  });
+
   it('requires typed confirmation before deleting an observation card', async () => {
     renderRoute();
 
@@ -332,7 +338,7 @@ describe('StockUpdateRoute', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Type this exactly to permanently delete the report:');
-    fireEvent.change(within(dialog).getByLabelText('Deletion confirmation token'), { target: { value: 'confirm delete report' } });
+    fireEvent.change(within(dialog).getByLabelText('Deletion confirmation token'), { target: { value: 'CONFIRM DELETE REPORT' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete report' }));
 
     await act(async () => {

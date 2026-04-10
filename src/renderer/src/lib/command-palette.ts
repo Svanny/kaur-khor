@@ -58,8 +58,12 @@ export type CommandAction =
         | 'set-show-explanatory-tooltips'
         | 'set-show-floating-title-actions'
         | 'set-show-right-rail-cards'
-        | 'set-smoothing-enabled';
-      value: boolean | 'en' | 'km' | 'USD' | 'KHR' | 'minimal' | 'maximal';
+        | 'set-smoothing-enabled'
+        | 'create-backup-snapshot'
+        | 'restore-backup-snapshot'
+        | 'export-logs'
+        | 'export-planning-data';
+      value: boolean | 'en' | 'km' | 'USD' | 'KHR' | 'minimal' | 'maximal' | 'excel';
     };
 
 export interface CommandDescriptor {
@@ -352,6 +356,18 @@ function buildPageCommands(t: Translator) {
       priority: 17,
       subtitle: `${t('settingsPreferencesControlsTitle')} · ${t('settingsSenaParametersPanelTitle')}`,
       title: t('navSettings'),
+    }),
+    pageCommand({
+      aliases: ['guide', 'docs', 'documentation', 'manual', 'faq'],
+      href: '/help',
+      id: 'page:help',
+      keywords: ['help', 'guide', 'docs', 'documentation', 'manual', 'faq', 'support'],
+      pageId: 'help',
+      pageOrder: 8,
+      pagePrefix: '/help',
+      priority: 18,
+      subtitle: 'User guide, feature explanations, and FAQ',
+      title: t('navHelp'),
     }),
   ];
 }
@@ -832,6 +848,58 @@ function buildSettingsCommands({
       priority: 509,
       subtitle: `${t('navSettings')} / ${t('settingsSenaParametersPanelTitle')}`,
       title: `${smoothingEnabled ? 'Disable' : 'Enable'} smoothing`,
+    }),
+    createCommand({
+      action: { effect: 'create-backup-snapshot', href: '/settings', type: 'settings', value: 'excel' },
+      aliases: ['settings backup snapshot', 'backup workspace'],
+      id: 'settings:workspace:create-backup-snapshot',
+      keywords: ['settings', 'backup', 'snapshot', 'workspace', 'local data'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 510,
+      subtitle: `${t('navSettings')} / ${t('settingsLocalWorkspaceStorageTitle')}`,
+      title: t('settingsBackupSnapshotAction'),
+    }),
+    createCommand({
+      action: { effect: 'restore-backup-snapshot', href: '/settings', type: 'settings', value: 'excel' },
+      aliases: ['settings restore snapshot', 'restore backup'],
+      id: 'settings:workspace:restore-backup-snapshot',
+      keywords: ['settings', 'restore', 'snapshot', 'backup', 'workspace', 'local data'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 511,
+      subtitle: `${t('navSettings')} / ${t('settingsLocalWorkspaceStorageTitle')}`,
+      title: t('settingsRestoreSnapshotAction'),
+    }),
+    createCommand({
+      action: { effect: 'export-logs', href: '/settings', type: 'settings', value: 'excel' },
+      aliases: ['settings export logs', 'export activity logs'],
+      id: 'settings:workspace:export-logs',
+      keywords: ['settings', 'export', 'logs', 'activity', 'workspace', 'local data', 'excel'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 512,
+      subtitle: `${t('navSettings')} / ${t('settingsLocalWorkspaceStorageTitle')}`,
+      title: `${t('settingsExportLogsAction')}: Excel`,
+    }),
+    createCommand({
+      action: { effect: 'export-planning-data', href: '/settings', type: 'settings', value: 'excel' },
+      aliases: ['settings export planning data', 'export sena data'],
+      id: 'settings:workspace:export-planning-data',
+      keywords: ['settings', 'export', 'planning', 'data', 'sena', 'workspace', 'local data', 'excel'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 513,
+      subtitle: `${t('navSettings')} / ${t('settingsLocalWorkspaceStorageTitle')}`,
+      title: `${t('settingsExportSenaDataAction')}: Excel`,
     }),
   ];
 }

@@ -1,7 +1,7 @@
 # Security Policy
 
 ## Scope
-This policy applies to all code and configuration in `/Users/svanny/banji`.
+This policy applies to the Banji local Electron app and all code and configuration in `/Users/svanny/banji`.
 
 ## Reporting
 - Report potential vulnerabilities privately to project maintainers.
@@ -20,8 +20,9 @@ This policy applies to all code and configuration in `/Users/svanny/banji`.
 - Security checks are required before merge:
   - `bash /Users/svanny/banji/tool/security/run_security_checks.sh`
 - No hardcoded credentials, API keys, tokens, or private keys.
-- New user-controlled input paths must use shared validation utilities in `/Users/svanny/banji/lib/security/security_validators.dart`.
+- New user-controlled input paths must use shared validation utilities in the Electron/TypeScript codebase under `/Users/svanny/banji/src`.
 - New externally visible identifiers must use opaque random IDs.
+- Any future remote or sync feature must add explicit transport, authentication, and secret-storage controls before release.
 
 ## Disclosure
 Coordinated disclosure is preferred. Security details are published after a fix or mitigation is available.

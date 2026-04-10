@@ -4,7 +4,10 @@ import {
   ActionAddBadgeIcon,
   ActionClipboardAddIcon,
   ActionCreatePackageIcon,
+  ActionDatabaseDownloadIcon,
+  ActionDatabaseUploadIcon,
   ActionEditIcon,
+  ActionExplosionIcon,
   ActionReceiveInventoryIcon,
   ActionSaveIcon,
   ActionSearchIcon,
@@ -26,9 +29,16 @@ import {
   NavigationTaskListIcon,
   NavigationWorkspacePanelsIcon,
 } from '@icons/navigation';
+import { EntityBackupIcon } from '@icons/entities';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { SearchInput } from '@/components/system/search-input';
+import {
+  createBackupSnapshotAction,
+  exportLogsAction,
+  exportPlanningDataAction,
+  restoreBackupSnapshotAction,
+} from '@/lib/settings-workspace-actions';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import {
@@ -100,6 +110,8 @@ function pageIcon(pageId: string): CommandIconComponent {
       return NavigationArchiveIcon;
     case 'settings':
       return NavigationSettingsIcon;
+    case 'help':
+      return ActionExplosionIcon;
     default:
       return NavigationTaskListIcon;
   }
@@ -120,6 +132,13 @@ function settingsIcon(effect: Extract<CommandDescriptor['action'], { type: 'sett
     case 'set-language':
     case 'set-currency':
       return ActionSaveIcon;
+    case 'create-backup-snapshot':
+      return EntityBackupIcon;
+    case 'restore-backup-snapshot':
+      return ActionDatabaseUploadIcon;
+    case 'export-logs':
+    case 'export-planning-data':
+      return ActionDatabaseDownloadIcon;
     default:
       return NavigationSettingsIcon;
   }
@@ -395,6 +414,22 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
           ...senaEngineParameters,
           smoothingEnabled: command.action.value as boolean,
         });
+        return;
+      }
+      if (command.action.effect === 'create-backup-snapshot') {
+        await createBackupSnapshotAction((key, variables) => t(key as never, variables));
+        return;
+      }
+      if (command.action.effect === 'restore-backup-snapshot') {
+        await restoreBackupSnapshotAction((key, variables) => t(key as never, variables));
+        return;
+      }
+      if (command.action.effect === 'export-logs') {
+        await exportLogsAction('excel', (key, variables) => t(key as never, variables));
+        return;
+      }
+      if (command.action.effect === 'export-planning-data') {
+        await exportPlanningDataAction('excel', (key, variables) => t(key as never, variables));
         return;
       }
     }

@@ -1061,10 +1061,9 @@ function FlagSection({
       {children}
       <Button
         aria-label={removeLabel}
-        className="text-muted-foreground hover:text-destructive"
         size="icon-sm"
         type="button"
-        variant="ghost"
+        variant="destructive-outline"
         onClick={onRemove}
       >
         <ActionDeleteIcon className="size-4" />

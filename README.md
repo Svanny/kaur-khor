@@ -6,6 +6,15 @@ It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app 
 
 [Download latest release](https://github.com/Svanny/banji/releases/latest) · [Browse releases](https://github.com/Svanny/banji/releases) · [Report an issue](https://github.com/Svanny/banji/issues)
 
+## User Guide
+
+Detailed end-user help lives in:
+
+- English: [docs/user-guide.md](docs/user-guide.md)
+- Khmer: [docs/user-guide.km.md](docs/user-guide.km.md)
+
+The guides explain Banji's main workspaces, common workflows, important buttons and controls, glossary terms, and troubleshooting FAQ.
+
 ## Screenshots
 
 | Overview | Record update |
@@ -22,13 +31,13 @@ It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app 
 - A bundled local runtime and local workspace storage inside the app.
 - A workflow centered on catalog management, update logging, operational follow-up, and analysis.
 - A product that is opinionated about Banji's current inventory model rather than a blank-slate platform.
-- A repository where the README is for users first and the development notes live lower down.
+- A repository where the README is the top-level overview and the deeper developer docs live in `docs/`.
 
 ## What's Included
 
 - Catalog management for SKUs and services.
 - A guided record-update flow for stock counts, service updates, ordering signals, delivery timing, and notes.
-- Overview and operations surfaces that turn updates into concrete follow-up tasks.
+- Overview and performance surfaces that turn updates into concrete follow-up tasks.
 - Analysis views that explain what the current inventory picture seems to be and why.
 - Local settings for language and currency, including English and Khmer plus USD and KHR support.
 
@@ -54,6 +63,16 @@ Releases are published through GitHub Releases:
 - Linux: x64 AppImage and `.deb`
 
 Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts.
+
+### Running Unsigned Builds On macOS
+
+If macOS blocks Banji because the app is unsigned:
+
+1. Try opening the app with `Control` + click, then choose `Open`.
+2. If macOS still blocks it, go to `System Settings` -> `Privacy & Security`, find the Banji warning near the bottom, and click `Open Anyway`.
+3. Re-open the app and confirm the final prompt.
+
+This allows Banji to run without disabling Gatekeeper globally.
 
 ## Development
 
@@ -85,6 +104,21 @@ pnpm dev
 pnpm test
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 ```
+
+### Repo Shape
+
+The current local app is organized around these paths:
+
+- `src/main`: Electron main process, app boot, IPC handlers, local data paths, backup and restore behavior
+- `src/preload`: preload bridge that exposes `window.banjiDesktop`
+- `src/renderer`: React routes, settings flows, workspace UI, and command palette behavior
+- `src/shared`: shared IPC contracts and TypeScript types
+- `apps/desktop-core`: Rust desktop runtime used for local persistence and core workflows
+- `apps/sena-core`: Rust SENA analysis engine
+- `tool/security`: desktop security gate scripts
+- `tool/sync_design_tokens.sh`: design-token sync helper
+
+For contributor-oriented documentation, see [docs/README.md](docs/README.md).
 
 ### Packaging
 

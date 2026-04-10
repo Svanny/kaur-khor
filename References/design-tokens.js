@@ -70,5 +70,5 @@ window.APP_THEME_TOKENS = {
   font: {
     "family": "'Noto Sans Oriya', 'Helvetica Neue', 'Noto Sans Khmer', 'Segoe UI', sans-serif"
   },
-  generatedAt: "2026-03-28T09:46:01Z"
+  generatedAt: "2026-04-10T05:42:20Z"
 };

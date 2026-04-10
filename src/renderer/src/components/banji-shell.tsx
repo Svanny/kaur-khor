@@ -13,7 +13,7 @@ import {
   NavigationTaskListIcon,
   NavigationPerformanceIcon,
 } from '@icons/navigation';
-import { StatusLoadingIcon } from '@icons/status';
+import { StatusHelpBadgeIcon, StatusLoadingIcon } from '@icons/status';
 import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,8 +43,8 @@ import brandLogo from '@/assets/banji-logo.svg';
 type ShellSectionConfig = {
   destination: string;
   icon: IconComponent;
-  id: 'overview' | 'recordUpdate' | 'performance' | 'analysis' | 'catalog' | 'operations' | 'archive' | 'settings';
-  labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navArchive' | 'navSettings';
+  id: 'overview' | 'recordUpdate' | 'performance' | 'analysis' | 'catalog' | 'operations' | 'archive' | 'help' | 'settings';
+  labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navArchive' | 'navHelp' | 'navSettings';
   matches: (pathname: string) => boolean;
 };
 
@@ -133,6 +133,14 @@ const SETTINGS_SECTION: ShellSectionConfig = {
   labelKey: 'navSettings',
   icon: NavigationSettingsIcon,
   matches: (pathname) => matchesSection(pathname, '/settings'),
+};
+
+const HELP_SECTION: ShellSectionConfig = {
+  id: 'help',
+  destination: '/help',
+  labelKey: 'navHelp',
+  icon: StatusHelpBadgeIcon,
+  matches: (pathname) => matchesSection(pathname, '/help'),
 };
 
 function SidebarSectionMenu({
@@ -363,6 +371,25 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   >
                     <ViewModeIcon className="size-4 shrink-0" />
                     {showSidebarText ? <span className="min-w-0 truncate text-left">{viewModeLabel}</span> : null}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    className="justify-start group-data-[collapsible=icon]:justify-center"
+                    isActive={HELP_SECTION.matches(location.pathname)}
+                    tooltip={t(HELP_SECTION.labelKey)}
+                  >
+                    <NavLink
+                      aria-label={t(HELP_SECTION.labelKey)}
+                      className="group-data-[collapsible=icon]:justify-center"
+                      state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+                      to={HELP_SECTION.destination}
+                      onClick={handleSidebarNavigation}
+                    >
+                      <HELP_SECTION.icon className="size-4" />
+                      {showSidebarText ? <span>{t(HELP_SECTION.labelKey)}</span> : null}
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>

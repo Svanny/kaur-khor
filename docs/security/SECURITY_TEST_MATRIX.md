@@ -1,5 +1,7 @@
 # Security Test Matrix
 
+Developer docs entrypoint: [Banji developer docs](/Users/svanny/banji/docs/README.md)
+
 ## Unit Tests
 
 ### `/Users/svanny/banji/src/renderer/src/lib/validation.test.ts`
@@ -38,4 +40,4 @@ Policy: any finding fails the run.
 Secret-pattern gate includes:
 - detection of credential-bearing URLs (`scheme://user:pass@host`) in tracked files
 - detection of token-like assignments for sensitive key names
-- enforcement that tracked env templates use approved placeholders for secret-valued keys
+- enforcement that tracked templates use approved placeholders for any future secret-valued keys

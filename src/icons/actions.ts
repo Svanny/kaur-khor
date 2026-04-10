@@ -1,4 +1,9 @@
 export {
+  DatabaseDownloadIcon as ActionDatabaseDownloadIcon,
+  DatabaseUploadIcon as ActionDatabaseUploadIcon,
+  ExplosionIcon as ActionExplosionIcon,
+} from './custom';
+export {
   ArchiveRestore as ActionArchiveRestoreIcon,
   ArrowUpRight as ActionOpenExternalIcon,
   BadgePlus as ActionAddBadgeIcon,

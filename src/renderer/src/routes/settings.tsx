@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  ActionExportIcon,
+  ActionDatabaseDownloadIcon,
+  ActionDatabaseUploadIcon,
+  ActionExplosionIcon,
   ActionOpenFolderIcon,
   ActionSaveIcon,
   ActionUndoIcon,
@@ -18,16 +20,24 @@ import {
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeSenaEngineParameters,
   senaEngineParametersEqual,
+  type DesktopClearCurrentDataResult,
   type DesktopLocalDataInfo,
   type SenaEngineParameters,
 } from '@shared/ipc';
 import { CheckboxRow } from '@/components/system/checkbox-row';
 import { HelpTooltip } from '@/components/system/help-tooltip';
+import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
+import {
+  createBackupSnapshotAction,
+  exportLogsAction,
+  exportPlanningDataAction,
+  restoreBackupSnapshotAction,
+  type SettingsExportFormat,
+} from '@/lib/settings-workspace-actions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
-import { createWorkbook } from '@/lib/xlsx';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
 import type { TranslationKey } from '@/lib/translations';
@@ -45,12 +55,13 @@ const exportSelectTriggerClassName =
   'h-11 w-11 rounded-l-none rounded-r-2xl border border-l-0 border-border/70 bg-background/80 px-0 text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground data-[size=default]:h-11 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:mx-auto [&_svg]:opacity-100';
 const exportActionButtonClassName =
   'h-11 rounded-l-2xl rounded-r-none border-border/70 bg-background/80 text-foreground shadow-xs';
+const CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN = 'DELETE CURRENT DATA';
 
-const EXPORT_FORMAT_OPTIONS = [
+const EXPORT_FORMAT_OPTIONS: Array<{ value: SettingsExportFormat; label: string }> = [
   { value: 'excel', label: 'Excel' },
   { value: 'csv', label: 'CSV' },
   { value: 'json', label: 'JSON' },
-] as const;
+];
 
 const SENA_ENGINE_PARAMETER_FIELD_META = [
   {
@@ -119,7 +130,7 @@ const SENA_ENGINE_PARAMETER_FIELD_META = [
 ] as const;
 
 type SenaEngineNumberField = (typeof SENA_ENGINE_PARAMETER_FIELD_META)[number]['key'];
-type ExportFormat = (typeof EXPORT_FORMAT_OPTIONS)[number]['value'];
+type ExportFormat = SettingsExportFormat;
 type SenaEngineNumberDrafts = Record<SenaEngineNumberField, string>;
 type SenaEngineNumberErrors = Partial<Record<SenaEngineNumberField, string>>;
 type TranslateFn = ReturnType<typeof usePreferences>['t'];
@@ -135,105 +146,6 @@ function buildSenaEngineParameterFields(t: TranslateFn) {
 
 function exportFormatLabel(value: ExportFormat) {
   return EXPORT_FORMAT_OPTIONS.find((option) => option.value === value)?.label ?? 'CSV';
-}
-
-function exportFileExtension(format: ExportFormat) {
-  return format === 'excel' ? 'xlsx' : format;
-}
-
-function exportMimeType(format: ExportFormat) {
-  if (format === 'json') {
-    return 'application/json;charset=utf-8';
-  }
-  if (format === 'excel') {
-    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  }
-  return 'text/csv;charset=utf-8';
-}
-
-function formatExportTimestamp() {
-  return new Date().toISOString().replace(/[:.]/g, '-');
-}
-
-function downloadFile(filename: string, content: BlobPart, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function serializeCell(value: unknown) {
-  if (value == null) {
-    return '';
-  }
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  return JSON.stringify(value);
-}
-
-function toCsv(rows: Array<Record<string, unknown>>) {
-  if (rows.length === 0) {
-    return '';
-  }
-  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
-  const escapeCsvCell = (value: unknown) => {
-    const text = serializeCell(value);
-    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  };
-  return [
-    headers.join(','),
-    ...rows.map((row) => headers.map((header) => escapeCsvCell(row[header])).join(',')),
-  ].join('\n');
-}
-
-function toCsvSection(title: string, rows: Array<Record<string, unknown>>) {
-  return [`"${title.replace(/"/g, '""')}"`, toCsv(rows)].filter(Boolean).join('\n');
-}
-
-function observationLogRows(observations: Awaited<ReturnType<typeof window.banjiDesktop.sena.listObservations>>) {
-  return observations.map((observation) => ({
-    observationId: observation.observationId,
-    ownerSub: observation.ownerSub,
-    observedAt: observation.input.observedAt,
-    stockSnapshotCount: observation.input.stockSnapshot.length,
-    serviceRankingCount: observation.input.serviceRankings.length,
-    retailRankingCount: observation.input.retailRankings.length,
-    serviceStockoutCount: observation.input.serviceStockouts.length,
-    retailStockoutCount: observation.input.retailStockouts.length,
-    orderSignalCount: observation.input.orderSignals.length,
-    servicePriceCount: observation.input.servicePrices.length,
-    retailPriceCount: observation.input.retailPrices.length,
-    leadTimeHintCount: observation.input.leadTimeHints.length,
-    adjustmentSignalCount: observation.input.adjustmentSignals?.length ?? 0,
-    recipeUsageHintCount: observation.input.recipeUsageHints?.length ?? 0,
-    regimeHint: observation.input.regimeHint ?? '',
-    notes: observation.input.notes ?? '',
-    payload: observation.input,
-  }));
-}
-
-function summaryRows(summary: Awaited<ReturnType<typeof window.banjiDesktop.sena.getWorkspaceSummary>>) {
-  return summary ? [summary] : [];
-}
-
-function skuSummaryRows(summary: Awaited<ReturnType<typeof window.banjiDesktop.sena.getWorkspaceSummary>>) {
-  return summary?.skuSummaries ?? [];
-}
-
-function diagnosticsRows(diagnostics: Awaited<ReturnType<typeof window.banjiDesktop.sena.getDiagnostics>>) {
-  return diagnostics ? [diagnostics] : [];
-}
-
-function runRows(run: Awaited<ReturnType<typeof window.banjiDesktop.sena.getRunStatus>>) {
-  return run ? [run] : [];
-}
-
-function toRecordRows<T extends object>(rows: T[]) {
-  return rows as Array<Record<string, unknown>>;
 }
 
 function ParameterLabel({
@@ -470,6 +382,12 @@ export function SettingsRoute() {
   const [logExportFormat, setLogExportFormat] = useState<ExportFormat>('excel');
   const [senaExportFormat, setSenaExportFormat] = useState<ExportFormat>('excel');
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
+  const [backupInFlight, setBackupInFlight] = useState(false);
+  const [restoreInFlight, setRestoreInFlight] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [clearConfirmValue, setClearConfirmValue] = useState('');
+  const [clearInFlight, setClearInFlight] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
   const [exchangeRateDraft, setExchangeRateDraft] = useState(() => String(usdToKhrExchangeRate));
   const [senaEngineNumberDrafts, setSenaEngineNumberDrafts] = useState<SenaEngineNumberDrafts>(() =>
@@ -591,73 +509,86 @@ export function SettingsRoute() {
   }
 
   async function handleExportLogs(format: ExportFormat) {
-    try {
-      const observations = await window.banjiDesktop.sena.listObservations();
-      const rows = observationLogRows(observations);
-      const filename = `banji-logs-${formatExportTimestamp()}.${exportFileExtension(format)}`;
-      const content =
-        format === 'json'
-          ? JSON.stringify({ exportedAt: new Date().toISOString(), observations }, null, 2)
-          : format === 'excel'
-            ? createWorkbook([{ name: 'Logs', rows }])
-            : toCsv(rows);
-      downloadFile(filename, content, exportMimeType(format));
-      setExportStatus(t('settingsLogsExported', { format: exportFormatLabel(format) }));
-    } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : t('settingsLogsExportFailed'));
-    }
+    setExportStatus(await exportLogsAction(format, t));
   }
 
   async function handleExportSenaData(format: ExportFormat) {
+    setExportStatus(await exportPlanningDataAction(format, t));
+  }
+
+  async function handleCreateBackupSnapshot() {
     try {
-      const [catalog, observations, workspaceSummary, diagnostics] = await Promise.all([
-        window.banjiDesktop.sena.getCatalog(),
-        window.banjiDesktop.sena.listObservations(),
-        window.banjiDesktop.sena.getWorkspaceSummary(),
-        window.banjiDesktop.sena.getDiagnostics(),
-      ]);
-      const latestRun = workspaceSummary?.runId
-        ? await window.banjiDesktop.sena.getRunStatus({ runId: workspaceSummary.runId })
-        : null;
-      const filename = `banji-sena-data-${formatExportTimestamp()}.${exportFileExtension(format)}`;
-      const sections = [
-        ['Catalog SKUs', toRecordRows(catalog?.skus ?? [])],
-        ['Catalog services', toRecordRows(catalog?.services ?? [])],
-        ['Catalog bundles', toRecordRows(catalog?.bundles ?? [])],
-        ['Catalog sharing mask', toRecordRows(catalog?.sharingMask ?? [])],
-        ['Observation logs', observationLogRows(observations)],
-        ['Workspace summary', toRecordRows(summaryRows(workspaceSummary))],
-        ['SKU summaries', toRecordRows(skuSummaryRows(workspaceSummary))],
-        ['Diagnostics', toRecordRows(diagnosticsRows(diagnostics))],
-        ['Latest run', toRecordRows(runRows(latestRun))],
-      ] as const;
-      const content =
-        format === 'json'
-          ? JSON.stringify(
-            {
-              exportedAt: new Date().toISOString(),
-              catalog,
-              observations,
-              workspaceSummary,
-              diagnostics,
-              latestRun,
-            },
-            null,
-            2,
-          )
-          : format === 'excel'
-            ? createWorkbook(sections.map(([title, rows]) => ({ name: title, rows })))
-            : sections.map(([title, rows]) => toCsvSection(title, rows)).join('\n\n');
-      downloadFile(filename, content, exportMimeType(format));
-      setExportStatus(t('settingsParameterRunStatusExported', { format: exportFormatLabel(format) }));
+      setBackupInFlight(true);
+      setBackupStatus(await createBackupSnapshotAction(t));
     } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : t('settingsParameterRunStatusFailed'));
+      setBackupStatus(error instanceof Error ? error.message : t('settingsBackupSnapshotFailed'));
+    } finally {
+      setBackupInFlight(false);
+    }
+  }
+
+  async function handleRestoreSnapshot() {
+    try {
+      setRestoreInFlight(true);
+      setBackupStatus(await restoreBackupSnapshotAction(t));
+    } catch (error) {
+      setBackupStatus(error instanceof Error ? error.message : t('settingsRestoreSnapshotFailed'));
+    } finally {
+      setRestoreInFlight(false);
+    }
+  }
+
+  function formatClearCurrentDataStatus(result: DesktopClearCurrentDataResult) {
+    return t('settingsClearCurrentDataCompleted', {
+      path: result.safetySnapshot.snapshotPath,
+    });
+  }
+
+  async function handleConfirmClearCurrentData() {
+    try {
+      setClearInFlight(true);
+      const result = await window.banjiDesktop.system.clearCurrentData();
+      setBackupStatus(formatClearCurrentDataStatus(result));
+      setClearConfirmOpen(false);
+      setClearConfirmValue('');
+      window.location.reload();
+    } catch (error) {
+      setBackupStatus(error instanceof Error ? error.message : t('settingsClearCurrentDataFailed'));
+    } finally {
+      setClearInFlight(false);
     }
   }
 
   return (
     <WorkspacePage>
       {discardConfirmDialog}
+      <TypedConfirmDialog
+        cancelLabel={t('settingsClearCurrentDataCancel')}
+        confirmLabel={t('settingsClearCurrentDataAction')}
+        confirmationToken={CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN}
+        description={(
+          <>
+            <p>{t('settingsClearCurrentDataDescription')}</p>
+            <p className="mt-2 font-mono text-xs text-foreground">{CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN}</p>
+          </>
+        )}
+        isConfirmDisabled={
+          clearConfirmValue.trim() !== CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN || clearInFlight
+        }
+        isSubmitting={clearInFlight}
+        open={clearConfirmOpen}
+        title={t('settingsClearCurrentDataTitle')}
+        value={clearConfirmValue}
+        onCancel={() => {
+          if (clearInFlight) {
+            return;
+          }
+          setClearConfirmOpen(false);
+          setClearConfirmValue('');
+        }}
+        onConfirm={() => void handleConfirmClearCurrentData()}
+        onValueChange={setClearConfirmValue}
+      />
       <WorkspaceTitleCard
         eyebrow={t('settingsTitle')}
         title={t('settingsDesktopPreferencesTitle')}
@@ -910,10 +841,32 @@ export function SettingsRoute() {
               label={t('settingsPreferencesFileLabel')}
               path={localDataInfo.preferencesPath}
             />
+            <LocalDataLocationLink
+              label={t('settingsBackupDirectoryLabel')}
+              path={localDataInfo.backupDirectoryPath}
+            />
             <WorkspaceActionRow>
+              <Button
+                disabled={backupInFlight}
+                type="button"
+                variant="outline"
+                onClick={() => void handleCreateBackupSnapshot()}
+              >
+                <EntityBackupIcon data-icon="inline-start" />
+                {backupInFlight ? t('settingsBackupSnapshotCreating') : t('settingsBackupSnapshotAction')}
+              </Button>
+              <Button
+                disabled={restoreInFlight}
+                type="button"
+                variant="outline"
+                onClick={() => void handleRestoreSnapshot()}
+              >
+                <ActionDatabaseUploadIcon data-icon="inline-start" />
+                {restoreInFlight ? t('settingsRestoreSnapshotRestoring') : t('settingsRestoreSnapshotAction')}
+              </Button>
               <ExportFormatSelect
                 ariaLabel="Export logs format"
-                icon={<ActionExportIcon className="size-4" />}
+                icon={<ActionDatabaseDownloadIcon className="size-4" />}
                 label={t('settingsExportLogsAction')}
                 onExport={() => void handleExportLogs(logExportFormat)}
                 value={logExportFormat}
@@ -921,13 +874,14 @@ export function SettingsRoute() {
               />
               <ExportFormatSelect
                 ariaLabel={t('settingsSenaDataExportFormatLabel')}
-                icon={<EntityBackupIcon className="size-4" />}
+                icon={<ActionDatabaseDownloadIcon className="size-4" />}
                 label={t('settingsExportSenaDataAction')}
                 onExport={() => void handleExportSenaData(senaExportFormat)}
                 value={senaExportFormat}
                 onValueChange={setSenaExportFormat}
               />
             </WorkspaceActionRow>
+            {backupStatus ? <p className="text-sm text-muted-foreground">{backupStatus}</p> : null}
             {exportStatus ? <p className="text-sm text-muted-foreground">{exportStatus}</p> : null}
           </div>
         ) : (
@@ -962,6 +916,23 @@ export function SettingsRoute() {
             <span>{t('settingsMadeBy')}</span>
           </p>
         ) : null}
+      </WorkspacePanel>
+
+      <WorkspacePanel
+        title={t('settingsDangerZoneTitle')}
+        descriptor={t('settingsDangerZoneDescription')}
+        className="border-destructive/30 !bg-gradient-to-br !from-rose-100 !via-red-50 !to-rose-100/70"
+      >
+        <WorkspaceActionRow>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => setClearConfirmOpen(true)}
+          >
+            <ActionExplosionIcon data-icon="inline-start" />
+            {t('settingsClearCurrentDataAction')}
+          </Button>
+        </WorkspaceActionRow>
       </WorkspacePanel>
     </WorkspacePage>
   );

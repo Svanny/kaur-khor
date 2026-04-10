@@ -1,10 +1,12 @@
 # Threat Model
 
+Developer docs entrypoint: [Banji developer docs](/Users/svanny/banji/docs/README.md)
+
 ## Assets
 
 - Inventory, service, ranking, and stock-report data.
 - Desktop runtime integrity.
-- Future auth/session tokens and local secrets.
+- Local preferences, backup snapshots, and any future local secrets.
 
 ## Trust Boundaries
 
@@ -29,4 +31,4 @@
 ## Residual Risks
 
 - Packaging, signing, and notarization are out of scope for the current local desktop workflow.
-- Future networked auth/storage features will require additional transport and token-storage controls.
+- Any future sync or remote-service features will require additional transport, authentication, and secret-storage controls.

@@ -1,8 +1,10 @@
 # Banji Security Standards (Electron + OWASP ASVS)
 
+Developer docs entrypoint: [Banji developer docs](/Users/svanny/banji/docs/README.md)
+
 ## Purpose
 
-This document defines the mandatory secure-by-default controls for the Banji desktop app.
+This document defines the mandatory secure-by-default controls for the Banji local Electron app.
 
 ## Mandatory Controls
 
@@ -37,12 +39,12 @@ This document defines the mandatory secure-by-default controls for the Banji des
 - Preload must expose a narrow `contextBridge` API instead of direct Node access in the renderer.
 - Renderer HTML must not load remote scripts.
 
-### 5) Future-Ready Controls for API/Auth/Storage
+### 5) Local Data and Future Extension Controls
 
-- Enforce TLS for any non-local backend transport.
-- Use short-lived session tokens and explicit expiration handling.
-- Store secrets only in OS-backed secure storage when secrets are introduced.
-- Apply request/response schema validation at network boundaries.
+- Store any future secrets only in OS-backed secure storage.
+- Keep local backup/export behavior explicit and user-triggered.
+- Validate any future IPC or network boundary with explicit request/response schemas.
+- Treat remote content, sync, and remote code execution as opt-in additions, not default app behavior.
 
 ## Enforcement
 

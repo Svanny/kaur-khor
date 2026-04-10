@@ -19,15 +19,21 @@ describe('SettingsRoute', () => {
   const getPreferences = vi.fn();
   const savePreferences = vi.fn();
   const getLocalDataInfo = vi.fn();
+  const createBackupSnapshot = vi.fn();
+  const restoreBackupSnapshot = vi.fn();
   const revealPath = vi.fn();
   const triggerRun = vi.fn();
+  const reloadLocation = vi.fn();
 
   beforeEach(() => {
     getPreferences.mockReset();
     savePreferences.mockReset();
     getLocalDataInfo.mockReset();
+    createBackupSnapshot.mockReset();
+    restoreBackupSnapshot.mockReset();
     revealPath.mockReset();
     triggerRun.mockReset();
+    reloadLocation.mockReset();
     getPreferences.mockResolvedValue({
       language: 'en',
       currency: 'USD',
@@ -51,7 +57,30 @@ describe('SettingsRoute', () => {
       dataDirectoryPath: '/tmp/banji',
       workspaceStorePath: '/tmp/banji/workspace.sqlite',
       preferencesPath: '/tmp/banji/desktop-preferences.json',
+      backupDirectoryPath: '/tmp/banji/backup-snapshots',
       storageFormat: 'sqlite',
+    });
+    createBackupSnapshot.mockResolvedValue({
+      createdAt: '2026-04-10T10:00:00.000Z',
+      fileCount: 3,
+      snapshotPath: '/tmp/banji/backup-snapshots/manual-snapshot',
+      trigger: 'manual',
+    });
+    restoreBackupSnapshot.mockResolvedValue({
+      restoredSnapshotPath: '/tmp/banji/backup-snapshots/manual-snapshot',
+      safetySnapshot: {
+        createdAt: '2026-04-10T10:05:00.000Z',
+        fileCount: 3,
+        snapshotPath: '/tmp/banji/backup-snapshots/before-restore',
+        trigger: 'manual',
+      },
+    });
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...window.location,
+        reload: reloadLocation,
+      },
     });
 
     window.banjiDesktop = {
@@ -67,6 +96,8 @@ describe('SettingsRoute', () => {
       system: {
         ...(window.banjiDesktop?.system ?? {}),
         getLocalDataInfo,
+        createBackupSnapshot,
+        restoreBackupSnapshot,
         revealPath,
       },
     };
@@ -299,10 +330,50 @@ describe('SettingsRoute', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^\/tmp\/banji$/i }));
     fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/workspace\.sqlite$/i }));
     fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/desktop-preferences\.json$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/backup-snapshots$/i }));
 
     expect(revealPath).toHaveBeenNthCalledWith(1, '/tmp/banji');
     expect(revealPath).toHaveBeenNthCalledWith(2, '/tmp/banji/workspace.sqlite');
     expect(revealPath).toHaveBeenNthCalledWith(3, '/tmp/banji/desktop-preferences.json');
+    expect(revealPath).toHaveBeenNthCalledWith(4, '/tmp/banji/backup-snapshots');
+  });
+
+  it('creates a manual backup snapshot from local workspace data settings', async () => {
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /create backup snapshot/i }));
+
+    await waitFor(() => {
+      expect(createBackupSnapshot).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      await screen.findByText(
+        'Created a local backup snapshot at /tmp/banji/backup-snapshots/manual-snapshot.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('restores a saved snapshot from local workspace data settings', async () => {
+    render(
+      <MemoryRouter>
+        <PreferencesProvider>
+          <SettingsRoute />
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /restore saved snapshot/i }));
+
+    await waitFor(() => {
+      expect(restoreBackupSnapshot).toHaveBeenCalledTimes(1);
+    });
+    expect(reloadLocation).toHaveBeenCalledTimes(1);
   });
 
   it('keeps SENA number fields directly editable while typing partial numeric values', async () => {

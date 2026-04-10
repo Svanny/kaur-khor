@@ -47,6 +47,7 @@ describe('BanjiShell', () => {
           navCatalog: 'Catalog',
           navOperations: 'Logs',
           navArchive: 'Archive',
+          navHelp: 'Help',
           sidebarSectionMain: 'Main',
           sidebarSectionOther: 'Other',
           navSettings: 'Settings',
@@ -76,6 +77,7 @@ describe('BanjiShell', () => {
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Catalog screen</div>} path="/catalog" />
+            <Route element={<div>Help screen</div>} path="/help" />
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
         </BanjiShell>
@@ -119,6 +121,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
     expect(screen.getByText('Main')).toBeInTheDocument();
     expect(screen.getByText('Other')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'SIST' })).not.toBeInTheDocument();
@@ -157,6 +160,7 @@ describe('BanjiShell', () => {
           navCatalog: 'Catalog',
           navOperations: 'Logs',
           navArchive: 'Archive',
+          navHelp: 'Help',
           sidebarSectionMain: 'Main',
           sidebarSectionOther: 'Other',
           navSettings: 'Settings',
@@ -201,6 +205,7 @@ describe('BanjiShell', () => {
           navCatalog: 'កាតាឡុក',
           navOperations: 'កំណត់ហេតុ',
           navArchive: 'បណ្ណសារ',
+          navHelp: 'ជំនួយ',
           sidebarSectionMain: 'មេ',
           sidebarSectionOther: 'ផ្សេងទៀត',
           navSettings: 'ការកំណត់',

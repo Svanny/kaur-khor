@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
+import { ActionCreatePackageIcon, ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
 import {
   EntityComparisonIcon,
   EntityLayersIcon,
@@ -401,7 +401,10 @@ export function PerformanceRoute() {
           hint={t('performanceRouteEmptyCatalogHint')}
           action={
               <Button asChild>
-                <Link to="/catalog/skus/new">{translateUiLiteral(language, 'Create first SKU')}</Link>
+                <Link to="/catalog/skus/new">
+                  <ActionCreatePackageIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Create first SKU')}
+                </Link>
               </Button>
           }
         />
