@@ -15,6 +15,18 @@ function firstSavePreferencesButton() {
   ) as HTMLButtonElement;
 }
 
+function renderSettingsRoute(initialEntry = '/settings/workspace') {
+  render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <PreferencesProvider>
+        <Routes>
+          <Route element={<SettingsRoute />} path="/settings/*" />
+        </Routes>
+      </PreferencesProvider>
+    </MemoryRouter>,
+  );
+}
+
 describe('SettingsRoute', () => {
   const getPreferences = vi.fn();
   const savePreferences = vi.fn();
@@ -40,18 +52,50 @@ describe('SettingsRoute', () => {
       language: 'en',
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
     });
     savePreferences.mockResolvedValue({
       language: 'en',
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
       showExplanatoryTooltips: false,
       showFloatingTitleActions: false,
       showRightRailCards: false,
+      showOverviewTaskTabs: false,
+      showAnalysisPage: false,
+      showPerformanceCompareToggle: false,
+      showPerformanceTimelineCard: false,
+      showLogsViewToggle: false,
+      showHeartbeatRibbons: false,
+      customShowExplanatoryTooltips: false,
+      customShowFloatingTitleActions: false,
+      customShowRightRailCards: false,
+      customShowOverviewTaskTabs: false,
+      customShowAnalysisPage: false,
+      customShowPerformanceCompareToggle: false,
+      customShowPerformanceTimelineCard: false,
+      customShowLogsViewToggle: false,
+      customShowHeartbeatRibbons: false,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
     });
     triggerRun.mockResolvedValue({ runId: 'run-parameters' });
@@ -115,16 +159,10 @@ describe('SettingsRoute', () => {
   });
 
   it('renders and saves the optional help preference', async () => {
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/interface');
 
-    expect(await screen.findByText('Settings')).toBeInTheDocument();
-    expect(screen.getByText('Desktop preferences')).toBeInTheDocument();
+    expect(await screen.findAllByText('Interface')).not.toHaveLength(0);
+    expect(screen.getAllByText('These switches control how much guidance and side context the desktop shows.')).not.toHaveLength(0);
 
     const checkbox = await screen.findByRole('checkbox', { name: /show extra guidance/i });
     expect(checkbox).toBeChecked();
@@ -140,6 +178,7 @@ describe('SettingsRoute', () => {
         showExplanatoryTooltips: false,
         showFloatingTitleActions: true,
         showRightRailCards: true,
+        showOverviewTaskTabs: true,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
       }));
     });
@@ -150,19 +189,29 @@ describe('SettingsRoute', () => {
       language: payload.language ?? 'en',
       currency: payload.currency ?? 'USD',
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
+      displayViewMode: payload.displayViewMode ?? 'custom',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
     }));
 
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute();
 
     const [languageSelect, currencySelect] = await screen.findAllByRole('combobox');
     expect(languageSelect).toHaveTextContent('abc');
@@ -184,6 +233,7 @@ describe('SettingsRoute', () => {
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: true,
+        showOverviewTaskTabs: true,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
       }));
     });
@@ -194,18 +244,28 @@ describe('SettingsRoute', () => {
       language: 'en',
       currency: payload.currency ?? 'USD',
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
+      displayViewMode: payload.displayViewMode ?? 'custom',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
     }));
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute();
 
     const exchangeRateInput = await screen.findByLabelText(/exchange rate for 1 usd in khr/i);
     expect(exchangeRateInput).toHaveDisplayValue('4000');
@@ -225,13 +285,7 @@ describe('SettingsRoute', () => {
   });
 
   it('renders and saves the right rail visibility preference', async () => {
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/interface');
 
     const checkbox = await screen.findByRole('checkbox', { name: /show right rail cards/i });
     expect(checkbox).toBeChecked();
@@ -247,50 +301,265 @@ describe('SettingsRoute', () => {
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: false,
+        showOverviewTaskTabs: true,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
       }));
     });
   });
 
-  it('places editable SENA engine parameters before local workspace storage and reruns on save', async () => {
+  it('renders and saves the overview task tabs preference', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show overview task tabs/i });
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showExplanatoryTooltips: true,
+        showFloatingTitleActions: true,
+        showRightRailCards: true,
+        showOverviewTaskTabs: false,
+      }));
+    });
+  });
+
+  it('renders and saves the analysis page visibility preference', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show analysis page/i });
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showAnalysisPage: false,
+      }));
+    });
+  });
+
+  it('renders and saves the performance compare toggle preference', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show performance compare toggle/i });
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showPerformanceCompareToggle: false,
+      }));
+    });
+  });
+
+  it('renders and saves the business timeline card preference', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show business timeline card/i });
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showPerformanceTimelineCard: false,
+      }));
+    });
+  });
+
+  it('renders and saves the logs view button preference', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show logs view button/i });
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showLogsViewToggle: false,
+      }));
+    });
+  });
+
+  it('renders and saves the heartbeat and ribbons preference', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show heartbeats and ribbons/i });
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showHeartbeatRibbons: false,
+      }));
+    });
+  });
+
+  it('switches between compact and custom view modes from interface visibility', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const compactButton = (await screen.findByText('Compact View')).closest('button') as HTMLButtonElement;
+    const customButton = screen.getByText('Custom View').closest('button') as HTMLButtonElement;
+    const extraGuidanceCheckbox = screen.getByRole('checkbox', { name: /show extra guidance/i });
+
+    expect(extraGuidanceCheckbox).not.toBeDisabled();
+
+    fireEvent.click(compactButton);
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        displayViewMode: 'compact',
+        showExplanatoryTooltips: false,
+        showFloatingTitleActions: false,
+        showRightRailCards: false,
+        showOverviewTaskTabs: false,
+        showAnalysisPage: false,
+        showPerformanceCompareToggle: false,
+        showPerformanceTimelineCard: false,
+        showLogsViewToggle: false,
+        showHeartbeatRibbons: false,
+        customShowExplanatoryTooltips: true,
+        customShowFloatingTitleActions: true,
+        customShowRightRailCards: true,
+        customShowOverviewTaskTabs: true,
+        customShowAnalysisPage: true,
+        customShowPerformanceCompareToggle: true,
+        customShowPerformanceTimelineCard: true,
+        customShowLogsViewToggle: true,
+        customShowHeartbeatRibbons: true,
+      }));
+    });
+    expect(customButton).toBeInTheDocument();
+  });
+
+  it('restores remembered custom visibility preferences when switching back from compact', async () => {
+    getPreferences.mockResolvedValue({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'compact',
+      showExplanatoryTooltips: false,
+      showFloatingTitleActions: false,
+      showRightRailCards: false,
+      showOverviewTaskTabs: false,
+      showAnalysisPage: false,
+      showPerformanceCompareToggle: false,
+      showPerformanceTimelineCard: false,
+      showLogsViewToggle: false,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: false,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: false,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: false,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: false,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+    });
+    savePreferences.mockImplementation(async (payload) => ({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: payload.displayViewMode ?? 'custom',
+      showExplanatoryTooltips: payload.showExplanatoryTooltips ?? false,
+      showFloatingTitleActions: payload.showFloatingTitleActions ?? false,
+      showRightRailCards: payload.showRightRailCards ?? false,
+      showOverviewTaskTabs: payload.showOverviewTaskTabs ?? false,
+      showAnalysisPage: payload.showAnalysisPage ?? false,
+      showPerformanceCompareToggle: payload.showPerformanceCompareToggle ?? false,
+      showPerformanceTimelineCard: payload.showPerformanceTimelineCard ?? false,
+      showLogsViewToggle: payload.showLogsViewToggle ?? false,
+      showHeartbeatRibbons: payload.showHeartbeatRibbons ?? false,
+      customShowExplanatoryTooltips: payload.customShowExplanatoryTooltips ?? true,
+      customShowFloatingTitleActions: payload.customShowFloatingTitleActions ?? false,
+      customShowRightRailCards: payload.customShowRightRailCards ?? true,
+      customShowOverviewTaskTabs: payload.customShowOverviewTaskTabs ?? false,
+      customShowAnalysisPage: payload.customShowAnalysisPage ?? true,
+      customShowPerformanceCompareToggle: payload.customShowPerformanceCompareToggle ?? true,
+      customShowPerformanceTimelineCard: payload.customShowPerformanceTimelineCard ?? false,
+      customShowLogsViewToggle: payload.customShowLogsViewToggle ?? true,
+      customShowHeartbeatRibbons: payload.customShowHeartbeatRibbons ?? false,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+    }));
+
+    renderSettingsRoute('/settings/interface');
+
+    const customButton = (await screen.findByText('Custom View')).closest('button') as HTMLButtonElement;
+    const extraGuidanceCheckbox = screen.getByRole('checkbox', { name: /show extra guidance/i });
+
+    expect(extraGuidanceCheckbox).toBeDisabled();
+
+    fireEvent.click(customButton);
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        displayViewMode: 'custom',
+        showExplanatoryTooltips: true,
+        showFloatingTitleActions: false,
+        showRightRailCards: true,
+        showOverviewTaskTabs: false,
+        showAnalysisPage: true,
+        showPerformanceCompareToggle: true,
+        showPerformanceTimelineCard: false,
+        showLogsViewToggle: true,
+        showHeartbeatRibbons: false,
+        customShowExplanatoryTooltips: true,
+        customShowFloatingTitleActions: false,
+        customShowRightRailCards: true,
+        customShowOverviewTaskTabs: false,
+        customShowAnalysisPage: true,
+        customShowPerformanceCompareToggle: true,
+        customShowPerformanceTimelineCard: false,
+        customShowLogsViewToggle: true,
+        customShowHeartbeatRibbons: false,
+      }));
+    });
+  });
+
+  it('renders planning settings and reruns planning changes on save', async () => {
     savePreferences.mockImplementation(async (payload) => ({
       language: 'en',
       currency: 'USD',
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
+      displayViewMode: payload.displayViewMode ?? 'custom',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
       senaEngineParameters: payload.senaEngineParameters,
     }));
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/planning');
 
-    expect(await screen.findByText('Workspace preferences')).toBeInTheDocument();
-    expect(screen.getByText('Planning settings')).toBeInTheDocument();
-    expect(screen.getByText('Local workspace data')).toBeInTheDocument();
-    expect(screen.getByText('Credits')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /export logs: excel/i })).toHaveTextContent(
-      'Export Logs: Excel',
-    );
-    expect(screen.getByRole('combobox', { name: /export logs format/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /export planning data: excel/i })).toHaveTextContent(
-      'Export planning data: Excel',
-    );
-    expect(screen.getByRole('combobox', { name: /planning data format/i })).toBeInTheDocument();
+    expect(await screen.findAllByText('Advanced')).not.toHaveLength(0);
     expect(screen.queryByLabelText(/analysis profile/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /open local data folder/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^\/tmp\/banji$/i })).toBeInTheDocument();
+    const resetDefaultsButton = screen.getAllByRole('button', { name: /reset to defaults/i })[0];
+    const savePreferencesButton = firstSavePreferencesButton();
+    const planningButtons = screen.getAllByRole('button');
+    expect(planningButtons.indexOf(resetDefaultsButton)).toBeLessThan(planningButtons.indexOf(savePreferencesButton));
+    expect(resetDefaultsButton).toBeDisabled();
     const particleInput = screen.getByLabelText(/evidence detail level/i);
     expect(particleInput).toHaveDisplayValue('256');
 
     fireEvent.change(particleInput, { target: { value: '384' } });
     expect(particleInput).toHaveDisplayValue('384');
-    fireEvent.click(firstSavePreferencesButton());
+    expect(resetDefaultsButton).not.toBeDisabled();
+    fireEvent.click(savePreferencesButton);
 
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
@@ -300,6 +569,7 @@ describe('SettingsRoute', () => {
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: true,
+        showOverviewTaskTabs: true,
         senaEngineParameters: {
           ...DEFAULT_SENA_ENGINE_PARAMETERS,
           particleCount: 384,
@@ -316,27 +586,12 @@ describe('SettingsRoute', () => {
       });
     });
 
-    const pageText = document.body.textContent ?? '';
-    expect(pageText.indexOf('Workspace preferences')).toBeLessThan(
-      pageText.indexOf('Planning settings'),
-    );
-    expect(pageText.indexOf('Planning settings')).toBeLessThan(
-      pageText.indexOf('Local workspace data'),
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /expand credits/i }));
-    expect(screen.getByText('Made with')).toBeInTheDocument();
-    expect(screen.getByText('by Monysovann Ly.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Local data' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Credits' })).not.toBeInTheDocument();
   });
 
   it('reveals each local workspace path from the inline links', async () => {
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/local-data');
 
     fireEvent.click(await screen.findByRole('button', { name: /^\/tmp\/banji$/i }));
     fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/workspace\.sqlite$/i }));
@@ -350,13 +605,7 @@ describe('SettingsRoute', () => {
   });
 
   it('creates a manual backup snapshot from local workspace data settings', async () => {
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/local-data');
 
     fireEvent.click(await screen.findByRole('button', { name: /create backup snapshot/i }));
 
@@ -371,13 +620,7 @@ describe('SettingsRoute', () => {
   });
 
   it('restores a saved snapshot from local workspace data settings', async () => {
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/local-data');
 
     fireEvent.click(await screen.findByRole('button', { name: /restore saved snapshot/i }));
 
@@ -387,19 +630,27 @@ describe('SettingsRoute', () => {
     expect(reloadLocation).toHaveBeenCalledTimes(1);
   });
 
+  it('renders credits as static text without a disclosure toggle', async () => {
+    renderSettingsRoute('/settings/credits');
+
+    expect(await screen.findByText('Made with')).toBeInTheDocument();
+    expect(screen.getByText('by Monysovann Ly.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /credits/i })).not.toBeInTheDocument();
+  });
+
   it('redirects to overview after clearing current data', async () => {
     render(
-      <MemoryRouter initialEntries={['/settings']}>
+      <MemoryRouter initialEntries={['/settings/danger-zone']}>
         <PreferencesProvider>
           <Routes>
-            <Route element={<SettingsRoute />} path="/settings" />
+            <Route element={<SettingsRoute />} path="/settings/*" />
             <Route element={<div>Overview destination</div>} path="/" />
           </Routes>
         </PreferencesProvider>
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: /delete current data/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /delete current/i }));
     fireEvent.change(
       screen.getByLabelText(/deletion confirmation token/i),
       { target: { value: 'DELETE CURRENT DATA' } },
@@ -427,13 +678,7 @@ describe('SettingsRoute', () => {
       showRightRailCards: true,
       senaEngineParameters: payload.senaEngineParameters,
     }));
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/planning');
 
     const recommendationQuantileInput = await screen.findByLabelText(/order suggestion level/i);
     expect(recommendationQuantileInput).toHaveDisplayValue('0.7');
@@ -463,13 +708,7 @@ describe('SettingsRoute', () => {
   });
 
   it('shows a valid range error and blocks save for out-of-bounds SENA values', async () => {
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/planning');
 
     const particleInput = await screen.findByLabelText(/evidence detail level/i);
     fireEvent.change(particleInput, { target: { value: '5000' } });
@@ -490,13 +729,7 @@ describe('SettingsRoute', () => {
   });
 
   it('blocks saving when range low quantile is higher than range high quantile', async () => {
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/planning');
 
     const rangeLowInput = await screen.findByLabelText(/suggested range start/i);
     const rangeHighInput = screen.getByLabelText(/suggested range end/i);
@@ -522,13 +755,7 @@ describe('SettingsRoute', () => {
   });
 
   it('blocks saving when recommendation quantile falls outside the low-high band', async () => {
-    render(
-      <MemoryRouter>
-        <PreferencesProvider>
-          <SettingsRoute />
-        </PreferencesProvider>
-      </MemoryRouter>,
-    );
+    renderSettingsRoute('/settings/planning');
 
     const recommendationInput = await screen.findByLabelText(/order suggestion level/i);
     const rangeLowInput = screen.getByLabelText(/suggested range start/i);
@@ -559,11 +786,11 @@ describe('SettingsRoute', () => {
 
   it('asks before leaving with unsaved preference changes', async () => {
     render(
-      <MemoryRouter initialEntries={['/settings']}>
+      <MemoryRouter initialEntries={['/settings/interface']}>
         <PreferencesProvider>
           <Link to="/catalog">Catalog</Link>
           <Routes>
-            <Route element={<SettingsRoute />} path="/settings" />
+            <Route element={<SettingsRoute />} path="/settings/*" />
             <Route element={<div>Catalog destination</div>} path="/catalog" />
           </Routes>
         </PreferencesProvider>

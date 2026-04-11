@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 export function CheckboxRow({
   checked,
   className,
+  disabled = false,
   helper,
   hint,
   icon,
@@ -17,6 +18,7 @@ export function CheckboxRow({
 }: {
   checked: boolean;
   className?: string;
+  disabled?: boolean;
   helper?: ReactNode;
   hint?: ReactNode;
   icon?: ReactNode;
@@ -33,6 +35,7 @@ export function CheckboxRow({
         variant === 'default' &&
           `rounded-[1.25rem] border border-border/70 bg-muted/20 px-4 py-4 transition-colors ${rowHoverClassName}`,
         variant === 'flat' && 'px-1 py-4',
+        disabled && 'opacity-60',
         className,
       )}
       data-slot="checkbox-row"
@@ -41,6 +44,7 @@ export function CheckboxRow({
       <Checkbox
         checked={checked}
         className="size-5 rounded-[6px]"
+        disabled={disabled}
         id={checkboxId}
         onCheckedChange={(nextChecked) => onCheckedChange(nextChecked === true)}
       />

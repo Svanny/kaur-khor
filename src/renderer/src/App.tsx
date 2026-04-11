@@ -66,7 +66,7 @@ export function AppRoutes() {
       <Route element={<StockUpdateRoute />} path="/operations" />
       <Route element={<ArchiveRoute />} path="/operations/archive" />
       <Route element={<RedirectWithSearch to="/record-update" />} path="/operations/session" />
-      <Route element={<SettingsRoute />} path="/settings" />
+      <Route element={<SettingsRoute />} path="/settings/*" />
       <Route element={<Navigate replace to="/" />} path="*" />
     </Routes>
   );

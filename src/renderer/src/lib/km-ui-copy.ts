@@ -361,8 +361,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បង្អួចបន្ថយភាពរញ៉េរញ៉ៃ កំណត់ថារបាយការណ៍ថ្មីៗប៉ុន្មាន ដែល Banji ផ្តោតជាងគេ នៅពេលធ្វើឲ្យការសង្កេតដែលខ្វះៗមើលងាយស្រួល។',
   settingsDesktopPreferencesDescription:
     'ជ្រើសថា Banji គួរបង្ហាញការណែនាំស្រេចចិត្តប៉ុន្មាន និងឲ្យឧបករណ៍នេះដំណើរការយ៉ាងដូចម្តេច។',
-  settingsPreferencesControlsTitle: 'ចំណូលចិត្តកន្លែងធ្វើការ',
+  settingsPreferencesControlsTitle: 'ចំណូលចិត្ត',
   settingsPreferencesControlsDescription: 'ការកំណត់ទាំងនេះប៉ះពាល់តែឧបករណ៍នេះប៉ុណ្ណោះ។',
+  settingsInterfaceVisibilityTitle: 'ផ្ទៃមុខ',
   settingsExchangeRateHelp: 'ប្រើសម្រាប់បង្ហាញចំនួន KHR ប៉ុណ្ណោះ។ តម្លៃដែលបានរក្សាទុកនៅតែជាដុល្លារ USD។',
   settingsInterfaceVisibilityDescription:
     'ជ្រើសរើសរបៀបបង្ហាញដែលបានរក្សាទុក ឬកែប៊ូតុងបើកបិទចំណុចប្រទាក់ខាងក្រោមតាមតម្រូវការ។',
@@ -375,6 +376,24 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បង្ហាញ tooltip ការពិពណ៌នាផ្នែក និងជំនួយស្រេចចិត្ត។ ការណែនាំចាំបាច់នៅតែបង្ហាញជានិច្ច។',
   settingsShowFloatingActionsHelp:
     'រក្សាប៊ូតុងសកម្មភាពរបស់ទំព័រឲ្យនៅមើលឃើញ បន្ទាប់ពីចំណងជើងទំព័ររមូរចេញពីអេក្រង់។',
+  settingsShowOverviewTaskTabsLabel: 'បង្ហាញផ្ទាំងការងារនៅទិដ្ឋភាពទូទៅ',
+  settingsShowOverviewTaskTabsHelp:
+    'បង្ហាញផ្ទាំងស្ថានភាពការងារនៅទិដ្ឋភាពទូទៅ។ បើបិទ ទិដ្ឋភាពទូទៅនឹងបើកទៅបញ្ជី All Tasks ដោយផ្ទាល់។',
+  settingsShowAnalysisPageLabel: 'បង្ហាញទំព័រវិភាគ',
+  settingsShowAnalysisPageHelp:
+    'បង្ហាញទំព័រវិភាគក្នុងការរុករក និងស្វែងរក។ បើបិទ ទំព័រវិភាគនឹងត្រូវលាក់ពីកម្មវិធី។',
+  settingsShowPerformanceCompareToggleLabel: 'បង្ហាញប៊ូតុងប្រៀបធៀបសុខភាពអាជីវកម្ម',
+  settingsShowPerformanceCompareToggleHelp:
+    'បង្ហាញប៊ូតុង Compare view / Single view លើទំព័រសុខភាពអាជីវកម្ម។ បើបិទ ទំព័រនេះនឹងនៅក្នុង Single view។',
+  settingsShowPerformanceTimelineCardLabel: 'បង្ហាញកាតបន្ទាត់ពេលវេលាអាជីវកម្ម',
+  settingsShowPerformanceTimelineCardHelp:
+    'បង្ហាញកាតបន្ទាត់ពេលវេលាអាជីវកម្មលើទំព័រសុខភាពអាជីវកម្ម។ បើបិទ កាតនេះនឹងត្រូវលាក់។',
+  settingsShowLogsViewToggleLabel: 'បង្ហាញប៊ូតុងទិដ្ឋភាពកំណត់ហេតុ',
+  settingsShowLogsViewToggleHelp:
+    'បង្ហាញប៊ូតុងជ្រើសទិដ្ឋភាពលើទំព័រកំណត់ហេតុ។ បើបិទ ទំព័រកំណត់ហេតុនឹងនៅក្នុងទិដ្ឋភាព All។',
+  settingsShowHeartbeatRibbonsLabel: 'បង្ហាញសង្ខេប heartbeat និងខ្សែសញ្ញា',
+  settingsShowHeartbeatRibbonsHelp:
+    'បង្ហាញសង្ខេប heartbeat និងខ្សែសញ្ញាសំខាន់លើទំព័រលម្អិត សុខភាពអាជីវកម្ម និងទំព័រអាប់ដេត។',
   settingsShowRightRailCardsHelp:
     'បង្ហាញផ្ទាំងព័ត៌មានខាងស្ដាំលើទំព័រវិភាគ សុខភាពអាជីវកម្ម និងទំព័រលម្អិត។',
   settingsSenaParametersPanelDescription:
@@ -405,6 +424,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsSenaParametersRerunHint:
     'ពេលរក្សាទុកចំណូលចិត្ត Banji នឹងរត់ការវិភាគផែនការក្នុងម៉ាស៊ីនម្ដងទៀត ជាមួយការកំណត់ទាំងនេះ។',
   settingsExportSenaDataAction: 'នាំចេញទិន្នន័យផែនការ',
+  settingsLocalWorkspaceStorageTitle: 'ទិន្នន័យ',
   settingsLocalWorkspaceStorageDescription:
     'Banji រក្សាទុកទិន្នន័យកន្លែងធ្វើការនៅលើឧបករណ៍នេះ ក្នុងឯកសារ SQLite ក្នុងម៉ាស៊ីន ហើយបង្កើតស្នាមចម្លងបម្រុងទុកក្នុងម៉ាស៊ីនដោយស្វ័យប្រវត្តិ។',
   settingsBackupDirectoryLabel: 'ស្នាមចម្លងបម្រុងទុក',
@@ -417,7 +437,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsRestoreSnapshotCompleted: 'បានស្តារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនពី {path}។',
   settingsRestoreSnapshotFailed: 'មិនអាចស្តារស្នាមចម្លងដែលបានរក្សាទុកបានទេ។',
   settingsRestoreSnapshotCancelled: 'បានបោះបង់ការស្តារស្នាមចម្លង។',
-  settingsDangerZoneTitle: 'តំបន់គ្រោះថ្នាក់',
+  settingsDangerZoneTitle: 'គ្រោះថ្នាក់',
   settingsDangerZoneDescription:
     'លុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន និងចំណូលចិត្តបច្ចុប្បន្ន ខណៈពេលរក្សាទុកស្នាមចម្លងដែលបានរក្សាទុករួច។',
   settingsClearCurrentDataTitle: 'លុបទិន្នន័យក្នុងម៉ាស៊ីនបច្ចុប្បន្ន',
@@ -1314,7 +1334,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuDetailLoaderTitle: 'ទិដ្ឋភាពលម្អិត',
   catalogSkuDetailLoaderLoading: 'កំពុងផ្ទុកព័ត៌មានលម្អិតបន្ថែម…',
   catalogSkuDetailLoaderFallback: 'ព័ត៌មានលម្អិតបន្ថែមមិនអាចប្រើបានឥឡូវនេះទេ។',
-  settingsSenaParametersPanelTitle: 'ការកំណត់ផែនការ',
+  settingsSenaParametersPanelTitle: 'លម្អិត',
   settingsSenaParametersPanelDescription:
     'កែថា ផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់យ៉ាងដូចម្តេច ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
   settingsAnalysisProfileTooltip:
@@ -1668,6 +1688,7 @@ const exactValueTranslations: Record<string, string> = {
   Expand: 'ពង្រីក',
   Collapse: 'បង្រួម',
   'Back to catalog': 'ត្រឡប់ទៅកាតាឡុក',
+  'Back to app': 'ត្រឡប់ទៅកម្មវិធី',
   'Skip to content': 'រំលងទៅមាតិកា',
   'Open navigation': 'បើកម៉ឺនុយ',
   'Collapse navigation': 'បង្រួមម៉ឺនុយ',

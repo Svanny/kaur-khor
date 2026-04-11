@@ -4,6 +4,7 @@ export {
   ArrowLeft as NavigationBackIcon,
   ArrowRight as NavigationForwardIcon,
   ArrowUp as NavigationMoveUpIcon,
+  BrainCircuit as NavigationBrainCircuitIcon,
   Boxes as NavigationCatalogIcon,
   ChevronDown as NavigationExpandIcon,
   ChevronDownIcon as NavigationSelectExpandIcon,

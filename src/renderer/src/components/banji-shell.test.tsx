@@ -32,11 +32,12 @@ describe('BanjiShell', () => {
     });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
-      displayViewMode: 'maximal',
+      displayViewMode: 'custom',
       language: 'en',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAnalysisPage: true,
       t: (key: string) => {
         const translations: Record<string, string> = {
           appBrand: 'Banji',
@@ -51,6 +52,13 @@ describe('BanjiShell', () => {
           sidebarSectionMain: 'Main',
           sidebarSectionOther: 'Other',
           navSettings: 'Settings',
+          settingsTitle: 'Settings',
+          settingsPreferencesControlsTitle: 'Preferences',
+          settingsInterfaceVisibilityTitle: 'Interface',
+          settingsSenaParametersPanelTitle: 'Advanced',
+          settingsLocalWorkspaceStorageTitle: 'Local data',
+          settingsCreditsTitle: 'Credits',
+          settingsDangerZoneTitle: 'Danger',
           workspaceUnavailable: 'Workspace unavailable',
           workspaceLoadingTitle: 'Loading workspace',
           workspaceStarting: 'Starting workspace',
@@ -61,8 +69,8 @@ describe('BanjiShell', () => {
           openNavigation: 'Open navigation',
           collapseNavigation: 'Collapse navigation',
           skipToContent: 'Skip to content',
-          shellViewModeMaximal: 'Maximal View',
-          shellViewModeMinimal: 'Minimal View',
+          shellViewModeMaximal: 'Custom View',
+          shellViewModeMinimal: 'Compact View',
         };
         return translations[key] ?? key;
       },
@@ -105,9 +113,10 @@ describe('BanjiShell', () => {
     });
 
     render(
-      <MemoryRouter initialEntries={['/settings']}>
+      <MemoryRouter initialEntries={['/']}>
         <BanjiShell>
           <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
         </BanjiShell>
@@ -120,7 +129,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
     expect(screen.getByText('Main')).toBeInTheDocument();
     expect(screen.getByText('Other')).toBeInTheDocument();
@@ -136,17 +145,135 @@ describe('BanjiShell', () => {
     expect(screen.getByText('Search')).toBeInTheDocument();
     expect(screen.getByLabelText('Command')).toBeInTheDocument();
     expect(screen.getByText('K')).toBeInTheDocument();
-    const viewModeToggle = screen.getByRole('button', { name: 'Maximal View' });
-    expect(viewModeToggle).toBeInTheDocument();
-    expect(viewModeToggle.closest('li')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Custom View' })).not.toBeInTheDocument();
   });
 
-  test('toggles the sidebar view mode pill between maximal and minimal presets', () => {
+  test('renders settings navigation in the rail and returns to the app overview', async () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/interface']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+            <Route element={<div>Settings screen</div>} path="/settings/*" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Preferences' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Interface' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Advanced' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Local data' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Credits' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Danger' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to app' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    const settingsLinks = screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'));
+    expect(settingsLinks.indexOf('Back to app')).toBeLessThan(settingsLinks.indexOf('Preferences'));
+    expect(settingsLinks.indexOf('Local data')).toBeLessThan(settingsLinks.indexOf('Advanced'));
+    expect(settingsLinks.indexOf('Advanced')).toBeLessThan(settingsLinks.indexOf('Archive'));
+    expect(settingsLinks.indexOf('Archive')).toBeLessThan(settingsLinks.indexOf('Danger'));
+    expect(settingsLinks.indexOf('Danger')).toBeLessThan(settingsLinks.indexOf('Credits'));
+
+    const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
+    expect(within(brandToggle).getByText('Settings')).toBeInTheDocument();
+    expect(within(brandToggle).queryByText('Banji')).not.toBeInTheDocument();
+    expect(screen.queryByText('Search')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Settings')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('link', { name: 'Back to app' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Overview screen')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Back to app' })).not.toBeInTheDocument();
+  });
+
+  test('keeps the archive page in the settings rail', () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/operations/archive']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+            <Route element={<div>Archive screen</div>} path="/operations/archive" />
+            <Route element={<div>Settings screen</div>} path="/settings/*" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Archive screen')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to app' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Logs' })).not.toBeInTheDocument();
+    const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
+    expect(within(brandToggle).getByText('Settings')).toBeInTheDocument();
+  });
+
+  test('does not render the view mode control in the sidebar', () => {
     setViewport({ width: 1440, isMobile: false });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
-      displayViewMode: 'maximal',
+      displayViewMode: 'custom',
       language: 'en',
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAnalysisPage: true,
+      t: (key: string) =>
+        ({
+          appBrand: 'Banji',
+          navOverview: 'Overview',
+          navRecordUpdate: 'Record update',
+          navPerformance: 'Performance',
+          navAnalysis: 'Analysis',
+          navCatalog: 'Catalog',
+          navOperations: 'Logs',
+          navArchive: 'Archive',
+          navHelp: 'Help',
+          sidebarSectionMain: 'Main',
+          sidebarSectionOther: 'Other',
+          navSettings: 'Settings',
+          skipToContent: 'Skip to content',
+          openNavigation: 'Open navigation',
+          collapseNavigation: 'Collapse navigation',
+          shellViewModeMaximal: 'Custom View',
+          shellViewModeMinimal: 'Compact View',
+        }[key] ?? key),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+            <Route element={<div>Settings screen</div>} path="/settings" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Custom View' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Compact View' })).not.toBeInTheDocument();
+    expect(applyDisplayViewMode).not.toHaveBeenCalled();
+  });
+
+  test('hides the analysis navigation item when disabled', () => {
+    setViewport({ width: 1440, isMobile: false });
+    preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      displayViewMode: 'custom',
+      language: 'en',
+      showAnalysisPage: false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -167,30 +294,29 @@ describe('BanjiShell', () => {
           skipToContent: 'Skip to content',
           openNavigation: 'Open navigation',
           collapseNavigation: 'Collapse navigation',
-          shellViewModeMaximal: 'Maximal View',
-          shellViewModeMinimal: 'Minimal View',
         }[key] ?? key),
     });
 
     render(
-      <MemoryRouter initialEntries={['/settings']}>
+      <MemoryRouter initialEntries={['/']}>
         <BanjiShell>
           <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
         </BanjiShell>
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByTestId('sidebar-view-mode-toggle'));
-    expect(applyDisplayViewMode).toHaveBeenCalledWith('minimal');
+    expect(screen.queryByRole('link', { name: 'Analysis' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
   });
 
   test('renders the sidebar search hint in Khmer', () => {
     setViewport({ width: 1440, isMobile: false });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
-      displayViewMode: 'maximal',
+      displayViewMode: 'custom',
       language: 'km',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
@@ -212,16 +338,16 @@ describe('BanjiShell', () => {
           skipToContent: 'រំលងទៅមាតិកា',
           openNavigation: 'បើកម៉ឺនុយ',
           collapseNavigation: 'បង្រួមម៉ឺនុយ',
-          shellViewModeMaximal: 'ទិដ្ឋភាពពេញ',
-          shellViewModeMinimal: 'ទិដ្ឋភាពតូច',
+          shellViewModeMaximal: 'ទិដ្ឋភាពផ្ទាល់ខ្លួន',
+          shellViewModeMinimal: 'ទិដ្ឋភាពបង្រួម',
         }[key] ?? key),
     });
 
     render(
-      <MemoryRouter initialEntries={['/settings']}>
+      <MemoryRouter initialEntries={['/']}>
         <BanjiShell>
           <Routes>
-            <Route element={<div>Settings screen</div>} path="/settings" />
+            <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
         </BanjiShell>
       </MemoryRouter>,

@@ -1105,14 +1105,14 @@ export const enUiCopyV1 = {
   settingsDesktopPreferencesDescription:
     'Choose how much optional guidance Banji shows and how the desktop shell behaves on this device.',
   settingsSavePreferencesAction: 'Save preferences',
-  settingsPreferencesControlsTitle: 'Preferences controls',
+  settingsPreferencesControlsTitle: 'Preferences',
   settingsPreferencesControlsDescription:
     'These settings change only this desktop workspace.',
   settingsExchangeRateLabel: 'Exchange rate',
   settingsExchangeRateInputLabel: 'Exchange rate for 1 USD in KHR',
   settingsExchangeRateHelp:
     'Used only when formatting KHR; saved values stay in USD.',
-  settingsInterfaceVisibilityTitle: 'Interface visibility',
+  settingsInterfaceVisibilityTitle: 'Interface',
   settingsInterfaceVisibilityDescription:
     'Choose a saved view mode or fine-tune the individual interface visibility toggles below.',
   settingsViewModeLabel: 'View mode',
@@ -1126,9 +1126,27 @@ export const enUiCopyV1 = {
   settingsShowFloatingActionsLabel: 'Show floating title actions',
   settingsShowFloatingActionsHelp:
     'Keep page actions visible after the header scrolls off screen.',
+  settingsShowOverviewTaskTabsLabel: 'Show overview task tabs',
+  settingsShowOverviewTaskTabsHelp:
+    'Show the overview task-status tabs. When off, Overview opens directly to the All Tasks queue.',
+  settingsShowAnalysisPageLabel: 'Show analysis page',
+  settingsShowAnalysisPageHelp:
+    'Show the Analysis page in navigation and search. When off, Analysis is hidden from the app.',
+  settingsShowPerformanceCompareToggleLabel: 'Show performance compare toggle',
+  settingsShowPerformanceCompareToggleHelp:
+    'Show the Compare view / Single view control on Performance. When off, Performance stays in Single view.',
+  settingsShowPerformanceTimelineCardLabel: 'Show business timeline card',
+  settingsShowPerformanceTimelineCardHelp:
+    'Show the Business timeline card on Performance. When off, the timeline card is hidden.',
+  settingsShowLogsViewToggleLabel: 'Show logs view button',
+  settingsShowLogsViewToggleHelp:
+    'Show the View selector on Logs. When off, Logs stays in View: All mode.',
+  settingsShowHeartbeatRibbonsLabel: 'Show heartbeats and ribbons',
+  settingsShowHeartbeatRibbonsHelp:
+    'Show heartbeat summaries and key-signal ribbons on detail, performance, and update pages.',
   settingsShowRightRailCardsHelp:
     'Show the right-side context panels on analysis, performance, and detail pages.',
-  settingsSenaParametersPanelTitle: 'SENA engine parameters',
+  settingsSenaParametersPanelTitle: 'Advanced',
   settingsSenaParametersPanelDescription:
     'Tune how local SENA runs sample uncertainty and turn the posterior into reorder guidance.',
   settingsResetDefaultsAction: 'Reset to defaults',
@@ -1171,7 +1189,7 @@ export const enUiCopyV1 = {
     'Fix the highlighted SENA parameters before saving.',
   settingsSenaParametersRerunHint:
     'Saving preferences will rerun SENA with these engine parameters.',
-  settingsLocalWorkspaceStorageTitle: 'Local workspace storage',
+  settingsLocalWorkspaceStorageTitle: 'Local data',
   settingsLocalWorkspaceStorageDescription:
     'Banji stores workspace data locally in SQLite on this device.',
   settingsDataDirectoryLabel: 'Data directory',
@@ -1188,7 +1206,7 @@ export const enUiCopyV1 = {
   settingsRestoreSnapshotCompleted: 'Restored local workspace data from {path}.',
   settingsRestoreSnapshotFailed: 'Failed to restore the saved snapshot.',
   settingsRestoreSnapshotCancelled: 'Snapshot restore cancelled.',
-  settingsDangerZoneTitle: 'Danger zone',
+  settingsDangerZoneTitle: 'Danger',
   settingsDangerZoneDescription:
     'Delete the current local workspace state and preferences while keeping saved snapshots.',
   settingsClearCurrentDataTitle: 'Delete current local data',
@@ -2158,7 +2176,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsDesktopPreferencesTitle: 'Desktop preferences',
   settingsDesktopPreferencesDescription:
     'Choose how much optional guidance Banji shows and how this device behaves.',
-  settingsPreferencesControlsTitle: 'Workspace preferences',
+  settingsPreferencesControlsTitle: 'Preferences',
   settingsPreferencesControlsDescription:
     'These settings affect only this device.',
   settingsExchangeRateHelp:
@@ -2173,7 +2191,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Keep page actions visible after the page title scrolls away.',
   settingsShowRightRailCardsHelp:
     'Show the side context panels on analysis, performance, and detail pages.',
-  settingsSenaParametersPanelTitle: 'Planning detail settings',
+  settingsSenaParametersPanelTitle: 'Advanced',
   settingsSenaParametersPanelDescription:
     'Adjust how much detail Banji uses when estimating stock and suggesting reorder quantities.',
   settingsAnalysisProfileLabel: 'Analysis profile',
@@ -2221,7 +2239,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsExportSenaDataAction: 'Export planning data',
   settingsParameterRunStatusExported: 'Exported planning data as {format}.',
   settingsParameterRunStatusFailed: 'Failed to export planning data.',
-  settingsLocalWorkspaceStorageTitle: 'Local workspace data',
+  settingsLocalWorkspaceStorageTitle: 'Local data',
   settingsLocalWorkspaceStorageDescription:
     'Banji stores workspace data on this device in a local SQLite file and keeps rolling local backup snapshots.',
   settingsBackupDirectoryLabel: 'Backup snapshots',
@@ -2234,7 +2252,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsRestoreSnapshotCompleted: 'Restored local workspace data from {path}.',
   settingsRestoreSnapshotFailed: "Couldn't restore the saved snapshot.",
   settingsRestoreSnapshotCancelled: 'Snapshot restore cancelled.',
-  settingsDangerZoneTitle: 'Danger zone',
+  settingsDangerZoneTitle: 'Danger',
   settingsDangerZoneDescription:
     'Delete the current local workspace state and preferences while keeping saved snapshots.',
   settingsClearCurrentDataTitle: 'Delete current local data',
@@ -2707,7 +2725,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     catalogSkuDetailLoaderTitle: 'Detailed view',
     catalogSkuDetailLoaderLoading: 'Loading fuller details…',
     catalogSkuDetailLoaderFallback: 'Fuller details are not available right now.',
-    settingsSenaParametersPanelTitle: 'Planning settings',
+    settingsSenaParametersPanelTitle: 'Advanced',
     settingsSenaParametersPanelDescription:
       'Adjust how local planning handles uncertainty when it estimates stock and suggests order amounts.',
     settingsAnalysisProfileTooltip:

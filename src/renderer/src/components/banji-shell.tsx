@@ -1,15 +1,13 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  NavigationArchiveIcon,
   NavigationAnalysisIcon,
-  NavigationBoardViewIcon,
+  NavigationBackIcon,
   NavigationCatalogIcon,
   NavigationCommandPaletteIcon,
   NavigationDashboardIcon,
   NavigationLogsIcon,
   NavigationRightPanelIcon,
   NavigationSettingsIcon,
-  NavigationSplitViewIcon,
   NavigationTaskListIcon,
   NavigationPerformanceIcon,
 } from '@icons/navigation';
@@ -33,7 +31,8 @@ import {
 } from '@/components/ui/sidebar';
 import { WorkspaceBanner } from '@/components/system/workspace';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { translateUiLiteral } from '@/lib/translations';
+import { SETTINGS_SECTIONS, resolveSettingsSection, type SettingsSectionConfig } from '@/lib/settings-navigation';
+import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { SIDEBAR_NAVIGATION_SOURCE } from '@/state/navigation-history';
@@ -118,13 +117,6 @@ const SECONDARY_SECTIONS: ShellSectionConfig[] = [
     icon: NavigationLogsIcon,
     matches: (pathname) => pathname === '/operations',
   },
-  {
-    id: 'archive',
-    destination: '/operations/archive',
-    labelKey: 'navArchive',
-    icon: NavigationArchiveIcon,
-    matches: (pathname) => matchesSection(pathname, '/operations/archive'),
-  },
 ];
 
 const SETTINGS_SECTION: ShellSectionConfig = {
@@ -142,6 +134,9 @@ const HELP_SECTION: ShellSectionConfig = {
   icon: StatusHelpBadgeIcon,
   matches: (pathname) => matchesSection(pathname, '/help'),
 };
+
+const SETTINGS_MAIN_SECTIONS = SETTINGS_SECTIONS.filter((section) => section.id !== 'credits');
+const SETTINGS_CREDITS_SECTION = SETTINGS_SECTIONS.find((section) => section.id === 'credits');
 
 function SidebarSectionMenu({
   sections,
@@ -227,6 +222,86 @@ function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'e
   );
 }
 
+function SettingsSidebarMenu({
+  sections,
+  pathname,
+  showSidebarText,
+  onNavigate,
+  t,
+}: {
+  sections: SettingsSectionConfig[];
+  pathname: string;
+  showSidebarText: boolean;
+  onNavigate: () => void;
+  t: (key: TranslationKey) => string;
+}) {
+  const activeSection = resolveSettingsSection(pathname);
+
+  return (
+    <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+      {sections.map((section) => {
+        const label = t(section.titleKey);
+        const isActive = section.id === activeSection.id;
+
+        return (
+          <SidebarMenuItem key={section.id}>
+            <SidebarMenuButton
+              asChild
+              className="justify-start group-data-[collapsible=icon]:justify-center"
+              isActive={isActive}
+              tooltip={label}
+            >
+              <NavLink
+                aria-label={label}
+                className="group-data-[collapsible=icon]:justify-center"
+                state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+                to={section.path}
+                onClick={onNavigate}
+              >
+                <section.icon className="size-4" />
+                {showSidebarText ? <span>{label}</span> : null}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
+  );
+}
+
+function SettingsBackToAppMenuItem({
+  language,
+  showSidebarText,
+  onNavigate,
+}: {
+  language: 'en' | 'km';
+  showSidebarText: boolean;
+  onNavigate: () => void;
+}) {
+  const label = translateUiLiteral(language, 'Back to app');
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        className="justify-start group-data-[collapsible=icon]:justify-center"
+        tooltip={label}
+      >
+        <NavLink
+          aria-label={label}
+          className="group-data-[collapsible=icon]:justify-center"
+          state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+          to="/"
+          onClick={onNavigate}
+        >
+          <NavigationBackIcon className="size-4" />
+          {showSidebarText ? <span>{label}</span> : null}
+        </NavLink>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 export function BanjiShell({
   children,
 }: {
@@ -241,13 +316,18 @@ export function BanjiShell({
 
 function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { applyDisplayViewMode, displayViewMode, language, t } = usePreferences();
+  const { language, showAnalysisPage, t } = usePreferences();
   const { error, isLoading, isPreparingWorkspace, isSaving, latestRun, reload } = useInventory();
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
   const isWorkspaceComputing = latestRun?.status === 'queued' || latestRun?.status === 'running';
   const isSavingRecordUpdate = isSaving && matchesSection(location.pathname, '/record-update');
   const showGlobalLoadingScreen =
     isPreparingWorkspace || isWorkspaceComputing || isSavingRecordUpdate || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
+  const secondarySections = showAnalysisPage
+    ? SECONDARY_SECTIONS
+    : SECONDARY_SECTIONS.filter((section) => section.id !== 'analysis');
+  const isSettingsRoute =
+    matchesSection(location.pathname, '/settings') || matchesSection(location.pathname, '/operations/archive');
 
   function handleSidebarNavigation() {
     if (isMobile) {
@@ -257,10 +337,6 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
 
   const showSidebarText = isMobile || state === 'expanded';
   const mainContentInset = 'var(--spacing-page)';
-  const viewModeLabel =
-    displayViewMode === 'maximal' ? t('shellViewModeMaximal') : t('shellViewModeMinimal');
-  const ViewModeIcon =
-    displayViewMode === 'maximal' ? NavigationBoardViewIcon : NavigationSplitViewIcon;
 
   return (
     <>
@@ -295,7 +371,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                     </span>
                   </span>
                   <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-foreground">
-                    {t('appBrand')}
+                    {isSettingsRoute ? t('settingsTitle') : t('appBrand')}
                   </span>
                 </button>
               </TooltipTrigger>
@@ -320,98 +396,118 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
         </SidebarHeader>
 
         <SidebarContent className="flex flex-col px-2 pb-3 group-data-[collapsible=icon]:px-1.5">
-          <div className="flex flex-1 flex-col gap-3">
-            <SidebarGroup className={sidebarSectionGroupClassName}>
-              <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionMain')}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarSectionMenu
-                  pathname={location.pathname}
-                  sections={PRIMARY_SECTIONS}
-                  showSidebarText={showSidebarText}
-                  t={t}
-                  onNavigate={handleSidebarNavigation}
-                />
-              </SidebarGroupContent>
-            </SidebarGroup>
+          {isSettingsRoute ? (
+            <div className="flex flex-1 flex-col">
+              <SidebarGroup className={sidebarSectionGroupClassName}>
+                <SidebarGroupContent>
+                  <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+                    <SettingsBackToAppMenuItem
+                      language={language}
+                      showSidebarText={showSidebarText}
+                      onNavigate={handleSidebarNavigation}
+                    />
+                  </SidebarMenu>
+                  <div className="mt-1.5">
+                    <SettingsSidebarMenu
+                      pathname={location.pathname}
+                      sections={SETTINGS_MAIN_SECTIONS}
+                      showSidebarText={showSidebarText}
+                      t={t}
+                      onNavigate={handleSidebarNavigation}
+                    />
+                  </div>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col gap-3">
+              <SidebarGroup className={sidebarSectionGroupClassName}>
+                <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionMain')}</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarSectionMenu
+                    pathname={location.pathname}
+                    sections={PRIMARY_SECTIONS}
+                    showSidebarText={showSidebarText}
+                    t={t}
+                    onNavigate={handleSidebarNavigation}
+                  />
+                </SidebarGroupContent>
+              </SidebarGroup>
 
-            <SidebarGroup className={sidebarSectionGroupClassName}>
-              <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionOther')}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarSectionMenu
-                  pathname={location.pathname}
-                  sections={SECONDARY_SECTIONS}
-                  showSidebarText={showSidebarText}
-                  t={t}
-                  onNavigate={handleSidebarNavigation}
-                />
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </div>
+              <SidebarGroup className={sidebarSectionGroupClassName}>
+                <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionOther')}</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarSectionMenu
+                    pathname={location.pathname}
+                    sections={secondarySections}
+                    showSidebarText={showSidebarText}
+                    t={t}
+                    onNavigate={handleSidebarNavigation}
+                  />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </div>
+          )}
 
           <SidebarGroup className="mt-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent>
-              <div className="mb-3 px-1 group-data-[collapsible=icon]:mb-2 group-data-[collapsible=icon]:px-0">
-                <SidebarCommandPaletteHint language={language} showSidebarText={showSidebarText} />
-              </div>
-              <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-                <SidebarMenuItem key={viewModeLabel}>
-                  <SidebarMenuButton
-                    aria-label={viewModeLabel}
-                    className={cn(
-                      'justify-start rounded-full border border-sidebar-border/70 bg-sidebar-accent/45 font-medium hover:bg-sidebar-accent',
-                      'group-data-[collapsible=icon]:rounded-[1rem] group-data-[collapsible=icon]:border-sidebar-border/0 group-data-[collapsible=icon]:bg-transparent',
-                    )}
-                    data-testid="sidebar-view-mode-toggle"
-                    tooltip={viewModeLabel}
-                    type="button"
-                    onClick={(event) => {
-                      event.currentTarget.blur();
-                      void applyDisplayViewMode(displayViewMode === 'maximal' ? 'minimal' : 'maximal');
-                    }}
-                  >
-                    <ViewModeIcon className="size-4 shrink-0" />
-                    {showSidebarText ? <span className="min-w-0 truncate text-left">{viewModeLabel}</span> : null}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    className="justify-start group-data-[collapsible=icon]:justify-center"
-                    isActive={HELP_SECTION.matches(location.pathname)}
-                    tooltip={t(HELP_SECTION.labelKey)}
-                  >
-                    <NavLink
-                      aria-label={t(HELP_SECTION.labelKey)}
-                      className="group-data-[collapsible=icon]:justify-center"
-                      state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-                      to={HELP_SECTION.destination}
-                      onClick={handleSidebarNavigation}
+              {!isSettingsRoute ? (
+                <div className="mb-3 px-1 group-data-[collapsible=icon]:mb-2 group-data-[collapsible=icon]:px-0">
+                  <SidebarCommandPaletteHint language={language} showSidebarText={showSidebarText} />
+                </div>
+              ) : null}
+              {isSettingsRoute ? (
+                SETTINGS_CREDITS_SECTION ? (
+                  <SettingsSidebarMenu
+                    pathname={location.pathname}
+                    sections={[SETTINGS_CREDITS_SECTION]}
+                    showSidebarText={showSidebarText}
+                    t={t}
+                    onNavigate={handleSidebarNavigation}
+                  />
+                ) : null
+              ) : (
+                <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      className="justify-start group-data-[collapsible=icon]:justify-center"
+                      isActive={HELP_SECTION.matches(location.pathname)}
+                      tooltip={t(HELP_SECTION.labelKey)}
                     >
-                      <HELP_SECTION.icon className="size-4" />
-                      {showSidebarText ? <span>{t(HELP_SECTION.labelKey)}</span> : null}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    className="justify-start group-data-[collapsible=icon]:justify-center"
-                    isActive={SETTINGS_SECTION.matches(location.pathname)}
-                    tooltip={t(SETTINGS_SECTION.labelKey)}
-                  >
-                    <NavLink
-                      aria-label={t(SETTINGS_SECTION.labelKey)}
-                      className="group-data-[collapsible=icon]:justify-center"
-                      state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-                      to={SETTINGS_SECTION.destination}
-                      onClick={handleSidebarNavigation}
+                      <NavLink
+                        aria-label={t(HELP_SECTION.labelKey)}
+                        className="group-data-[collapsible=icon]:justify-center"
+                        state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+                        to={HELP_SECTION.destination}
+                        onClick={handleSidebarNavigation}
+                      >
+                        <HELP_SECTION.icon className="size-4" />
+                        {showSidebarText ? <span>{t(HELP_SECTION.labelKey)}</span> : null}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      className="justify-start group-data-[collapsible=icon]:justify-center"
+                      isActive={SETTINGS_SECTION.matches(location.pathname)}
+                      tooltip={t(SETTINGS_SECTION.labelKey)}
                     >
-                      <SETTINGS_SECTION.icon className="size-4" />
-                      {showSidebarText ? <span>{t(SETTINGS_SECTION.labelKey)}</span> : null}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
+                      <NavLink
+                        aria-label={t(SETTINGS_SECTION.labelKey)}
+                        className="group-data-[collapsible=icon]:justify-center"
+                        state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+                        to={SETTINGS_SECTION.destination}
+                        onClick={handleSidebarNavigation}
+                      >
+                        <SETTINGS_SECTION.icon className="size-4" />
+                        {showSidebarText ? <span>{t(SETTINGS_SECTION.labelKey)}</span> : null}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              )}
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
