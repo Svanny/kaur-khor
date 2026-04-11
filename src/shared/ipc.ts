@@ -53,9 +53,25 @@ export interface DesktopPreferences {
   language: AppLanguage;
   currency: AppCurrency;
   usdToKhrExchangeRate: number;
+  displayViewMode: 'compact' | 'custom';
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
+  showOverviewTaskTabs: boolean;
+  showAnalysisPage: boolean;
+  showPerformanceCompareToggle: boolean;
+  showPerformanceTimelineCard: boolean;
+  showLogsViewToggle: boolean;
+  showHeartbeatRibbons: boolean;
+  customShowExplanatoryTooltips: boolean;
+  customShowFloatingTitleActions: boolean;
+  customShowRightRailCards: boolean;
+  customShowOverviewTaskTabs: boolean;
+  customShowAnalysisPage: boolean;
+  customShowPerformanceCompareToggle: boolean;
+  customShowPerformanceTimelineCard: boolean;
+  customShowLogsViewToggle: boolean;
+  customShowHeartbeatRibbons: boolean;
   senaEngineParameters: SenaEngineParameters;
   overviewStaleUpdateReminderSnoozeUntil: string | null;
 }

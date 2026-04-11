@@ -12,9 +12,25 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   language: 'en',
   currency: 'USD',
   usdToKhrExchangeRate: DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+  displayViewMode: 'custom',
   showExplanatoryTooltips: true,
   showFloatingTitleActions: true,
   showRightRailCards: true,
+  showOverviewTaskTabs: true,
+  showAnalysisPage: true,
+  showPerformanceCompareToggle: true,
+  showPerformanceTimelineCard: true,
+  showLogsViewToggle: true,
+  showHeartbeatRibbons: true,
+  customShowExplanatoryTooltips: true,
+  customShowFloatingTitleActions: true,
+  customShowRightRailCards: true,
+  customShowOverviewTaskTabs: true,
+  customShowAnalysisPage: true,
+  customShowPerformanceCompareToggle: true,
+  customShowPerformanceTimelineCard: true,
+  customShowLogsViewToggle: true,
+  customShowHeartbeatRibbons: true,
   senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
   overviewStaleUpdateReminderSnoozeUntil: null,
 };
@@ -31,13 +47,64 @@ function normalizeUsdToKhrExchangeRate(value: unknown): number {
 }
 
 function normalizePreferences(value: Partial<DesktopPreferences> | null | undefined): DesktopPreferences {
+  const showExplanatoryTooltips = value?.showExplanatoryTooltips ?? true;
+  const showFloatingTitleActions = value?.showFloatingTitleActions ?? true;
+  const showRightRailCards = value?.showRightRailCards ?? true;
+  const showOverviewTaskTabs = value?.showOverviewTaskTabs ?? true;
+  const showAnalysisPage = value?.showAnalysisPage ?? true;
+  const showPerformanceCompareToggle = value?.showPerformanceCompareToggle ?? true;
+  const showPerformanceTimelineCard = value?.showPerformanceTimelineCard ?? true;
+  const showLogsViewToggle = value?.showLogsViewToggle ?? true;
+  const showHeartbeatRibbons = value?.showHeartbeatRibbons ?? true;
+  const customShowExplanatoryTooltips = value?.customShowExplanatoryTooltips ?? showExplanatoryTooltips;
+  const customShowFloatingTitleActions = value?.customShowFloatingTitleActions ?? showFloatingTitleActions;
+  const customShowRightRailCards = value?.customShowRightRailCards ?? showRightRailCards;
+  const customShowOverviewTaskTabs = value?.customShowOverviewTaskTabs ?? showOverviewTaskTabs;
+  const customShowAnalysisPage = value?.customShowAnalysisPage ?? showAnalysisPage;
+  const customShowPerformanceCompareToggle =
+    value?.customShowPerformanceCompareToggle ?? showPerformanceCompareToggle;
+  const customShowPerformanceTimelineCard =
+    value?.customShowPerformanceTimelineCard ?? showPerformanceTimelineCard;
+  const customShowLogsViewToggle = value?.customShowLogsViewToggle ?? showLogsViewToggle;
+  const customShowHeartbeatRibbons = value?.customShowHeartbeatRibbons ?? showHeartbeatRibbons;
+  const displayViewMode =
+    value?.displayViewMode === 'compact' || value?.displayViewMode === 'custom'
+      ? value.displayViewMode
+      : !showExplanatoryTooltips &&
+          !showFloatingTitleActions &&
+          !showRightRailCards &&
+          !showOverviewTaskTabs &&
+          !showAnalysisPage &&
+          !showPerformanceCompareToggle &&
+          !showPerformanceTimelineCard &&
+          !showLogsViewToggle &&
+          !showHeartbeatRibbons
+        ? 'compact'
+        : 'custom';
+
   return {
     language: value?.language === 'km' ? 'km' : 'en',
     currency: value?.currency === 'KHR' ? 'KHR' : 'USD',
     usdToKhrExchangeRate: normalizeUsdToKhrExchangeRate(value?.usdToKhrExchangeRate),
-    showExplanatoryTooltips: value?.showExplanatoryTooltips ?? true,
-    showFloatingTitleActions: value?.showFloatingTitleActions ?? true,
-    showRightRailCards: value?.showRightRailCards ?? true,
+    displayViewMode,
+    showExplanatoryTooltips,
+    showFloatingTitleActions,
+    showRightRailCards,
+    showOverviewTaskTabs,
+    showAnalysisPage,
+    showPerformanceCompareToggle,
+    showPerformanceTimelineCard,
+    showLogsViewToggle,
+    showHeartbeatRibbons,
+    customShowExplanatoryTooltips,
+    customShowFloatingTitleActions,
+    customShowRightRailCards,
+    customShowOverviewTaskTabs,
+    customShowAnalysisPage,
+    customShowPerformanceCompareToggle,
+    customShowPerformanceTimelineCard,
+    customShowLogsViewToggle,
+    customShowHeartbeatRibbons,
     senaEngineParameters: normalizeSenaEngineParameters(value?.senaEngineParameters),
     overviewStaleUpdateReminderSnoozeUntil: normalizeDesktopPreferenceTimestamp(
       value?.overviewStaleUpdateReminderSnoozeUntil,

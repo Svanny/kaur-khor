@@ -6,14 +6,40 @@ import { usePreferences, PreferencesProvider } from './preferences';
 function PreferencesProbe() {
   const {
     currency,
+    displayViewMode,
     hasPendingChanges,
     language,
+    persistedCustomShowExplanatoryTooltips,
+    persistedCustomShowFloatingTitleActions,
+    persistedCustomShowRightRailCards,
+    persistedCustomShowOverviewTaskTabs,
+    persistedCustomShowAnalysisPage,
+    persistedCustomShowPerformanceCompareToggle,
+    persistedCustomShowPerformanceTimelineCard,
+    persistedCustomShowLogsViewToggle,
+    persistedCustomShowHeartbeatRibbons,
+    persistedDisplayViewMode,
     persistedCurrency,
     persistedLanguage,
     persistedUsdToKhrExchangeRate,
     persistedShowExplanatoryTooltips,
     persistedShowFloatingTitleActions,
     persistedShowRightRailCards,
+    persistedShowOverviewTaskTabs,
+    persistedShowAnalysisPage,
+    persistedShowPerformanceCompareToggle,
+    persistedShowPerformanceTimelineCard,
+    persistedShowLogsViewToggle,
+    persistedShowHeartbeatRibbons,
+    customShowExplanatoryTooltips,
+    customShowFloatingTitleActions,
+    customShowRightRailCards,
+    customShowOverviewTaskTabs,
+    customShowAnalysisPage,
+    customShowPerformanceCompareToggle,
+    customShowPerformanceTimelineCard,
+    customShowLogsViewToggle,
+    customShowHeartbeatRibbons,
     resetPreferences,
     savePreferences,
     setCurrency,
@@ -22,7 +48,19 @@ function PreferencesProbe() {
     setShowExplanatoryTooltips,
     setShowFloatingTitleActions,
     setShowRightRailCards,
+    setShowOverviewTaskTabs,
+    setShowAnalysisPage,
+    setShowPerformanceCompareToggle,
+    setShowPerformanceTimelineCard,
+    setShowLogsViewToggle,
+    setShowHeartbeatRibbons,
     showFloatingTitleActions,
+    showOverviewTaskTabs,
+    showAnalysisPage,
+    showPerformanceCompareToggle,
+    showPerformanceTimelineCard,
+    showLogsViewToggle,
+    showHeartbeatRibbons,
     showRightRailCards,
     showExplanatoryTooltips,
     t,
@@ -34,15 +72,47 @@ function PreferencesProbe() {
       <div data-testid="language">{language}</div>
       <div data-testid="currency">{currency}</div>
       <div data-testid="exchange-rate">{usdToKhrExchangeRate}</div>
+      <div data-testid="display-view-mode">{displayViewMode}</div>
       <div data-testid="persisted-language">{persistedLanguage}</div>
       <div data-testid="persisted-currency">{persistedCurrency}</div>
       <div data-testid="persisted-exchange-rate">{persistedUsdToKhrExchangeRate}</div>
+      <div data-testid="custom-show-explanatory-tooltips">{String(customShowExplanatoryTooltips)}</div>
+      <div data-testid="custom-show-floating-title-actions">{String(customShowFloatingTitleActions)}</div>
+      <div data-testid="custom-show-right-rail-cards">{String(customShowRightRailCards)}</div>
+      <div data-testid="custom-show-overview-task-tabs">{String(customShowOverviewTaskTabs)}</div>
+      <div data-testid="custom-show-analysis-page">{String(customShowAnalysisPage)}</div>
+      <div data-testid="custom-show-performance-compare-toggle">{String(customShowPerformanceCompareToggle)}</div>
+      <div data-testid="custom-show-performance-timeline-card">{String(customShowPerformanceTimelineCard)}</div>
+      <div data-testid="custom-show-logs-view-toggle">{String(customShowLogsViewToggle)}</div>
+      <div data-testid="custom-show-heartbeat-ribbons">{String(customShowHeartbeatRibbons)}</div>
+      <div data-testid="persisted-display-view-mode">{persistedDisplayViewMode}</div>
       <div data-testid="show-explanatory-tooltips">{String(showExplanatoryTooltips)}</div>
       <div data-testid="persisted-show-explanatory-tooltips">{String(persistedShowExplanatoryTooltips)}</div>
       <div data-testid="show-floating-title-actions">{String(showFloatingTitleActions)}</div>
       <div data-testid="persisted-show-floating-title-actions">{String(persistedShowFloatingTitleActions)}</div>
       <div data-testid="show-right-rail-cards">{String(showRightRailCards)}</div>
       <div data-testid="persisted-show-right-rail-cards">{String(persistedShowRightRailCards)}</div>
+      <div data-testid="show-overview-task-tabs">{String(showOverviewTaskTabs)}</div>
+      <div data-testid="persisted-show-overview-task-tabs">{String(persistedShowOverviewTaskTabs)}</div>
+      <div data-testid="show-analysis-page">{String(showAnalysisPage)}</div>
+      <div data-testid="persisted-show-analysis-page">{String(persistedShowAnalysisPage)}</div>
+      <div data-testid="show-performance-compare-toggle">{String(showPerformanceCompareToggle)}</div>
+      <div data-testid="persisted-show-performance-compare-toggle">{String(persistedShowPerformanceCompareToggle)}</div>
+      <div data-testid="show-performance-timeline-card">{String(showPerformanceTimelineCard)}</div>
+      <div data-testid="persisted-show-performance-timeline-card">{String(persistedShowPerformanceTimelineCard)}</div>
+      <div data-testid="show-logs-view-toggle">{String(showLogsViewToggle)}</div>
+      <div data-testid="show-heartbeat-ribbons">{String(showHeartbeatRibbons)}</div>
+      <div data-testid="persisted-show-logs-view-toggle">{String(persistedShowLogsViewToggle)}</div>
+      <div data-testid="persisted-show-heartbeat-ribbons">{String(persistedShowHeartbeatRibbons)}</div>
+      <div data-testid="persisted-custom-show-explanatory-tooltips">{String(persistedCustomShowExplanatoryTooltips)}</div>
+      <div data-testid="persisted-custom-show-floating-title-actions">{String(persistedCustomShowFloatingTitleActions)}</div>
+      <div data-testid="persisted-custom-show-right-rail-cards">{String(persistedCustomShowRightRailCards)}</div>
+      <div data-testid="persisted-custom-show-overview-task-tabs">{String(persistedCustomShowOverviewTaskTabs)}</div>
+      <div data-testid="persisted-custom-show-analysis-page">{String(persistedCustomShowAnalysisPage)}</div>
+      <div data-testid="persisted-custom-show-performance-compare-toggle">{String(persistedCustomShowPerformanceCompareToggle)}</div>
+      <div data-testid="persisted-custom-show-performance-timeline-card">{String(persistedCustomShowPerformanceTimelineCard)}</div>
+      <div data-testid="persisted-custom-show-logs-view-toggle">{String(persistedCustomShowLogsViewToggle)}</div>
+      <div data-testid="persisted-custom-show-heartbeat-ribbons">{String(persistedCustomShowHeartbeatRibbons)}</div>
       <div data-testid="pending">{String(hasPendingChanges)}</div>
       <div data-testid="translation">{t('settingsTitle')}</div>
       <div data-testid="description-translation">{t('settingsBody')}</div>
@@ -64,6 +134,24 @@ function PreferencesProbe() {
       <button type="button" onClick={() => setShowRightRailCards(false)}>
         hide-right-rail-cards
       </button>
+      <button type="button" onClick={() => setShowOverviewTaskTabs(false)}>
+        hide-overview-task-tabs
+      </button>
+      <button type="button" onClick={() => setShowAnalysisPage(false)}>
+        hide-analysis-page
+      </button>
+      <button type="button" onClick={() => setShowPerformanceCompareToggle(false)}>
+        hide-performance-compare-toggle
+      </button>
+      <button type="button" onClick={() => setShowPerformanceTimelineCard(false)}>
+        hide-performance-timeline-card
+      </button>
+      <button type="button" onClick={() => setShowLogsViewToggle(false)}>
+        hide-logs-view-toggle
+      </button>
+      <button type="button" onClick={() => setShowHeartbeatRibbons(false)}>
+        hide-heartbeat-ribbons
+      </button>
       <button type="button" onClick={() => void savePreferences()}>
         save
       </button>
@@ -81,8 +169,56 @@ describe('preferences state', () => {
   beforeEach(() => {
     getPreferences.mockReset();
     savePreferences.mockReset();
-    getPreferences.mockResolvedValue({ language: 'en', currency: 'USD', usdToKhrExchangeRate: 4000, showExplanatoryTooltips: true, showFloatingTitleActions: true, showRightRailCards: true, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
-    savePreferences.mockResolvedValue({ language: 'km', currency: 'KHR', usdToKhrExchangeRate: 4100, showExplanatoryTooltips: false, showFloatingTitleActions: false, showRightRailCards: false, senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS });
+    getPreferences.mockResolvedValue({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+    });
+    savePreferences.mockResolvedValue({
+      language: 'km',
+      currency: 'KHR',
+      usdToKhrExchangeRate: 4100,
+      displayViewMode: 'custom',
+      showExplanatoryTooltips: false,
+      showFloatingTitleActions: false,
+      showRightRailCards: false,
+      showOverviewTaskTabs: false,
+      showAnalysisPage: false,
+      showPerformanceCompareToggle: false,
+      showPerformanceTimelineCard: false,
+      showLogsViewToggle: false,
+      showHeartbeatRibbons: false,
+      customShowExplanatoryTooltips: false,
+      customShowFloatingTitleActions: false,
+      customShowRightRailCards: false,
+      customShowOverviewTaskTabs: false,
+      customShowAnalysisPage: false,
+      customShowPerformanceCompareToggle: false,
+      customShowPerformanceTimelineCard: false,
+      customShowLogsViewToggle: false,
+      customShowHeartbeatRibbons: false,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+    });
     window.banjiDesktop = {
       ...window.banjiDesktop,
       preferences: {
@@ -113,15 +249,35 @@ describe('preferences state', () => {
     fireEvent.click(screen.getByText('hide-explanatory-tooltips'));
     fireEvent.click(screen.getByText('hide-floating-title-actions'));
     fireEvent.click(screen.getByText('hide-right-rail-cards'));
+    fireEvent.click(screen.getByText('hide-overview-task-tabs'));
+    fireEvent.click(screen.getByText('hide-analysis-page'));
+    fireEvent.click(screen.getByText('hide-performance-compare-toggle'));
+    fireEvent.click(screen.getByText('hide-performance-timeline-card'));
+    fireEvent.click(screen.getByText('hide-logs-view-toggle'));
+    fireEvent.click(screen.getByText('hide-heartbeat-ribbons'));
 
     await waitFor(() => {
       expect(screen.getByTestId('language').textContent).toBe('km');
     });
     expect(screen.getByTestId('currency').textContent).toBe('KHR');
     expect(screen.getByTestId('exchange-rate').textContent).toBe('4100');
+    expect(screen.getByTestId('display-view-mode').textContent).toBe('custom');
     expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('false');
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('false');
+    expect(screen.getByTestId('show-overview-task-tabs').textContent).toBe('false');
+    expect(screen.getByTestId('show-analysis-page').textContent).toBe('false');
+    expect(screen.getByTestId('show-performance-compare-toggle').textContent).toBe('false');
+    expect(screen.getByTestId('show-performance-timeline-card').textContent).toBe('false');
+    expect(screen.getByTestId('show-logs-view-toggle').textContent).toBe('false');
+    expect(screen.getByTestId('show-heartbeat-ribbons').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-explanatory-tooltips').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-overview-task-tabs').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-analysis-page').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-performance-compare-toggle').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-performance-timeline-card').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-logs-view-toggle').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-heartbeat-ribbons').textContent).toBe('false');
     expect(screen.getByTestId('pending').textContent).toBe('true');
     expect(screen.getByTestId('translation').textContent).toBe('ការកំណត់');
     expect(screen.getByTestId('description-translation').textContent).toBe(
@@ -133,9 +289,16 @@ describe('preferences state', () => {
     expect(screen.getByTestId('language').textContent).toBe('en');
     expect(screen.getByTestId('currency').textContent).toBe('USD');
     expect(screen.getByTestId('exchange-rate').textContent).toBe('4000');
+    expect(screen.getByTestId('display-view-mode').textContent).toBe('custom');
     expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('true');
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('true');
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('true');
+    expect(screen.getByTestId('show-overview-task-tabs').textContent).toBe('true');
+    expect(screen.getByTestId('show-analysis-page').textContent).toBe('true');
+    expect(screen.getByTestId('show-performance-compare-toggle').textContent).toBe('true');
+    expect(screen.getByTestId('show-performance-timeline-card').textContent).toBe('true');
+    expect(screen.getByTestId('show-logs-view-toggle').textContent).toBe('true');
+    expect(screen.getByTestId('show-heartbeat-ribbons').textContent).toBe('true');
 
     fireEvent.click(screen.getByText('preview-language'));
     fireEvent.click(screen.getByText('preview-currency'));
@@ -143,6 +306,12 @@ describe('preferences state', () => {
     fireEvent.click(screen.getByText('hide-explanatory-tooltips'));
     fireEvent.click(screen.getByText('hide-floating-title-actions'));
     fireEvent.click(screen.getByText('hide-right-rail-cards'));
+    fireEvent.click(screen.getByText('hide-overview-task-tabs'));
+    fireEvent.click(screen.getByText('hide-analysis-page'));
+    fireEvent.click(screen.getByText('hide-performance-compare-toggle'));
+    fireEvent.click(screen.getByText('hide-performance-timeline-card'));
+    fireEvent.click(screen.getByText('hide-logs-view-toggle'));
+    fireEvent.click(screen.getByText('hide-heartbeat-ribbons'));
     fireEvent.click(screen.getByText('save'));
 
     await waitFor(() => {
@@ -153,15 +322,35 @@ describe('preferences state', () => {
         showExplanatoryTooltips: false,
         showFloatingTitleActions: false,
         showRightRailCards: false,
+        showOverviewTaskTabs: false,
+        showAnalysisPage: false,
+        showPerformanceCompareToggle: false,
+        showPerformanceTimelineCard: false,
+        showLogsViewToggle: false,
+        showHeartbeatRibbons: false,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
       }));
     });
     expect(screen.getByTestId('persisted-language').textContent).toBe('km');
     expect(screen.getByTestId('persisted-currency').textContent).toBe('KHR');
     expect(screen.getByTestId('persisted-exchange-rate').textContent).toBe('4100');
+    expect(screen.getByTestId('persisted-display-view-mode').textContent).toBe('custom');
     expect(screen.getByTestId('persisted-show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-floating-title-actions').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-right-rail-cards').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-show-overview-task-tabs').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-show-analysis-page').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-show-performance-compare-toggle').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-show-performance-timeline-card').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-show-logs-view-toggle').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-show-heartbeat-ribbons').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-explanatory-tooltips').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-overview-task-tabs').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-analysis-page').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-performance-compare-toggle').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-performance-timeline-card').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-logs-view-toggle').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-heartbeat-ribbons').textContent).toBe('false');
     expect(screen.getByTestId('pending').textContent).toBe('false');
   });
 });
