@@ -61,6 +61,35 @@ function createInventory(overrides?: Partial<InventoryContextValue>): InventoryC
 }
 
 describe('command palette descriptors', () => {
+  test('hides analysis commands when the analysis page is disabled', () => {
+    const commands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'custom',
+      inventory: createInventory(),
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAnalysisPage: false,
+      t: (key) =>
+        ({
+          navAnalysis: 'Analysis',
+          navArchive: 'Archive',
+          navCatalog: 'Catalog',
+          navOperations: 'Logs',
+          navOverview: 'Overview',
+          navPerformance: 'Performance',
+          navRecordUpdate: 'Record update',
+          navSettings: 'Settings',
+          navHelp: 'Help',
+        }[key] ?? key),
+    });
+
+    expect(commands.some((command) => command.pageId === 'analysis')).toBe(false);
+    expect(commands.some((command) => command.id === 'page:analysis')).toBe(false);
+  });
+
   test('builds static, entity, and overview workflow commands', () => {
     const inventory = createInventory({
       catalog: {
@@ -131,6 +160,7 @@ describe('command palette descriptors', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAnalysisPage: true,
       t: (key) =>
         ({
           navAnalysis: 'Analysis',
@@ -192,6 +222,7 @@ describe('command palette descriptors', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAnalysisPage: true,
       t: (key) => key,
     });
 
@@ -250,6 +281,7 @@ describe('command palette descriptors', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAnalysisPage: true,
       t: (key) =>
         ({
           navAnalysis: 'Analysis',

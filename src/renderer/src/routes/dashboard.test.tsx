@@ -154,6 +154,7 @@ const preferenceState = {
   showExplanatoryTooltips: true,
   showFloatingTitleActions: true,
   showRightRailCards: true,
+  showOverviewTaskTabs: true,
   overviewStaleUpdateReminderSnoozeUntil: null as string | null,
 };
 
@@ -168,6 +169,7 @@ vi.mock('../state/preferences', () => ({
     showExplanatoryTooltips: preferenceState.showExplanatoryTooltips,
     showFloatingTitleActions: preferenceState.showFloatingTitleActions,
     showRightRailCards: preferenceState.showRightRailCards,
+    showOverviewTaskTabs: preferenceState.showOverviewTaskTabs,
     overviewStaleUpdateReminderSnoozeUntil: preferenceState.overviewStaleUpdateReminderSnoozeUntil,
     applyOverviewStaleUpdateReminderSnoozeUntil,
     t: (key: string) => {
@@ -507,6 +509,7 @@ function renderRouteWithOptionalHelp(visible: boolean) {
 describe('DashboardRoute', () => {
   beforeEach(() => {
     preferenceState.showRightRailCards = true;
+    preferenceState.showOverviewTaskTabs = true;
     preferenceState.overviewStaleUpdateReminderSnoozeUntil = null;
     applyOverviewStaleUpdateReminderSnoozeUntil.mockClear();
     freezeDate('2026-04-03T12:00:00.000Z');
@@ -750,6 +753,17 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('heading', { level: 2, name: 'In transit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'Recent receipts' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'Business signals' })).not.toBeInTheDocument();
+  });
+
+  test('hides the overview tabs and defaults to the all tasks queue when tab view is disabled', async () => {
+    preferenceState.showOverviewTaskTabs = false;
+
+    renderRouteWithLocation('/?filter=ready_to_receive');
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Awaiting receipt' })).not.toBeInTheDocument();
+    expect(screen.getByText('Razor refill')).toBeInTheDocument();
+    expect(screen.getByText('Cotton pads')).toBeInTheDocument();
   });
 
   test('hides overview descriptors and empty-state hints when optional help is disabled', async () => {

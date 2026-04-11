@@ -11,6 +11,10 @@ const inventoryHook = vi.fn();
 const preferenceState = {
   currency: 'USD',
   language: 'en',
+  showAnalysisPage: true,
+  showHeartbeatRibbons: true,
+  showPerformanceCompareToggle: true,
+  showPerformanceTimelineCard: true,
   showRightRailCards: true,
   t: (
     key: Parameters<typeof getTranslation>[1],
@@ -428,7 +432,10 @@ function createInventoryState(overrides: Record<string, unknown> = {}) {
 describe('PerformanceRoute', () => {
   beforeEach(() => {
     preferenceState.language = 'en';
+    preferenceState.showHeartbeatRibbons = true;
     preferenceState.showRightRailCards = true;
+    preferenceState.showPerformanceCompareToggle = true;
+    preferenceState.showPerformanceTimelineCard = true;
     inventoryHook.mockReturnValue(createInventoryState());
   });
 
@@ -799,6 +806,35 @@ describe('PerformanceRoute', () => {
     expect(screen.queryByRole('heading', { name: 'Recovery pipeline' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Price and margin watch' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Confidence / coverage' })).not.toBeInTheDocument();
+  });
+
+  test('hides the compare toggle and stays in single view when disabled', async () => {
+    preferenceState.showPerformanceCompareToggle = false;
+
+    renderRoute('/performance?compare=1');
+
+    expect(await screen.findByText('Showing last 30d posture only')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /compare/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Showing last 30d posture vs prior 30d')).not.toBeInTheDocument();
+  });
+
+  test('hides the business timeline card when disabled', async () => {
+    preferenceState.showPerformanceTimelineCard = false;
+
+    renderRoute();
+
+    expect(await screen.findByRole('heading', { name: 'Move now' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Business timeline' })).not.toBeInTheDocument();
+  });
+
+  test('hides the heartbeat and ribbon summary when disabled', async () => {
+    preferenceState.showHeartbeatRibbons = false;
+
+    renderRoute('/performance?compare=0');
+
+    expect(await screen.findByRole('heading', { name: 'Move now' })).toBeInTheDocument();
+    expect(screen.queryByText('Showing last 30d posture only')).not.toBeInTheDocument();
+    expect(screen.queryByText('Demand momentum')).not.toBeInTheDocument();
   });
 
   test('updates the business window when the time-range toggle changes', async () => {

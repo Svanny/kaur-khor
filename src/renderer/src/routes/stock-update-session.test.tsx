@@ -14,6 +14,7 @@ const preferenceState = {
   currency: 'USD' as const,
   language: 'en' as const,
   usdToKhrExchangeRate: 4000,
+  showHeartbeatRibbons: true,
   showFloatingTitleActions: false,
 };
 const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:v1';
@@ -310,6 +311,7 @@ describe('StockUpdateSessionRoute', () => {
     preferenceState.currency = 'USD';
     preferenceState.language = 'en';
     preferenceState.usdToKhrExchangeRate = 4000;
+    preferenceState.showHeartbeatRibbons = true;
     preferenceState.showFloatingTitleActions = false;
     installMemoryLocalStorage();
     ingestSenaObservation.mockResolvedValue({ observationId: 'obs-new' });
@@ -346,6 +348,16 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: /Rank recent selling order/i }));
     expect(screen.queryByRole('button', { name: 'Start ranking' })).not.toBeInTheDocument();
   }, 20_000);
+
+  it('hides the summary ribbon when heartbeat ribbons are disabled', () => {
+    preferenceState.showHeartbeatRibbons = false;
+
+    renderRoute();
+
+    expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.queryByText('Last confirmed update')).not.toBeInTheDocument();
+    expect(screen.queryByText('Untouched SKUs stay unchanged')).not.toBeInTheDocument();
+  });
 
   it('blocks the first observation until at least one SKU stock row changes', () => {
     renderRoute([]);

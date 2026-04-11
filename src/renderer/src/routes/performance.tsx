@@ -344,12 +344,21 @@ function MoveNowTable({
 
 export function PerformanceRoute() {
   const inventory = useInventory();
-  const { currency, language, showRightRailCards, t, usdToKhrExchangeRate } = usePreferences();
+  const {
+    currency,
+    language,
+    showHeartbeatRibbons = true,
+    showPerformanceCompareToggle,
+    showPerformanceTimelineCard,
+    showRightRailCards,
+    t,
+    usdToKhrExchangeRate,
+  } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const routeState = readPerformanceRouteState(searchParams);
   const timeRange = routeState.range as PerformanceTimeRange;
   const scope = routeState.scope as PerformanceScope;
-  const compareMode = routeState.compare;
+  const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
   const visibleCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
@@ -484,63 +493,69 @@ export function PerformanceRoute() {
               </ToggleGroupItem>
             </ToggleGroup>
 
-            <SteeringPill active={compareMode} onClick={() => updateRouteState({ compare: !compareMode })}>
-              <EntityComparisonIcon className="size-4" />
-              {compareMode ? t('performanceRouteCompareView') : t('performanceRouteSingleView')}
-            </SteeringPill>
+            {showPerformanceCompareToggle ? (
+              <SteeringPill active={compareMode} onClick={() => updateRouteState({ compare: !compareMode })}>
+                <EntityComparisonIcon className="size-4" />
+                {compareMode ? t('performanceRouteCompareView') : t('performanceRouteSingleView')}
+              </SteeringPill>
+            ) : null}
           </div>
         }
       >
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span>{model.lastUpdatedLabel}</span>
-          <span>
-            {latestUpdateAt
-              ? latestUpdateAgeDays == null
-                ? t('performanceRouteRealWorldUpdateLoaded')
-                : t('performanceRouteRealWorldUpdateAgo', { days: latestUpdateAgeDays })
-              : t('performanceRouteNoRealWorldUpdate')}
-          </span>
-          {isHydratingDetails ? <span>{t('performanceRouteRefiningSignals')}</span> : null}
-          <span>
-            {scope === 'all'
-              ? t('performanceRouteScopeMixed')
-              : scope === 'services'
-                ? t('performanceRouteScopeServicesOnly')
-                : t('performanceRouteScopeSkusOnly')}
-          </span>
-          <span>
-            {compareMode
-              ? t('performanceRouteShowingCompare', {
-                  current: model.windowLabel,
-                  previous: model.previousWindowLabel,
-                })
-              : t('performanceRouteShowingSingle', { current: model.windowLabel })}
-          </span>
-        </div>
+        {showHeartbeatRibbons ? (
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <span>{model.lastUpdatedLabel}</span>
+            <span>
+              {latestUpdateAt
+                ? latestUpdateAgeDays == null
+                  ? t('performanceRouteRealWorldUpdateLoaded')
+                  : t('performanceRouteRealWorldUpdateAgo', { days: latestUpdateAgeDays })
+                : t('performanceRouteNoRealWorldUpdate')}
+            </span>
+            {isHydratingDetails ? <span>{t('performanceRouteRefiningSignals')}</span> : null}
+            <span>
+              {scope === 'all'
+                ? t('performanceRouteScopeMixed')
+                : scope === 'services'
+                  ? t('performanceRouteScopeServicesOnly')
+                  : t('performanceRouteScopeSkusOnly')}
+            </span>
+            <span>
+              {compareMode
+                ? t('performanceRouteShowingCompare', {
+                    current: model.windowLabel,
+                    previous: model.previousWindowLabel,
+                  })
+                : t('performanceRouteShowingSingle', { current: model.windowLabel })}
+            </span>
+          </div>
+        ) : null}
       </WorkspaceTitleCard>
-      <section className={`${PERFORMANCE_HEADER_SURFACE_CLASS_NAME} overflow-hidden`}>
-        <div className="grid divide-y divide-border/60 bg-border/40 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-5">
-          {model.ribbon.map((metric) => (
-            <div key={metric.key} className="bg-white px-5 py-4 sm:px-6">
-              <p className="text-[0.72rem] font-medium tracking-[0.08em] text-muted-foreground/80">{metric.label}</p>
-              <div className="mt-2">
-                {metric.trendSignal ? (
-                  <TrendSignalInline
-                    label={metric.trendSignal.label}
-                    labelBelow
-                    points={metric.trendSignal.points}
-                    splitIndex={metric.trendSignal.splitIndex}
-                    tone={metric.trendSignal.tone}
-                  />
-                ) : (
-                  <p className="text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground">{metric.value}</p>
-                )}
+      {showHeartbeatRibbons ? (
+        <section className={`${PERFORMANCE_HEADER_SURFACE_CLASS_NAME} overflow-hidden`}>
+          <div className="grid divide-y divide-border/60 bg-border/40 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-5">
+            {model.ribbon.map((metric) => (
+              <div key={metric.key} className="bg-white px-5 py-4 sm:px-6">
+                <p className="text-[0.72rem] font-medium tracking-[0.08em] text-muted-foreground/80">{metric.label}</p>
+                <div className="mt-2">
+                  {metric.trendSignal ? (
+                    <TrendSignalInline
+                      label={metric.trendSignal.label}
+                      labelBelow
+                      points={metric.trendSignal.points}
+                      splitIndex={metric.trendSignal.splitIndex}
+                      tone={metric.trendSignal.tone}
+                    />
+                  ) : (
+                    <p className="text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground">{metric.value}</p>
+                  )}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{metric.detail}</p>
               </div>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{metric.detail}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
@@ -822,17 +837,19 @@ export function PerformanceRoute() {
         ) : null}
       </div>
 
-      <PerformanceSectionShell
-        title={t('performanceRouteTimelineTitle')}
-        tooltip={t('performanceRouteTimelineTooltip')}
-        descriptor={t('performanceRouteTimelineDescriptor')}
-      >
-        <div className="flex flex-wrap gap-y-3 pt-2">
-          {model.timeline.map((event, index) => (
-            <TimelineStep key={event.id} event={event} showConnector={index < model.timeline.length - 1} />
-          ))}
-        </div>
-      </PerformanceSectionShell>
+      {showPerformanceTimelineCard ? (
+        <PerformanceSectionShell
+          title={t('performanceRouteTimelineTitle')}
+          tooltip={t('performanceRouteTimelineTooltip')}
+          descriptor={t('performanceRouteTimelineDescriptor')}
+        >
+          <div className="flex flex-wrap gap-y-3 pt-2">
+            {model.timeline.map((event, index) => (
+              <TimelineStep key={event.id} event={event} showConnector={index < model.timeline.length - 1} />
+            ))}
+          </div>
+        </PerformanceSectionShell>
+      ) : null}
     </WorkspacePage>
   );
 }

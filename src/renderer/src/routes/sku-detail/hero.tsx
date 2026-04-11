@@ -26,7 +26,7 @@ export function SkuDetailHero({
   actions: ReactNode;
   model: SenaSkuDetailViewModel;
 }) {
-  const { language, t } = usePreferences();
+  const { language, showHeartbeatRibbons = true, t } = usePreferences();
   const TopRegimeIcon = getRegimeIcon(model.identity.topRegime);
   const topRegimeLabel = translateRegimeLabel(language, model.identity.topRegime);
 
@@ -48,37 +48,41 @@ export function SkuDetailHero({
       }
       title={model.identity.name}
     >
-      <div className="mt-7 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-          <SectionLabel tooltip={t('catalogSenaSkuHeroTooltip')}>
-            {t('catalogSenaSkuHeroTitle')}
-          </SectionLabel>
-        </p>
-        <h2 className="mt-4 text-5xl leading-[1.18] font-semibold tracking-[-0.06em] text-foreground sm:text-6xl">
-          {model.heartbeat.headlineUnits}
-        </h2>
-        <p className="mx-auto mt-6 max-w-5xl text-base leading-7 text-muted-foreground">
-          {model.heartbeat.heroSentence}
-        </p>
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-[1rem] border border-border/70 bg-white shadow-[0_10px_24px_rgba(48,31,20,0.06)]">
-        <div className="border-b border-border/60 px-4 py-3">
+      {showHeartbeatRibbons ? (
+        <div className="mt-7 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            <SectionLabel tooltip={t('catalogSenaSkuRibbonTooltip')}>
-              {t('catalogSenaSkuOperationalRibbon')}
+            <SectionLabel tooltip={t('catalogSenaSkuHeroTooltip')}>
+              {t('catalogSenaSkuHeroTitle')}
             </SectionLabel>
           </p>
+          <h2 className="mt-4 text-5xl leading-[1.18] font-semibold tracking-[-0.06em] text-foreground sm:text-6xl">
+            {model.heartbeat.headlineUnits}
+          </h2>
+          <p className="mx-auto mt-6 max-w-5xl text-base leading-7 text-muted-foreground">
+            {model.heartbeat.heroSentence}
+          </p>
         </div>
-        <div className={`grid divide-y divide-border/60 bg-border/40 sm:grid-cols-2 sm:divide-x sm:divide-y-0 ${ribbonGridClassName(model.ribbon.length)}`}>
-          {model.ribbon.map((metric) => (
-            <div key={metric.key} className="bg-white px-4 py-3">
-              <p className="text-sm text-muted-foreground">{metric.label}</p>
-              <p className="mt-1 text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground">{metric.value}</p>
-            </div>
-          ))}
+      ) : null}
+
+      {showHeartbeatRibbons ? (
+        <div className="mt-6 overflow-hidden rounded-[1rem] border border-border/70 bg-white shadow-[0_10px_24px_rgba(48,31,20,0.06)]">
+          <div className="border-b border-border/60 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              <SectionLabel tooltip={t('catalogSenaSkuRibbonTooltip')}>
+                {t('catalogSenaSkuOperationalRibbon')}
+              </SectionLabel>
+            </p>
+          </div>
+          <div className={`grid divide-y divide-border/60 bg-border/40 sm:grid-cols-2 sm:divide-x sm:divide-y-0 ${ribbonGridClassName(model.ribbon.length)}`}>
+            {model.ribbon.map((metric) => (
+              <div key={metric.key} className="bg-white px-4 py-3">
+                <p className="text-sm text-muted-foreground">{metric.label}</p>
+                <p className="mt-1 text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground">{metric.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
     </SkuPageHero>
   );
 }

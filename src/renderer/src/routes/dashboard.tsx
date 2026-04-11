@@ -178,6 +178,7 @@ export function DashboardRoute() {
     language,
     overviewStaleUpdateReminderSnoozeUntil,
     showExplanatoryTooltips,
+    showOverviewTaskTabs,
     showRightRailCards,
     t,
   } = usePreferences();
@@ -189,6 +190,7 @@ export function DashboardRoute() {
   const routeState = readOverviewRouteState(searchParams);
   const searchScope = routeState.scope;
   const filter = routeState.filter as OverviewTaskFilter;
+  const activeFilter: OverviewTaskFilter = showOverviewTaskTabs ? filter : 'all';
   const selectedTaskId = routeState.taskId;
   const filterOptions = buildFilterOptions(language);
   const todayFilterRows = buildTodayFilterRows(language);
@@ -245,7 +247,7 @@ export function DashboardRoute() {
         ? matchesOverviewEntityScope(task, searchScope) && matchesOverviewQuery(task, deferredQuery, searchScope)
         : searchScope === 'all' && matchesOverviewQuery(task, deferredQuery, searchScope),
   );
-  const visibleTasks = scopedTasks.filter((task) => shouldShowTask(task, filter));
+  const visibleTasks = scopedTasks.filter((task) => shouldShowTask(task, activeFilter));
   const selectedTask = scopedTasks.find(
     (task): task is OverviewSkuTask => task.id === selectedTaskId && isOverviewSkuTask(task),
   ) ?? null;
@@ -351,30 +353,32 @@ export function DashboardRoute() {
 
       <ChromeTabs
         className="relative gap-0"
-        value={filter}
+        value={activeFilter}
         onValueChange={(nextValue) => updateRouteState({ filter: nextValue as OverviewTaskFilter })}
       >
-        <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
-          <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
-            {filterOptions.map((option) => {
-              const FilterTabIcon = overviewTaskFilterIcons[option.value];
-              return (
-                <ChromeTabsTrigger
-                  key={option.value}
-                  leading={<FilterTabIcon className="size-4" />}
-                  value={option.value}
-                >
-                  {option.label}
-                </ChromeTabsTrigger>
-              );
-            })}
-          </ChromeTabsList>
-        </div>
+        {showOverviewTaskTabs ? (
+          <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
+            <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
+              {filterOptions.map((option) => {
+                const FilterTabIcon = overviewTaskFilterIcons[option.value];
+                return (
+                  <ChromeTabsTrigger
+                    key={option.value}
+                    leading={<FilterTabIcon className="size-4" />}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </ChromeTabsTrigger>
+                );
+              })}
+            </ChromeTabsList>
+          </div>
+        ) : null}
 
         <section
           className={`relative z-[1] ${boardClassName()}`}
           style={{
-            marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
+            marginTop: showOverviewTaskTabs ? 'calc(var(--chrome-tabs-surface-overlap) * -2.75)' : undefined,
           }}
         >
           <div className={showRightRailCards ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>

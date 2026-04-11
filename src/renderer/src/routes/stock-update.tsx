@@ -588,14 +588,15 @@ export function StockUpdateRoute() {
     observations,
     triggerSenaRun,
   } = useInventory();
-  const { t, language } = usePreferences();
+  const { t, language, showLogsViewToggle } = usePreferences();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const routeState = readOperationsRouteState(searchParams);
   const scope = routeState.scope as ObservationScope;
-  const view = routeState.view as ObservationView;
+  const routeView = routeState.view as ObservationView;
+  const view = showLogsViewToggle ? routeView : 'all';
   const [yearOffset, setYearOffset] = useState(0);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -798,30 +799,32 @@ export function StockUpdateRoute() {
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
-          <Select value={view} onValueChange={(nextValue) => updateRouteState({ view: nextValue as ObservationView })}>
-            <SelectTrigger
-              aria-label={translateUiLiteral(language, 'Select log view')}
-              className="h-11 rounded-2xl border border-border/70 bg-background/80 px-4 text-sm font-medium text-foreground shadow-xs data-[size=default]:h-11 [&_svg]:opacity-100"
-            >
-              <span className="inline-flex items-center gap-2 text-foreground">
-                <SelectedViewIcon className="size-4" />
-                <span>{translateUiLiteral(language, 'View: {value}', { value: translateUiLiteral(language, selectedView.label) })}</span>
-              </span>
-            </SelectTrigger>
-            <SelectContent align="start" position="popper">
-              {(Object.entries(VIEW_OPTIONS) as [ObservationView, (typeof VIEW_OPTIONS)[ObservationView]][]).map(
-                ([value, option]) => {
-                  const OptionIcon = option.icon;
-                  return (
-                    <SelectItem key={value} value={value}>
-                      <OptionIcon className="size-4" />
-                      {translateUiLiteral(language, option.label)}
-                    </SelectItem>
-                  );
-                },
-              )}
-            </SelectContent>
-          </Select>
+          {showLogsViewToggle ? (
+            <Select value={view} onValueChange={(nextValue) => updateRouteState({ view: nextValue as ObservationView })}>
+              <SelectTrigger
+                aria-label={translateUiLiteral(language, 'Select log view')}
+                className="h-11 rounded-2xl border border-border/70 bg-background/80 px-4 text-sm font-medium text-foreground shadow-xs data-[size=default]:h-11 [&_svg]:opacity-100"
+              >
+                <span className="inline-flex items-center gap-2 text-foreground">
+                  <SelectedViewIcon className="size-4" />
+                  <span>{translateUiLiteral(language, 'View: {value}', { value: translateUiLiteral(language, selectedView.label) })}</span>
+                </span>
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                {(Object.entries(VIEW_OPTIONS) as [ObservationView, (typeof VIEW_OPTIONS)[ObservationView]][]).map(
+                  ([value, option]) => {
+                    const OptionIcon = option.icon;
+                    return (
+                      <SelectItem key={value} value={value}>
+                        <OptionIcon className="size-4" />
+                        {translateUiLiteral(language, option.label)}
+                      </SelectItem>
+                    );
+                  },
+                )}
+              </SelectContent>
+            </Select>
+          ) : null}
         </div>
       </WorkspaceTitleCard>
       {view === 'heatmap' ? (

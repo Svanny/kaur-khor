@@ -58,6 +58,7 @@ export type CommandAction =
         | 'set-show-explanatory-tooltips'
         | 'set-show-floating-title-actions'
         | 'set-show-right-rail-cards'
+        | 'set-show-analysis-page'
         | 'set-smoothing-enabled'
         | 'create-backup-snapshot'
         | 'restore-backup-snapshot'
@@ -259,7 +260,7 @@ function tabCommand({
   });
 }
 
-function buildPageCommands(t: Translator) {
+function buildPageCommands(t: Translator, { showAnalysisPage }: { showAnalysisPage: boolean }) {
   return [
     pageCommand({
       aliases: ['home', 'dashboard'],
@@ -297,18 +298,22 @@ function buildPageCommands(t: Translator) {
       subtitle: 'Demand, capacity, and cash movement',
       title: t('navPerformance'),
     }),
-    pageCommand({
-      aliases: ['workbench', 'analysis'],
-      href: buildAnalysisHref(),
-      id: 'page:analysis',
-      keywords: ['analysis', 'workbench', 'fragility', 'pressure'],
-      pageId: 'analysis',
-      pageOrder: 4,
-      pagePrefix: '/analysis',
-      priority: 13,
-      subtitle: 'Detailed analysis tools',
-      title: t('navAnalysis'),
-    }),
+    ...(showAnalysisPage
+      ? [
+          pageCommand({
+            aliases: ['workbench', 'analysis'],
+            href: buildAnalysisHref(),
+            id: 'page:analysis',
+            keywords: ['analysis', 'workbench', 'fragility', 'pressure'],
+            pageId: 'analysis',
+            pageOrder: 4,
+            pagePrefix: '/analysis',
+            priority: 13,
+            subtitle: 'Detailed analysis tools',
+            title: t('navAnalysis'),
+          }),
+        ]
+      : []),
     pageCommand({
       aliases: ['inventory'],
       href: buildCatalogHref(),
@@ -704,6 +709,7 @@ function buildSettingsCommands({
   senaEngineParameters,
   showExplanatoryTooltips,
   showFloatingTitleActions,
+  showAnalysisPage,
   showRightRailCards,
   t,
 }: {
@@ -713,6 +719,7 @@ function buildSettingsCommands({
   senaEngineParameters: { smoothingEnabled?: boolean };
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
+  showAnalysisPage: boolean;
   showRightRailCards: boolean;
   t: Translator;
 }) {
@@ -837,6 +844,19 @@ function buildSettingsCommands({
       title: `${showRightRailCards ? 'Hide' : 'Show'} right rail cards`,
     }),
     createCommand({
+      action: { effect: 'set-show-analysis-page', href: '/settings', type: 'settings', value: !showAnalysisPage },
+      aliases: ['settings analysis page'],
+      id: `settings:analysis-page:${showAnalysisPage ? 'off' : 'on'}`,
+      keywords: ['settings', 'analysis', 'page', showAnalysisPage ? 'disable' : 'enable'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 509,
+      subtitle: 'Settings / Interface visibility',
+      title: `${showAnalysisPage ? 'Hide' : 'Show'} analysis page`,
+    }),
+    createCommand({
       action: { effect: 'set-smoothing-enabled', href: '/settings', type: 'settings', value: !smoothingEnabled },
       aliases: ['settings smoothing'],
       id: `settings:smoothing:${smoothingEnabled ? 'off' : 'on'}`,
@@ -845,7 +865,7 @@ function buildSettingsCommands({
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
-      priority: 509,
+      priority: 510,
       subtitle: `${t('navSettings')} / ${t('settingsSenaParametersPanelTitle')}`,
       title: `${smoothingEnabled ? 'Disable' : 'Enable'} smoothing`,
     }),
@@ -1174,6 +1194,7 @@ export function buildCommandDescriptors({
   senaEngineParameters,
   showExplanatoryTooltips,
   showFloatingTitleActions,
+  showAnalysisPage,
   showRightRailCards,
   t,
 }: {
@@ -1184,11 +1205,12 @@ export function buildCommandDescriptors({
   senaEngineParameters: { smoothingEnabled?: boolean };
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
+  showAnalysisPage: boolean;
   showRightRailCards: boolean;
   t: Translator;
 }) {
   const commands = [
-    ...buildPageCommands(t),
+    ...buildPageCommands(t, { showAnalysisPage }),
     ...buildWorkflowCommands(),
     ...buildSettingsCommands({
       currency,
@@ -1197,6 +1219,7 @@ export function buildCommandDescriptors({
       senaEngineParameters,
       showExplanatoryTooltips,
       showFloatingTitleActions,
+      showAnalysisPage,
       showRightRailCards,
       t,
     }),
@@ -1205,7 +1228,7 @@ export function buildCommandDescriptors({
     ...buildOperationsCommands(),
     ...buildArchiveCommands(),
     ...buildPerformanceCommands(),
-    ...buildAnalysisCommands(),
+    ...(showAnalysisPage ? buildAnalysisCommands() : []),
   ];
 
   if (!inventory.catalog) {

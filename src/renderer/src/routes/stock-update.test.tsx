@@ -27,6 +27,28 @@ function freezeDate(isoString: string) {
 const inventoryHook = vi.fn();
 const deleteSenaObservation = vi.fn();
 const triggerSenaRun = vi.fn();
+const preferenceState = {
+  language: 'en',
+  showLogsViewToggle: true,
+  t: (key: string) => {
+    if (key === 'searchPlaceholder') {
+      return 'Search name or description…';
+    }
+    if (key === 'searchItems') {
+      return 'Search and segment';
+    }
+    if (key === 'operationsFilterEverything') {
+      return 'All';
+    }
+    if (key === 'filterSku') {
+      return 'SKUs';
+    }
+    if (key === 'filterService') {
+      return 'Services';
+    }
+    return key;
+  },
+};
 
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
@@ -45,27 +67,7 @@ vi.mock('../state/inventory', () => ({
 }));
 
 vi.mock('../state/preferences', () => ({
-  usePreferences: () => ({
-    language: 'en',
-    t: (key: string) => {
-      if (key === 'searchPlaceholder') {
-        return 'Search name or description…';
-      }
-      if (key === 'searchItems') {
-        return 'Search and segment';
-      }
-      if (key === 'operationsFilterEverything') {
-        return 'All';
-      }
-      if (key === 'filterSku') {
-        return 'SKUs';
-      }
-      if (key === 'filterService') {
-        return 'Services';
-      }
-      return key;
-    },
-  }),
+  usePreferences: () => preferenceState,
 }));
 
 const sampleCatalog = {
@@ -186,7 +188,7 @@ function makeObservation(observationId: string, observedAt: string, notes: strin
   };
 }
 
-function renderRoute(overrides?: Record<string, unknown>) {
+function renderRoute(overrides?: Record<string, unknown>, initialEntry = '/operations') {
   inventoryHook.mockReturnValue({
     catalog: sampleCatalog,
     deleteSenaObservation,
@@ -201,7 +203,7 @@ function renderRoute(overrides?: Record<string, unknown>) {
   });
 
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <StockUpdateRoute />
     </MemoryRouter>,
   );
@@ -239,6 +241,7 @@ function renderRouteWithDestination() {
 describe('StockUpdateRoute', () => {
   beforeEach(() => {
     freezeDate('2026-04-06T12:00:00.000Z');
+    preferenceState.showLogsViewToggle = true;
   });
 
   afterEach(() => {
@@ -305,6 +308,18 @@ describe('StockUpdateRoute', () => {
     expect(screen.getByText('Observation 6')).toBeInTheDocument();
     expect(screen.getByText('Observation 7')).toBeInTheDocument();
     expect(screen.queryByText('Observation 1')).not.toBeInTheDocument();
+  });
+
+  it('hides the view button and forces all view when disabled', () => {
+    preferenceState.showLogsViewToggle = false;
+
+    renderRoute(undefined, '/operations?view=heatmap');
+
+    expect(screen.queryByRole('combobox', { name: 'Select log view' })).not.toBeInTheDocument();
+    expect(screen.queryByText('View: Heatmap')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Observation contribution heatmap')).not.toBeInTheDocument();
+    expect(screen.getByText('All observations (4)')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1-4 of 4 filtered observations.')).toBeInTheDocument();
   });
 
   it('selects the newest active day by default and shows that day detail list', () => {

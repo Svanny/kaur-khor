@@ -1842,7 +1842,7 @@ function ReviewStep({
 
 export function StockUpdateSessionRoute() {
   const { catalog, ingestSenaObservation, isSaving, observations, runWorkspacePreparation, triggerSenaRun, updateSenaObservation, workspaceSummary } = useInventory();
-  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, showHeartbeatRibbons = true, t, usdToKhrExchangeRate } = usePreferences();
   const location = useLocation();
   const navigate = useNavigate();
   const latestAt = latestObservationAt(observations);
@@ -2661,7 +2661,7 @@ export function StockUpdateSessionRoute() {
             onStepSelect={(stepId) => selectStep(stepId as StockUpdateStepId)}
           />
 
-          <MetricRibbon items={summaryRibbonItems} />
+          {showHeartbeatRibbons ? <MetricRibbon items={summaryRibbonItems} /> : null}
         </div>
       </WorkspaceTitleCard>
 

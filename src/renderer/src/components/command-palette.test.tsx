@@ -58,13 +58,14 @@ describe('CommandPaletteProvider', () => {
       applyDisplayViewMode,
       applySenaEngineParameters,
       currency: 'USD',
-      displayViewMode: 'maximal',
+      displayViewMode: 'custom',
       language: 'en',
       savePreferences,
       senaEngineParameters: { smoothingEnabled: true },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAnalysisPage: true,
       t: (key: string) =>
         ({
           navAnalysis: 'Analysis',
@@ -232,13 +233,14 @@ describe('CommandPaletteProvider', () => {
       applyDisplayViewMode,
       applySenaEngineParameters,
       currency: 'USD',
-      displayViewMode: 'maximal',
+      displayViewMode: 'custom',
       language: 'km',
       savePreferences,
       senaEngineParameters: { smoothingEnabled: true },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAnalysisPage: true,
       t: (key: string) =>
         ({
           navAnalysis: 'ការវិភាគ',

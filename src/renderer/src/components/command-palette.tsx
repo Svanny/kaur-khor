@@ -125,6 +125,8 @@ function settingsIcon(effect: Extract<CommandDescriptor['action'], { type: 'sett
       return NavigationWorkspacePanelsIcon;
     case 'set-show-right-rail-cards':
       return NavigationRightPanelIcon;
+    case 'set-show-analysis-page':
+      return NavigationAnalysisIcon;
     case 'set-show-explanatory-tooltips':
       return ActionSearchIcon;
     case 'set-smoothing-enabled':
@@ -262,6 +264,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
     senaEngineParameters,
     showExplanatoryTooltips,
     showFloatingTitleActions,
+    showAnalysisPage,
     showRightRailCards,
     t,
   } = usePreferences();
@@ -282,6 +285,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
         senaEngineParameters,
         showExplanatoryTooltips,
         showFloatingTitleActions,
+        showAnalysisPage,
         showRightRailCards,
         t: (key) => t(key as never),
       }).map((command) => ({
@@ -297,6 +301,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
       senaEngineParameters,
       showExplanatoryTooltips,
       showFloatingTitleActions,
+      showAnalysisPage,
       showRightRailCards,
       t,
     ],
@@ -407,6 +412,10 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
       }
       if (command.action.effect === 'set-show-right-rail-cards') {
         await savePreferences({ showRightRailCards: command.action.value as boolean });
+        return;
+      }
+      if (command.action.effect === 'set-show-analysis-page') {
+        await savePreferences({ showAnalysisPage: command.action.value as boolean });
         return;
       }
       if (command.action.effect === 'set-smoothing-enabled') {

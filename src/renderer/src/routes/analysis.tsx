@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { NavigationDashboardIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
@@ -110,7 +110,7 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
 
 export function AnalysisRoute() {
   const inventory = useInventory();
-  const { currency, language, showRightRailCards, t } = usePreferences();
+  const { currency, language, showAnalysisPage, showRightRailCards, t } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const routeState = readAnalysisRouteState(searchParams);
   const scope = routeState.scope as AnalysisScope;
@@ -152,6 +152,10 @@ export function AnalysisRoute() {
       void loadAnalysisContentModule();
     }
   }, [hasCatalog, hasWorkspaceSummary]);
+
+  if (!showAnalysisPage) {
+    return <Navigate replace to="/" />;
+  }
 
   if (isPreparingInitialAnalysis) {
     return (
