@@ -49,7 +49,7 @@ vi.mock('../state/preferences', () => ({
     language: 'en',
     t: (key: string) => {
       if (key === 'searchPlaceholder') {
-        return 'Search name, description, or id…';
+        return 'Search name or description…';
       }
       if (key === 'searchItems') {
         return 'Search and segment';
@@ -256,7 +256,7 @@ describe('StockUpdateRoute', () => {
 
     expect(screen.getByText('Logs')).toBeInTheDocument();
     expect(screen.getByText('Update history')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Select log view' })).toBeInTheDocument();
     expect(screen.getByText('View: Heatmap')).toBeInTheDocument();
@@ -370,7 +370,7 @@ describe('StockUpdateRoute', () => {
     expect(screen.getByText('Haircut price updated')).toBeInTheDocument();
     expect(screen.queryByText('Supplier order logged')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Search name, description, or id…'), {
+    fireEvent.change(screen.getByPlaceholderText('Search name or description…'), {
       target: { value: 'No such observation' },
     });
 

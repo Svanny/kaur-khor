@@ -223,7 +223,7 @@ export function SkuDetailRoute() {
   }, [bootstrap, currency, language, pagedDetail, selectedIntervalIndex, skuId, snapshotSku, usdToKhrExchangeRate]);
 
   if (!bootstrap && (inventory.isLoading || isRefreshing)) {
-    const loadingTitle = snapshotSku?.name ?? skuId ?? t('catalogSenaSkuPreparing');
+    const loadingTitle = snapshotSku?.name ?? t('catalogSenaSkuPreparing');
     return (
       <WorkspacePage>
         <SkuDetailLoadingState

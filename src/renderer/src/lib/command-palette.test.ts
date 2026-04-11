@@ -74,7 +74,7 @@ describe('command palette descriptors', () => {
           description: 'Cotton tee',
           leadTimeMeanDaysHint: 5,
           leadTimeStdDaysHint: 1,
-          name: 'SKU 1',
+          name: 'Market Tee',
           productPrice: 9,
           skuId: 'sku-1',
           soldAsProduct: true,
@@ -124,7 +124,7 @@ describe('command palette descriptors', () => {
 
     const commands = buildCommandDescriptors({
       currency: 'USD',
-      displayViewMode: 'maximal',
+      displayViewMode: 'custom',
       inventory,
       language: 'en',
       senaEngineParameters: { smoothingEnabled: true },
@@ -158,6 +158,50 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'settings:workspace:create-backup-snapshot')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:workspace:restore-backup-snapshot')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:workspace:export-planning-data')).toBe(true);
+    expect(commands.find((command) => command.id === 'sku:open:sku-1')?.subtitle).toBe('SKU');
+    expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.subtitle).toBe('SKU action');
+  });
+
+  test('does not match raw sku ids in search results', () => {
+    const inventory = createInventory({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{
+          archived: false,
+          costPerUnit: 4,
+          description: 'Cotton tee',
+          leadTimeMeanDaysHint: 5,
+          leadTimeStdDaysHint: 1,
+          name: 'SKU 1',
+          productPrice: 9,
+          skuId: 'sku-1',
+          soldAsProduct: true,
+        }],
+      },
+    });
+
+    const commands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'custom',
+      inventory,
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      t: (key) => key,
+    });
+
+    expect(
+      searchCommandDescriptors({
+        commands,
+        currentPathname: '/catalog',
+        query: 'sku-1',
+      }).some((command) => command.id === 'sku:open:sku-1'),
+    ).toBe(false);
   });
 
   test('excludes archived entities from normal results and emits unarchive commands on the archive page', () => {
@@ -199,7 +243,7 @@ describe('command palette descriptors', () => {
 
     const commands = buildCommandDescriptors({
       currency: 'USD',
-      displayViewMode: 'maximal',
+      displayViewMode: 'custom',
       inventory,
       language: 'en',
       senaEngineParameters: { smoothingEnabled: true },

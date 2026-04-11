@@ -1,4 +1,5 @@
 import type { SenaCatalog, SenaService, SenaServiceSkuMaskEntry, SenaSku } from '@shared/sena';
+import { createOpaqueInventoryId } from './ids';
 import { validateEntryId } from './validation';
 
 export type SenaCatalogEntityType = 'sku' | 'service';
@@ -69,6 +70,19 @@ export function hasActiveSenaSku(catalog: SenaCatalog | null | undefined, skuId:
 
 export function hasActiveSenaService(catalog: SenaCatalog | null | undefined, serviceId: string) {
   return activeSenaServices(catalog).some((service) => service.serviceId === serviceId);
+}
+
+export function createUniqueSkuId(
+  catalog: SenaCatalog | null | undefined,
+  createId: (prefix: 'sku') => string = createOpaqueInventoryId,
+) {
+  let nextId = createId('sku');
+
+  while (hasCatalogEntityIdConflict(catalog, 'sku', nextId)) {
+    nextId = createId('sku');
+  }
+
+  return nextId;
 }
 
 export function hasCatalogEntityIdConflict(

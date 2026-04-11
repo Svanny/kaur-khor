@@ -53,30 +53,17 @@ function getSkuSearchScore(sku: { skuId: string; name: string; description: stri
 
   const terms = normalizedQuery.split(' ');
   const name = normalizeSearchValue(sku.name);
-  const skuId = normalizeSearchValue(sku.skuId);
   const description = normalizeSearchValue(sku.description);
 
   let score = 0;
 
   for (const term of terms) {
-    if (skuId === term) {
-      score += 400;
-      continue;
-    }
     if (name === term) {
       score += 320;
       continue;
     }
-    if (skuId.startsWith(term)) {
-      score += 260;
-      continue;
-    }
     if (name.startsWith(term)) {
       score += 220;
-      continue;
-    }
-    if (skuId.includes(term)) {
-      score += 180;
       continue;
     }
     if (name.includes(term)) {
@@ -95,11 +82,9 @@ function getSkuSearchScore(sku: { skuId: string; name: string; description: stri
     return null;
   }
 
-  if (skuId === normalizedQuery) {
-    score += 200;
-  } else if (name === normalizedQuery) {
+  if (name === normalizedQuery) {
     score += 150;
-  } else if (name.startsWith(normalizedQuery) || skuId.startsWith(normalizedQuery)) {
+  } else if (name.startsWith(normalizedQuery)) {
     score += 80;
   }
 
@@ -444,7 +429,7 @@ export function ServiceFormRoute() {
           title={<SectionTitle title={t('editorSelectionTitle')} tooltip={t('catalogServiceEditorLinkedSkusTooltip')} />}
         >
           <SearchInput
-            aria-label={t('fieldLinkedSkus')}
+            ariaLabel={t('fieldLinkedSkus')}
             className="h-12 rounded-full"
             placeholder={t('serviceEditorLinkedSkusSearchPlaceholder')}
             value={skuSearch}
@@ -472,7 +457,7 @@ export function ServiceFormRoute() {
                   <ServiceSkuGridTile
                     key={sku.skuId}
                     checked={selectedSkuIds.includes(sku.skuId)}
-                    description={sku.skuId}
+                    description={sku.description || undefined}
                     label={sku.name}
                     skuId={sku.skuId}
                     onCheckedChange={(checked) =>
@@ -501,7 +486,7 @@ export function ServiceFormRoute() {
                 key={`${sku.skuId}-measure`}
                 checked={selectedSkuIds.includes(sku.skuId)}
                 className="w-max max-w-none"
-                description={sku.skuId}
+                description={sku.description || undefined}
                 label={sku.name}
                 measure
                 skuId={sku.skuId}

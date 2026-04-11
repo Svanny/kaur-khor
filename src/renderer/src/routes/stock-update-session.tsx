@@ -1214,9 +1214,6 @@ function StockCountStep({
                           primary={
                             <span className="min-w-0">
                               <span className="block font-medium text-foreground">{sku?.name ?? row.skuId}</span>
-                              <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                                {row.skuId}
-                              </span>
                               <span className="mt-1 block text-sm text-muted-foreground">
                                 {t('stockUpdateLatestUnits', { count: latestStock?.unitsInStock ?? 0 })}
                                 {latestCountedAt

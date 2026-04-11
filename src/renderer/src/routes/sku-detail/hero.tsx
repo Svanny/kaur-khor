@@ -44,9 +44,6 @@ export function SkuDetailHero({
               <span>{topRegimeLabel}</span>
             </span>
           </span>
-          <span className="rounded-md border border-border/70 bg-muted/45 px-3 py-1 text-sm font-medium text-muted-foreground">
-            {model.identity.skuId}
-          </span>
         </>
       }
       title={model.identity.name}

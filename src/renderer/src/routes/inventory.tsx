@@ -249,7 +249,7 @@ function CatalogLoadingState() {
             <Skeleton className="h-10 w-32 rounded-full" />
           </WorkspaceActionRow>
         }
-        descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or id, and jump straight into the next edit.')}
+        descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or description, and jump straight into the next edit.')}
         eyebrow={translateUiLiteral(language, 'Catalog')}
         title={translateUiLiteral(language, 'Catalog workspace')}
       >
@@ -310,7 +310,7 @@ export function InventoryRoute() {
   const filteredSkus = useMemo(
     () =>
       visibleCatalog?.skus.filter((sku) =>
-        matchesCatalogRow([sku.skuId, sku.name, sku.description], query),
+        matchesCatalogRow([sku.name, sku.description], query),
       ) ?? [],
     [query, visibleCatalog],
   );
@@ -425,7 +425,7 @@ export function InventoryRoute() {
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Catalog')}
         title={translateUiLiteral(language, 'Catalog workspace')}
-        descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or id, and jump straight into the next edit.')}
+        descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or description, and jump straight into the next edit.')}
         actions={
           <WorkspaceActionRow>
             <Button asChild>
@@ -571,7 +571,6 @@ export function InventoryRoute() {
                         <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/skus/${sku.skuId}`}>
                           {sku.name}
                         </Link>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{sku.skuId}</p>
                         <p className="text-sm text-muted-foreground">{sku.description || translateUiLiteral(language, 'No description')}</p>
                         <p className="text-xs text-muted-foreground">
                           {skuMetaLine(linkedServices.length, {

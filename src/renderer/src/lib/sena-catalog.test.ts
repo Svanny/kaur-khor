@@ -1,5 +1,6 @@
 import type { SenaCatalog } from '@shared/sena';
-import { hasCatalogEntityIdConflict, upsertSenaService, upsertSenaSku } from './sena-catalog';
+import { vi } from 'vitest';
+import { createUniqueSkuId, hasCatalogEntityIdConflict, upsertSenaService, upsertSenaSku } from './sena-catalog';
 
 const sampleCatalog: SenaCatalog = {
   schemaVersion: 1,
@@ -129,5 +130,16 @@ describe('sena catalog helpers', () => {
     expect(hasCatalogEntityIdConflict(sampleCatalog, 'service', 'sku-1')).toBe(true);
     expect(hasCatalogEntityIdConflict(sampleCatalog, 'sku', 'sku-1', 'sku-1')).toBe(false);
     expect(hasCatalogEntityIdConflict(sampleCatalog, 'service', 'service-1', 'service-1')).toBe(false);
+  });
+
+  it('creates a unique opaque sku id and retries collisions', () => {
+    const createId = vi
+      .fn<(prefix: 'sku') => string>()
+      .mockReturnValueOnce('sku-1')
+      .mockReturnValueOnce('service-1')
+      .mockReturnValueOnce('sku-generated-unique');
+
+    expect(createUniqueSkuId(sampleCatalog, createId)).toBe('sku-generated-unique');
+    expect(createId).toHaveBeenCalledTimes(3);
   });
 });

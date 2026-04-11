@@ -394,7 +394,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (command.action.effect === 'set-display-mode') {
-        await applyDisplayViewMode(command.action.value as 'minimal' | 'maximal');
+        await applyDisplayViewMode(command.action.value as 'compact' | 'custom');
         return;
       }
       if (command.action.effect === 'set-show-explanatory-tooltips') {
@@ -588,7 +588,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
                     {translateUiLiteral(language, 'No commands match this query.')}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {translateUiLiteral(language, 'Try a page name, tab label, SKU id, service name, or action.')}
+                    {translateUiLiteral(language, 'Try a page name, tab label, SKU name, service name, or action.')}
                   </p>
                 </div>
               )}

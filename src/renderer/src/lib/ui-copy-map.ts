@@ -205,10 +205,10 @@ export const enUiCopyV1 = {
   dashboardHighRisk: 'High-risk SKUs',
   dashboardNoRisk: 'No urgent reorder signals yet.',
   inventoryBody:
-    'Browse the catalog, search by id or name, and jump straight into the next edit.',
+    'Browse the catalog, search by name or description, and jump straight into the next edit.',
   allItemsTitle: 'Catalog',
   searchItems: 'Search and segment',
-  searchPlaceholder: 'Search name, description, or id…',
+  searchPlaceholder: 'Search name or description…',
   searchSyncPending: 'Updating the catalog view…',
   catalogExpand: 'Expand',
   catalogCollapse: 'Collapse',
@@ -498,7 +498,7 @@ export const enUiCopyV1 = {
   operationsHistoryDeleteAction: 'Delete report',
   operationsHistoryDeletePrompt: 'Type this exactly to permanently delete the report:',
   operationsSearchLabel: 'Search history',
-  operationsSearchPlaceholder: 'Search notes, SKU ids, service names, or item ids…',
+  operationsSearchPlaceholder: 'Search notes, SKU names, or service names…',
   operationsSearchClear: 'Clear filters',
   operationsFiltersLabel: 'Recent activity filters',
   operationsFilterEverything: 'All',
@@ -615,7 +615,7 @@ export const enUiCopyV1 = {
   stockObservationsFilterChanged: 'Changed rows',
   stockObservationsFilterEmpty: 'No rows have changed yet.',
   stockObservationsSearchLabel: 'Search SKU rows',
-  stockObservationsSearchPlaceholder: 'Search SKU name or id…',
+  stockObservationsSearchPlaceholder: 'Search SKU name…',
   stockObservationsSearchResultSingular: 'matching row',
   stockObservationsSearchResultPlural: 'matching rows',
   stockObservationsSearchEmpty: 'No SKU rows match the current search.',
@@ -820,7 +820,7 @@ export const enUiCopyV1 = {
   serviceEditorCoverageEmpty: 'No linked SKU coverage yet',
   serviceEditorLimitingSkuTitle: 'Limiting SKU',
   serviceEditorLimitingSkuNone: 'None',
-  serviceEditorLinkedSkusSearchPlaceholder: 'Search linked SKUs by name or id…',
+  serviceEditorLinkedSkusSearchPlaceholder: 'Search linked SKUs by name or description…',
   serviceEditorLinkedSkusDetected: 'Linked SKUs detected',
   serviceEditorLinkedSkusNoMatches: 'No linked SKUs match this search yet.',
   editorNoChangesYet: 'No changes yet',
@@ -875,8 +875,8 @@ export const enUiCopyV1 = {
   regimeLull: 'Lull',
   regimeStockoutConstrained: 'Stockout constrained',
   regimeCorrection: 'Correction',
-  shellViewModeMaximal: 'Maximal View',
-  shellViewModeMinimal: 'Minimal View',
+  shellViewModeMaximal: 'Custom View',
+  shellViewModeMinimal: 'Compact View',
   scrollIntervalsLeft: 'Scroll intervals left',
   scrollIntervalsRight: 'Scroll intervals right',
   intervalLabel: 'Interval {index}',
@@ -967,12 +967,8 @@ export const enUiCopyV1 = {
     'Create the SKU first. You can handle follow-up planning and stock work from its detail page.',
   catalogSkuEditorDescriptionEdit:
     'Update the SKU details Banji uses for catalog, pricing, and planning.',
-  catalogSkuEditorIdentifierDescription:
-    'Keep this SKU id stable unless you need to rename it everywhere Banji tracks it.',
   catalogSkuEditorDetailsDescriptor:
     'Set the SKU name and internal description Banji will use across the app.',
-  catalogSkuEditorIdentifierHelper:
-    'Enter a stable SKU id. Banji will block duplicates across active and archived items.',
   catalogSkuPlanningInputsTitle: 'Planning inputs',
   catalogSkuPlanningInputsDescription:
     'Optional supplier timing inputs. Update them when the lead-time picture changes.',
@@ -1118,7 +1114,12 @@ export const enUiCopyV1 = {
     'Used only when formatting KHR; saved values stay in USD.',
   settingsInterfaceVisibilityTitle: 'Interface visibility',
   settingsInterfaceVisibilityDescription:
-    'These toggles define the sidebar view mode: all on is Maximal, and turning any off switches to Minimal.',
+    'Choose a saved view mode or fine-tune the individual interface visibility toggles below.',
+  settingsViewModeLabel: 'View mode',
+  settingsViewModeHelp:
+    'Compact View hides optional interface layers. Custom View keeps the full desktop treatment visible.',
+  settingsViewModeCompactLocksHelp:
+    'Compact View turns these interface layers off. Switch back to Custom View to edit your saved setup.',
   settingsShowOptionalHelpLabel: 'Show optional help',
   settingsShowOptionalHelpHelp:
     'Show tooltips, section descriptors, and optional hints. Required field guidance stays visible.',
@@ -2249,7 +2250,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsCreditsTitle: 'Credits',
   settingsCreditsDescription: 'A small note from the builder.',
   settingsParameterEnterNumber: 'Enter a number. {range}',
-  shellViewModeMaximal: 'Full View',
+  shellViewModeMaximal: 'Custom View',
   shellViewModeMinimal: 'Compact View',
   overviewTaskStateToOrder: 'Order now',
   overviewTaskStateAwaitingReceipt: 'Waiting for delivery',

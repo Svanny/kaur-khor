@@ -20,11 +20,10 @@ import {
   shouldShowLeadTimeVariabilityPlaceholder,
 } from '@/lib/lead-time-variability-select';
 import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
-import { emptySenaCatalog, upsertSenaSku, validateCatalogEntityId } from '@/lib/sena-catalog';
+import { createUniqueSkuId, emptySenaCatalog, upsertSenaSku } from '@/lib/sena-catalog';
 import { useInventory } from '@/state/inventory';
 import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
-import { catalogItemIdErrorMessage } from './catalog-id-validation';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { SkuPageHero } from './sku-page-hero';
 import { SectionLabel, SectionTitle } from './sku-detail/section-heading';
@@ -47,7 +46,6 @@ const editorSelectTriggerClassName =
   'h-14 w-full rounded-xl border-border bg-background px-3 text-base shadow-none data-[size=default]:h-14';
 function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTimeVariabilityClass | '') {
   return {
-    skuId: sku.skuId.trim(),
     name: sku.name.trim(),
     description: sku.description.trim(),
     costPerUnit: sku.costPerUnit,
@@ -90,13 +88,13 @@ function deriveVariabilityFromLeadTimeInputs(
     return '';
   }
   const range = impliedLeadTimeRangeFromMeanStd(meanDays, stdDays);
-  return classifyLeadTimeVariability(relativeLeadTimeWidth(range?.lowDays ?? null, range?.highDays ?? null));
+  return classifyLeadTimeVariability(relativeLeadTimeWidth(range?.lowDays ?? null, range?.highDays ?? null)) ?? '';
 }
 
 export function SkuFormRoute() {
   const navigate = useNavigate();
   const { skuId } = useParams();
-  const { catalog, isSaving, renameCatalogEntity, upsertSenaCatalog } = useInventory();
+  const { catalog, isSaving, upsertSenaCatalog } = useInventory();
   const { canGoBack, goBack } = useNavigationHistory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const editing = Boolean(skuId);
@@ -166,14 +164,6 @@ export function SkuFormRoute() {
     () => normalizedSkuDirtySnapshot(normalizedBaseline, baselineLeadTimeVariability),
     [baselineLeadTimeVariability, normalizedBaseline],
   );
-  const idError = useMemo(
-    () =>
-      catalogItemIdErrorMessage(
-        t,
-        validateCatalogEntityId(catalog, 'sku', form.skuId, editing ? normalizedBaseline.skuId : null),
-      ),
-    [catalog, editing, form.skuId, normalizedBaseline.skuId, t],
-  );
   const costPerUnitError = !costPerUnitDraft.trim() ? t('catalogSkuEditorCostRequired') : null;
   const hasUnsavedSkuChanges = JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot);
   function resetSkuDraft() {
@@ -192,21 +182,19 @@ export function SkuFormRoute() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (idError || costPerUnitError) {
+    if (costPerUnitError) {
       return;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
-    if (editing && normalizedBaseline.skuId !== normalizedDraft.skuId) {
-      await renameCatalogEntity({
-        entityType: 'sku',
-        previousId: normalizedBaseline.skuId,
-        nextSku: normalizedDraft,
-      });
-    } else {
-      const nextCatalog = upsertSenaSku(baseCatalog, normalizedDraft, normalizedBaseline.skuId);
-      await upsertSenaCatalog(nextCatalog);
-    }
-    await navigate(`/catalog/skus/${normalizedDraft.skuId}`, { replace: !editing });
+    const nextSku = editing
+      ? normalizedDraft
+      : {
+          ...normalizedDraft,
+          skuId: createUniqueSkuId(baseCatalog),
+        };
+    const nextCatalog = upsertSenaSku(baseCatalog, nextSku, normalizedBaseline.skuId);
+    await upsertSenaCatalog(nextCatalog);
+    await navigate(`/catalog/skus/${nextSku.skuId}`, { replace: !editing });
   }
 
   return (
@@ -215,7 +203,7 @@ export function SkuFormRoute() {
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
-            <Button disabled={!hasUnsavedSkuChanges || isSaving || idError != null || costPerUnitError != null} form={formId} type="submit">
+            <Button disabled={!hasUnsavedSkuChanges || isSaving || costPerUnitError != null} form={formId} type="submit">
               <ActionSaveIcon data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}
             </Button>
@@ -242,20 +230,6 @@ export function SkuFormRoute() {
             }
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
-              <EditorField
-                error={idError ?? undefined}
-                helper={editing ? t('catalogSkuEditorIdentifierDescription') : t('catalogSkuEditorIdentifierHelper')}
-                label={t('fieldId')}
-                tooltip={t('catalogSkuEditorDetailsTooltip')}
-              >
-                <input
-                  aria-invalid={idError ? 'true' : 'false'}
-                  className={editorInputClassName}
-                  required
-                  value={form.skuId}
-                  onChange={(event) => setForm((current) => ({ ...current, skuId: event.target.value }))}
-                />
-              </EditorField>
               <EditorField helper={t('catalogSkuEditorNameHelper')} label={t('fieldName')}>
                 <input
                   className={editorInputClassName}

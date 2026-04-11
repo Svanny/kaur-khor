@@ -261,7 +261,7 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
     expect(screen.getByText('Catalog workspace')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Services' })).toBeInTheDocument();
@@ -553,7 +553,7 @@ describe('SENA routes', () => {
   test('filters the catalog route from the title-card search and toggle pill', () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    fireEvent.change(screen.getByPlaceholderText('Search name, description, or id…'), {
+    fireEvent.change(screen.getByPlaceholderText('Search name or description…'), {
       target: { value: 'service-1' },
     });
 

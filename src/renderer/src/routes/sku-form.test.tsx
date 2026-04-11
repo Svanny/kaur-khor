@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import * as senaCatalog from '@/lib/sena-catalog';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { leadTimeVariabilityLabel } from '@shared/sena-lead-time';
 import { getTranslation } from '@/lib/translations';
@@ -101,7 +102,6 @@ describe('SkuFormRoute', () => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isSaving: false,
-      renameCatalogEntity: vi.fn(async () => sampleCatalog),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
     });
   });
@@ -117,7 +117,7 @@ describe('SkuFormRoute', () => {
     expect(screen.getByText('Name the SKU the way staff will search for it.')).toBeInTheDocument();
     expect(screen.getByText('Keep the current landed or replacement unit cost here.')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /sell as product/i })).toBeChecked();
-    expect(screen.getByDisplayValue('sku-1')).toBeEnabled();
+    expect(screen.queryByDisplayValue('sku-1')).not.toBeInTheDocument();
     expect(screen.getByDisplayValue('5')).toHaveValue(5);
     expect(screen.getByDisplayValue('1')).toHaveValue(1);
     await waitFor(() => {
@@ -132,7 +132,6 @@ describe('SkuFormRoute', () => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isSaving: false,
-      renameCatalogEntity: vi.fn(async () => sampleCatalog),
       upsertSenaCatalog,
     });
 
@@ -172,7 +171,6 @@ describe('SkuFormRoute', () => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isSaving: false,
-      renameCatalogEntity: vi.fn(async () => sampleCatalog),
       upsertSenaCatalog,
     });
     window.sessionStorage.setItem(
@@ -185,9 +183,8 @@ describe('SkuFormRoute', () => {
 
     renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
 
-    const [skuIdInput, skuNameInput] = screen.getAllByRole('textbox');
+    const [skuNameInput] = screen.getAllByRole('textbox');
     const [costPerUnitInput] = screen.getAllByRole('spinbutton');
-    fireEvent.change(skuIdInput, { target: { value: 'sku-new' } });
     fireEvent.change(skuNameInput, { target: { value: 'SKU New' } });
     fireEvent.change(costPerUnitInput, { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
@@ -204,46 +201,33 @@ describe('SkuFormRoute', () => {
     });
   });
 
-  test('renames the sku id through the coordinated rename mutation', async () => {
-    const renameCatalogEntity = vi.fn(async () => sampleCatalog);
+  test('generates a unique sku id when creating a new sku', async () => {
+    const createUniqueSkuId = vi.spyOn(senaCatalog, 'createUniqueSkuId').mockReturnValue('sku-generated');
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isSaving: false,
-      renameCatalogEntity,
-      upsertSenaCatalog: vi.fn(async (payload) => payload),
+      upsertSenaCatalog,
     });
 
-    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+    renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
 
-    fireEvent.change(screen.getByDisplayValue('sku-1'), { target: { value: 'sku-1-renamed' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    const [skuNameInput] = screen.getAllByRole('textbox');
+    const [costPerUnitInput] = screen.getAllByRole('spinbutton');
+    fireEvent.change(skuNameInput, { target: { value: 'Generated SKU' } });
+    fireEvent.change(costPerUnitInput, { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
     await waitFor(() => {
-      expect(renameCatalogEntity).toHaveBeenCalledWith({
-        entityType: 'sku',
-        previousId: 'sku-1',
-        nextSku: expect.objectContaining({ skuId: 'sku-1-renamed' }),
-      });
+      expect(createUniqueSkuId).toHaveBeenCalledWith(sampleCatalog);
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
     });
 
-    await waitFor(() => {
-      expect(screen.getByText('SKU detail destination')).toBeInTheDocument();
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus.at(-1)).toMatchObject({
+      skuId: 'sku-generated',
+      name: 'Generated SKU',
     });
-  });
-
-  test('blocks duplicate active and archived ids while editing', async () => {
-    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
-
-    fireEvent.change(screen.getByDisplayValue('sku-1'), { target: { value: 'service-1' } });
-    expect(screen.getByText('This identifier is already used by another catalog item, including archived items.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
-
-    fireEvent.change(screen.getByDisplayValue('service-1'), { target: { value: 'service-archived' } });
-    expect(screen.getByText('This identifier is already used by another catalog item, including archived items.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
-
-    fireEvent.change(screen.getByDisplayValue('service-archived'), { target: { value: 'sku-1' } });
-    expect(screen.queryByText('This identifier is already used by another catalog item, including archived items.')).not.toBeInTheDocument();
+    createUniqueSkuId.mockRestore();
   });
 
   test('asks before leaving with unsaved SKU changes', async () => {
@@ -311,7 +295,6 @@ describe('SkuFormRoute', () => {
         ],
       },
       isSaving: false,
-      renameCatalogEntity: vi.fn(async () => sampleCatalog),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
     });
 
@@ -344,7 +327,6 @@ describe('SkuFormRoute', () => {
         ],
       },
       isSaving: false,
-      renameCatalogEntity: vi.fn(async () => sampleCatalog),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
     });
 
@@ -380,7 +362,6 @@ describe('SkuFormRoute', () => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isSaving: false,
-      renameCatalogEntity: vi.fn(async () => sampleCatalog),
       upsertSenaCatalog,
     });
 

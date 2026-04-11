@@ -172,7 +172,7 @@ vi.mock('../state/preferences', () => ({
     applyOverviewStaleUpdateReminderSnoozeUntil,
     t: (key: string) => {
       if (key === 'searchPlaceholder') {
-        return 'Search name, description, or id…';
+        return 'Search name or description…';
       }
       if (key === 'searchItems') {
         return 'Search and segment';
@@ -546,7 +546,7 @@ describe('DashboardRoute', () => {
 
     expect(screen.getByText('Overview')).toBeInTheDocument();
     expect(screen.getByText('Mission Control')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search name, description, or id…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
     const scopeToggle = screen.getByRole('group', { name: 'Search and segment' });
     expect(within(scopeToggle).getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(within(scopeToggle).getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
@@ -708,7 +708,7 @@ describe('DashboardRoute', () => {
     renderRoute();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Services' }));
-    fireEvent.change(screen.getByPlaceholderText('Search name, description, or id…'), {
+    fireEvent.change(screen.getByPlaceholderText('Search name or description…'), {
       target: { value: 'Haircut' },
     });
 
@@ -768,6 +768,17 @@ describe('DashboardRoute', () => {
 
     expect(await screen.findByText('Overview needs the catalog first')).toBeInTheDocument();
     expect(screen.queryByText('Create the first SKU so Banji can build an action list from real stock work.')).not.toBeInTheDocument();
+  });
+
+  test('hides overview task queue helper copy when optional help is disabled', async () => {
+    preferenceState.showExplanatoryTooltips = false;
+
+    renderRoute();
+
+    expect(await screen.findByText('Razor refill')).toBeInTheDocument();
+    expect(screen.getAllByText('Order now').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Haircut')).not.toBeInTheDocument();
+    expect(screen.queryByText('Rec. 15u · likely 78%')).not.toBeInTheDocument();
   });
 
 });

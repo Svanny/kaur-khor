@@ -155,11 +155,10 @@ function matchesOverviewQuery(task: OverviewTask, query: string, scope: Overview
 
   const parts =
     scope === 'skus'
-      ? [task.skuId, task.skuName, task.whyNow, task.whyDetail, task.etaLabel, task.stateLabel]
+      ? [task.skuName, task.whyNow, task.whyDetail, task.etaLabel, task.stateLabel]
       : scope === 'services'
         ? [task.serviceImpact, ...task.linkedServiceNames, task.whyNow, task.whyDetail, task.etaLabel, task.stateLabel]
         : [
-            task.skuId,
             task.skuName,
             task.serviceImpact,
             task.whyNow,
@@ -178,6 +177,7 @@ export function DashboardRoute() {
     applyOverviewStaleUpdateReminderSnoozeUntil,
     language,
     overviewStaleUpdateReminderSnoozeUntil,
+    showExplanatoryTooltips,
     showRightRailCards,
     t,
   } = usePreferences();
@@ -432,10 +432,9 @@ export function DashboardRoute() {
                                     {task.stateLabel}
                                   </span>
                                 </div>
-                                <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                                  {task.skuId}
-                                </p>
-                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.serviceImpact}</p>
+                                {showExplanatoryTooltips ? (
+                                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.serviceImpact}</p>
+                                ) : null}
                               </button>
                             ) : (
                               <div className="min-w-0">
@@ -449,10 +448,9 @@ export function DashboardRoute() {
                                     {task.stateLabel}
                                   </span>
                                 </div>
-                                <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                                  {translateUiLiteral(language, 'Overview reminder')}
-                                </p>
-                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
+                                {showExplanatoryTooltips ? (
+                                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
+                                ) : null}
                               </div>
                             )}
                           </div>
@@ -462,8 +460,10 @@ export function DashboardRoute() {
                               {translateUiLiteral(language, 'Why now')}
                             </HeaderedTableMobileLabel>
                             <p className="font-medium text-foreground">{task.whyNow}</p>
-                            <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
-                            {isOverviewSkuTask(task) && task.reorderRecommendation.compactLabel ? (
+                            {showExplanatoryTooltips ? (
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
+                            ) : null}
+                            {showExplanatoryTooltips && isOverviewSkuTask(task) && task.reorderRecommendation.compactLabel ? (
                               <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.reorderRecommendation.compactLabel}</p>
                             ) : null}
                           </div>
@@ -473,9 +473,11 @@ export function DashboardRoute() {
                               {translateUiLiteral(language, 'ETA / window')}
                             </HeaderedTableMobileLabel>
                             <p className="font-medium text-foreground">{task.etaLabel}</p>
-                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                              {task.confidenceCue} · {task.etaDetail}
-                            </p>
+                            {showExplanatoryTooltips ? (
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                {task.confidenceCue} · {task.etaDetail}
+                              </p>
+                            ) : null}
                           </div>
 
                           <div className="flex items-start lg:justify-center">

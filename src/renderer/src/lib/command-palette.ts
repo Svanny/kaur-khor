@@ -63,7 +63,7 @@ export type CommandAction =
         | 'restore-backup-snapshot'
         | 'export-logs'
         | 'export-planning-data';
-      value: boolean | 'en' | 'km' | 'USD' | 'KHR' | 'minimal' | 'maximal' | 'excel';
+      value: boolean | 'en' | 'km' | 'USD' | 'KHR' | 'compact' | 'custom' | 'excel';
     };
 
 export interface CommandDescriptor {
@@ -708,7 +708,7 @@ function buildSettingsCommands({
   t,
 }: {
   currency: 'USD' | 'KHR';
-  displayViewMode: 'minimal' | 'maximal';
+  displayViewMode: 'compact' | 'custom';
   language: 'en' | 'km';
   senaEngineParameters: { smoothingEnabled?: boolean };
   showExplanatoryTooltips: boolean;
@@ -772,30 +772,30 @@ function buildSettingsCommands({
       title: 'Set currency to KHR',
     }),
     createCommand({
-      action: { effect: 'set-display-mode', href: '/settings', type: 'settings', value: 'maximal' },
-      aliases: ['settings full view', 'settings maximal'],
+      action: { effect: 'set-display-mode', href: '/settings', type: 'settings', value: 'custom' },
+      aliases: ['settings custom view', 'settings full view', 'settings maximal'],
       id: 'settings:view:maximal',
-      keywords: ['settings', 'view', 'maximal', displayViewMode === 'maximal' ? 'current' : ''],
+      keywords: ['settings', 'view', 'custom', 'maximal', displayViewMode === 'custom' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
       priority: 504,
       subtitle: 'Settings / View mode',
-      title: 'Set view mode to Full View',
+      title: 'Set view mode to Custom View',
     }),
     createCommand({
-      action: { effect: 'set-display-mode', href: '/settings', type: 'settings', value: 'minimal' },
+      action: { effect: 'set-display-mode', href: '/settings', type: 'settings', value: 'compact' },
       aliases: ['settings compact view', 'settings minimal'],
       id: 'settings:view:minimal',
-      keywords: ['settings', 'view', 'minimal', displayViewMode === 'minimal' ? 'current' : ''],
+      keywords: ['settings', 'view', 'compact', 'minimal', displayViewMode === 'compact' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
       priority: 505,
       subtitle: 'Settings / View mode',
-      title: 'Set view mode to Minimal View',
+      title: 'Set view mode to Compact View',
     }),
     createCommand({
       action: { effect: 'set-show-explanatory-tooltips', href: '/settings', type: 'settings', value: !showExplanatoryTooltips },
@@ -911,28 +911,28 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
     const commands: CommandDescriptor[] = [
       createCommand({
         action: { href: buildSkuDetailHref(sku.skuId), type: 'entity' },
-        aliases: [sku.skuId],
+        aliases: [sku.name],
         id: `sku:open:${sku.skuId}`,
-        keywords: ['sku', 'open', sku.skuId],
+        keywords: ['sku', 'open', sku.name],
         kind: 'entity',
         pageId: 'catalog',
         pageOrder: 3,
         pagePrefixes: ['/catalog', `/catalog/skus/${sku.skuId}`],
         priority: 200,
-        subtitle: `SKU · ${sku.skuId}`,
+        subtitle: 'SKU',
         title: sku.name,
       }),
       createCommand({
         action: { href: `/catalog/skus/${sku.skuId}/edit`, type: 'workflow' },
-        aliases: [sku.skuId, 'edit sku'],
+        aliases: [sku.name, 'edit sku'],
         id: `sku:edit:${sku.skuId}`,
-        keywords: ['sku', 'edit', sku.skuId],
+        keywords: ['sku', 'edit', sku.name],
         kind: 'workflow',
         pageId: 'catalog',
         pageOrder: 3,
         pagePrefixes: ['/catalog', `/catalog/skus/${sku.skuId}`],
         priority: 210,
-        subtitle: `SKU · ${sku.skuId}`,
+        subtitle: 'SKU',
         title: `Edit ${sku.name}`,
       }),
       createCommand({
@@ -943,15 +943,15 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
           mutation: 'archive',
           type: 'catalog-mutation',
         },
-        aliases: [sku.skuId, 'archive sku'],
+        aliases: [sku.name, 'archive sku'],
         id: `sku:archive:${sku.skuId}`,
-        keywords: ['sku', 'archive', sku.skuId],
+        keywords: ['sku', 'archive', sku.name],
         kind: 'workflow',
         pageId: 'catalog',
         pageOrder: 3,
         pagePrefixes: ['/catalog'],
         priority: 211,
-        subtitle: `SKU · ${sku.skuId}`,
+        subtitle: 'SKU',
         title: `Archive ${sku.name}`,
       }),
     ];
@@ -970,15 +970,15 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
       ...sheetCommands.map((command, index) =>
         createCommand({
           action: { href: buildSkuDetailHref(sku.skuId, command.mode), type: 'sheet' },
-          aliases: [sku.skuId, command.mode, sku.name],
+          aliases: [command.mode, sku.name],
           id: `sku:sheet:${command.mode}:${sku.skuId}`,
-          keywords: ['sku', 'sheet', command.mode, sku.skuId],
+          keywords: ['sku', 'sheet', command.mode, sku.name],
           kind: 'sheet',
           pageId: 'catalog',
           pageOrder: 3,
           pagePrefixes: [`/catalog/skus/${sku.skuId}`],
           priority: 220 + index,
-          subtitle: `SKU action · ${sku.skuId}`,
+          subtitle: 'SKU action',
           title: `${command.label} for ${sku.name}`,
         }),
       ),
@@ -1071,15 +1071,15 @@ function buildArchivedEntityCommands(catalog: SenaCatalog) {
         mutation: 'unarchive',
         type: 'catalog-mutation',
       },
-      aliases: [sku.skuId, 'restore sku'],
+      aliases: [sku.name, 'restore sku'],
       id: `sku:unarchive:${sku.skuId}`,
-      keywords: ['sku', 'unarchive', 'restore', sku.skuId],
+      keywords: ['sku', 'unarchive', 'restore', sku.name],
       kind: 'workflow',
       pageId: 'archive',
       pageOrder: 6,
       pagePrefixes: ['/operations/archive'],
       priority: 260,
-      subtitle: `Archived SKU · ${sku.skuId}`,
+      subtitle: 'Archived SKU',
       title: `Unarchive ${sku.name}`,
     }),
   );
@@ -1149,7 +1149,7 @@ function buildOverviewTaskCommands(inventory: InventoryContextValue, language: A
           }),
           type: 'workflow',
         },
-        aliases: [task.skuId, task.action, task.state],
+        aliases: [task.skuName, task.action, task.state],
         id: `overview:task:${task.skuId}:${task.action}`,
         keywords: ['overview', 'task', task.action, task.state, ...task.linkedServiceNames],
         kind: 'workflow',
@@ -1178,7 +1178,7 @@ export function buildCommandDescriptors({
   t,
 }: {
   currency: 'USD' | 'KHR';
-  displayViewMode: 'minimal' | 'maximal';
+  displayViewMode: 'compact' | 'custom';
   inventory: InventoryContextValue;
   language: AppLanguage;
   senaEngineParameters: { smoothingEnabled?: boolean };
@@ -1244,6 +1244,18 @@ function commandMatchesPath(command: CommandDescriptor, pathname: string) {
   );
 }
 
+function isOpaqueSkuIdQuery(query: string) {
+  return /^sku-[a-z0-9_-]+$/.test(query);
+}
+
+function commandTargetsSku(command: CommandDescriptor) {
+  if (command.id.startsWith('sku:') || command.id.startsWith('overview:task:')) {
+    return true;
+  }
+
+  return command.pagePrefixes.some((prefix) => prefix.includes('/catalog/skus/'));
+}
+
 function dedupeCommands(commands: CommandDescriptor[]) {
   const seenIds = new Set<string>();
   return commands.filter((command) => {
@@ -1265,6 +1277,7 @@ export function searchCommandDescriptors({
   query: string;
 }) {
   const normalizedQuery = normalizeText(query);
+  const opaqueSkuIdQuery = isOpaqueSkuIdQuery(normalizedQuery);
   if (!normalizedQuery) {
     const currentPageCommands = dedupeCommands(
       commands
@@ -1290,7 +1303,10 @@ export function searchCommandDescriptors({
       const exact = haystacks.some((value) => value === normalizedQuery);
       const prefix = haystacks.some((value) => value.startsWith(normalizedQuery));
       const contains = haystacks.some((value) => value.includes(normalizedQuery));
-      const fuseScore = scoreById.get(command.id);
+      const fuseScore =
+        opaqueSkuIdQuery && commandTargetsSku(command)
+          ? undefined
+          : scoreById.get(command.id);
 
       if (!exact && !prefix && !contains && fuseScore == null) {
         return null;

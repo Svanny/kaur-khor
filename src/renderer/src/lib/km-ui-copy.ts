@@ -192,8 +192,6 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuEditorPriceHelper: 'តម្លៃលក់ នឹងបង្ហាញតែពេល SKU នេះត្រូវបានលក់ផ្ទាល់ប៉ុណ្ណោះ។',
   catalogSkuEditorDetailsDescriptor:
     'កំណត់ឈ្មោះ SKU និងការពិពណ៌នាខាងក្នុង ដែល Banji នឹងប្រើនៅទូទាំងកម្មវិធី។',
-  catalogSkuEditorIdentifierHelper:
-    'បញ្ចូលលេខសម្គាល់ SKU ដែលមានស្ថិរភាព។ Banji នឹងទប់ស្កាត់លេខសម្គាល់ស្ទួន ទាំងធាតុសកម្ម និងធាតុក្នុងបណ្ណសារ។',
   catalogSkuEditorPricingDescriptor:
     'កំណត់ថ្លៃដើម និងការកំណត់លក់ផ្ទាល់ ដែល Banji គួរប្រើសម្រាប់ SKU នេះ។',
   catalogSkuEditorRetailPriceHelper: 'បញ្ចូលតម្លៃលក់រាយ តែបើអតិថិជនទិញ SKU នេះដោយផ្ទាល់។',
@@ -305,8 +303,6 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuRecentReportsRestockIncluded: 'មានការបំពេញស្តុកបន្ថែម',
   catalogSkuRecentReportsNoSkuChanges: 'មិនមានការផ្លាស់ប្តូរជាក់លាក់សម្រាប់ SKU ទេ',
   catalogSkuEditorTitleNew: 'SKU ថ្មី',
-  catalogSkuEditorIdentifierDescription:
-    'រក្សាលេខសម្គាល់ SKU នេះឲ្យមានស្ថិរភាព លុះត្រាតែអ្នកត្រូវប្ដូរឈ្មោះវានៅគ្រប់កន្លែងដែល Banji តាមដានវា។',
   catalogSkuEditorPricingTooltip:
     'ការកំណត់តម្លៃ កំណត់សេដ្ឋកិច្ចក្នុងមួយឯកតាសម្រាប់ SKU នេះ និងថាវាមានការលក់ផ្ទាល់ឬអត់។',
   catalogSkuEditorLeadTimeVariabilityHint: 'ជ្រើសកម្រិតដែលត្រូវគ្នាបំផុតនឹងពេលវេលាអ្នកផ្គត់ផ្គង់ថ្មីៗ។',
@@ -369,7 +365,12 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsPreferencesControlsDescription: 'ការកំណត់ទាំងនេះប៉ះពាល់តែឧបករណ៍នេះប៉ុណ្ណោះ។',
   settingsExchangeRateHelp: 'ប្រើសម្រាប់បង្ហាញចំនួន KHR ប៉ុណ្ណោះ។ តម្លៃដែលបានរក្សាទុកនៅតែជាដុល្លារ USD។',
   settingsInterfaceVisibilityDescription:
-    'ប៊ូតុងបើកបិទទាំងនេះ គ្រប់គ្រងថា desktop បង្ហាញការណែនាំ និងព័ត៌មានជាប់ចំហៀងច្រើនប៉ុន្មាន។',
+    'ជ្រើសរើសរបៀបបង្ហាញដែលបានរក្សាទុក ឬកែប៊ូតុងបើកបិទចំណុចប្រទាក់ខាងក្រោមតាមតម្រូវការ។',
+  settingsViewModeLabel: 'របៀបបង្ហាញ',
+  settingsViewModeHelp:
+    'ទិដ្ឋភាពបង្រួម លាក់ស្រទាប់ចំណុចប្រទាក់បន្ថែម។ ទិដ្ឋភាពផ្ទាល់ខ្លួន បង្ហាញ desktop ពេញលេញ។',
+  settingsViewModeCompactLocksHelp:
+    'ទិដ្ឋភាពបង្រួម បិទស្រទាប់ចំណុចប្រទាក់ទាំងនេះ។ ប្ដូរត្រឡប់ទៅទិដ្ឋភាពផ្ទាល់ខ្លួន ដើម្បីកែការកំណត់ដែលបានរក្សាទុក។',
   settingsShowOptionalHelpHelp:
     'បង្ហាញ tooltip ការពិពណ៌នាផ្នែក និងជំនួយស្រេចចិត្ត។ ការណែនាំចាំបាច់នៅតែបង្ហាញជានិច្ច។',
   settingsShowFloatingActionsHelp:
@@ -661,8 +662,8 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   regimeSpike: 'កើនខ្លាំង',
   regimeLull: 'ធ្លាក់ចុះ',
   regimeCorrection: 'កែសម្រួល',
-  shellViewModeMaximal: 'ទិដ្ឋភាពពេញ',
-  shellViewModeMinimal: 'ទិដ្ឋភាពតូច',
+  shellViewModeMaximal: 'ទិដ្ឋភាពផ្ទាល់ខ្លួន',
+  shellViewModeMinimal: 'ទិដ្ឋភាពបង្រួម',
   scrollIntervalsLeft: 'រំកិលចន្លោះទៅឆ្វេង',
   scrollIntervalsRight: 'រំកិលចន្លោះទៅស្ដាំ',
   intervalLabel: 'ចន្លោះ {index}',
@@ -2084,7 +2085,7 @@ const exactValueTranslations: Record<string, string> = {
   selected: 'បានជ្រើស',
   'linked SKUs selected': 'បានជ្រើស SKU ដែលភ្ជាប់',
   'Limiting SKU': 'SKU ដែលកំពុងកំណត់',
-  'Search linked SKUs by name or id…': 'ស្វែងរក SKU ដែលភ្ជាប់តាមឈ្មោះ ឬលេខសម្គាល់…',
+  'Search linked SKUs by name or description…': 'ស្វែងរក SKU ដែលភ្ជាប់តាមឈ្មោះ ឬការពិពណ៌នា…',
   'Linked SKUs detected': 'បានរកឃើញ SKU ដែលភ្ជាប់',
   'Pricing updated': 'បានអាប់ដេតតម្លៃ',
   'Linked SKUs updated': 'បានអាប់ដេត SKU ដែលភ្ជាប់',
@@ -2365,8 +2366,8 @@ const exactValueTranslations: Record<string, string> = {
   Navigate: 'រុករក',
   Open: 'បើក',
   'No commands match this query.': 'មិនមានពាក្យបញ្ជាណាត្រូវនឹងការស្វែងរកនេះទេ។',
-  'Try a page name, tab label, SKU id, service name, or action.':
-    'សាកល្បងឈ្មោះទំព័រ ឈ្មោះផ្ទាំង លេខសម្គាល់ SKU ឈ្មោះសេវាកម្ម ឬសកម្មភាព។',
+  'Try a page name, tab label, SKU name, service name, or action.':
+    'សាកល្បងឈ្មោះទំព័រ ឈ្មោះផ្ទាំង ឈ្មោះ SKU ឈ្មោះសេវាកម្ម ឬសកម្មភាព។',
   'Overview queue and follow-up work': 'ជួរទិដ្ឋភាពទូទៅ និងការងារតាមដាន',
   'Capture the next live update': 'កត់ត្រាការអាប់ដេតពិតបន្ទាប់',
   'Demand, capacity, and cash movement': 'តម្រូវការ សមត្ថភាព និងលំហូរសាច់ប្រាក់',
@@ -2444,8 +2445,8 @@ const exactValueTranslations: Record<string, string> = {
   'Set currency to USD': 'ប្ដូររូបិយប័ណ្ណទៅ USD',
   'Set currency to KHR': 'ប្ដូររូបិយប័ណ្ណទៅ KHR',
   'Settings / View mode': 'ការកំណត់ / របៀបបង្ហាញ',
-  'Set view mode to Full View': 'ប្ដូររបៀបបង្ហាញទៅទិដ្ឋភាពពេញ',
-  'Set view mode to Minimal View': 'ប្ដូររបៀបបង្ហាញទៅទិដ្ឋភាពតូច',
+  'Set view mode to Custom View': 'ប្ដូររបៀបបង្ហាញទៅទិដ្ឋភាពផ្ទាល់ខ្លួន',
+  'Set view mode to Compact View': 'ប្ដូររបៀបបង្ហាញទៅទិដ្ឋភាពបង្រួម',
   'Settings / Interface visibility': 'ការកំណត់ / ការបង្ហាញផ្ទៃមុខ',
   'Hide optional help': 'លាក់ជំនួយស្រេចចិត្ត',
   'Show optional help': 'បង្ហាញជំនួយស្រេចចិត្ត',
@@ -2478,8 +2479,8 @@ const exactValueTranslations: Record<string, string> = {
     'សាកល្បងពាក្យស្វែងរកឲ្យទូលំទូលាយជាងមុន ឬប្ដូរតម្រង ដើម្បីឲ្យបញ្ជីការងារបង្ហាញកាន់តែច្រើន។',
   'Banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.':
     'បញ្ជីមិនទាន់ឃើញសកម្មភាពបញ្ជាទិញ ការទទួល ឬការតាមដានបន្ទាន់នៅពេលនេះទេ។ បន្តកត់ត្រា ឬកត់សញ្ញាពិតបន្ទាប់។',
-  'Browse the catalog, search by name or id, and jump straight into the next edit.':
-    'រកមើលកាតាឡុក ស្វែងរកតាមឈ្មោះ ឬលេខសម្គាល់ ហើយចូលទៅកែប្រែបន្ទាប់បានភ្លាមៗ។',
+  'Browse the catalog, search by name or description, and jump straight into the next edit.':
+    'រកមើលកាតាឡុក ស្វែងរកតាមឈ្មោះ ឬការពិពណ៌នា ហើយចូលទៅកែប្រែបន្ទាប់បានភ្លាមៗ។',
   'SENA Integrated': 'កន្លែងធ្វើការកាតាឡុក',
   'Stock-carrying items Banji tracks directly.': 'ទំនិញដែលមានស្តុក ហើយបញ្ជីតាមដានដោយផ្ទាល់។',
   'Sellable services and the SKUs that support them.': 'សេវាកម្មដែលអាចលក់បាន និង SKU ដែលគាំទ្រពួកវា។',

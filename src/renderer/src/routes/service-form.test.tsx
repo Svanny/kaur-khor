@@ -141,18 +141,19 @@ describe('ServiceFormRoute', () => {
     expect(screen.getByText('Choose every SKU normally consumed when this service is sold.')).toBeInTheDocument();
     expect(screen.getByDisplayValue('service-1')).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search linked SKUs by name or id…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search linked SKUs by name or description…')).toBeInTheDocument();
     expect(screen.getByText('2 Linked SKUs detected')).toBeInTheDocument();
     expect(screen.getByTestId('linked-sku-grid')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'SKU 1' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'SKU 2' })).not.toBeChecked();
+    expect(screen.queryByText('sku-1')).not.toBeInTheDocument();
   });
 
   test('filters linked SKUs from the search input', () => {
     renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 
-    fireEvent.change(screen.getByPlaceholderText('Search linked SKUs by name or id…'), {
-      target: { value: 'sku-2' },
+    fireEvent.change(screen.getByPlaceholderText('Search linked SKUs by name or description…'), {
+      target: { value: 'Silk scarf' },
     });
 
     expect(screen.getByText('1 Linked SKUs detected')).toBeInTheDocument();

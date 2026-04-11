@@ -52,7 +52,7 @@ export function ArchiveRoute() {
   const query = routeState.q ?? '';
   const view = routeState.view;
   const archivedSkus = archivedSenaSkus(inventory.catalog).filter((sku) =>
-    matchesCatalogQuery([sku.skuId, sku.name, sku.description].join(' '), query),
+    matchesCatalogQuery([sku.name, sku.description].join(' '), query),
   );
   const archivedServices = archivedSenaServices(inventory.catalog).filter((service) =>
     matchesCatalogQuery([service.serviceId, service.name, service.description].join(' '), query),
@@ -198,7 +198,6 @@ export function ArchiveRoute() {
                 >
                   <div className="min-w-0">
                     <p className="font-medium text-foreground">{sku.name}</p>
-                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{sku.skuId}</p>
                     <p className="text-sm text-muted-foreground">{sku.description || translateUiLiteral(language, 'No description')}</p>
                   </div>
                   <Button
