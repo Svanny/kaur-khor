@@ -162,7 +162,11 @@ describe('SettingsRoute', () => {
     renderSettingsRoute('/settings/interface');
 
     expect(await screen.findAllByText('Interface')).not.toHaveLength(0);
-    expect(screen.getAllByText('These switches control how much guidance and side context the desktop shows.')).not.toHaveLength(0);
+    expect(
+      screen.queryByText('These switches control how much guidance and side context the desktop shows.'),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('radio', { name: /compact view/i })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('radio', { name: /custom view/i })[0]).toBeInTheDocument();
 
     const checkbox = await screen.findByRole('checkbox', { name: /show extra guidance/i });
     expect(checkbox).toBeChecked();
@@ -409,8 +413,8 @@ describe('SettingsRoute', () => {
   it('switches between compact and custom view modes from interface visibility', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const compactButton = (await screen.findByText('Compact View')).closest('button') as HTMLButtonElement;
-    const customButton = screen.getByText('Custom View').closest('button') as HTMLButtonElement;
+    const compactButton = (await screen.findAllByRole('radio', { name: 'Compact View' }))[0] as HTMLButtonElement;
+    const customButton = screen.getAllByRole('radio', { name: 'Custom View' })[0] as HTMLButtonElement;
     const extraGuidanceCheckbox = screen.getByRole('checkbox', { name: /show extra guidance/i });
 
     expect(extraGuidanceCheckbox).not.toBeDisabled();
@@ -496,7 +500,7 @@ describe('SettingsRoute', () => {
 
     renderSettingsRoute('/settings/interface');
 
-    const customButton = (await screen.findByText('Custom View')).closest('button') as HTMLButtonElement;
+    const customButton = (await screen.findAllByRole('radio', { name: 'Custom View' }))[0] as HTMLButtonElement;
     const extraGuidanceCheckbox = screen.getByRole('checkbox', { name: /show extra guidance/i });
 
     expect(extraGuidanceCheckbox).toBeDisabled();

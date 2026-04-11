@@ -439,7 +439,6 @@ function WorkspacePreferencesPage({
 }
 
 function InterfaceVisibilityPage({
-  displayViewMode,
   interfaceVisibilityDisabled,
   setShowExplanatoryTooltips,
   setShowFloatingTitleActions,
@@ -461,7 +460,6 @@ function InterfaceVisibilityPage({
   showRightRailCards,
   t,
 }: {
-  displayViewMode: 'compact' | 'custom';
   interfaceVisibilityDisabled: boolean;
   setShowExplanatoryTooltips: (checked: boolean) => void;
   setShowFloatingTitleActions: (checked: boolean) => void;
@@ -483,43 +481,8 @@ function InterfaceVisibilityPage({
   showRightRailCards: boolean;
   t: TranslateFn;
 }) {
-  const { applyDisplayViewMode } = usePreferences();
-
   return (
     <WorkspacePanel>
-      <div className="mt-4 grid gap-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="grid gap-1">
-            <p className="font-heading text-base font-medium tracking-[-0.02em] text-foreground">
-              {t('settingsInterfaceVisibilityTitle')}
-            </p>
-            <p className="text-sm leading-6 text-muted-foreground">
-              {t('settingsInterfaceVisibilityDescription')}
-            </p>
-          </div>
-          <ToggleGroup
-            className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-            orientation="horizontal"
-            spacing={1}
-            type="single"
-            value={displayViewMode}
-            onValueChange={(nextValue) => {
-              if (nextValue === 'compact' || nextValue === 'custom') {
-                void applyDisplayViewMode(nextValue);
-              }
-            }}
-          >
-            <ToggleGroupItem value="compact">
-              <NavigationSplitViewIcon data-icon="inline-start" />
-              {t('shellViewModeMinimal')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="custom">
-              <NavigationBoardViewIcon data-icon="inline-start" />
-              {t('shellViewModeMaximal')}
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-      </div>
       <div className="divide-y divide-border/60">
         <CheckboxRow
           checked={showExplanatoryTooltips}
@@ -614,6 +577,40 @@ function InterfaceVisibilityPage({
         />
       </div>
     </WorkspacePanel>
+  );
+}
+
+function DisplayViewModeToggle({
+  displayViewMode,
+  t,
+}: {
+  displayViewMode: 'compact' | 'custom';
+  t: TranslateFn;
+}) {
+  const { applyDisplayViewMode } = usePreferences();
+
+  return (
+    <ToggleGroup
+      className="max-w-full justify-start overflow-x-auto rounded-full"
+      orientation="horizontal"
+      spacing={1}
+      type="single"
+      value={displayViewMode}
+      onValueChange={(nextValue) => {
+        if (nextValue === 'compact' || nextValue === 'custom') {
+          void applyDisplayViewMode(nextValue);
+        }
+      }}
+    >
+      <ToggleGroupItem value="compact">
+        <NavigationSplitViewIcon data-icon="inline-start" />
+        {t('shellViewModeMinimal')}
+      </ToggleGroupItem>
+      <ToggleGroupItem value="custom">
+        <NavigationBoardViewIcon data-icon="inline-start" />
+        {t('shellViewModeMaximal')}
+      </ToggleGroupItem>
+    </ToggleGroup>
   );
 }
 
@@ -959,6 +956,7 @@ export function SettingsRoute() {
   const hasUnsavedSettingsChanges = hasPendingChanges || senaParametersChanged || exchangeRateChanged;
   const senaEngineParameterFields = buildSenaEngineParameterFields(t);
   const interfaceVisibilityDisabled = displayViewMode === 'compact';
+  const isInterfaceSection = currentSection.id === 'interface';
   const showSaveAction =
     currentSection.id === 'workspace' ||
     currentSection.id === 'interface' ||
@@ -1157,6 +1155,12 @@ export function SettingsRoute() {
           actions={
             showSaveAction ? (
               <WorkspaceActionRow className="justify-end">
+                {isInterfaceSection ? (
+                  <DisplayViewModeToggle
+                    displayViewMode={displayViewMode}
+                    t={t}
+                  />
+                ) : null}
                 {showResetSenaDefaultsAction ? (
                   <Button
                     disabled={resetSenaDefaultsDisabled}
@@ -1179,7 +1183,7 @@ export function SettingsRoute() {
               </WorkspaceActionRow>
             ) : undefined
           }
-          descriptor={t(currentSection.descriptionKey)}
+          descriptor={isInterfaceSection ? undefined : t(currentSection.descriptionKey)}
           eyebrow={t('settingsTitle')}
           title={t(currentSection.titleKey)}
         />
@@ -1204,7 +1208,6 @@ export function SettingsRoute() {
             <Route
               element={
                 <InterfaceVisibilityPage
-                  displayViewMode={displayViewMode}
                   interfaceVisibilityDisabled={interfaceVisibilityDisabled}
                   setShowExplanatoryTooltips={setShowExplanatoryTooltips}
                   setShowFloatingTitleActions={setShowFloatingTitleActions}

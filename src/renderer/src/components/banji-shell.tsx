@@ -281,10 +281,10 @@ function SettingsBackToAppMenuItem({
   const label = translateUiLiteral(language, 'Back to app');
 
   return (
-    <SidebarMenuItem>
+    <div className="h-8">
       <SidebarMenuButton
         asChild
-        className="justify-start group-data-[collapsible=icon]:justify-center"
+        className="relative -top-1 justify-start group-data-[collapsible=icon]:justify-center"
         tooltip={label}
       >
         <NavLink
@@ -298,7 +298,7 @@ function SettingsBackToAppMenuItem({
           {showSidebarText ? <span>{label}</span> : null}
         </NavLink>
       </SidebarMenuButton>
-    </SidebarMenuItem>
+    </div>
   );
 }
 
@@ -400,22 +400,18 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
             <div className="flex flex-1 flex-col">
               <SidebarGroup className={sidebarSectionGroupClassName}>
                 <SidebarGroupContent>
-                  <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-                    <SettingsBackToAppMenuItem
-                      language={language}
-                      showSidebarText={showSidebarText}
-                      onNavigate={handleSidebarNavigation}
-                    />
-                  </SidebarMenu>
-                  <div className="mt-1.5">
-                    <SettingsSidebarMenu
-                      pathname={location.pathname}
-                      sections={SETTINGS_MAIN_SECTIONS}
-                      showSidebarText={showSidebarText}
-                      t={t}
-                      onNavigate={handleSidebarNavigation}
-                    />
-                  </div>
+                  <SettingsBackToAppMenuItem
+                    language={language}
+                    showSidebarText={showSidebarText}
+                    onNavigate={handleSidebarNavigation}
+                  />
+                  <SettingsSidebarMenu
+                    pathname={location.pathname}
+                    sections={SETTINGS_MAIN_SECTIONS}
+                    showSidebarText={showSidebarText}
+                    t={t}
+                    onNavigate={handleSidebarNavigation}
+                  />
                 </SidebarGroupContent>
               </SidebarGroup>
             </div>
@@ -450,9 +446,9 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
           )}
 
           <SidebarGroup className="mt-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
-            <SidebarGroupContent>
+            <SidebarGroupContent className="flex flex-col gap-1">
               {!isSettingsRoute ? (
-                <div className="mb-3 px-1 group-data-[collapsible=icon]:mb-2 group-data-[collapsible=icon]:px-0">
+                <div className="px-1 group-data-[collapsible=icon]:px-0">
                   <SidebarCommandPaletteHint language={language} showSidebarText={showSidebarText} />
                 </div>
               ) : null}
