@@ -69,6 +69,7 @@ interface PreferencesContextValue {
   setLanguage: (value: AppLanguage) => void;
   setCurrency: (value: AppCurrency) => void;
   setUsdToKhrExchangeRate: (value: number) => void;
+  setDisplayViewMode: (value: 'compact' | 'custom') => void;
   setShowExplanatoryTooltips: (value: boolean) => void;
   setShowFloatingTitleActions: (value: boolean) => void;
   setShowRightRailCards: (value: boolean) => void;
@@ -392,6 +393,31 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setLanguage: setLanguageState,
       setCurrency: setCurrencyState,
       setUsdToKhrExchangeRate: setUsdToKhrExchangeRateState,
+      setDisplayViewMode: (next) => {
+        setDisplayViewModeState(next);
+        if (next === 'compact') {
+          setShowExplanatoryTooltipsState(false);
+          setShowFloatingTitleActionsState(false);
+          setShowRightRailCardsState(false);
+          setShowOverviewTaskTabsState(false);
+          setShowAnalysisPageState(false);
+          setShowPerformanceCompareToggleState(false);
+          setShowPerformanceTimelineCardState(false);
+          setShowLogsViewToggleState(false);
+          setShowHeartbeatRibbonsState(false);
+          return;
+        }
+
+        setShowExplanatoryTooltipsState(customShowExplanatoryTooltips);
+        setShowFloatingTitleActionsState(customShowFloatingTitleActions);
+        setShowRightRailCardsState(customShowRightRailCards);
+        setShowOverviewTaskTabsState(customShowOverviewTaskTabs);
+        setShowAnalysisPageState(customShowAnalysisPage);
+        setShowPerformanceCompareToggleState(customShowPerformanceCompareToggle);
+        setShowPerformanceTimelineCardState(customShowPerformanceTimelineCard);
+        setShowLogsViewToggleState(customShowLogsViewToggle);
+        setShowHeartbeatRibbonsState(customShowHeartbeatRibbons);
+      },
       setShowExplanatoryTooltips: (next) => {
         setDisplayViewModeState('custom');
         setShowExplanatoryTooltipsState(next);

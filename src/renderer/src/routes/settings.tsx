@@ -582,13 +582,13 @@ function InterfaceVisibilityPage({
 
 function DisplayViewModeToggle({
   displayViewMode,
+  setDisplayViewMode,
   t,
 }: {
   displayViewMode: 'compact' | 'custom';
+  setDisplayViewMode: (mode: 'compact' | 'custom') => void;
   t: TranslateFn;
 }) {
-  const { applyDisplayViewMode } = usePreferences();
-
   return (
     <ToggleGroup
       className="max-w-full justify-start overflow-x-auto rounded-full"
@@ -598,7 +598,7 @@ function DisplayViewModeToggle({
       value={displayViewMode}
       onValueChange={(nextValue) => {
         if (nextValue === 'compact' || nextValue === 'custom') {
-          void applyDisplayViewMode(nextValue);
+          setDisplayViewMode(nextValue);
         }
       }}
     >
@@ -908,6 +908,7 @@ export function SettingsRoute() {
     setShowLogsViewToggle,
     setShowPerformanceCompareToggle,
     setShowPerformanceTimelineCard,
+    setDisplayViewMode,
     displayViewMode,
     showFloatingTitleActions,
     showHeartbeatRibbons,
@@ -1158,6 +1159,7 @@ export function SettingsRoute() {
                 {isInterfaceSection ? (
                   <DisplayViewModeToggle
                     displayViewMode={displayViewMode}
+                    setDisplayViewMode={setDisplayViewMode}
                     t={t}
                   />
                 ) : null}

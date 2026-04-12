@@ -416,10 +416,18 @@ describe('SettingsRoute', () => {
     const compactButton = (await screen.findAllByRole('radio', { name: 'Compact View' }))[0] as HTMLButtonElement;
     const customButton = screen.getAllByRole('radio', { name: 'Custom View' })[0] as HTMLButtonElement;
     const extraGuidanceCheckbox = screen.getByRole('checkbox', { name: /show extra guidance/i });
+    const saveButton = firstSavePreferencesButton();
 
     expect(extraGuidanceCheckbox).not.toBeDisabled();
+    expect(saveButton).toBeDisabled();
 
     fireEvent.click(compactButton);
+
+    expect(savePreferences).not.toHaveBeenCalled();
+    expect(saveButton).not.toBeDisabled();
+    expect(extraGuidanceCheckbox).toBeDisabled();
+
+    fireEvent.click(saveButton);
 
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
@@ -461,6 +469,7 @@ describe('SettingsRoute', () => {
       showPerformanceCompareToggle: false,
       showPerformanceTimelineCard: false,
       showLogsViewToggle: false,
+      showHeartbeatRibbons: false,
       customShowExplanatoryTooltips: true,
       customShowFloatingTitleActions: false,
       customShowRightRailCards: true,
@@ -502,10 +511,17 @@ describe('SettingsRoute', () => {
 
     const customButton = (await screen.findAllByRole('radio', { name: 'Custom View' }))[0] as HTMLButtonElement;
     const extraGuidanceCheckbox = screen.getByRole('checkbox', { name: /show extra guidance/i });
+    const saveButton = firstSavePreferencesButton();
 
     expect(extraGuidanceCheckbox).toBeDisabled();
 
     fireEvent.click(customButton);
+
+    expect(savePreferences).not.toHaveBeenCalled();
+    expect(saveButton).not.toBeDisabled();
+    expect(extraGuidanceCheckbox).not.toBeDisabled();
+
+    fireEvent.click(saveButton);
 
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
