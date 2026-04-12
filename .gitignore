@@ -44,6 +44,8 @@ tree.txt
 tree_dir.txt
 /.vitest/
 /.pnpm-store/
+/.playwright/
+/.playwright-cli/
 .banji-dev-data/
 .env.local
 .env.*.local
