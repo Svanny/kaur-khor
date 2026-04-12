@@ -9,6 +9,7 @@ import { DashboardRoute } from '@/routes/dashboard';
 import { HelpRoute } from '@/routes/help';
 import { InventoryRoute } from '@/routes/inventory';
 import { PerformanceRoute } from '@/routes/performance';
+import { RecordUpdateHubRoute } from '@/routes/record-update-hub';
 import { ServiceDetailRoute } from '@/routes/service-detail';
 import { ServiceFormRoute } from '@/routes/service-form';
 import { SettingsRoute } from '@/routes/settings';
@@ -16,6 +17,7 @@ import { SkuDetailRoute } from '@/routes/sku-detail';
 import { SkuFormRoute } from '@/routes/sku-form';
 import { StockUpdateRoute } from '@/routes/stock-update';
 import { StockUpdateSessionRoute } from '@/routes/stock-update-session';
+import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_LANES, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider } from '@/state/inventory';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
@@ -40,7 +42,10 @@ export function AppRoutes() {
     <Routes>
       <Route element={<DashboardRoute />} path="/" />
       <Route element={<AnalysisRoute />} path="/analysis" />
-      <Route element={<StockUpdateSessionRoute />} path="/record-update" />
+      <Route element={<RecordUpdateHubRoute />} path={RECORD_UPDATE_HUB_PATH} />
+      {RECORD_UPDATE_LANES.map((lane) => (
+        <Route key={lane.id} element={<StockUpdateSessionRoute />} path={lane.path} />
+      ))}
       <Route element={<PerformanceRoute />} path="/performance" />
       <Route element={<RedirectWithSearch to="/catalog" />} path="/inventory" />
       <Route element={<RedirectWithSearch to="/catalog/skus/new" />} path="/inventory/skus/new" />
@@ -51,7 +56,7 @@ export function AppRoutes() {
         path="/inventory/services/:serviceId"
       />
       <Route element={<RedirectWithSearch to="/operations" />} path="/inventory/stock" />
-      <Route element={<RedirectWithSearch to="/record-update" />} path="/inventory/stock/session" />
+      <Route element={<RedirectWithSearch to={RECORD_UPDATE_STOCK_COUNT_PATH} />} path="/inventory/stock/session" />
       <Route element={<RedirectWithSearch to="/operations" />} path="/inventory/ranking" />
       <Route element={<RedirectWithSearch to="/operations" />} path="/planning" />
       <Route element={<RedirectWithSearch to="/operations" />} path="/sist" />
@@ -65,7 +70,7 @@ export function AppRoutes() {
       <Route element={<ServiceFormRoute />} path="/catalog/services/:serviceId/edit" />
       <Route element={<StockUpdateRoute />} path="/operations" />
       <Route element={<ArchiveRoute />} path="/operations/archive" />
-      <Route element={<RedirectWithSearch to="/record-update" />} path="/operations/session" />
+      <Route element={<RedirectWithSearch to={RECORD_UPDATE_STOCK_COUNT_PATH} />} path="/operations/session" />
       <Route element={<SettingsRoute />} path="/settings/*" />
       <Route element={<Navigate replace to="/" />} path="*" />
     </Routes>

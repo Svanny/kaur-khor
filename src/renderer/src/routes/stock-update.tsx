@@ -23,6 +23,7 @@ import {
   readOperationsRouteState,
 } from '@/lib/navigation-state';
 import { translateUiLiteral } from '@/lib/translations';
+import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { PagedPanelNavigation } from './detail-panels';
@@ -713,7 +714,7 @@ export function StockUpdateRoute() {
   }
 
   function handleEditObservation(observation: SenaObservationRecord) {
-    navigate('/record-update', {
+    navigate(RECORD_UPDATE_STOCK_COUNT_PATH, {
       state: {
         editSession: createRecordUpdateEditSession(observation),
       },
@@ -757,7 +758,7 @@ export function StockUpdateRoute() {
         actions={
           <WorkspaceActionRow>
             <Button asChild>
-              <Link to="/record-update">
+              <Link to={RECORD_UPDATE_HUB_PATH}>
                 <ActionClipboardAddIcon aria-hidden="true" className="size-4" />
                 {translateUiLiteral(language, 'Start update')}
               </Link>

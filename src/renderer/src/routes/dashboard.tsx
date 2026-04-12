@@ -76,15 +76,6 @@ function railBlockClassName() {
 const overviewStartUpdateButtonClassName =
   'border-[#b87745] bg-[#b87745] text-white shadow-xs hover:bg-[#a66a3b]';
 
-function nextLocalDayStartIso(reference = new Date()) {
-  const nextDayStart = new Date(
-    reference.getFullYear(),
-    reference.getMonth(),
-    reference.getDate() + 1,
-  );
-  return nextDayStart.toISOString();
-}
-
 function buildFilterOptions(language: 'en' | 'km'): Array<{ value: OverviewTaskFilter; label: string }> {
   return [
     { value: 'all', label: translateUiLiteral(language, 'All Tasks') },
@@ -174,7 +165,6 @@ function matchesOverviewQuery(task: OverviewTask, query: string, scope: Overview
 export function DashboardRoute() {
   const inventory = useInventory();
   const {
-    applyOverviewStaleUpdateReminderSnoozeUntil,
     language,
     overviewStaleUpdateReminderSnoozeUntil,
     showExplanatoryTooltips,
@@ -497,31 +487,12 @@ export function DashboardRoute() {
                                 {task.actionLabel}
                               </Button>
                             ) : (
-                              <div className="flex w-full min-w-[168px] flex-col gap-2 lg:w-[168px]">
-                                <Button asChild className="justify-center">
-                                  <Link to="/record-update">
-                                    {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
-                                    {task.actionLabel}
-                                  </Link>
-                                </Button>
-                                <Button
-                                  className="justify-center"
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() =>
-                                    void applyOverviewStaleUpdateReminderSnoozeUntil(
-                                      nextLocalDayStartIso(),
-                                    )
-                                  }
-                                >
-                                  {(() => {
-                                    const SnoozeIcon = overviewTaskActionIcons[task.snoozeAction];
-                                    return SnoozeIcon ? <SnoozeIcon className="size-4" /> : null;
-                                  })()}
-                                  {task.snoozeActionLabel}
-                                </Button>
-                              </div>
+                              <Button asChild className="w-[136px] justify-center" size="sm">
+                                <Link to="/record-update">
+                                  {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
+                                  {task.actionLabel}
+                                </Link>
+                              </Button>
                             )}
                           </div>
                         </HeaderedTableRow>

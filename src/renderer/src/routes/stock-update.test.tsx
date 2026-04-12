@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
 import { StockUpdateRoute } from './stock-update';
 
 const realDate = Date;
@@ -232,7 +233,7 @@ function renderRouteWithDestination() {
     <MemoryRouter initialEntries={['/operations']}>
       <Routes>
         <Route element={<StockUpdateRoute />} path="/operations" />
-        <Route element={<Destination />} path="/record-update" />
+        <Route element={<Destination />} path={RECORD_UPDATE_STOCK_COUNT_PATH} />
       </Routes>
     </MemoryRouter>,
   );
@@ -263,7 +264,7 @@ describe('StockUpdateRoute', () => {
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Select log view' })).toBeInTheDocument();
     expect(screen.getByText('View: Heatmap')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Start update' })).toHaveAttribute('href', '/record-update');
+    expect(screen.getByRole('link', { name: 'Start update' })).toHaveAttribute('href', RECORD_UPDATE_HUB_PATH);
     expect(screen.queryByRole('button', { name: 'Run analysis' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Re-run analysis' })).not.toBeInTheDocument();
     expect(screen.getByText('3 contributions in 2025-2026')).toBeInTheDocument();
