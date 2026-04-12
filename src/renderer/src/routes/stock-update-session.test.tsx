@@ -2,7 +2,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
-import { RECORD_UPDATE_RECORD_ORDER_PATH, RECORD_UPDATE_SALES_UPDATE_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
+import {
+  RECORD_UPDATE_RECORD_ORDER_PATH,
+  RECORD_UPDATE_RECORD_RECEIPT_PATH,
+  RECORD_UPDATE_SALES_UPDATE_PATH,
+  RECORD_UPDATE_STOCK_COUNT_PATH,
+} from '@/lib/record-update-routes';
 import { getTranslation } from '@/lib/translations';
 import { buildStockRowOrderStorageKey } from './stock-row-order';
 import { StockUpdateSessionRoute } from './stock-update-session';
@@ -116,6 +121,41 @@ const observations = [
   },
 ];
 
+const workspaceSummary = {
+  highRiskSkuIds: ['sku-1'],
+  skuSummaries: [
+    {
+      skuId: 'sku-1',
+      latestPosteriorUnits: 12,
+      credibleIntervalLow: 10,
+      credibleIntervalHigh: 14,
+      demandPerDayMean: 2,
+      stockoutRisk: 0.4,
+      daysOfCover: 6,
+      expectedLeadTimeDemand: 10,
+      safetyStock: 3,
+      reorderPoint: 13,
+      reorderTriggerProbability: 0.8,
+      reorderQuantity: {
+        recommendedUnits: 8,
+        ungatedRecommendedUnits: 8,
+        likelyRangeLow: 6,
+        likelyRangeHigh: 10,
+        needProbability: 0.9,
+        recommendationIssued: true,
+        recommendationQuantile: 0.8,
+        intervalLowQuantile: 0.2,
+        intervalHighQuantile: 0.9,
+        needProbabilityGate: 0.5,
+        reviewDelayDays: 2,
+      },
+      leadTimeMeanDays: 6,
+      leadTimeStdDays: 1,
+      regimeProbabilities: {},
+    },
+  ],
+};
+
 function renderRoute(nextObservations = observations, initialPath = RECORD_UPDATE_STOCK_COUNT_PATH) {
   inventoryHook.mockReturnValue({
     catalog,
@@ -127,9 +167,7 @@ function renderRoute(nextObservations = observations, initialPath = RECORD_UPDAT
     runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
-    workspaceSummary: {
-      highRiskSkuIds: ['sku-1'],
-    },
+    workspaceSummary,
   });
 
   return render(
@@ -173,9 +211,7 @@ function renderRouteWithCatalog(
     runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
-    workspaceSummary: {
-      highRiskSkuIds: ['sku-1'],
-    },
+    workspaceSummary,
   });
 
   return render(
@@ -196,9 +232,7 @@ function renderRoutedSession(nextObservations = observations) {
     runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
-    workspaceSummary: {
-      highRiskSkuIds: ['sku-1'],
-    },
+    workspaceSummary,
   });
 
   return render(
@@ -235,9 +269,7 @@ function renderEditRoute(
     runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
-    workspaceSummary: {
-      highRiskSkuIds: ['sku-1'],
-    },
+    workspaceSummary,
   });
 
   return render(
@@ -270,9 +302,7 @@ function renderRouteWithInlineEditLink(
     observations: nextObservations,
     triggerSenaRun,
     updateSenaObservation,
-    workspaceSummary: {
-      highRiskSkuIds: ['sku-1'],
-    },
+    workspaceSummary,
   });
 
   return render(
@@ -430,6 +460,64 @@ describe('StockUpdateSessionRoute', () => {
     expect(rowNames).toEqual(['Towel', 'Razor refill']);
   });
 
+  it('uses the stock-count wizard shell for record orders and submits reorder details', async () => {
+    renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+
+    expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Rank recent selling order/i })).not.toBeInTheDocument();
+
+    goNext(2);
+
+    expect(screen.getByRole('button', { name: /Reorder table/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('columnheader', { name: 'Last order' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Current order' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Current order for Razor refill')).toHaveAttribute('placeholder', 'Banji recommends 8 units.');
+    expect(screen.getByLabelText('Lead time mean')).toHaveAttribute('placeholder', '6');
+    expect(screen.queryByText('Banji recommends 8 units.')).not.toBeInTheDocument();
+    const variabilitySelect = screen.getByRole('combobox', { name: 'Lead time variability' });
+    fireEvent.click(variabilitySelect);
+    expect(screen.getByRole('option', { name: /Very tight/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: /^Tight\b/i }));
+    expect(variabilitySelect).toHaveTextContent(/Tight/i);
+
+    fireEvent.change(screen.getByLabelText('Current order for Razor refill'), { target: { value: '9' } });
+    const expectedArrivalInput = screen.getByLabelText('Expected date of arrival');
+    const initialExpectedArrival = (expectedArrivalInput as HTMLInputElement).value;
+    fireEvent.change(screen.getByLabelText('Lead time mean'), { target: { value: '7' } });
+    await waitFor(() => expect(expectedArrivalInput).not.toHaveValue(initialExpectedArrival));
+    fireEvent.change(expectedArrivalInput, { target: { value: '2026-04-18' } });
+
+    goNext();
+    chooseOptionalStepNo();
+    goNext();
+
+    expect(screen.getByRole('button', { name: /Review update/i })).toHaveAttribute('aria-current', 'step');
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderSignals: [
+          expect.objectContaining({
+            approximateOrderQuantity: 9,
+            leadTimeDaysHint: 7,
+            orderPlaced: true,
+            receiptArrived: false,
+            receiptTimestamp: expect.any(String),
+            skuId: 'sku-1',
+          }),
+        ],
+        leadTimeHints: [
+          expect.objectContaining({
+            skuId: 'sku-1',
+            typicalDays: 7,
+            variabilityClass: 'tight',
+          }),
+        ],
+      }),
+    );
+  });
+
   it('stays on an optional stock step when changing an existing Yes choice to No', () => {
     renderRoute();
 
@@ -503,7 +591,7 @@ describe('StockUpdateSessionRoute', () => {
   }, 10_000);
 
   it('keeps the full service flow on non-stock lanes and saves regime from the merged interval step', async () => {
-    renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    renderRoute(observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
 
     goNext(3);
 
@@ -540,7 +628,7 @@ describe('StockUpdateSessionRoute', () => {
       ...catalog,
       services: [],
       sharingMask: [],
-    }, observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    }, observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
 
     goNext(3);
     expect(screen.getByRole('button', { name: /Add service updates/i })).toHaveAttribute('aria-current', 'step');
@@ -582,7 +670,7 @@ describe('StockUpdateSessionRoute', () => {
         productPrice: null,
       })),
       sharingMask: [],
-    }, observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    }, observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
 
     goNext(4);
     expect(screen.getByRole('button', { name: /Rank recent selling order/i })).toHaveAttribute('aria-current', 'step');
@@ -601,7 +689,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('reformats service price drafts when currency preferences change', async () => {
-    const rendered = renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    const rendered = renderRoute(observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
 
     goNext(3);
 
@@ -791,9 +879,7 @@ describe('StockUpdateSessionRoute', () => {
       runWorkspacePreparation,
       triggerSenaRun,
       updateSenaObservation,
-      workspaceSummary: {
-        highRiskSkuIds: ['sku-1'],
-      },
+      workspaceSummary,
     });
 
     render(
