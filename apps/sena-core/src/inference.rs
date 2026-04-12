@@ -125,6 +125,8 @@ pub struct PreprocessedInterval {
     month_index: usize,
     stock_by_sku: HashMap<String, f64>,
     observed_delta_by_sku: HashMap<String, f64>,
+    exact_service_sales_by_service: HashMap<String, f64>,
+    exact_retail_sales_by_sku: HashMap<String, f64>,
     service_rank_order: Vec<String>,
     retail_rank_order: Vec<String>,
     service_stockouts: Vec<String>,
@@ -1326,7 +1328,9 @@ fn step_particle(
     let service_count = catalog.services.len();
 
     let ranking_pressure =
-        (interval.service_rank_order.len() + interval.retail_rank_order.len()) as f64;
+        (interval.service_rank_order.len() + interval.retail_rank_order.len()) as f64
+            + interval.exact_service_sales_by_service.len() as f64
+            + interval.exact_retail_sales_by_sku.len() as f64;
     let stockout_pressure =
         (interval.service_stockouts.len() + interval.retail_stockouts.len()) as f64;
     let price_pressure = mean(
@@ -1413,7 +1417,11 @@ fn step_particle(
             * interval.delta_days.max(1e-3)
             * regime_config.service_multiplier;
         let variance_count = mean_count + mean_count.powi(2) / regime_config.service_dispersion;
-        let count = sample_count(mean_count, variance_count, &mut rng) as f64;
+        let count = interval
+            .exact_service_sales_by_service
+            .get(service.service_id.as_str())
+            .copied()
+            .unwrap_or_else(|| sample_count(mean_count, variance_count, &mut rng) as f64);
         service_counts[service_idx] = count;
 
         for (link_idx, (sku_idx, usage_probability)) in usage_map[service_idx].iter().enumerate() {
@@ -1487,8 +1495,11 @@ fn step_particle(
         };
         let retail_count_variance =
             retail_count_mean + retail_count_mean.powi(2) / regime_config.retail_dispersion;
-        retail_demand[sku_idx] =
-            sample_count(retail_count_mean, retail_count_variance, &mut rng) as f64;
+        retail_demand[sku_idx] = interval
+            .exact_retail_sales_by_sku
+            .get(sku.sku_id.as_str())
+            .copied()
+            .unwrap_or_else(|| sample_count(retail_count_mean, retail_count_variance, &mut rng) as f64);
 
         total_demand[sku_idx] = service_demand[sku_idx] + retail_demand[sku_idx];
 
@@ -1675,6 +1686,24 @@ fn step_particle(
             log_weight += logistic((diff / 1.0).clamp(-8.0, 8.0)).max(1e-8).ln();
         }
     }
+    for (service_id, exact_units_sold) in &interval.exact_service_sales_by_service {
+        if let Some(&service_idx) = service_index.get(service_id.as_str()) {
+            log_weight += gaussian_logpdf(
+                *exact_units_sold,
+                service_counts[service_idx],
+                (exact_units_sold.abs() * 0.2).max(1.0),
+            );
+        }
+    }
+    for (sku_id, exact_units_sold) in &interval.exact_retail_sales_by_sku {
+        if let Some(&sku_idx) = sku_index.get(sku_id.as_str()) {
+            log_weight += gaussian_logpdf(
+                *exact_units_sold,
+                retail_demand[sku_idx],
+                (exact_units_sold.abs() * 0.2).max(1.0),
+            );
+        }
+    }
     for pair in interval.retail_rank_order.windows(2) {
         if let (Some(&left_idx), Some(&right_idx)) = (
             sku_index.get(pair[0].as_str()),
@@ -1809,6 +1838,52 @@ fn normalize_intervals(
                 (sku_id.clone(), current - previous)
             })
             .collect::<HashMap<_, _>>();
+        let exact_service_sales_by_service = pair[1]
+            .input
+            .service_sales_snapshot
+            .iter()
+            .map(|entry| (entry.service_id.clone(), entry.units_sold.max(0.0)))
+            .collect::<HashMap<_, _>>();
+        let exact_retail_sales_by_sku = pair[1]
+            .input
+            .retail_sales_snapshot
+            .iter()
+            .map(|entry| (entry.sku_id.clone(), entry.units_sold.max(0.0)))
+            .collect::<HashMap<_, _>>();
+        let service_rank_order = if exact_service_sales_by_service.is_empty() {
+            pair[1].input.service_rankings.iter().cloned().collect()
+        } else {
+            let mut ranked = pair[1]
+                .input
+                .service_sales_snapshot
+                .iter()
+                .map(|entry| (entry.service_id.clone(), entry.units_sold))
+                .collect::<Vec<_>>();
+            ranked.sort_by(|left, right| {
+                right.1
+                    .partial_cmp(&left.1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| left.0.cmp(&right.0))
+            });
+            ranked.into_iter().map(|(service_id, _)| service_id).collect()
+        };
+        let retail_rank_order = if exact_retail_sales_by_sku.is_empty() {
+            pair[1].input.retail_rankings.iter().cloned().collect()
+        } else {
+            let mut ranked = pair[1]
+                .input
+                .retail_sales_snapshot
+                .iter()
+                .map(|entry| (entry.sku_id.clone(), entry.units_sold))
+                .collect::<Vec<_>>();
+            ranked.sort_by(|left, right| {
+                right.1
+                    .partial_cmp(&left.1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| left.0.cmp(&right.0))
+            });
+            ranked.into_iter().map(|(sku_id, _)| sku_id).collect()
+        };
 
         intervals.push(PreprocessedInterval {
             index: index + 1,
@@ -1821,8 +1896,10 @@ fn normalize_intervals(
             month_index: month_to_index(start_at.month()),
             stock_by_sku: current_stock,
             observed_delta_by_sku,
-            service_rank_order: pair[1].input.service_rankings.iter().cloned().collect(),
-            retail_rank_order: pair[1].input.retail_rankings.iter().cloned().collect(),
+            exact_service_sales_by_service,
+            exact_retail_sales_by_sku,
+            service_rank_order,
+            retail_rank_order,
             service_stockouts: pair[1].input.service_stockouts.iter().cloned().collect(),
             retail_stockouts: pair[1].input.retail_stockouts.iter().cloned().collect(),
             order_signal_by_sku: pair[1]
@@ -2411,6 +2488,8 @@ mod tests {
                     cost_per_unit: Some(2.0),
                     product_price: Some(5.0),
                 }],
+                retail_sales_snapshot: Vec::new(),
+                service_sales_snapshot: Vec::new(),
                 service_rankings: vec!["svc-1".to_string()],
                 retail_rankings: vec!["sku-1".to_string()],
                 service_stockouts: if service_stockout {

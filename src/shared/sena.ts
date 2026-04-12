@@ -45,6 +45,8 @@ export interface SenaServiceSkuMaskEntry {
 export interface SenaObservationInput {
   observedAt: string;
   stockSnapshot: SenaStockSnapshot[];
+  retailSalesSnapshot?: SenaRetailSalesSnapshot[];
+  serviceSalesSnapshot?: SenaServiceSalesSnapshot[];
   serviceRankings: string[];
   retailRankings: string[];
   serviceStockouts: string[];
@@ -64,6 +66,16 @@ export interface SenaStockSnapshot {
   unitsInStock: number;
   costPerUnit: number | null;
   productPrice: number | null;
+}
+
+export interface SenaRetailSalesSnapshot {
+  skuId: string;
+  unitsSold: number;
+}
+
+export interface SenaServiceSalesSnapshot {
+  serviceId: string;
+  unitsSold: number;
 }
 
 export interface SenaOrderSignal {

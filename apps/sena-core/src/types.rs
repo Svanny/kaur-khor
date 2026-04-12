@@ -73,6 +73,10 @@ pub struct SenaObservationInput {
     pub observed_at: String,
     pub stock_snapshot: Vec<SenaStockSnapshot>,
     #[serde(default)]
+    pub retail_sales_snapshot: Vec<SenaRetailSalesSnapshot>,
+    #[serde(default)]
+    pub service_sales_snapshot: Vec<SenaServiceSalesSnapshot>,
+    #[serde(default)]
     pub service_rankings: Vec<String>,
     #[serde(default)]
     pub retail_rankings: Vec<String>,
@@ -104,6 +108,20 @@ pub struct SenaStockSnapshot {
     pub units_in_stock: f64,
     pub cost_per_unit: Option<f64>,
     pub product_price: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaRetailSalesSnapshot {
+    pub sku_id: String,
+    pub units_sold: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaServiceSalesSnapshot {
+    pub service_id: String,
+    pub units_sold: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -458,6 +476,8 @@ impl SenaCatalog {
 impl SenaObservationInput {
     pub fn has_structured_signal(&self) -> bool {
         !self.stock_snapshot.is_empty()
+            || !self.retail_sales_snapshot.is_empty()
+            || !self.service_sales_snapshot.is_empty()
             || !self.service_rankings.is_empty()
             || !self.retail_rankings.is_empty()
             || !self.service_stockouts.is_empty()
@@ -502,6 +522,32 @@ impl SenaObservationInput {
                 return Err(anyhow!(
                     "duplicate stockSnapshot skuId '{}'",
                     snapshot.sku_id
+                ));
+            }
+        }
+        let mut seen_retail_sales = HashSet::new();
+        for snapshot in &self.retail_sales_snapshot {
+            validate_identifier("retailSalesSnapshot[].skuId", &snapshot.sku_id)?;
+            if !snapshot.units_sold.is_finite() || snapshot.units_sold < 0.0 {
+                return Err(anyhow!("retailSalesSnapshot[].unitsSold must be >= 0"));
+            }
+            if !seen_retail_sales.insert(snapshot.sku_id.clone()) {
+                return Err(anyhow!(
+                    "duplicate retailSalesSnapshot skuId '{}'",
+                    snapshot.sku_id
+                ));
+            }
+        }
+        let mut seen_service_sales = HashSet::new();
+        for snapshot in &self.service_sales_snapshot {
+            validate_identifier("serviceSalesSnapshot[].serviceId", &snapshot.service_id)?;
+            if !snapshot.units_sold.is_finite() || snapshot.units_sold < 0.0 {
+                return Err(anyhow!("serviceSalesSnapshot[].unitsSold must be >= 0"));
+            }
+            if !seen_service_sales.insert(snapshot.service_id.clone()) {
+                return Err(anyhow!(
+                    "duplicate serviceSalesSnapshot serviceId '{}'",
+                    snapshot.service_id
                 ));
             }
         }
@@ -686,6 +732,8 @@ mod tests {
                 cost_per_unit: Some(2.0),
                 product_price: Some(4.0),
             }],
+            retail_sales_snapshot: Vec::new(),
+            service_sales_snapshot: Vec::new(),
             service_rankings: Vec::new(),
             retail_rankings: Vec::new(),
             service_stockouts: Vec::new(),
@@ -714,6 +762,8 @@ mod tests {
         let observation = SenaObservationInput {
             observed_at: "2026-04-03T00:00:00Z".to_string(),
             stock_snapshot: Vec::new(),
+            retail_sales_snapshot: Vec::new(),
+            service_sales_snapshot: Vec::new(),
             service_rankings: Vec::new(),
             retail_rankings: Vec::new(),
             service_stockouts: Vec::new(),
@@ -774,6 +824,8 @@ mod tests {
                 cost_per_unit: Some(2.0),
                 product_price: Some(4.0),
             }],
+            retail_sales_snapshot: Vec::new(),
+            service_sales_snapshot: Vec::new(),
             service_rankings: Vec::new(),
             retail_rankings: Vec::new(),
             service_stockouts: Vec::new(),

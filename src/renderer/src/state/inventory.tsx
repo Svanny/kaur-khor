@@ -148,6 +148,7 @@ function rewriteObservationInputForRenamedEntity(
 
   if (payload.entityType === 'sku') {
     const nextId = payload.nextSku.skuId;
+    const retailSalesSnapshot = input.retailSalesSnapshot ?? [];
     const retailRankings = input.retailRankings ?? [];
     const retailStockouts = input.retailStockouts ?? [];
     const orderSignals = input.orderSignals ?? [];
@@ -157,6 +158,7 @@ function rewriteObservationInputForRenamedEntity(
     const recipeUsageHints = input.recipeUsageHints ?? [];
     const hasChange =
       input.stockSnapshot.some((snapshot) => snapshot.skuId === payload.previousId) ||
+      retailSalesSnapshot.some((snapshot) => snapshot.skuId === payload.previousId) ||
       retailRankings.includes(payload.previousId) ||
       retailStockouts.includes(payload.previousId) ||
       orderSignals.some((signal) => signal.skuId === payload.previousId) ||
@@ -170,6 +172,9 @@ function rewriteObservationInputForRenamedEntity(
     return {
       ...input,
       stockSnapshot: input.stockSnapshot.map((snapshot) =>
+        snapshot.skuId === payload.previousId ? { ...snapshot, skuId: nextId } : snapshot,
+      ),
+      retailSalesSnapshot: retailSalesSnapshot.map((snapshot) =>
         snapshot.skuId === payload.previousId ? { ...snapshot, skuId: nextId } : snapshot,
       ),
       retailRankings: replaceEntityId(retailRankings, payload.previousId, nextId),
@@ -193,11 +198,13 @@ function rewriteObservationInputForRenamedEntity(
   }
 
   const nextId = payload.nextService.serviceId;
+  const serviceSalesSnapshot = input.serviceSalesSnapshot ?? [];
   const serviceRankings = input.serviceRankings ?? [];
   const serviceStockouts = input.serviceStockouts ?? [];
   const servicePrices = input.servicePrices ?? [];
   const recipeUsageHints = input.recipeUsageHints ?? [];
   const hasChange =
+    serviceSalesSnapshot.some((snapshot) => snapshot.serviceId === payload.previousId) ||
     serviceRankings.includes(payload.previousId) ||
     serviceStockouts.includes(payload.previousId) ||
     servicePrices.some((price) => price.serviceId === payload.previousId) ||
@@ -207,6 +214,9 @@ function rewriteObservationInputForRenamedEntity(
   }
   return {
     ...input,
+    serviceSalesSnapshot: serviceSalesSnapshot.map((snapshot) =>
+      snapshot.serviceId === payload.previousId ? { ...snapshot, serviceId: nextId } : snapshot,
+    ),
     serviceRankings: replaceEntityId(serviceRankings, payload.previousId, nextId),
     serviceStockouts: replaceEntityId(serviceStockouts, payload.previousId, nextId),
     servicePrices: servicePrices.map((price) =>

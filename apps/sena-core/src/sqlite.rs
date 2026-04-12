@@ -814,6 +814,8 @@ mod tests {
                     cost_per_unit: Some(2.0),
                     product_price: Some(5.0),
                 }],
+                retail_sales_snapshot: Vec::new(),
+                service_sales_snapshot: Vec::new(),
                 service_rankings: vec!["svc-1".to_string()],
                 retail_rankings: vec!["sku-1".to_string()],
                 service_stockouts: Vec::new(),

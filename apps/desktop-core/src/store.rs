@@ -1246,6 +1246,8 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
         observations.push(SenaObservationInput {
             observed_at,
             stock_snapshot,
+            retail_sales_snapshot: Vec::new(),
+            service_sales_snapshot: Vec::new(),
             service_rankings: service_rankings
                 .into_iter()
                 .take(5)

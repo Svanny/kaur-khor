@@ -5,6 +5,8 @@ import { translateUiLiteral } from '@/lib/translations';
 
 export interface ObservationSignalCounts {
   stockSnapshot: number;
+  retailSalesSnapshot: number;
+  serviceSalesSnapshot: number;
   serviceRankings: number;
   retailRankings: number;
   stockouts: number;
@@ -29,6 +31,8 @@ export function createEmptyObservationInput({
   return {
     observedAt,
     stockSnapshot: [],
+    retailSalesSnapshot: [],
+    serviceSalesSnapshot: [],
     serviceRankings: [],
     retailRankings: [],
     serviceStockouts: [],
@@ -46,6 +50,8 @@ export function createEmptyObservationInput({
 export function observationSignalCounts(input: SenaObservationInput): ObservationSignalCounts {
   return {
     stockSnapshot: input.stockSnapshot.length,
+    retailSalesSnapshot: input.retailSalesSnapshot?.length ?? 0,
+    serviceSalesSnapshot: input.serviceSalesSnapshot?.length ?? 0,
     serviceRankings: input.serviceRankings.length,
     retailRankings: input.retailRankings.length,
     stockouts: input.serviceStockouts.length + input.retailStockouts.length,
@@ -65,6 +71,8 @@ export function hasStructuredObservationSignal(input: SenaObservationInput) {
   const counts = observationSignalCounts(input);
   return (
     counts.stockSnapshot > 0 ||
+    counts.retailSalesSnapshot > 0 ||
+    counts.serviceSalesSnapshot > 0 ||
     counts.serviceRankings > 0 ||
     counts.retailRankings > 0 ||
     counts.stockouts > 0 ||
@@ -87,6 +95,22 @@ export function observationCompositionParts(input: SenaObservationInput, languag
       translateUiLiteral(language, '{count} counted SKU{suffix}', {
         count: formatWholeNumber(counts.stockSnapshot, language),
         suffix: counts.stockSnapshot === 1 ? '' : 's',
+      }),
+    );
+  }
+  if (counts.retailSalesSnapshot > 0) {
+    parts.push(
+      translateUiLiteral(language, '{count} retail sales count{suffix}', {
+        count: formatWholeNumber(counts.retailSalesSnapshot, language),
+        suffix: counts.retailSalesSnapshot === 1 ? '' : 's',
+      }),
+    );
+  }
+  if (counts.serviceSalesSnapshot > 0) {
+    parts.push(
+      translateUiLiteral(language, '{count} service sales count{suffix}', {
+        count: formatWholeNumber(counts.serviceSalesSnapshot, language),
+        suffix: counts.serviceSalesSnapshot === 1 ? '' : 's',
       }),
     );
   }
@@ -122,7 +146,7 @@ export function observationCompositionParts(input: SenaObservationInput, languag
       }),
     );
   }
-  if (counts.serviceRankings > 0) {
+  if (counts.serviceRankings > 0 && counts.serviceSalesSnapshot === 0) {
     parts.push(
       translateUiLiteral(language, '{count} ranked service{suffix}', {
         count: formatWholeNumber(counts.serviceRankings, language),
@@ -130,7 +154,7 @@ export function observationCompositionParts(input: SenaObservationInput, languag
       }),
     );
   }
-  if (counts.retailRankings > 0) {
+  if (counts.retailRankings > 0 && counts.retailSalesSnapshot === 0) {
     parts.push(
       translateUiLiteral(language, '{count} ranked retail item{suffix}', {
         count: formatWholeNumber(counts.retailRankings, language),

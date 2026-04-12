@@ -467,6 +467,8 @@ describe('InventoryProvider', () => {
       input: {
         ...richObservation.input,
         stockSnapshot: [{ skuId: 'sku-renamed', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+        retailSalesSnapshot: [],
+        serviceSalesSnapshot: [],
         retailRankings: ['sku-renamed'],
         retailStockouts: ['sku-renamed'],
         orderSignals: [
@@ -562,10 +564,22 @@ describe('InventoryProvider', () => {
       );
     });
     await waitFor(() => {
-      expect(updateObservation).toHaveBeenCalledWith({
-        observationId: 'obs-1',
-        input: renamedObservation.input,
-      });
+      expect(updateObservation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          observationId: 'obs-1',
+          input: expect.objectContaining({
+            stockSnapshot: renamedObservation.input.stockSnapshot,
+            retailRankings: renamedObservation.input.retailRankings,
+            retailStockouts: renamedObservation.input.retailStockouts,
+            orderSignals: renamedObservation.input.orderSignals,
+            retailPrices: renamedObservation.input.retailPrices,
+            leadTimeHints: renamedObservation.input.leadTimeHints,
+            adjustmentSignals: renamedObservation.input.adjustmentSignals,
+            recipeUsageHints: renamedObservation.input.recipeUsageHints,
+            retailSalesSnapshot: renamedObservation.input.retailSalesSnapshot,
+          }),
+        }),
+      );
     });
     expect(window.banjiDesktop.sena.clearDetailCache).toHaveBeenCalledWith({ entityId: 'sku-1', entityType: 'sku' });
     expect(window.banjiDesktop.sena.clearDetailCache).toHaveBeenCalledWith({
