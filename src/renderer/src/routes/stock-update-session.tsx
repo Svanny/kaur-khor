@@ -77,6 +77,8 @@ type StockUpdateStepId =
   | 'observed-at'
   | 'report-notes'
   | 'stock'
+  | 'retail-sales'
+  | 'service-sales'
   | 'stock-cost'
   | 'stock-price'
   | 'stock-flags'
@@ -90,6 +92,7 @@ type OptionalStockStepChoice = 'unset' | 'yes' | 'no';
 type OptionalStockStepId = 'stock-cost' | 'stock-price' | 'stock-flags';
 
 type StockRow = SenaStockSnapshot;
+type SalesCountDrafts = Record<string, string>;
 
 interface SkuSignalDraft {
   orderEnabled: boolean;
@@ -116,6 +119,10 @@ interface StockUpdateSessionDraft {
   notes: string;
   stockView: StockView;
   rows: StockRow[];
+  retailSalesChoice?: OptionalStockStepChoice;
+  serviceSalesChoice?: OptionalStockStepChoice;
+  retailSalesDrafts?: SalesCountDrafts;
+  serviceSalesDrafts?: SalesCountDrafts;
   skuSignalDrafts: Record<string, SkuSignalDraft>;
   stockStepChoices: Record<OptionalStockStepId, OptionalStockStepChoice>;
   serviceSignalDrafts: Record<string, ServiceSignalDraft>;
@@ -131,8 +138,12 @@ interface StockUpdateDraftState {
   notes: string;
   observedAt: string;
   regimeHint: SenaObservationRegimeHint | '';
+  retailSalesChoice: OptionalStockStepChoice;
+  retailSalesDrafts: SalesCountDrafts;
   retailRankings: string[];
   rows: StockRow[];
+  serviceSalesChoice: OptionalStockStepChoice;
+  serviceSalesDrafts: SalesCountDrafts;
   serviceRankings: string[];
   serviceSignalDrafts: Record<string, ServiceSignalDraft>;
   skuSignalDrafts: Record<string, SkuSignalDraft>;
@@ -182,6 +193,7 @@ const EMPTY_SIST_OVERVIEW: SistOverview = {
 
 const STOCK_UPDATE_FULL_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'service', 'rankings', 'context', 'review'];
 const STOCK_COUNT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'stock-cost', 'stock-price', 'stock-flags', 'context', 'review'];
+const SALES_UPDATE_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'stock-flags', 'context', 'review'];
 const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
 const REPORT_NOTE_PLACEHOLDER_KEYS = [
   'stockUpdateNotesPlaceholderShiftContext',
@@ -399,7 +411,13 @@ function isStockUpdateStepId(value: unknown): value is StockUpdateStepId {
 }
 
 function stepOrderForLane(laneId: ReturnType<typeof getRecordUpdateLane>['id']) {
-  return laneId === 'stock-count' ? STOCK_COUNT_STEP_ORDER : STOCK_UPDATE_FULL_STEP_ORDER;
+  if (laneId === 'stock-count') {
+    return STOCK_COUNT_STEP_ORDER;
+  }
+  if (laneId === 'sales-update') {
+    return SALES_UPDATE_STEP_ORDER;
+  }
+  return STOCK_UPDATE_FULL_STEP_ORDER;
 }
 
 function normalizeStepIdForOrder(currentStepId: StockUpdateStepId, stepOrder: StockUpdateStepId[]) {
@@ -558,6 +576,20 @@ function sanitizeDraftRanking(value: unknown, allowedIds: Set<string>) {
   });
 }
 
+function sanitizeSalesCountDrafts(value: unknown, allowedIds: Set<string>) {
+  if (!isObjectRecord(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([id, draft]) => {
+      if (!allowedIds.has(id) || typeof draft !== 'string') {
+        return [];
+      }
+      return [[id, draft]];
+    }),
+  ) as SalesCountDrafts;
+}
+
 function hydrateStockUpdateDraft({
   baselineRows,
   catalog,
@@ -582,6 +614,8 @@ function hydrateStockUpdateDraft({
       .map((row) => [row.skuId as string, row]),
   );
   const stockStepChoices = sanitizeStockStepChoices(draft.stockStepChoices);
+  const retailSalesChoice = isOptionalStockStepChoice(draft.retailSalesChoice) ? draft.retailSalesChoice : 'unset';
+  const serviceSalesChoice = isOptionalStockStepChoice(draft.serviceSalesChoice) ? draft.serviceSalesChoice : 'unset';
 
   return {
     version: 1,
@@ -598,6 +632,10 @@ function hydrateStockUpdateDraft({
     notes: typeof draft.notes === 'string' ? draft.notes : '',
     stockView: isStockView(draft.stockView) ? draft.stockView : 'priority',
     rows: baselineRows.map((row) => sanitizeStockRow(draftRowsBySku.get(row.skuId), row)),
+    retailSalesChoice,
+    serviceSalesChoice,
+    retailSalesDrafts: sanitizeSalesCountDrafts(draft.retailSalesDrafts, retailSkuIds),
+    serviceSalesDrafts: sanitizeSalesCountDrafts(draft.serviceSalesDrafts, allowedServiceIds),
     skuSignalDrafts: sanitizeDraftSignalRecord(draft.skuSignalDrafts, allowedSkuIds, sanitizeSkuSignalDraft),
     stockStepChoices,
     serviceSignalDrafts: sanitizeDraftSignalRecord(
@@ -617,8 +655,12 @@ function hasMeaningfulStockUpdateChanges({
   notes,
   observedAt,
   regimeHint,
+  retailSalesChoice,
+  retailSalesDrafts,
   retailRankings,
   rows,
+  serviceSalesChoice,
+  serviceSalesDrafts,
   serviceRankings,
   serviceSignalDrafts,
   skuSignalDrafts,
@@ -627,6 +669,10 @@ function hasMeaningfulStockUpdateChanges({
 }: StockUpdateDraftState) {
   return (
     rows.some((row) => stockRowChanged(catalog, stockBySku, row)) ||
+    Object.keys(retailSalesDrafts).length > 0 ||
+    Object.keys(serviceSalesDrafts).length > 0 ||
+    retailSalesChoice !== 'unset' ||
+    serviceSalesChoice !== 'unset' ||
     anySkuFlags(skuSignalDrafts) ||
     anyServiceFlags(serviceSignalDrafts) ||
     Object.values(stockStepChoices).some((choice) => choice !== 'unset') ||
@@ -648,6 +694,10 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     notes: state.notes,
     stockView: state.stockView,
     rows: state.rows,
+    retailSalesChoice: state.retailSalesChoice,
+    serviceSalesChoice: state.serviceSalesChoice,
+    retailSalesDrafts: state.retailSalesDrafts,
+    serviceSalesDrafts: state.serviceSalesDrafts,
     skuSignalDrafts: state.skuSignalDrafts,
     stockStepChoices: state.stockStepChoices,
     serviceSignalDrafts: state.serviceSignalDrafts,
@@ -795,6 +845,66 @@ function latestCountedAtBySku(observations: ReturnType<typeof useInventory>['obs
   return values;
 }
 
+function latestRetailSalesBySku(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
+  const values = new Map<string, number>();
+  const latest = [...observations].sort(
+    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+  );
+  for (const observation of latest) {
+    for (const snapshot of observation.input.retailSalesSnapshot ?? []) {
+      if (!values.has(snapshot.skuId)) {
+        values.set(snapshot.skuId, snapshot.unitsSold);
+      }
+    }
+  }
+  return new Map((catalog?.skus ?? []).filter((sku) => sku.soldAsProduct).map((sku) => [sku.skuId, values.get(sku.skuId) ?? null]));
+}
+
+function latestRetailSalesAtBySku(observations: ReturnType<typeof useInventory>['observations']) {
+  const values = new Map<string, string>();
+  const latest = [...observations].sort(
+    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+  );
+  for (const observation of latest) {
+    for (const snapshot of observation.input.retailSalesSnapshot ?? []) {
+      if (!values.has(snapshot.skuId)) {
+        values.set(snapshot.skuId, observation.input.observedAt);
+      }
+    }
+  }
+  return values;
+}
+
+function latestServiceSalesByService(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
+  const values = new Map<string, number>();
+  const latest = [...observations].sort(
+    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+  );
+  for (const observation of latest) {
+    for (const snapshot of observation.input.serviceSalesSnapshot ?? []) {
+      if (!values.has(snapshot.serviceId)) {
+        values.set(snapshot.serviceId, snapshot.unitsSold);
+      }
+    }
+  }
+  return new Map((catalog?.services ?? []).map((service) => [service.serviceId, values.get(service.serviceId) ?? null]));
+}
+
+function latestServiceSalesAtByService(observations: ReturnType<typeof useInventory>['observations']) {
+  const values = new Map<string, string>();
+  const latest = [...observations].sort(
+    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+  );
+  for (const observation of latest) {
+    for (const snapshot of observation.input.serviceSalesSnapshot ?? []) {
+      if (!values.has(snapshot.serviceId)) {
+        values.set(snapshot.serviceId, observation.input.observedAt);
+      }
+    }
+  }
+  return values;
+}
+
 function buildInitialRows(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
   const stockBySku = latestStockBySku(catalog, observations);
   return (catalog?.skus ?? []).map<StockRow>((sku) => ({
@@ -905,6 +1015,12 @@ function buildDraftsFromObservationInput({
   }
 
   const retailSkuIds = new Set(catalog.skus.filter((sku) => sku.soldAsProduct).map((sku) => sku.skuId));
+  const retailSalesDrafts = Object.fromEntries(
+    (input.retailSalesSnapshot ?? []).map((snapshot) => [snapshot.skuId, String(snapshot.unitsSold)]),
+  ) as SalesCountDrafts;
+  const serviceSalesDrafts = Object.fromEntries(
+    (input.serviceSalesSnapshot ?? []).map((snapshot) => [snapshot.serviceId, String(snapshot.unitsSold)]),
+  ) as SalesCountDrafts;
   const baselineRowIds = new Set(baselineRows.map((row) => row.skuId));
   const appendedRows = input.stockSnapshot
     .filter((snapshot) => !baselineRowIds.has(snapshot.skuId))
@@ -916,12 +1032,24 @@ function buildDraftsFromObservationInput({
     }));
 
   return {
-    currentStepId: 'stock' as const,
+    currentStepId: (
+      stepOrder.includes('stock')
+        ? 'stock'
+        : stepOrder.includes('retail-sales')
+          ? 'retail-sales'
+          : 'observed-at'
+    ) as StockUpdateStepId,
     unlockedStepCount: stepOrder.length,
     observedAt: localDateTimeInputValue(input.observedAt),
     notes: input.notes ?? '',
     stockView: 'counted' as const,
     rows: [...baselineRows.map((row) => rowsBySkuId.get(row.skuId) ?? row), ...appendedRows],
+    retailSalesChoice:
+      Object.keys(retailSalesDrafts).length > 0 ? 'yes' : input.retailRankings.length > 0 ? 'no' : 'unset',
+    serviceSalesChoice:
+      Object.keys(serviceSalesDrafts).length > 0 ? 'yes' : input.serviceRankings.length > 0 ? 'no' : 'unset',
+    retailSalesDrafts,
+    serviceSalesDrafts,
     skuSignalDrafts,
     stockStepChoices: {
       'stock-cost': appendedRows.length > 0 || baselineRows.some((row) => {
@@ -1011,6 +1139,18 @@ function buildRankingEntries(ids: string[], entryType: RankingEntryType) {
 
 function reorderIdsFromEntries(entries: RankingEntry[]) {
   return [...entries].sort((left, right) => left.position - right.position).map((entry) => entry.entryId);
+}
+
+function reorderStringIds(ids: string[], activeId: string, overId: string) {
+  if (activeId === overId) {
+    return ids;
+  }
+  const oldIndex = ids.indexOf(activeId);
+  const newIndex = ids.indexOf(overId);
+  if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+    return ids;
+  }
+  return arrayMove(ids, oldIndex, newIndex);
 }
 
 function buildRankingSnapshot({
@@ -1258,6 +1398,43 @@ function StockLatestMoneyCell({
   );
 }
 
+function ServiceSummaryCell({
+  serviceName,
+}: {
+  serviceName: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <span className="block font-medium text-foreground">{serviceName}</span>
+    </div>
+  );
+}
+
+function SalesLatestCountCell({
+  countLabel,
+  latestAt,
+  latestValue,
+}: {
+  countLabel: string;
+  latestAt: string | null | undefined;
+  latestValue: number | null | undefined;
+}) {
+  const { t } = usePreferences();
+
+  return (
+    <div className="min-w-0">
+      <span className="block font-medium text-foreground">
+        {latestValue == null ? translateUiLiteral('en', 'No prior count') : `${latestValue} ${countLabel}`}
+      </span>
+      <span className="mt-2 block text-sm leading-6 text-muted-foreground">
+        {latestAt
+          ? t('stockUpdateAsOfDate', { date: formatSenaLongDate(latestAt, 'en') })
+          : translateUiLiteral('en', 'not counted')}
+      </span>
+    </div>
+  );
+}
+
 type RecordUpdateTableColumn = {
   header: ReactNode;
   className?: string;
@@ -1434,6 +1611,68 @@ function SortableStockTable({
   );
 }
 
+function SortableIdTable({
+  bodyTestId,
+  debugCellBoundaries,
+  columns,
+  ids,
+  onReorderRows,
+  renderRow,
+}: {
+  bodyTestId?: string;
+  debugCellBoundaries: boolean;
+  columns: RecordUpdateTableColumn[];
+  ids: string[];
+  onReorderRows: (activeId: string, overId: string) => void;
+  renderRow: (id: string) => SortableStockTableRowConfig;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+  const debugTrackClassName = debugCellBoundaries ? tableDebugTrackClassName : '';
+  const debugFlushClassName = debugCellBoundaries ? tableDebugFlushClassName : '';
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) {
+      return;
+    }
+
+    onReorderRows(String(active.id), String(over.id));
+  }
+
+  return (
+    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd} sensors={sensors}>
+      <RecordUpdateTable columns={columns} testId={bodyTestId}>
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          {ids.map((id) => {
+            const rowConfig = renderRow(id);
+
+            return (
+              <SortableStockTableRow
+                cells={rowConfig.cells}
+                className={cn(debugTrackClassName, debugFlushClassName)}
+                dragLabel={rowConfig.dragLabel}
+                highlight={rowConfig.highlight}
+                id={id}
+                inputCellIndexes={rowConfig.inputCellIndexes}
+                key={id}
+              />
+            );
+          })}
+        </SortableContext>
+      </RecordUpdateTable>
+    </DndContext>
+  );
+}
+
 function SortableStockTableRow({
   cells,
   className,
@@ -1463,16 +1702,20 @@ function SortableStockTableRow({
   return (
     <TableRow
       className={cn(
-        'group/row',
+        `group/row ${rowHoverClassName}`,
         className,
-        highlight && 'bg-primary/[0.04]',
+        highlight && 'shadow-[inset_0_0_0_1px_rgba(191,116,62,0.22)]',
         isDragging && 'relative z-10 bg-white shadow-[0_16px_40px_rgba(27,15,7,0.12)]',
       )}
       ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
+      style={
+        transform
+          ? {
+              transform: CSS.Transform.toString(transform),
+              transition,
+            }
+          : { transition }
+      }
     >
       <TableCell className={cn(recordUpdateTableCellClassName, 'w-12 px-3 text-center')}>
         <button
@@ -1922,6 +2165,266 @@ function StockFlagsStep(props: {
   );
 }
 
+function SalesRankingFallback({
+  catalog,
+  entryType,
+  helper,
+  label,
+  seedValues,
+  values,
+  onChange,
+}: {
+  catalog: SenaCatalog | null;
+  entryType: RankingEntryType;
+  helper: string;
+  label: string;
+  seedValues: string[];
+  values: string[];
+  onChange: (values: string[]) => void;
+}) {
+  return (
+    <div className="grid gap-4">
+      <p className="text-sm text-muted-foreground">{helper}</p>
+      <RankingSignalEditor
+        catalog={catalog}
+        entryType={entryType}
+        label={label}
+        seedValues={seedValues}
+        values={values}
+        onChange={onChange}
+      />
+    </div>
+  );
+}
+
+function SalesRetailStep({
+  catalog,
+  choice,
+  debugCellBoundaries,
+  guidance,
+  latestSalesAtBySku,
+  latestSalesBySku,
+  onChooseNo,
+  onChooseYes,
+  onReorderRows,
+  retailRankingSeedValues,
+  retailSalesDrafts,
+  retailSkuIds,
+  setRetailRankings,
+  setRetailSalesDraft,
+  retailRankings,
+}: {
+  catalog: SenaCatalog | null;
+  choice: OptionalStockStepChoice;
+  debugCellBoundaries: boolean;
+  guidance?: string | null;
+  latestSalesAtBySku: Map<string, string>;
+  latestSalesBySku: Map<string, number | null>;
+  onChooseNo: () => void;
+  onChooseYes: () => void;
+  onReorderRows: (activeId: string, overId: string) => void;
+  retailRankingSeedValues: string[];
+  retailSalesDrafts: SalesCountDrafts;
+  retailSkuIds: string[];
+  retailRankings: string[];
+  setRetailRankings: (values: string[]) => void;
+  setRetailSalesDraft: (skuId: string, value: string) => void;
+}) {
+  return (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={translateUiLiteral('en', 'Capture exact retail SKU sales when you know them. Otherwise, save an ordinal fallback for SENA.')}
+      style={recordUpdateWhiteCardStyle}
+      title="Retail / sellable SKU sales"
+    >
+      <div className="grid gap-3">
+        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <OptionalStockDecisionCard
+          choice={choice}
+          helper={translateUiLiteral('en', 'Choose Yes when you know exact sellable SKU sales for this interval. Choose No to record only ordinal ranking for SENA.')}
+          question={translateUiLiteral('en', 'Do you know the exact count of sellable SKUs sold this interval?')}
+          onNo={onChooseNo}
+          onYes={onChooseYes}
+        />
+        {choice === 'yes' ? (
+          retailSkuIds.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{translateUiLiteral('en', 'No sellable SKUs available.')}</p>
+          ) : (
+            <>
+              <StockReorderHint />
+              <SortableIdTable
+                bodyTestId="sales-retail-list"
+                columns={[
+                  { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
+                  { header: 'SKU', width: '37%' },
+                  { header: 'Sold last interval', width: '24%' },
+                  { header: "Current interval's sales", width: '31%' },
+                ]}
+                debugCellBoundaries={debugCellBoundaries}
+                ids={retailSkuIds}
+                onReorderRows={onReorderRows}
+                renderRow={(skuId) => {
+                  const sku = catalog?.skus.find((entry) => entry.skuId === skuId);
+                  const latestValue = latestSalesBySku.get(skuId) ?? null;
+                  return {
+                    dragLabel: translateUiLiteral('en', 'Reorder {name}', { name: sku?.name ?? skuId }),
+                    highlight: (retailSalesDrafts[skuId]?.trim() ?? '') !== '',
+                    inputCellIndexes: [2],
+                    cells: [
+                      <StockSkuSummaryCell skuName={sku?.name ?? skuId} />,
+                      <SalesLatestCountCell countLabel="sold" latestAt={latestSalesAtBySku.get(skuId)} latestValue={latestValue} />,
+                      <>
+                        <RecordUpdateMobileLabel>{"Current interval's sales"}</RecordUpdateMobileLabel>
+                        <div className="pr-3">
+                          <Input
+                            aria-label={translateUiLiteral('en', "Current interval sales for {name}", { name: sku?.name ?? skuId })}
+                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            min="0"
+                            placeholder={latestValue == null ? '' : String(latestValue)}
+                            step="1"
+                            type="number"
+                            value={retailSalesDrafts[skuId] ?? ''}
+                            onChange={(event) => setRetailSalesDraft(skuId, event.target.value)}
+                          />
+                        </div>
+                      </>,
+                    ],
+                  };
+                }}
+              />
+            </>
+          )
+        ) : null}
+        {choice === 'no' ? (
+          <SalesRankingFallback
+            catalog={catalog}
+            entryType="sku"
+            helper={translateUiLiteral('en', 'Use ranking when exact sellable SKU sales are unknown. This remains linked to SENA ordinal ranking.')}
+            label="Retail SKU ranking"
+            seedValues={retailRankingSeedValues}
+            values={retailRankings}
+            onChange={setRetailRankings}
+          />
+        ) : null}
+      </div>
+    </WorkspacePanel>
+  );
+}
+
+function SalesServiceStep({
+  catalog,
+  choice,
+  debugCellBoundaries,
+  guidance,
+  latestSalesAtByService,
+  latestSalesByService,
+  onChooseNo,
+  onChooseYes,
+  onReorderRows,
+  serviceIds,
+  serviceRankingSeedValues,
+  serviceSalesDrafts,
+  serviceRankings,
+  setServiceRankings,
+  setServiceSalesDraft,
+}: {
+  catalog: SenaCatalog | null;
+  choice: OptionalStockStepChoice;
+  debugCellBoundaries: boolean;
+  guidance?: string | null;
+  latestSalesAtByService: Map<string, string>;
+  latestSalesByService: Map<string, number | null>;
+  onChooseNo: () => void;
+  onChooseYes: () => void;
+  onReorderRows: (activeId: string, overId: string) => void;
+  serviceIds: string[];
+  serviceRankingSeedValues: string[];
+  serviceSalesDrafts: SalesCountDrafts;
+  serviceRankings: string[];
+  setServiceRankings: (values: string[]) => void;
+  setServiceSalesDraft: (serviceId: string, value: string) => void;
+}) {
+  return (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={translateUiLiteral('en', 'Capture exact service sales when you know them. Otherwise, save an ordinal fallback for SENA.')}
+      style={recordUpdateWhiteCardStyle}
+      title="Sellable services"
+    >
+      <div className="grid gap-3">
+        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <OptionalStockDecisionCard
+          choice={choice}
+          helper={translateUiLiteral('en', 'Choose Yes when you know exact service sales for this interval. Choose No to record only ordinal ranking for SENA.')}
+          question={translateUiLiteral('en', 'Do you know the exact count of sellable services sold this interval?')}
+          onNo={onChooseNo}
+          onYes={onChooseYes}
+        />
+        {choice === 'yes' ? (
+          serviceIds.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{translateUiLiteral('en', 'No services available.')}</p>
+          ) : (
+            <>
+              <StockReorderHint />
+              <SortableIdTable
+                bodyTestId="sales-service-list"
+                columns={[
+                  { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
+                  { header: 'Service', width: '37%' },
+                  { header: 'Sold last interval', width: '24%' },
+                  { header: "Current interval's sales", width: '31%' },
+                ]}
+                debugCellBoundaries={debugCellBoundaries}
+                ids={serviceIds}
+                onReorderRows={onReorderRows}
+                renderRow={(serviceId) => {
+                  const service = catalog?.services.find((entry) => entry.serviceId === serviceId);
+                  const latestValue = latestSalesByService.get(serviceId) ?? null;
+                  return {
+                    dragLabel: translateUiLiteral('en', 'Reorder {name}', { name: service?.name ?? serviceId }),
+                    highlight: (serviceSalesDrafts[serviceId]?.trim() ?? '') !== '',
+                    inputCellIndexes: [2],
+                    cells: [
+                      <ServiceSummaryCell serviceName={service?.name ?? serviceId} />,
+                      <SalesLatestCountCell countLabel="sold" latestAt={latestSalesAtByService.get(serviceId)} latestValue={latestValue} />,
+                      <>
+                        <RecordUpdateMobileLabel>{"Current interval's sales"}</RecordUpdateMobileLabel>
+                        <div className="pr-3">
+                          <Input
+                            aria-label={translateUiLiteral('en', "Current interval sales for {name}", { name: service?.name ?? serviceId })}
+                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            min="0"
+                            placeholder={latestValue == null ? '' : String(latestValue)}
+                            step="1"
+                            type="number"
+                            value={serviceSalesDrafts[serviceId] ?? ''}
+                            onChange={(event) => setServiceSalesDraft(serviceId, event.target.value)}
+                          />
+                        </div>
+                      </>,
+                    ],
+                  };
+                }}
+              />
+            </>
+          )
+        ) : null}
+        {choice === 'no' ? (
+          <SalesRankingFallback
+            catalog={catalog}
+            entryType="service"
+            helper={translateUiLiteral('en', 'Use ranking when exact service sales are unknown. This remains linked to SENA ordinal ranking.')}
+            label="Service ranking"
+            seedValues={serviceRankingSeedValues}
+            values={serviceRankings}
+            onChange={setServiceRankings}
+          />
+        ) : null}
+      </div>
+    </WorkspacePanel>
+  );
+}
+
 function ServiceSignalsStep({
   catalog,
   currency,
@@ -2321,6 +2824,8 @@ export function StockUpdateSessionRoute() {
   const lane = useMemo(() => getRecordUpdateLane(location.pathname), [location.pathname]);
   const draftStorageKey = lane.draftStorageKey;
   const stockRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(lane.id), [lane.id]);
+  const retailSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:retail-sales`), [lane.id]);
+  const serviceSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:service-sales`), [lane.id]);
   const activeStepOrder = useMemo(() => stepOrderForLane(lane.id), [lane.id]);
   const latestAt = latestObservationAt(observations);
   const incomingEditSession = useMemo(() => readRecordUpdateEditSession(location.state), [location.state]);
@@ -2346,9 +2851,15 @@ export function StockUpdateSessionRoute() {
   const [notesPlaceholderKey, setNotesPlaceholderKey] = useState<TranslationKey>(() => randomReportNotePlaceholderKey());
   const [stockView, setStockView] = useState<StockView>('priority');
   const [persistedStockRowOrder, setPersistedStockRowOrder] = useState(() => readStockRowOrder(stockRowOrderStorageKey));
+  const [persistedRetailSalesRowOrder, setPersistedRetailSalesRowOrder] = useState(() => readStockRowOrder(retailSalesRowOrderStorageKey));
+  const [persistedServiceSalesRowOrder, setPersistedServiceSalesRowOrder] = useState(() => readStockRowOrder(serviceSalesRowOrderStorageKey));
   const [rows, setRows] = useState(() =>
     applyStockRowOrder(buildInitialRows(catalog, observations), readStockRowOrder(stockRowOrderStorageKey)),
   );
+  const [retailSalesChoice, setRetailSalesChoice] = useState<OptionalStockStepChoice>('unset');
+  const [serviceSalesChoice, setServiceSalesChoice] = useState<OptionalStockStepChoice>('unset');
+  const [retailSalesDrafts, setRetailSalesDrafts] = useState<SalesCountDrafts>({});
+  const [serviceSalesDrafts, setServiceSalesDrafts] = useState<SalesCountDrafts>({});
   const [skuSignalDrafts, setSkuSignalDrafts] = useState<Record<string, SkuSignalDraft>>({});
   const [stockStepChoices, setStockStepChoices] = useState<Record<OptionalStockStepId, OptionalStockStepChoice>>(
     () => createDefaultStockStepChoices(),
@@ -2372,9 +2883,29 @@ export function StockUpdateSessionRoute() {
 
   const stockBySku = useMemo(() => latestStockBySku(workingCatalog, observations), [observations, workingCatalog]);
   const countedAtBySku = useMemo(() => latestCountedAtBySku(observations), [observations]);
+  const latestRetailSales = useMemo(() => latestRetailSalesBySku(workingCatalog, observations), [observations, workingCatalog]);
+  const latestRetailSalesAt = useMemo(() => latestRetailSalesAtBySku(observations), [observations]);
+  const latestServiceSales = useMemo(() => latestServiceSalesByService(workingCatalog, observations), [observations, workingCatalog]);
+  const latestServiceSalesAt = useMemo(() => latestServiceSalesAtByService(observations), [observations]);
   const visibleSkuSignalDrafts = useMemo(
     () => (lane.id === 'stock-count' ? skuEventOnlyDrafts(skuSignalDrafts) : skuSignalDrafts),
     [lane.id, skuSignalDrafts],
+  );
+  const retailSkuIds = useMemo(
+    () =>
+      applyStockRowOrder(
+        (workingCatalog?.skus ?? []).filter((sku) => sku.soldAsProduct).map((sku) => ({ skuId: sku.skuId })),
+        persistedRetailSalesRowOrder,
+      ).map((row) => row.skuId),
+    [persistedRetailSalesRowOrder, workingCatalog],
+  );
+  const serviceIds = useMemo(
+    () =>
+      applyStockRowOrder(
+        (workingCatalog?.services ?? []).map((service) => ({ skuId: service.serviceId })),
+        persistedServiceSalesRowOrder,
+      ).map((row) => row.skuId),
+    [persistedServiceSalesRowOrder, workingCatalog],
   );
   const highRiskIds = new Set(workspaceSummary?.highRiskSkuIds ?? []);
   const serviceLinkedSkuIds = useMemo(
@@ -2404,11 +2935,17 @@ export function StockUpdateSessionRoute() {
         }
         return true;
       });
+  const salesFlagRows = useMemo(
+    () => rows.filter((row) => retailSkuIds.includes(row.skuId)),
+    [retailSkuIds, rows],
+  );
 
   const observedAtIso = dateTimeInputToIso(observedAt);
   const intervalDays = intervalDaysBetween(latestAt, observedAtIso);
   const isFirstObservation = observations.length === 0;
   const countedSkuCount = rows.filter((row) => stockRowChanged(workingCatalog, stockBySku, row)).length;
+  const retailSalesCount = Object.values(retailSalesDrafts).filter((value) => value.trim() !== '').length;
+  const serviceSalesCount = Object.values(serviceSalesDrafts).filter((value) => value.trim() !== '').length;
   const fullUpdate = rows.length > 0 && rows.every((row) => stockRowChanged(workingCatalog, stockBySku, row));
   const defaultServiceRankingIds = (workingCatalog?.services ?? []).map((service) => service.serviceId);
   const defaultRetailRankingIds = (workingCatalog?.skus ?? []).filter((sku) => sku.soldAsProduct).map((sku) => sku.skuId);
@@ -2422,6 +2959,8 @@ export function StockUpdateSessionRoute() {
   const retailPriceChangedCount = changedRowCount(rows, (row) => stockRetailPriceChanged(workingCatalog, stockBySku, row));
   const serviceStepIndex = activeStepOrder.indexOf('service');
   const rankingsStepIndex = activeStepOrder.indexOf('rankings');
+  const retailSalesStepIndex = activeStepOrder.indexOf('retail-sales');
+  const serviceSalesStepIndex = activeStepOrder.indexOf('service-sales');
   const stockStepSatisfied = !isFirstObservation || countedSkuCount > 0;
   const skuFlagsValid = !skuFlagsHaveEmptyRequiredValues(visibleSkuSignalDrafts);
   const serviceFlagsValid = !serviceFlagsHaveEmptyRequiredValues(serviceSignalDrafts);
@@ -2433,8 +2972,12 @@ export function StockUpdateSessionRoute() {
       notes,
       observedAt,
       regimeHint,
+      retailSalesChoice,
+      retailSalesDrafts,
       retailRankings,
       rows,
+      serviceSalesChoice,
+      serviceSalesDrafts,
       serviceRankings,
       serviceSignalDrafts,
       skuSignalDrafts: visibleSkuSignalDrafts,
@@ -2449,8 +2992,12 @@ export function StockUpdateSessionRoute() {
       notes,
       observedAt,
       regimeHint,
+      retailSalesChoice,
+      retailSalesDrafts,
       retailRankings,
       rows,
+      serviceSalesChoice,
+      serviceSalesDrafts,
       serviceRankings,
       serviceSignalDrafts,
       visibleSkuSignalDrafts,
@@ -2480,6 +3027,18 @@ export function StockUpdateSessionRoute() {
     });
   }
 
+  function handleRetailSalesRowReorder(activeId: string, overId: string) {
+    const nextIds = reorderStringIds(retailSkuIds, activeId, overId);
+    setPersistedRetailSalesRowOrder(nextIds);
+    writeStockRowOrder(retailSalesRowOrderStorageKey, nextIds);
+  }
+
+  function handleServiceSalesRowReorder(activeId: string, overId: string) {
+    const nextIds = reorderStringIds(serviceIds, activeId, overId);
+    setPersistedServiceSalesRowOrder(nextIds);
+    writeStockRowOrder(serviceSalesRowOrderStorageKey, nextIds);
+  }
+
   function applyHydratedDraftState({
     hydratedState,
     nextEditSession,
@@ -2495,6 +3054,10 @@ export function StockUpdateSessionRoute() {
     setNotes(hydratedState.notes);
     setStockView(hydratedState.stockView);
     setRows(hydratedState.rows);
+    setRetailSalesChoice(hydratedState.retailSalesChoice);
+    setServiceSalesChoice(hydratedState.serviceSalesChoice);
+    setRetailSalesDrafts(hydratedState.retailSalesDrafts);
+    setServiceSalesDrafts(hydratedState.serviceSalesDrafts);
     setSkuSignalDrafts(hydratedState.skuSignalDrafts);
     setStockStepChoices(hydratedState.stockStepChoices);
     setServiceSignalDrafts(hydratedState.serviceSignalDrafts);
@@ -2530,6 +3093,14 @@ export function StockUpdateSessionRoute() {
   useEffect(() => {
     setPersistedStockRowOrder(readStockRowOrder(stockRowOrderStorageKey));
   }, [stockRowOrderStorageKey]);
+
+  useEffect(() => {
+    setPersistedRetailSalesRowOrder(readStockRowOrder(retailSalesRowOrderStorageKey));
+  }, [retailSalesRowOrderStorageKey]);
+
+  useEffect(() => {
+    setPersistedServiceSalesRowOrder(readStockRowOrder(serviceSalesRowOrderStorageKey));
+  }, [serviceSalesRowOrderStorageKey]);
 
   useEffect(() => {
     if (!workingCatalog) {
@@ -2570,6 +3141,10 @@ export function StockUpdateSessionRoute() {
         setNotes(hydratedDraft.notes);
         setStockView(hydratedDraft.stockView);
         setRows(hydratedDraft.rows);
+        setRetailSalesChoice(hydratedDraft.retailSalesChoice);
+        setServiceSalesChoice(hydratedDraft.serviceSalesChoice);
+        setRetailSalesDrafts(hydratedDraft.retailSalesDrafts);
+        setServiceSalesDrafts(hydratedDraft.serviceSalesDrafts);
         setSkuSignalDrafts(hydratedDraft.skuSignalDrafts);
         setStockStepChoices(hydratedDraft.stockStepChoices);
         setServiceSignalDrafts(hydratedDraft.serviceSignalDrafts);
@@ -2694,6 +3269,28 @@ export function StockUpdateSessionRoute() {
     }));
   }
 
+  function updateRetailSalesDraft(skuId: string, value: string) {
+    setRetailSalesDrafts((current) => {
+      if (value === '') {
+        const next = { ...current };
+        delete next[skuId];
+        return next;
+      }
+      return { ...current, [skuId]: value };
+    });
+  }
+
+  function updateServiceSalesDraft(serviceId: string, value: string) {
+    setServiceSalesDrafts((current) => {
+      if (value === '') {
+        const next = { ...current };
+        delete next[serviceId];
+        return next;
+      }
+      return { ...current, [serviceId]: value };
+    });
+  }
+
   function updateServiceSignalDraft(serviceId: string, updater: (draft: ServiceSignalDraft) => ServiceSignalDraft) {
     setServiceSignalDrafts((current) => ({
       ...current,
@@ -2744,6 +3341,42 @@ export function StockUpdateSessionRoute() {
   }
 
   function buildPayload() {
+    if (lane.id === 'sales-update') {
+      const payload = createEmptyObservationInput({
+        observedAt: observedAtIso ?? new Date().toISOString(),
+        notes: notes.trim() || null,
+      });
+      const retailSalesSnapshot = retailSkuIds.flatMap((skuId) => {
+        const value = retailSalesDrafts[skuId]?.trim();
+        if (!value) {
+          return [];
+        }
+        return [{ skuId, unitsSold: Number(value) }];
+      }).filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold >= 0);
+      const serviceSalesSnapshot = serviceIds.flatMap((serviceId) => {
+        const value = serviceSalesDrafts[serviceId]?.trim();
+        if (!value) {
+          return [];
+        }
+        return [{ serviceId, unitsSold: Number(value) }];
+      }).filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold >= 0);
+      const derivedRetailRankings = [...retailSalesSnapshot]
+        .sort((left, right) => right.unitsSold - left.unitsSold || left.skuId.localeCompare(right.skuId))
+        .map((entry) => entry.skuId);
+      const derivedServiceRankings = [...serviceSalesSnapshot]
+        .sort((left, right) => right.unitsSold - left.unitsSold || left.serviceId.localeCompare(right.serviceId))
+        .map((entry) => entry.serviceId);
+      payload.retailSalesSnapshot = retailSalesSnapshot;
+      payload.serviceSalesSnapshot = serviceSalesSnapshot;
+      payload.retailRankings = retailSalesChoice === 'yes' ? derivedRetailRankings : retailRankings;
+      payload.serviceRankings = serviceSalesChoice === 'yes' ? derivedServiceRankings : serviceRankings;
+      payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
+        .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
+        .map(([skuId]) => skuId);
+      payload.serviceStockouts = [];
+      payload.regimeHint = regimeHint || null;
+      return payload;
+    }
     if (editSession) {
       return buildFullObservationPayload({
         currency,
@@ -2816,12 +3449,13 @@ export function StockUpdateSessionRoute() {
 
   const previewPayload = buildPayload();
   const previewParts = observationCompositionParts(previewPayload);
+  const requiresFirstStockSnapshot = isFirstObservation && previewPayload.stockSnapshot.length === 0;
   const submitDisabled =
     isSaving ||
     (stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid) ||
     (lane.id !== 'stock-count' && !serviceFlagsValid) ||
     !hasStructuredObservationSignal(previewPayload) ||
-    (isFirstObservation && previewPayload.stockSnapshot.length === 0);
+    (lane.id !== 'sales-update' && requiresFirstStockSnapshot);
 
   const stepStates = [
     {
@@ -2836,7 +3470,50 @@ export function StockUpdateSessionRoute() {
       description: notes.trim() ? t('stockUpdateStepNotesAdded') : t('stockUpdateStepNotesOptional'),
       complete: true,
     },
-    {
+    ...(lane.id === 'sales-update'
+      ? [
+          {
+            id: 'retail-sales' as const,
+            title: 'Retail / sellable SKU sales',
+            description:
+              retailSalesChoice === 'yes'
+                ? retailSalesCount > 0
+                  ? translateUiLiteral(language, '{count} exact retail sales row{suffix}', { count: retailSalesCount, suffix: retailSalesCount === 1 ? '' : 's' })
+                  : translateUiLiteral(language, 'Exact counts')
+                : retailSalesChoice === 'no'
+                  ? retailRankings.length > 0
+                    ? translateUiLiteral(language, '{count} ranked retail item{suffix}', { count: retailRankings.length, suffix: retailRankings.length === 1 ? '' : 's' })
+                    : translateUiLiteral(language, 'Ranking fallback')
+                  : t('stockUpdateStepChooseYesNo'),
+            complete:
+              retailSalesChoice === 'yes'
+                ? true
+                : retailSalesChoice === 'no'
+                  ? true
+                  : false,
+          },
+          {
+            id: 'service-sales' as const,
+            title: 'Sellable services',
+            description:
+              serviceSalesChoice === 'yes'
+                ? serviceSalesCount > 0
+                  ? translateUiLiteral(language, '{count} exact service sales row{suffix}', { count: serviceSalesCount, suffix: serviceSalesCount === 1 ? '' : 's' })
+                  : translateUiLiteral(language, 'Exact counts')
+                : serviceSalesChoice === 'no'
+                  ? serviceRankings.length > 0
+                    ? translateUiLiteral(language, '{count} ranked service{suffix}', { count: serviceRankings.length, suffix: serviceRankings.length === 1 ? '' : 's' })
+                    : translateUiLiteral(language, 'Ranking fallback')
+                  : t('stockUpdateStepChooseYesNo'),
+            complete:
+              serviceSalesChoice === 'yes'
+                ? true
+                : serviceSalesChoice === 'no'
+                  ? true
+                  : false,
+          },
+        ]
+      : [{
       id: 'stock',
       title: t(STOCK_UPDATE_STEP_COPY.stock.titleKey),
       description:
@@ -2844,7 +3521,7 @@ export function StockUpdateSessionRoute() {
             ? t('stockUpdateStepCountAtLeastOneSku')
             : t('stockUpdateStepOptionalLater'),
       complete: stockStepSatisfied,
-    },
+    }]),
     {
       id: 'stock-cost',
       title: t('stockUpdateCostIfChanged'),
@@ -2915,6 +3592,10 @@ export function StockUpdateSessionRoute() {
       ? Boolean(observedAtIso)
       : currentStepId === 'context' || currentStepId === 'report-notes'
         ? true
+        : currentStepId === 'retail-sales'
+          ? retailSalesChoice !== 'unset'
+          : currentStepId === 'service-sales'
+            ? serviceSalesChoice !== 'unset'
         : currentStepId === 'stock'
           ? stockStepSatisfied
           : currentStepId === 'stock-cost'
@@ -2927,14 +3608,20 @@ export function StockUpdateSessionRoute() {
           ? serviceFlagsValid
           : true;
 
-  const addSignalGuidanceKey =
+  const addSignalGuidanceText =
     lane.id === 'stock-count'
-      ? 'stockUpdateGuidanceAddStockCountSignal'
-      : 'stockUpdateGuidanceAddSignal';
+      ? t('stockUpdateGuidanceAddStockCountSignal')
+      : lane.id === 'sales-update'
+        ? translateUiLiteral(language, 'Add at least one retail sales count, service sales count, row event, retail ranking, service ranking, or sales pattern before saving.')
+        : t('stockUpdateGuidanceAddSignal');
 
   const stepGuidance =
     currentStepId === 'observed-at' && !observedAtIso
       ? t('stockUpdateGuidanceChooseObservedAt')
+      : currentStepId === 'retail-sales' && retailSalesChoice === 'unset'
+        ? t('stockUpdateGuidanceChooseOptionalStep')
+        : currentStepId === 'service-sales' && serviceSalesChoice === 'unset'
+          ? t('stockUpdateGuidanceChooseOptionalStep')
       : currentStepId === 'stock' && !stockStepSatisfied
         ? t('stockUpdateGuidanceCountOneSku')
         : currentStepId === 'stock-cost' && stockStepChoices['stock-cost'] === 'unset'
@@ -2951,9 +3638,9 @@ export function StockUpdateSessionRoute() {
             ? t('stockUpdateGuidanceFillSkuFlagsSave')
             : currentStepId === 'review' && lane.id !== 'stock-count' && !serviceFlagsValid
               ? t('stockUpdateGuidanceFillServiceFlagsSave')
-              : currentStepId === 'review' && !hasStructuredObservationSignal(previewPayload)
-                ? t(addSignalGuidanceKey)
-          : currentStepId === 'review' && isFirstObservation && previewPayload.stockSnapshot.length === 0
+          : currentStepId === 'review' && !hasStructuredObservationSignal(previewPayload)
+                ? addSignalGuidanceText
+          : currentStepId === 'review' && lane.id !== 'sales-update' && isFirstObservation && previewPayload.stockSnapshot.length === 0
             ? t('stockUpdateGuidanceFirstUpdateNeedsCount')
             : null;
 
@@ -2961,9 +3648,9 @@ export function StockUpdateSessionRoute() {
     ...(stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid ? [t('stockUpdateGuidanceFillSkuFlagsSave')] : []),
     ...(lane.id !== 'stock-count' && !serviceFlagsValid ? [t('stockUpdateGuidanceFillServiceFlagsSave')] : []),
     ...(!hasStructuredObservationSignal(previewPayload)
-      ? [t(addSignalGuidanceKey)]
+      ? [addSignalGuidanceText]
       : []),
-    ...(isFirstObservation && previewPayload.stockSnapshot.length === 0
+    ...(lane.id !== 'sales-update' && requiresFirstStockSnapshot
       ? [t('stockUpdateGuidanceFirstUpdateNeedsCount')]
       : []),
   ];
@@ -3004,6 +3691,10 @@ export function StockUpdateSessionRoute() {
     setNotesPlaceholderKey(randomReportNotePlaceholderKey());
     setStockView('priority');
     setRows(buildOrderedInitialRows(catalog));
+    setRetailSalesChoice('unset');
+    setServiceSalesChoice('unset');
+    setRetailSalesDrafts({});
+    setServiceSalesDrafts({});
     setSkuSignalDrafts({});
     setStockStepChoices(createDefaultStockStepChoices());
     setServiceSignalDrafts({});
@@ -3038,10 +3729,10 @@ export function StockUpdateSessionRoute() {
       return;
     }
     if (!hasStructuredObservationSignal(payload)) {
-      setError(t(addSignalGuidanceKey));
+      setError(addSignalGuidanceText);
       return;
     }
-    if (isFirstObservation && payload.stockSnapshot.length === 0) {
+    if (lane.id !== 'sales-update' && isFirstObservation && payload.stockSnapshot.length === 0) {
       setError(t('stockUpdateGuidanceFirstUpdateNeedsCount'));
       return;
     }
@@ -3371,7 +4062,7 @@ export function StockUpdateSessionRoute() {
             >
               <NavigationBackIcon className="size-5" />
             </Link>
-            <span className="min-w-0">{t('stockUpdateTitle')}</span>
+            <span className="min-w-0">{lane.title}</span>
           </span>
         }
       >
@@ -3482,6 +4173,46 @@ export function StockUpdateSessionRoute() {
           />
         ) : null}
 
+        {currentStepId === 'retail-sales' ? (
+          <SalesRetailStep
+            catalog={workingCatalog}
+            choice={retailSalesChoice}
+            debugCellBoundaries={debugCellBoundaries}
+            guidance={currentStepId === 'retail-sales' ? stepGuidance : null}
+            latestSalesAtBySku={latestRetailSalesAt}
+            latestSalesBySku={latestRetailSales}
+            onChooseNo={() => setRetailSalesChoice('no')}
+            onChooseYes={() => setRetailSalesChoice('yes')}
+            onReorderRows={handleRetailSalesRowReorder}
+            retailRankingSeedValues={defaultRetailRankingIds}
+            retailSalesDrafts={retailSalesDrafts}
+            retailSkuIds={retailSkuIds}
+            retailRankings={retailRankings}
+            setRetailRankings={setRetailRankings}
+            setRetailSalesDraft={updateRetailSalesDraft}
+          />
+        ) : null}
+
+        {currentStepId === 'service-sales' ? (
+          <SalesServiceStep
+            catalog={workingCatalog}
+            choice={serviceSalesChoice}
+            debugCellBoundaries={debugCellBoundaries}
+            guidance={currentStepId === 'service-sales' ? stepGuidance : null}
+            latestSalesAtByService={latestServiceSalesAt}
+            latestSalesByService={latestServiceSales}
+            onChooseNo={() => setServiceSalesChoice('no')}
+            onChooseYes={() => setServiceSalesChoice('yes')}
+            onReorderRows={handleServiceSalesRowReorder}
+            serviceIds={serviceIds}
+            serviceRankingSeedValues={defaultServiceRankingIds}
+            serviceSalesDrafts={serviceSalesDrafts}
+            serviceRankings={serviceRankings}
+            setServiceRankings={setServiceRankings}
+            setServiceSalesDraft={updateServiceSalesDraft}
+          />
+        ) : null}
+
         {currentStepId === 'stock-cost' ? (
           <StockCostStep
             catalog={workingCatalog}
@@ -3531,7 +4262,7 @@ export function StockUpdateSessionRoute() {
             skuSignalDrafts={skuSignalDrafts}
             stockBySku={stockBySku}
             updateSkuSignalDraft={updateSkuSignalDraft}
-            visibleRows={visibleRows}
+            visibleRows={lane.id === 'sales-update' ? salesFlagRows : visibleRows}
             onChooseNo={() => handleSkipOptionalStockStep('stock-flags')}
             onChooseYes={() => updateStockStepChoice('stock-flags', 'yes')}
           />

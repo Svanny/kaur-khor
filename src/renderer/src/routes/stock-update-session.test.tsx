@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
-import { RECORD_UPDATE_SALES_UPDATE_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
+import { RECORD_UPDATE_RECORD_ORDER_PATH, RECORD_UPDATE_SALES_UPDATE_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
 import { getTranslation } from '@/lib/translations';
 import { buildStockRowOrderStorageKey } from './stock-row-order';
 import { StockUpdateSessionRoute } from './stock-update-session';
@@ -503,7 +503,7 @@ describe('StockUpdateSessionRoute', () => {
   }, 10_000);
 
   it('keeps the full service flow on non-stock lanes and saves regime from the merged interval step', async () => {
-    renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+    renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
 
     goNext(3);
 
@@ -540,7 +540,7 @@ describe('StockUpdateSessionRoute', () => {
       ...catalog,
       services: [],
       sharingMask: [],
-    }, observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+    }, observations, RECORD_UPDATE_RECORD_ORDER_PATH);
 
     goNext(3);
     expect(screen.getByRole('button', { name: /Add service updates/i })).toHaveAttribute('aria-current', 'step');
@@ -582,7 +582,7 @@ describe('StockUpdateSessionRoute', () => {
         productPrice: null,
       })),
       sharingMask: [],
-    }, observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+    }, observations, RECORD_UPDATE_RECORD_ORDER_PATH);
 
     goNext(4);
     expect(screen.getByRole('button', { name: /Rank recent selling order/i })).toHaveAttribute('aria-current', 'step');
@@ -601,7 +601,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('reformats service price drafts when currency preferences change', async () => {
-    const rendered = renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+    const rendered = renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
 
     goNext(3);
 
@@ -672,30 +672,20 @@ describe('StockUpdateSessionRoute', () => {
       input: {
         ...observations[0]!.input,
         notes: 'Saved note',
-        stockSnapshot: [
-          { skuId: 'sku-1', unitsInStock: 11, costPerUnit: 4, productPrice: 9 },
-          { skuId: 'sku-2', unitsInStock: 6, costPerUnit: 2, productPrice: null },
-        ],
-        orderSignals: [
-          {
-            skuId: 'sku-1',
-            orderPlaced: true,
-            receiptArrived: false,
-            approximateOrderQuantity: 14,
-            approximateReceiptQuantity: null,
-          },
-        ],
-        servicePrices: [{ serviceId: 'service-1', price: 15 }],
+        stockSnapshot: [],
+        retailSalesSnapshot: [{ skuId: 'sku-1', unitsSold: 4 }],
+        serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 2 }],
         regimeHint: 'promo' as const,
       },
     };
 
     renderEditRoute(editableObservation, observations, RECORD_UPDATE_SALES_UPDATE_PATH);
 
-    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '9' } });
+    fireEvent.change(screen.getByLabelText('Current interval sales for Razor refill'), { target: { value: '9' } });
 
     goNext();
-    expect(screen.getByLabelText('Price if changed for Haircut')).toHaveValue(15);
+    expect(screen.getByLabelText('Current interval sales for Haircut')).toHaveValue(2);
+    fireEvent.change(screen.getByLabelText('Current interval sales for Haircut'), { target: { value: '5' } });
 
     goNext(2);
     fireEvent.click(screen.getAllByRole('button', { name: /Report notes/i })[0]!);
@@ -711,22 +701,13 @@ describe('StockUpdateSessionRoute', () => {
       input: expect.objectContaining({
         notes: 'Saved note',
         regimeHint: 'promo',
-        servicePrices: [{ serviceId: 'service-1', price: 15 }],
-        orderSignals: [
-          {
-            skuId: 'sku-1',
-            orderPlaced: true,
-            receiptArrived: false,
-            approximateOrderQuantity: 14,
-            approximateReceiptQuantity: null,
-          },
-        ],
+        retailSalesSnapshot: [{ skuId: 'sku-1', unitsSold: 9 }],
+        serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 5 }],
+        retailRankings: ['sku-1'],
+        serviceRankings: ['service-1'],
       }),
     });
-    expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([
-      { skuId: 'sku-1', unitsInStock: 9, costPerUnit: 4, productPrice: 9 },
-      { skuId: 'sku-2', unitsInStock: 6, costPerUnit: 2, productPrice: null },
-    ]);
+    expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([]);
     expect(ingestSenaObservation).not.toHaveBeenCalled();
   }, 10_000);
 
@@ -926,10 +907,9 @@ describe('StockUpdateSessionRoute', () => {
   it('uses a separate draft key for the sales-update lane', () => {
     const { unmount } = renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
 
-    goNext(3);
-    fireEvent.click(screen.getByRole('button', { name: /Add flags for Haircut/i }));
-    fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add price change' })[0]!);
-    fireEvent.change(screen.getByLabelText('Price if changed for Haircut'), { target: { value: '15' } });
+    goNext(2);
+    chooseOptionalStepYes();
+    fireEvent.change(screen.getByLabelText('Current interval sales for Razor refill'), { target: { value: '3' } });
 
     unmount();
 

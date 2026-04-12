@@ -27,7 +27,6 @@ import type { IconComponent } from '@icons';
 import { StatusDeltaTriangleIcon } from '@icons/status';
 import type { InventorySnapshot } from '@shared/inventory';
 import { formatCurrency, rankLabel } from '@/lib/format';
-import { rowHoverClassName } from '@/lib/interactive-surface';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { clampOverlayTransformToBoundary } from '@/routes/ranking-drag';
@@ -336,7 +335,6 @@ function SortableRankingRow({
     attributes,
     isDragging,
     listeners,
-    setActivatorNodeRef,
     setNodeRef,
     transform,
     transition,
@@ -344,19 +342,18 @@ function SortableRankingRow({
 
   return (
     <RankingRowCard
+      {...attributes}
+      {...listeners}
+      aria-label={`Reorder ${label}`}
       dragging={isDragging}
       handle={
-        <button
-          {...attributes}
-          {...listeners}
-          aria-label={`Reorder ${label}`}
-          className="flex size-8 touch-none items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[background-color,color,transform,opacity] duration-150 ease-out group-hover/row:opacity-100 data-[dragging=true]:opacity-100 hover:bg-accent/60 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 active:cursor-grabbing motion-reduce:transition-none"
+        <div
+          aria-hidden="true"
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out group-hover/row:bg-accent/40 group-hover/row:text-foreground data-[dragging=true]:bg-accent/60 data-[dragging=true]:text-foreground motion-reduce:transition-none"
           data-dragging={isDragging || undefined}
-          ref={setActivatorNodeRef}
-          type="button"
         >
-          <ActionDragHandleIcon aria-hidden="true" className="size-4 cursor-grab" />
-        </button>
+          <ActionDragHandleIcon aria-hidden="true" className="size-4" />
+        </div>
       }
       index={index}
       costText={costText}
@@ -501,8 +498,8 @@ const RankingRowCard = forwardRef<HTMLTableRowElement, RankingRowCardProps>(func
     <TableRow
       {...props}
       className={cn(
-        'group/row transition-[background-color,box-shadow,opacity] duration-150 ease-out motion-reduce:transition-none',
-        movedFromBaseline ? 'bg-muted/60 hover:bg-muted/70' : `bg-transparent ${rowHoverClassName}`,
+        'group/row cursor-grab touch-none transition-[background-color,box-shadow,opacity] duration-150 ease-out motion-reduce:transition-none active:cursor-grabbing',
+        'bg-white hover:bg-white',
         dragging && 'opacity-0',
         className,
       )}
