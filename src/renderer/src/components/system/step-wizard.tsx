@@ -31,11 +31,10 @@ export function StepWizard({
   return (
     <div className={cn('grid gap-4', className)}>
       <div className="grid gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <p className="font-medium text-foreground">
             Step {currentIndex + 1} of {steps.length}
           </p>
-          <p className="text-muted-foreground">{Math.round(clampedPercentComplete)}% unlocked</p>
         </div>
         <div
           aria-label="Wizard progress"
@@ -53,10 +52,8 @@ export function StepWizard({
       </div>
 
       <div
-        className={cn(
-          'grid gap-2',
-          steps.length === 5 ? 'md:grid-cols-5' : 'md:grid-cols-6',
-        )}
+        className="grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
       >
         {steps.map((step, index) => {
           const isCurrent = step.id === currentStepId;
@@ -106,7 +103,7 @@ function WizardStepButton({
     <button
       aria-current={current ? 'step' : undefined}
       className={cn(
-        'grid min-w-0 gap-2 rounded-[1.2rem] border px-4 py-3 text-left transition-colors',
+        'grid min-w-0 gap-2 rounded-[1.2rem] border px-3 py-3 text-left transition-colors md:px-4',
         current && 'border-primary/60 bg-primary/[0.08]',
         !current && !disabled && 'border-border/70 bg-background/65 hover:border-border hover:bg-background/85',
         disabled && 'cursor-not-allowed border-border/40 bg-background/35 text-muted-foreground/70',
@@ -115,7 +112,7 @@ function WizardStepButton({
       type="button"
       onClick={onClick}
     >
-      <span className="flex items-center gap-3">
+      <span className="flex min-w-0 items-start gap-3">
         <span
           className={cn(
             'flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold',
@@ -128,8 +125,8 @@ function WizardStepButton({
           {complete ? <ActionConfirmIcon className="size-4" /> : index + 1}
         </span>
         <span className="min-w-0">
-          <span className="block truncate font-medium text-foreground">{title}</span>
-          {description ? <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{description}</span> : null}
+          <span className="block text-wrap break-words font-medium leading-5 text-foreground">{title}</span>
+          {description ? <span className="mt-0.5 block text-wrap break-words text-xs leading-5 text-muted-foreground">{description}</span> : null}
         </span>
       </span>
     </button>

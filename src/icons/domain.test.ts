@@ -69,4 +69,10 @@ describe('domain icon mappings', () => {
 
     expect(Icon.displayName ?? Icon.name).toBe('Circle');
   });
+
+  test('uses a dedicated no-signal icon for the empty sales pattern', () => {
+    const Icon = getRegimeIcon('none');
+
+    expect(Icon.displayName ?? Icon.name).toBe('CircleDashed');
+  });
 });

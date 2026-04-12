@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { ActionOpenExternalIcon } from '@icons/actions';
 import { StatusInsightIcon } from '@icons/status';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -240,6 +240,7 @@ export function WorkspacePanel({
   contentClassName,
   footer,
   forceDescription = false,
+  style,
 }: {
   title?: ReactNode;
   descriptor?: ReactNode;
@@ -251,6 +252,7 @@ export function WorkspacePanel({
   contentClassName?: string;
   footer?: ReactNode;
   forceDescription?: boolean;
+  style?: CSSProperties;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
   const resolvedDescriptor = descriptor ?? description;
@@ -262,7 +264,7 @@ export function WorkspacePanel({
   const hasContent = children != null;
 
   return (
-    <Card className={cn('border-white/70', !showDescription && hasHeader && 'gap-4', className)}>
+    <Card className={cn('border-white/70', !showDescription && hasHeader && 'gap-4', className)} style={style}>
       {hasHeader ? (
         <CardHeader className={cn(!showDescription && 'gap-0')}>
           {title ? <CardTitle>{title}</CardTitle> : null}

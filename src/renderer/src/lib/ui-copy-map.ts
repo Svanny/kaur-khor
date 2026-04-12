@@ -1814,7 +1814,13 @@ export const enUiCopyV1 = {
   stockUpdateViewAllSkus: 'All SKUs',
   stockUpdateStepContextTitle: 'Record interval context',
   stockUpdateStepContextDescription:
-    'Confirm the observed time, add optional notes, and choose an optional regime.',
+    'Choose an optional regime for this interval.',
+  stockUpdateStepObservedAtTitle: 'Observed at',
+  stockUpdateStepObservedAtDescription:
+    'Confirm when this update was observed.',
+  stockUpdateStepReportNotesTitle: 'Report notes',
+  stockUpdateStepReportNotesDescription:
+    'Add optional human context for this update.',
   stockUpdateStepStockTitle: 'Count SKU stock',
   stockUpdateStepStockDescription:
     'Count only SKUs you checked. Add row flags for orders, receipts, or availability events.',
@@ -1836,19 +1842,50 @@ export const enUiCopyV1 = {
   stockUpdateStockStepTooltip:
     'Only changed stock rows and active row flags are saved; unchanged SKUs are left latent.',
   stockUpdateStockStepTooltipLabel: 'Stock count details',
-  stockUpdateSkuLatestObservation: 'SKU / latest observation',
-  stockUpdateUnitsInStock: 'Units in stock',
+  stockUpdateSkuLatestObservation: 'SKU',
+  stockUpdateLatestUnits: 'Latest Units',
+  stockUpdateLatestUnitsValue: '{count} units',
+  stockUpdateCurrentUnits: 'Current Units',
+  stockUpdateCurrentUnitsHint: 'Latest was {count} units.',
+  stockUpdateLatestCost: 'Latest Cost',
+  stockUpdateCurrentCost: 'Current Cost',
+  stockUpdateLatestRetailPrice: 'Latest Retail Price',
+  stockUpdateCurrentRetailPrice: 'Current Retail Price',
+  stockUpdateNoMoneyValue: 'No value',
   stockUpdateCostIfChanged: 'Cost if changed',
   stockUpdateRetailPriceIfChanged: 'Retail price if changed',
   stockUpdateFlags: 'Flags',
+  stockUpdateEventColumn: 'Event',
   stockUpdateAddFlags: 'Add flags',
+  stockUpdateCostStepDescription:
+    'Optional. Log cost changes only when your buy price changed this interval.',
+  stockUpdateCostStepTooltip:
+    'Choose Yes only when at least one SKU cost changed during this interval.',
+  stockUpdateCostStepQuestion: 'Do you need to record SKU cost changes for this update?',
+  stockUpdateCostStepHelper:
+    'Choose No to skip this step and keep existing SKU costs unchanged.',
+  stockUpdateRetailPriceStepDescription:
+    'Optional. Log retail price changes only when shelf prices changed this interval.',
+  stockUpdateRetailPriceStepTooltip:
+    'Choose Yes only when at least one sellable SKU price changed during this interval.',
+  stockUpdateRetailPriceStepQuestion:
+    'Do you need to record retail price changes for this update?',
+  stockUpdateRetailPriceStepHelper:
+    'Choose No to skip this step and keep existing retail prices unchanged.',
+  stockUpdateFlagsStepDescription:
+    'Optional. No event leaves the interval unchanged; blocked means availability was constrained; stockout means the SKU ran out for this interval.',
+  stockUpdateFlagsStepQuestion:
+    'Do you need to record SKU availability events for this update?',
+  stockUpdateFlagsStepHelper:
+    'Choose No to skip this step and leave SKU event flags empty.',
   stockUpdateAddFlagsFor: 'Add flags for {name}',
   stockUpdateSkuFlagsTooltip:
     'Add interval events for this SKU, such as order placed, receipt arrived, or blocked availability.',
   stockUpdateSkuFlagsTooltipLabel: 'SKU flags details',
-  stockUpdateLatestUnits: 'Latest {count} units',
   stockUpdateCountedOn: 'counted {date}',
   stockUpdateNeverCounted: 'never counted',
+  stockUpdateAsOfDate: 'as of {date}',
+  stockUpdateNotCounted: 'not counted',
   stockUpdateOrderFlag: 'Order',
   stockUpdateReceiptFlag: 'Receipt',
   stockUpdateEventFlag: 'Event',
@@ -1856,6 +1893,9 @@ export const enUiCopyV1 = {
   stockUpdateReceivedQuantity: 'Received quantity',
   stockUpdateBlocked: 'Blocked',
   stockUpdateStockout: 'Stockout',
+  stockUpdateNoEventInterval: 'No event for this interval',
+  stockUpdateBlockedEvent: 'Blocked event',
+  stockUpdateStockoutEvent: 'Stockout event',
   stockUpdateNoRowFlags: 'No row flags added.',
   stockUpdateRemoveOrder: 'Remove order',
   stockUpdateAddOrder: 'Add order',
@@ -1863,6 +1903,10 @@ export const enUiCopyV1 = {
   stockUpdateAddReceipt: 'Add receipt',
   stockUpdateRemoveEvent: 'Remove event',
   stockUpdateAddEvent: 'Add event',
+  stockUpdateEventFor: 'Event for {name}',
+  stockUpdateReorderSkuRow: 'Reorder {name}',
+  stockUpdateStockRowOrderHint:
+    'Tip: hover a SKU row and drag anywhere outside the input area to keep your preferred order for future stock counts.',
   stockUpdateNoSkuMatches: 'No SKUs match this stock view yet.',
   stockUpdateSkuRowsIncluded: '{count} SKU row{suffix} included in this update.',
   stockUpdateServiceStepTooltip:
@@ -1884,6 +1928,8 @@ export const enUiCopyV1 = {
     'Leave this empty when the interval does not need a single dominant regime explanation.',
   stockUpdateOverallRegime: 'Overall regime',
   stockUpdateOptional: '(optional)',
+  stockUpdateOptionalStepYes: 'Yes',
+  stockUpdateOptionalStepNo: 'No',
   stockUpdateNoRegimeSignal: 'No regime signal',
   stockUpdateRegimeNormal: 'Normal regime',
   stockUpdateRegimeNormalDetail:
@@ -1918,15 +1964,25 @@ export const enUiCopyV1 = {
   stockUpdateStepCountAtLeastOneSku: 'Count at least one SKU',
   stockUpdateStepOptionalLater: 'Optional on later updates',
   stockUpdateStepOptional: 'Optional',
+  stockUpdateStepChooseYesNo: 'Choose Yes or No',
+  stockUpdateStepSkipped: 'Skipped',
+  stockUpdateStepRowsChanged: '{count} row{suffix} changed',
   stockUpdateStepSignalsAdded: '{count} signal{suffix} added',
   stockUpdateStepRegimeSummary: 'Regime: {value}',
   stockUpdateStepContextSummary: 'Observed at, notes, regime',
+  stockUpdateStepObservedAtReady: 'Time confirmed',
+  stockUpdateStepObservedAtMissing: 'Choose observed time',
+  stockUpdateStepNotesAdded: 'Notes added',
+  stockUpdateStepNotesOptional: 'Optional notes',
+  stockUpdateStepRegimeOptional: 'Optional regime',
   stockUpdateStepNotReady: 'Not ready yet',
   stockUpdateStepReadyToSave: 'Ready to save',
   stockUpdateGuidanceChooseObservedAt:
     'Choose a valid observed-at time before continuing.',
   stockUpdateGuidanceCountOneSku:
     'Count at least one SKU before continuing so Banji can anchor the first update.',
+  stockUpdateGuidanceChooseOptionalStep:
+    'Choose Yes or No before continuing.',
   stockUpdateGuidanceFillSkuFlags:
     'Fill in every enabled SKU flag value or remove the empty flag before continuing.',
   stockUpdateGuidanceFillServiceFlags:
@@ -1937,6 +1993,8 @@ export const enUiCopyV1 = {
     'Fill in every enabled service flag value or remove the empty flag before saving.',
   stockUpdateGuidanceAddSignal:
     'Add at least one stock count, row flag, regime, or ranking signal before saving.',
+  stockUpdateGuidanceAddStockCountSignal:
+    'Add at least one stock count, row event, cost change, retail price change, or sales pattern before saving.',
   stockUpdateGuidanceFirstUpdateNeedsCount:
     'The first update must include at least one counted SKU so Banji can anchor inventory.',
   stockUpdateDiscardChanges: 'Discard changes',
@@ -1968,6 +2026,14 @@ export const enUiCopyV1 = {
     'Use notes for human context. Add structured signals when the model should learn from the change.',
   stockUpdateNotesHelp:
     'Notes explain the update, but they do not count as a model signal by themselves.',
+  stockUpdateNotesPlaceholderShiftContext:
+    'Example: lunchtime was unusually quiet, but no clear stock issue.',
+  stockUpdateNotesPlaceholderSupplierDelay:
+    'Example: supplier delivery was delayed, staff will follow up tomorrow.',
+  stockUpdateNotesPlaceholderDisplayChange:
+    'Example: moved the display near the entrance after the count.',
+  stockUpdateNotesPlaceholderNothingSpecial:
+    'Example: routine count, nothing unusual to add.',
   stockUpdateRankingsTooltip:
     'Rankings are sellability evidence. Leave them unchanged if the selling order did not meaningfully change.',
   stockUpdateRankingsTooltipLabel: 'Ranking details',
@@ -2621,7 +2687,13 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Check the run details and evidence coverage behind this analysis.',
   stockUpdateStepContextTitle: 'Record update details',
   stockUpdateStepContextDescription:
-    'Confirm the update time, add optional notes, and choose an optional sales pattern.',
+    'Choose an optional sales pattern.',
+  stockUpdateStepObservedAtTitle: 'Observed at',
+  stockUpdateStepObservedAtDescription:
+    'Confirm when this update was observed.',
+  stockUpdateStepReportNotesTitle: 'Report notes',
+  stockUpdateStepReportNotesDescription:
+    'Add optional human context for this update.',
   stockUpdateStepStockDescription:
     'Count only the SKUs you checked. Add row flags for orders, deliveries, or availability events.',
   stockUpdateStepServiceTitle: 'Add service updates',
@@ -2635,7 +2707,16 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Only changed stock rows and active row flags are saved.',
   stockUpdateSkuFlagsTooltip:
     'Add time-period events for this SKU, such as an order, a delivery, or a blocked state.',
-  stockUpdateSkuLatestObservation: 'SKU / latest update',
+  stockUpdateSkuLatestObservation: 'SKU',
+  stockUpdateLatestUnits: 'Latest Units',
+  stockUpdateLatestUnitsValue: '{count} units',
+  stockUpdateCurrentUnits: 'Current Units',
+  stockUpdateCurrentUnitsHint: 'Latest was {count} units.',
+  stockUpdateLatestCost: 'Latest Cost',
+  stockUpdateCurrentCost: 'Current Cost',
+  stockUpdateLatestRetailPrice: 'Latest Retail Price',
+  stockUpdateCurrentRetailPrice: 'Current Retail Price',
+  stockUpdateNoMoneyValue: 'No value',
   stockUpdateNeverCounted: 'never updated',
   stockUpdateReceiptFlag: 'Delivery',
   stockUpdateOrderedQuantity: 'Ordered amount',
@@ -2644,11 +2725,38 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Service updates apply to the service row, not to individual SKU stock counts.',
   stockUpdateServiceFlagsTooltip:
     'Add service-level price changes or blocks that affected availability.',
+  stockUpdateCostStepDescription:
+    'Optional. Log cost changes only when your buy price changed in this time period.',
+  stockUpdateCostStepTooltip:
+    'Choose Yes only when at least one SKU cost changed in this time period.',
+  stockUpdateCostStepQuestion:
+    'Do you need to record SKU cost changes for this update?',
+  stockUpdateCostStepHelper:
+    'Choose No to skip this step and keep existing SKU costs unchanged.',
+  stockUpdateRetailPriceStepDescription:
+    'Optional. Log retail price changes only when selling prices changed in this time period.',
+  stockUpdateRetailPriceStepTooltip:
+    'Choose Yes only when at least one sellable SKU price changed in this time period.',
+  stockUpdateRetailPriceStepQuestion:
+    'Do you need to record retail price changes for this update?',
+  stockUpdateRetailPriceStepHelper:
+    'Choose No to skip this step and keep existing retail prices unchanged.',
+  stockUpdateFlagsStepDescription:
+    'Optional. No event leaves the time period unchanged; blocked means availability was constrained; stockout means the SKU ran out in this time period.',
+  stockUpdateFlagsStepQuestion:
+    'Do you need to record SKU availability events for this update?',
+  stockUpdateFlagsStepHelper:
+    'Choose No to skip this step and leave SKU event flags empty.',
+  stockUpdateReorderSkuRow: 'Reorder {name}',
+  stockUpdateStockRowOrderHint:
+    'Tip: hover a SKU row and drag anywhere outside the input area to keep your preferred order for future stock counts.',
   stockUpdateRegimeHelp:
     'This sales pattern applies to the full update, not just one SKU.',
   stockUpdateRegimeDescriptionEmpty:
     'Leave this empty when the time period does not need one main sales-pattern explanation.',
   stockUpdateOverallRegime: 'Overall sales pattern',
+  stockUpdateOptionalStepYes: 'Yes',
+  stockUpdateOptionalStepNo: 'No',
   stockUpdateNoRegimeSignal: 'No sales-pattern signal',
   stockUpdateRegimeNormal: 'Normal pattern',
   stockUpdateRegimeNormalDetail:
@@ -2670,8 +2778,20 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Banji will refresh stock and sellability, update Overview tasks, refresh Performance moves, and add this evidence to Analysis.',
   stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
   stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
+  stockUpdateStepObservedAtReady: 'Time confirmed',
+  stockUpdateStepObservedAtMissing: 'Choose observed time',
+  stockUpdateStepNotesAdded: 'Notes added',
+  stockUpdateStepNotesOptional: 'Optional notes',
+  stockUpdateStepRegimeOptional: 'Optional sales pattern',
+  stockUpdateStepChooseYesNo: 'Choose Yes or No',
+  stockUpdateStepSkipped: 'Skipped',
+  stockUpdateStepRowsChanged: '{count} row{suffix} changed',
   stockUpdateGuidanceAddSignal:
     'Add at least one stock count, row flag, sales pattern, or ranking signal before saving.',
+  stockUpdateGuidanceAddStockCountSignal:
+    'Add at least one stock count, row event, cost change, retail price change, or sales pattern before saving.',
+  stockUpdateGuidanceChooseOptionalStep:
+    'Choose Yes or No before continuing.',
   stockUpdateSummaryUntouchedSkus: 'Untouched SKUs stay unchanged',
   stockUpdateDescriptorFirst:
     'Start Banji with one counted SKU, then later updates can stay light.',
@@ -2683,6 +2803,14 @@ export const enUiCopyV2: EnglishUiCopy = {
     'This timestamp anchors the time period since the last confirmed update.',
   stockUpdateObservedAtHelp:
     'Banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
+  stockUpdateNotesPlaceholderShiftContext:
+    'Example: lunchtime was unusually quiet, but no clear stock issue.',
+  stockUpdateNotesPlaceholderSupplierDelay:
+    'Example: supplier delivery was delayed, staff will follow up tomorrow.',
+  stockUpdateNotesPlaceholderDisplayChange:
+    'Example: moved the display near the entrance after the count.',
+  stockUpdateNotesPlaceholderNothingSpecial:
+    'Example: routine count, nothing unusual to add.',
   ...{
     backendReady: 'Local planning workspace ready',
     backendError: 'Local planning workspace unavailable',
@@ -2880,6 +3008,8 @@ export const enUiCopyV2: EnglishUiCopy = {
         'These rankings are selling-order evidence. Leave them unchanged if the selling order did not meaningfully change.',
       stockUpdateGuidanceAddSignal:
         'Add at least one stock count, row flag, sales pattern, or ranking signal before saving.',
+      stockUpdateGuidanceAddStockCountSignal:
+        'Add at least one stock count, row event, cost change, retail price change, or sales pattern before saving.',
       stockUpdateSaveFailed:
         "Banji couldn't save this update right now. Try again.",
       stockUpdateRemoveOrderFlagFor: 'Remove order flag for {name}',

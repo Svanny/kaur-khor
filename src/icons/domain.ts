@@ -13,6 +13,7 @@ import {
   BrainCircuit,
   CalendarClock,
   Circle,
+  CircleDashed,
   CircleGauge,
   CircleOff,
   ClipboardCheck,
@@ -71,6 +72,7 @@ export const rankingEntryTypeIcons: Record<RankingEntryType, IconComponent> = {
 };
 
 export type RegimeIconKey =
+  | 'no_signal'
   | 'normal'
   | 'promo'
   | 'spike'
@@ -80,6 +82,7 @@ export type RegimeIconKey =
   | 'unknown';
 
 export const regimeIcons: Record<RegimeIconKey, IconComponent> = {
+  no_signal: CircleDashed,
   normal: Circle,
   promo: BadgePercent,
   spike: Flame,
@@ -91,6 +94,9 @@ export const regimeIcons: Record<RegimeIconKey, IconComponent> = {
 
 export function normalizeRegimeIconKey(regime: string | null | undefined): RegimeIconKey {
   const normalized = regime?.trim().toLowerCase() ?? '';
+  if (normalized === '' || normalized === 'none' || normalized.includes('no signal') || normalized.includes('no sales')) {
+    return 'no_signal';
+  }
   if (normalized.includes('promo')) {
     return 'promo';
   }

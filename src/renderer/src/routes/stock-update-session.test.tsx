@@ -2,7 +2,9 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
+import { RECORD_UPDATE_SALES_UPDATE_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
 import { getTranslation } from '@/lib/translations';
+import { buildStockRowOrderStorageKey } from './stock-row-order';
 import { StockUpdateSessionRoute } from './stock-update-session';
 
 const inventoryHook = vi.fn();
@@ -17,7 +19,9 @@ const preferenceState = {
   showHeartbeatRibbons: true,
   showFloatingTitleActions: false,
 };
-const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:v1';
+const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:stock-count:v1';
+const SALES_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:sales-update:v1';
+const STOCK_ROW_ORDER_STORAGE_KEY = buildStockRowOrderStorageKey('stock-count');
 
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
@@ -112,7 +116,7 @@ const observations = [
   },
 ];
 
-function renderRoute(nextObservations = observations) {
+function renderRoute(nextObservations = observations, initialPath = RECORD_UPDATE_STOCK_COUNT_PATH) {
   inventoryHook.mockReturnValue({
     catalog,
     ingestSenaObservation,
@@ -129,7 +133,7 @@ function renderRoute(nextObservations = observations) {
   });
 
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <StockUpdateSessionRoute />
     </MemoryRouter>,
   );
@@ -154,7 +158,11 @@ function localDateTimeValue(date: Date) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-function renderRouteWithCatalog(nextCatalog: typeof catalog, nextObservations = observations) {
+function renderRouteWithCatalog(
+  nextCatalog: typeof catalog,
+  nextObservations = observations,
+  initialPath = RECORD_UPDATE_STOCK_COUNT_PATH,
+) {
   inventoryHook.mockReturnValue({
     catalog: nextCatalog,
     ingestSenaObservation,
@@ -171,7 +179,7 @@ function renderRouteWithCatalog(nextCatalog: typeof catalog, nextObservations = 
   });
 
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <StockUpdateSessionRoute />
     </MemoryRouter>,
   );
@@ -194,7 +202,7 @@ function renderRoutedSession(nextObservations = observations) {
   });
 
   return render(
-    <MemoryRouter initialEntries={['/record-update']}>
+    <MemoryRouter initialEntries={[RECORD_UPDATE_STOCK_COUNT_PATH]}>
       <Routes>
         <Route
           element={
@@ -203,7 +211,7 @@ function renderRoutedSession(nextObservations = observations) {
               <StockUpdateSessionRoute />
             </>
           }
-          path="/record-update"
+          path={RECORD_UPDATE_STOCK_COUNT_PATH}
         />
         <Route element={<div>Overview destination</div>} path="/" />
         <Route element={<div>Catalog destination</div>} path="/catalog" />
@@ -212,7 +220,11 @@ function renderRoutedSession(nextObservations = observations) {
   );
 }
 
-function renderEditRoute(observation = observations[0]!, nextObservations = observations) {
+function renderEditRoute(
+  observation = observations[0]!,
+  nextObservations = observations,
+  pathname = RECORD_UPDATE_STOCK_COUNT_PATH,
+) {
   inventoryHook.mockReturnValue({
     catalog,
     ingestSenaObservation,
@@ -232,7 +244,7 @@ function renderEditRoute(observation = observations[0]!, nextObservations = obse
     <MemoryRouter
       initialEntries={[
         {
-          pathname: '/record-update',
+          pathname,
           state: {
             editSession: createRecordUpdateEditSession(observation),
           },
@@ -244,7 +256,11 @@ function renderEditRoute(observation = observations[0]!, nextObservations = obse
   );
 }
 
-function renderRouteWithInlineEditLink(observation = observations[0]!, nextObservations = observations) {
+function renderRouteWithInlineEditLink(
+  observation = observations[0]!,
+  nextObservations = observations,
+  pathname = RECORD_UPDATE_STOCK_COUNT_PATH,
+) {
   inventoryHook.mockReturnValue({
     catalog,
     ingestSenaObservation,
@@ -260,7 +276,7 @@ function renderRouteWithInlineEditLink(observation = observations[0]!, nextObser
   });
 
   return render(
-    <MemoryRouter initialEntries={['/record-update']}>
+    <MemoryRouter initialEntries={[pathname]}>
       <Routes>
         <Route
           element={
@@ -269,14 +285,14 @@ function renderRouteWithInlineEditLink(observation = observations[0]!, nextObser
                 state={{
                   editSession: createRecordUpdateEditSession(observation),
                 }}
-                to="/record-update"
+                to={pathname}
               >
                 Edit saved report
               </Link>
               <StockUpdateSessionRoute />
             </>
           }
-          path="/record-update"
+          path={pathname}
         />
       </Routes>
     </MemoryRouter>,
@@ -287,6 +303,20 @@ function goNext(times = 1) {
   for (let index = 0; index < times; index += 1) {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   }
+}
+
+function chooseOptionalStepNo(times = 1) {
+  for (let index = 0; index < times; index += 1) {
+    fireEvent.click(screen.getByRole('button', { name: 'No' }));
+  }
+}
+
+function chooseOptionalStepYes() {
+  fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
+}
+
+function goToStockStep() {
+  goNext(2);
 }
 
 function installMemoryLocalStorage() {
@@ -326,27 +356,31 @@ describe('StockUpdateSessionRoute', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the 5-step wizard, preserves state, and keeps future steps locked', () => {
+  it('shows the 8-step stock-count wizard, preserves state, and keeps future steps locked', () => {
     renderRoute();
 
-    expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
-    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '20');
-    expect(screen.getByRole('button', { name: /Add service updates/i })).toBeDisabled();
+    expect(screen.getAllByRole('button', { name: /Observed at/i })[0]).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '13');
+    expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Rank recent selling order/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/% unlocked/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Review update/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
 
-    goNext(3);
+    goNext();
+    expect(screen.getAllByRole('button', { name: /Report notes/i })[0]).toHaveAttribute('aria-current', 'step');
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Busy Friday shift' } });
+    goNext();
+    expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
+    goNext();
+    chooseOptionalStepNo(3);
 
     expect(screen.getByRole('button', { name: /Record update details/i })).toHaveAttribute('aria-current', 'step');
-    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '80');
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Busy Friday shift' } });
+    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '88');
 
-    fireEvent.click(screen.getByRole('button', { name: /Count SKU stock/i }));
-    goNext(3);
+    fireEvent.click(screen.getAllByRole('button', { name: /Report notes/i })[0]!);
     expect(screen.getByRole('textbox')).toHaveValue('Busy Friday shift');
-
-    fireEvent.click(screen.getByRole('button', { name: /Rank recent selling order/i }));
-    expect(screen.queryByRole('button', { name: 'Start ranking' })).not.toBeInTheDocument();
+    goNext();
   }, 20_000);
 
   it('hides the summary ribbon when heartbeat ribbons are disabled', () => {
@@ -354,7 +388,7 @@ describe('StockUpdateSessionRoute', () => {
 
     renderRoute();
 
-    expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getAllByRole('button', { name: /Observed at/i })[0]).toHaveAttribute('aria-current', 'step');
     expect(screen.queryByText('Last confirmed update')).not.toBeInTheDocument();
     expect(screen.queryByText('Untouched SKUs stay unchanged')).not.toBeInTheDocument();
   });
@@ -362,14 +396,55 @@ describe('StockUpdateSessionRoute', () => {
   it('blocks the first observation until at least one SKU stock row changes', () => {
     renderRoute([]);
 
+    goToStockStep();
     expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
     expect(
       screen.getByText('Count at least one SKU before continuing so Banji can anchor the first update.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
 
-    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+  });
+
+  it('shows the stock-row reorder hint and restores the saved sku order', () => {
+    window.localStorage.setItem(STOCK_ROW_ORDER_STORAGE_KEY, JSON.stringify(['sku-2', 'sku-1']));
+
+    renderRoute();
+
+    goToStockStep();
+    expect(
+      screen.getByText(
+        'Tip: hover a SKU row and drag anywhere outside the input area to keep your preferred order for future stock counts.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reorder Towel' })).toBeInTheDocument();
+    expect(screen.queryByText(/SKU rows included in this update/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('stock-count-list').closest('[data-slot="card"]')).toHaveStyle({
+      background: 'white',
+    });
+
+    const rowNames = within(screen.getByTestId('stock-count-list'))
+      .getAllByText(/Razor refill|Towel/)
+      .map((element) => element.textContent);
+    expect(rowNames).toEqual(['Towel', 'Razor refill']);
+  });
+
+  it('stays on an optional stock step when changing an existing Yes choice to No', () => {
+    renderRoute();
+
+    goToStockStep();
+    goNext();
+    expect(screen.getAllByRole('button', { name: /Cost if changed/i })[0]).toHaveAttribute('aria-current', 'step');
+
+    chooseOptionalStepYes();
+    expect(screen.getByText('Tip: hover a SKU row and drag anywhere outside the input area to keep your preferred order for future stock counts.')).toBeInTheDocument();
+
+    chooseOptionalStepNo();
+
+    expect(screen.getAllByRole('button', { name: /Cost if changed/i })[0]).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Retail price if changed/i })).not.toHaveAttribute('aria-current');
+    expect(screen.queryByText('Tip: hover a SKU row and drag anywhere outside the input area to keep your preferred order for future stock counts.')).not.toBeInTheDocument();
   });
 
   it('defaults observed at to the current local system date and time', () => {
@@ -378,8 +453,6 @@ describe('StockUpdateSessionRoute', () => {
 
     try {
       renderRoute();
-
-      goNext(3);
 
       expect(screen.getByDisplayValue(localDateTimeValue(new Date()))).toBeInTheDocument();
       expect(
@@ -392,25 +465,29 @@ describe('StockUpdateSessionRoute', () => {
     }
   });
 
-  it('reveals the flags column for SKU rows and saves ordered quantities as order signals', async () => {
+  it('reveals the event column for SKU rows and saves stockout events', async () => {
     renderRoute();
 
     expect(screen.queryByRole('button', { name: 'Cell boundaries' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Add flags for Razor refill/i }));
-    fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add order' })[0]!);
+    goToStockStep();
+    goNext();
+    chooseOptionalStepNo(2);
+    chooseOptionalStepYes();
 
-    expect(screen.getAllByText('Flags').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Remove order flag for Razor refill' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove order flag for Razor refill' }));
-    expect(screen.queryByLabelText('Ordered quantity for Razor refill')).not.toBeInTheDocument();
+    expect(screen.getByText(/No event leaves the time period unchanged/i)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Event' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Add flags' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Add flags for Razor refill/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Add flags for Razor refill/i }));
-    fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add order' })[0]!);
+    const razorEventSelect = screen.getByRole('combobox', { name: 'Event for Razor refill' });
+    expect(razorEventSelect).toHaveTextContent('No event for this interval');
 
-    fireEvent.change(screen.getByLabelText('Ordered quantity for Razor refill'), { target: { value: '14' } });
+    fireEvent.click(razorEventSelect);
+    fireEvent.click(screen.getByRole('option', { name: 'Stockout event' }));
 
-    goNext(4);
+    goNext(2);
 
     expect(screen.getByRole('button', { name: /Review update/i })).toHaveAttribute('aria-current', 'step');
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
@@ -419,21 +496,16 @@ describe('StockUpdateSessionRoute', () => {
     expect(ingestSenaObservation).toHaveBeenCalledWith(
       expect.objectContaining({
         stockSnapshot: [],
-        orderSignals: [
-          expect.objectContaining({
-            skuId: 'sku-1',
-            orderPlaced: true,
-            approximateOrderQuantity: 14,
-          }),
-        ],
+        orderSignals: [],
+        retailStockouts: ['sku-1'],
       }),
     );
   }, 10_000);
 
-  it('allows a later service price-only update and saves regime from the merged interval step', async () => {
-    renderRoute();
+  it('keeps the full service flow on non-stock lanes and saves regime from the merged interval step', async () => {
+    renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
 
-    goNext();
+    goNext(3);
 
     expect(screen.getByRole('button', { name: /Add service updates/i })).toHaveAttribute('aria-current', 'step');
     fireEvent.click(screen.getByRole('button', { name: /Add flags for Haircut/i }));
@@ -468,9 +540,9 @@ describe('StockUpdateSessionRoute', () => {
       ...catalog,
       services: [],
       sharingMask: [],
-    });
+    }, observations, RECORD_UPDATE_SALES_UPDATE_PATH);
 
-    goNext();
+    goNext(3);
     expect(screen.getByRole('button', { name: /Add service updates/i })).toHaveAttribute('aria-current', 'step');
 
     expect(
@@ -490,14 +562,14 @@ describe('StockUpdateSessionRoute', () => {
       sharingMask: [],
     });
 
+    goToStockStep();
     expect(
       screen.getByText(
         'No SKUs are in the catalog yet. Skip this section, or add a SKU first if you need to record stock updates.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText('SKU / latest update')).not.toBeInTheDocument();
-    expect(screen.queryByText('Units in stock')).not.toBeInTheDocument();
-    expect(screen.queryByText('Add flags')).not.toBeInTheDocument();
+    expect(screen.queryByText('Current Units')).not.toBeInTheDocument();
   });
 
   it('shows helpers and hides ranking tables when nothing is eligible to rank', async () => {
@@ -510,9 +582,9 @@ describe('StockUpdateSessionRoute', () => {
         productPrice: null,
       })),
       sharingMask: [],
-    });
+    }, observations, RECORD_UPDATE_SALES_UPDATE_PATH);
 
-    goNext(2);
+    goNext(4);
     expect(screen.getByRole('button', { name: /Rank recent selling order/i })).toHaveAttribute('aria-current', 'step');
 
     expect(
@@ -529,9 +601,9 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('reformats service price drafts when currency preferences change', async () => {
-    const rendered = renderRoute();
+    const rendered = renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
 
-    goNext();
+    goNext(3);
 
     fireEvent.click(screen.getByRole('button', { name: /Add flags for Haircut/i }));
     fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add price change' })[0]!);
@@ -564,10 +636,13 @@ describe('StockUpdateSessionRoute', () => {
   it('submits only changed stock rows and still triggers the SENA run', async () => {
     renderRoute();
 
-    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     window.localStorage.setItem(STOCK_UPDATE_DRAFT_STORAGE_KEY, 'stale draft');
 
-    goNext(4);
+    goNext();
+    chooseOptionalStepNo(3);
+    goNext();
 
     expect(screen.getByRole('button', { name: /Review update/i })).toHaveAttribute('aria-current', 'step');
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
@@ -615,16 +690,17 @@ describe('StockUpdateSessionRoute', () => {
       },
     };
 
-    renderEditRoute(editableObservation);
+    renderEditRoute(editableObservation, observations, RECORD_UPDATE_SALES_UPDATE_PATH);
 
-    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '9' } });
-    expect(screen.getByLabelText('Ordered quantity for Razor refill')).toHaveValue(14);
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '9' } });
 
     goNext();
     expect(screen.getByLabelText('Price if changed for Haircut')).toHaveValue(15);
 
     goNext(2);
+    fireEvent.click(screen.getAllByRole('button', { name: /Report notes/i })[0]!);
     expect(screen.getByDisplayValue('Saved note')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Record update details/i }));
 
     goNext();
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
@@ -661,8 +737,11 @@ describe('StockUpdateSessionRoute', () => {
 
     renderRoutedSession();
 
-    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
-    goNext(4);
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
+    goNext();
+    chooseOptionalStepNo(3);
+    goNext();
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
@@ -689,9 +768,11 @@ describe('StockUpdateSessionRoute', () => {
 
     renderEditRoute(editableObservation);
 
-    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '9' } });
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '9' } });
 
-    goNext(4);
+    goNext();
+    chooseOptionalStepNo(3);
+    goNext();
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(updateSenaObservation).toHaveBeenCalledTimes(1));
@@ -738,7 +819,7 @@ describe('StockUpdateSessionRoute', () => {
       <MemoryRouter
         initialEntries={[
           {
-            pathname: '/record-update',
+            pathname: RECORD_UPDATE_STOCK_COUNT_PATH,
             state: {
               editSession: createRecordUpdateEditSession(archivedObservation),
             },
@@ -751,7 +832,9 @@ describe('StockUpdateSessionRoute', () => {
 
     expect(screen.getByText('Towel')).toBeInTheDocument();
 
-    goNext(4);
+    goNext();
+    chooseOptionalStepNo(3);
+    goNext();
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(updateSenaObservation).toHaveBeenCalledTimes(1));
@@ -798,22 +881,26 @@ describe('StockUpdateSessionRoute', () => {
   it('auto-saves a meaningful draft on unmount and resumes it on the next mount', async () => {
     const { unmount } = renderRoute();
 
-    fireEvent.click(screen.getByRole('button', { name: /Add flags for Razor refill/i }));
-    fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add order' })[0]!);
-    fireEvent.change(screen.getByLabelText('Ordered quantity for Razor refill'), { target: { value: '14' } });
-    goNext(3);
-    fireEvent.change(screen.getAllByRole('textbox').at(-1)!, { target: { value: 'Draft note' } });
+    goNext();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Draft note' } });
+    goNext();
+    goNext();
+    chooseOptionalStepNo(2);
+    chooseOptionalStepYes();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Event for Razor refill' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Blocked event' }));
 
     unmount();
 
     expect(JSON.parse(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
       expect.objectContaining({
-        currentStepId: 'context',
+        currentStepId: 'stock-flags',
         notes: 'Draft note',
         skuSignalDrafts: expect.objectContaining({
           'sku-1': expect.objectContaining({
-            orderEnabled: true,
-            orderedQuantity: '14',
+            blockedEnabled: true,
+            blockedState: 'blocked',
           }),
         }),
       }),
@@ -822,49 +909,69 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute();
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Record update details/i })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: /Add flags/i })).toHaveAttribute(
         'aria-current',
         'step',
       ),
     );
-    expect(screen.getByDisplayValue('Draft note')).toBeInTheDocument();
     expect(screen.getByText('Draft resumed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole('button', { name: /Count SKU stock/i }));
-    expect(screen.getByLabelText('Ordered quantity for Razor refill')).toHaveValue(14);
+    fireEvent.click(screen.getAllByRole('button', { name: /Report notes/i })[0]!);
+    expect(screen.getByDisplayValue('Draft note')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Add flags/i }));
+    expect(screen.getByRole('combobox', { name: 'Event for Razor refill' })).toHaveTextContent('Blocked event');
   }, 10_000);
+
+  it('uses a separate draft key for the sales-update lane', () => {
+    const { unmount } = renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+
+    goNext(3);
+    fireEvent.click(screen.getByRole('button', { name: /Add flags for Haircut/i }));
+    fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add price change' })[0]!);
+    fireEvent.change(screen.getByLabelText('Price if changed for Haircut'), { target: { value: '15' } });
+
+    unmount();
+
+    expect(window.localStorage.getItem(SALES_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+  });
 
   it('asks before replacing a live in-memory draft with an edit session', async () => {
     renderRouteWithInlineEditLink();
 
-    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     fireEvent.click(screen.getByRole('link', { name: 'Edit saved report' }));
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Replace saved draft?');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getAllByLabelText('Units in stock')[0]).toHaveValue(7);
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue(7);
   });
 
   it('asks before discarding changes and resets only after confirmation', async () => {
     renderRoute();
 
-    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Discard changes' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
 
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?'));
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText('Units in stock')[0]).toHaveValue(7);
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue(7);
 
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getAllByLabelText('Units in stock')[0]).toHaveValue(12);
+    expect(screen.getAllByRole('button', { name: /Observed at/i })[0]).toHaveAttribute('aria-current', 'step');
+    goToStockStep();
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue(null);
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveAttribute('placeholder', '12');
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
   });
@@ -872,14 +979,15 @@ describe('StockUpdateSessionRoute', () => {
   it('saves the draft before navigating away from a record update session', async () => {
     renderRoutedSession();
 
-    fireEvent.change(screen.getAllByLabelText('Units in stock')[0]!, { target: { value: '7' } });
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Discard changes' })).toBeEnabled());
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
 
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Leave record update?'));
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText('Units in stock')[0]).toHaveValue(7);
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue(7);
 
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft and leave' }));
@@ -899,7 +1007,7 @@ describe('StockUpdateSessionRoute', () => {
 
     renderRoute();
 
-    expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getAllByRole('button', { name: /Observed at/i })[0]).toHaveAttribute('aria-current', 'step');
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 });

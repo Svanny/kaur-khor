@@ -32,15 +32,7 @@ import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { clampOverlayTransformToBoundary } from '@/routes/ranking-drag';
 import { buildRankingEntryId, reorderRankingEntries } from '@/routes/ranking-order';
-import {
-  createHeaderedTableLayout,
-  HeaderedTable,
-  HeaderedTableBody,
-  HeaderedTableHeader,
-  HeaderedTableHeaderCell,
-  HeaderedTableMobileLabel,
-  HeaderedTableRow,
-} from './headered-table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type RankingRowModel = {
   id: string;
@@ -57,11 +49,6 @@ type RankingRowModel = {
 
 const rankingGridClassName =
   'grid grid-cols-[max-content_max-content_24px_minmax(0,1fr)_max-content_max-content] gap-4';
-const rankingTableLayout = createHeaderedTableLayout({
-  breakpoint: 'lg',
-  columns: 'max-content max-content 24px minmax(0,1fr) max-content max-content',
-  gap: 4,
-});
 
 const dropAnimation = {
   duration: 160,
@@ -69,6 +56,9 @@ const dropAnimation = {
 };
 
 const rankingCellContentClassName = 'flex min-h-8 items-center';
+const rankingTableHeaderClassName =
+  'px-4 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground';
+const rankingTableCellClassName = 'px-4 py-4 align-middle whitespace-normal';
 
 export function buildEligibleReportRanking(snapshot: InventorySnapshot): RankingEntry[] {
   return [
@@ -161,7 +151,7 @@ export function MerchandisingEditor({
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeWidth, setActiveWidth] = useState<number | undefined>(undefined);
-  const dragBoundaryRef = useRef<HTMLDivElement | null>(null);
+  const dragBoundaryRef = useRef<HTMLTableSectionElement | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -239,29 +229,32 @@ export function MerchandisingEditor({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <HeaderedTable
-        className="min-w-[860px]"
-        variant="framed"
+    <div className="-mx-6 overflow-x-auto bg-white">
+      {helperText ? (
+        <p className="mx-6 mb-3 text-sm text-muted-foreground">{helperText}</p>
+      ) : null}
+      <Table
+        aria-label={titleLabel ?? t('productRankingTitle')}
+        className="min-w-[860px] table-fixed bg-white"
       >
-        {helperText ? (
-          <p className="mb-3 text-sm text-muted-foreground">{helperText}</p>
-        ) : null}
-        <div
-          aria-label={titleLabel ?? t('productRankingTitle')}
-          className={rankingTableLayout.containerClassName}
-          role="table"
-          style={rankingTableLayout.style}
-        >
-          <HeaderedTableHeader className={rankingTableLayout.headerClassName}>
-            <HeaderedTableHeaderCell aria-hidden="true" />
-            <HeaderedTableHeaderCell align="center">{t('rankHeaderRank')}</HeaderedTableHeaderCell>
-            <HeaderedTableHeaderCell aria-hidden="true" />
-            <HeaderedTableHeaderCell align="left" className="pl-4">Item</HeaderedTableHeaderCell>
-            <HeaderedTableHeaderCell align="center">Cost</HeaderedTableHeaderCell>
-            <HeaderedTableHeaderCell align="center">{t('rankHeaderPrice')}</HeaderedTableHeaderCell>
-          </HeaderedTableHeader>
-
+        <colgroup>
+          <col style={{ width: '3.5rem' }} />
+          <col style={{ width: '5rem' }} />
+          <col style={{ width: '2rem' }} />
+          <col style={{ width: '44%' }} />
+          <col style={{ width: '8rem' }} />
+          <col style={{ width: '8rem' }} />
+        </colgroup>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead aria-hidden="true" className={rankingTableHeaderClassName} />
+            <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>{t('rankHeaderRank')}</TableHead>
+            <TableHead aria-hidden="true" className={rankingTableHeaderClassName} />
+            <TableHead className={cn(rankingTableHeaderClassName, 'text-left')}>Item</TableHead>
+            <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>Cost</TableHead>
+            <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>{t('rankHeaderPrice')}</TableHead>
+          </TableRow>
+        </TableHeader>
         <DndContext
           collisionDetection={closestCenter}
           onDragCancel={() => {
@@ -276,11 +269,9 @@ export function MerchandisingEditor({
             items={rowModels.map((row) => row.id)}
             strategy={verticalListSortingStrategy}
           >
-            <HeaderedTableBody
-              className={rankingTableLayout.bodyClassName}
+            <TableBody
               data-testid="ranking-list"
               ref={dragBoundaryRef}
-              role="rowgroup"
             >
               {rowModels.map((row) => (
                 <SortableRankingRow
@@ -292,13 +283,12 @@ export function MerchandisingEditor({
                   kindLabel={row.kindLabel}
                   label={row.label}
                   rankChangeDirection={row.rankChangeDirection}
-                  rowClassName={rankingTableLayout.rowClassName}
                   movedFromBaseline={row.movedFromBaseline}
                   priceChangeDirection={row.priceChangeDirection}
                   priceText={row.priceText}
                 />
               ))}
-            </HeaderedTableBody>
+            </TableBody>
           </SortableContext>
 
           {typeof document !== 'undefined'
@@ -325,8 +315,7 @@ export function MerchandisingEditor({
               )
             : null}
         </DndContext>
-        </div>
-      </HeaderedTable>
+      </Table>
     </div>
   );
 }
@@ -342,10 +331,7 @@ function SortableRankingRow({
   rankChangeDirection,
   priceChangeDirection,
   priceText,
-  rowClassName,
-}: RankingRowModel & {
-  rowClassName: string;
-}) {
+}: RankingRowModel) {
   const {
     attributes,
     isDragging,
@@ -378,7 +364,6 @@ function SortableRankingRow({
       kindLabel={kindLabel}
       label={label}
       rankChangeDirection={rankChangeDirection}
-      rowClassName={rowClassName}
       movedFromBaseline={movedFromBaseline}
       priceChangeDirection={priceChangeDirection}
       priceText={priceText}
@@ -391,7 +376,7 @@ function SortableRankingRow({
   );
 }
 
-type RankingRowCardProps = HTMLAttributes<HTMLDivElement> & {
+type RankingRowCardProps = HTMLAttributes<HTMLTableRowElement> & {
   dragging?: boolean;
   handle: ReactNode;
   index: number;
@@ -404,10 +389,9 @@ type RankingRowCardProps = HTMLAttributes<HTMLDivElement> & {
   rankChangeDirection: 'up' | 'down' | null;
   priceChangeDirection: 'up' | 'down' | null;
   priceText: string;
-  rowClassName?: string;
 };
 
-const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function RankingRowCard(
+const RankingRowCard = forwardRef<HTMLTableRowElement, RankingRowCardProps>(function RankingRowCard(
   {
     className,
     dragging = false,
@@ -422,72 +406,53 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
     rankChangeDirection,
     priceChangeDirection,
     priceText,
-    rowClassName,
     style,
     ...props
   },
   ref,
 ) {
-  return (
-    <HeaderedTableRow
-      {...props}
-      className={cn(
-        overlay ? rankingGridClassName : rowClassName,
-        'group/row px-3 py-4 transition-[background-color,box-shadow,opacity] duration-150 ease-out motion-reduce:transition-none md:px-4',
-        overlay
-          ? 'pointer-events-none rounded-2xl border border-border/70 bg-background/95 shadow-[0_24px_80px_-28px_rgba(39,27,18,0.35)] backdrop-blur-[2px]'
-          : movedFromBaseline
-            ? 'bg-muted/60 hover:bg-muted/70'
-            : `bg-transparent ${rowHoverClassName}`,
-        dragging && 'opacity-0',
-        className,
-      )}
-      ref={ref}
-      role="row"
-      style={{
-        ...style,
-        willChange: 'transform',
-      }}
-    >
-      <div className="pr-1" role="cell">
-        <div className="flex min-h-8 items-center justify-center">{handle}</div>
+  const rankCell = (
+    <>
+      <RankingMobileLabel>Rank</RankingMobileLabel>
+      <div className={cn(rankingCellContentClassName, 'justify-center gap-1.5 text-center text-lg font-medium tracking-tight text-foreground tabular-nums')}>
+        <span>#{index + 1}</span>
+        {rankChangeDirection ? (
+          <StatusDeltaTriangleIcon
+            aria-hidden="true"
+            className={cn(
+              'rank-change-triangle !size-2 fill-current',
+              rankChangeDirection === 'up' ? 'text-emerald-600' : 'rotate-180 text-red-600',
+            )}
+          />
+        ) : null}
       </div>
-      <div className="px-1 text-center" role="cell">
-        <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Rank</HeaderedTableMobileLabel>
-        <div className={cn(rankingCellContentClassName, 'justify-center gap-1.5 text-center text-lg font-medium tracking-tight text-foreground tabular-nums')}>
-          <span>#{index + 1}</span>
-          {rankChangeDirection ? (
-            <StatusDeltaTriangleIcon
-              aria-hidden="true"
-              className={cn(
-                'rank-change-triangle !size-2 fill-current',
-                rankChangeDirection === 'up' ? 'text-emerald-600' : 'rotate-180 text-red-600',
-              )}
-            />
-          ) : null}
-        </div>
+    </>
+  );
+  const itemCell = (
+    <>
+      <RankingMobileLabel>Item</RankingMobileLabel>
+      <div className={cn(rankingCellContentClassName, 'min-w-0 justify-start gap-2.5')}>
+        <span className="shrink-0 text-muted-foreground">
+          <KindIcon aria-hidden="true" className="size-4" />
+          <span className="sr-only">{kindLabel}</span>
+        </span>
+        <p className="min-w-0 truncate text-[1.05rem] font-medium tracking-tight text-foreground">{label}</p>
       </div>
-      <div aria-hidden="true" role="presentation" />
-      <div className="min-w-0 px-2 pl-4 text-left" role="cell">
-        <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Item</HeaderedTableMobileLabel>
-        <div className={cn(rankingCellContentClassName, 'min-w-0 justify-start gap-2.5')}>
-          <span className="shrink-0 text-muted-foreground">
-            <KindIcon aria-hidden="true" className="size-4" />
-            <span className="sr-only">{kindLabel}</span>
-          </span>
-          <p className="min-w-0 truncate text-[1.05rem] font-medium tracking-tight text-foreground">{label}</p>
-        </div>
+    </>
+  );
+  const costCell = (
+    <>
+      <RankingMobileLabel>Cost</RankingMobileLabel>
+      <div className={cn(rankingCellContentClassName, 'justify-center')}>
+        <p className="text-center">{costText}</p>
       </div>
-      <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums" role="cell">
-        <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Cost</HeaderedTableMobileLabel>
-        <div className={cn(rankingCellContentClassName, 'justify-center')}>
-          <p className="text-center">{costText}</p>
-        </div>
-      </div>
-      <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums" role="cell">
-        <HeaderedTableMobileLabel className={rankingTableLayout.mobileLabelClassName}>Price</HeaderedTableMobileLabel>
-        <div className={cn(rankingCellContentClassName, 'justify-center')}>
-          <div className="grid grid-cols-[0.75rem_auto_0.75rem] items-center justify-center">
+    </>
+  );
+  const priceCell = (
+    <>
+      <RankingMobileLabel>Price</RankingMobileLabel>
+      <div className={cn(rankingCellContentClassName, 'justify-center')}>
+        <div className="grid grid-cols-[0.75rem_auto_0.75rem] items-center justify-center">
           <span aria-hidden="true" />
           <span className="text-center">{priceText}</span>
           <span className="flex justify-end">
@@ -502,12 +467,70 @@ const RankingRowCard = forwardRef<HTMLDivElement, RankingRowCardProps>(function 
               />
             ) : null}
           </span>
-          </div>
         </div>
       </div>
-    </HeaderedTableRow>
+    </>
+  );
+
+  if (overlay) {
+    return (
+      <div
+        className={cn(
+          rankingGridClassName,
+          'group/row pointer-events-none rounded-2xl border border-border/70 bg-white/95 px-3 py-4 shadow-[0_24px_80px_-28px_rgba(39,27,18,0.35)] backdrop-blur-[2px] md:px-4',
+          className,
+        )}
+        style={{
+          ...style,
+          willChange: 'transform',
+        }}
+      >
+        <div className="pr-1">
+          <div className="flex min-h-8 items-center justify-center">{handle}</div>
+        </div>
+        <div className="px-1 text-center">{rankCell}</div>
+        <div aria-hidden="true" />
+        <div className="min-w-0 px-2 pl-4 text-left">{itemCell}</div>
+        <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums">{costCell}</div>
+        <div className="px-2 text-lg font-medium tracking-tight text-foreground tabular-nums">{priceCell}</div>
+      </div>
+    );
+  }
+
+  return (
+    <TableRow
+      {...props}
+      className={cn(
+        'group/row transition-[background-color,box-shadow,opacity] duration-150 ease-out motion-reduce:transition-none',
+        movedFromBaseline ? 'bg-muted/60 hover:bg-muted/70' : `bg-transparent ${rowHoverClassName}`,
+        dragging && 'opacity-0',
+        className,
+      )}
+      ref={ref}
+      style={{
+        ...style,
+        willChange: 'transform',
+      }}
+    >
+      <TableCell className={cn(rankingTableCellClassName, 'w-14 px-3 text-center')}>
+        <div className="flex min-h-8 items-center justify-center">{handle}</div>
+      </TableCell>
+      <TableCell className={cn(rankingTableCellClassName, 'text-center')}>{rankCell}</TableCell>
+      <TableCell aria-hidden="true" className={rankingTableCellClassName} />
+      <TableCell className={cn(rankingTableCellClassName, 'min-w-0 pl-4 text-left')}>{itemCell}</TableCell>
+      <TableCell className={cn(rankingTableCellClassName, 'text-lg font-medium tracking-tight text-foreground tabular-nums')}>{costCell}</TableCell>
+      <TableCell className={cn(rankingTableCellClassName, 'text-lg font-medium tracking-tight text-foreground tabular-nums')}>{priceCell}</TableCell>
+    </TableRow>
   );
 });
+
+function RankingMobileLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground lg:hidden">
+      {children}
+    </p>
+  );
+}
 
 function StaticGripHandle() {
   return (

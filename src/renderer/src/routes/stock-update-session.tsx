@@ -1,27 +1,35 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   ActionCreatePackageIcon,
+  ActionDragHandleIcon,
   ActionDeleteIcon,
   ActionSaveIcon,
   ActionUndoIcon,
 } from '@icons/actions';
 import { getRegimeIcon } from '@icons/domain';
-import { EntityFlagIcon, EntityTransitIcon } from '@icons/entities';
-import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
-import { StatusUnavailableIcon } from '@icons/status';
+import { EntityFlagIcon } from '@icons/entities';
+import { NavigationBackIcon, NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
+import { StatusReadyIcon, StatusUnavailableIcon, StatusWarningIcon } from '@icons/status';
 import type { SenaCatalog, SenaObservationRegimeHint, SenaStockSnapshot } from '@shared/sena';
 import type { InventorySnapshot, RankingEntry, RankingEntryType, SistOverview } from '@shared/inventory';
-import {
-  createHeaderedTableLayout,
-  HeaderedTable,
-  HeaderedTableBody,
-  HeaderedTableCellStack,
-  HeaderedTableHeader,
-  HeaderedTableHeaderCell,
-  HeaderedTableMobileLabel,
-  HeaderedTableRow,
-} from '@/components/system/headered-table';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
 import { StepWizard } from '@/components/system/step-wizard';
@@ -33,17 +41,25 @@ import { Button } from '@/components/ui/button';
 import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { displayMoneyFromUsd, formatCurrency, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { getRecordUpdateLane, RECORD_UPDATE_HUB_PATH } from '@/lib/record-update-routes';
 import { activeSenaCatalog } from '@/lib/sena-catalog';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { buildRankChangeByEntryKey } from './ranking-order';
+import {
+  applyStockRowOrder,
+  buildStockRowOrderStorageKey,
+  readStockRowOrder,
+  reorderStockRows,
+  writeStockRowOrder,
+} from './stock-row-order';
 import { SectionLabel } from './sku-detail/section-heading';
 import { formatSenaDateTime, formatSenaLongDate } from './sku-detail/format';
 import {
@@ -56,9 +72,22 @@ import {
 
 type StockView = 'priority' | 'counted' | 'all';
 type StockoutFlagValue = 'blocked' | 'stockout';
-type StockUpdateStepId = 'stock' | 'service' | 'rankings' | 'context' | 'review';
+type StockEventDropdownValue = 'none' | StockoutFlagValue;
+type StockUpdateStepId =
+  | 'observed-at'
+  | 'report-notes'
+  | 'stock'
+  | 'stock-cost'
+  | 'stock-price'
+  | 'stock-flags'
+  | 'service'
+  | 'rankings'
+  | 'context'
+  | 'review';
 type SkuFlagId = 'ordered' | 'received' | 'blocked';
 type ServiceFlagId = 'price' | 'blocked';
+type OptionalStockStepChoice = 'unset' | 'yes' | 'no';
+type OptionalStockStepId = 'stock-cost' | 'stock-price' | 'stock-flags';
 
 type StockRow = SenaStockSnapshot;
 
@@ -88,6 +117,7 @@ interface StockUpdateSessionDraft {
   stockView: StockView;
   rows: StockRow[];
   skuSignalDrafts: Record<string, SkuSignalDraft>;
+  stockStepChoices: Record<OptionalStockStepId, OptionalStockStepChoice>;
   serviceSignalDrafts: Record<string, ServiceSignalDraft>;
   regimeHint: SenaObservationRegimeHint | '';
   serviceRankings: string[];
@@ -106,6 +136,7 @@ interface StockUpdateDraftState {
   serviceRankings: string[];
   serviceSignalDrafts: Record<string, ServiceSignalDraft>;
   skuSignalDrafts: Record<string, SkuSignalDraft>;
+  stockStepChoices: Record<OptionalStockStepId, OptionalStockStepChoice>;
   stockBySku: Map<string, SenaStockSnapshot>;
   stockView: StockView;
   unlockedStepCount: number;
@@ -149,45 +180,34 @@ const EMPTY_SIST_OVERVIEW: SistOverview = {
   metadata: null,
 };
 
-const STOCK_VIEW_OPTIONS: Array<{ value: StockView; labelKey: 'stockUpdateViewPriority' | 'stockUpdateViewCounted' | 'stockUpdateViewAllSkus' }> = [
-  { value: 'priority', labelKey: 'stockUpdateViewPriority' },
-  { value: 'counted', labelKey: 'stockUpdateViewCounted' },
-  { value: 'all', labelKey: 'stockUpdateViewAllSkus' },
-];
+const STOCK_UPDATE_FULL_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'service', 'rankings', 'context', 'review'];
+const STOCK_COUNT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'stock-cost', 'stock-price', 'stock-flags', 'context', 'review'];
+const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
+const REPORT_NOTE_PLACEHOLDER_KEYS = [
+  'stockUpdateNotesPlaceholderShiftContext',
+  'stockUpdateNotesPlaceholderSupplierDelay',
+  'stockUpdateNotesPlaceholderDisplayChange',
+  'stockUpdateNotesPlaceholderNothingSpecial',
+] as const satisfies readonly TranslationKey[];
 
-const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:v1';
-const STOCK_UPDATE_STEP_ORDER: StockUpdateStepId[] = ['stock', 'service', 'rankings', 'context', 'review'];
-const stockCountTableLayout = createHeaderedTableLayout({
-  breakpoint: 'xl',
-  columns: 'minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) max-content',
-  gap: 5,
-});
-const stockCountTableLayoutWithFlags = createHeaderedTableLayout({
-  breakpoint: 'xl',
-  columns: 'minmax(0,1.15fr) minmax(0,0.92fr) minmax(0,0.92fr) minmax(0,0.92fr) minmax(0,1.1fr) max-content',
-  gap: 5,
-});
-const serviceSignalsTableLayout = createHeaderedTableLayout({
-  breakpoint: 'xl',
-  columns: 'minmax(0,1fr) minmax(0,0.72fr) max-content',
-  gap: 5,
-});
-const serviceSignalsTableLayoutWithFlags = createHeaderedTableLayout({
-  breakpoint: 'xl',
-  columns: 'minmax(0,0.9fr) minmax(0,0.72fr) minmax(0,1fr) max-content',
-  gap: 5,
-});
+function randomReportNotePlaceholderKey(): TranslationKey {
+  return REPORT_NOTE_PLACEHOLDER_KEYS[Math.floor(Math.random() * REPORT_NOTE_PLACEHOLDER_KEYS.length)]!;
+}
 
 const STOCK_UPDATE_STEP_COPY: Record<
   StockUpdateStepId,
   {
     descriptionKey:
+      | 'stockUpdateStepObservedAtDescription'
+      | 'stockUpdateStepReportNotesDescription'
       | 'stockUpdateStepContextDescription'
       | 'stockUpdateStepStockDescription'
       | 'stockUpdateStepServiceDescription'
       | 'stockUpdateStepRankingsDescription'
       | 'stockUpdateStepReviewDescription';
     titleKey:
+      | 'stockUpdateStepObservedAtTitle'
+      | 'stockUpdateStepReportNotesTitle'
       | 'stockUpdateStepContextTitle'
       | 'stockUpdateStepStockTitle'
       | 'stockUpdateStepServiceTitle'
@@ -195,6 +215,14 @@ const STOCK_UPDATE_STEP_COPY: Record<
       | 'stockUpdateStepReviewTitle';
   }
 > = {
+  'observed-at': {
+    titleKey: 'stockUpdateStepObservedAtTitle',
+    descriptionKey: 'stockUpdateStepObservedAtDescription',
+  },
+  'report-notes': {
+    titleKey: 'stockUpdateStepReportNotesTitle',
+    descriptionKey: 'stockUpdateStepReportNotesDescription',
+  },
   context: {
     titleKey: 'stockUpdateStepContextTitle',
     descriptionKey: 'stockUpdateStepContextDescription',
@@ -216,23 +244,6 @@ const STOCK_UPDATE_STEP_COPY: Record<
     descriptionKey: 'stockUpdateStepReviewDescription',
   },
 };
-
-function FieldHelpLabel({
-  children,
-  tooltip,
-  label,
-}: {
-  children: ReactNode;
-  tooltip: string;
-  label: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span>{children}</span>
-      <HelpTooltip content={tooltip} label={label} />
-    </span>
-  );
-}
 
 function localDateTimeInputValue(value: string | null) {
   const date = value ? new Date(value) : new Date();
@@ -274,6 +285,22 @@ function createEmptyServiceSignalDraft(): ServiceSignalDraft {
     blockedEnabled: false,
     blockedState: 'blocked',
   };
+}
+
+function skuEventOnlyDraft(draft: SkuSignalDraft): SkuSignalDraft {
+  return {
+    ...draft,
+    orderEnabled: false,
+    orderedQuantity: '',
+    receiptEnabled: false,
+    receiptQuantity: '',
+  };
+}
+
+function skuEventOnlyDrafts(drafts: Record<string, SkuSignalDraft>) {
+  return Object.fromEntries(
+    Object.entries(drafts).map(([skuId, draft]) => [skuId, skuEventOnlyDraft(draft)]),
+  );
 }
 
 function activeSkuFlagIds(draft: SkuSignalDraft | undefined): SkuFlagId[] {
@@ -365,7 +392,24 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isStockUpdateStepId(value: unknown): value is StockUpdateStepId {
-  return typeof value === 'string' && STOCK_UPDATE_STEP_ORDER.includes(value as StockUpdateStepId);
+  return (
+    typeof value === 'string' &&
+    [...STOCK_UPDATE_FULL_STEP_ORDER, ...STOCK_COUNT_STEP_ORDER].includes(value as StockUpdateStepId)
+  );
+}
+
+function stepOrderForLane(laneId: ReturnType<typeof getRecordUpdateLane>['id']) {
+  return laneId === 'stock-count' ? STOCK_COUNT_STEP_ORDER : STOCK_UPDATE_FULL_STEP_ORDER;
+}
+
+function normalizeStepIdForOrder(currentStepId: StockUpdateStepId, stepOrder: StockUpdateStepId[]) {
+  if (stepOrder.includes(currentStepId)) {
+    return currentStepId;
+  }
+  if (stepOrder.includes('context')) {
+    return 'context';
+  }
+  return stepOrder[0] ?? 'stock';
 }
 
 function isStockView(value: unknown): value is StockView {
@@ -388,12 +432,16 @@ function isStockoutFlagValue(value: unknown): value is StockoutFlagValue {
   return value === 'blocked' || value === 'stockout';
 }
 
-function readStockUpdateDraft() {
+function isOptionalStockStepChoice(value: unknown): value is OptionalStockStepChoice {
+  return value === 'unset' || value === 'yes' || value === 'no';
+}
+
+function readStockUpdateDraft(draftStorageKey: string) {
   if (!canUseBrowserStorage()) {
     return null;
   }
 
-  const rawDraft = window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY);
+  const rawDraft = window.localStorage.getItem(draftStorageKey);
   if (!rawDraft) {
     return null;
   }
@@ -401,23 +449,23 @@ function readStockUpdateDraft() {
   try {
     const parsed = JSON.parse(rawDraft) as unknown;
     if (!isObjectRecord(parsed) || parsed.version !== 1) {
-      window.localStorage.removeItem(STOCK_UPDATE_DRAFT_STORAGE_KEY);
+      window.localStorage.removeItem(draftStorageKey);
       return null;
     }
     return parsed;
   } catch {
-    window.localStorage.removeItem(STOCK_UPDATE_DRAFT_STORAGE_KEY);
+    window.localStorage.removeItem(draftStorageKey);
     return null;
   }
 }
 
-function hasStoredStockUpdateDraft() {
-  return readStockUpdateDraft() !== null;
+function hasStoredStockUpdateDraft(draftStorageKey: string) {
+  return readStockUpdateDraft(draftStorageKey) !== null;
 }
 
-function removeStockUpdateDraft() {
+function removeStockUpdateDraft(draftStorageKey: string) {
   if (canUseBrowserStorage()) {
-    window.localStorage.removeItem(STOCK_UPDATE_DRAFT_STORAGE_KEY);
+    window.localStorage.removeItem(draftStorageKey);
   }
 }
 
@@ -480,6 +528,22 @@ function sanitizeDraftSignalRecord<T>(
   ) as Record<string, T>;
 }
 
+function sanitizeStockStepChoices(value: unknown) {
+  if (!isObjectRecord(value)) {
+    return {
+      'stock-cost': 'unset',
+      'stock-price': 'unset',
+      'stock-flags': 'unset',
+    } satisfies Record<OptionalStockStepId, OptionalStockStepChoice>;
+  }
+
+  return {
+    'stock-cost': isOptionalStockStepChoice(value['stock-cost']) ? value['stock-cost'] : 'unset',
+    'stock-price': isOptionalStockStepChoice(value['stock-price']) ? value['stock-price'] : 'unset',
+    'stock-flags': isOptionalStockStepChoice(value['stock-flags']) ? value['stock-flags'] : 'unset',
+  } satisfies Record<OptionalStockStepId, OptionalStockStepChoice>;
+}
+
 function sanitizeDraftRanking(value: unknown, allowedIds: Set<string>) {
   if (!Array.isArray(value)) {
     return [];
@@ -498,10 +562,12 @@ function hydrateStockUpdateDraft({
   baselineRows,
   catalog,
   draft,
+  stepOrder,
 }: {
   baselineRows: StockRow[];
   catalog: SenaCatalog;
   draft: unknown;
+  stepOrder: StockUpdateStepId[];
 }): StockUpdateSessionDraft | null {
   if (!isObjectRecord(draft) || draft.version !== 1) {
     return null;
@@ -515,20 +581,25 @@ function hydrateStockUpdateDraft({
       .filter((row): row is Record<string, unknown> => isObjectRecord(row) && typeof row.skuId === 'string')
       .map((row) => [row.skuId as string, row]),
   );
+  const stockStepChoices = sanitizeStockStepChoices(draft.stockStepChoices);
 
   return {
     version: 1,
     savedAt: typeof draft.savedAt === 'string' ? draft.savedAt : new Date().toISOString(),
-    currentStepId: isStockUpdateStepId(draft.currentStepId) ? draft.currentStepId : 'stock',
+    currentStepId: normalizeStepIdForOrder(
+      isStockUpdateStepId(draft.currentStepId) ? draft.currentStepId : 'stock',
+      stepOrder,
+    ),
     unlockedStepCount:
       typeof draft.unlockedStepCount === 'number'
-        ? Math.min(STOCK_UPDATE_STEP_ORDER.length, Math.max(1, Math.floor(draft.unlockedStepCount)))
+        ? Math.min(stepOrder.length, Math.max(1, Math.floor(draft.unlockedStepCount)))
         : 1,
     observedAt: typeof draft.observedAt === 'string' ? draft.observedAt : localDateTimeInputValue(null),
     notes: typeof draft.notes === 'string' ? draft.notes : '',
     stockView: isStockView(draft.stockView) ? draft.stockView : 'priority',
     rows: baselineRows.map((row) => sanitizeStockRow(draftRowsBySku.get(row.skuId), row)),
     skuSignalDrafts: sanitizeDraftSignalRecord(draft.skuSignalDrafts, allowedSkuIds, sanitizeSkuSignalDraft),
+    stockStepChoices,
     serviceSignalDrafts: sanitizeDraftSignalRecord(
       draft.serviceSignalDrafts,
       allowedServiceIds,
@@ -551,12 +622,14 @@ function hasMeaningfulStockUpdateChanges({
   serviceRankings,
   serviceSignalDrafts,
   skuSignalDrafts,
+  stockStepChoices,
   stockBySku,
 }: StockUpdateDraftState) {
   return (
     rows.some((row) => stockRowChanged(catalog, stockBySku, row)) ||
     anySkuFlags(skuSignalDrafts) ||
     anyServiceFlags(serviceSignalDrafts) ||
+    Object.values(stockStepChoices).some((choice) => choice !== 'unset') ||
     regimeHint !== '' ||
     serviceRankings.length > 0 ||
     retailRankings.length > 0 ||
@@ -576,6 +649,7 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     stockView: state.stockView,
     rows: state.rows,
     skuSignalDrafts: state.skuSignalDrafts,
+    stockStepChoices: state.stockStepChoices,
     serviceSignalDrafts: state.serviceSignalDrafts,
     regimeHint: state.regimeHint,
     serviceRankings: state.serviceRankings,
@@ -583,15 +657,15 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
   };
 }
 
-function writeStockUpdateDraft(state: StockUpdateDraftState) {
+function writeStockUpdateDraft(state: StockUpdateDraftState, draftStorageKey: string) {
   if (!canUseBrowserStorage() || !state.catalog) {
     return false;
   }
   if (!hasMeaningfulStockUpdateChanges(state)) {
-    removeStockUpdateDraft();
+    removeStockUpdateDraft(draftStorageKey);
     return false;
   }
-  window.localStorage.setItem(STOCK_UPDATE_DRAFT_STORAGE_KEY, JSON.stringify(buildStockUpdateDraft(state)));
+  window.localStorage.setItem(draftStorageKey, JSON.stringify(buildStockUpdateDraft(state)));
   return true;
 }
 
@@ -733,17 +807,50 @@ function buildInitialRows(catalog: SenaCatalog | null, observations: ReturnType<
   }));
 }
 
+function createDefaultStockStepChoices(): Record<OptionalStockStepId, OptionalStockStepChoice> {
+  return {
+    'stock-cost': 'unset',
+    'stock-price': 'unset',
+    'stock-flags': 'unset',
+  };
+}
+
+function stockCostChanged(catalog: SenaCatalog | null, stockBySku: Map<string, SenaStockSnapshot>, row: StockRow) {
+  const baseline = baselineStockRow(catalog, stockBySku, row.skuId);
+  if (!baseline) {
+    return false;
+  }
+  return baseline.costPerUnit !== row.costPerUnit;
+}
+
+function stockRetailPriceChanged(catalog: SenaCatalog | null, stockBySku: Map<string, SenaStockSnapshot>, row: StockRow) {
+  const baseline = baselineStockRow(catalog, stockBySku, row.skuId);
+  if (!baseline) {
+    return false;
+  }
+  return baseline.productPrice !== row.productPrice;
+}
+
+function changedRowCount(
+  rows: StockRow[],
+  predicate: (row: StockRow) => boolean,
+) {
+  return rows.reduce((count, row) => count + (predicate(row) ? 1 : 0), 0);
+}
+
 function buildDraftsFromObservationInput({
   baselineRows,
   catalog,
   currency,
   input,
+  stepOrder,
   usdToKhrExchangeRate,
 }: {
   baselineRows: StockRow[];
   catalog: SenaCatalog;
   currency: 'USD' | 'KHR';
   input: ReturnType<typeof createEmptyObservationInput>;
+  stepOrder: StockUpdateStepId[];
   usdToKhrExchangeRate: number;
 }) {
   const rowsBySkuId = new Map(baselineRows.map((row) => [row.skuId, row]));
@@ -810,12 +917,23 @@ function buildDraftsFromObservationInput({
 
   return {
     currentStepId: 'stock' as const,
-    unlockedStepCount: STOCK_UPDATE_STEP_ORDER.length,
+    unlockedStepCount: stepOrder.length,
     observedAt: localDateTimeInputValue(input.observedAt),
     notes: input.notes ?? '',
     stockView: 'counted' as const,
     rows: [...baselineRows.map((row) => rowsBySkuId.get(row.skuId) ?? row), ...appendedRows],
     skuSignalDrafts,
+    stockStepChoices: {
+      'stock-cost': appendedRows.length > 0 || baselineRows.some((row) => {
+        const nextRow = rowsBySkuId.get(row.skuId) ?? row;
+        return nextRow.costPerUnit !== row.costPerUnit;
+      }) ? 'yes' : 'unset',
+      'stock-price': appendedRows.some((row) => row.productPrice != null) || baselineRows.some((row) => {
+        const nextRow = rowsBySkuId.get(row.skuId) ?? row;
+        return nextRow.productPrice !== row.productPrice;
+      }) ? 'yes' : 'unset',
+      'stock-flags': anySkuFlags(skuSignalDrafts) ? 'yes' : 'unset',
+    },
     serviceSignalDrafts,
     regimeHint: input.regimeHint ?? '',
     serviceRankings: input.serviceRankings.filter((serviceId) =>
@@ -1075,90 +1193,345 @@ function FlagSection({
 const recordUpdateInputClassName = 'bg-input/30 text-left shadow-none';
 const recordUpdateSelectTriggerClassName = 'bg-input/30 shadow-none';
 const flagControlClassName = `min-w-0 w-full max-w-[12rem] ${recordUpdateInputClassName}`;
+const discardChangesButtonClassName = 'hover:bg-destructive/12 hover:text-destructive focus-visible:ring-destructive/20';
+
+function StockSkuSummaryCell({
+  skuName,
+}: {
+  skuName: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <span className="block font-medium text-foreground">{skuName}</span>
+    </div>
+  );
+}
+
+function StockLatestUnitsCell({
+  countedAtBySku,
+  row,
+  stockBySku,
+}: {
+  countedAtBySku: Map<string, string>;
+  row: StockRow;
+  stockBySku: Map<string, SenaStockSnapshot>;
+}) {
+  const { t } = usePreferences();
+  const latestCountedAt = countedAtBySku.get(row.skuId);
+  const latestStock = stockBySku.get(row.skuId);
+
+  return (
+    <div className="min-w-0">
+      <span className="block font-medium text-foreground">{t('stockUpdateLatestUnitsValue', { count: latestStock?.unitsInStock ?? 0 })}</span>
+      <span className="mt-2 block text-sm leading-6 text-muted-foreground">
+        {latestCountedAt
+          ? t('stockUpdateAsOfDate', { date: formatSenaLongDate(latestCountedAt, 'en') })
+          : t('stockUpdateNotCounted')}
+      </span>
+    </div>
+  );
+}
+
+function StockLatestMoneyCell({
+  countedAtBySku,
+  latestValue,
+  skuId,
+}: {
+  countedAtBySku: Map<string, string>;
+  latestValue: number | null | undefined;
+  skuId: string;
+}) {
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
+  const latestCountedAt = countedAtBySku.get(skuId);
+
+  return (
+    <div className="min-w-0">
+      <span className="block font-medium text-foreground">
+        {latestValue == null ? t('stockUpdateNoMoneyValue') : formatCurrency(latestValue, currency, language, usdToKhrExchangeRate)}
+      </span>
+      <span className="mt-2 block text-sm leading-6 text-muted-foreground">
+        {latestCountedAt
+          ? t('stockUpdateAsOfDate', { date: formatSenaLongDate(latestCountedAt, 'en') })
+          : t('stockUpdateNotCounted')}
+      </span>
+    </div>
+  );
+}
+
+type RecordUpdateTableColumn = {
+  header: ReactNode;
+  className?: string;
+  headClassName?: string;
+  width?: string;
+};
+
+const recordUpdateTableHeaderClassName =
+  'text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground';
+const recordUpdateTableCellClassName = 'px-6 py-5 align-middle whitespace-normal';
+const recordUpdateTableHeadClassName = 'px-6 py-3 align-middle whitespace-nowrap';
+const recordUpdateWhiteCardClassName = '![background:white]';
+const recordUpdateWhiteCardStyle = { background: 'white' } satisfies CSSProperties;
+
+function RecordUpdateTable({
+  children,
+  columns,
+  testId,
+}: {
+  children: ReactNode;
+  columns: RecordUpdateTableColumn[];
+  testId?: string;
+}) {
+  return (
+    <div className="-mx-6 overflow-x-auto bg-white">
+      <Table className="min-w-[760px] table-fixed bg-white">
+        <colgroup>
+          {columns.map((column, index) => (
+            <col key={index} style={column.width ? { width: column.width } : undefined} />
+          ))}
+        </colgroup>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            {columns.map((column, index) => (
+              <TableHead
+                aria-hidden={column.header == null ? true : undefined}
+                className={cn(recordUpdateTableHeadClassName, recordUpdateTableHeaderClassName, column.className, column.headClassName)}
+                key={index}
+              >
+                {column.header}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody data-testid={testId}>
+          {children}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function RecordUpdateMobileLabel({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <p className={cn(recordUpdateTableHeaderClassName, 'mb-1 xl:hidden')}>
+      {children}
+    </p>
+  );
+}
+
+function OptionalStockDecisionCard({
+  choice,
+  helper,
+  onNo,
+  onYes,
+  question,
+}: {
+  choice: OptionalStockStepChoice;
+  helper: string;
+  onNo: () => void;
+  onYes: () => void;
+  question: string;
+}) {
+  const { t } = usePreferences();
+
+  return (
+    <div className="grid justify-items-center gap-4 py-5 text-center">
+      <div className="grid max-w-[34rem] gap-1">
+        <p className="text-sm font-medium text-foreground">{question}</p>
+        <p className="text-sm text-muted-foreground">{helper}</p>
+      </div>
+      <div className="flex items-center justify-center gap-2">
+        <Button type="button" variant={choice === 'yes' ? 'default' : 'outline'} onClick={onYes}>
+          {t('stockUpdateOptionalStepYes')}
+        </Button>
+        <Button type="button" variant={choice === 'no' ? 'secondary' : 'outline'} onClick={onNo}>
+          {t('stockUpdateOptionalStepNo')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+type SortableStockTableRowConfig = {
+  cells: ReactNode[];
+  dragLabel: string;
+  highlight?: boolean;
+  inputCellIndexes: number[];
+};
+
+function StockReorderHint() {
+  const { t } = usePreferences();
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      {t('stockUpdateStockRowOrderHint')}
+    </p>
+  );
+}
+
+function SortableStockTable({
+  bodyTestId,
+  debugCellBoundaries,
+  columns,
+  renderRow,
+  rows,
+  onReorderRows,
+}: {
+  bodyTestId?: string;
+  debugCellBoundaries: boolean;
+  columns: RecordUpdateTableColumn[];
+  renderRow: (row: StockRow) => SortableStockTableRowConfig;
+  rows: StockRow[];
+  onReorderRows: (activeSkuId: string, overSkuId: string) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+  const debugTrackClassName = debugCellBoundaries ? tableDebugTrackClassName : '';
+  const debugFlushClassName = debugCellBoundaries ? tableDebugFlushClassName : '';
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) {
+      return;
+    }
+
+    onReorderRows(String(active.id), String(over.id));
+  }
+
+  return (
+    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd} sensors={sensors}>
+      <RecordUpdateTable columns={columns} testId={bodyTestId}>
+        <SortableContext items={rows.map((row) => row.skuId)} strategy={verticalListSortingStrategy}>
+          {rows.map((row) => {
+            const rowConfig = renderRow(row);
+
+            return (
+              <SortableStockTableRow
+                cells={rowConfig.cells}
+                className={cn(debugTrackClassName, debugFlushClassName)}
+                dragLabel={rowConfig.dragLabel}
+                highlight={rowConfig.highlight}
+                id={row.skuId}
+                inputCellIndexes={rowConfig.inputCellIndexes}
+                key={row.skuId}
+              />
+            );
+          })}
+        </SortableContext>
+      </RecordUpdateTable>
+    </DndContext>
+  );
+}
+
+function SortableStockTableRow({
+  cells,
+  className,
+  dragLabel,
+  highlight = false,
+  id,
+  inputCellIndexes,
+}: {
+  cells: ReactNode[];
+  className?: string;
+  dragLabel: string;
+  highlight?: boolean;
+  id: string;
+  inputCellIndexes: number[];
+}) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id });
+  const inputIndexSet = new Set(inputCellIndexes);
+
+  return (
+    <TableRow
+      className={cn(
+        'group/row',
+        className,
+        highlight && 'bg-primary/[0.04]',
+        isDragging && 'relative z-10 bg-white shadow-[0_16px_40px_rgba(27,15,7,0.12)]',
+      )}
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+    >
+      <TableCell className={cn(recordUpdateTableCellClassName, 'w-12 px-3 text-center')}>
+        <button
+          {...attributes}
+          {...listeners}
+          aria-label={dragLabel}
+          className="mx-auto flex size-8 shrink-0 touch-none items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform,opacity] duration-150 ease-out group-hover/row:text-foreground hover:bg-accent/60 hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 active:cursor-grabbing motion-reduce:transition-none"
+          ref={setActivatorNodeRef}
+          type="button"
+        >
+          <ActionDragHandleIcon aria-hidden="true" className="size-4 shrink-0 cursor-grab" />
+        </button>
+      </TableCell>
+      {cells.map((cell, index) => {
+        const draggable = !inputIndexSet.has(index);
+
+        return (
+          <TableCell
+            key={index}
+            {...(draggable ? listeners : {})}
+            className={cn(recordUpdateTableCellClassName, 'min-w-0', draggable && 'cursor-grab active:cursor-grabbing')}
+          >
+            {cell}
+          </TableCell>
+        );
+      })}
+    </TableRow>
+  );
+}
 
 function StockCountStep({
   catalog,
   countedAtBySku,
   debugCellBoundaries,
-  currency,
   rows,
   guidance,
-  skuSignalDrafts,
+  onReorderRows,
   stockBySku,
-  stockView,
-  usdToKhrExchangeRate,
   updateRow,
-  updateSkuSignalDraft,
   visibleRows,
-  onStockViewChange,
-  onToggleDebugCellBoundaries,
 }: {
   catalog: SenaCatalog | null;
   countedAtBySku: Map<string, string>;
   debugCellBoundaries: boolean;
-  currency: 'USD' | 'KHR';
   guidance?: string | null;
+  onReorderRows: (activeSkuId: string, overSkuId: string) => void;
   rows: StockRow[];
-  skuSignalDrafts: Record<string, SkuSignalDraft>;
   stockBySku: Map<string, SenaStockSnapshot>;
-  stockView: StockView;
-  usdToKhrExchangeRate: number;
   updateRow: (skuId: string, patch: Partial<StockRow>) => void;
-  updateSkuSignalDraft: (skuId: string, updater: (draft: SkuSignalDraft) => SkuSignalDraft) => void;
   visibleRows: StockRow[];
-  onStockViewChange: (value: StockView) => void;
-  onToggleDebugCellBoundaries: () => void;
 }) {
   const { t } = usePreferences();
-  const showFlagColumn = anySkuFlags(skuSignalDrafts);
-  const layout = showFlagColumn ? stockCountTableLayoutWithFlags : stockCountTableLayout;
-  const includedRows = rows.filter((row) => stockRowChanged(catalog, stockBySku, row) || hasSkuFlags(skuSignalDrafts[row.skuId]));
-  const debugTrackClassName = debugCellBoundaries ? tableDebugTrackClassName : '';
-  const debugFlushClassName = debugCellBoundaries ? tableDebugFlushClassName : '';
 
   return (
     <WorkspacePanel
-      action={
-        <WorkspaceActionRow>
-          <Button
-            aria-pressed={debugCellBoundaries}
-            className="hidden"
-            hidden
-            type="button"
-            variant={debugCellBoundaries ? 'secondary' : 'outline'}
-            onClick={onToggleDebugCellBoundaries}
-          >
-            Cell boundaries
-          </Button>
-          <div className="flex items-center gap-2">
-            <FieldHelpLabel
-              label={t('stockUpdateStockViewAria')}
-              tooltip={t('stockUpdateStockViewTooltip')}
-            >
-              {t('stockUpdateStockViewLabel')}
-            </FieldHelpLabel>
-            <ToggleGroup
-              aria-label={t('stockUpdateStockViewAria')}
-              className="rounded-2xl"
-              spacing={1}
-              type="single"
-              value={stockView}
-              onValueChange={(value) => {
-                if (value) {
-                  onStockViewChange(value as StockView);
-                }
-              }}
-            >
-              {STOCK_VIEW_OPTIONS.map((option) => (
-                <ToggleGroupItem key={option.value} value={option.value}>
-                  {t(option.labelKey)}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </div>
-        </WorkspaceActionRow>
-      }
+      action={null}
+      className={recordUpdateWhiteCardClassName}
       descriptor={t(STOCK_UPDATE_STEP_COPY.stock.descriptionKey)}
+      style={recordUpdateWhiteCardStyle}
       title={
         <SectionLabel
           tooltip={t('stockUpdateStockStepTooltip')}
@@ -1173,282 +1546,376 @@ function StockCountStep({
         {(catalog?.skus ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
         ) : (
-          <HeaderedTable variant="framed">
-            <div className={layout.containerClassName} style={layout.style}>
-              <HeaderedTableHeader className={cn(layout.headerClassName, debugTrackClassName, debugFlushClassName)}>
-                <HeaderedTableHeaderCell>{t('stockUpdateSkuLatestObservation')}</HeaderedTableHeaderCell>
-                <HeaderedTableHeaderCell>{t('stockUpdateUnitsInStock')}</HeaderedTableHeaderCell>
-                <HeaderedTableHeaderCell>{t('stockUpdateCostIfChanged')}</HeaderedTableHeaderCell>
-                <HeaderedTableHeaderCell>{t('stockUpdateRetailPriceIfChanged')}</HeaderedTableHeaderCell>
-                {showFlagColumn ? <HeaderedTableHeaderCell>{t('stockUpdateFlags')}</HeaderedTableHeaderCell> : null}
-                <HeaderedTableHeaderCell align="right" className="pr-2 whitespace-nowrap">
-                  <SectionLabel
-                    tooltip={t('stockUpdateSkuFlagsTooltip')}
-                    tooltipLabel={t('stockUpdateSkuFlagsTooltipLabel')}
-                  >
-                    {t('stockUpdateAddFlags')}
-                  </SectionLabel>
-                </HeaderedTableHeaderCell>
-              </HeaderedTableHeader>
-              <HeaderedTableBody className={layout.bodyClassName}>
-                {visibleRows.map((row) => {
-                  const sku = catalog?.skus.find((entry) => entry.skuId === row.skuId);
-                  const latestCountedAt = countedAtBySku.get(row.skuId);
-                  const latestStock = stockBySku.get(row.skuId);
-                  const draft = skuSignalDrafts[row.skuId];
-                  const flagIds = activeSkuFlagIds(draft);
+          <>
+            <StockReorderHint />
+            <SortableStockTable
+              bodyTestId="stock-count-list"
+              debugCellBoundaries={debugCellBoundaries}
+              columns={[
+                {
+                  header: null,
+                  className: 'w-12 px-3 text-center',
+                  width: '3.5rem',
+                },
+                { header: t('stockUpdateSkuLatestObservation'), width: '37%' },
+                { header: t('stockUpdateLatestUnits'), width: '24%' },
+                { header: t('stockUpdateCurrentUnits'), width: '31%' },
+              ]}
+              rows={visibleRows}
+              onReorderRows={onReorderRows}
+              renderRow={(row) => {
+                const sku = catalog?.skus.find((entry) => entry.skuId === row.skuId);
+                const latestUnits = stockBySku.get(row.skuId)?.unitsInStock ?? 0;
+                const unitsChanged = stockRowChanged(catalog, stockBySku, row);
 
-                  return (
-                    <HeaderedTableRow
-                      key={row.skuId}
-                      className={cn(
-                        rowHoverClassName,
-                        debugTrackClassName,
-                        debugFlushClassName,
-                        layout.rowClassName,
-                        (stockRowChanged(catalog, stockBySku, row) || flagIds.length > 0) && 'bg-primary/[0.04]',
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <HeaderedTableCellStack
-                          primary={
-                            <span className="min-w-0">
-                              <span className="block font-medium text-foreground">{sku?.name ?? row.skuId}</span>
-                              <span className="mt-1 block text-sm text-muted-foreground">
-                                {t('stockUpdateLatestUnits', { count: latestStock?.unitsInStock ?? 0 })}
-                                {latestCountedAt
-                                  ? ` · ${t('stockUpdateCountedOn', { date: formatSenaLongDate(latestCountedAt, 'en') })}`
-                                  : ` · ${t('stockUpdateNeverCounted')}`}
-                              </span>
-                            </span>
+                return {
+                  dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? row.skuId }),
+                  highlight: unitsChanged,
+                  inputCellIndexes: [2],
+                  cells: [
+                    <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                    <StockLatestUnitsCell countedAtBySku={countedAtBySku} row={row} stockBySku={stockBySku} />,
+                    <>
+                      <RecordUpdateMobileLabel>{t('stockUpdateCurrentUnits')}</RecordUpdateMobileLabel>
+                      <div className="pr-3">
+                        <Input
+                          aria-label={t('stockUpdateCurrentUnits')}
+                          className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                          min="0"
+                          placeholder={String(latestUnits)}
+                          step="1"
+                          type="number"
+                          value={unitsChanged ? String(row.unitsInStock) : ''}
+                          onChange={(event) =>
+                            updateRow(row.skuId, {
+                              unitsInStock: event.target.value === '' ? latestUnits : Number(event.target.value),
+                            })
                           }
                         />
                       </div>
-
-                      <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateUnitsInStock')}</HeaderedTableMobileLabel>
-                        <div className="flex justify-start pr-3">
-                          <Input
-                            aria-label={t('stockUpdateUnitsInStock')}
-                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
-                            min="0"
-                            step="1"
-                            type="number"
-                            value={row.unitsInStock}
-                            onChange={(event) => updateRow(row.skuId, { unitsInStock: Number(event.target.value) })}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateCostIfChanged')}</HeaderedTableMobileLabel>
-                        <div className="flex justify-start pr-3">
-                          <Input
-                            aria-label={t('stockUpdateCostIfChanged')}
-                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
-                            min="0"
-                            step={moneyInputStep(currency)}
-                            type="number"
-                            value={row.costPerUnit == null ? '' : displayMoneyFromUsd(row.costPerUnit, currency, usdToKhrExchangeRate)}
-                            onChange={(event) =>
-                              updateRow(row.skuId, {
-                                costPerUnit: event.target.value
-                                  ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate)
-                                  : null,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>
-                          {t('stockUpdateRetailPriceIfChanged')}
-                        </HeaderedTableMobileLabel>
-                        <div className="flex justify-start pr-3">
-                          <Input
-                            aria-label={t('stockUpdateRetailPriceIfChanged')}
-                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
-                            disabled={!sku?.soldAsProduct}
-                            min="0"
-                            step={moneyInputStep(currency)}
-                            type="number"
-                            value={row.productPrice == null ? '' : displayMoneyFromUsd(row.productPrice, currency, usdToKhrExchangeRate)}
-                            onChange={(event) =>
-                              updateRow(row.skuId, {
-                                productPrice: event.target.value
-                                  ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate)
-                                  : null,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      {showFlagColumn ? (
-                        <div className="min-w-0">
-                          <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateFlags')}</HeaderedTableMobileLabel>
-                          {flagIds.length > 0 ? (
-                            <div className="grid">
-                              {draft.orderEnabled ? (
-                                <FlagSection
-                                  label={t('stockUpdateOrderFlag')}
-                                  removeLabel={t('stockUpdateRemoveOrderFlagFor', { name: sku?.name ?? row.skuId })}
-                                  onRemove={() =>
-                                    updateSkuSignalDraft(row.skuId, (current) => ({
-                                      ...current,
-                                      orderEnabled: false,
-                                      orderedQuantity: '',
-                                    }))
-                                  }
-                                >
-                                  <Input
-                                    aria-label={t('stockUpdateOrderedQuantityAria', { name: sku?.name ?? row.skuId })}
-                                    className={flagControlClassName}
-                                    min="0"
-                                    placeholder={t('stockUpdateOrderedQuantity')}
-                                    step="1"
-                                    type="number"
-                                    value={draft.orderedQuantity}
-                                    onChange={(event) =>
-                                      updateSkuSignalDraft(row.skuId, (current) => ({
-                                        ...current,
-                                        orderEnabled: true,
-                                        orderedQuantity: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </FlagSection>
-                              ) : null}
-                              {draft.receiptEnabled ? (
-                                <FlagSection
-                                  label={t('stockUpdateReceiptFlag')}
-                                  removeLabel={t('stockUpdateRemoveReceiptFlagFor', { name: sku?.name ?? row.skuId })}
-                                  onRemove={() =>
-                                    updateSkuSignalDraft(row.skuId, (current) => ({
-                                      ...current,
-                                      receiptEnabled: false,
-                                      receiptQuantity: '',
-                                    }))
-                                  }
-                                >
-                                  <Input
-                                    aria-label={t('stockUpdateReceiptQuantityAria', { name: sku?.name ?? row.skuId })}
-                                    className={flagControlClassName}
-                                    min="0"
-                                    placeholder={t('stockUpdateReceivedQuantity')}
-                                    step="1"
-                                    type="number"
-                                    value={draft.receiptQuantity}
-                                    onChange={(event) =>
-                                      updateSkuSignalDraft(row.skuId, (current) => ({
-                                        ...current,
-                                        receiptEnabled: true,
-                                        receiptQuantity: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </FlagSection>
-                              ) : null}
-                              {draft.blockedEnabled ? (
-                                <FlagSection
-                                  label={t('stockUpdateEventFlag')}
-                                  removeLabel={t('stockUpdateRemoveEventFlagFor', { name: sku?.name ?? row.skuId })}
-                                  onRemove={() =>
-                                    updateSkuSignalDraft(row.skuId, (current) => ({
-                                      ...current,
-                                      blockedEnabled: false,
-                                      blockedState: 'blocked',
-                                    }))
-                                  }
-                                >
-                                  <Select
-                                    value={draft.blockedState}
-                                    onValueChange={(value) =>
-                                      updateSkuSignalDraft(row.skuId, (current) => ({
-                                        ...current,
-                                        blockedEnabled: true,
-                                        blockedState: value as StockoutFlagValue,
-                                      }))
-                                    }
-                                  >
-                                    <SelectTrigger
-                                      aria-label={t('stockUpdateBlockedStateAria', { name: sku?.name ?? row.skuId })}
-                                      className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
-                                    >
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
-                                      <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </FlagSection>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
-                          )}
-                        </div>
-                      ) : null}
-
-                        <div className="min-w-0">
-                          <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateAddFlags')}</HeaderedTableMobileLabel>
-                        <FlagActionMenu
-                          actions={[
-                            {
-                              key: 'ordered',
-                              label: draft?.orderEnabled ? t('stockUpdateRemoveOrder') : t('stockUpdateAddOrder'),
-                              icon: <ActionCreatePackageIcon className="size-4" />,
-                              onSelect: () =>
-                                updateSkuSignalDraft(row.skuId, (current) => ({
-                                  ...current,
-                                  orderEnabled: !current.orderEnabled,
-                                  orderedQuantity: current.orderEnabled ? '' : current.orderedQuantity,
-                                })),
-                            },
-                            {
-                              key: 'received',
-                              label: draft?.receiptEnabled ? t('stockUpdateRemoveReceipt') : t('stockUpdateAddReceipt'),
-                              icon: <EntityTransitIcon className="size-4" />,
-                              onSelect: () =>
-                                updateSkuSignalDraft(row.skuId, (current) => ({
-                                  ...current,
-                                  receiptEnabled: !current.receiptEnabled,
-                                  receiptQuantity: current.receiptEnabled ? '' : current.receiptQuantity,
-                                })),
-                            },
-                            {
-                              key: 'blocked',
-                              label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
-                              icon: <StatusUnavailableIcon className="size-4" />,
-                              onSelect: () =>
-                                updateSkuSignalDraft(row.skuId, (current) => ({
-                                  ...current,
-                                  blockedEnabled: !current.blockedEnabled,
-                                  blockedState: current.blockedEnabled ? 'blocked' : current.blockedState,
-                                })),
-                            },
-                          ]}
-                          label={t('stockUpdateAddFlagsFor', { name: sku?.name ?? row.skuId })}
-                        />
-                      </div>
-                    </HeaderedTableRow>
-                  );
-                })}
-              </HeaderedTableBody>
-            </div>
-          </HeaderedTable>
+                    </>,
+                  ],
+                };
+              }}
+            />
+          </>
         )}
         {(catalog?.skus ?? []).length > 0 && visibleRows.length === 0 ? (
           <p className="rounded-[1.25rem] border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
             {t('stockUpdateNoSkuMatches')}
           </p>
         ) : null}
-        {(catalog?.skus ?? []).length > 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {t('stockUpdateSkuRowsIncluded', { count: includedRows.length, suffix: includedRows.length === 1 ? '' : 's' })}
-          </p>
+      </div>
+    </WorkspacePanel>
+  );
+}
+
+function StockCostStep(props: {
+  catalog: SenaCatalog | null;
+  choice: OptionalStockStepChoice;
+  countedAtBySku: Map<string, string>;
+  currency: 'USD' | 'KHR';
+  debugCellBoundaries: boolean;
+  guidance?: string | null;
+  onReorderRows: (activeSkuId: string, overSkuId: string) => void;
+  rows: StockRow[];
+  stockBySku: Map<string, SenaStockSnapshot>;
+  usdToKhrExchangeRate: number;
+  updateRow: (skuId: string, patch: Partial<StockRow>) => void;
+  visibleRows: StockRow[];
+  onChooseNo: () => void;
+  onChooseYes: () => void;
+}) {
+  const { t } = usePreferences();
+  const { catalog, choice, countedAtBySku, currency, debugCellBoundaries, guidance, onReorderRows, stockBySku, usdToKhrExchangeRate, updateRow, visibleRows, onChooseNo, onChooseYes } = props;
+
+  return (
+    <WorkspacePanel
+      action={null}
+      className={recordUpdateWhiteCardClassName}
+      descriptor={t('stockUpdateCostStepDescription')}
+      style={recordUpdateWhiteCardStyle}
+      title={<SectionLabel tooltip={t('stockUpdateCostStepTooltip')} tooltipLabel={t('stockUpdateCostIfChanged')}>{t('stockUpdateCostIfChanged')}</SectionLabel>}
+    >
+      <div className="grid gap-3">
+        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateCostStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateCostStepQuestion')} />
+        {choice === 'yes' ? (
+          (catalog?.skus ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
+          ) : (
+            <>
+              <StockReorderHint />
+              <SortableStockTable
+                debugCellBoundaries={debugCellBoundaries}
+                columns={[
+                  {
+                    header: null,
+                    className: 'w-12 px-3 text-center',
+                    width: '3.5rem',
+                  },
+                  { header: t('stockUpdateSkuLatestObservation'), width: '37%' },
+                  { header: t('stockUpdateLatestCost'), width: '24%' },
+                  { header: t('stockUpdateCurrentCost'), width: '31%' },
+                ]}
+                rows={visibleRows}
+                onReorderRows={onReorderRows}
+                renderRow={(row) => {
+                  const sku = catalog?.skus.find((entry) => entry.skuId === row.skuId);
+                  const latestCost = stockBySku.get(row.skuId)?.costPerUnit ?? null;
+                  const costChanged = stockCostChanged(catalog, stockBySku, row);
+                  const latestCostPlaceholder =
+                    latestCost == null ? '' : String(displayMoneyFromUsd(latestCost, currency, usdToKhrExchangeRate));
+
+                  return {
+                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? row.skuId }),
+                    highlight: costChanged,
+                    inputCellIndexes: [2],
+                    cells: [
+                      <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                      <StockLatestMoneyCell countedAtBySku={countedAtBySku} latestValue={latestCost} skuId={row.skuId} />,
+                      <>
+                        <RecordUpdateMobileLabel>{t('stockUpdateCurrentCost')}</RecordUpdateMobileLabel>
+                        <div className="flex justify-start pr-3">
+                          <Input
+                            aria-label={t('stockUpdateCurrentCost')}
+                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            min="0"
+                            placeholder={latestCostPlaceholder}
+                            step={moneyInputStep(currency)}
+                            type="number"
+                            value={costChanged && row.costPerUnit != null ? displayMoneyFromUsd(row.costPerUnit, currency, usdToKhrExchangeRate) : ''}
+                            onChange={(event) =>
+                              updateRow(row.skuId, {
+                                costPerUnit: event.target.value ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate) : latestCost,
+                              })
+                            }
+                          />
+                        </div>
+                      </>,
+                    ],
+                  };
+                }}
+              />
+            </>
+          )
+        ) : null}
+      </div>
+    </WorkspacePanel>
+  );
+}
+
+function StockRetailPriceStep(props: {
+  catalog: SenaCatalog | null;
+  choice: OptionalStockStepChoice;
+  countedAtBySku: Map<string, string>;
+  currency: 'USD' | 'KHR';
+  debugCellBoundaries: boolean;
+  guidance?: string | null;
+  onReorderRows: (activeSkuId: string, overSkuId: string) => void;
+  stockBySku: Map<string, SenaStockSnapshot>;
+  rows: StockRow[];
+  usdToKhrExchangeRate: number;
+  updateRow: (skuId: string, patch: Partial<StockRow>) => void;
+  visibleRows: StockRow[];
+  onChooseNo: () => void;
+  onChooseYes: () => void;
+}) {
+  const { t } = usePreferences();
+  const { catalog, choice, countedAtBySku, currency, debugCellBoundaries, guidance, onReorderRows, stockBySku, usdToKhrExchangeRate, updateRow, visibleRows, onChooseNo, onChooseYes } = props;
+
+  return (
+    <WorkspacePanel
+      action={null}
+      className={recordUpdateWhiteCardClassName}
+      descriptor={t('stockUpdateRetailPriceStepDescription')}
+      style={recordUpdateWhiteCardStyle}
+      title={<SectionLabel tooltip={t('stockUpdateRetailPriceStepTooltip')} tooltipLabel={t('stockUpdateRetailPriceIfChanged')}>{t('stockUpdateRetailPriceIfChanged')}</SectionLabel>}
+    >
+      <div className="grid gap-3">
+        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateRetailPriceStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateRetailPriceStepQuestion')} />
+        {choice === 'yes' ? (
+          (catalog?.skus ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
+          ) : (
+            <>
+              <StockReorderHint />
+              <SortableStockTable
+                debugCellBoundaries={debugCellBoundaries}
+                columns={[
+                  {
+                    header: null,
+                    className: 'w-12 px-3 text-center',
+                    width: '3.5rem',
+                  },
+                  { header: t('stockUpdateSkuLatestObservation'), width: '37%' },
+                  { header: t('stockUpdateLatestRetailPrice'), width: '24%' },
+                  { header: t('stockUpdateCurrentRetailPrice'), width: '31%' },
+                ]}
+                rows={visibleRows}
+                onReorderRows={onReorderRows}
+                renderRow={(row) => {
+                  const sku = catalog?.skus.find((entry) => entry.skuId === row.skuId);
+                  const latestRetailPrice = stockBySku.get(row.skuId)?.productPrice ?? null;
+                  const retailPriceChanged = stockRetailPriceChanged(catalog, stockBySku, row);
+                  const latestRetailPricePlaceholder =
+                    latestRetailPrice == null ? '' : String(displayMoneyFromUsd(latestRetailPrice, currency, usdToKhrExchangeRate));
+
+                  return {
+                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? row.skuId }),
+                    highlight: retailPriceChanged,
+                    inputCellIndexes: [2],
+                    cells: [
+                      <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                      <StockLatestMoneyCell countedAtBySku={countedAtBySku} latestValue={latestRetailPrice} skuId={row.skuId} />,
+                      <>
+                        <RecordUpdateMobileLabel>{t('stockUpdateCurrentRetailPrice')}</RecordUpdateMobileLabel>
+                        <div className="flex justify-start pr-3">
+                          <Input
+                            aria-label={t('stockUpdateCurrentRetailPrice')}
+                            className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            disabled={!sku?.soldAsProduct}
+                            min="0"
+                            placeholder={latestRetailPricePlaceholder}
+                            step={moneyInputStep(currency)}
+                            type="number"
+                            value={retailPriceChanged && row.productPrice != null ? displayMoneyFromUsd(row.productPrice, currency, usdToKhrExchangeRate) : ''}
+                            onChange={(event) =>
+                              updateRow(row.skuId, {
+                                productPrice: event.target.value ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate) : latestRetailPrice,
+                              })
+                            }
+                          />
+                        </div>
+                      </>,
+                    ],
+                  };
+                }}
+              />
+            </>
+          )
+        ) : null}
+      </div>
+    </WorkspacePanel>
+  );
+}
+
+function StockFlagsStep(props: {
+  catalog: SenaCatalog | null;
+  choice: OptionalStockStepChoice;
+  countedAtBySku: Map<string, string>;
+  debugCellBoundaries: boolean;
+  guidance?: string | null;
+  onReorderRows: (activeSkuId: string, overSkuId: string) => void;
+  skuSignalDrafts: Record<string, SkuSignalDraft>;
+  stockBySku: Map<string, SenaStockSnapshot>;
+  updateSkuSignalDraft: (skuId: string, updater: (draft: SkuSignalDraft) => SkuSignalDraft) => void;
+  visibleRows: StockRow[];
+  onChooseNo: () => void;
+  onChooseYes: () => void;
+}) {
+  const { t } = usePreferences();
+  const { catalog, choice, countedAtBySku, debugCellBoundaries, guidance, onReorderRows, skuSignalDrafts, stockBySku, updateSkuSignalDraft, visibleRows, onChooseNo, onChooseYes } = props;
+  const stockEventOptions: Array<{
+    value: StockEventDropdownValue;
+    label: string;
+    icon: ReactNode;
+  }> = [
+    {
+      value: 'none',
+      label: t('stockUpdateNoEventInterval'),
+      icon: <StatusReadyIcon aria-hidden="true" className="size-4" />,
+    },
+    {
+      value: 'blocked',
+      label: t('stockUpdateBlockedEvent'),
+      icon: <StatusWarningIcon aria-hidden="true" className="size-4" />,
+    },
+    {
+      value: 'stockout',
+      label: t('stockUpdateStockoutEvent'),
+      icon: <EntityFlagIcon aria-hidden="true" className="size-4" />,
+    },
+  ];
+
+  return (
+    <WorkspacePanel
+      action={null}
+      className={recordUpdateWhiteCardClassName}
+      descriptor={t('stockUpdateFlagsStepDescription')}
+      style={recordUpdateWhiteCardStyle}
+      title={<SectionLabel tooltip={t('stockUpdateSkuFlagsTooltip')} tooltipLabel={t('stockUpdateSkuFlagsTooltipLabel')}>{t('stockUpdateAddFlags')}</SectionLabel>}
+    >
+      <div className="grid gap-3">
+        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateFlagsStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateFlagsStepQuestion')} />
+        {choice === 'yes' ? (
+          (catalog?.skus ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
+          ) : (
+            <>
+              <StockReorderHint />
+              <SortableStockTable
+                debugCellBoundaries={debugCellBoundaries}
+                columns={[
+                  {
+                    header: null,
+                    className: 'w-12 px-3 text-center',
+                    width: '3.5rem',
+                  },
+                  { header: t('stockUpdateSkuLatestObservation'), width: '52%' },
+                  { header: t('stockUpdateEventColumn'), width: '40%' },
+                ]}
+                rows={visibleRows}
+                onReorderRows={onReorderRows}
+                renderRow={(row) => {
+                  const sku = catalog?.skus.find((entry) => entry.skuId === row.skuId);
+                  const draft = skuSignalDrafts[row.skuId];
+                  const eventValue = draft?.blockedEnabled ? draft.blockedState : 'none';
+
+                  return {
+                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? row.skuId }),
+                    highlight: Boolean(draft?.blockedEnabled),
+                    inputCellIndexes: [1],
+                    cells: [
+                      <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                      <div className="min-w-0">
+                        <RecordUpdateMobileLabel>{t('stockUpdateEventColumn')}</RecordUpdateMobileLabel>
+                        <Select
+                          value={eventValue}
+                          onValueChange={(value) =>
+                            updateSkuSignalDraft(row.skuId, (current) => ({
+                              ...skuEventOnlyDraft(current),
+                              blockedEnabled: value !== 'none',
+                              blockedState: value === 'stockout' ? 'stockout' : 'blocked',
+                            }))
+                          }
+                        >
+                          <SelectTrigger
+                            aria-label={t('stockUpdateEventFor', { name: sku?.name ?? row.skuId })}
+                            className={cn('min-w-0 w-full max-w-[18rem]', recordUpdateSelectTriggerClassName, 'justify-between')}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {stockEventOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <span className="flex items-center gap-2">
+                                  {option.icon}
+                                  <span>{option.label}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>,
+                    ],
+                  };
+                }}
+              />
+            </>
+          )
         ) : null}
       </div>
     </WorkspacePanel>
@@ -1478,7 +1945,6 @@ function ServiceSignalsStep({
 }) {
   const { t } = usePreferences();
   const showFlagColumn = anyServiceFlags(serviceSignalDrafts);
-  const layout = showFlagColumn ? serviceSignalsTableLayoutWithFlags : serviceSignalsTableLayout;
   const debugTrackClassName = debugCellBoundaries ? tableDebugTrackClassName : '';
   const debugFlushClassName = debugCellBoundaries ? tableDebugFlushClassName : '';
 
@@ -1496,7 +1962,9 @@ function ServiceSignalsStep({
           Cell boundaries
         </Button>
       }
+      className={recordUpdateWhiteCardClassName}
       descriptor={t(STOCK_UPDATE_STEP_COPY.service.descriptionKey)}
+      style={recordUpdateWhiteCardStyle}
       title={
         <SectionLabel
           tooltip={t('stockUpdateServiceStepTooltip')}
@@ -1511,176 +1979,178 @@ function ServiceSignalsStep({
         {(catalog?.services ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('stockUpdateNoServicesHelper')}</p>
         ) : (
-          <HeaderedTable variant="framed">
-            <div className={layout.containerClassName} style={layout.style}>
-              <HeaderedTableHeader className={cn(layout.headerClassName, debugTrackClassName, debugFlushClassName)}>
-                <HeaderedTableHeaderCell>{t('stockUpdateServiceHeader')}</HeaderedTableHeaderCell>
-                <HeaderedTableHeaderCell align="center">{t('stockUpdateLatestPrice')}</HeaderedTableHeaderCell>
-                {showFlagColumn ? <HeaderedTableHeaderCell>{t('stockUpdateFlags')}</HeaderedTableHeaderCell> : null}
-                <HeaderedTableHeaderCell align="right" className="pr-2 whitespace-nowrap">
+          <RecordUpdateTable
+            columns={[
+              { header: t('stockUpdateServiceHeader'), width: showFlagColumn ? '30%' : '42%' },
+              { header: t('stockUpdateLatestPrice'), className: 'text-center', width: '18%' },
+              ...(showFlagColumn ? [{ header: t('stockUpdateFlags'), width: '34%' } satisfies RecordUpdateTableColumn] : []),
+              {
+                header: (
                   <SectionLabel
                     tooltip={t('stockUpdateServiceFlagsTooltip')}
                     tooltipLabel={t('stockUpdateServiceFlagsTooltipLabel')}
                   >
                     {t('stockUpdateAddFlags')}
                   </SectionLabel>
-                </HeaderedTableHeaderCell>
-              </HeaderedTableHeader>
-              <HeaderedTableBody className={layout.bodyClassName}>
-                {(catalog?.services ?? []).map((service) => {
-                  const draft = serviceSignalDrafts[service.serviceId];
-                  const flagIds = activeServiceFlagIds(draft);
-                  const linkedSkuCount = (catalog?.sharingMask ?? []).filter(
-                    (entry) => entry.enabled && entry.serviceId === service.serviceId,
-                  ).length;
+                ),
+                className: 'text-right',
+                width: showFlagColumn ? '18%' : '40%',
+              },
+            ]}
+          >
+            {(catalog?.services ?? []).map((service) => {
+              const draft = serviceSignalDrafts[service.serviceId];
+              const flagIds = activeServiceFlagIds(draft);
+              const linkedSkuCount = (catalog?.sharingMask ?? []).filter(
+                (entry) => entry.enabled && entry.serviceId === service.serviceId,
+              ).length;
 
-                  return (
-                    <HeaderedTableRow
-                      key={service.serviceId}
-                      className={cn(
-                        rowHoverClassName,
-                        debugTrackClassName,
-                        debugFlushClassName,
-                        layout.rowClassName,
-                        flagIds.length > 0 && 'bg-primary/[0.04]',
-                      )}
-                    >
+              return (
+                <TableRow
+                  key={service.serviceId}
+                  className={cn(
+                    rowHoverClassName,
+                    debugTrackClassName,
+                    debugFlushClassName,
+                    flagIds.length > 0 && 'bg-primary/[0.04]',
+                  )}
+                >
+                  <TableCell className={recordUpdateTableCellClassName}>
+                    <div className="min-w-0">
+                      <span className="block font-medium text-foreground">{service.name}</span>
+                      <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+                        {service.serviceId}
+                      </span>
+                      <span className="mt-1 block text-sm text-muted-foreground">
+                        {t('stockUpdateLinkedSkuCount', { count: linkedSkuCount, suffix: linkedSkuCount === 1 ? '' : 's' })}
+                      </span>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className={cn(recordUpdateTableCellClassName, 'text-center')}>
+                    <div className="min-w-0">
+                      <RecordUpdateMobileLabel>{t('stockUpdateLatestPrice')}</RecordUpdateMobileLabel>
+                      <p className="text-sm font-medium text-foreground">
+                        {formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
+                      </p>
+                    </div>
+                  </TableCell>
+
+                  {showFlagColumn ? (
+                    <TableCell className={recordUpdateTableCellClassName}>
                       <div className="min-w-0">
-                        <HeaderedTableCellStack
-                          primary={
-                            <span className="min-w-0">
-                              <span className="block font-medium text-foreground">{service.name}</span>
-                              <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                                {service.serviceId}
-                              </span>
-                              <span className="mt-1 block text-sm text-muted-foreground">
-                                {t('stockUpdateLinkedSkuCount', { count: linkedSkuCount, suffix: linkedSkuCount === 1 ? '' : 's' })}
-                              </span>
-                            </span>
-                          }
-                        />
-                      </div>
-
-                      <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateLatestPrice')}</HeaderedTableMobileLabel>
-                        <p className="text-center text-sm font-medium text-foreground">
-                          {formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
-                        </p>
-                      </div>
-
-                      {showFlagColumn ? (
-                        <div className="min-w-0">
-                          <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateFlags')}</HeaderedTableMobileLabel>
-                          {flagIds.length > 0 ? (
-                            <div className="grid">
-                              {draft.priceEnabled ? (
-                                <FlagSection
-                                  label={t('stockUpdatePriceIfChanged')}
-                                  removeLabel={t('stockUpdateRemovePriceFlagFor', { name: service.name })}
-                                  onRemove={() =>
+                        <RecordUpdateMobileLabel>{t('stockUpdateFlags')}</RecordUpdateMobileLabel>
+                        {flagIds.length > 0 ? (
+                          <div className="grid">
+                            {draft.priceEnabled ? (
+                              <FlagSection
+                                label={t('stockUpdatePriceIfChanged')}
+                                removeLabel={t('stockUpdateRemovePriceFlagFor', { name: service.name })}
+                                onRemove={() =>
+                                  updateServiceSignalDraft(service.serviceId, (current) => ({
+                                    ...current,
+                                    priceEnabled: false,
+                                    price: '',
+                                  }))
+                                }
+                              >
+                                <Input
+                                  aria-label={t('stockUpdatePriceChangedAria', { name: service.name })}
+                                  className={flagControlClassName}
+                                  min="0"
+                                  placeholder={t('stockUpdateNewPrice')}
+                                  step={moneyInputStep(currency)}
+                                  type="number"
+                                  value={draft.price}
+                                  onChange={(event) =>
                                     updateServiceSignalDraft(service.serviceId, (current) => ({
                                       ...current,
-                                      priceEnabled: false,
-                                      price: '',
+                                      priceEnabled: true,
+                                      price: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </FlagSection>
+                            ) : null}
+                            {draft.blockedEnabled ? (
+                              <FlagSection
+                                label={t('stockUpdateEventFlag')}
+                                removeLabel={t('stockUpdateRemoveEventFlagFor', { name: service.name })}
+                                onRemove={() =>
+                                  updateServiceSignalDraft(service.serviceId, (current) => ({
+                                    ...current,
+                                    blockedEnabled: false,
+                                    blockedState: 'blocked',
+                                  }))
+                                }
+                              >
+                                <Select
+                                  value={draft.blockedState}
+                                  onValueChange={(value) =>
+                                    updateServiceSignalDraft(service.serviceId, (current) => ({
+                                      ...current,
+                                      blockedEnabled: true,
+                                      blockedState: value as StockoutFlagValue,
                                     }))
                                   }
                                 >
-                                    <Input
-                                      aria-label={t('stockUpdatePriceChangedAria', { name: service.name })}
-                                      className={flagControlClassName}
-                                      min="0"
-                                      placeholder={t('stockUpdateNewPrice')}
-                                      step={moneyInputStep(currency)}
-                                      type="number"
-                                      value={draft.price}
-                                      onChange={(event) =>
-                                        updateServiceSignalDraft(service.serviceId, (current) => ({
-                                          ...current,
-                                          priceEnabled: true,
-                                          price: event.target.value,
-                                        }))
-                                      }
-                                  />
-                                </FlagSection>
-                              ) : null}
-                              {draft.blockedEnabled ? (
-                                <FlagSection
-                                  label={t('stockUpdateEventFlag')}
-                                  removeLabel={t('stockUpdateRemoveEventFlagFor', { name: service.name })}
-                                  onRemove={() =>
-                                    updateServiceSignalDraft(service.serviceId, (current) => ({
-                                      ...current,
-                                      blockedEnabled: false,
-                                      blockedState: 'blocked',
-                                    }))
-                                  }
-                                >
-                                  <Select
-                                    value={draft.blockedState}
-                                    onValueChange={(value) =>
-                                      updateServiceSignalDraft(service.serviceId, (current) => ({
-                                        ...current,
-                                        blockedEnabled: true,
-                                        blockedState: value as StockoutFlagValue,
-                                      }))
-                                    }
+                                  <SelectTrigger
+                                    aria-label={t('stockUpdateBlockedStateAria', { name: service.name })}
+                                    className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
                                   >
-                                    <SelectTrigger
-                                      aria-label={t('stockUpdateBlockedStateAria', { name: service.name })}
-                                      className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
-                                    >
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
-                                      <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </FlagSection>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
-                          )}
-                        </div>
-                      ) : null}
-
-                      <div className="min-w-0">
-                        <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{t('stockUpdateAddFlags')}</HeaderedTableMobileLabel>
-                        <FlagActionMenu
-                          actions={[
-                            {
-                              key: 'price',
-                              label: draft?.priceEnabled ? t('stockUpdateRemovePriceChange') : t('stockUpdateAddPriceChange'),
-                              icon: <ActionCreatePackageIcon className="size-4" />,
-                              onSelect: () =>
-                                updateServiceSignalDraft(service.serviceId, (current) => ({
-                                  ...current,
-                                  priceEnabled: !current.priceEnabled,
-                                  price: current.priceEnabled ? '' : current.price,
-                                })),
-                            },
-                            {
-                              key: 'blocked',
-                              label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
-                              icon: <StatusUnavailableIcon className="size-4" />,
-                              onSelect: () =>
-                                updateServiceSignalDraft(service.serviceId, (current) => ({
-                                  ...current,
-                                  blockedEnabled: !current.blockedEnabled,
-                                  blockedState: current.blockedEnabled ? 'blocked' : current.blockedState,
-                                })),
-                            },
-                          ]}
-                          label={t('stockUpdateAddFlagsFor', { name: service.name })}
-                        />
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
+                                    <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </FlagSection>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
+                        )}
                       </div>
-                    </HeaderedTableRow>
-                  );
-                })}
-              </HeaderedTableBody>
-            </div>
-          </HeaderedTable>
+                    </TableCell>
+                  ) : null}
+
+                  <TableCell className={cn(recordUpdateTableCellClassName, 'text-right')}>
+                    <div className="min-w-0">
+                      <RecordUpdateMobileLabel>{t('stockUpdateAddFlags')}</RecordUpdateMobileLabel>
+                      <FlagActionMenu
+                        actions={[
+                          {
+                            key: 'price',
+                            label: draft?.priceEnabled ? t('stockUpdateRemovePriceChange') : t('stockUpdateAddPriceChange'),
+                            icon: <ActionCreatePackageIcon className="size-4" />,
+                            onSelect: () =>
+                              updateServiceSignalDraft(service.serviceId, (current) => ({
+                                ...current,
+                                priceEnabled: !current.priceEnabled,
+                                price: current.priceEnabled ? '' : current.price,
+                              })),
+                          },
+                          {
+                            key: 'blocked',
+                            label: draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent'),
+                            icon: <StatusUnavailableIcon className="size-4" />,
+                            onSelect: () =>
+                              updateServiceSignalDraft(service.serviceId, (current) => ({
+                                ...current,
+                                blockedEnabled: !current.blockedEnabled,
+                                blockedState: current.blockedEnabled ? 'blocked' : current.blockedState,
+                              })),
+                          },
+                        ]}
+                        label={t('stockUpdateAddFlagsFor', { name: service.name })}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </RecordUpdateTable>
         )}
       </div>
     </WorkspacePanel>
@@ -1704,17 +2174,13 @@ function RegimeFields({
     { value: 'correction', label: t('stockUpdateRegimeCorrection'), detail: t('stockUpdateRegimeCorrectionDetail') },
   ];
   const selectedRegime = regimeOptions.find((option) => option.value === regimeHint) ?? null;
-  const SelectedIcon = getRegimeIcon(selectedRegime?.value ?? 'normal');
+  const NoSignalIcon = getRegimeIcon('none');
+  const SelectedIcon = getRegimeIcon(selectedRegime?.value ?? 'none');
   const regimeDescription = selectedRegime?.detail ?? t('stockUpdateRegimeDescriptionEmpty');
 
   return (
     <div className="grid gap-2">
-      <label className="grid gap-1 text-sm font-medium text-foreground">
-        <span className="inline-flex items-baseline gap-1.5">
-          <span>{t('stockUpdateOverallRegime')}</span>
-          <span className="font-normal text-muted-foreground">{t('stockUpdateOptional')}</span>
-          <HelpTooltip content={t('stockUpdateRegimeHelp')} label={t('stockUpdateOverallRegime')} className="self-center" />
-        </span>
+      <div className="grid gap-1 text-sm font-medium text-foreground">
         <Select value={regimeHint || 'none'} onValueChange={(value) => setRegimeHint(value === 'none' ? '' : (value as SenaObservationRegimeHint))}>
           <SelectTrigger
             aria-label={`${t('stockUpdateOverallRegime')} ${t('stockUpdateOptional')}`}
@@ -1723,7 +2189,12 @@ function RegimeFields({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">{t('stockUpdateNoRegimeSignal')}</SelectItem>
+            <SelectItem value="none">
+              <span className="flex items-center gap-2">
+                <NoSignalIcon className="size-4 text-muted-foreground" />
+                <span>{t('stockUpdateNoRegimeSignal')}</span>
+              </span>
+            </SelectItem>
             {regimeOptions.map((option) => {
               const Icon = getRegimeIcon(option.value);
               return (
@@ -1737,7 +2208,7 @@ function RegimeFields({
             })}
           </SelectContent>
         </Select>
-      </label>
+      </div>
       <div className="grid gap-1 text-sm leading-6 text-muted-foreground">
         <p className="flex items-start gap-2">
           <SelectedIcon className="mt-1 size-4 shrink-0 text-primary" />
@@ -1768,7 +2239,9 @@ function ReviewStep({
   const { t } = usePreferences();
   return (
     <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
       descriptor={t(STOCK_UPDATE_STEP_COPY.review.descriptionKey)}
+      style={recordUpdateWhiteCardStyle}
       title={
         <SectionLabel
           tooltip={t('stockUpdateReviewTooltip')}
@@ -1845,6 +2318,10 @@ export function StockUpdateSessionRoute() {
   const { currency, language, showHeartbeatRibbons = true, t, usdToKhrExchangeRate } = usePreferences();
   const location = useLocation();
   const navigate = useNavigate();
+  const lane = useMemo(() => getRecordUpdateLane(location.pathname), [location.pathname]);
+  const draftStorageKey = lane.draftStorageKey;
+  const stockRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(lane.id), [lane.id]);
+  const activeStepOrder = useMemo(() => stepOrderForLane(lane.id), [lane.id]);
   const latestAt = latestObservationAt(observations);
   const incomingEditSession = useMemo(() => readRecordUpdateEditSession(location.state), [location.state]);
   const initialObservedAtRef = useRef(localDateTimeInputValue(null));
@@ -1862,27 +2339,43 @@ export function StockUpdateSessionRoute() {
   );
   const [pendingEditSession, setPendingEditSession] = useState<EditSessionState | null>(null);
   const [replaceDraftDialogOpen, setReplaceDraftDialogOpen] = useState(false);
-  const [currentStepId, setCurrentStepId] = useState<StockUpdateStepId>('stock');
+  const [currentStepId, setCurrentStepId] = useState<StockUpdateStepId>('observed-at');
   const [unlockedStepCount, setUnlockedStepCount] = useState(1);
   const [observedAt, setObservedAt] = useState(() => initialObservedAtRef.current);
   const [notes, setNotes] = useState('');
+  const [notesPlaceholderKey, setNotesPlaceholderKey] = useState<TranslationKey>(() => randomReportNotePlaceholderKey());
   const [stockView, setStockView] = useState<StockView>('priority');
-  const [rows, setRows] = useState(() => buildInitialRows(catalog, observations));
+  const [persistedStockRowOrder, setPersistedStockRowOrder] = useState(() => readStockRowOrder(stockRowOrderStorageKey));
+  const [rows, setRows] = useState(() =>
+    applyStockRowOrder(buildInitialRows(catalog, observations), readStockRowOrder(stockRowOrderStorageKey)),
+  );
   const [skuSignalDrafts, setSkuSignalDrafts] = useState<Record<string, SkuSignalDraft>>({});
+  const [stockStepChoices, setStockStepChoices] = useState<Record<OptionalStockStepId, OptionalStockStepChoice>>(
+    () => createDefaultStockStepChoices(),
+  );
   const [serviceSignalDrafts, setServiceSignalDrafts] = useState<Record<string, ServiceSignalDraft>>({});
   const [regimeHint, setRegimeHint] = useState<SenaObservationRegimeHint | ''>('');
   const [serviceRankings, setServiceRankings] = useState<string[]>([]);
   const [retailRankings, setRetailRankings] = useState<string[]>([]);
   const [debugCellBoundaries, setDebugCellBoundaries] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasSavedDraft, setHasSavedDraft] = useState(() => hasStoredStockUpdateDraft());
+  const [hasSavedDraft, setHasSavedDraft] = useState(() => hasStoredStockUpdateDraft(draftStorageKey));
   const [draftWasRestored, setDraftWasRestored] = useState(false);
   const [leaveDraftDialogOpen, setLeaveDraftDialogOpen] = useState(false);
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
   const workingCatalog = editSession ? catalog : visibleCatalog;
+  const buildOrderedInitialRows = useCallback(
+    (nextCatalog: SenaCatalog | null) =>
+      applyStockRowOrder(buildInitialRows(nextCatalog, observations), persistedStockRowOrder),
+    [observations, persistedStockRowOrder],
+  );
 
   const stockBySku = useMemo(() => latestStockBySku(workingCatalog, observations), [observations, workingCatalog]);
   const countedAtBySku = useMemo(() => latestCountedAtBySku(observations), [observations]);
+  const visibleSkuSignalDrafts = useMemo(
+    () => (lane.id === 'stock-count' ? skuEventOnlyDrafts(skuSignalDrafts) : skuSignalDrafts),
+    [lane.id, skuSignalDrafts],
+  );
   const highRiskIds = new Set(workspaceSummary?.highRiskSkuIds ?? []);
   const serviceLinkedSkuIds = useMemo(
     () => new Set((workingCatalog?.sharingMask ?? []).filter((entry) => entry.enabled).map((entry) => entry.skuId)),
@@ -1900,15 +2393,17 @@ export function StockUpdateSessionRoute() {
     return new Set(scored.sort((left, right) => right.score - left.score).slice(0, 8).map((entry) => entry.skuId));
   }, [countedAtBySku, highRiskIds, serviceLinkedSkuIds, workingCatalog?.skus]);
 
-  const visibleRows = rows.filter((row) => {
-    if (stockView === 'counted') {
-      return stockRowChanged(workingCatalog, stockBySku, row) || hasSkuFlags(skuSignalDrafts[row.skuId]);
-    }
-    if (stockView === 'priority') {
-      return prioritySkuIds.has(row.skuId);
-    }
-    return true;
-  });
+  const visibleRows = lane.id === 'stock-count'
+    ? rows
+    : rows.filter((row) => {
+        if (stockView === 'counted') {
+          return stockRowChanged(workingCatalog, stockBySku, row) || hasSkuFlags(skuSignalDrafts[row.skuId]);
+        }
+        if (stockView === 'priority') {
+          return prioritySkuIds.has(row.skuId);
+        }
+        return true;
+      });
 
   const observedAtIso = dateTimeInputToIso(observedAt);
   const intervalDays = intervalDaysBetween(latestAt, observedAtIso);
@@ -1917,13 +2412,18 @@ export function StockUpdateSessionRoute() {
   const fullUpdate = rows.length > 0 && rows.every((row) => stockRowChanged(workingCatalog, stockBySku, row));
   const defaultServiceRankingIds = (workingCatalog?.services ?? []).map((service) => service.serviceId);
   const defaultRetailRankingIds = (workingCatalog?.skus ?? []).filter((sku) => sku.soldAsProduct).map((sku) => sku.skuId);
-  const currentStepIndex = STOCK_UPDATE_STEP_ORDER.indexOf(currentStepId);
-  const isLastStep = currentStepIndex === STOCK_UPDATE_STEP_ORDER.length - 1;
-  const skuFlagCount = Object.values(skuSignalDrafts).reduce((count, draft) => count + activeSkuFlagIds(draft).length, 0);
+  const currentStepIndex = activeStepOrder.indexOf(currentStepId);
+  const normalizedCurrentStepIndex = currentStepIndex >= 0 ? currentStepIndex : 0;
+  const isLastStep = normalizedCurrentStepIndex === activeStepOrder.length - 1;
+  const skuFlagCount = Object.values(visibleSkuSignalDrafts).reduce((count, draft) => count + activeSkuFlagIds(draft).length, 0);
   const serviceFlagCount = Object.values(serviceSignalDrafts).reduce((count, draft) => count + activeServiceFlagIds(draft).length, 0);
   const rankingSignalCount = serviceRankings.length + retailRankings.length;
+  const costChangedCount = changedRowCount(rows, (row) => stockCostChanged(workingCatalog, stockBySku, row));
+  const retailPriceChangedCount = changedRowCount(rows, (row) => stockRetailPriceChanged(workingCatalog, stockBySku, row));
+  const serviceStepIndex = activeStepOrder.indexOf('service');
+  const rankingsStepIndex = activeStepOrder.indexOf('rankings');
   const stockStepSatisfied = !isFirstObservation || countedSkuCount > 0;
-  const skuFlagsValid = !skuFlagsHaveEmptyRequiredValues(skuSignalDrafts);
+  const skuFlagsValid = !skuFlagsHaveEmptyRequiredValues(visibleSkuSignalDrafts);
   const serviceFlagsValid = !serviceFlagsHaveEmptyRequiredValues(serviceSignalDrafts);
   const draftState = useMemo<StockUpdateDraftState>(
     () => ({
@@ -1937,7 +2437,8 @@ export function StockUpdateSessionRoute() {
       rows,
       serviceRankings,
       serviceSignalDrafts,
-      skuSignalDrafts,
+      skuSignalDrafts: visibleSkuSignalDrafts,
+      stockStepChoices,
       stockBySku,
       stockView,
       unlockedStepCount,
@@ -1952,7 +2453,8 @@ export function StockUpdateSessionRoute() {
       rows,
       serviceRankings,
       serviceSignalDrafts,
-      skuSignalDrafts,
+      visibleSkuSignalDrafts,
+      stockStepChoices,
       stockBySku,
       stockView,
       unlockedStepCount,
@@ -1961,6 +2463,22 @@ export function StockUpdateSessionRoute() {
   const hasMeaningfulChanges = useMemo(() => hasMeaningfulStockUpdateChanges(draftState), [draftState]);
   const canDiscardChanges = hasMeaningfulChanges || hasSavedDraft || draftWasRestored;
   const hasAnyLiveDraft = canDiscardChanges;
+
+  function persistStockRowOrder(nextRows: StockRow[]) {
+    const orderedSkuIds = nextRows.map((row) => row.skuId);
+    setPersistedStockRowOrder(orderedSkuIds);
+    writeStockRowOrder(stockRowOrderStorageKey, orderedSkuIds);
+  }
+
+  function handleStockRowReorder(activeSkuId: string, overSkuId: string) {
+    setRows((currentRows) => {
+      const nextRows = reorderStockRows(currentRows, activeSkuId, overSkuId);
+      if (nextRows !== currentRows) {
+        persistStockRowOrder(nextRows);
+      }
+      return nextRows;
+    });
+  }
 
   function applyHydratedDraftState({
     hydratedState,
@@ -1978,6 +2496,7 @@ export function StockUpdateSessionRoute() {
     setStockView(hydratedState.stockView);
     setRows(hydratedState.rows);
     setSkuSignalDrafts(hydratedState.skuSignalDrafts);
+    setStockStepChoices(hydratedState.stockStepChoices);
     setServiceSignalDrafts(hydratedState.serviceSignalDrafts);
     setRegimeHint(hydratedState.regimeHint);
     setServiceRankings(hydratedState.serviceRankings);
@@ -1994,6 +2513,7 @@ export function StockUpdateSessionRoute() {
       catalog: editCatalog,
       currency,
       input: nextEditSession.input,
+      stepOrder: activeStepOrder,
       usdToKhrExchangeRate,
     });
     applyHydratedDraftState({
@@ -2008,12 +2528,16 @@ export function StockUpdateSessionRoute() {
   }
 
   useEffect(() => {
+    setPersistedStockRowOrder(readStockRowOrder(stockRowOrderStorageKey));
+  }, [stockRowOrderStorageKey]);
+
+  useEffect(() => {
     if (!workingCatalog) {
-      setRows(buildInitialRows(workingCatalog, observations));
+      setRows(buildOrderedInitialRows(workingCatalog));
       return;
     }
 
-    const baselineRows = buildInitialRows(workingCatalog, observations);
+    const baselineRows = buildOrderedInitialRows(workingCatalog);
     const nextEditSession = incomingEditSession
       ? {
           observationId: incomingEditSession.observationId,
@@ -2035,7 +2559,8 @@ export function StockUpdateSessionRoute() {
       const hydratedDraft = hydrateStockUpdateDraft({
         baselineRows,
         catalog: workingCatalog,
-        draft: readStockUpdateDraft(),
+        draft: readStockUpdateDraft(draftStorageKey),
+        stepOrder: activeStepOrder,
       });
 
       if (hydratedDraft) {
@@ -2046,6 +2571,7 @@ export function StockUpdateSessionRoute() {
         setStockView(hydratedDraft.stockView);
         setRows(hydratedDraft.rows);
         setSkuSignalDrafts(hydratedDraft.skuSignalDrafts);
+        setStockStepChoices(hydratedDraft.stockStepChoices);
         setServiceSignalDrafts(hydratedDraft.serviceSignalDrafts);
         setRegimeHint(hydratedDraft.regimeHint);
         setServiceRankings(hydratedDraft.serviceRankings);
@@ -2055,7 +2581,7 @@ export function StockUpdateSessionRoute() {
         return;
       }
 
-      removeStockUpdateDraft();
+      removeStockUpdateDraft(draftStorageKey);
       setHasSavedDraft(false);
       setDraftWasRestored(false);
     }
@@ -2063,7 +2589,7 @@ export function StockUpdateSessionRoute() {
     if (!hasAnyLiveDraft && !editSession) {
       setRows(baselineRows);
     }
-  }, [currency, editSession, hasAnyLiveDraft, incomingEditSession, location.pathname, navigate, observations, usdToKhrExchangeRate, workingCatalog]);
+  }, [activeStepOrder, buildOrderedInitialRows, currency, draftStorageKey, editSession, hasAnyLiveDraft, incomingEditSession, location.pathname, navigate, observations, usdToKhrExchangeRate, workingCatalog]);
 
   useEffect(() => {
     if (!(catalog ?? visibleCatalog) || !draftHydrationCheckedRef.current || !incomingEditSession) {
@@ -2087,8 +2613,9 @@ export function StockUpdateSessionRoute() {
       return;
     }
 
-    hydrateEditSession(nextEditSession, buildInitialRows(catalog ?? visibleCatalog, observations));
+    hydrateEditSession(nextEditSession, buildOrderedInitialRows(catalog ?? visibleCatalog));
   }, [
+    buildOrderedInitialRows,
     catalog,
     editSession?.observationId,
     hasAnyLiveDraft,
@@ -2141,7 +2668,7 @@ export function StockUpdateSessionRoute() {
       }
       const latestState = latestDraftStateRef.current;
       if (latestState) {
-        writeStockUpdateDraft(latestState);
+        writeStockUpdateDraft(latestState, draftStorageKey);
       }
     }
 
@@ -2154,7 +2681,7 @@ export function StockUpdateSessionRoute() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       persistLatestDraft();
     };
-  }, []);
+  }, [draftStorageKey]);
 
   function updateRow(skuId: string, patch: Partial<StockRow>) {
     setRows((current) => current.map((row) => (row.skuId === skuId ? { ...row, ...patch } : row)));
@@ -2174,6 +2701,48 @@ export function StockUpdateSessionRoute() {
     }));
   }
 
+  function updateStockStepChoice(stepId: OptionalStockStepId, choice: OptionalStockStepChoice) {
+    setStockStepChoices((current) => ({
+      ...current,
+      [stepId]: choice,
+    }));
+  }
+
+  function resetCostStepRows() {
+    setRows((current) => current.map((row) => ({ ...row, costPerUnit: baselineStockRow(workingCatalog, stockBySku, row.skuId).costPerUnit })));
+  }
+
+  function resetRetailPriceStepRows() {
+    setRows((current) => current.map((row) => ({ ...row, productPrice: baselineStockRow(workingCatalog, stockBySku, row.skuId).productPrice })));
+  }
+
+  function resetSkuFlagRows() {
+    setSkuSignalDrafts({});
+  }
+
+  function handleSkipOptionalStockStep(stepId: OptionalStockStepId) {
+    const shouldAdvanceAfterSkip = stockStepChoices[stepId] === 'unset';
+    updateStockStepChoice(stepId, 'no');
+    if (stepId === 'stock-cost') {
+      resetCostStepRows();
+    }
+    if (stepId === 'stock-price') {
+      resetRetailPriceStepRows();
+    }
+    if (stepId === 'stock-flags') {
+      resetSkuFlagRows();
+    }
+    if (!shouldAdvanceAfterSkip) {
+      return;
+    }
+    const targetIndex = activeStepOrder.indexOf(stepId);
+    if (targetIndex >= 0 && targetIndex < activeStepOrder.length - 1) {
+      const nextIndex = targetIndex + 1;
+      setUnlockedStepCount((current) => Math.max(current, nextIndex + 1));
+      setCurrentStepId(activeStepOrder[nextIndex]!);
+    }
+  }
+
   function buildPayload() {
     if (editSession) {
       return buildFullObservationPayload({
@@ -2186,7 +2755,7 @@ export function StockUpdateSessionRoute() {
         rows,
         serviceRankings,
         serviceSignalDrafts,
-        skuSignalDrafts,
+        skuSignalDrafts: visibleSkuSignalDrafts,
         usdToKhrExchangeRate,
         catalog: workingCatalog,
         stockBySku,
@@ -2203,7 +2772,7 @@ export function StockUpdateSessionRoute() {
     );
     payload.serviceRankings = serviceRankings;
     payload.retailRankings = retailRankings;
-    payload.orderSignals = Object.entries(skuSignalDrafts).flatMap(([skuId, draft]) => {
+    payload.orderSignals = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
       const nextSignals = [];
       if (draft.orderEnabled && Number(draft.orderedQuantity) > 0) {
         nextSignals.push({
@@ -2234,7 +2803,7 @@ export function StockUpdateSessionRoute() {
         serviceId,
         price: usdMoneyFromDisplay(Number(draft.price), currency, usdToKhrExchangeRate),
       }));
-    payload.retailStockouts = Object.entries(skuSignalDrafts)
+    payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
       .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(draft.blockedState) && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
       .map(([skuId]) => skuId);
     payload.serviceStockouts = Object.entries(serviceSignalDrafts)
@@ -2249,40 +2818,89 @@ export function StockUpdateSessionRoute() {
   const previewParts = observationCompositionParts(previewPayload);
   const submitDisabled =
     isSaving ||
-    !skuFlagsValid ||
-    !serviceFlagsValid ||
+    (stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid) ||
+    (lane.id !== 'stock-count' && !serviceFlagsValid) ||
     !hasStructuredObservationSignal(previewPayload) ||
     (isFirstObservation && previewPayload.stockSnapshot.length === 0);
 
   const stepStates = [
     {
+      id: 'observed-at',
+      title: t(STOCK_UPDATE_STEP_COPY['observed-at'].titleKey),
+      description: observedAtIso ? t('stockUpdateStepObservedAtReady') : t('stockUpdateStepObservedAtMissing'),
+      complete: Boolean(observedAtIso),
+    },
+    {
+      id: 'report-notes',
+      title: t(STOCK_UPDATE_STEP_COPY['report-notes'].titleKey),
+      description: notes.trim() ? t('stockUpdateStepNotesAdded') : t('stockUpdateStepNotesOptional'),
+      complete: true,
+    },
+    {
       id: 'stock',
       title: t(STOCK_UPDATE_STEP_COPY.stock.titleKey),
       description:
-        skuFlagCount > 0
-          ? t('stockUpdateStepSignalsAdded', { count: skuFlagCount, suffix: skuFlagCount === 1 ? '' : 's' })
-          : isFirstObservation
+        isFirstObservation
             ? t('stockUpdateStepCountAtLeastOneSku')
             : t('stockUpdateStepOptionalLater'),
-      complete: stockStepSatisfied && skuFlagsValid,
+      complete: stockStepSatisfied,
+    },
+    {
+      id: 'stock-cost',
+      title: t('stockUpdateCostIfChanged'),
+      description:
+        stockStepChoices['stock-cost'] === 'no'
+          ? t('stockUpdateStepSkipped')
+          : costChangedCount > 0
+            ? t('stockUpdateStepRowsChanged', { count: costChangedCount, suffix: costChangedCount === 1 ? '' : 's' })
+            : stockStepChoices['stock-cost'] === 'yes'
+              ? t('stockUpdateStepOptional')
+              : t('stockUpdateStepChooseYesNo'),
+      complete: stockStepChoices['stock-cost'] !== 'unset',
+    },
+    {
+      id: 'stock-price',
+      title: t('stockUpdateRetailPriceIfChanged'),
+      description:
+        stockStepChoices['stock-price'] === 'no'
+          ? t('stockUpdateStepSkipped')
+          : retailPriceChangedCount > 0
+            ? t('stockUpdateStepRowsChanged', { count: retailPriceChangedCount, suffix: retailPriceChangedCount === 1 ? '' : 's' })
+            : stockStepChoices['stock-price'] === 'yes'
+              ? t('stockUpdateStepOptional')
+              : t('stockUpdateStepChooseYesNo'),
+      complete: stockStepChoices['stock-price'] !== 'unset',
+    },
+    {
+      id: 'stock-flags',
+      title: t('stockUpdateAddFlags'),
+      description:
+        stockStepChoices['stock-flags'] === 'no'
+          ? t('stockUpdateStepSkipped')
+          : skuFlagCount > 0
+            ? t('stockUpdateStepSignalsAdded', { count: skuFlagCount, suffix: skuFlagCount === 1 ? '' : 's' })
+            : stockStepChoices['stock-flags'] === 'yes'
+              ? t('stockUpdateStepOptional')
+              : t('stockUpdateStepChooseYesNo'),
+      complete: stockStepChoices['stock-flags'] !== 'unset' && (stockStepChoices['stock-flags'] !== 'yes' || skuFlagsValid),
     },
     {
       id: 'service',
       title: t(STOCK_UPDATE_STEP_COPY.service.titleKey),
       description: serviceFlagCount > 0 ? t('stockUpdateStepSignalsAdded', { count: serviceFlagCount, suffix: serviceFlagCount === 1 ? '' : 's' }) : t('stockUpdateStepOptional'),
-      complete: (serviceFlagCount > 0 && serviceFlagsValid) || currentStepIndex > 1,
+      complete: (serviceFlagCount > 0 && serviceFlagsValid) || (serviceStepIndex >= 0 && normalizedCurrentStepIndex > serviceStepIndex),
     },
     {
       id: 'rankings',
       title: t(STOCK_UPDATE_STEP_COPY.rankings.titleKey),
       description: rankingSignalCount > 0 ? t('stockUpdateStepSignalsAdded', { count: rankingSignalCount, suffix: rankingSignalCount === 1 ? '' : 's' }) : t('stockUpdateStepOptional'),
-      complete: rankingSignalCount > 0 || currentStepIndex > 2,
+      complete: rankingSignalCount > 0 || (rankingsStepIndex >= 0 && normalizedCurrentStepIndex > rankingsStepIndex),
     },
     {
       id: 'context',
       title: t(STOCK_UPDATE_STEP_COPY.context.titleKey),
-      description: regimeHint ? t('stockUpdateStepRegimeSummary', { value: regimeHint.replaceAll('_', ' ') }) : t('stockUpdateStepContextSummary'),
-      complete: Boolean(observedAtIso),
+      description: regimeHint ? t('stockUpdateStepRegimeSummary', { value: regimeHint.replaceAll('_', ' ') }) : t('stockUpdateStepRegimeOptional'),
+      complete: true,
     },
     {
       id: 'review',
@@ -2290,41 +2908,60 @@ export function StockUpdateSessionRoute() {
       description: submitDisabled ? t('stockUpdateStepNotReady') : t('stockUpdateStepReadyToSave'),
       complete: !submitDisabled,
     },
-  ] satisfies Array<{ id: StockUpdateStepId; title: string; description: string; complete: boolean }>;
+  ].filter((step) => activeStepOrder.includes(step.id)) satisfies Array<{ id: StockUpdateStepId; title: string; description: string; complete: boolean }>;
 
   const canContinueCurrentStep =
-    currentStepId === 'context'
+    currentStepId === 'observed-at'
       ? Boolean(observedAtIso)
-      : currentStepId === 'stock'
-        ? stockStepSatisfied && skuFlagsValid
+      : currentStepId === 'context' || currentStepId === 'report-notes'
+        ? true
+        : currentStepId === 'stock'
+          ? stockStepSatisfied
+          : currentStepId === 'stock-cost'
+            ? stockStepChoices['stock-cost'] !== 'unset'
+            : currentStepId === 'stock-price'
+              ? stockStepChoices['stock-price'] !== 'unset'
+              : currentStepId === 'stock-flags'
+                ? stockStepChoices['stock-flags'] !== 'unset' && (stockStepChoices['stock-flags'] !== 'yes' || skuFlagsValid)
         : currentStepId === 'service'
           ? serviceFlagsValid
           : true;
 
+  const addSignalGuidanceKey =
+    lane.id === 'stock-count'
+      ? 'stockUpdateGuidanceAddStockCountSignal'
+      : 'stockUpdateGuidanceAddSignal';
+
   const stepGuidance =
-    currentStepId === 'context' && !observedAtIso
+    currentStepId === 'observed-at' && !observedAtIso
       ? t('stockUpdateGuidanceChooseObservedAt')
       : currentStepId === 'stock' && !stockStepSatisfied
         ? t('stockUpdateGuidanceCountOneSku')
-        : currentStepId === 'stock' && !skuFlagsValid
-          ? t('stockUpdateGuidanceFillSkuFlags')
-          : currentStepId === 'service' && !serviceFlagsValid
+        : currentStepId === 'stock-cost' && stockStepChoices['stock-cost'] === 'unset'
+          ? t('stockUpdateGuidanceChooseOptionalStep')
+          : currentStepId === 'stock-price' && stockStepChoices['stock-price'] === 'unset'
+            ? t('stockUpdateGuidanceChooseOptionalStep')
+            : currentStepId === 'stock-flags' && stockStepChoices['stock-flags'] === 'unset'
+              ? t('stockUpdateGuidanceChooseOptionalStep')
+              : currentStepId === 'stock-flags' && stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid
+                ? t('stockUpdateGuidanceFillSkuFlags')
+          : currentStepId === 'service' && lane.id !== 'stock-count' && !serviceFlagsValid
             ? t('stockUpdateGuidanceFillServiceFlags')
-        : currentStepId === 'review' && !skuFlagsValid
+        : currentStepId === 'review' && stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid
             ? t('stockUpdateGuidanceFillSkuFlagsSave')
-            : currentStepId === 'review' && !serviceFlagsValid
+            : currentStepId === 'review' && lane.id !== 'stock-count' && !serviceFlagsValid
               ? t('stockUpdateGuidanceFillServiceFlagsSave')
               : currentStepId === 'review' && !hasStructuredObservationSignal(previewPayload)
-                ? t('stockUpdateGuidanceAddSignal')
+                ? t(addSignalGuidanceKey)
           : currentStepId === 'review' && isFirstObservation && previewPayload.stockSnapshot.length === 0
             ? t('stockUpdateGuidanceFirstUpdateNeedsCount')
             : null;
 
   const reviewBlockers = [
-    ...(!skuFlagsValid ? [t('stockUpdateGuidanceFillSkuFlagsSave')] : []),
-    ...(!serviceFlagsValid ? [t('stockUpdateGuidanceFillServiceFlagsSave')] : []),
+    ...(stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid ? [t('stockUpdateGuidanceFillSkuFlagsSave')] : []),
+    ...(lane.id !== 'stock-count' && !serviceFlagsValid ? [t('stockUpdateGuidanceFillServiceFlagsSave')] : []),
     ...(!hasStructuredObservationSignal(previewPayload)
-      ? [t('stockUpdateGuidanceAddSignal')]
+      ? [t(addSignalGuidanceKey)]
       : []),
     ...(isFirstObservation && previewPayload.stockSnapshot.length === 0
       ? [t('stockUpdateGuidanceFirstUpdateNeedsCount')]
@@ -2332,7 +2969,7 @@ export function StockUpdateSessionRoute() {
   ];
 
   function selectStep(stepId: StockUpdateStepId) {
-    const targetIndex = STOCK_UPDATE_STEP_ORDER.indexOf(stepId);
+    const targetIndex = activeStepOrder.indexOf(stepId);
     if (targetIndex >= 0 && targetIndex < unlockedStepCount) {
       setCurrentStepId(stepId);
     }
@@ -2342,16 +2979,16 @@ export function StockUpdateSessionRoute() {
     if (!canContinueCurrentStep || isLastStep) {
       return;
     }
-    const nextIndex = currentStepIndex + 1;
+    const nextIndex = normalizedCurrentStepIndex + 1;
     setUnlockedStepCount((current) => Math.max(current, nextIndex + 1));
-    setCurrentStepId(STOCK_UPDATE_STEP_ORDER[nextIndex]!);
+    setCurrentStepId(activeStepOrder[nextIndex]!);
   }
 
   function goToPreviousStep() {
-    if (currentStepIndex === 0) {
+    if (normalizedCurrentStepIndex === 0) {
       return;
     }
-    setCurrentStepId(STOCK_UPDATE_STEP_ORDER[currentStepIndex - 1]!);
+    setCurrentStepId(activeStepOrder[normalizedCurrentStepIndex - 1]!);
   }
 
   function resetRecordUpdateState() {
@@ -2360,13 +2997,15 @@ export function StockUpdateSessionRoute() {
     setEditSession(null);
     setPendingEditSession(null);
     setReplaceDraftDialogOpen(false);
-    setCurrentStepId('stock');
+    setCurrentStepId('observed-at');
     setUnlockedStepCount(1);
     setObservedAt(nextObservedAt);
     setNotes('');
+    setNotesPlaceholderKey(randomReportNotePlaceholderKey());
     setStockView('priority');
-    setRows(buildInitialRows(catalog, observations));
+    setRows(buildOrderedInitialRows(catalog));
     setSkuSignalDrafts({});
+    setStockStepChoices(createDefaultStockStepChoices());
     setServiceSignalDrafts({});
     setRegimeHint('');
     setServiceRankings([]);
@@ -2376,7 +3015,7 @@ export function StockUpdateSessionRoute() {
 
   function handleDiscardChanges() {
     skipNextDraftPersistRef.current = true;
-    removeStockUpdateDraft();
+    removeStockUpdateDraft(draftStorageKey);
     setHasSavedDraft(false);
     setDraftWasRestored(false);
     resetRecordUpdateState();
@@ -2390,16 +3029,16 @@ export function StockUpdateSessionRoute() {
       return;
     }
     const payload = buildPayload();
-    if (!skuFlagsValid) {
+    if (stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid) {
       setError(t('stockUpdateGuidanceFillSkuFlagsSave'));
       return;
     }
-    if (!serviceFlagsValid) {
+    if (lane.id !== 'stock-count' && !serviceFlagsValid) {
       setError(t('stockUpdateGuidanceFillServiceFlagsSave'));
       return;
     }
     if (!hasStructuredObservationSignal(payload)) {
-      setError(t('stockUpdateGuidanceAddSignal'));
+      setError(t(addSignalGuidanceKey));
       return;
     }
     if (isFirstObservation && payload.stockSnapshot.length === 0) {
@@ -2421,7 +3060,7 @@ export function StockUpdateSessionRoute() {
     }
 
     skipNextDraftPersistRef.current = true;
-    removeStockUpdateDraft();
+    removeStockUpdateDraft(draftStorageKey);
     setHasSavedDraft(false);
     setDraftWasRestored(false);
     resetRecordUpdateState();
@@ -2443,7 +3082,7 @@ export function StockUpdateSessionRoute() {
     if (!latestState) {
       return;
     }
-    const wroteDraft = writeStockUpdateDraft(latestState);
+    const wroteDraft = writeStockUpdateDraft(latestState, draftStorageKey);
     setHasSavedDraft(wroteDraft);
     setDraftWasRestored(false);
   }
@@ -2554,11 +3193,53 @@ export function StockUpdateSessionRoute() {
       )}
     </>
   );
+  const [bottomNavigationIslandLeft, setBottomNavigationIslandLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    let frameElement: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let animationFrame = 0;
+
+    const updateIslandLeft = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        frameElement =
+          document.querySelector<HTMLElement>('[data-testid="shell-main-frame"]') ??
+          document.getElementById('main-content');
+        const rect = frameElement?.getBoundingClientRect();
+        setBottomNavigationIslandLeft(rect ? rect.left + rect.width / 2 : null);
+      });
+    };
+
+    updateIslandLeft();
+    window.addEventListener('resize', updateIslandLeft);
+    window.addEventListener('scroll', updateIslandLeft, { passive: true });
+
+    frameElement =
+      document.querySelector<HTMLElement>('[data-testid="shell-main-frame"]') ??
+      document.getElementById('main-content');
+    if (frameElement && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateIslandLeft);
+      resizeObserver.observe(frameElement);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', updateIslandLeft);
+      window.removeEventListener('scroll', updateIslandLeft);
+      resizeObserver?.disconnect();
+    };
+  }, []);
 
   const titleActions = (
     <WorkspaceActionRow>
       {draftStatusLabel ? <span className="px-1 text-sm text-muted-foreground">{draftStatusLabel}</span> : null}
       <Button
+        className={discardChangesButtonClassName}
         disabled={!canDiscardChanges}
         title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
         type="button"
@@ -2568,9 +3249,41 @@ export function StockUpdateSessionRoute() {
         <ActionDeleteIcon className="size-4" />
         {t('stockUpdateDiscardChanges')}
       </Button>
-      {navigationActions}
     </WorkspaceActionRow>
   );
+
+  const floatingTitleActions = (
+    <WorkspaceActionRow>
+      <Button
+        className={discardChangesButtonClassName}
+        disabled={!canDiscardChanges}
+        title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
+        type="button"
+        variant="ghost"
+        onClick={() => requestDiscard()}
+      >
+        <ActionDeleteIcon className="size-4" />
+        {t('stockUpdateDiscardChanges')}
+      </Button>
+    </WorkspaceActionRow>
+  );
+
+  const bottomNavigationIsland =
+    typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed bottom-4 z-40 max-w-[calc(100vw-2rem)] -translate-x-1/2 md:bottom-6"
+            style={{ left: bottomNavigationIslandLeft == null ? '50vw' : `${bottomNavigationIslandLeft}px` }}
+          >
+            <div className="editorial-panel rounded-[1.5rem] border-white/70 bg-background/92 p-2 shadow-[var(--shadow-float)] backdrop-blur-[10px]">
+              <WorkspaceActionRow className="justify-center [&_[data-slot=button]]:!h-12 [&_[data-slot=button]]:!rounded-full [&_[data-slot=button]]:!px-4 [&_[data-slot=button]]:[&_svg]:!size-4">
+                {navigationActions}
+              </WorkspaceActionRow>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   const summaryRibbonItems = [
     {
@@ -2591,7 +3304,7 @@ export function StockUpdateSessionRoute() {
   ];
 
   return (
-    <WorkspacePage>
+    <WorkspacePage className="pb-32 md:pb-36">
       <ConfirmActionDialog
         cancelLabel={translateUiLiteral(language, 'Cancel')}
         confirmLabel={translateUiLiteral(language, 'Replace draft')}
@@ -2611,8 +3324,8 @@ export function StockUpdateSessionRoute() {
             return;
           }
           skipNextDraftPersistRef.current = true;
-          removeStockUpdateDraft();
-          hydrateEditSession(pendingEditSession, buildInitialRows(catalog ?? visibleCatalog, observations));
+          removeStockUpdateDraft(draftStorageKey);
+          hydrateEditSession(pendingEditSession, buildOrderedInitialRows(catalog ?? visibleCatalog));
         }}
       />
       {discardConfirmDialog}
@@ -2637,7 +3350,7 @@ export function StockUpdateSessionRoute() {
       />
       <WorkspaceTitleCard
         actions={titleActions}
-        floatingActions={<WorkspaceActionRow>{navigationActions}</WorkspaceActionRow>}
+        floatingActions={floatingTitleActions}
         descriptor={
           latestAt
             ? t('stockUpdateDescriptorWithHistory', {
@@ -2649,13 +3362,23 @@ export function StockUpdateSessionRoute() {
               })
             : t('stockUpdateDescriptorFirst')
         }
-        eyebrow={t('stockUpdateEyebrow')}
-        title={t('stockUpdateTitle')}
+        title={
+          <span className="flex min-w-0 items-center gap-4">
+            <Link
+              aria-label={t('stockSessionBack')}
+              className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+              to={RECORD_UPDATE_HUB_PATH}
+            >
+              <NavigationBackIcon className="size-5" />
+            </Link>
+            <span className="min-w-0">{t('stockUpdateTitle')}</span>
+          </span>
+        }
       >
         <div className="grid gap-5">
           <StepWizard
             currentStepId={currentStepId}
-            percentComplete={(unlockedStepCount / STOCK_UPDATE_STEP_ORDER.length) * 100}
+            percentComplete={(unlockedStepCount / activeStepOrder.length) * 100}
             steps={stepStates}
             unlockedStepCount={unlockedStepCount}
             onStepSelect={(stepId) => selectStep(stepId as StockUpdateStepId)}
@@ -2666,61 +3389,82 @@ export function StockUpdateSessionRoute() {
       </WorkspaceTitleCard>
 
       <form id="stock-update-session-form" className="grid gap-6" onSubmit={(event) => void handleSubmit(event)}>
-        {currentStepId === 'context' ? (
+        {currentStepId === 'observed-at' ? (
           <WorkspacePanel
-            descriptor={t(STOCK_UPDATE_STEP_COPY.context.descriptionKey)}
+            className={recordUpdateWhiteCardClassName}
+            descriptor={t(STOCK_UPDATE_STEP_COPY['observed-at'].descriptionKey)}
+            style={recordUpdateWhiteCardStyle}
             footer={
               stepGuidance ? (
                 <p className="text-sm text-muted-foreground">{stepGuidance}</p>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  {t('stockUpdateContextFooterEmpty')}
-                </p>
+                <p className="text-sm text-muted-foreground">{t('stockUpdateObservedAtHelp')}</p>
               )
             }
             title={
               <SectionLabel
-                tooltip={t('stockUpdateContextTooltip')}
-                tooltipLabel={t('stockUpdateContextTooltipLabel')}
+                tooltip={t('stockUpdateObservedAtTooltip')}
+                tooltipLabel={t('stockUpdateObservedAt')}
               >
-                {t(STOCK_UPDATE_STEP_COPY.context.titleKey)}
+                {t(STOCK_UPDATE_STEP_COPY['observed-at'].titleKey)}
               </SectionLabel>
             }
           >
-            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  <FieldHelpLabel
-                    label={t('stockUpdateObservedAt')}
-                    tooltip={t('stockUpdateObservedAtTooltip')}
-                  >
-                    {t('stockUpdateObservedAt')}
-                  </FieldHelpLabel>
-                  <Input
-                    required
-                    type="datetime-local"
-                    value={observedAt}
-                    onChange={(event) => setObservedAt(event.target.value)}
-                  />
-                  <span className="text-xs font-normal leading-5 text-muted-foreground">
-                    {t('stockUpdateObservedAtHelp')}
-                  </span>
-                </label>
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  <FieldHelpLabel
-                    label={t('stockReportNotes')}
-                    tooltip={t('stockUpdateNotesTooltip')}
-                  >
-                    {t('stockReportNotes')}
-                  </FieldHelpLabel>
-                  <Textarea className="min-h-24" value={notes} onChange={(event) => setNotes(event.target.value)} />
-                  <span className="text-xs font-normal leading-5 text-muted-foreground">
-                    {t('stockUpdateNotesHelp')}
-                  </span>
-                </label>
-              </div>
-              <RegimeFields regimeHint={regimeHint} setRegimeHint={setRegimeHint} />
+            <div className="grid gap-2">
+              <Input
+                aria-label={t('stockUpdateObservedAt')}
+                required
+                type="datetime-local"
+                value={observedAt}
+                onChange={(event) => setObservedAt(event.target.value)}
+              />
             </div>
+          </WorkspacePanel>
+        ) : null}
+
+        {currentStepId === 'report-notes' ? (
+          <WorkspacePanel
+            className={recordUpdateWhiteCardClassName}
+            descriptor={t(STOCK_UPDATE_STEP_COPY['report-notes'].descriptionKey)}
+            style={recordUpdateWhiteCardStyle}
+            footer={<p className="text-sm text-muted-foreground">{t('stockUpdateNotesHelp')}</p>}
+            title={
+              <SectionLabel
+                tooltip={t('stockUpdateNotesTooltip')}
+                tooltipLabel={t('stockReportNotes')}
+              >
+                {t(STOCK_UPDATE_STEP_COPY['report-notes'].titleKey)}
+              </SectionLabel>
+            }
+          >
+            <div className="grid gap-2">
+              <Textarea
+                aria-label={t('stockReportNotes')}
+                className="min-h-32"
+                placeholder={t(notesPlaceholderKey)}
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+              />
+            </div>
+          </WorkspacePanel>
+        ) : null}
+
+        {currentStepId === 'context' ? (
+          <WorkspacePanel
+            className={recordUpdateWhiteCardClassName}
+            descriptor={t(STOCK_UPDATE_STEP_COPY.context.descriptionKey)}
+            style={recordUpdateWhiteCardStyle}
+            footer={<p className="text-sm text-muted-foreground">{t('stockUpdateContextFooterEmpty')}</p>}
+            title={
+              <SectionLabel
+                tooltip={t('stockUpdateRegimeHelp')}
+                tooltipLabel={t('stockUpdateOverallRegime')}
+              >
+                {t('stockUpdateOverallRegime')} <span className="font-normal text-muted-foreground">{t('stockUpdateOptional')}</span>
+              </SectionLabel>
+            }
+          >
+            <RegimeFields regimeHint={regimeHint} setRegimeHint={setRegimeHint} />
           </WorkspacePanel>
         ) : null}
 
@@ -2728,19 +3472,68 @@ export function StockUpdateSessionRoute() {
           <StockCountStep
             catalog={workingCatalog}
             countedAtBySku={countedAtBySku}
-            currency={currency}
             debugCellBoundaries={debugCellBoundaries}
             guidance={currentStepId === 'stock' ? stepGuidance : null}
+            onReorderRows={handleStockRowReorder}
             rows={rows}
-            skuSignalDrafts={skuSignalDrafts}
             stockBySku={stockBySku}
-            stockView={stockView}
+            updateRow={updateRow}
+            visibleRows={visibleRows}
+          />
+        ) : null}
+
+        {currentStepId === 'stock-cost' ? (
+          <StockCostStep
+            catalog={workingCatalog}
+            choice={stockStepChoices['stock-cost']}
+            countedAtBySku={countedAtBySku}
+            currency={currency}
+            debugCellBoundaries={debugCellBoundaries}
+            guidance={currentStepId === 'stock-cost' ? stepGuidance : null}
+            onReorderRows={handleStockRowReorder}
+            rows={rows}
+            stockBySku={stockBySku}
             usdToKhrExchangeRate={usdToKhrExchangeRate}
             updateRow={updateRow}
+            visibleRows={visibleRows}
+            onChooseNo={() => handleSkipOptionalStockStep('stock-cost')}
+            onChooseYes={() => updateStockStepChoice('stock-cost', 'yes')}
+          />
+        ) : null}
+
+        {currentStepId === 'stock-price' ? (
+          <StockRetailPriceStep
+            catalog={workingCatalog}
+            choice={stockStepChoices['stock-price']}
+            countedAtBySku={countedAtBySku}
+            currency={currency}
+            debugCellBoundaries={debugCellBoundaries}
+            guidance={currentStepId === 'stock-price' ? stepGuidance : null}
+            onReorderRows={handleStockRowReorder}
+            rows={rows}
+            stockBySku={stockBySku}
+            usdToKhrExchangeRate={usdToKhrExchangeRate}
+            updateRow={updateRow}
+            visibleRows={visibleRows}
+            onChooseNo={() => handleSkipOptionalStockStep('stock-price')}
+            onChooseYes={() => updateStockStepChoice('stock-price', 'yes')}
+          />
+        ) : null}
+
+        {currentStepId === 'stock-flags' ? (
+          <StockFlagsStep
+            catalog={workingCatalog}
+            choice={stockStepChoices['stock-flags']}
+            countedAtBySku={countedAtBySku}
+            debugCellBoundaries={debugCellBoundaries}
+            guidance={currentStepId === 'stock-flags' ? stepGuidance : null}
+            onReorderRows={handleStockRowReorder}
+            skuSignalDrafts={skuSignalDrafts}
+            stockBySku={stockBySku}
             updateSkuSignalDraft={updateSkuSignalDraft}
             visibleRows={visibleRows}
-            onStockViewChange={setStockView}
-            onToggleDebugCellBoundaries={() => setDebugCellBoundaries((current) => !current)}
+            onChooseNo={() => handleSkipOptionalStockStep('stock-flags')}
+            onChooseYes={() => updateStockStepChoice('stock-flags', 'yes')}
           />
         ) : null}
 
@@ -2760,7 +3553,9 @@ export function StockUpdateSessionRoute() {
 
         {currentStepId === 'rankings' ? (
           <WorkspacePanel
+            className={recordUpdateWhiteCardClassName}
             descriptor={t(STOCK_UPDATE_STEP_COPY.rankings.descriptionKey)}
+            style={recordUpdateWhiteCardStyle}
             title={
               <SectionLabel
                 tooltip={t('stockUpdateRankingsTooltip')}
@@ -2803,6 +3598,7 @@ export function StockUpdateSessionRoute() {
           />
         ) : null}
       </form>
+      {bottomNavigationIsland}
     </WorkspacePage>
   );
 }
