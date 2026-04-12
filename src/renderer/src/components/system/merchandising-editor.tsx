@@ -232,38 +232,38 @@ export function MerchandisingEditor({
       {helperText ? (
         <p className="mx-6 mb-3 text-sm text-muted-foreground">{helperText}</p>
       ) : null}
-      <Table
-        aria-label={titleLabel ?? t('productRankingTitle')}
-        className="min-w-[860px] table-fixed bg-white"
+      <DndContext
+        collisionDetection={closestCenter}
+        onDragCancel={() => {
+          setActiveId(null);
+          setActiveWidth(undefined);
+        }}
+        onDragEnd={handleDragEnd}
+        onDragStart={handleDragStart}
+        sensors={sensors}
       >
-        <colgroup>
-          <col style={{ width: '3.5rem' }} />
-          <col style={{ width: '5rem' }} />
-          <col style={{ width: '2rem' }} />
-          <col style={{ width: '44%' }} />
-          <col style={{ width: '8rem' }} />
-          <col style={{ width: '8rem' }} />
-        </colgroup>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead aria-hidden="true" className={rankingTableHeaderClassName} />
-            <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>{t('rankHeaderRank')}</TableHead>
-            <TableHead aria-hidden="true" className={rankingTableHeaderClassName} />
-            <TableHead className={cn(rankingTableHeaderClassName, 'text-left')}>Item</TableHead>
-            <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>Cost</TableHead>
-            <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>{t('rankHeaderPrice')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <DndContext
-          collisionDetection={closestCenter}
-          onDragCancel={() => {
-            setActiveId(null);
-            setActiveWidth(undefined);
-          }}
-          onDragEnd={handleDragEnd}
-          onDragStart={handleDragStart}
-          sensors={sensors}
+        <Table
+          aria-label={titleLabel ?? t('productRankingTitle')}
+          className="min-w-[860px] table-fixed bg-white"
         >
+          <colgroup>
+            <col style={{ width: '3.5rem' }} />
+            <col style={{ width: '5rem' }} />
+            <col style={{ width: '2rem' }} />
+            <col style={{ width: '44%' }} />
+            <col style={{ width: '8rem' }} />
+            <col style={{ width: '8rem' }} />
+          </colgroup>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead aria-hidden="true" className={rankingTableHeaderClassName} />
+              <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>{t('rankHeaderRank')}</TableHead>
+              <TableHead aria-hidden="true" className={rankingTableHeaderClassName} />
+              <TableHead className={cn(rankingTableHeaderClassName, 'text-left')}>Item</TableHead>
+              <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>Cost</TableHead>
+              <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>{t('rankHeaderPrice')}</TableHead>
+            </TableRow>
+          </TableHeader>
           <SortableContext
             items={rowModels.map((row) => row.id)}
             strategy={verticalListSortingStrategy}
@@ -289,32 +289,32 @@ export function MerchandisingEditor({
               ))}
             </TableBody>
           </SortableContext>
+        </Table>
 
-          {typeof document !== 'undefined'
-            ? createPortal(
-                <DragOverlay dropAnimation={dropAnimation} modifiers={overlayModifiers}>
-                  {activeRow ? (
-                    <RankingRowCard
-                      handle={<StaticGripHandle />}
-                      index={activeRow.index}
-                      costText={activeRow.costText}
-                      kindIcon={activeRow.kindIcon}
-                      kindLabel={activeRow.kindLabel}
-                      label={activeRow.label}
-                      rankChangeDirection={activeRow.rankChangeDirection}
-                      movedFromBaseline={activeRow.movedFromBaseline}
-                      overlay
-                      priceChangeDirection={activeRow.priceChangeDirection}
-                      priceText={activeRow.priceText}
-                      style={activeWidth ? { width: activeWidth } : undefined}
-                    />
-                  ) : null}
-                </DragOverlay>,
-                document.body,
-              )
-            : null}
-        </DndContext>
-      </Table>
+        {typeof document !== 'undefined'
+          ? createPortal(
+              <DragOverlay dropAnimation={dropAnimation} modifiers={overlayModifiers}>
+                {activeRow ? (
+                  <RankingRowCard
+                    handle={<StaticGripHandle />}
+                    index={activeRow.index}
+                    costText={activeRow.costText}
+                    kindIcon={activeRow.kindIcon}
+                    kindLabel={activeRow.kindLabel}
+                    label={activeRow.label}
+                    rankChangeDirection={activeRow.rankChangeDirection}
+                    movedFromBaseline={activeRow.movedFromBaseline}
+                    overlay
+                    priceChangeDirection={activeRow.priceChangeDirection}
+                    priceText={activeRow.priceText}
+                    style={activeWidth ? { width: activeWidth } : undefined}
+                  />
+                ) : null}
+              </DragOverlay>,
+              document.body,
+            )
+          : null}
+      </DndContext>
     </div>
   );
 }
