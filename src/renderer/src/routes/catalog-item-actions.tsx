@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
+import { SupplierBadge } from '@/components/system/supplier';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import {
@@ -491,20 +492,23 @@ export function SkuMutationActions({
         <SheetContent className="w-full max-w-2xl gap-0 overflow-y-auto border-l border-border/70 bg-white px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-2xl">
           {discardConfirmDialog}
           <SheetHeader className="gap-3 border-b border-border/60 px-8 py-7">
-            <SheetTitle>
-              {formatCatalogSheetTitle(
-                mode === 'stock'
-                  ? t('catalogSenaSkuRecordStock')
-                  : mode === 'order'
-                    ? t('catalogSenaSkuLogOrder')
-                    : mode === 'receipt'
-                    ? t('catalogSenaSkuLogReceipt')
-                      : t('catalogSenaSkuUpdatePrice'),
-                layout,
-                catalogEntityName,
-                language,
-              )}
-            </SheetTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <SheetTitle>
+                {formatCatalogSheetTitle(
+                  mode === 'stock'
+                    ? t('catalogSenaSkuRecordStock')
+                    : mode === 'order'
+                      ? t('catalogSenaSkuLogOrder')
+                      : mode === 'receipt'
+                      ? t('catalogSenaSkuLogReceipt')
+                        : t('catalogSenaSkuUpdatePrice'),
+                  layout,
+                  catalogEntityName,
+                  language,
+                )}
+              </SheetTitle>
+              <SupplierBadge supplierName={actionContext.supplierName} />
+            </div>
             <SheetDescription className="max-w-2xl text-base leading-7">
               {t('catalogSenaSkuDialogDescription')}
             </SheetDescription>

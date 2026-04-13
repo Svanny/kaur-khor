@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { getRegimeIcon } from '@icons/domain';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
+import { SupplierBadge } from '@/components/system/supplier';
 import { translateRegimeLabel } from '@/lib/localized-display';
 import { translateUiLiteral } from '@/lib/translations';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
@@ -38,6 +39,10 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
+      <RailBlock title={translateUiLiteral(language, 'Supplier')} tooltip={translateUiLiteral(language, 'Supplier assigned to this SKU.')}>
+        <SupplierBadge showEmpty supplierName={model.identity.supplierName} />
+      </RailBlock>
+
       <RailBlock title={t('catalogSenaSkuActNow')} tooltip={t('catalogSenaSkuActNowTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.actNow.headline}</p>
         <p className="mt-2 text-lg font-medium text-foreground">{model.rail.actNow.quantityBand}</p>

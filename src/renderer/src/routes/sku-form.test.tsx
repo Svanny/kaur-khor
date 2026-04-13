@@ -38,6 +38,7 @@ const sampleCatalog = {
       archived: false,
       costPerUnit: 4,
       description: 'Cotton tee',
+      supplierName: 'Mekong Looms',
       leadTimeMeanDaysHint: 5,
       leadTimeStdDaysHint: 1,
       name: 'SKU 1',
@@ -115,6 +116,7 @@ describe('SkuFormRoute', () => {
     });
     expect(screen.getByRole('heading', { level: 2, name: 'Core details' })).toBeInTheDocument();
     expect(screen.getByText('Name the SKU the way staff will search for it.')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Supplier' })).toHaveTextContent('Mekong Looms');
     expect(screen.getByText('Keep the current landed or replacement unit cost here.')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /sell as product/i })).toBeChecked();
     expect(screen.queryByDisplayValue('sku-1')).not.toBeInTheDocument();
@@ -153,6 +155,7 @@ describe('SkuFormRoute', () => {
     expect(savedCatalog.skus[0]).toMatchObject({
       costPerUnit: 4,
       description: 'Cotton tee',
+      supplierName: 'Mekong Looms',
       name: 'SKU 1 Updated',
       leadTimeMeanDaysHint: 5,
       productPrice: 9,
@@ -228,6 +231,29 @@ describe('SkuFormRoute', () => {
       name: 'Generated SKU',
     });
     createUniqueSkuId.mockRestore();
+  });
+
+  test('saves a typed supplier name as normalized SKU metadata', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Custom supplier' }));
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Custom supplier' }), { target: { value: '  Tonle Linen Works  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0]).toMatchObject({
+      supplierName: 'Tonle Linen Works',
+    });
   });
 
   test('asks before leaving with unsaved SKU changes', async () => {

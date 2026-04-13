@@ -28,6 +28,7 @@ export interface SenaSkuDetailViewModel {
     skuId: string;
     name: string;
     description: string;
+    supplierName: string | null;
     soldAsProduct: boolean;
     statusLabel: string;
     statusTone: SkuStatusTone;
@@ -123,6 +124,7 @@ export interface SenaSkuDetailViewModel {
     leadTimeVariability: SenaLeadTimeVariabilityClass | null;
     productPrice: number | null;
     latestObservationAt: string | null;
+    supplierName?: string | null;
     soldAsProduct: boolean;
     recommendedOrderQuantity: number;
     reorderRecommendation: SenaReorderQuantityDisplay;
@@ -427,6 +429,7 @@ export function deriveSenaSkuDetailViewModel({
   linkedServiceDetails,
   selectedIntervalIndex,
   skuId,
+  supplierName = null,
   snapshot,
   detail,
   uiState,
@@ -440,6 +443,7 @@ export function deriveSenaSkuDetailViewModel({
   linkedServiceDetails: SenaServiceDetail[];
   selectedIntervalIndex: number | null;
   skuId: string;
+  supplierName?: string | null;
   snapshot: InventorySnapshot;
   detail: SenaSkuDetail | null;
   uiState: SenaSkuDetailViewModel['uiState'];
@@ -585,6 +589,7 @@ export function deriveSenaSkuDetailViewModel({
       skuId: sku.skuId,
       name: sku.name,
       description: sku.description,
+      supplierName,
       soldAsProduct: sku.soldAsProduct,
       statusLabel: status.label,
       statusTone: status.tone,
@@ -722,6 +727,7 @@ export function deriveSenaSkuDetailViewModel({
       leadTimeVariability: latestVariabilityClass,
       productPrice: sku.productPrice,
       latestObservationAt,
+      supplierName: sku.supplierName?.trim() || null,
       soldAsProduct: sku.soldAsProduct,
       recommendedOrderQuantity: reorderRecommendation.recommendedUnits,
       reorderRecommendation,

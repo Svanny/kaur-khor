@@ -1224,6 +1224,9 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
     'បង្កើត SKU ជាមុនសិន។ ការងារផែនការ និងស្តុកបន្ថែម អាចធ្វើបន្តពីទំព័រព័ត៌មានលម្អិតរបស់វា។',
   catalogSkuEditorDescriptionEdit:
     'អាប់ដេតព័ត៌មាន SKU ដែលបញ្ជីប្រើសម្រាប់កាតាឡុក តម្លៃ និងផែនការ។',
+  catalogSkuEditorSupplierHelper:
+    'ជ្រើសអ្នកផ្គត់ផ្គង់ដែលមានស្រាប់ ឬវាយឈ្មោះអ្នកផ្គត់ផ្គង់ថ្មី។',
+  catalogSkuEditorSupplierPlaceholder: 'ជ្រើសអ្នកផ្គត់ផ្គង់របស់អ្នក...',
   catalogSkuPlanningInputsTitle: 'ព័ត៌មានបញ្ចូលសម្រាប់ផែនការ',
   catalogSkuPlanningInputsDescription:
     'ព័ត៌មានអំពីពេលវេលារបស់អ្នកផ្គត់ផ្គង់តាមជម្រើស។ អាប់ដេតវា ពេលរូបភាពពេលវេលាមកដល់ផ្លាស់ប្តូរ។',

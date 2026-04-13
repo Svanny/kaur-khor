@@ -101,6 +101,7 @@ describe('command palette descriptors', () => {
           archived: false,
           costPerUnit: 4,
           description: 'Cotton tee',
+          supplierName: 'Mekong Looms',
           leadTimeMeanDaysHint: 5,
           leadTimeStdDaysHint: 1,
           name: 'Market Tee',
@@ -188,8 +189,9 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'settings:workspace:create-backup-snapshot')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:workspace:restore-backup-snapshot')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:workspace:export-planning-data')).toBe(true);
-    expect(commands.find((command) => command.id === 'sku:open:sku-1')?.subtitle).toBe('SKU');
-    expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.subtitle).toBe('SKU action');
+    expect(commands.find((command) => command.id === 'sku:open:sku-1')?.subtitle).toBe('SKU · Supplier: Mekong Looms');
+    expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.subtitle).toBe('SKU action · Supplier: Mekong Looms');
+    expect(commands.find((command) => command.id === 'sku:open:sku-1')?.keywords).toContain('Mekong Looms');
   });
 
   test('does not match raw sku ids in search results', () => {

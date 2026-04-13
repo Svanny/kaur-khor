@@ -58,6 +58,7 @@ interface SkuBusinessRow {
   href: string;
   detailHref: string;
   type: 'sku';
+  supplierName: string | null;
   demandPerDay: number;
   linkedServiceNames: string[];
   linkedServiceRevenue: number;
@@ -131,6 +132,7 @@ export interface PerformanceBoardRow {
   entity: string;
   entityHref: string;
   type: string;
+  supplierName: string | null;
   demandTrend: string;
   demandTrendSignal?: PerformanceTrendSignal;
   supportStatus: string;
@@ -931,6 +933,7 @@ function toBoardRow(
     id: row.id,
     entity: row.name,
     entityHref: row.href,
+    supplierName: row.type === 'sku' ? row.supplierName : null,
     type: row.type === 'service' ? 'Service' : 'SKU',
     demandTrend: `${trendGlyph(row.trendTone)} ${row.trendLabel}`,
     demandTrendSignal,
@@ -1254,6 +1257,7 @@ export function derivePerformanceViewModel({
       marginLabel: marginToneLabel({ currency, marginRatio, priceSignal, language, usdToKhrExchangeRate }),
       marginRatio,
       name: sku.name,
+      supplierName: sku.supplierName?.trim() || null,
       pipelineLabel: formatPipelineSupport(receiptSignal, language),
       priceSignal,
       receiptSignal,

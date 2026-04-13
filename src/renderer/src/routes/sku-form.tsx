@@ -10,6 +10,7 @@ import {
   relativeLeadTimeWidth,
 } from '@shared/sena-lead-time';
 import { CheckboxRow } from '@/components/system/checkbox-row';
+import { SupplierField } from '@/components/system/supplier';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,6 +34,7 @@ function emptySku(skuId = ''): SenaSku {
     skuId,
     name: '',
     description: '',
+    supplierName: null,
     costPerUnit: 0,
     archived: false,
     soldAsProduct: false,
@@ -48,6 +50,7 @@ function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTime
   return {
     name: sku.name.trim(),
     description: sku.description.trim(),
+    supplierName: sku.supplierName?.trim() || null,
     costPerUnit: sku.costPerUnit,
     soldAsProduct: sku.soldAsProduct,
     productPrice: sku.productPrice,
@@ -153,6 +156,7 @@ export function SkuFormRoute() {
       skuId: form.skuId.trim(),
       name: form.name.trim(),
       description: form.description.trim(),
+      supplierName: form.supplierName?.trim() || null,
       leadTimeStdDaysHint,
     };
   }, [baselineLeadTimeVariability, form, leadTimeStdDaysDraft, leadTimeVariability, normalizedBaseline]);
@@ -236,6 +240,15 @@ export function SkuFormRoute() {
                   required
                   value={form.name}
                   onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                />
+              </EditorField>
+              <EditorField helper={t('catalogSkuEditorSupplierHelper')} label={t('fieldSupplier')}>
+                <SupplierField
+                  catalog={catalog}
+                  inputClassName={editorInputClassName}
+                  placeholder={t('catalogSkuEditorSupplierPlaceholder')}
+                  value={form.supplierName ?? ''}
+                  onChange={(value) => setForm((current) => ({ ...current, supplierName: value }))}
                 />
               </EditorField>
             </div>

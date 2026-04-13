@@ -14,6 +14,7 @@ import {
 import { StatusArchiveIcon } from '@icons/status';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SearchInput } from '@/components/system/search-input';
+import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import {
@@ -37,6 +38,8 @@ import {
   activeSenaCatalog,
   linkedServiceIdsForSku,
   linkedSkuIdsForService,
+  matchesSkuSupplier,
+  skuSearchParts,
 } from '@/lib/sena-catalog';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { translateUiLiteral } from '@/lib/translations';
@@ -52,11 +55,13 @@ function updateCatalogSearchParams(
   current: URLSearchParams,
   updates: {
     q?: string;
+    supplier?: string | null;
     view?: CatalogView;
   },
 ) {
   return buildCatalogSearchParams(current, {
     q: updates.q,
+    supplier: updates.supplier,
     view: updates.view,
   });
 }
@@ -306,13 +311,14 @@ export function InventoryRoute() {
   const activeSnapshot = snapshot ?? projectedSnapshot;
 
   const query = searchParams.get('q') ?? '';
+  const supplierFilter = supplierFilterValueForQuery(searchParams.get('supplier'));
   const view = readCatalogView(searchParams);
   const filteredSkus = useMemo(
     () =>
       visibleCatalog?.skus.filter((sku) =>
-        matchesCatalogRow([sku.name, sku.description], query),
+        matchesCatalogRow(skuSearchParts(sku), query) && matchesSkuSupplier(sku, supplierFilter),
       ) ?? [],
-    [query, visibleCatalog],
+    [query, supplierFilter, visibleCatalog],
   );
   const filteredServices = useMemo(
     () =>
@@ -484,6 +490,16 @@ export function InventoryRoute() {
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
+          <SupplierFilter
+            catalog={catalog}
+            className="h-12 w-full rounded-full border-transparent bg-muted/65 px-4 shadow-none data-[size=default]:h-12 sm:w-auto"
+            value={supplierFilter}
+            onChange={(nextSupplier) => {
+              setSearchParams(
+                updateCatalogSearchParams(searchParams, { supplier: supplierFilterQueryValue(nextSupplier) }),
+              );
+            }}
+          />
         </div>
       </WorkspaceTitleCard>
 
@@ -496,7 +512,7 @@ export function InventoryRoute() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setSearchParams(updateCatalogSearchParams(searchParams, { q: '', view: 'all' }))}
+                onClick={() => setSearchParams(updateCatalogSearchParams(searchParams, { q: '', supplier: null, view: 'all' }))}
               >
                 {translateUiLiteral(language, 'Clear filters')}
               </Button>
@@ -572,16 +588,19 @@ export function InventoryRoute() {
                           {sku.name}
                         </Link>
                         <p className="text-sm text-muted-foreground">{sku.description || translateUiLiteral(language, 'No description')}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {skuMetaLine(linkedServices.length, {
-                            costPerUnit: sku.costPerUnit,
-                            currency,
-                            language,
-                            productPrice: sku.productPrice,
-                            soldAsProduct: sku.soldAsProduct,
-                            usdToKhrExchangeRate,
-                          })}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <SupplierBadge supplierName={sku.supplierName} />
+                          <span>
+                            {skuMetaLine(linkedServices.length, {
+                              costPerUnit: sku.costPerUnit,
+                              currency,
+                              language,
+                              productPrice: sku.productPrice,
+                              soldAsProduct: sku.soldAsProduct,
+                              usdToKhrExchangeRate,
+                            })}
+                          </span>
+                        </div>
                       </div>
                       <WorkspaceActionRow>
                         <Button asChild size="sm" variant="outline">

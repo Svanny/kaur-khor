@@ -214,13 +214,14 @@ export function SkuDetailRoute() {
       linkedServiceDetails: bootstrap.linkedServiceDetails,
       selectedIntervalIndex,
       skuId,
+      supplierName: inventory.catalog?.skus.find((sku) => sku.skuId === skuId)?.supplierName ?? null,
       snapshot: bootstrap.snapshot,
       detail: pagedDetail,
       uiState: bootstrap.uiState,
       workspaceSummary: bootstrap.workspaceSummary,
       language,
     });
-  }, [bootstrap, currency, language, pagedDetail, selectedIntervalIndex, skuId, snapshotSku, usdToKhrExchangeRate]);
+  }, [bootstrap, currency, inventory.catalog?.skus, language, pagedDetail, selectedIntervalIndex, skuId, snapshotSku, usdToKhrExchangeRate]);
 
   if (!bootstrap && (inventory.isLoading || isRefreshing)) {
     const loadingTitle = snapshotSku?.name ?? t('catalogSenaSkuPreparing');

@@ -13,6 +13,7 @@ import { NavigationDashboardIcon, NavigationForwardIcon, NavigationPerformanceIc
 import { StatusAchievementIcon, StatusSavingsIcon, StatusWarningIcon } from '@icons/status';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
+import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
@@ -28,7 +29,7 @@ import { Button } from '@/components/ui/button';
 import { CompactSparkline } from '@/components/ui/compact-sparkline';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { activeSenaCatalog } from '@/lib/sena-catalog';
+import { activeSenaCatalog, type SupplierFilterValue } from '@/lib/sena-catalog';
 import {
   buildPerformanceSearchParams,
   readPerformanceRouteState,
@@ -358,6 +359,7 @@ export function PerformanceRoute() {
   const routeState = readPerformanceRouteState(searchParams);
   const timeRange = routeState.range as PerformanceTimeRange;
   const scope = routeState.scope as PerformanceScope;
+  const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
@@ -400,6 +402,21 @@ export function PerformanceRoute() {
     timeRange,
     usdToKhrExchangeRate,
   ]);
+  const visibleBoardRows = useMemo(() => {
+    if (!model) {
+      return [];
+    }
+    return model.boardRows.filter((row) => {
+      if (row.type !== 'SKU' || supplierFilter === 'all') {
+        return true;
+      }
+      const supplierName = row.supplierName?.trim() || null;
+      if (supplierFilter === 'none') {
+        return supplierName == null;
+      }
+      return supplierName === supplierFilter;
+    });
+  }, [model, supplierFilter]);
   const latestUpdateAt = latestObservationAt(inventory.observations);
   const latestUpdateAgeDays = intervalDaysBetween(latestUpdateAt, new Date().toISOString());
 
@@ -492,6 +509,15 @@ export function PerformanceRoute() {
                 {t('performanceRouteScopeSkus')}
               </ToggleGroupItem>
             </ToggleGroup>
+
+            <SupplierFilter
+              catalog={visibleCatalog}
+              className="h-12 w-full rounded-full border-transparent bg-muted/65 px-4 shadow-none data-[size=default]:h-12 sm:w-auto"
+              value={supplierFilter}
+              onChange={(nextSupplier: SupplierFilterValue) =>
+                updateRouteState({ supplier: supplierFilterQueryValue(nextSupplier) })
+              }
+            />
 
             {showPerformanceCompareToggle ? (
               <SteeringPill active={compareMode} onClick={() => updateRouteState({ compare: !compareMode })}>
@@ -621,7 +647,7 @@ export function PerformanceRoute() {
                   </HeaderedTableHeaderCell>
                 </HeaderedTableHeader>
                 <HeaderedTableBody className={demandCapacityBoardLayout.bodyClassName}>
-                  {model.boardRows.map((row) => (
+                  {visibleBoardRows.map((row) => (
                     <HeaderedTableRow key={row.id} className={`${rowHoverClassName} ${demandCapacityBoardLayout.rowClassName}`}>
                     <div className="min-w-0">
                       <HeaderedTableMobileLabel className={demandCapacityBoardLayout.mobileLabelClassName}>
@@ -634,6 +660,7 @@ export function PerformanceRoute() {
                             <Link className="font-semibold text-foreground hover:text-primary" to={row.entityHref}>
                               {row.entity}
                             </Link>
+                            <SupplierBadge supplierName={row.supplierName} />
                           </div>
                         }
                         secondary={row.compareEnabled && row.rowCompareSummary ? `${row.rowCompareSummary}.` : undefined}

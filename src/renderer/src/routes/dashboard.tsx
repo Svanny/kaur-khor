@@ -36,12 +36,14 @@ import {
   HeaderedTableRow,
 } from '@/components/system/headered-table';
 import { SearchInput } from '@/components/system/search-input';
+import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildOverviewSearchParams, readOverviewRouteState } from '@/lib/navigation-state';
+import { type SupplierFilterValue } from '@/lib/sena-catalog';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
@@ -146,11 +148,12 @@ function matchesOverviewQuery(task: OverviewTask, query: string, scope: Overview
 
   const parts =
     scope === 'skus'
-      ? [task.skuName, task.whyNow, task.whyDetail, task.etaLabel, task.stateLabel]
+      ? [task.skuName, task.supplierName, task.whyNow, task.whyDetail, task.etaLabel, task.stateLabel]
       : scope === 'services'
         ? [task.serviceImpact, ...task.linkedServiceNames, task.whyNow, task.whyDetail, task.etaLabel, task.stateLabel]
         : [
             task.skuName,
+            task.supplierName,
             task.serviceImpact,
             task.whyNow,
             task.whyDetail,
@@ -160,6 +163,19 @@ function matchesOverviewQuery(task: OverviewTask, query: string, scope: Overview
           ];
 
   return parts.join(' ').toLowerCase().includes(normalized);
+}
+
+function matchesOverviewSupplier(task: OverviewTask, supplierFilter: SupplierFilterValue) {
+  if (!isOverviewSkuTask(task) || supplierFilter === 'all') {
+    return true;
+  }
+
+  const supplierName = task.supplierName?.trim() || null;
+  if (supplierFilter === 'none') {
+    return supplierName == null;
+  }
+
+  return supplierName === supplierFilter;
 }
 
 export function DashboardRoute() {
@@ -179,6 +195,7 @@ export function DashboardRoute() {
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
   const routeState = readOverviewRouteState(searchParams);
   const searchScope = routeState.scope;
+  const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const filter = routeState.filter as OverviewTaskFilter;
   const activeFilter: OverviewTaskFilter = showOverviewTaskTabs ? filter : 'all';
   const selectedTaskId = routeState.taskId;
@@ -234,7 +251,7 @@ export function DashboardRoute() {
   const scopedTasks = model.tasks.filter(
     (task) =>
       isOverviewSkuTask(task)
-        ? matchesOverviewEntityScope(task, searchScope) && matchesOverviewQuery(task, deferredQuery, searchScope)
+        ? matchesOverviewEntityScope(task, searchScope) && matchesOverviewQuery(task, deferredQuery, searchScope) && matchesOverviewSupplier(task, supplierFilter)
         : searchScope === 'all' && matchesOverviewQuery(task, deferredQuery, searchScope),
   );
   const visibleTasks = scopedTasks.filter((task) => shouldShowTask(task, activeFilter));
@@ -338,6 +355,18 @@ export function DashboardRoute() {
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
+          <SupplierFilter
+            catalog={inventory.catalog}
+            className="h-12 w-full rounded-full border-transparent bg-muted/65 px-4 shadow-none data-[size=default]:h-12 sm:w-auto"
+            value={supplierFilter}
+            onChange={(nextSupplier) =>
+              updateRouteState({
+                supplier: supplierFilterQueryValue(nextSupplier),
+                taskId: null,
+                taskMode: null,
+              })
+            }
+          />
         </div>
       </WorkspaceTitleCard>
 
@@ -420,6 +449,7 @@ export function DashboardRoute() {
                                   <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
                                     {task.skuName}
                                   </span>
+                                  <SupplierBadge supplierName={task.supplierName} />
                                   <span
                                     className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
                                   >

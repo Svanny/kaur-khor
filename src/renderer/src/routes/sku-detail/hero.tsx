@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { getRegimeIcon } from '@icons/domain';
 import { translateRegimeLabel } from '@/lib/localized-display';
 import { SkuPageHero } from '@/routes/sku-page-hero';
+import { SupplierBadge } from '@/components/system/supplier';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -44,6 +45,7 @@ export function SkuDetailHero({
               <span>{topRegimeLabel}</span>
             </span>
           </span>
+          <SupplierBadge showEmpty className="px-3 py-1 text-sm" supplierName={model.identity.supplierName} />
         </>
       }
       title={model.identity.name}

@@ -12,6 +12,7 @@ import {
 } from '@icons/actions';
 import { overviewDrawerBandIcons } from '@icons/domain';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
+import { SupplierBadge } from '@/components/system/supplier';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -648,6 +649,7 @@ export function OverviewTaskDrawer({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
                 <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{task.skuName}</SheetTitle>
+                <SupplierBadge supplierName={task.supplierName} />
                 <span
                   className={cn(
                     'inline-flex items-center self-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium',

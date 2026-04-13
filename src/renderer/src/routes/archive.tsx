@@ -4,6 +4,7 @@ import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { SearchInput } from '@/components/system/search-input';
+import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import {
   WorkspaceActionRow,
   WorkspaceEmpty,
@@ -22,6 +23,8 @@ import {
 import {
   archivedSenaServices,
   archivedSenaSkus,
+  matchesSkuSupplier,
+  skuSearchParts,
 } from '@/lib/sena-catalog';
 import { translateUiLiteral } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
@@ -33,6 +36,7 @@ function updateArchiveSearchParams(
   current: URLSearchParams,
   updates: {
     q?: string | null;
+    supplier?: string | null;
     view?: ArchiveViewValue;
   },
 ) {
@@ -50,9 +54,10 @@ export function ArchiveRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const routeState = readArchiveRouteState(searchParams);
   const query = routeState.q ?? '';
+  const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const view = routeState.view;
   const archivedSkus = archivedSenaSkus(inventory.catalog).filter((sku) =>
-    matchesCatalogQuery([sku.name, sku.description].join(' '), query),
+    matchesCatalogQuery(skuSearchParts(sku).filter(Boolean).join(' '), query) && matchesSkuSupplier(sku, supplierFilter),
   );
   const archivedServices = archivedSenaServices(inventory.catalog).filter((service) =>
     matchesCatalogQuery([service.serviceId, service.name, service.description].join(' '), query),
@@ -159,6 +164,16 @@ export function ArchiveRoute() {
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
+          <SupplierFilter
+            catalog={inventory.catalog}
+            className="h-12 w-full rounded-full border-transparent bg-muted/65 px-4 shadow-none data-[size=default]:h-12 sm:w-auto"
+            value={supplierFilter}
+            onChange={(nextSupplier) => {
+              setSearchParams(
+                updateArchiveSearchParams(searchParams, { supplier: supplierFilterQueryValue(nextSupplier) }),
+              );
+            }}
+          />
         </div>
       </WorkspaceTitleCard>
 
@@ -171,7 +186,7 @@ export function ArchiveRoute() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setSearchParams(updateArchiveSearchParams(searchParams, { q: '', view: 'all' }))}
+                onClick={() => setSearchParams(updateArchiveSearchParams(searchParams, { q: '', supplier: null, view: 'all' }))}
               >
                 <ActionResetIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'Clear filters')}
@@ -199,6 +214,7 @@ export function ArchiveRoute() {
                   <div className="min-w-0">
                     <p className="font-medium text-foreground">{sku.name}</p>
                     <p className="text-sm text-muted-foreground">{sku.description || translateUiLiteral(language, 'No description')}</p>
+                    <SupplierBadge className="mt-2" supplierName={sku.supplierName} />
                   </div>
                   <Button
                     disabled={inventory.isSaving}

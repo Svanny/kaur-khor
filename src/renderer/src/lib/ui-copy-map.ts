@@ -782,6 +782,7 @@ export const enUiCopyV1 = {
   fieldId: 'Identifier',
   fieldName: 'Name',
   fieldDescription: 'Description',
+  fieldSupplier: 'Supplier',
   fieldUnitsInStock: 'Units in stock',
   fieldCostPerUnit: 'Cost per unit',
   fieldSoldAsProduct: 'Sell as product',
@@ -969,6 +970,9 @@ export const enUiCopyV1 = {
     'Update the SKU details Banji uses for catalog, pricing, and planning.',
   catalogSkuEditorDetailsDescriptor:
     'Set the SKU name and internal description Banji will use across the app.',
+  catalogSkuEditorSupplierHelper:
+    'Choose an existing supplier or type a new supplier name.',
+  catalogSkuEditorSupplierPlaceholder: 'Choose your supplier...',
   catalogSkuPlanningInputsTitle: 'Planning inputs',
   catalogSkuPlanningInputsDescription:
     'Optional supplier timing inputs. Update them when the lead-time picture changes.',

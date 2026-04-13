@@ -74,6 +74,7 @@ export interface OverviewSkuTask extends OverviewTaskBase {
   id: string;
   skuId: string;
   skuName: string;
+  supplierName: string | null;
   state: Exclude<OverviewTaskFilter, 'all'>;
   stateLabel: string;
   statusTone: 'danger' | 'warning' | 'success' | 'info' | 'neutral';
@@ -128,6 +129,7 @@ export interface OverviewInTransitRow {
   id: string;
   skuId: string;
   name: string;
+  supplierName: string | null;
   etaLabel: string;
 }
 
@@ -135,6 +137,7 @@ export interface OverviewReceiptRow {
   id: string;
   skuId: string;
   name: string;
+  supplierName: string | null;
   quantityLabel: string;
   receivedAt: string;
   receivedLabel: string;
@@ -729,6 +732,7 @@ function buildTask({
     id: summary.skuId,
     skuId: summary.skuId,
     skuName: sku.name,
+    supplierName: sku.supplierName?.trim() || null,
     state,
     stateLabel: taskStateLabel(state, language),
     statusTone: narrative.statusTone,
@@ -994,6 +998,7 @@ export function buildOverviewModel({
       id: task.id,
       skuId: task.skuId,
       name: task.skuName,
+      supplierName: task.supplierName,
       etaLabel: task.etaLabel,
     }))
     .slice(0, 4);
@@ -1005,6 +1010,7 @@ export function buildOverviewModel({
       id: `receipt:${task.skuId}`,
       skuId: task.skuId,
       name: task.skuName,
+      supplierName: task.supplierName,
       quantityLabel:
         task.recentReceiptQuantity != null
           ? `+${formatWholeNumber(task.recentReceiptQuantity, language)}`
@@ -1050,6 +1056,7 @@ export function taskMatchesQuery(task: OverviewTask, query: string) {
 
   return [
     task.skuName,
+    task.supplierName,
     task.serviceImpact,
     task.whyNow,
     task.whyDetail,

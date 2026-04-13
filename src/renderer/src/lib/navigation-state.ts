@@ -55,6 +55,7 @@ export type ServiceActionValue = typeof serviceActionValues[number];
 export type OverviewRouteState = {
   filter: OverviewTaskFilterValue;
   scope: OverviewSearchScope;
+  supplier: string | null;
   taskId: string | null;
   taskMode: OverviewTaskModeValue | null;
 };
@@ -69,6 +70,7 @@ export type PerformanceRouteState = {
   compare: boolean;
   range: PerformanceRangeValue;
   scope: PerformanceScopeValue;
+  supplier: string | null;
 };
 
 export type OperationsRouteState = {
@@ -78,6 +80,7 @@ export type OperationsRouteState = {
 
 export type ArchiveRouteState = {
   q: string | null;
+  supplier: string | null;
   view: ArchiveViewValue;
 };
 
@@ -170,6 +173,7 @@ export function readOverviewRouteState(searchParams: URLSearchParams): OverviewR
   return {
     filter: readEnumValue(searchParams, 'filter', overviewTaskFilterValues, 'all'),
     scope: readEnumValue(searchParams, 'scope', overviewScopeValues, 'all'),
+    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
     taskId: taskId?.trim() ? taskId : null,
     taskMode: taskId?.trim() ? taskMode : null,
   };
@@ -185,6 +189,7 @@ export function buildOverviewSearchParams(
 
   writeEnumValue(searchParams, 'filter', resolvedState.filter, 'all');
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
+  writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   writeOptionalValue(searchParams, 'task', resolvedState.taskId);
   writeOptionalValue(searchParams, 'taskMode', resolvedState.taskId ? resolvedState.taskMode : null);
   return searchParams;
@@ -225,6 +230,7 @@ export function readPerformanceRouteState(searchParams: URLSearchParams): Perfor
     compare: readBooleanValue(searchParams, 'compare', true),
     range: readEnumValue(searchParams, 'range', performanceRangeValues, '30d'),
     scope: readEnumValue(searchParams, 'scope', performanceScopeValues, 'all'),
+    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
   };
 }
 
@@ -239,6 +245,7 @@ export function buildPerformanceSearchParams(
   writeBooleanValue(searchParams, 'compare', resolvedState.compare, true);
   writeEnumValue(searchParams, 'range', resolvedState.range, '30d');
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
+  writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   return searchParams;
 }
 
@@ -279,6 +286,7 @@ export function buildOperationsHref(
 export function readArchiveRouteState(searchParams: URLSearchParams): ArchiveRouteState {
   return {
     q: searchParams.get('q')?.trim() ? searchParams.get('q')!.trim() : null,
+    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
     view: readEnumValue(searchParams, 'view', archiveViewValues, 'all'),
   };
 }
@@ -292,6 +300,7 @@ export function buildArchiveSearchParams(
   const resolvedState = { ...currentState, ...nextState };
 
   writeOptionalValue(searchParams, 'q', resolvedState.q?.trim() ? resolvedState.q.trim() : null);
+  writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   writeEnumValue(searchParams, 'view', resolvedState.view, 'all');
   return searchParams;
 }
@@ -311,6 +320,7 @@ export function buildCatalogSearchParams(
   currentSearchParams?: URLSearchParams | null,
   nextState?: Partial<{
     q: string | null;
+    supplier: string | null;
     view: CatalogViewValue;
   }>,
 ) {
@@ -318,6 +328,9 @@ export function buildCatalogSearchParams(
 
   if (nextState?.q !== undefined) {
     writeOptionalValue(searchParams, 'q', nextState.q?.trim() ? nextState.q.trim() : null);
+  }
+  if (nextState?.supplier !== undefined) {
+    writeOptionalValue(searchParams, 'supplier', nextState.supplier?.trim() ? nextState.supplier.trim() : null);
   }
   if (nextState?.view !== undefined) {
     writeEnumValue(searchParams, 'view', nextState.view, 'all');
@@ -329,6 +342,7 @@ export function buildCatalogSearchParams(
 export function buildCatalogHref(
   nextState?: Partial<{
     q: string | null;
+    supplier: string | null;
     view: CatalogViewValue;
   }>,
   currentSearchParams?: URLSearchParams | null,

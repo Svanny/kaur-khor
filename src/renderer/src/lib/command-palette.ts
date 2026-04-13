@@ -30,6 +30,7 @@ import {
   activeSenaCatalog,
   archivedSenaServices,
   archivedSenaSkus,
+  supplierNameForSku,
 } from '@/lib/sena-catalog';
 import { buildOverviewModel, isOverviewSkuTask } from '@/routes/overview/view-model';
 
@@ -928,31 +929,34 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
   const visibleCatalog = activeSenaCatalog(catalog) ?? catalog;
 
   return visibleCatalog.skus.flatMap((sku) => {
+    const supplierName = supplierNameForSku(sku);
+    const skuSubtitle = supplierName ? `SKU · Supplier: ${supplierName}` : 'SKU';
+    const skuKeywords = supplierName ? ['sku', sku.name, supplierName] : ['sku', sku.name];
     const commands: CommandDescriptor[] = [
       createCommand({
         action: { href: buildSkuDetailHref(sku.skuId), type: 'entity' },
-        aliases: [sku.name],
+        aliases: supplierName ? [sku.name, supplierName] : [sku.name],
         id: `sku:open:${sku.skuId}`,
-        keywords: ['sku', 'open', sku.name],
+        keywords: ['open', ...skuKeywords],
         kind: 'entity',
         pageId: 'catalog',
         pageOrder: 3,
         pagePrefixes: ['/catalog', `/catalog/skus/${sku.skuId}`],
         priority: 200,
-        subtitle: 'SKU',
+        subtitle: skuSubtitle,
         title: sku.name,
       }),
       createCommand({
         action: { href: `/catalog/skus/${sku.skuId}/edit`, type: 'workflow' },
-        aliases: [sku.name, 'edit sku'],
+        aliases: supplierName ? [sku.name, supplierName, 'edit sku'] : [sku.name, 'edit sku'],
         id: `sku:edit:${sku.skuId}`,
-        keywords: ['sku', 'edit', sku.name],
+        keywords: ['edit', ...skuKeywords],
         kind: 'workflow',
         pageId: 'catalog',
         pageOrder: 3,
         pagePrefixes: ['/catalog', `/catalog/skus/${sku.skuId}`],
         priority: 210,
-        subtitle: 'SKU',
+        subtitle: skuSubtitle,
         title: `Edit ${sku.name}`,
       }),
       createCommand({
@@ -963,15 +967,15 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
           mutation: 'archive',
           type: 'catalog-mutation',
         },
-        aliases: [sku.name, 'archive sku'],
+        aliases: supplierName ? [sku.name, supplierName, 'archive sku'] : [sku.name, 'archive sku'],
         id: `sku:archive:${sku.skuId}`,
-        keywords: ['sku', 'archive', sku.name],
+        keywords: ['archive', ...skuKeywords],
         kind: 'workflow',
         pageId: 'catalog',
         pageOrder: 3,
         pagePrefixes: ['/catalog'],
         priority: 211,
-        subtitle: 'SKU',
+        subtitle: skuSubtitle,
         title: `Archive ${sku.name}`,
       }),
     ];
@@ -990,15 +994,15 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
       ...sheetCommands.map((command, index) =>
         createCommand({
           action: { href: buildSkuDetailHref(sku.skuId, command.mode), type: 'sheet' },
-          aliases: [command.mode, sku.name],
+          aliases: supplierName ? [command.mode, sku.name, supplierName] : [command.mode, sku.name],
           id: `sku:sheet:${command.mode}:${sku.skuId}`,
-          keywords: ['sku', 'sheet', command.mode, sku.name],
+          keywords: ['sheet', command.mode, ...skuKeywords],
           kind: 'sheet',
           pageId: 'catalog',
           pageOrder: 3,
           pagePrefixes: [`/catalog/skus/${sku.skuId}`],
           priority: 220 + index,
-          subtitle: 'SKU action',
+          subtitle: supplierName ? `SKU action · Supplier: ${supplierName}` : 'SKU action',
           title: `${command.label} for ${sku.name}`,
         }),
       ),
@@ -1083,25 +1087,28 @@ function buildServiceEntityCommands(catalog: SenaCatalog) {
 
 function buildArchivedEntityCommands(catalog: SenaCatalog) {
   const skuCommands = archivedSenaSkus(catalog).map((sku) =>
-    createCommand({
-      action: {
-        entityId: sku.skuId,
-        entityName: sku.name,
-        entityType: 'sku',
-        mutation: 'unarchive',
-        type: 'catalog-mutation',
-      },
-      aliases: [sku.name, 'restore sku'],
-      id: `sku:unarchive:${sku.skuId}`,
-      keywords: ['sku', 'unarchive', 'restore', sku.name],
-      kind: 'workflow',
-      pageId: 'archive',
-      pageOrder: 6,
-      pagePrefixes: ['/operations/archive'],
-      priority: 260,
-      subtitle: 'Archived SKU',
-      title: `Unarchive ${sku.name}`,
-    }),
+    {
+      const supplierName = supplierNameForSku(sku);
+      return createCommand({
+        action: {
+          entityId: sku.skuId,
+          entityName: sku.name,
+          entityType: 'sku',
+          mutation: 'unarchive',
+          type: 'catalog-mutation',
+        },
+        aliases: supplierName ? [sku.name, supplierName, 'restore sku'] : [sku.name, 'restore sku'],
+        id: `sku:unarchive:${sku.skuId}`,
+        keywords: supplierName ? ['sku', 'unarchive', 'restore', sku.name, supplierName] : ['sku', 'unarchive', 'restore', sku.name],
+        kind: 'workflow',
+        pageId: 'archive',
+        pageOrder: 6,
+        pagePrefixes: ['/operations/archive'],
+        priority: 260,
+        subtitle: supplierName ? `Archived SKU · Supplier: ${supplierName}` : 'Archived SKU',
+        title: `Unarchive ${sku.name}`,
+      });
+    },
   );
   const serviceCommands = archivedSenaServices(catalog).map((service) =>
     createCommand({
