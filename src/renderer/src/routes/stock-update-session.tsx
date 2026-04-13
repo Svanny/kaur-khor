@@ -47,6 +47,7 @@ import {
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
 import { StepWizard } from '@/components/system/step-wizard';
+import { SkuIdentityCell, SupplierFilter } from '@/components/system/supplier';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
@@ -63,7 +64,7 @@ import { translateLeadTimeVariabilityDescription, translateLeadTimeVariabilityLa
 import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { getRecordUpdateLane, RECORD_UPDATE_HUB_PATH } from '@/lib/record-update-routes';
-import { activeSenaCatalog } from '@/lib/sena-catalog';
+import { activeSenaCatalog, matchesSkuSupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -94,6 +95,7 @@ type StockUpdateStepId =
   | 'report-notes'
   | 'stock'
   | 'reorder'
+  | 'receipt'
   | 'retail-sales'
   | 'service-sales'
   | 'stock-cost'
@@ -142,6 +144,7 @@ interface StockUpdateSessionDraft {
   recordOrderExpectedArrivalDate?: string;
   recordOrderLeadTimeMeanDays?: string;
   recordOrderLeadTimeVariability?: SenaLeadTimeVariabilityClass | '';
+  recordReceiptReceivedDate?: string;
   retailSalesChoice?: OptionalStockStepChoice;
   serviceSalesChoice?: OptionalStockStepChoice;
   retailSalesDrafts?: SalesCountDrafts;
@@ -168,6 +171,7 @@ interface StockUpdateDraftState {
   recordOrderExpectedArrivalDate: string;
   recordOrderLeadTimeMeanDays: string;
   recordOrderLeadTimeVariability: SenaLeadTimeVariabilityClass | '';
+  recordReceiptReceivedDate: string;
   serviceSalesChoice: OptionalStockStepChoice;
   serviceSalesDrafts: SalesCountDrafts;
   serviceRankings: string[];
@@ -221,6 +225,7 @@ const STOCK_UPDATE_FULL_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'repor
 const STOCK_COUNT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'stock-cost', 'stock-price', 'stock-flags', 'context', 'review'];
 const SALES_UPDATE_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'stock-flags', 'context', 'review'];
 const RECORD_ORDER_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'reorder', 'stock-flags', 'context', 'review'];
+const RECORD_RECEIPT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'receipt', 'stock-flags', 'context', 'review'];
 const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
 const REPORT_NOTE_PLACEHOLDER_KEYS = [
   'stockUpdateNotesPlaceholderShiftContext',
@@ -271,6 +276,10 @@ const STOCK_UPDATE_STEP_COPY: Record<
     descriptionKey: 'stockUpdateStepStockDescription',
   },
   reorder: {
+    titleKey: 'stockUpdateStepStockTitle',
+    descriptionKey: 'stockUpdateStepStockDescription',
+  },
+  receipt: {
     titleKey: 'stockUpdateStepStockTitle',
     descriptionKey: 'stockUpdateStepStockDescription',
   },
@@ -501,7 +510,13 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 function isStockUpdateStepId(value: unknown): value is StockUpdateStepId {
   return (
     typeof value === 'string' &&
-    [...STOCK_UPDATE_FULL_STEP_ORDER, ...STOCK_COUNT_STEP_ORDER, ...SALES_UPDATE_STEP_ORDER, ...RECORD_ORDER_STEP_ORDER].includes(value as StockUpdateStepId)
+    [
+      ...STOCK_UPDATE_FULL_STEP_ORDER,
+      ...STOCK_COUNT_STEP_ORDER,
+      ...SALES_UPDATE_STEP_ORDER,
+      ...RECORD_ORDER_STEP_ORDER,
+      ...RECORD_RECEIPT_STEP_ORDER,
+    ].includes(value as StockUpdateStepId)
   );
 }
 
@@ -514,6 +529,9 @@ function stepOrderForLane(laneId: ReturnType<typeof getRecordUpdateLane>['id']) 
   }
   if (laneId === 'record-order') {
     return RECORD_ORDER_STEP_ORDER;
+  }
+  if (laneId === 'record-receipt') {
+    return RECORD_RECEIPT_STEP_ORDER;
   }
   return STOCK_UPDATE_FULL_STEP_ORDER;
 }
@@ -746,6 +764,7 @@ function hydrateStockUpdateDraft({
     recordOrderExpectedArrivalDate: typeof draft.recordOrderExpectedArrivalDate === 'string' ? draft.recordOrderExpectedArrivalDate : '',
     recordOrderLeadTimeMeanDays: typeof draft.recordOrderLeadTimeMeanDays === 'string' ? draft.recordOrderLeadTimeMeanDays : '',
     recordOrderLeadTimeVariability: sanitizeLeadTimeVariability(draft.recordOrderLeadTimeVariability),
+    recordReceiptReceivedDate: typeof draft.recordReceiptReceivedDate === 'string' ? draft.recordReceiptReceivedDate : '',
     retailSalesChoice,
     serviceSalesChoice,
     retailSalesDrafts: sanitizeSalesCountDrafts(draft.retailSalesDrafts, retailSkuIds),
@@ -775,6 +794,7 @@ function hasMeaningfulStockUpdateChanges({
   recordOrderExpectedArrivalDate,
   recordOrderLeadTimeMeanDays,
   recordOrderLeadTimeVariability,
+  recordReceiptReceivedDate,
   rows,
   serviceSalesChoice,
   serviceSalesDrafts,
@@ -789,6 +809,7 @@ function hasMeaningfulStockUpdateChanges({
     recordOrderExpectedArrivalDate.trim() !== '' ||
     recordOrderLeadTimeMeanDays.trim() !== '' ||
     recordOrderLeadTimeVariability !== '' ||
+    recordReceiptReceivedDate.trim() !== '' ||
     Object.keys(retailSalesDrafts).length > 0 ||
     Object.keys(serviceSalesDrafts).length > 0 ||
     retailSalesChoice !== 'unset' ||
@@ -817,6 +838,7 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     recordOrderExpectedArrivalDate: state.recordOrderExpectedArrivalDate,
     recordOrderLeadTimeMeanDays: state.recordOrderLeadTimeMeanDays,
     recordOrderLeadTimeVariability: state.recordOrderLeadTimeVariability,
+    recordReceiptReceivedDate: state.recordReceiptReceivedDate,
     retailSalesChoice: state.retailSalesChoice,
     serviceSalesChoice: state.serviceSalesChoice,
     retailSalesDrafts: state.retailSalesDrafts,
@@ -1058,6 +1080,36 @@ function latestOrderAtBySku(observations: ReturnType<typeof useInventory>['obser
   return values;
 }
 
+function latestReceiptQuantityBySku(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
+  const values = new Map<string, number>();
+  const latest = [...observations].sort(
+    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+  );
+  for (const observation of latest) {
+    for (const signal of observation.input.orderSignals) {
+      if (signal.receiptArrived && signal.approximateReceiptQuantity != null && !values.has(signal.skuId)) {
+        values.set(signal.skuId, signal.approximateReceiptQuantity);
+      }
+    }
+  }
+  return new Map((catalog?.skus ?? []).map((sku) => [sku.skuId, values.get(sku.skuId) ?? null]));
+}
+
+function latestReceiptAtBySku(observations: ReturnType<typeof useInventory>['observations']) {
+  const values = new Map<string, string>();
+  const latest = [...observations].sort(
+    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+  );
+  for (const observation of latest) {
+    for (const signal of observation.input.orderSignals) {
+      if (signal.receiptArrived && signal.approximateReceiptQuantity != null && !values.has(signal.skuId)) {
+        values.set(signal.skuId, signal.receiptTimestamp ?? observation.input.observedAt);
+      }
+    }
+  }
+  return values;
+}
+
 function reorderRecommendationBySku(workspaceSummary: ReturnType<typeof useInventory>['workspaceSummary']) {
   return new Map(
     (workspaceSummary?.skuSummaries ?? []).map((summary) => {
@@ -1201,9 +1253,13 @@ function buildDraftsFromObservationInput({
     };
   }
   const firstOrderSignal = input.orderSignals.find((signal) => signal.orderPlaced) ?? null;
+  const firstReceiptSignal = input.orderSignals.find((signal) => signal.receiptArrived) ?? null;
   const firstLeadTimeHint = input.leadTimeHints[0] ?? null;
   const recordOrderExpectedArrivalDate = firstOrderSignal?.receiptTimestamp
     ? dateInputValue(firstOrderSignal.receiptTimestamp)
+    : '';
+  const recordReceiptReceivedDate = firstReceiptSignal?.receiptTimestamp
+    ? dateInputValue(firstReceiptSignal.receiptTimestamp)
     : '';
   const recordOrderLeadTimeMeanDays =
     firstOrderSignal?.leadTimeDaysHint != null
@@ -1252,9 +1308,11 @@ function buildDraftsFromObservationInput({
         ? 'stock'
         : stepOrder.includes('reorder')
           ? 'reorder'
-          : stepOrder.includes('retail-sales')
-            ? 'retail-sales'
-            : 'observed-at'
+          : stepOrder.includes('receipt')
+            ? 'receipt'
+            : stepOrder.includes('retail-sales')
+              ? 'retail-sales'
+              : 'observed-at'
     ) as StockUpdateStepId,
     unlockedStepCount: stepOrder.length,
     observedAt: localDateTimeInputValue(input.observedAt),
@@ -1264,6 +1322,7 @@ function buildDraftsFromObservationInput({
     recordOrderExpectedArrivalDate,
     recordOrderLeadTimeMeanDays,
     recordOrderLeadTimeVariability,
+    recordReceiptReceivedDate,
     retailSalesChoice:
       Object.keys(retailSalesDrafts).length > 0 ? 'yes' : input.retailRankings.length > 0 ? 'no' : 'unset',
     serviceSalesChoice:
@@ -1556,15 +1615,13 @@ const flagControlClassName = `min-w-0 w-full max-w-[12rem] ${recordUpdateInputCl
 const discardChangesButtonClassName = 'hover:bg-destructive/12 hover:text-destructive focus-visible:ring-destructive/20';
 
 function StockSkuSummaryCell({
+  sku,
   skuName,
 }: {
+  sku?: SenaCatalog['skus'][number] | null;
   skuName: string;
 }) {
-  return (
-    <div className="min-w-0">
-      <span className="block font-medium text-foreground">{skuName}</span>
-    </div>
-  );
+  return <SkuIdentityCell sku={sku} skuName={skuName} />;
 }
 
 function StockLatestUnitsCell({
@@ -1659,6 +1716,10 @@ function orderDraftHasContent(draft: SkuSignalDraft | undefined) {
   return draft?.orderedQuantity.trim() !== '';
 }
 
+function receiptDraftHasContent(draft: SkuSignalDraft | undefined) {
+  return draft?.receiptQuantity.trim() !== '';
+}
+
 function LastOrderCell({
   latestAt,
   latestValue,
@@ -1677,6 +1738,29 @@ function LastOrderCell({
         {latestAt
           ? t('stockUpdateAsOfDate', { date: formatSenaLongDate(latestAt, 'en') })
           : translateUiLiteral('en', 'not ordered')}
+      </span>
+    </div>
+  );
+}
+
+function LastReceiptCell({
+  latestAt,
+  latestValue,
+}: {
+  latestAt: string | null | undefined;
+  latestValue: number | null | undefined;
+}) {
+  const { t } = usePreferences();
+
+  return (
+    <div className="min-w-0">
+      <span className="block font-medium text-foreground">
+        {latestValue == null ? translateUiLiteral('en', 'No prior receipt') : translateUiLiteral('en', '{count} units', { count: latestValue })}
+      </span>
+      <span className="mt-2 block text-sm leading-6 text-muted-foreground">
+        {latestAt
+          ? t('stockUpdateAsOfDate', { date: formatSenaLongDate(latestAt, 'en') })
+          : translateUiLiteral('en', 'not received')}
       </span>
     </div>
   );
@@ -1832,6 +1916,62 @@ function OrderQuantityField({
         type="number"
         value={orderQuantityValue}
         onChange={(event) => setOrderQuantity(event.target.value)}
+      />
+    </div>
+  );
+}
+
+function RecordReceiptDateField({
+  receivedDatePlaceholder,
+  receivedDateValue,
+  setReceivedDate,
+}: {
+  receivedDatePlaceholder: string;
+  receivedDateValue: string;
+  setReceivedDate: (value: string) => void;
+}) {
+  const receivedDateId = 'record-receipt-received-date';
+
+  return (
+    <div className="grid gap-3 xl:grid-cols-3">
+      <div className="min-w-0">
+        <RecordUpdateFieldLabel htmlFor={receivedDateId}>
+          {translateUiLiteral('en', 'Received date')}
+        </RecordUpdateFieldLabel>
+        <Input
+          aria-label={translateUiLiteral('en', 'Received date')}
+          className={`w-full ${recordUpdateInputClassName}`}
+          id={receivedDateId}
+          placeholder={receivedDatePlaceholder}
+          type="date"
+          value={receivedDateValue}
+          onChange={(event) => setReceivedDate(event.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ReceiptQuantityField({
+  receiptQuantityValue,
+  rowName,
+  setReceiptQuantity,
+}: {
+  receiptQuantityValue: string;
+  rowName: string;
+  setReceiptQuantity: (value: string) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <RecordUpdateMobileLabel>{translateUiLiteral('en', 'Current receipt')}</RecordUpdateMobileLabel>
+      <Input
+        aria-label={translateUiLiteral('en', 'Current receipt for {name}', { name: rowName })}
+        className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+        min="0"
+        step="1"
+        type="number"
+        value={receiptQuantityValue}
+        onChange={(event) => setReceiptQuantity(event.target.value)}
       />
     </div>
   );
@@ -2172,6 +2312,7 @@ function StockCountStep({
   stockBySku,
   updateRow,
   visibleRows,
+  supplierFilterControl,
 }: {
   catalog: SenaCatalog | null;
   countedAtBySku: Map<string, string>;
@@ -2182,6 +2323,7 @@ function StockCountStep({
   stockBySku: Map<string, SenaStockSnapshot>;
   updateRow: (skuId: string, patch: Partial<StockRow>) => void;
   visibleRows: StockRow[];
+  supplierFilterControl?: ReactNode;
 }) {
   const { t } = usePreferences();
 
@@ -2202,6 +2344,7 @@ function StockCountStep({
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {supplierFilterControl}
         {(catalog?.skus ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
         ) : (
@@ -2231,7 +2374,7 @@ function StockCountStep({
                   highlight: unitsChanged,
                   inputCellIndexes: [2],
                   cells: [
-                    <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
                     <StockLatestUnitsCell countedAtBySku={countedAtBySku} row={row} stockBySku={stockBySku} />,
                     <>
                       <RecordUpdateMobileLabel>{t('stockUpdateCurrentUnits')}</RecordUpdateMobileLabel>
@@ -2284,9 +2427,10 @@ function StockCostStep(props: {
   visibleRows: StockRow[];
   onChooseNo: () => void;
   onChooseYes: () => void;
+  supplierFilterControl?: ReactNode;
 }) {
   const { t } = usePreferences();
-  const { catalog, choice, countedAtBySku, currency, debugCellBoundaries, guidance, onReorderRows, stockBySku, usdToKhrExchangeRate, updateRow, visibleRows, onChooseNo, onChooseYes } = props;
+  const { catalog, choice, countedAtBySku, currency, debugCellBoundaries, guidance, onReorderRows, stockBySku, usdToKhrExchangeRate, updateRow, visibleRows, onChooseNo, onChooseYes, supplierFilterControl } = props;
 
   return (
     <WorkspacePanel
@@ -2299,6 +2443,7 @@ function StockCostStep(props: {
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateCostStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateCostStepQuestion')} />
+        {choice === 'yes' ? supplierFilterControl : null}
         {choice === 'yes' ? (
           (catalog?.skus ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
@@ -2330,7 +2475,7 @@ function StockCostStep(props: {
                     highlight: costChanged,
                     inputCellIndexes: [2],
                     cells: [
-                      <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
                       <StockLatestMoneyCell countedAtBySku={countedAtBySku} latestValue={latestCost} skuId={row.skuId} />,
                       <>
                         <RecordUpdateMobileLabel>{t('stockUpdateCurrentCost')}</RecordUpdateMobileLabel>
@@ -2379,9 +2524,10 @@ function StockRetailPriceStep(props: {
   visibleRows: StockRow[];
   onChooseNo: () => void;
   onChooseYes: () => void;
+  supplierFilterControl?: ReactNode;
 }) {
   const { t } = usePreferences();
-  const { catalog, choice, countedAtBySku, currency, debugCellBoundaries, guidance, onReorderRows, stockBySku, usdToKhrExchangeRate, updateRow, visibleRows, onChooseNo, onChooseYes } = props;
+  const { catalog, choice, countedAtBySku, currency, debugCellBoundaries, guidance, onReorderRows, stockBySku, usdToKhrExchangeRate, updateRow, visibleRows, onChooseNo, onChooseYes, supplierFilterControl } = props;
 
   return (
     <WorkspacePanel
@@ -2394,6 +2540,7 @@ function StockRetailPriceStep(props: {
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateRetailPriceStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateRetailPriceStepQuestion')} />
+        {choice === 'yes' ? supplierFilterControl : null}
         {choice === 'yes' ? (
           (catalog?.skus ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
@@ -2425,7 +2572,7 @@ function StockRetailPriceStep(props: {
                     highlight: retailPriceChanged,
                     inputCellIndexes: [2],
                     cells: [
-                      <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
                       <StockLatestMoneyCell countedAtBySku={countedAtBySku} latestValue={latestRetailPrice} skuId={row.skuId} />,
                       <>
                         <RecordUpdateMobileLabel>{t('stockUpdateCurrentRetailPrice')}</RecordUpdateMobileLabel>
@@ -2473,9 +2620,10 @@ function StockFlagsStep(props: {
   visibleRows: StockRow[];
   onChooseNo: () => void;
   onChooseYes: () => void;
+  supplierFilterControl?: ReactNode;
 }) {
   const { t } = usePreferences();
-  const { catalog, choice, countedAtBySku, debugCellBoundaries, guidance, onReorderRows, skuSignalDrafts, stockBySku, updateSkuSignalDraft, visibleRows, onChooseNo, onChooseYes } = props;
+  const { catalog, choice, countedAtBySku, debugCellBoundaries, guidance, onReorderRows, skuSignalDrafts, stockBySku, updateSkuSignalDraft, visibleRows, onChooseNo, onChooseYes, supplierFilterControl } = props;
   const stockEventOptions: Array<{
     value: StockEventDropdownValue;
     label: string;
@@ -2509,6 +2657,7 @@ function StockFlagsStep(props: {
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateFlagsStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateFlagsStepQuestion')} />
+        {choice === 'yes' ? supplierFilterControl : null}
         {choice === 'yes' ? (
           (catalog?.skus ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
@@ -2537,7 +2686,7 @@ function StockFlagsStep(props: {
                     highlight: Boolean(draft?.blockedEnabled),
                     inputCellIndexes: [1],
                     cells: [
-                      <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
                       <div className="min-w-0">
                         <RecordUpdateMobileLabel>{t('stockUpdateEventColumn')}</RecordUpdateMobileLabel>
                         <Select
@@ -2629,6 +2778,7 @@ function SalesRetailStep({
   setRetailRankings,
   setRetailSalesDraft,
   retailRankings,
+  supplierFilterControl,
 }: {
   catalog: SenaCatalog | null;
   choice: OptionalStockStepChoice;
@@ -2645,6 +2795,7 @@ function SalesRetailStep({
   retailRankings: string[];
   setRetailRankings: (values: string[]) => void;
   setRetailSalesDraft: (skuId: string, value: string) => void;
+  supplierFilterControl?: ReactNode;
 }) {
   return (
     <WorkspacePanel
@@ -2662,6 +2813,7 @@ function SalesRetailStep({
           onNo={onChooseNo}
           onYes={onChooseYes}
         />
+        {supplierFilterControl}
         {choice === 'yes' ? (
           retailSkuIds.length === 0 ? (
             <p className="text-sm text-muted-foreground">{translateUiLiteral('en', 'No sellable SKUs available.')}</p>
@@ -2686,7 +2838,7 @@ function SalesRetailStep({
                     highlight: (retailSalesDrafts[skuId]?.trim() ?? '') !== '',
                     inputCellIndexes: [2],
                     cells: [
-                      <StockSkuSummaryCell skuName={sku?.name ?? skuId} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? skuId} />,
                       <SalesLatestCountCell countLabel="sold" latestAt={latestSalesAtBySku.get(skuId)} latestValue={latestValue} />,
                       <>
                         <RecordUpdateMobileLabel>{"Current interval's sales"}</RecordUpdateMobileLabel>
@@ -2861,6 +3013,7 @@ function RecordOrderStep({
   setRecordOrderLeadTimeVariability,
   skuSignalDrafts,
   updateSkuSignalDraft,
+  supplierFilterControl,
 }: {
   catalog: SenaCatalog | null;
   debugCellBoundaries: boolean;
@@ -2881,6 +3034,7 @@ function RecordOrderStep({
   setRecordOrderLeadTimeVariability: (value: SenaLeadTimeVariabilityClass | '') => void;
   skuSignalDrafts: Record<string, SkuSignalDraft>;
   updateSkuSignalDraft: (skuId: string, updater: (draft: SkuSignalDraft) => SkuSignalDraft) => void;
+  supplierFilterControl?: ReactNode;
 }) {
   const leadTimeMeanPlaceholder = rows.map((row) => leadTimeMeanDefaults.get(row.skuId)).find((value) => value != null) ?? null;
   const leadTimeVariabilityPlaceholder = rows.map((row) => leadTimeVariabilityDefaults.get(row.skuId)).find((value) => value != null) ?? '';
@@ -2928,6 +3082,7 @@ function RecordOrderStep({
               variabilityPlaceholder={leadTimeVariabilityPlaceholder}
               variabilityValue={recordOrderLeadTimeVariability}
             />
+            {supplierFilterControl}
             <SortableStockTable
               bodyTestId="record-order-list"
               debugCellBoundaries={debugCellBoundaries}
@@ -2949,7 +3104,7 @@ function RecordOrderStep({
                   highlight: orderDraftHasContent(draft),
                   inputCellIndexes: [2],
                   cells: [
-                    <StockSkuSummaryCell skuName={sku?.name ?? row.skuId} />,
+                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
                     <LastOrderCell latestAt={latestOrderAtBySku.get(row.skuId)} latestValue={latestOrderQuantity.get(row.skuId) ?? null} />,
                     <OrderQuantityField
                       orderQuantityPlaceholder={recommendedUnits && recommendedUnits > 0
@@ -2962,6 +3117,106 @@ function RecordOrderStep({
                           ...current,
                           orderEnabled: value.trim() !== '',
                           orderedQuantity: value,
+                        }))
+                      }
+                    />,
+                  ],
+                };
+              }}
+            />
+            <StockReorderHint />
+          </>
+        )}
+      </div>
+    </WorkspacePanel>
+  );
+}
+
+function RecordReceiptStep({
+  catalog,
+  debugCellBoundaries,
+  guidance,
+  latestReceiptAtBySku,
+  latestReceiptQuantity,
+  observedAtIso,
+  onReorderRows,
+  recordReceiptReceivedDate,
+  rows,
+  setRecordReceiptReceivedDate,
+  skuSignalDrafts,
+  updateSkuSignalDraft,
+  supplierFilterControl,
+}: {
+  catalog: SenaCatalog | null;
+  debugCellBoundaries: boolean;
+  guidance?: string | null;
+  latestReceiptAtBySku: Map<string, string>;
+  latestReceiptQuantity: Map<string, number | null>;
+  observedAtIso: string | null;
+  onReorderRows: (activeSkuId: string, overSkuId: string) => void;
+  recordReceiptReceivedDate: string;
+  rows: StockRow[];
+  setRecordReceiptReceivedDate: (value: string) => void;
+  skuSignalDrafts: Record<string, SkuSignalDraft>;
+  updateSkuSignalDraft: (skuId: string, updater: (draft: SkuSignalDraft) => SkuSignalDraft) => void;
+  supplierFilterControl?: ReactNode;
+}) {
+  const observedDate = dateInputValue(observedAtIso);
+  useEffect(() => {
+    if (!recordReceiptReceivedDate && observedDate) {
+      setRecordReceiptReceivedDate(observedDate);
+    }
+  }, [observedDate, recordReceiptReceivedDate, setRecordReceiptReceivedDate]);
+
+  return (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={translateUiLiteral('en', 'Record the stock that physically arrived and confirm the received date before saving.')}
+      style={recordUpdateWhiteCardStyle}
+      title="Record receipt"
+    >
+      <div className="grid gap-3">
+        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {(catalog?.skus ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">{translateUiLiteral('en', 'No SKUs are in the catalog yet. Add a SKU first if you need to record a receipt.')}</p>
+        ) : (
+          <>
+            <RecordReceiptDateField
+              receivedDatePlaceholder={observedDate}
+              receivedDateValue={recordReceiptReceivedDate}
+              setReceivedDate={setRecordReceiptReceivedDate}
+            />
+            {supplierFilterControl}
+            <SortableStockTable
+              bodyTestId="record-receipt-list"
+              debugCellBoundaries={debugCellBoundaries}
+              columns={[
+                { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
+                { header: 'SKU', width: '34%' },
+                { header: 'Last receipt', width: '26%' },
+                { header: 'Current receipt', width: '40%' },
+              ]}
+              onReorderRows={onReorderRows}
+              rows={rows}
+              renderRow={(row) => {
+                const sku = catalog?.skus.find((entry) => entry.skuId === row.skuId);
+                const draft = skuSignalDrafts[row.skuId] ?? createEmptySkuSignalDraft();
+
+                return {
+                  dragLabel: translateUiLiteral('en', 'Reorder {name}', { name: sku?.name ?? row.skuId }),
+                  highlight: receiptDraftHasContent(draft),
+                  inputCellIndexes: [2],
+                  cells: [
+                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
+                    <LastReceiptCell latestAt={latestReceiptAtBySku.get(row.skuId)} latestValue={latestReceiptQuantity.get(row.skuId) ?? null} />,
+                    <ReceiptQuantityField
+                      receiptQuantityValue={draft.receiptQuantity}
+                      rowName={sku?.name ?? row.skuId}
+                      setReceiptQuantity={(value) =>
+                        updateSkuSignalDraft(row.skuId, (current) => ({
+                          ...current,
+                          receiptEnabled: value.trim() !== '',
+                          receiptQuantity: value,
                         }))
                       }
                     />,
@@ -3402,6 +3657,7 @@ export function StockUpdateSessionRoute() {
   const [notes, setNotes] = useState('');
   const [notesPlaceholderKey, setNotesPlaceholderKey] = useState<TranslationKey>(() => randomReportNotePlaceholderKey());
   const [stockView, setStockView] = useState<StockView>('priority');
+  const [supplierFilter, setSupplierFilter] = useState<SupplierFilterValue>('all');
   const [persistedStockRowOrder, setPersistedStockRowOrder] = useState(() => readStockRowOrder(stockRowOrderStorageKey));
   const [persistedRetailSalesRowOrder, setPersistedRetailSalesRowOrder] = useState(() => readStockRowOrder(retailSalesRowOrderStorageKey));
   const [persistedServiceSalesRowOrder, setPersistedServiceSalesRowOrder] = useState(() => readStockRowOrder(serviceSalesRowOrderStorageKey));
@@ -3416,6 +3672,7 @@ export function StockUpdateSessionRoute() {
   const [recordOrderExpectedArrivalDate, setRecordOrderExpectedArrivalDate] = useState('');
   const [recordOrderLeadTimeMeanDays, setRecordOrderLeadTimeMeanDays] = useState('');
   const [recordOrderLeadTimeVariability, setRecordOrderLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>('');
+  const [recordReceiptReceivedDate, setRecordReceiptReceivedDate] = useState('');
   const [stockStepChoices, setStockStepChoices] = useState<Record<OptionalStockStepId, OptionalStockStepChoice>>(
     () => createDefaultStockStepChoices(),
   );
@@ -3440,6 +3697,8 @@ export function StockUpdateSessionRoute() {
   const countedAtBySku = useMemo(() => latestCountedAtBySku(observations), [observations]);
   const latestOrderedQuantity = useMemo(() => latestOrderQuantityBySku(workingCatalog, observations), [observations, workingCatalog]);
   const latestOrderedAt = useMemo(() => latestOrderAtBySku(observations), [observations]);
+  const latestReceiptQuantity = useMemo(() => latestReceiptQuantityBySku(workingCatalog, observations), [observations, workingCatalog]);
+  const latestReceiptAt = useMemo(() => latestReceiptAtBySku(observations), [observations]);
   const latestRetailSales = useMemo(() => latestRetailSalesBySku(workingCatalog, observations), [observations, workingCatalog]);
   const latestRetailSalesAt = useMemo(() => latestRetailSalesAtBySku(observations), [observations]);
   const latestServiceSales = useMemo(() => latestServiceSalesByService(workingCatalog, observations), [observations, workingCatalog]);
@@ -3451,13 +3710,32 @@ export function StockUpdateSessionRoute() {
     () => (lane.id === 'stock-count' ? skuEventOnlyDrafts(skuSignalDrafts) : skuSignalDrafts),
     [lane.id, skuSignalDrafts],
   );
+  const supplierFilteredRows = useMemo(
+    () => rows.filter((row) => {
+      const sku = workingCatalog?.skus.find((entry) => entry.skuId === row.skuId);
+      return sku ? matchesSkuSupplier(sku, supplierFilter) : true;
+    }),
+    [rows, supplierFilter, workingCatalog?.skus],
+  );
+  const supplierFilterControl = (
+    <div className="flex justify-start">
+      <SupplierFilter
+        catalog={workingCatalog}
+        className={cn('h-10 rounded-xl px-3 data-[size=default]:h-10', recordUpdateSelectTriggerClassName)}
+        value={supplierFilter}
+        onChange={setSupplierFilter}
+      />
+    </div>
+  );
   const retailSkuIds = useMemo(
     () =>
       applyStockRowOrder(
-        (workingCatalog?.skus ?? []).filter((sku) => sku.soldAsProduct).map((sku) => ({ skuId: sku.skuId })),
+        (workingCatalog?.skus ?? [])
+          .filter((sku) => sku.soldAsProduct && matchesSkuSupplier(sku, supplierFilter))
+          .map((sku) => ({ skuId: sku.skuId })),
         persistedRetailSalesRowOrder,
       ).map((row) => row.skuId),
-    [persistedRetailSalesRowOrder, workingCatalog],
+    [persistedRetailSalesRowOrder, supplierFilter, workingCatalog],
   );
   const serviceIds = useMemo(
     () =>
@@ -3485,8 +3763,8 @@ export function StockUpdateSessionRoute() {
   }, [countedAtBySku, highRiskIds, serviceLinkedSkuIds, workingCatalog?.skus]);
 
   const visibleRows = lane.id === 'stock-count'
-    ? rows
-    : rows.filter((row) => {
+    ? supplierFilteredRows
+    : supplierFilteredRows.filter((row) => {
         if (stockView === 'counted') {
           return stockRowChanged(workingCatalog, stockBySku, row) || hasSkuFlags(skuSignalDrafts[row.skuId]);
         }
@@ -3507,9 +3785,12 @@ export function StockUpdateSessionRoute() {
   const retailSalesCount = Object.values(retailSalesDrafts).filter((value) => value.trim() !== '').length;
   const serviceSalesCount = Object.values(serviceSalesDrafts).filter((value) => value.trim() !== '').length;
   const orderSignalCount = Object.values(skuSignalDrafts).filter((draft) => draft.orderedQuantity.trim() !== '').length;
+  const receiptSignalCount = Object.values(skuSignalDrafts).filter((draft) => draft.receiptQuantity.trim() !== '').length;
   const fullUpdate = rows.length > 0 && rows.every((row) => stockRowChanged(workingCatalog, stockBySku, row));
   const defaultServiceRankingIds = (workingCatalog?.services ?? []).map((service) => service.serviceId);
-  const defaultRetailRankingIds = (workingCatalog?.skus ?? []).filter((sku) => sku.soldAsProduct).map((sku) => sku.skuId);
+  const defaultRetailRankingIds = (workingCatalog?.skus ?? [])
+    .filter((sku) => sku.soldAsProduct && matchesSkuSupplier(sku, supplierFilter))
+    .map((sku) => sku.skuId);
   const currentStepIndex = activeStepOrder.indexOf(currentStepId);
   const normalizedCurrentStepIndex = currentStepIndex >= 0 ? currentStepIndex : 0;
   const isLastStep = normalizedCurrentStepIndex === activeStepOrder.length - 1;
@@ -3539,6 +3820,7 @@ export function StockUpdateSessionRoute() {
       recordOrderExpectedArrivalDate,
       recordOrderLeadTimeMeanDays,
       recordOrderLeadTimeVariability,
+      recordReceiptReceivedDate,
       rows,
       serviceSalesChoice,
       serviceSalesDrafts,
@@ -3562,6 +3844,7 @@ export function StockUpdateSessionRoute() {
       recordOrderExpectedArrivalDate,
       recordOrderLeadTimeMeanDays,
       recordOrderLeadTimeVariability,
+      recordReceiptReceivedDate,
       rows,
       serviceSalesChoice,
       serviceSalesDrafts,
@@ -3629,6 +3912,7 @@ export function StockUpdateSessionRoute() {
     setRecordOrderExpectedArrivalDate(hydratedState.recordOrderExpectedArrivalDate);
     setRecordOrderLeadTimeMeanDays(hydratedState.recordOrderLeadTimeMeanDays);
     setRecordOrderLeadTimeVariability(hydratedState.recordOrderLeadTimeVariability);
+    setRecordReceiptReceivedDate(hydratedState.recordReceiptReceivedDate);
     setStockStepChoices(hydratedState.stockStepChoices);
     setServiceSignalDrafts(hydratedState.serviceSignalDrafts);
     setRegimeHint(hydratedState.regimeHint);
@@ -3719,6 +4003,7 @@ export function StockUpdateSessionRoute() {
         setRecordOrderExpectedArrivalDate(hydratedDraft.recordOrderExpectedArrivalDate);
         setRecordOrderLeadTimeMeanDays(hydratedDraft.recordOrderLeadTimeMeanDays);
         setRecordOrderLeadTimeVariability(hydratedDraft.recordOrderLeadTimeVariability);
+        setRecordReceiptReceivedDate(hydratedDraft.recordReceiptReceivedDate);
         setStockStepChoices(hydratedDraft.stockStepChoices);
         setServiceSignalDrafts(hydratedDraft.serviceSignalDrafts);
         setRegimeHint(hydratedDraft.regimeHint);
@@ -3887,7 +4172,7 @@ export function StockUpdateSessionRoute() {
   }
 
   function resetSkuFlagRows() {
-    setSkuSignalDrafts((current) => (lane.id === 'record-order' ? skuWithoutEventDrafts(current) : {}));
+    setSkuSignalDrafts((current) => (lane.id === 'record-order' || lane.id === 'record-receipt' ? skuWithoutEventDrafts(current) : {}));
   }
 
   function handleSkipOptionalStockStep(stepId: OptionalStockStepId) {
@@ -4002,6 +4287,31 @@ export function StockUpdateSessionRoute() {
       payload.regimeHint = regimeHint || null;
       return payload;
     }
+    if (lane.id === 'record-receipt') {
+      const payload = createEmptyObservationInput({
+        observedAt: observedAtIso ?? new Date().toISOString(),
+        notes: notes.trim() || null,
+      });
+      payload.orderSignals = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+        const quantity = draft.receiptQuantity.trim();
+        if (quantity === '' || Number(quantity) <= 0) {
+          return [];
+        }
+        return [{
+          skuId,
+          orderPlaced: false,
+          receiptArrived: true,
+          approximateOrderQuantity: null,
+          approximateReceiptQuantity: Number(quantity),
+          receiptTimestamp: dateInputToIso(recordReceiptReceivedDate),
+        }];
+      });
+      payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
+        .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
+        .map(([skuId]) => skuId);
+      payload.regimeHint = regimeHint || null;
+      return payload;
+    }
     if (editSession) {
       return buildFullObservationPayload({
         currency,
@@ -4080,7 +4390,7 @@ export function StockUpdateSessionRoute() {
     (stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid) ||
     (lane.id !== 'stock-count' && !serviceFlagsValid) ||
     !hasStructuredObservationSignal(previewPayload) ||
-    (lane.id !== 'sales-update' && lane.id !== 'record-order' && requiresFirstStockSnapshot);
+    (lane.id !== 'sales-update' && lane.id !== 'record-order' && lane.id !== 'record-receipt' && requiresFirstStockSnapshot);
 
   const stepStates = [
     {
@@ -4107,6 +4417,22 @@ export function StockUpdateSessionRoute() {
                     suffix: orderSignalCount === 1 ? '' : 's',
                   })
                 : translateUiLiteral(language, 'Optional reorder capture'),
+            complete: true,
+          },
+        ]
+      : []),
+    ...(lane.id === 'record-receipt'
+      ? [
+          {
+            id: 'receipt' as const,
+            title: 'Record receipt',
+            description:
+              receiptSignalCount > 0
+                ? translateUiLiteral(language, '{count} current receipt row{suffix}', {
+                    count: receiptSignalCount,
+                    suffix: receiptSignalCount === 1 ? '' : 's',
+                  })
+                : translateUiLiteral(language, 'Optional receipt capture'),
             complete: true,
           },
         ]
@@ -4154,7 +4480,7 @@ export function StockUpdateSessionRoute() {
                   : false,
           },
         ]
-      : lane.id === 'record-order'
+      : lane.id === 'record-order' || lane.id === 'record-receipt'
         ? []
         : [{
             id: 'stock',
@@ -4241,6 +4567,8 @@ export function StockUpdateSessionRoute() {
           ? serviceSalesChoice !== 'unset'
         : currentStepId === 'reorder'
           ? true
+        : currentStepId === 'receipt'
+          ? true
         : currentStepId === 'stock'
           ? stockStepSatisfied
           : currentStepId === 'stock-cost'
@@ -4260,6 +4588,8 @@ export function StockUpdateSessionRoute() {
         ? translateUiLiteral(language, 'Add at least one retail sales count, service sales count, row event, retail ranking, service ranking, or sales pattern before saving.')
         : lane.id === 'record-order'
           ? translateUiLiteral(language, 'Add at least one current order, row event, or sales pattern before saving.')
+          : lane.id === 'record-receipt'
+            ? translateUiLiteral(language, 'Add at least one current receipt, row event, or sales pattern before saving.')
         : t('stockUpdateGuidanceAddSignal');
 
   const stepGuidance =
@@ -4267,6 +4597,8 @@ export function StockUpdateSessionRoute() {
       ? t('stockUpdateGuidanceChooseObservedAt')
       : currentStepId === 'reorder'
         ? null
+        : currentStepId === 'receipt'
+          ? null
       : currentStepId === 'retail-sales' && retailSalesChoice === 'unset'
         ? t('stockUpdateGuidanceChooseOptionalStep')
         : currentStepId === 'service-sales' && serviceSalesChoice === 'unset'
@@ -4289,7 +4621,7 @@ export function StockUpdateSessionRoute() {
               ? t('stockUpdateGuidanceFillServiceFlagsSave')
           : currentStepId === 'review' && !hasStructuredObservationSignal(previewPayload)
                 ? addSignalGuidanceText
-          : currentStepId === 'review' && lane.id !== 'sales-update' && lane.id !== 'record-order' && isFirstObservation && previewPayload.stockSnapshot.length === 0
+          : currentStepId === 'review' && lane.id !== 'sales-update' && lane.id !== 'record-order' && lane.id !== 'record-receipt' && isFirstObservation && previewPayload.stockSnapshot.length === 0
             ? t('stockUpdateGuidanceFirstUpdateNeedsCount')
             : null;
 
@@ -4299,7 +4631,7 @@ export function StockUpdateSessionRoute() {
     ...(!hasStructuredObservationSignal(previewPayload)
       ? [addSignalGuidanceText]
       : []),
-    ...(lane.id !== 'sales-update' && lane.id !== 'record-order' && requiresFirstStockSnapshot
+    ...(lane.id !== 'sales-update' && lane.id !== 'record-order' && lane.id !== 'record-receipt' && requiresFirstStockSnapshot
       ? [t('stockUpdateGuidanceFirstUpdateNeedsCount')]
       : []),
   ];
@@ -4348,6 +4680,7 @@ export function StockUpdateSessionRoute() {
     setRecordOrderExpectedArrivalDate('');
     setRecordOrderLeadTimeMeanDays('');
     setRecordOrderLeadTimeVariability('');
+    setRecordReceiptReceivedDate('');
     setStockStepChoices(createDefaultStockStepChoices());
     setServiceSignalDrafts({});
     setRegimeHint('');
@@ -4384,7 +4717,7 @@ export function StockUpdateSessionRoute() {
       setError(addSignalGuidanceText);
       return;
     }
-    if (lane.id !== 'sales-update' && lane.id !== 'record-order' && isFirstObservation && payload.stockSnapshot.length === 0) {
+    if (lane.id !== 'sales-update' && lane.id !== 'record-order' && lane.id !== 'record-receipt' && isFirstObservation && payload.stockSnapshot.length === 0) {
       setError(t('stockUpdateGuidanceFirstUpdateNeedsCount'));
       return;
     }
@@ -4820,6 +5153,7 @@ export function StockUpdateSessionRoute() {
             onReorderRows={handleStockRowReorder}
             rows={rows}
             stockBySku={stockBySku}
+            supplierFilterControl={supplierFilterControl}
             updateRow={updateRow}
             visibleRows={visibleRows}
           />
@@ -4840,11 +5174,30 @@ export function StockUpdateSessionRoute() {
             recordOrderExpectedArrivalDate={recordOrderExpectedArrivalDate}
             recordOrderLeadTimeMeanDays={recordOrderLeadTimeMeanDays}
             recordOrderLeadTimeVariability={recordOrderLeadTimeVariability}
-            rows={rows}
+            rows={supplierFilteredRows}
             setRecordOrderExpectedArrivalDate={setRecordOrderExpectedArrivalDate}
             setRecordOrderLeadTimeMeanDays={setRecordOrderLeadTimeMeanDays}
             setRecordOrderLeadTimeVariability={setRecordOrderLeadTimeVariability}
             skuSignalDrafts={skuSignalDrafts}
+            supplierFilterControl={supplierFilterControl}
+            updateSkuSignalDraft={updateSkuSignalDraft}
+          />
+        ) : null}
+
+        {currentStepId === 'receipt' ? (
+          <RecordReceiptStep
+            catalog={workingCatalog}
+            debugCellBoundaries={debugCellBoundaries}
+            guidance={currentStepId === 'receipt' ? stepGuidance : null}
+            latestReceiptAtBySku={latestReceiptAt}
+            latestReceiptQuantity={latestReceiptQuantity}
+            observedAtIso={observedAtIso}
+            onReorderRows={handleStockRowReorder}
+            recordReceiptReceivedDate={recordReceiptReceivedDate}
+            rows={supplierFilteredRows}
+            setRecordReceiptReceivedDate={setRecordReceiptReceivedDate}
+            skuSignalDrafts={skuSignalDrafts}
+            supplierFilterControl={supplierFilterControl}
             updateSkuSignalDraft={updateSkuSignalDraft}
           />
         ) : null}
@@ -4866,6 +5219,7 @@ export function StockUpdateSessionRoute() {
             retailRankings={retailRankings}
             setRetailRankings={setRetailRankings}
             setRetailSalesDraft={updateRetailSalesDraft}
+            supplierFilterControl={supplierFilterControl}
           />
         ) : null}
 
@@ -4903,6 +5257,7 @@ export function StockUpdateSessionRoute() {
             usdToKhrExchangeRate={usdToKhrExchangeRate}
             updateRow={updateRow}
             visibleRows={visibleRows}
+            supplierFilterControl={supplierFilterControl}
             onChooseNo={() => handleSkipOptionalStockStep('stock-cost')}
             onChooseYes={() => updateStockStepChoice('stock-cost', 'yes')}
           />
@@ -4922,6 +5277,7 @@ export function StockUpdateSessionRoute() {
             usdToKhrExchangeRate={usdToKhrExchangeRate}
             updateRow={updateRow}
             visibleRows={visibleRows}
+            supplierFilterControl={supplierFilterControl}
             onChooseNo={() => handleSkipOptionalStockStep('stock-price')}
             onChooseYes={() => updateStockStepChoice('stock-price', 'yes')}
           />
@@ -4939,6 +5295,7 @@ export function StockUpdateSessionRoute() {
             stockBySku={stockBySku}
             updateSkuSignalDraft={updateSkuSignalDraft}
             visibleRows={lane.id === 'sales-update' ? salesFlagRows : visibleRows}
+            supplierFilterControl={supplierFilterControl}
             onChooseNo={() => handleSkipOptionalStockStep('stock-flags')}
             onChooseYes={() => updateStockStepChoice('stock-flags', 'yes')}
           />

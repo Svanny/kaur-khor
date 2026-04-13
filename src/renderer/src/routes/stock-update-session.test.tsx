@@ -590,56 +590,48 @@ describe('StockUpdateSessionRoute', () => {
     );
   }, 10_000);
 
-  it('keeps the full service flow on non-stock lanes and saves regime from the merged interval step', async () => {
+  it('uses the stock-count wizard shell for record receipts and submits receipt details', async () => {
     renderRoute(observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
 
-    goNext(3);
-
-    expect(screen.getByRole('button', { name: /Add service updates/i })).toHaveAttribute('aria-current', 'step');
-    fireEvent.click(screen.getByRole('button', { name: /Add flags for Haircut/i }));
-    fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add price change' })[0]!);
-    fireEvent.change(screen.getByLabelText('Price if changed for Haircut'), { target: { value: '15' } });
+    expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Rank recent selling order/i })).not.toBeInTheDocument();
 
     goNext(2);
 
-    expect(screen.getByRole('button', { name: /Record update details/i })).toHaveAttribute('aria-current', 'step');
-    expect(screen.queryByText(/Regime guide/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Overall sales pattern help' })).toBeInTheDocument();
-    expect(screen.queryByText('This sales pattern applies to the full update, not just one SKU.')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('combobox', { name: /overall sales pattern/i }));
-    fireEvent.click(screen.getByRole('option', { name: 'Promotion pattern' }));
-    expect(screen.getByText('A promotion or campaign shaped this period.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Record receipt/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('columnheader', { name: 'Last receipt' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Current receipt' })).toBeInTheDocument();
+    expect(screen.getAllByText('No prior receipt')).toHaveLength(2);
+    expect(screen.getByTestId('record-receipt-list')).toHaveTextContent('Razor refill');
+    expect(screen.getByTestId('record-receipt-list')).toHaveTextContent('Towel');
+
+    const receiptInput = screen.getByLabelText('Current receipt for Razor refill');
+    expect(receiptInput).not.toHaveAttribute('placeholder');
+    fireEvent.change(screen.getByLabelText('Received date'), { target: { value: '2026-04-11' } });
+    fireEvent.change(receiptInput, { target: { value: '6' } });
 
     goNext();
+    chooseOptionalStepNo();
+    goNext();
+
+    expect(screen.getByRole('button', { name: /Review update/i })).toHaveAttribute('aria-current', 'step');
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
     expect(ingestSenaObservation).toHaveBeenCalledWith(
       expect.objectContaining({
-        stockSnapshot: [],
-        servicePrices: [{ serviceId: 'service-1', price: 15 }],
-        regimeHint: 'promo',
+        orderSignals: [
+          expect.objectContaining({
+            approximateOrderQuantity: null,
+            approximateReceiptQuantity: 6,
+            orderPlaced: false,
+            receiptArrived: true,
+            receiptTimestamp: expect.any(String),
+            skuId: 'sku-1',
+          }),
+        ],
       }),
     );
-  });
-
-  it('shows a helper in the service step when the catalog has no services', async () => {
-    renderRouteWithCatalog({
-      ...catalog,
-      services: [],
-      sharingMask: [],
-    }, observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
-
-    goNext(3);
-    expect(screen.getByRole('button', { name: /Add service updates/i })).toHaveAttribute('aria-current', 'step');
-
-    expect(
-      screen.getByText(
-        'No services are in the catalog yet. Skip this section, or add a service first if you need to record a service update.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('Latest price')).not.toBeInTheDocument();
-    expect(screen.queryByText('Add flags')).not.toBeInTheDocument();
   });
 
   it('shows a helper in the stock step when the catalog has no skus', async () => {
@@ -658,67 +650,6 @@ describe('StockUpdateSessionRoute', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('SKU / latest update')).not.toBeInTheDocument();
     expect(screen.queryByText('Current Units')).not.toBeInTheDocument();
-  });
-
-  it('shows helpers and hides ranking tables when nothing is eligible to rank', async () => {
-    renderRouteWithCatalog({
-      ...catalog,
-      services: [],
-      skus: catalog.skus.map((sku) => ({
-        ...sku,
-        soldAsProduct: false,
-        productPrice: null,
-      })),
-      sharingMask: [],
-    }, observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
-
-    goNext(4);
-    expect(screen.getByRole('button', { name: /Rank recent selling order/i })).toHaveAttribute('aria-current', 'step');
-
-    expect(
-      screen.getByText(
-        'No services are in the catalog yet. Skip this section, or add a service first if you need to rank service demand.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'No sellable SKUs are ready for ranking yet. Skip this section, or mark a SKU sellable with a selling price first.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-  });
-
-  it('reformats service price drafts when currency preferences change', async () => {
-    const rendered = renderRoute(observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
-
-    goNext(3);
-
-    fireEvent.click(screen.getByRole('button', { name: /Add flags for Haircut/i }));
-    fireEvent.click(screen.getAllByRole('menuitem', { name: 'Add price change' })[0]!);
-    const priceInput = screen.getByLabelText('Price if changed for Haircut');
-    fireEvent.change(priceInput, { target: { value: '15' } });
-    expect(priceInput).toHaveValue(15);
-
-    preferenceState.currency = 'KHR';
-    preferenceState.usdToKhrExchangeRate = 4000;
-    rendered.rerender(
-      <MemoryRouter>
-        <StockUpdateSessionRoute />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByLabelText('Price if changed for Haircut')).toHaveValue(60000);
-
-    goNext(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
-
-    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
-    expect(ingestSenaObservation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        servicePrices: [{ serviceId: 'service-1', price: 15 }],
-      }),
-    );
   });
 
   it('submits only changed stock rows and still triggers the SENA run', async () => {
