@@ -12,6 +12,7 @@ export interface SenaSku {
   skuId: string;
   name: string;
   description: string;
+  supplierName?: string | null;
   costPerUnit: number;
   archived: boolean;
   soldAsProduct: boolean;

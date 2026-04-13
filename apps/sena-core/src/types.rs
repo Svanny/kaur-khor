@@ -26,6 +26,8 @@ pub struct SenaSku {
     pub sku_id: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub supplier_name: Option<String>,
     pub cost_per_unit: f64,
     #[serde(default)]
     pub archived: bool,
@@ -697,6 +699,7 @@ mod tests {
                 sku_id: "shared-id".to_string(),
                 name: "SKU".to_string(),
                 description: String::new(),
+                supplier_name: Some("Test supplier".to_string()),
                 cost_per_unit: 2.0,
                 archived: false,
                 sold_as_product: false,
@@ -720,6 +723,32 @@ mod tests {
         assert!(error
             .to_string()
             .contains("conflicts with existing skuId"));
+    }
+
+    #[test]
+    fn catalog_serde_defaults_missing_supplier_name() {
+        let catalog: SenaCatalog = serde_json::from_str(
+            r#"{
+                "schemaVersion": 1,
+                "skus": [{
+                    "skuId": "sku-legacy",
+                    "name": "Legacy SKU",
+                    "description": "",
+                    "costPerUnit": 2.0,
+                    "archived": false,
+                    "soldAsProduct": false,
+                    "productPrice": null,
+                    "leadTimeMeanDaysHint": null,
+                    "leadTimeStdDaysHint": null
+                }],
+                "services": [],
+                "bundles": [],
+                "sharingMask": []
+            }"#,
+        )
+        .expect("legacy catalog should deserialize");
+
+        assert_eq!(catalog.skus[0].supplier_name, None);
     }
 
     #[test]

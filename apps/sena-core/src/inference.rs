@@ -2445,6 +2445,7 @@ mod tests {
                 sku_id: "sku-1".to_string(),
                 name: "SKU 1".to_string(),
                 description: "Inventory".to_string(),
+                supplier_name: Some("Seed supplier".to_string()),
                 cost_per_unit: 2.0,
                 archived: false,
                 sold_as_product: true,

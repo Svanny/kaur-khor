@@ -1,6 +1,15 @@
 import type { SenaCatalog } from '@shared/sena';
 import { vi } from 'vitest';
-import { createUniqueSkuId, hasCatalogEntityIdConflict, upsertSenaService, upsertSenaSku } from './sena-catalog';
+import {
+  createUniqueSkuId,
+  hasCatalogEntityIdConflict,
+  matchesSkuSupplier,
+  normalizeSenaSku,
+  skuSearchParts,
+  supplierNamesFromCatalog,
+  upsertSenaService,
+  upsertSenaSku,
+} from './sena-catalog';
 
 const sampleCatalog: SenaCatalog = {
   schemaVersion: 1,
@@ -9,6 +18,7 @@ const sampleCatalog: SenaCatalog = {
       skuId: 'sku-1',
       name: 'SKU 1',
       description: 'Primary SKU',
+      supplierName: 'Mekong Looms',
       costPerUnit: 4,
       archived: false,
       soldAsProduct: true,
@@ -20,6 +30,7 @@ const sampleCatalog: SenaCatalog = {
       skuId: 'sku-archived',
       name: 'Archived SKU',
       description: 'Archived',
+      supplierName: null,
       costPerUnit: 6,
       archived: true,
       soldAsProduct: false,
@@ -141,5 +152,15 @@ describe('sena catalog helpers', () => {
 
     expect(createUniqueSkuId(sampleCatalog, createId)).toBe('sku-generated-unique');
     expect(createId).toHaveBeenCalledTimes(3);
+  });
+
+  it('normalizes supplier names and exposes supplier filters', () => {
+    expect(normalizeSenaSku({ ...sampleCatalog.skus[0], supplierName: '  Mekong Looms  ' }).supplierName).toBe('Mekong Looms');
+    expect(normalizeSenaSku({ ...sampleCatalog.skus[0], supplierName: '   ' }).supplierName).toBeNull();
+    expect(supplierNamesFromCatalog(sampleCatalog)).toEqual(['Mekong Looms']);
+    expect(matchesSkuSupplier(sampleCatalog.skus[0], 'Mekong Looms')).toBe(true);
+    expect(matchesSkuSupplier(sampleCatalog.skus[0], 'none')).toBe(false);
+    expect(matchesSkuSupplier(sampleCatalog.skus[1], 'none')).toBe(true);
+    expect(skuSearchParts(sampleCatalog.skus[0])).toEqual(['sku-1', 'SKU 1', 'Primary SKU', 'Mekong Looms']);
   });
 });

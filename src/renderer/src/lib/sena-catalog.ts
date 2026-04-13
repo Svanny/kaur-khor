@@ -7,8 +7,63 @@ export type SenaCatalogEntityType = 'sku' | 'service';
 export function normalizeSenaSku(sku: SenaSku): SenaSku {
   return {
     ...sku,
+    supplierName: normalizeSupplierName(sku.supplierName),
     archived: sku.archived ?? false,
   };
+}
+
+export function normalizeSupplierName(value: string | null | undefined) {
+  const normalized = value?.trim() ?? '';
+  return normalized.length > 0 ? normalized : null;
+}
+
+export function supplierNameForSku(sku: SenaSku | null | undefined) {
+  return normalizeSupplierName(sku?.supplierName);
+}
+
+export function supplierNamesFromCatalog(catalog: SenaCatalog | null | undefined) {
+  return Array.from(
+    new Set(
+      (catalog?.skus ?? [])
+        .map((sku) => supplierNameForSku(sku))
+        .filter((supplierName): supplierName is string => Boolean(supplierName)),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+}
+
+export type SupplierFilterValue = 'all' | 'none' | string;
+
+export function matchesSkuSupplier(sku: SenaSku, supplierFilter: SupplierFilterValue | null | undefined) {
+  if (!supplierFilter || supplierFilter === 'all') {
+    return true;
+  }
+  const supplierName = supplierNameForSku(sku);
+  if (supplierFilter === 'none') {
+    return supplierName == null;
+  }
+  return supplierName === supplierFilter;
+}
+
+export function skuSearchParts(sku: SenaSku) {
+  return [sku.skuId, sku.name, sku.description, supplierNameForSku(sku)];
+}
+
+export function groupSkusBySupplier<T extends { skuId: string }>(
+  rows: T[],
+  skuById: Map<string, SenaSku>,
+) {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const supplierName = supplierNameForSku(skuById.get(row.skuId)) ?? '';
+    const groupRows = groups.get(supplierName) ?? [];
+    groupRows.push(row);
+    groups.set(supplierName, groupRows);
+  }
+  return Array.from(groups.entries()).sort(([left], [right]) => {
+    if (!left && right) return 1;
+    if (left && !right) return -1;
+    return left.localeCompare(right);
+  });
 }
 
 export function normalizeSenaService(service: SenaService): SenaService {
