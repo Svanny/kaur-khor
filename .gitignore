@@ -56,3 +56,5 @@ app.*.symbols
 
 # Obfuscation related
 app.*.map.json
+# Added by code-review-graph
+.code-review-graph/

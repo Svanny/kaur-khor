@@ -13,6 +13,7 @@ export {
   PackageSearch as EntityPackageSearchIcon,
   Radio as EntitySignalIcon,
   ReceiptText as EntityReceiptDocumentIcon,
+  ShieldCheck as EntitySafetyStockIcon,
   Store as EntityServiceIcon,
   Tags as EntityTagsIcon,
   Truck as EntityTransitIcon,

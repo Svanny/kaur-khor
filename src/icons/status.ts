@@ -29,5 +29,6 @@ export {
   Triangle as StatusDeltaTriangleIcon,
   TriangleAlert as StatusWarningIcon,
   Trophy as StatusAchievementIcon,
+  RulerDimensionLine as StatusReorderPointIcon,
   Wrench as StatusCorrectionIcon,
 } from 'lucide-react';
