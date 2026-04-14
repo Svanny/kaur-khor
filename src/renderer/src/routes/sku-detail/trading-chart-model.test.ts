@@ -312,7 +312,7 @@ describe('deriveTradingChartModel', () => {
 
     const movedDemand = moveTradingChartIndicator(defaults, 'demand', 'pane-2', 1);
     expect(movedDemand.demand.paneId).toBe('pane-2');
-    expect(movedDemand.demand.layerOrder).toBe(0);
+    expect(movedDemand.demand.layerOrder).toBe(1);
 
     const movedRegime = moveTradingChartIndicator(defaults, 'regime', 'pane-2', 0);
     expect(movedRegime.regime.paneId).toBe('pane-2');

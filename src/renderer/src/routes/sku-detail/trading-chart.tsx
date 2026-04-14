@@ -161,6 +161,7 @@ const CHART_ADDITIONAL_PANE_MIN_RENDER_HEIGHT = 120;
 const CHART_TIME_AXIS_FALLBACK_HEIGHT = 32;
 const CHART_MAX_TIME_AXIS_HEIGHT_RATIO = 0.35;
 const CHART_ICON_AXIS_OFFSET = 56;
+const CHART_INDICATOR_PANE_MIN_HEIGHT = 120;
 const LAYOUT_DROP_ANIMATION = {
   duration: 160,
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -314,7 +315,12 @@ function applyPaneHeights(
     return;
   }
   const allocation = paneHeightAllocation(plottableHeight, Math.max(0, targetPaneCount - 1));
-  const targets = [allocation.main, ...allocation.indicators];
+  const targets = [allocation.main, ...allocation.indicators].map((height, index) => {
+    if (index === 0) {
+      return height;
+    }
+    return Math.max(CHART_INDICATOR_PANE_MIN_HEIGHT, height);
+  });
   for (let pass = 0; pass < 4; pass += 1) {
     for (let index = 1; index < targetPaneCount; index += 1) {
       panes[index]?.setHeight(targets[index]!);

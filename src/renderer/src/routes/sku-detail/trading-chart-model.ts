@@ -626,6 +626,7 @@ export function moveTradingChartIndicator(
 
   for (const id of idsInTargetPane) {
     next[id].paneId = effectivePaneId;
+    next[id].layerOrder = idsInTargetPane.indexOf(id);
   }
 
   return normalizeTradingChartIndicatorSettings(next);
