@@ -4,6 +4,7 @@ import {
   deriveChartTimeframeBoundary,
   deriveEstimatedTimeframeBatchCount,
   isChartTimeframeSatisfied,
+  RECENT_TIMEFRAME_MIN_REPORTS,
   shouldPruneTimeframeTransition,
   type ChartTimeframe,
 } from '@/components/system/chart-timeframe';
@@ -19,6 +20,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   latestObservedAt,
   mergeDetails,
   onPruneTransition,
+  hydrateTimeframeSequentially = false,
   timeframe,
 }: {
   fetchInitialPage: (limit?: number) => Promise<TPage | null>;
@@ -30,6 +32,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   latestObservedAt: string | null | undefined;
   mergeDetails: (older: TDetail, newer: TDetail) => TDetail;
   onPruneTransition?: () => Promise<void> | void;
+  hydrateTimeframeSequentially?: boolean;
   timeframe: ChartTimeframe;
 }) {
   const [page, setPage] = useState<TPage | null>(initialPage);
@@ -114,7 +117,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   const hydrateTimeframe = useCallback(async (targetTimeframe: ChartTimeframe, requestId: number) => {
     const isCurrentRequest = () => hydrationRequestIdRef.current === requestId;
     let nextPage = targetTimeframe === 'Recent'
-      ? timeframeCacheRef.current.Recent ?? initialPage ?? await fetchInitialPageRef.current(INTERVAL_PAGE_SIZE)
+      ? timeframeCacheRef.current.Recent ?? initialPage ?? await fetchInitialPageRef.current(RECENT_TIMEFRAME_MIN_REPORTS)
       : await fetchInitialPageRef.current(INTERVAL_PAGE_SIZE);
     if (!isCurrentRequest()) {
       return null;
@@ -128,46 +131,70 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     }
 
     const boundary = deriveChartTimeframeBoundary(latestObservedAt, targetTimeframe);
-    const loadedIntervalCount = getLoadedIntervalCountRef.current(nextPage);
-    const estimatedBatchCount = deriveEstimatedTimeframeBatchCount({
-      batchSize: INTERVAL_LOAD_BATCH_SIZE,
-      boundary,
-      intervalCount,
-      latestObservedAt,
-      loadedIntervalCount,
-      oldestLoadedAt: getOldestIntervalAtRef.current(nextPage),
-      timeframe: targetTimeframe,
-    });
 
-    let completedBatchCount = 0;
-    while (
+    if (
       nextPage &&
       !isChartTimeframeSatisfied({
         boundary,
         hasOlder: nextPage.hasOlder,
+        loadedIntervalCount: getLoadedIntervalCountRef.current(nextPage),
         oldestIntervalAt: getOldestIntervalAtRef.current(nextPage),
         timeframe: targetTimeframe,
       })
     ) {
-      if (estimatedBatchCount > 1) {
-        setTimeframeHydrationProgress({
-          current: Math.min(completedBatchCount + 1, estimatedBatchCount),
-          total: estimatedBatchCount,
+      if (hydrateTimeframeSequentially) {
+        while (
+          nextPage &&
+          !isChartTimeframeSatisfied({
+            boundary,
+            hasOlder: nextPage.hasOlder,
+            loadedIntervalCount: getLoadedIntervalCountRef.current(nextPage),
+            oldestIntervalAt: getOldestIntervalAtRef.current(nextPage),
+            timeframe: targetTimeframe,
+          })
+        ) {
+          const nextBatch = await loadOlderBatch({
+            currentPage: nextPage,
+            limit: INTERVAL_LOAD_BATCH_SIZE,
+          });
+          if (!isCurrentRequest()) {
+            return null;
+          }
+          nextPage = nextBatch.page;
+          timeframeCacheRef.current[targetTimeframe] = nextPage;
+          setPage(nextPage);
+          if (nextBatch.prependedCount <= 0) {
+            break;
+          }
+        }
+      } else {
+        const loadedIntervalCount = getLoadedIntervalCountRef.current(nextPage);
+        const estimatedBatchCount = deriveEstimatedTimeframeBatchCount({
+          batchSize: INTERVAL_LOAD_BATCH_SIZE,
+          boundary,
+          intervalCount,
+          latestObservedAt,
+          loadedIntervalCount,
+          oldestLoadedAt: getOldestIntervalAtRef.current(nextPage),
+          timeframe: targetTimeframe,
         });
-      }
-      const nextBatch = await loadOlderBatch({
-        currentPage: nextPage,
-        limit: INTERVAL_LOAD_BATCH_SIZE,
-      });
-      if (!isCurrentRequest()) {
-        return null;
-      }
-      nextPage = nextBatch.page;
-      completedBatchCount += 1;
-      timeframeCacheRef.current[targetTimeframe] = nextPage;
-      setPage(nextPage);
-      if (nextBatch.prependedCount <= 0) {
-        break;
+        const requestedBatchCount = Math.max(1, estimatedBatchCount);
+        if (requestedBatchCount > 1) {
+          setTimeframeHydrationProgress({
+            current: 1,
+            total: requestedBatchCount,
+          });
+        }
+        const nextBatch = await loadOlderBatch({
+          currentPage: nextPage,
+          limit: INTERVAL_LOAD_BATCH_SIZE * requestedBatchCount,
+        });
+        if (!isCurrentRequest()) {
+          return null;
+        }
+        nextPage = nextBatch.page;
+        timeframeCacheRef.current[targetTimeframe] = nextPage;
+        setPage(nextPage);
       }
     }
 
@@ -177,7 +204,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     setTimeframeHydrationProgress(null);
     setResolvedTimeframe(targetTimeframe);
     return nextPage;
-  }, [initialPage, intervalCount, latestObservedAt, loadOlderBatch]);
+  }, [hydrateTimeframeSequentially, initialPage, intervalCount, latestObservedAt, loadOlderBatch]);
 
   useEffect(() => {
     let active = true;
@@ -198,7 +225,17 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
 
     previousTimeframeRef.current = timeframe;
     const cachedPage = timeframeCacheRef.current[timeframe];
-    if (cachedPage) {
+    const cachedBoundary = deriveChartTimeframeBoundary(latestObservedAt, timeframe);
+    const cachedPageSatisfiesTimeframe = cachedPage
+      ? isChartTimeframeSatisfied({
+        boundary: cachedBoundary,
+        hasOlder: cachedPage.hasOlder,
+        loadedIntervalCount: getLoadedIntervalCountRef.current(cachedPage),
+        oldestIntervalAt: getOldestIntervalAtRef.current(cachedPage),
+        timeframe,
+      })
+      : false;
+    if (cachedPage && cachedPageSatisfiesTimeframe) {
       setIsHydratingDetails(false);
       setTimeframeHydrationProgress(null);
       setPage(cachedPage);

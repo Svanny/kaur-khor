@@ -133,6 +133,7 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe) {
       isAnalysisTimeframeSatisfied({
         boundary,
         hasOlder: page?.hasOlder ?? false,
+        loadedIntervalCount: page?.detail.demandPosterior.length ?? 0,
         oldestIntervalAt: oldestSkuIntervalAt(page),
         timeframe: targetTimeframe,
       }),
@@ -141,6 +142,7 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe) {
       isAnalysisTimeframeSatisfied({
         boundary,
         hasOlder: page?.hasOlder ?? false,
+        loadedIntervalCount: page?.detail.regimeTimeline.length ?? 0,
         oldestIntervalAt: oldestServiceIntervalAt(page),
         timeframe: targetTimeframe,
       }),
@@ -200,24 +202,19 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe) {
       oldestLoadedAt,
       timeframe: targetTimeframe,
     });
-    let completedBatchCount = 0;
-
-    while (!pagesSatisfyTimeframe({ boundary, servicePages, skuPages, targetTimeframe })) {
-      if (estimatedBatchCount > 0) {
+    if (!pagesSatisfyTimeframe({ boundary, servicePages, skuPages, targetTimeframe })) {
+      const requestedBatchCount = Math.max(1, estimatedBatchCount);
+      if (requestedBatchCount > 1) {
         setTimeframeHydrationProgress({
-          current: Math.min(completedBatchCount + 1, estimatedBatchCount),
-          total: estimatedBatchCount,
+          current: 1,
+          total: requestedBatchCount,
         });
       }
       const nextBatch = await loadOlderPageBatch({
         currentServicePagesById: servicePages,
         currentSkuPagesById: skuPages,
-        limit: 10,
+        limit: 10 * requestedBatchCount,
       });
-      if (nextBatch.maxPrependedCount <= 0) {
-        break;
-      }
-      completedBatchCount += 1;
       skuPages = nextBatch.skuPagesById;
       servicePages = nextBatch.servicePagesById;
       onPagesChange?.({ servicePages, skuPages });

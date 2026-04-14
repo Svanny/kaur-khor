@@ -1,6 +1,8 @@
 export type ChartTimeframe = 'Recent' | '1M' | '3M' | '1Y' | 'YTD' | 'MAX';
 
 export const CHART_TIMEFRAME_OPTIONS: ChartTimeframe[] = ['Recent', '1M', '3M', 'YTD', '1Y', 'MAX'];
+export const RECENT_TIMEFRAME_DAYS = 7;
+export const RECENT_TIMEFRAME_MIN_REPORTS = 5;
 
 export function shouldPruneTimeframeTransition({
   latestObservedAt,
@@ -39,13 +41,19 @@ export function deriveChartTimeframeBoundary(
   latestObservedAt: string | null | undefined,
   timeframe: ChartTimeframe,
 ) {
-  if (timeframe === 'Recent' || timeframe === 'MAX' || !latestObservedAt) {
+  if (timeframe === 'MAX' || !latestObservedAt) {
     return null;
   }
 
   const latest = new Date(latestObservedAt);
   if (Number.isNaN(latest.getTime())) {
     return null;
+  }
+
+  if (timeframe === 'Recent') {
+    const boundary = new Date(latest);
+    boundary.setUTCDate(boundary.getUTCDate() - RECENT_TIMEFRAME_DAYS);
+    return boundary;
   }
 
   if (timeframe === 'YTD') {
@@ -68,17 +76,22 @@ export function deriveChartTimeframeBoundary(
 
 export function isChartTimeframeSatisfied({
   hasOlder,
+  loadedIntervalCount,
   oldestIntervalAt,
   timeframe,
   boundary,
 }: {
   hasOlder: boolean;
+  loadedIntervalCount?: number;
   oldestIntervalAt: string | null;
   timeframe: ChartTimeframe;
   boundary: Date | null;
 }) {
   if (!hasOlder) {
     return true;
+  }
+  if (timeframe === 'Recent' && (loadedIntervalCount ?? 0) < RECENT_TIMEFRAME_MIN_REPORTS) {
+    return false;
   }
   if (timeframe === 'Recent') {
     return true;
@@ -117,10 +130,6 @@ export function deriveEstimatedTimeframeBatchCount({
     return 0;
   }
 
-  if (timeframe === 'Recent') {
-    return 0;
-  }
-
   if (timeframe === 'MAX') {
     const remainingIntervals = Math.max(0, intervalCount - loadedIntervalCount);
     return Math.max(0, Math.ceil(remainingIntervals / Math.max(batchSize, 1)));
@@ -140,7 +149,11 @@ export function deriveEstimatedTimeframeBatchCount({
   const targetSpanMs = Math.max(0, latest.getTime() - boundary.getTime());
   const estimatedIntervalsNeeded = Math.min(
     intervalCount,
-    Math.max(loadedIntervalCount, Math.ceil((targetSpanMs / loadedSpanMs) * loadedIntervalCount)),
+    Math.max(
+      loadedIntervalCount,
+      timeframe === 'Recent' ? RECENT_TIMEFRAME_MIN_REPORTS : 0,
+      Math.ceil((targetSpanMs / loadedSpanMs) * loadedIntervalCount),
+    ),
   );
   const remainingIntervals = Math.max(0, estimatedIntervalsNeeded - loadedIntervalCount);
   return Math.max(0, Math.ceil(remainingIntervals / Math.max(batchSize, 1)));

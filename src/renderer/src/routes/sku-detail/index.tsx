@@ -154,12 +154,13 @@ export function SkuDetailRoute() {
     timeframeHydrationProgress,
   } = useTimeframedIntervalHistory({
     fetchInitialPage: async (limit = INTERVAL_PAGE_SIZE) =>
-      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit })),
+      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit }), limit),
     fetchOlderPage: async (beforeIntervalIndex, limit = INTERVAL_PAGE_SIZE) =>
-      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { beforeIntervalIndex, limit })),
+      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { beforeIntervalIndex, limit }), limit),
     getLoadedIntervalCount: (page) => page?.detail.demandPosterior.length ?? 0,
     getOldestIntervalAt: (page) =>
       page?.detail.demandPosterior[0]?.startAt ?? page?.detail.demandPosterior[0]?.endAt ?? null,
+    hydrateTimeframeSequentially: true,
     initialPage: bootstrap?.detailPage ?? null,
     intervalCount: bootstrap?.workspaceSummary?.intervalCount ?? bootstrap?.detailPage?.detail.demandPosterior.length ?? 0,
     latestObservedAt: bootstrap?.workspaceSummary?.latestObservedAt,
@@ -177,14 +178,10 @@ export function SkuDetailRoute() {
     if (timeframe !== pendingTimeframe) {
       return;
     }
-    if (
-      resolvedTimeframe === pendingTimeframe ||
-      isHydratingDetails ||
-      timeframeHydrationProgress != null
-    ) {
+    if (resolvedTimeframe === pendingTimeframe) {
       setPendingTimeframe(null);
     }
-  }, [isHydratingDetails, pendingTimeframe, resolvedTimeframe, timeframe, timeframeHydrationProgress]);
+  }, [pendingTimeframe, resolvedTimeframe, timeframe]);
 
   function handleTimeframeChange(nextTimeframe: ChartTimeframe) {
     if (nextTimeframe === timeframe) {
@@ -198,6 +195,12 @@ export function SkuDetailRoute() {
 
   async function handleResetCharts() {
     setOlderLoadProgress(null);
+    if (timeframe !== 'Recent') {
+      setPendingTimeframe('Recent');
+      setTimeframe('Recent');
+      setChartZoomResetToken((current) => current + 1);
+      return;
+    }
     await resetHydratedDetails();
     setChartZoomResetToken((current) => current + 1);
   }
@@ -258,8 +261,8 @@ export function SkuDetailRoute() {
   return (
     <WorkspacePage>
       <LoadingMoreIntervalsIsland
-        currentBatch={(timeframeHydrationProgress ?? olderLoadProgress)?.current ?? null}
-        totalBatches={(timeframeHydrationProgress ?? olderLoadProgress)?.total ?? null}
+        currentBatch={null}
+        totalBatches={null}
         visible={effectiveIsHydratingDetails || isLoadingOlder || olderLoadProgress != null}
       />
       <div className="grid gap-6">

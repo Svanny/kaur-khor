@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import { useTimeframedIntervalHistory } from './timeframed-interval-history';
 import type { IntervalPageEnvelope } from './interval-history';
-import type { ChartTimeframe } from './chart-timeframe';
+import { RECENT_TIMEFRAME_MIN_REPORTS, type ChartTimeframe } from './chart-timeframe';
 
 type Detail = {
   items: Array<{ intervalIndex: number; startAt: string; endAt: string }>;
@@ -42,11 +42,15 @@ function Harness({
   fetchOlderPage,
   intervalCount,
   latestObservedAt,
+  hydrateTimeframeSequentially,
+  initialPage = null,
   onPruneTransition,
   timeframe,
 }: {
   fetchInitialPage: (limit?: number) => Promise<Page | null>;
   fetchOlderPage: (beforeIntervalIndex: number, limit?: number) => Promise<Page | null>;
+  hydrateTimeframeSequentially?: boolean;
+  initialPage?: Page | null;
   intervalCount: number;
   latestObservedAt: string;
   onPruneTransition?: () => Promise<void> | void;
@@ -57,9 +61,10 @@ function Harness({
     fetchOlderPage: async (beforeIntervalIndex, limit) => fetchOlderPage(beforeIntervalIndex, limit),
     getLoadedIntervalCount: (page) => page?.detail.items.length ?? 0,
     getOldestIntervalAt: (page) => page?.detail.items[0]?.startAt ?? null,
-    initialPage: null,
+    initialPage,
     intervalCount,
     latestObservedAt,
+    hydrateTimeframeSequentially,
     mergeDetails: (older, newer) => ({
       items: [...older.items, ...newer.items],
     }),
@@ -80,19 +85,64 @@ function Harness({
 }
 
 describe('useTimeframedIntervalHistory', () => {
-  test('does not leave hydration stuck after incremental timeframe page publishes', async () => {
-    const firstOlderPage = deferred<Page | null>();
-    const secondOlderPage = deferred<Page | null>();
+  test('requests only the Recent minimum on first Recent load', async () => {
+    const fetchInitialPage = vi.fn(async () => makePage(35, RECENT_TIMEFRAME_MIN_REPORTS, 35));
+    const fetchOlderPage = vi.fn(async () => makePage(25, 10, 25));
+
+    render(
+      <Harness
+        fetchInitialPage={fetchInitialPage}
+        fetchOlderPage={fetchOlderPage}
+        intervalCount={40}
+        latestObservedAt="2026-03-21T04:00:00.000Z"
+        timeframe="Recent"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('resolved-timeframe')).toHaveTextContent('Recent'));
+    expect(fetchInitialPage).toHaveBeenCalledWith(RECENT_TIMEFRAME_MIN_REPORTS);
+    expect(fetchOlderPage).not.toHaveBeenCalled();
+  });
+
+  test('does not backfill every dense Recent page on first load', async () => {
+    const initialPage: Page = {
+      ...makePage(35, 5, 35),
+      detail: {
+        items: Array.from({ length: 5 }, (_, index) => ({
+          endAt: `2026-03-21T0${index}:00:00.000Z`,
+          intervalIndex: 35 + index,
+          startAt: `2026-03-20T0${index}:00:00.000Z`,
+        })),
+      },
+    };
+    const fetchInitialPage = vi.fn(async () => makePage(35, 5, 35));
+    const fetchOlderPage = vi.fn(async () => makePage(25, 10, 25));
+
+    render(
+      <Harness
+        fetchInitialPage={fetchInitialPage}
+        fetchOlderPage={fetchOlderPage}
+        initialPage={initialPage}
+        intervalCount={40}
+        latestObservedAt="2026-03-21T04:00:00.000Z"
+        timeframe="Recent"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('resolved-timeframe')).toHaveTextContent('Recent'));
+    expect(screen.getByTestId('count')).toHaveTextContent('5');
+    expect(fetchOlderPage).not.toHaveBeenCalled();
+  });
+
+  test('loads estimated timeframe history in one expanded older request', async () => {
+    const olderPage = deferred<Page | null>();
     const fetchInitialPage = async () => makePage(20, 20, 20);
-    const fetchOlderPage = async (beforeIntervalIndex: number) => {
+    const fetchOlderPage = vi.fn(async (beforeIntervalIndex: number) => {
       if (beforeIntervalIndex === 20) {
-        return firstOlderPage.promise;
-      }
-      if (beforeIntervalIndex === 10) {
-        return secondOlderPage.promise;
+        return olderPage.promise;
       }
       return null;
-    };
+    });
 
     render(
       <Harness
@@ -107,25 +157,48 @@ describe('useTimeframedIntervalHistory', () => {
     await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('20'));
     expect(screen.getByTestId('hydrating')).toHaveTextContent('true');
     expect(screen.getByTestId('progress')).toHaveTextContent('1/2');
+    expect(fetchOlderPage).toHaveBeenCalledWith(20, 20);
 
     await act(async () => {
-      firstOlderPage.resolve(makePage(10, 10, 10));
-      await firstOlderPage.promise;
-    });
-
-    await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('30'));
-    expect(screen.getByTestId('hydrating')).toHaveTextContent('true');
-    expect(screen.getByTestId('progress')).toHaveTextContent('2/2');
-
-    await act(async () => {
-      secondOlderPage.resolve(makePage(0, 10, null));
-      await secondOlderPage.promise;
+      olderPage.resolve(makePage(0, 20, null));
+      await olderPage.promise;
     });
 
     await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('40'));
     await waitFor(() => expect(screen.getByTestId('progress')).toHaveTextContent('idle'));
     await waitFor(() => expect(screen.getByTestId('hydrating')).toHaveTextContent('false'));
     expect(screen.getByTestId('resolved-timeframe')).toHaveTextContent('MAX');
+    expect(fetchOlderPage).toHaveBeenCalledTimes(1);
+  });
+
+  test('can hydrate timeframe history one older page at a time without batch progress', async () => {
+    const fetchInitialPage = async () => makePage(20, 20, 20);
+    const fetchOlderPage = vi.fn(async (beforeIntervalIndex: number) => {
+      if (beforeIntervalIndex === 20) {
+        return makePage(10, 10, 10);
+      }
+      if (beforeIntervalIndex === 10) {
+        return makePage(0, 10, null);
+      }
+      return null;
+    });
+
+    render(
+      <Harness
+        fetchInitialPage={fetchInitialPage}
+        fetchOlderPage={fetchOlderPage}
+        hydrateTimeframeSequentially
+        intervalCount={40}
+        latestObservedAt="2026-03-21T00:00:00.000Z"
+        timeframe="MAX"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('40'));
+    expect(screen.getByTestId('progress')).toHaveTextContent('idle');
+    expect(fetchOlderPage).toHaveBeenNthCalledWith(1, 20, 10);
+    expect(fetchOlderPage).toHaveBeenNthCalledWith(2, 10, 10);
+    expect(fetchOlderPage).toHaveBeenCalledTimes(2);
   });
 
   test('marks a pruned narrower timeframe as resolved without requiring a hydrate pass', async () => {

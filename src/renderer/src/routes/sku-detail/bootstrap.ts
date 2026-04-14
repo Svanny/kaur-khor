@@ -12,6 +12,7 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import type { AppLanguage } from '@shared/inventory';
+import { RECENT_TIMEFRAME_MIN_REPORTS } from '@/components/system/chart-timeframe';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import type { InventoryContextValue } from '@/state/inventory';
 import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
@@ -185,7 +186,10 @@ export async function reloadSenaSkuData({
   snapshot: InventorySnapshot;
 }) {
   const workspaceSummary = await inventory.loadSenaWorkspaceSummary();
-  const detailPage = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit: INTERVAL_PAGE_SIZE }));
+  const detailPage = normalizeSkuDetailPage(
+    await inventory.loadSenaSkuDetail(skuId, { limit: RECENT_TIMEFRAME_MIN_REPORTS }),
+    RECENT_TIMEFRAME_MIN_REPORTS,
+  );
   const detail = detailPage?.detail ?? null;
   const diagnostics = await inventory.loadSenaDiagnostics();
   const observations = await inventory.listSenaObservations();
@@ -234,7 +238,10 @@ export async function bootstrapSkuDetail({
       workspaceSummary?.runId != null
         ? (await inventory.loadSenaRunStatus(workspaceSummary.runId).catch(() => null))?.observationCount ?? null
         : null;
-    detailPage = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit: INTERVAL_PAGE_SIZE }));
+    detailPage = normalizeSkuDetailPage(
+      await inventory.loadSenaSkuDetail(skuId, { limit: RECENT_TIMEFRAME_MIN_REPORTS }),
+      RECENT_TIMEFRAME_MIN_REPORTS,
+    );
     detail = detailPage?.detail ?? null;
     diagnostics = await inventory.loadSenaDiagnostics();
 

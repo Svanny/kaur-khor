@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaDiagnostics, SenaObservationRecord, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
+import { RECENT_TIMEFRAME_MIN_REPORTS } from '@/components/system/chart-timeframe';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
@@ -28,9 +29,9 @@ import {
   isPinchZoomGesture,
   intervalLabelForWidth,
   intervalTooltipLabel,
-  regimeCompactLabel,
   responsivePillLabel,
 } from './sku-detail/ledger';
+import { regimeInitials } from './detail-regime-overlay';
 import { backfillLegacyReportsIntoSenaIfEmpty, bootstrapSkuDetail, mapLegacyReportToSenaObservation, shouldTriggerBootstrapRun } from './sku-detail/bootstrap';
 import { hashSenaCatalog, seedSenaCatalogFromSnapshot } from './sku-detail/catalog-seed';
 import { deriveIntervalPriceMarkers, deriveRecommendedOrderBand, deriveSenaSkuDetailViewModel, extractEvidence, type SenaSkuDetailViewModel } from './sku-detail/view-model';
@@ -488,7 +489,7 @@ describe('SKU detail SENA helpers', () => {
 
     await bootstrapSkuDetail({ inventory, skuId: 'sku-1' });
 
-    expect(inventory.loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', { limit: INTERVAL_PAGE_SIZE });
+    expect(inventory.loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', { limit: RECENT_TIMEFRAME_MIN_REPORTS });
     expect(inventory.loadSenaServiceDetail).toHaveBeenCalledWith('service-1', { limit: INTERVAL_PAGE_SIZE });
   });
 
@@ -582,10 +583,10 @@ describe('SKU detail SENA helpers', () => {
   });
 
   test('compresses regime labels into short pill initials', () => {
-    expect(regimeCompactLabel('promo')).toBe('P');
-    expect(regimeCompactLabel('spike')).toBe('S');
-    expect(regimeCompactLabel('normal')).toBe('N');
-    expect(regimeCompactLabel('stockout-constrained')).toBe('SC');
+    expect(regimeInitials('promo')).toBe('P');
+    expect(regimeInitials('spike')).toBe('S');
+    expect(regimeInitials('normal')).toBe('N');
+    expect(regimeInitials('stockout-constrained')).toBe('SC');
   });
 
   test('sizes the operational ribbon grid to the rendered metric count', () => {
@@ -874,7 +875,7 @@ describe('SKU detail SENA helpers', () => {
     }
   });
 
-  test('renders regime highlight cells with in-cell glyphs and the price line legend', async () => {
+  test('renders the TradingView-style chart shell with indicator controls and legend rows', async () => {
     inventoryHook.mockReturnValue({
       snapshot,
       reports: [report],
@@ -908,19 +909,26 @@ describe('SKU detail SENA helpers', () => {
 
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
-    await waitFor(() => {
-      expect(screen.getByText('Sales pattern and price')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('Retail price line')).toBeInTheDocument();
-    expect(document.querySelectorAll('[data-regime-slot="true"]').length).toBeGreaterThan(0);
-    expect(document.querySelectorAll('button[data-regime-slot="true"][data-selected="true"]').length).toBe(1);
-    expect(document.querySelectorAll('button[data-regime-slot="true"][data-regime-glyph-mode="icon"]').length).toBeGreaterThan(0);
-    expect(document.querySelectorAll('[data-regime-legend-item="true"] svg').length).toBeGreaterThan(0);
-    expect(document.querySelector('[data-regime-legend-item="true"] > span')?.className).toContain('rounded-full');
+    expect(await screen.findByTestId('sku-trading-chart')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Indicators' }));
+    const indicatorsDialog = screen.getByRole('dialog', { name: 'Chart indicators' });
+    expect(within(indicatorsDialog).getByText('Inventory')).toBeInTheDocument();
+    expect(within(indicatorsDialog).getByText('Regime')).toBeInTheDocument();
+    expect(within(indicatorsDialog).getByText('Stock')).toBeInTheDocument();
+    expect(within(indicatorsDialog).getByText('Flow')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Show Demand' })).toBeInTheDocument();
+    expect(screen.getByText('Expected service and retail demand for each interval.')).toBeInTheDocument();
+    const demandLabel = within(indicatorsDialog).getByText('Demand');
+    const inventoryLabel = within(indicatorsDialog).getByText('Inventory');
+    expect(inventoryLabel.compareDocumentPosition(demandLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Close indicators' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Inventory color')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Inventory plot style')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Chart intervals')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Chart timeframe')).toBeInTheDocument();
   });
 
-  test('renders the reorder point legend with a three-dot marker', async () => {
+  test('renders reorder point as a color-coded chart legend row', async () => {
     inventoryHook.mockReturnValue({
       snapshot,
       reports: [report],
@@ -954,65 +962,45 @@ describe('SKU detail SENA helpers', () => {
 
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
-    const legendLabel = await screen.findByText((content) => content.startsWith('Reorder point:'));
-    const legendItem = legendLabel.closest('span');
+    await screen.findByTestId('sku-trading-chart');
+    const legendItem = screen
+      .getAllByText('Reorder point')
+      .map((label) => label.parentElement)
+      .find((entry) => entry?.textContent?.includes('8u'));
     const marker = legendItem?.querySelector('span[aria-hidden="true"]');
-    const dots = marker?.querySelectorAll('span');
 
-    expect(marker).toHaveClass('inline-flex');
-    expect(dots).toHaveLength(3);
-    dots?.forEach((dot) => {
-      expect(dot).toHaveClass('size-2', 'rounded-full');
-      expect(dot).not.toHaveClass('h-px', 'w-7');
-    });
+    expect(legendItem).not.toBeNull();
+    expect(marker).toHaveClass('size-2', 'rounded-full');
+    expect(legendItem).toHaveTextContent('8u');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(screen.getByLabelText('Reorder point color')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reorder point plot style')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reorder point precision')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reorder point labels on price scale')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reorder point values in status line')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Reorder point inputs in status line')).not.toBeInTheDocument();
   });
 
-  test('keeps the current scroll position after selecting a different interval', async () => {
-    const resizeCallbacks: Array<() => void> = [];
-    const originalResizeObserver = globalThis.ResizeObserver;
-
-    class ResizeObserverMock {
-      constructor(private readonly callback: ResizeObserverCallback) {}
-
-      observe() {
-        resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
-      }
-
-      disconnect() {}
-    }
-
-    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
-
+  test('calls the timeframe change handler from bottom timeframe buttons', async () => {
+    const handleTimeframeChange = vi.fn();
     const LedgerHarness = () => {
       const [selectedIntervalIndex, setSelectedIntervalIndex] = React.useState<number | null>(0);
-      return <SkuDetailLedger model={buildLedgerModel(12)} selectedIntervalIndex={selectedIntervalIndex} setSelectedIntervalIndex={setSelectedIntervalIndex} />;
+      return (
+        <SkuDetailLedger
+          model={buildLedgerModel(12)}
+          selectedIntervalIndex={selectedIntervalIndex}
+          setSelectedIntervalIndex={setSelectedIntervalIndex}
+          onTimeframeChange={handleTimeframeChange}
+        />
+      );
     };
 
-    try {
-      const { container } = render(<LedgerHarness />);
-      const intervalScroller = container.querySelector('.hidden-scrollbar.max-w-full.overflow-x-auto') as HTMLDivElement | null;
+    render(<LedgerHarness />);
 
-      expect(intervalScroller).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '1M' }));
 
-      Object.defineProperty(intervalScroller, 'clientWidth', {
-        configurable: true,
-        value: 240,
-      });
-      resizeCallbacks.forEach((callback) => callback());
-
-      await waitFor(() => {
-        expect(intervalScroller!.scrollLeft).toBeGreaterThan(0);
-      });
-      const anchoredScrollLeft = intervalScroller!.scrollLeft;
-
-      fireEvent.click(screen.getByLabelText(/^Mar 10, 2026,/));
-
-      await waitFor(() => {
-        expect(intervalScroller!.scrollLeft).toBe(anchoredScrollLeft);
-      });
-    } finally {
-      globalThis.ResizeObserver = originalResizeObserver;
-    }
+    expect(handleTimeframeChange).toHaveBeenCalledWith('1M');
   });
 
   test.skip('expanded pipeline lane stretches tiles to the full plot height while preserving inset gaps', async () => {

@@ -135,7 +135,7 @@ export function AnalysisContent({
     if (timeframe !== pendingTimeframe) {
       return;
     }
-    if (isHydratingDetails || timeframeHydrationProgress != null) {
+    if (!isHydratingDetails && timeframeHydrationProgress == null) {
       setPendingTimeframe(null);
     }
   }, [isHydratingDetails, pendingTimeframe, timeframe, timeframeHydrationProgress]);

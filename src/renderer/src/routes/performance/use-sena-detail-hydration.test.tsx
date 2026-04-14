@@ -183,15 +183,11 @@ describe('useSenaDetailHydration', () => {
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(3, 'sku-1', { beforeIntervalIndex: 10, limit: 10 });
   });
 
-  test('publishes MAX timeframe hydration pages incrementally while progress advances', async () => {
-    const firstOlderPage = deferred<ReturnType<typeof makeSkuPage>>();
-    const secondOlderPage = deferred<ReturnType<typeof makeSkuPage>>();
+  test('loads estimated MAX timeframe hydration in one expanded older request', async () => {
+    const olderPage = deferred<ReturnType<typeof makeSkuPage>>();
     const loadSenaSkuDetail = vi.fn(async (_skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => {
       if (options?.beforeIntervalIndex === 20) {
-        return firstOlderPage.promise;
-      }
-      if (options?.beforeIntervalIndex === 10) {
-        return secondOlderPage.promise;
+        return olderPage.promise;
       }
       return makeSkuPage(20, 20, 20);
     });
@@ -235,23 +231,16 @@ describe('useSenaDetailHydration', () => {
 
     await waitFor(() => expect(screen.getByTestId('max-length')).toHaveTextContent('20'));
     expect(screen.getByTestId('max-progress')).toHaveTextContent('1/2');
+    expect(loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', { beforeIntervalIndex: 20, limit: 20 });
 
     await act(async () => {
-      firstOlderPage.resolve(makeSkuPage(10, 10, 10));
-      await firstOlderPage.promise;
-    });
-
-    await waitFor(() => expect(screen.getByTestId('max-length')).toHaveTextContent('30'));
-    expect(screen.getByTestId('max-progress')).toHaveTextContent('2/2');
-    expect(screen.getByTestId('max-hydrating')).toHaveTextContent('true');
-
-    await act(async () => {
-      secondOlderPage.resolve(makeSkuPage(0, 10, null));
-      await secondOlderPage.promise;
+      olderPage.resolve(makeSkuPage(0, 20, null));
+      await olderPage.promise;
     });
 
     await waitFor(() => expect(screen.getByTestId('max-length')).toHaveTextContent('40'));
     await waitFor(() => expect(screen.getByTestId('max-progress')).toHaveTextContent('idle'));
     expect(screen.getByTestId('max-hydrating')).toHaveTextContent('false');
+    expect(loadSenaSkuDetail).toHaveBeenCalledTimes(2);
   });
 });

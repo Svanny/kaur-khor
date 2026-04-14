@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
 import { StatusLoadingIcon } from '@icons/status';
 import { cn } from '@/lib/utils';
+
+const LOADING_ISLAND_MIN_VISIBLE_MS = 450;
 
 export function LoadingMoreIntervalsIsland({
   className,
@@ -12,17 +15,52 @@ export function LoadingMoreIntervalsIsland({
   totalBatches?: number | null;
   visible: boolean;
 }) {
-  if (!visible) {
+  const incomingProgress =
+    typeof currentBatch === 'number' &&
+    typeof totalBatches === 'number' &&
+    totalBatches > 1
+      ? { current: Math.max(1, currentBatch), total: totalBatches }
+      : null;
+  const [lastProgress, setLastProgress] = useState<typeof incomingProgress>(null);
+  const [renderVisible, setRenderVisible] = useState(visible);
+  const [visibleSince, setVisibleSince] = useState<number | null>(() => (visible ? Date.now() : null));
+
+  useEffect(() => {
+    if (visible) {
+      setRenderVisible(true);
+      setVisibleSince((current) => current ?? Date.now());
+      return;
+    }
+    if (!renderVisible) {
+      return;
+    }
+    const elapsed = visibleSince == null ? LOADING_ISLAND_MIN_VISIBLE_MS : Date.now() - visibleSince;
+    const delay = Math.max(0, LOADING_ISLAND_MIN_VISIBLE_MS - elapsed);
+    const timeout = window.setTimeout(() => {
+      setRenderVisible(false);
+      setVisibleSince(null);
+    }, delay);
+    return () => window.clearTimeout(timeout);
+  }, [renderVisible, visible, visibleSince]);
+
+  useEffect(() => {
+    if (!renderVisible) {
+      setLastProgress(null);
+      return;
+    }
+    if (incomingProgress) {
+      setLastProgress(incomingProgress);
+    }
+  }, [incomingProgress?.current, incomingProgress?.total, renderVisible]);
+
+  if (!renderVisible) {
     return null;
   }
 
-  const showsBatchProgress =
-    typeof currentBatch === 'number' &&
-    typeof totalBatches === 'number' &&
-    totalBatches > 1;
+  const displayProgress = incomingProgress ?? lastProgress;
   const label = 'Loading data';
-  const progressLabel = showsBatchProgress
-    ? `[${Math.max(1, currentBatch)}/${totalBatches}]`
+  const progressLabel = displayProgress
+    ? `[${displayProgress.current}/${displayProgress.total}]`
     : null;
 
   return (

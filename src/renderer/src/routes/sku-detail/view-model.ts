@@ -60,7 +60,9 @@ export interface SenaSkuDetailViewModel {
     inventoryLane: {
       summary: string;
       points: SenaSkuDetail['inventoryPosterior'];
+      reorderPoint?: number | null;
       reorderPointLabel: string;
+      safetyStock?: number | null;
       safetyStockLabel: string;
     };
     flowLane: {
@@ -650,7 +652,9 @@ export function deriveSenaSkuDetailViewModel({
           safetyStock: formatSenaUnits(summary?.safetyStock ?? null, language),
         }),
         points: detail?.inventoryPosterior ?? [],
+        reorderPoint: summary?.reorderPoint ?? null,
         reorderPointLabel: formatSenaUnits(summary?.reorderPoint ?? null, language),
+        safetyStock: summary?.safetyStock ?? null,
         safetyStockLabel: formatSenaUnits(summary?.safetyStock ?? null, language),
       },
       flowLane: {
