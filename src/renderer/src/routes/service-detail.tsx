@@ -229,10 +229,14 @@ export function ServiceDetailRoute() {
     if (timeframe !== pendingTimeframe) {
       return;
     }
-    if (resolvedTimeframe === pendingTimeframe) {
+    if (
+      resolvedTimeframe === pendingTimeframe ||
+      isHydratingDetails ||
+      timeframeHydrationProgress != null
+    ) {
       setPendingTimeframe(null);
     }
-  }, [pendingTimeframe, resolvedTimeframe, timeframe]);
+  }, [isHydratingDetails, pendingTimeframe, resolvedTimeframe, timeframe, timeframeHydrationProgress]);
 
   function handleTimeframeChange(nextTimeframe: ChartTimeframe) {
     if (nextTimeframe === timeframe) {

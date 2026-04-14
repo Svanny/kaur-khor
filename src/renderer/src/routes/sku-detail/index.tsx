@@ -6,6 +6,7 @@ import { useTimeframedIntervalHistory } from '@/components/system/timeframed-int
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
+import { useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -178,10 +179,14 @@ export function SkuDetailRoute() {
     if (timeframe !== pendingTimeframe) {
       return;
     }
-    if (resolvedTimeframe === pendingTimeframe) {
+    if (
+      resolvedTimeframe === pendingTimeframe ||
+      isHydratingDetails ||
+      timeframeHydrationProgress != null
+    ) {
       setPendingTimeframe(null);
     }
-  }, [pendingTimeframe, resolvedTimeframe, timeframe]);
+  }, [isHydratingDetails, pendingTimeframe, resolvedTimeframe, timeframe, timeframeHydrationProgress]);
 
   function handleTimeframeChange(nextTimeframe: ChartTimeframe) {
     if (nextTimeframe === timeframe) {
@@ -195,12 +200,6 @@ export function SkuDetailRoute() {
 
   async function handleResetCharts() {
     setOlderLoadProgress(null);
-    if (timeframe !== 'Recent') {
-      setPendingTimeframe('Recent');
-      setTimeframe('Recent');
-      setChartZoomResetToken((current) => current + 1);
-      return;
-    }
     await resetHydratedDetails();
     setChartZoomResetToken((current) => current + 1);
   }
@@ -261,8 +260,8 @@ export function SkuDetailRoute() {
   return (
     <WorkspacePage>
       <LoadingMoreIntervalsIsland
-        currentBatch={null}
-        totalBatches={null}
+        currentBatch={(timeframeHydrationProgress ?? olderLoadProgress)?.current ?? null}
+        totalBatches={(timeframeHydrationProgress ?? olderLoadProgress)?.total ?? null}
         visible={effectiveIsHydratingDetails || isLoadingOlder || olderLoadProgress != null}
       />
       <div className="grid gap-6">
