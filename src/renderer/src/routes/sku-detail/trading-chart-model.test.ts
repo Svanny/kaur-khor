@@ -3,6 +3,7 @@ import type { SenaSkuDetailViewModel } from './view-model';
 import {
   compatiblePlotStyles,
   defaultTradingChartIndicators,
+  deriveTradingChartDisplayModel,
   deriveTradingChartPaneLayout,
   deriveTradingChartModel,
   moveTradingChartIndicator,
@@ -156,8 +157,18 @@ describe('deriveTradingChartModel', () => {
     const chartModel = deriveTradingChartModel(buildModel());
 
     expect(chartModel.points.map((point) => point.intervalIndex)).toEqual([0, 1, 2]);
-    expect(chartModel.pointByIntervalIndex.get(1)?.inTransitMean).toBe(5);
+    expect(chartModel.pointByIntervalIndex.get(1)?.ordersInTransitMean).toBe(5);
     expect(chartModel.pointByIntervalIndex.get(2)?.price).toBe(12.5);
+  });
+
+  test('reuses aggregated display models for the same points array and resolution', () => {
+    const chartModel = deriveTradingChartModel(buildModel());
+    const resolution = { amount: 1, unit: 'D' } as const;
+
+    const firstDisplayModel = deriveTradingChartDisplayModel(chartModel, resolution);
+    const secondDisplayModel = deriveTradingChartDisplayModel(chartModel, resolution);
+
+    expect(secondDisplayModel).toBe(firstDisplayModel);
   });
 
   test('matches inventory points to intervals by timestamp before array position', () => {
@@ -265,9 +276,9 @@ describe('deriveTradingChartModel', () => {
     expect(defaults.uncertainty.plotStyle).toBe('band');
     expect(defaults.reorderPoint.plotStyle).toBe('price-line');
     expect(defaults.regime.plotStyle).toBe('icons');
-    expect(compatiblePlotStyles('inventory')).toEqual(['line', 'area']);
+    expect(compatiblePlotStyles('inventory')).toEqual(['line', 'area', 'step-line', 'histogram', 'bars', 'candles']);
     expect(compatiblePlotStyles('regime')).toEqual(['icons', 'background-highlight', 'background-highlight-icons']);
-    expect(compatiblePlotStyles('demand')).toEqual(['histogram', 'columns']);
+    expect(compatiblePlotStyles('demand')).toEqual(['histogram', 'line', 'area', 'step-line', 'bars', 'candles']);
   });
 
   test('derives default pane layout from indicator settings', () => {
@@ -302,7 +313,7 @@ describe('deriveTradingChartModel', () => {
   test('creates new bottom pane ids monotonically', () => {
     const defaults = defaultTradingChartIndicators();
 
-    expect(nextTradingChartPaneId(defaults)).toBe('pane-5');
+    expect(nextTradingChartPaneId(defaults)).toBe('pane-9');
   });
 
   test('moves indicators into target pane, including regime', () => {

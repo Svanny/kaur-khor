@@ -99,6 +99,7 @@ export interface TradingChartModel {
 }
 
 export const TRADING_CHART_MAIN_PANE_ID = 'main';
+const DISPLAY_MODEL_CACHE = new WeakMap<TradingChartPoint[], Map<string, TradingChartModel>>();
 const DEFAULT_PANE_IDS: Record<TradingChartIndicatorId, string> = {
   inventory: TRADING_CHART_MAIN_PANE_ID,
   uncertainty: TRADING_CHART_MAIN_PANE_ID,
@@ -483,6 +484,13 @@ export function tradingChartTimeKey(time: Time) {
   return timeKey(time);
 }
 
+function resolutionCacheKey(resolution: ChartResolutionSpec | null) {
+  if (!resolution) {
+    return 'none';
+  }
+  return `${resolution.amount}${resolution.unit}`;
+}
+
 function parseTimestampSeconds(value: string | null | undefined) {
   if (!value) {
     return null;
@@ -694,6 +702,13 @@ export function deriveTradingChartDisplayModel(
     return model;
   }
 
+  const cacheKey = resolutionCacheKey(resolution);
+  const cachedByResolution = DISPLAY_MODEL_CACHE.get(model.points);
+  const cachedModel = cachedByResolution?.get(cacheKey);
+  if (cachedModel) {
+    return cachedModel;
+  }
+
   const buckets = new Map<number, TradingChartPoint[]>();
   for (const point of model.points) {
     const timestamp = pointTimestampMs(point);
@@ -745,12 +760,18 @@ export function deriveTradingChartDisplayModel(
     pointByIntervalIndex.set(point.intervalIndex, point);
   }
 
-  return {
+  const displayModel = {
     points: resolvedPoints,
     pointByIntervalIndex,
     pointByTimeKey: new Map(resolvedPoints.map((point) => [timeKey(point.time), point])),
     availability: model.availability,
   };
+  const nextCachedByResolution = cachedByResolution ?? new Map<string, TradingChartModel>();
+  nextCachedByResolution.set(cacheKey, displayModel);
+  if (!cachedByResolution) {
+    DISPLAY_MODEL_CACHE.set(model.points, nextCachedByResolution);
+  }
+  return displayModel;
 }
 
 function deriveAvailability(points: TradingChartPoint[]) {

@@ -151,6 +151,7 @@ type ChartSeriesRefs = Partial<Record<
   | 'price',
   AnySeries
 >>;
+type InputSeriesData = LineData<Time>[] | HistogramData<Time>[] | Array<BarData<Time> | CandlestickData<Time>>;
 type LegendRow = ReturnType<typeof buildLegendRows>[number];
 type ChartSettingsDialogId = 'settings' | 'indicators' | 'layout';
 type HistogramIndicatorId = 'demand' | 'receipts' | 'ordersInTransit' | 'ordersLate' | 'ordersReadyToReceive' | 'ordersReceived';
@@ -257,6 +258,7 @@ const CHART_TIME_AXIS_FALLBACK_HEIGHT = 32;
 const CHART_MAX_TIME_AXIS_HEIGHT_RATIO = 0.35;
 const CHART_INDICATOR_PANE_RATIO = 0.25;
 const CHART_MIN_MAIN_PANE_RATIO = 0.5;
+const SERIES_DATA_CACHE = new WeakMap<TradingChartPoint[], Map<string, unknown>>();
 const LAYOUT_DROP_ANIMATION = {
   duration: 160,
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -1113,6 +1115,62 @@ function sourceOhlcData(points: TradingChartPoint[], id: TradingChartIndicatorId
     .filter((point): point is BarData<Time> | CandlestickData<Time> => point != null);
 }
 
+function cachedSeriesData<T>(points: TradingChartPoint[], key: string, factory: () => T) {
+  const cachedEntries = SERIES_DATA_CACHE.get(points);
+  if (cachedEntries?.has(key)) {
+    return cachedEntries.get(key) as T;
+  }
+  const value = factory();
+  const nextCachedEntries = cachedEntries ?? new Map<string, unknown>();
+  nextCachedEntries.set(key, value);
+  if (!cachedEntries) {
+    SERIES_DATA_CACHE.set(points, nextCachedEntries);
+  }
+  return value;
+}
+
+function inputSeriesDataCacheKey(
+  id: TradingChartIndicatorId,
+  setting: TradingChartIndicatorSettings[TradingChartIndicatorId],
+) {
+  if (isOhlcTradingChartPlotStyle(setting.plotStyle)) {
+    return `${id}:ohlc:${setting.plotStyle}`;
+  }
+  if (setting.plotStyle === 'histogram') {
+    return `${id}:histogram:${setting.inputSource ?? 'close'}:${histogramSeriesColor(setting.color, setting.opacity ?? 0.5, setting.plotStyle)}`;
+  }
+  return `${id}:line:${setting.plotStyle}:${setting.inputSource ?? 'close'}`;
+}
+
+function cachedInputSeriesData(
+  points: TradingChartPoint[],
+  id: TradingChartIndicatorId,
+  setting: TradingChartIndicatorSettings[TradingChartIndicatorId],
+): InputSeriesData {
+  return cachedSeriesData(points, inputSeriesDataCacheKey(id, setting), () => {
+    if (isOhlcTradingChartPlotStyle(setting.plotStyle)) {
+      return sourceOhlcData(points, id);
+    }
+    if (setting.plotStyle === 'histogram') {
+      return sourceHistogramData(
+        points,
+        id,
+        setting,
+        histogramSeriesColor(setting.color, setting.opacity ?? 0.5, setting.plotStyle),
+      );
+    }
+    return sourceLineData(points, id, setting);
+  });
+}
+
+function cachedLineSeriesData(
+  points: TradingChartPoint[],
+  key: string,
+  selector: (point: TradingChartPoint) => number | null,
+) {
+  return cachedSeriesData(points, key, () => lineData(points, selector));
+}
+
 function setInputSeriesData(
   series: AnySeries | undefined,
   points: TradingChartPoint[],
@@ -1122,20 +1180,7 @@ function setInputSeriesData(
   if (!series) {
     return;
   }
-  if (isOhlcTradingChartPlotStyle(setting.plotStyle)) {
-    series.setData(sourceOhlcData(points, id) as never);
-    return;
-  }
-  if (setting.plotStyle === 'histogram') {
-    series.setData(sourceHistogramData(
-      points,
-      id,
-      setting,
-      histogramSeriesColor(setting.color, setting.opacity ?? 0.5, setting.plotStyle),
-    ) as never);
-    return;
-  }
-  series.setData(sourceLineData(points, id, setting) as never);
+  series.setData(cachedInputSeriesData(points, id, setting) as never);
 }
 
 function histogramIndicatorLegendValue(
@@ -1466,25 +1511,28 @@ function histogramData(points: TradingChartPoint[], selector: (point: TradingCha
     .filter((point): point is HistogramData<Time> => point != null);
 }
 
-function constantLineData(points: TradingChartPoint[], selector: (point: TradingChartPoint) => number | null) {
-  return lineData(points, selector);
-}
-
 function setSeriesData(
   series: ChartSeriesRefs,
   chartModel: TradingChartModel,
   settings: TradingChartIndicatorSettings,
 ) {
   setInputSeriesData(series.inventory, chartModel.points, 'inventory', settings.inventory);
-  series.uncertaintyLow?.setData(lineData(chartModel.points, (point) => point.inventoryLow));
-  series.uncertaintyHigh?.setData(lineData(chartModel.points, (point) => point.inventoryHigh));
-  series.reorderPoint?.setData(constantLineData(chartModel.points, (point) => point.reorderPoint));
-  series.safetyStock?.setData(constantLineData(chartModel.points, (point) => point.safetyStock));
+  series.uncertaintyLow?.setData(cachedLineSeriesData(chartModel.points, 'uncertainty:low', (point) => point.inventoryLow));
+  series.uncertaintyHigh?.setData(cachedLineSeriesData(chartModel.points, 'uncertainty:high', (point) => point.inventoryHigh));
+  series.reorderPoint?.setData(cachedLineSeriesData(chartModel.points, 'reorder-point', (point) => point.reorderPoint));
+  series.safetyStock?.setData(cachedLineSeriesData(chartModel.points, 'safety-stock', (point) => point.safetyStock));
   for (const indicatorId of HISTOGRAM_INDICATOR_IDS) {
     const targetSeries = series[indicatorId];
     setInputSeriesData(targetSeries, chartModel.points, indicatorId, settings[indicatorId]);
   }
   setInputSeriesData(series.price, chartModel.points, 'price', settings.price);
+}
+
+function cachedOverlayAnchorData(points: TradingChartPoint[]) {
+  return cachedSeriesData(points, 'overlay-anchor', () => points.map((point) => ({
+    time: point.time,
+    value: 0,
+  })));
 }
 
 function structuralIndicatorSettingsSignature(
@@ -1901,6 +1949,7 @@ export function SkuTradingChart({
   const seriesRefs = useRef<AnySeries[]>([]);
   const chartSeriesRefs = useRef<ChartSeriesRefs>({});
   const loadingOlderRef = useRef(false);
+  const olderLoadHysteresisKeyRef = useRef<string | null>(null);
   const previousChartPointsRef = useRef<TradingChartPoint[]>([]);
   const previousTimeframeRef = useRef<ChartTimeframe | null>(null);
   const previousSelectedIntervalRef = useRef<number | null>(null);
@@ -2110,6 +2159,10 @@ export function SkuTradingChart({
     }
     return [...intervals].sort((left, right) => left - right);
   }, [chartModel.availability, chartModel.points, editableIndicatorSettings, showRegimeIcons]);
+  const olderLoadViewportToken = useMemo(
+    () => `${chartModel.points[0]?.intervalIndex ?? 'none'}:${chartModel.points.length}`,
+    [chartModel.points],
+  );
   const layoutSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -2871,11 +2924,7 @@ export function SkuTradingChart({
           priceScaleId: 'right',
         }, paneIndex);
 
-        const zeroData = chartModel.points.map((point) => ({
-          time: point.time,
-          value: 0,
-        }));
-        zeroLineSeries.setData(zeroData);
+        zeroLineSeries.setData(cachedOverlayAnchorData(chartModel.points));
         registerSeries(paneIndex, zeroLineSeries);
         registerSide(paneIndex, 'right');
       }
@@ -3118,9 +3167,16 @@ export function SkuTradingChart({
       if (!chart || !hasOlderIntervals || isBusy || isLoadingOlderIntervals || loadingOlderRef.current) {
         return;
       }
-      if (!shouldLoadOlderIntervalsForViewport(chart, chartModel.points, range)) {
+      const shouldLoad = shouldLoadOlderIntervalsForViewport(chart, chartModel.points, range);
+      if (!shouldLoad) {
+        olderLoadHysteresisKeyRef.current = null;
         return;
       }
+      const hysteresisKey = `${olderLoadViewportToken}:${Math.floor(range?.from ?? 0)}:${Math.ceil(range?.to ?? 0)}`;
+      if (olderLoadHysteresisKeyRef.current === hysteresisKey) {
+        return;
+      }
+      olderLoadHysteresisKeyRef.current = hysteresisKey;
       loadingOlderRef.current = true;
       setIsOlderLoadPending(true);
       onOlderLoadProgressChange?.({ current: 1, total: 1 });
@@ -3153,6 +3209,7 @@ export function SkuTradingChart({
     isBusy,
     isLoadingOlderIntervals,
     loadOlderIntervals,
+    olderLoadViewportToken,
     onOlderLoadProgressChange,
   ]);
 
