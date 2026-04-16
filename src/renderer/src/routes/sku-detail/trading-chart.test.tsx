@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -24,8 +24,10 @@ const chartMockState = vi.hoisted(() => ({
   timeToCoordinate: vi.fn(() => 100),
   setVisibleLogicalRange: vi.fn(),
   visibleRangeHandler: null as ((range: { from: number; to: number } | null) => void) | null,
+  visibleRangeHandlers: [] as Array<(range: { from: number; to: number } | null) => void>,
   paneCount: 1,
   priceScaleApplyOptions: new Map<string, ReturnType<typeof vi.fn>>(),
+  seriesApplyOptions: [] as ReturnType<typeof vi.fn>[],
 }));
 
 vi.mock('@/state/preferences', () => ({
@@ -44,9 +46,11 @@ vi.mock('lightweight-charts', async () => {
   chartMockState.timeToCoordinate.mockReturnValue(100);
   chartMockState.setVisibleLogicalRange.mockReset();
   chartMockState.visibleRangeHandler = null;
+  chartMockState.visibleRangeHandlers = [];
   chartMockState.paneHeights = [420];
   chartMockState.paneCount = 1;
   chartMockState.priceScaleApplyOptions = new Map();
+  chartMockState.seriesApplyOptions = [];
   const createChartMock = () => {
     chartMockState.addSeries.mockReset();
     chartMockState.getVisibleLogicalRange.mockReset();
@@ -57,9 +61,11 @@ vi.mock('lightweight-charts', async () => {
     chartMockState.timeToCoordinate.mockReturnValue(100);
     chartMockState.setVisibleLogicalRange.mockReset();
     chartMockState.visibleRangeHandler = null;
+    chartMockState.visibleRangeHandlers = [];
     chartMockState.paneHeights = [420];
     chartMockState.paneCount = 1;
     chartMockState.priceScaleApplyOptions = new Map();
+    chartMockState.seriesApplyOptions = [];
     const buildPane = (index: number) => ({
       getHeight: vi.fn(() => chartMockState.paneHeights[index] ?? 0),
       getHTMLElement: vi.fn(() => ({
@@ -73,6 +79,11 @@ vi.mock('lightweight-charts', async () => {
     });
     const chart = {
       addSeries: chartMockState.addSeries.mockImplementation(() => ({
+        applyOptions: (() => {
+          const applyOptions = vi.fn();
+          chartMockState.seriesApplyOptions.push(applyOptions);
+          return applyOptions;
+        })(),
         setData: vi.fn(),
         createPriceLine: vi.fn(),
         priceToCoordinate: vi.fn((price: number) => price),
@@ -113,8 +124,12 @@ vi.mock('lightweight-charts', async () => {
         applyOptions: vi.fn(),
         subscribeVisibleLogicalRangeChange: vi.fn((handler: (range: { from: number; to: number } | null) => void) => {
           chartMockState.visibleRangeHandler = handler;
+          chartMockState.visibleRangeHandlers.push(handler);
         }),
-        unsubscribeVisibleLogicalRangeChange: vi.fn(),
+        unsubscribeVisibleLogicalRangeChange: vi.fn((handler: (range: { from: number; to: number } | null) => void) => {
+          chartMockState.visibleRangeHandlers = chartMockState.visibleRangeHandlers.filter((candidate) => candidate !== handler);
+          chartMockState.visibleRangeHandler = chartMockState.visibleRangeHandlers.at(-1) ?? null;
+        }),
       })),
     };
     return chart;
@@ -201,7 +216,9 @@ function renderChart({
   loadOlderIntervals = vi.fn(async () => null),
   onChartResolutionChange = vi.fn(),
   onCustomTimeframeChange = vi.fn(),
+  onPaneHeightsChange = vi.fn(),
   onToggleExpand = vi.fn(),
+  onVisibleDateRangeChange = vi.fn(),
   selectedIntervalIndex = 0,
 }: {
   chartModelOverride?: TradingChartModel;
@@ -215,7 +232,9 @@ function renderChart({
   loadOlderIntervals?: () => Promise<unknown>;
   onChartResolutionChange?: (value: 'H' | '1D' | '1W' | '1M' | '3M' | '1Y' | 'Custom', custom: { amount: number; unit: 'm' | 'H' | 'D' | 'W' | 'M' | 'Y'; expression: string } | null) => void;
   onCustomTimeframeChange?: (range: { startAt: string; endAt: string } | null) => void;
+  onPaneHeightsChange?: (paneHeights: Record<string, number>) => void;
   onToggleExpand?: () => void;
+  onVisibleDateRangeChange?: (range: { startAt: string; endAt: string } | null) => void;
   selectedIntervalIndex?: number | null;
 } = {}) {
   chartMockState.addSeries.mockClear();
@@ -251,9 +270,20 @@ function renderChart({
       onSelectInterval={vi.fn()}
       onToggleExpand={onToggleExpand}
       onTimeframeChange={vi.fn()}
+      onPaneHeightsChange={onPaneHeightsChange}
+      onVisibleDateRangeChange={onVisibleDateRangeChange}
     />,
   );
-  return { ...renderResult, loadOlderIntervals, onChartResolutionChange, onToggleExpand, setIndicatorSettings };
+  return {
+    ...renderResult,
+    loadOlderIntervals,
+    onChartResolutionChange,
+    onCustomTimeframeChange,
+    onPaneHeightsChange,
+    onToggleExpand,
+    onVisibleDateRangeChange,
+    setIndicatorSettings,
+  };
 }
 
 describe('SkuTradingChart settings', () => {
@@ -379,6 +409,148 @@ describe('SkuTradingChart settings', () => {
       unit: 'm',
       expression: '15m',
     });
+  });
+
+  it('debounces visible-range and pane-height persistence updates', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+      const onPaneHeightsChange = vi.fn();
+      const onVisibleDateRangeChange = vi.fn();
+      const multiPointModel: TradingChartModel = {
+        ...chartModel,
+        points: [
+          {
+            ...chartModel.points[0]!,
+            intervalIndex: 0,
+            startAt: '2026-03-01T00:00:00.000Z',
+            endAt: '2026-03-02T00:00:00.000Z',
+            time: 1772409600 as never,
+            label: 'Interval 1',
+          },
+          {
+            ...chartModel.points[0]!,
+            intervalIndex: 1,
+            startAt: '2026-03-03T00:00:00.000Z',
+            endAt: '2026-03-04T00:00:00.000Z',
+            time: 1772582400 as never,
+            label: 'Interval 2',
+          },
+          {
+            ...chartModel.points[0]!,
+            intervalIndex: 2,
+            startAt: '2026-03-05T00:00:00.000Z',
+            endAt: '2026-03-06T00:00:00.000Z',
+            time: 1772755200 as never,
+            label: 'Interval 3',
+          },
+        ],
+        pointByIntervalIndex: new Map(),
+        pointByTimeKey: new Map(),
+      };
+      multiPointModel.points.forEach((point) => {
+        multiPointModel.pointByIntervalIndex.set(point.intervalIndex, point);
+        multiPointModel.pointByTimeKey.set(String(point.time), point);
+      });
+
+      renderChart({
+        chartModelOverride: multiPointModel,
+        onPaneHeightsChange,
+        onVisibleDateRangeChange,
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120);
+      });
+      onPaneHeightsChange.mockClear();
+      onVisibleDateRangeChange.mockClear();
+
+      chartMockState.paneHeights = [460];
+      act(() => {
+        chartMockState.visibleRangeHandlers.forEach((handler) => handler({ from: 0, to: 0 }));
+        chartMockState.paneHeights = [480];
+        chartMockState.visibleRangeHandlers.forEach((handler) => handler({ from: 1, to: 2 }));
+      });
+
+      expect(onVisibleDateRangeChange).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(119);
+      });
+
+      expect(onVisibleDateRangeChange).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(onPaneHeightsChange).toHaveBeenLastCalledWith({ main: 480 });
+      expect(onVisibleDateRangeChange).toHaveBeenCalledTimes(1);
+      expect(onVisibleDateRangeChange).toHaveBeenCalledWith({
+        startAt: '2026-03-03T00:00:00.000Z',
+        endAt: '2026-03-06T00:00:00.000Z',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('updates series options for cosmetic setting changes without rebuilding the chart', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const initialSettings = defaultTradingChartIndicators();
+    const nextSettings = defaultTradingChartIndicators();
+    nextSettings.inventory.color = '#dc2626';
+    nextSettings.inventory.lineWidth = 4;
+    nextSettings.inventory.showPriceScaleLabel = false;
+
+    const renderResult = render(
+      <SkuTradingChart
+        chartModel={chartModel}
+        chartZoomResetToken={0}
+        defaultIndicatorSettings={defaultTradingChartIndicators()}
+        hasOlderIntervals={false}
+        indicatorSettings={initialSettings}
+        isBusy={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => null)}
+        selectedIntervalIndex={0}
+        setIndicatorSettings={vi.fn()}
+        timeframe="Recent"
+        onOlderLoadProgressChange={vi.fn()}
+        onReset={vi.fn()}
+        onSaveDefaultIndicatorSettings={vi.fn()}
+        onSelectInterval={vi.fn()}
+        onTimeframeChange={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(chartMockState.addSeries).toHaveBeenCalled());
+    chartMockState.addSeries.mockClear();
+    chartMockState.seriesApplyOptions.forEach((applyOptions) => applyOptions.mockClear());
+
+    renderResult.rerender(
+      <SkuTradingChart
+        chartModel={chartModel}
+        chartZoomResetToken={0}
+        defaultIndicatorSettings={defaultTradingChartIndicators()}
+        hasOlderIntervals={false}
+        indicatorSettings={nextSettings}
+        isBusy={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => null)}
+        selectedIntervalIndex={0}
+        setIndicatorSettings={vi.fn()}
+        timeframe="Recent"
+        onOlderLoadProgressChange={vi.fn()}
+        onReset={vi.fn()}
+        onSaveDefaultIndicatorSettings={vi.fn()}
+        onSelectInterval={vi.fn()}
+        onTimeframeChange={vi.fn()}
+      />,
+    );
+
+    expect(chartMockState.addSeries).not.toHaveBeenCalled();
+    expect(chartMockState.seriesApplyOptions.some((applyOptions) => applyOptions.mock.calls.length > 0)).toBe(true);
   });
 
   it('labels regime indicator as Sales Pattern', () => {
@@ -800,9 +972,24 @@ describe('SkuTradingChart settings', () => {
     });
 
     await waitFor(() => expect(chartMockState.visibleRangeHandler).not.toBeNull());
+    loadOlderIntervals.mockClear();
     chartMockState.setVisibleLogicalRange.mockClear();
-    chartMockState.visibleRangeHandler?.({ from: 0, to: 10 });
-    chartMockState.visibleRangeHandler?.({ from: -3, to: 25 });
+    act(() => {
+      for (const handler of chartMockState.visibleRangeHandlers) {
+        const callCount = loadOlderIntervals.mock.calls.length;
+        handler({ from: 0, to: 10 });
+        if (loadOlderIntervals.mock.calls.length > callCount) {
+          break;
+        }
+      }
+      for (const handler of chartMockState.visibleRangeHandlers) {
+        const callCount = loadOlderIntervals.mock.calls.length;
+        handler({ from: -3, to: 25 });
+        if (loadOlderIntervals.mock.calls.length > callCount) {
+          break;
+        }
+      }
+    });
     expect(loadOlderIntervals).toHaveBeenCalledTimes(1);
 
     rerender(
@@ -1009,7 +1196,16 @@ describe('SkuTradingChart settings', () => {
     });
 
     await waitFor(() => expect(chartMockState.visibleRangeHandler).not.toBeNull());
-    chartMockState.visibleRangeHandler?.({ from: 5, to: 15 });
+    loadOlderIntervals.mockClear();
+    act(() => {
+      for (const handler of chartMockState.visibleRangeHandlers) {
+        const callCount = loadOlderIntervals.mock.calls.length;
+        handler({ from: 5, to: 15 });
+        if (loadOlderIntervals.mock.calls.length > callCount) {
+          break;
+        }
+      }
+    });
     await waitFor(() => expect(loadOlderIntervals).toHaveBeenCalledTimes(1));
 
     rerender(
