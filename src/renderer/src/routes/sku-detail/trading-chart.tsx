@@ -173,6 +173,15 @@ interface OverlayFlagMarker {
 interface StackedOverlayFlagMarker extends OverlayFlagMarker {
   bottom: number;
 }
+interface RegimeIconCluster {
+  dominantRegime: string;
+  count: number;
+  firstIntervalIndex: number;
+  lastIntervalIndex: number;
+  left: number;
+  right: number;
+  center: number;
+}
 type LayoutDropTarget =
   | { type: 'row'; indicatorId: TradingChartIndicatorId }
   | { type: 'pane'; paneId: string }
@@ -672,9 +681,14 @@ function observeChartLayout(
   container: HTMLElement,
   onLayoutChange: () => void,
   getObservedElements?: () => HTMLElement[],
+  options?: {
+    mutationThrottleMs?: number;
+    shouldTrackPointerDrag?: (target: EventTarget | null) => boolean;
+  },
 ) {
   let frame: number | null = null;
-  let dragFrame: number | null = null;
+  let mutationTimer: number | null = null;
+  let dragging = false;
   const schedule = () => {
     if (frame != null) {
       return;
@@ -703,49 +717,78 @@ function observeChartLayout(
     }
     schedule();
   };
-  const mutationObserver = new MutationObserver(syncObservedElements);
+  const scheduleObservedElementsSync = () => {
+    if ((options?.mutationThrottleMs ?? 0) <= 0) {
+      syncObservedElements();
+      return;
+    }
+    if (mutationTimer != null) {
+      return;
+    }
+    mutationTimer = window.setTimeout(() => {
+      mutationTimer = null;
+      syncObservedElements();
+    }, options?.mutationThrottleMs ?? 0);
+  };
+  const mutationObserver = new MutationObserver(scheduleObservedElementsSync);
   mutationObserver.observe(container, { childList: true, subtree: true });
 
-  const stopDragLoop = () => {
-    if (dragFrame == null) {
+  const stopPointerTracking = () => {
+    if (!dragging) {
       return;
     }
-    window.cancelAnimationFrame(dragFrame);
-    dragFrame = null;
+    dragging = false;
   };
-  const startDragLoop = () => {
-    if (dragFrame != null) {
+  const handlePointerMove = (event: PointerEvent) => {
+    if (!dragging || !container.contains(event.target as Node | null)) {
       return;
     }
-    const tick = () => {
-      onLayoutChange();
-      dragFrame = window.requestAnimationFrame(tick);
-    };
-    dragFrame = window.requestAnimationFrame(tick);
+    schedule();
   };
   const handlePointerDown = (event: PointerEvent) => {
     if (!(event.target instanceof Node) || !container.contains(event.target)) {
       return;
     }
-    startDragLoop();
+    if (!options?.shouldTrackPointerDrag?.(event.target)) {
+      return;
+    }
+    dragging = true;
+    schedule();
   };
 
   syncObservedElements();
   container.addEventListener('pointerdown', handlePointerDown, true);
-  window.addEventListener('pointerup', stopDragLoop, true);
-  window.addEventListener('pointercancel', stopDragLoop, true);
+  window.addEventListener('pointermove', handlePointerMove, true);
+  window.addEventListener('pointerup', stopPointerTracking, true);
+  window.addEventListener('pointercancel', stopPointerTracking, true);
 
   return () => {
     if (frame != null) {
       window.cancelAnimationFrame(frame);
     }
-    stopDragLoop();
+    if (mutationTimer != null) {
+      window.clearTimeout(mutationTimer);
+    }
+    stopPointerTracking();
     container.removeEventListener('pointerdown', handlePointerDown, true);
-    window.removeEventListener('pointerup', stopDragLoop, true);
-    window.removeEventListener('pointercancel', stopDragLoop, true);
+    window.removeEventListener('pointermove', handlePointerMove, true);
+    window.removeEventListener('pointerup', stopPointerTracking, true);
+    window.removeEventListener('pointercancel', stopPointerTracking, true);
     mutationObserver.disconnect();
     resizeObserver.disconnect();
   };
+}
+
+function shouldTrackChartPaneResize(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const resizeHandle = target.closest('[data-slot="separator"], [role="separator"]');
+  if (resizeHandle) {
+    return true;
+  }
+  const cursor = window.getComputedStyle(target).cursor;
+  return cursor === 'row-resize' || cursor === 'ns-resize' || cursor === 'col-resize' || cursor === 'ew-resize';
 }
 
 function lineStylePreviewClass(option: TradingChartIndicatorLineStyle, active: boolean) {
@@ -1535,6 +1578,236 @@ function cachedOverlayAnchorData(points: TradingChartPoint[]) {
   })));
 }
 
+function buildRegimeIconClusters(
+  visibleRegimePoints: TradingChartPoint[],
+  regimeIconPositions: Map<number, number>,
+) {
+  const positionedPoints = visibleRegimePoints
+    .map((point) => ({
+      point,
+      x: regimeIconPositions.get(point.intervalIndex),
+    }))
+    .filter((entry): entry is { point: TradingChartPoint; x: number } => entry.x != null)
+    .sort((left, right) => left.point.intervalIndex - right.point.intervalIndex);
+
+  const clusters: RegimeIconCluster[] = [];
+
+  for (const entry of positionedPoints) {
+    const regime = entry.point.dominantRegime;
+    if (!regime) {
+      continue;
+    }
+
+    const iconLeft = entry.x - REGIME_ICON_SIZE / 2;
+    const iconRight = entry.x + REGIME_ICON_SIZE / 2;
+    const previous = clusters.at(-1);
+    const overlapsPrevious =
+      previous &&
+      previous.dominantRegime === regime &&
+      iconLeft <= previous.right + REGIME_CLUSTER_GAP;
+
+    if (overlapsPrevious) {
+      previous.lastIntervalIndex = entry.point.intervalIndex;
+      previous.count += 1;
+      previous.left = Math.min(previous.left, iconLeft);
+      previous.right = Math.max(previous.right, iconRight);
+      previous.center = (previous.left + previous.right) / 2;
+      continue;
+    }
+
+    clusters.push({
+      dominantRegime: regime,
+      count: 1,
+      firstIntervalIndex: entry.point.intervalIndex,
+      lastIntervalIndex: entry.point.intervalIndex,
+      left: iconLeft,
+      right: iconRight,
+      center: entry.x,
+    });
+  }
+
+  return clusters;
+}
+
+function buildStackedOverlayMarkers({
+  chartModel,
+  clusters,
+  editableIndicatorSettings,
+  language,
+  onSelectInterval,
+  regimeIconPositions,
+  regimePaneId,
+  showRegimeIcons,
+}: {
+  chartModel: TradingChartModel;
+  clusters: RegimeIconCluster[];
+  editableIndicatorSettings: TradingChartIndicatorSettings;
+  language: 'en' | 'km';
+  onSelectInterval: (index: number) => void;
+  regimeIconPositions: Map<number, number>;
+  regimePaneId: string;
+  showRegimeIcons: boolean;
+}) {
+  const markers: OverlayFlagMarker[] = [];
+
+  if (showRegimeIcons) {
+    for (const cluster of clusters) {
+      const regimeKey = cluster.dominantRegime.toLowerCase();
+      markers.push({
+        key: `${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}-${cluster.dominantRegime}`,
+        indicatorId: 'regime',
+        paneId: regimePaneId,
+        intervalIndex: cluster.lastIntervalIndex,
+        layerOrder: editableIndicatorSettings.regime.layerOrder,
+        left: cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2,
+        width: cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE,
+        color: REGIME_COLORS[regimeKey] ?? REGIME_COLORS.unknown,
+        label: regimeClusterLabel(language, cluster.dominantRegime, cluster.count),
+        onClick: () => onSelectInterval(cluster.lastIntervalIndex),
+        icon: getRegimeIcon(cluster.dominantRegime),
+        clustered: cluster.count > 1,
+      });
+    }
+  }
+
+  const pushPointFlagMarkers = (
+    indicatorId: 'newOrderFlags' | 'newReceiptFlags',
+    enabled: boolean,
+    hasValue: (point: TradingChartPoint) => boolean,
+    Icon: IconComponent,
+    label: string,
+  ) => {
+    if (!enabled) {
+      return;
+    }
+    const setting = editableIndicatorSettings[indicatorId];
+    for (const point of chartModel.points) {
+      if (!hasValue(point)) {
+        continue;
+      }
+      const x = regimeIconPositions.get(point.intervalIndex);
+      if (x == null) {
+        continue;
+      }
+      markers.push({
+        key: `${indicatorId}:${point.intervalIndex}`,
+        indicatorId,
+        paneId: setting.paneId,
+        intervalIndex: point.intervalIndex,
+        layerOrder: setting.layerOrder,
+        left: x - REGIME_ICON_SIZE / 2,
+        width: REGIME_ICON_SIZE,
+        color: setting.color,
+        label,
+        onClick: () => onSelectInterval(point.intervalIndex),
+        icon: Icon,
+      });
+    }
+  };
+
+  pushPointFlagMarkers(
+    'newOrderFlags',
+    isEnabled(editableIndicatorSettings, chartModel.availability, 'newOrderFlags'),
+    (point) => (point.newOrderFlag ?? 0) > 0,
+    ActionAddBadgeIcon,
+    'New order flag',
+  );
+  pushPointFlagMarkers(
+    'newReceiptFlags',
+    isEnabled(editableIndicatorSettings, chartModel.availability, 'newReceiptFlags'),
+    (point) => (point.newReceiptFlag ?? 0) > 0,
+    EntityReceiptDocumentIcon,
+    'New receipt flag',
+  );
+
+  return stackOverlayFlagMarkers(markers);
+}
+
+function buildRegimeBackgroundBands(
+  visibleRegimePoints: TradingChartPoint[],
+  regimeIconPositions: Map<number, number>,
+  width: number,
+) {
+  const positionedPoints = visibleRegimePoints
+    .map((point) => ({
+      point,
+      x: regimeIconPositions.get(point.intervalIndex),
+    }))
+    .filter((entry): entry is { point: TradingChartPoint; x: number } => entry.x != null)
+    .sort((left, right) => left.point.intervalIndex - right.point.intervalIndex);
+  if (positionedPoints.length === 0) {
+    return [] as Array<{ intervalIndex: number; regime: string; left: number; width: number }>;
+  }
+  return positionedPoints.map((entry, index) => {
+    const previous = positionedPoints[index - 1];
+    const next = positionedPoints[index + 1];
+    const left = previous ? (previous.x + entry.x) / 2 : entry.x - Math.max(24, next ? (next.x - entry.x) / 2 : REGIME_ICON_SIZE);
+    const right = next ? (entry.x + next.x) / 2 : entry.x + Math.max(24, previous ? (entry.x - previous.x) / 2 : REGIME_ICON_SIZE);
+    return {
+      intervalIndex: entry.point.intervalIndex,
+      regime: entry.point.dominantRegime!,
+      left: Math.max(0, left),
+      width: Math.max(2, Math.min(width || right, right) - Math.max(0, left)),
+    };
+  });
+}
+
+function regimeIconClustersEqual(left: RegimeIconCluster[], right: RegimeIconCluster[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((cluster, index) => {
+    const other = right[index];
+    return other != null &&
+      cluster.dominantRegime === other.dominantRegime &&
+      cluster.count === other.count &&
+      cluster.firstIntervalIndex === other.firstIntervalIndex &&
+      cluster.lastIntervalIndex === other.lastIntervalIndex &&
+      cluster.left === other.left &&
+      cluster.right === other.right &&
+      cluster.center === other.center;
+  });
+}
+
+function stackedOverlayMarkersEqual(left: StackedOverlayFlagMarker[], right: StackedOverlayFlagMarker[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((marker, index) => {
+    const other = right[index];
+    return other != null &&
+      marker.key === other.key &&
+      marker.indicatorId === other.indicatorId &&
+      marker.paneId === other.paneId &&
+      marker.intervalIndex === other.intervalIndex &&
+      marker.layerOrder === other.layerOrder &&
+      marker.left === other.left &&
+      marker.width === other.width &&
+      marker.color === other.color &&
+      marker.label === other.label &&
+      marker.icon === other.icon &&
+      marker.clustered === other.clustered &&
+      marker.bottom === other.bottom;
+  });
+}
+
+function regimeBackgroundBandsEqual(
+  left: Array<{ intervalIndex: number; regime: string; left: number; width: number }>,
+  right: Array<{ intervalIndex: number; regime: string; left: number; width: number }>,
+) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((band, index) => {
+    const other = right[index];
+    return other != null &&
+      band.intervalIndex === other.intervalIndex &&
+      band.regime === other.regime &&
+      band.left === other.left &&
+      band.width === other.width;
+  });
+}
+
 function structuralIndicatorSettingsSignature(
   settings: TradingChartIndicatorSettings,
   availability: TradingChartModel['availability'],
@@ -1975,6 +2248,9 @@ export function SkuTradingChart({
   const pendingVisibleDateRangeRef = useRef<ChartVisibleDateRange | null>(null);
   const visibleDateRangeDebounceTimerRef = useRef<number | null>(null);
   const regimeIconPositionsRef = useRef<Map<number, number>>(new Map());
+  const clusteredRegimeIconsRef = useRef<RegimeIconCluster[]>([]);
+  const stackedOverlayMarkersRef = useRef<StackedOverlayFlagMarker[]>([]);
+  const regimeBackgroundBandsRef = useRef<Array<{ intervalIndex: number; regime: string; left: number; width: number }>>([]);
   const [hoveredTime, setHoveredTime] = useState<Time | null>(null);
   const [indicatorsDialogOpen, setIndicatorsDialogOpen] = useState(false);
   const [layoutDialogOpen, setLayoutDialogOpen] = useState(false);
@@ -1992,9 +2268,11 @@ export function SkuTradingChart({
     dialogId: ChartSettingsDialogId;
     action: () => void;
   } | null>(null);
-  const [regimeIconPositions, setRegimeIconPositions] = useState<Map<number, number>>(() => new Map());
+  const [clusteredRegimeIcons, setClusteredRegimeIcons] = useState<RegimeIconCluster[]>([]);
   const [paneLegendPositions, setPaneLegendPositions] = useState<Array<{ top: number; height: number }>>([]);
+  const [stackedOverlayMarkers, setStackedOverlayMarkers] = useState<StackedOverlayFlagMarker[]>([]);
   const [plotAreaWidth, setPlotAreaWidth] = useState(0);
+  const [regimeBackgroundBands, setRegimeBackgroundBands] = useState<Array<{ intervalIndex: number; regime: string; left: number; width: number }>>([]);
   const [uncertaintyBandPath, setUncertaintyBandPath] = useState('');
   const [activeLayoutRowId, setActiveLayoutRowId] = useState<string | null>(null);
   const [chartBootstrapVersion, setChartBootstrapVersion] = useState(0);
@@ -2330,12 +2608,45 @@ export function SkuTradingChart({
     setPaneLegendPositions(nextAnchors);
   }
 
-  function setRegimeIconPositionsIfChanged(nextPositions: Map<number, number>) {
-    if (numberMapEqual(regimeIconPositionsRef.current, nextPositions)) {
+  function setOverlayRenderStateIfChanged(nextPositions: Map<number, number>) {
+    const positionsChanged = !numberMapEqual(regimeIconPositionsRef.current, nextPositions);
+    const nextClusters = buildRegimeIconClusters(visibleRegimePoints, nextPositions);
+    const nextMarkers = buildStackedOverlayMarkers({
+      chartModel,
+      clusters: nextClusters,
+      editableIndicatorSettings,
+      language,
+      onSelectInterval,
+      regimeIconPositions: nextPositions,
+      regimePaneId,
+      showRegimeIcons,
+    });
+    const nextBands = showRegimeBackground
+      ? buildRegimeBackgroundBands(visibleRegimePoints, nextPositions, plotAreaWidth || chartContainerRef.current?.clientWidth || 0)
+      : [];
+
+    if (
+      !positionsChanged &&
+      regimeIconClustersEqual(clusteredRegimeIconsRef.current, nextClusters) &&
+      stackedOverlayMarkersEqual(stackedOverlayMarkersRef.current, nextMarkers) &&
+      regimeBackgroundBandsEqual(regimeBackgroundBandsRef.current, nextBands)
+    ) {
       return;
     }
+
     regimeIconPositionsRef.current = nextPositions;
-    setRegimeIconPositions(nextPositions);
+    if (!regimeIconClustersEqual(clusteredRegimeIconsRef.current, nextClusters)) {
+      clusteredRegimeIconsRef.current = nextClusters;
+      setClusteredRegimeIcons(nextClusters);
+    }
+    if (!stackedOverlayMarkersEqual(stackedOverlayMarkersRef.current, nextMarkers)) {
+      stackedOverlayMarkersRef.current = nextMarkers;
+      setStackedOverlayMarkers(nextMarkers);
+    }
+    if (!regimeBackgroundBandsEqual(regimeBackgroundBandsRef.current, nextBands)) {
+      regimeBackgroundBandsRef.current = nextBands;
+      setRegimeBackgroundBands(nextBands);
+    }
   }
 
   function snapshotCurrentLayoutPreferences() {
@@ -2411,175 +2722,6 @@ export function SkuTradingChart({
     }
     moveLayoutIndicator(indicatorId, target);
   }
-  const clusteredRegimeIcons = useMemo(() => {
-    const positionedPoints = visibleRegimePoints
-      .map((point) => ({
-        point,
-        x: regimeIconPositions.get(point.intervalIndex),
-      }))
-      .filter((entry): entry is { point: TradingChartPoint; x: number } => entry.x != null)
-      .sort((left, right) => left.point.intervalIndex - right.point.intervalIndex);
-
-    const clusters: Array<{
-      dominantRegime: string;
-      count: number;
-      firstIntervalIndex: number;
-      lastIntervalIndex: number;
-      left: number;
-      right: number;
-      center: number;
-    }> = [];
-
-    for (const entry of positionedPoints) {
-      const regime = entry.point.dominantRegime;
-      if (!regime) {
-        continue;
-      }
-
-      const iconLeft = entry.x - REGIME_ICON_SIZE / 2;
-      const iconRight = entry.x + REGIME_ICON_SIZE / 2;
-      const previous = clusters.at(-1);
-      const overlapsPrevious =
-        previous &&
-        previous.dominantRegime === regime &&
-        iconLeft <= previous.right + REGIME_CLUSTER_GAP;
-
-      if (overlapsPrevious) {
-        previous.lastIntervalIndex = entry.point.intervalIndex;
-        previous.count += 1;
-        previous.left = Math.min(previous.left, iconLeft);
-        previous.right = Math.max(previous.right, iconRight);
-        previous.center = (previous.left + previous.right) / 2;
-        continue;
-      }
-
-      clusters.push({
-        dominantRegime: regime,
-        count: 1,
-        firstIntervalIndex: entry.point.intervalIndex,
-        lastIntervalIndex: entry.point.intervalIndex,
-        left: iconLeft,
-        right: iconRight,
-        center: entry.x,
-      });
-    }
-
-    return clusters;
-  }, [regimeIconPositions, visibleRegimePoints]);
-  const stackedOverlayMarkers = useMemo(() => {
-    const markers: OverlayFlagMarker[] = [];
-
-    if (showRegimeIcons) {
-      for (const cluster of clusteredRegimeIcons) {
-        const regimeKey = cluster.dominantRegime.toLowerCase();
-        markers.push({
-          key: `${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}-${cluster.dominantRegime}`,
-          indicatorId: 'regime',
-          paneId: regimePaneId,
-          intervalIndex: cluster.lastIntervalIndex,
-          layerOrder: editableIndicatorSettings.regime.layerOrder,
-          left: cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2,
-          width: cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE,
-          color: REGIME_COLORS[regimeKey] ?? REGIME_COLORS.unknown,
-          label: regimeClusterLabel(language, cluster.dominantRegime, cluster.count),
-          onClick: () => onSelectInterval(cluster.lastIntervalIndex),
-          icon: getRegimeIcon(cluster.dominantRegime),
-          clustered: cluster.count > 1,
-        });
-      }
-    }
-
-    const pushPointFlagMarkers = (
-      indicatorId: 'newOrderFlags' | 'newReceiptFlags',
-      enabled: boolean,
-      hasValue: (point: TradingChartPoint) => boolean,
-      Icon: IconComponent,
-      label: string,
-    ) => {
-      if (!enabled) {
-        return;
-      }
-      const setting = editableIndicatorSettings[indicatorId];
-      for (const point of chartModel.points) {
-        if (!hasValue(point)) {
-          continue;
-        }
-        const x = regimeIconPositions.get(point.intervalIndex);
-        if (x == null) {
-          continue;
-        }
-        markers.push({
-          key: `${indicatorId}:${point.intervalIndex}`,
-          indicatorId,
-          paneId: setting.paneId,
-          intervalIndex: point.intervalIndex,
-          layerOrder: setting.layerOrder,
-          left: x - REGIME_ICON_SIZE / 2,
-          width: REGIME_ICON_SIZE,
-          color: setting.color,
-          label,
-          onClick: () => onSelectInterval(point.intervalIndex),
-          icon: Icon,
-        });
-      }
-    };
-
-    pushPointFlagMarkers(
-      'newOrderFlags',
-      isEnabled(editableIndicatorSettings, chartModel.availability, 'newOrderFlags'),
-      (point) => (point.newOrderFlag ?? 0) > 0,
-      ActionAddBadgeIcon,
-      'New order flag',
-    );
-    pushPointFlagMarkers(
-      'newReceiptFlags',
-      isEnabled(editableIndicatorSettings, chartModel.availability, 'newReceiptFlags'),
-      (point) => (point.newReceiptFlag ?? 0) > 0,
-      EntityReceiptDocumentIcon,
-      'New receipt flag',
-    );
-
-    return stackOverlayFlagMarkers(markers);
-  }, [
-    chartModel.availability,
-    chartModel.points,
-    clusteredRegimeIcons,
-    editableIndicatorSettings,
-    language,
-    onSelectInterval,
-    regimeIconPositions,
-    regimePaneId,
-    showRegimeIcons,
-  ]);
-  const regimeBackgroundBands = useMemo(() => {
-    if (!showRegimeBackground) {
-      return [];
-    }
-    const positionedPoints = visibleRegimePoints
-      .map((point) => ({
-        point,
-        x: regimeIconPositions.get(point.intervalIndex),
-      }))
-      .filter((entry): entry is { point: TradingChartPoint; x: number } => entry.x != null)
-      .sort((left, right) => left.point.intervalIndex - right.point.intervalIndex);
-    if (positionedPoints.length === 0) {
-      return [];
-    }
-    const width = plotAreaWidth || chartContainerRef.current?.clientWidth || 0;
-    return positionedPoints.map((entry, index) => {
-      const previous = positionedPoints[index - 1];
-      const next = positionedPoints[index + 1];
-      const left = previous ? (previous.x + entry.x) / 2 : entry.x - Math.max(24, next ? (next.x - entry.x) / 2 : REGIME_ICON_SIZE);
-      const right = next ? (entry.x + next.x) / 2 : entry.x + Math.max(24, previous ? (entry.x - previous.x) / 2 : REGIME_ICON_SIZE);
-      return {
-        intervalIndex: entry.point.intervalIndex,
-        regime: entry.point.dominantRegime!,
-        left: Math.max(0, left),
-        width: Math.max(2, Math.min(width || right, right) - Math.max(0, left)),
-      };
-    });
-  }, [plotAreaWidth, regimeIconPositions, showRegimeBackground, visibleRegimePoints]);
-
   useLayoutEffect(() => {
     activeAdditionalPaneCountRef.current = activeAdditionalPaneCount;
     syncPaneHeightImmediately({ lockDuringSync: true });
@@ -2617,6 +2759,10 @@ export function SkuTradingChart({
       chart
         .panes()
         .flatMap((pane) => (typeof pane.getHTMLElement === 'function' ? [pane.getHTMLElement()].filter((element): element is HTMLElement => element instanceof HTMLElement) : [])),
+      {
+        mutationThrottleMs: 48,
+        shouldTrackPointerDrag: shouldTrackChartPaneResize,
+      },
     );
     chart.timeScale().subscribeVisibleLogicalRangeChange(updatePaneLegendPositions);
     return () => {
@@ -3069,21 +3215,51 @@ export function SkuTradingChart({
     };
 
     let animationFrame: number | null = null;
-    let interactionFrame: number | null = null;
+    let interactiveTimer: number | null = null;
     let wheelStopTimer: number | null = null;
-    const scheduleUncertaintyBandPathUpdate = () => {
-      if (animationFrame != null) {
+    let pointerDragActive = false;
+    let lastInteractiveUpdateAt = 0;
+    const INTERACTIVE_UPDATE_INTERVAL_MS = 33;
+    const scheduleUncertaintyBandPathUpdate = (interactive = false) => {
+      if (!interactive) {
+        if (interactiveTimer != null) {
+          window.clearTimeout(interactiveTimer);
+          interactiveTimer = null;
+        }
+        if (animationFrame != null) {
+          return;
+        }
+        animationFrame = window.requestAnimationFrame(() => {
+          animationFrame = null;
+          updateUncertaintyBandPath();
+        });
         return;
       }
-      animationFrame = window.requestAnimationFrame(() => {
-        animationFrame = null;
-        updateUncertaintyBandPath();
-      });
+
+      const now = performance.now();
+      const elapsed = now - lastInteractiveUpdateAt;
+      const delay = Math.max(0, INTERACTIVE_UPDATE_INTERVAL_MS - elapsed);
+      if (animationFrame != null || interactiveTimer != null) {
+        return;
+      }
+      if (delay === 0) {
+        animationFrame = window.requestAnimationFrame(() => {
+          animationFrame = null;
+          lastInteractiveUpdateAt = performance.now();
+          updateUncertaintyBandPath();
+        });
+        return;
+      }
+      interactiveTimer = window.setTimeout(() => {
+        interactiveTimer = null;
+        scheduleUncertaintyBandPathUpdate(true);
+      }, delay);
     };
     const stopInteractiveUpdates = () => {
-      if (interactionFrame != null) {
-        window.cancelAnimationFrame(interactionFrame);
-        interactionFrame = null;
+      pointerDragActive = false;
+      if (interactiveTimer != null) {
+        window.clearTimeout(interactiveTimer);
+        interactiveTimer = null;
       }
       if (wheelStopTimer != null) {
         window.clearTimeout(wheelStopTimer);
@@ -3091,26 +3267,29 @@ export function SkuTradingChart({
       }
       scheduleUncertaintyBandPathUpdate();
     };
-    const runInteractiveUpdate = () => {
-      updateUncertaintyBandPath();
-      interactionFrame = window.requestAnimationFrame(runInteractiveUpdate);
+    const handlePointerDown = () => {
+      pointerDragActive = true;
+      scheduleUncertaintyBandPathUpdate(true);
     };
-    const startInteractiveUpdates = () => {
-      if (interactionFrame != null) {
+    const handlePointerMove = () => {
+      if (!pointerDragActive) {
         return;
       }
-      runInteractiveUpdate();
+      scheduleUncertaintyBandPathUpdate(true);
     };
     const handleWheel = () => {
-      startInteractiveUpdates();
+      scheduleUncertaintyBandPathUpdate(true);
       if (wheelStopTimer != null) {
         window.clearTimeout(wheelStopTimer);
       }
       wheelStopTimer = window.setTimeout(stopInteractiveUpdates, 120);
     };
     scheduleUncertaintyBandPathUpdate();
-    const stopObservingLayout = observeChartLayout(container, scheduleUncertaintyBandPathUpdate);
-    container.addEventListener('pointerdown', startInteractiveUpdates);
+    const stopObservingLayout = observeChartLayout(container, scheduleUncertaintyBandPathUpdate, undefined, {
+      mutationThrottleMs: 48,
+    });
+    container.addEventListener('pointerdown', handlePointerDown);
+    container.addEventListener('pointermove', handlePointerMove);
     container.addEventListener('wheel', handleWheel, { passive: true });
     window.addEventListener('pointerup', stopInteractiveUpdates);
     window.addEventListener('pointercancel', stopInteractiveUpdates);
@@ -3120,14 +3299,15 @@ export function SkuTradingChart({
       if (animationFrame != null) {
         window.cancelAnimationFrame(animationFrame);
       }
-      if (interactionFrame != null) {
-        window.cancelAnimationFrame(interactionFrame);
+      if (interactiveTimer != null) {
+        window.clearTimeout(interactiveTimer);
       }
       if (wheelStopTimer != null) {
         window.clearTimeout(wheelStopTimer);
       }
       stopObservingLayout();
-      container.removeEventListener('pointerdown', startInteractiveUpdates);
+      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointermove', handlePointerMove);
       container.removeEventListener('wheel', handleWheel);
       window.removeEventListener('pointerup', stopInteractiveUpdates);
       window.removeEventListener('pointercancel', stopInteractiveUpdates);
@@ -3261,14 +3441,14 @@ export function SkuTradingChart({
     const chart = chartRef.current;
     const container = chartContainerRef.current;
     if (!chart || !container || overlayPointIntervals.length === 0) {
-      setRegimeIconPositionsIfChanged(new Map());
+      setOverlayRenderStateIfChanged(new Map());
       return;
     }
 
     // Guard: ensure timeScale is ready
     const timeScaleWidth = chart.timeScale().width?.();
     if (!timeScaleWidth || timeScaleWidth <= 0) {
-      setRegimeIconPositionsIfChanged(new Map());
+      setOverlayRenderStateIfChanged(new Map());
       return;
     }
 
@@ -3291,18 +3471,31 @@ export function SkuTradingChart({
         nextPositions.set(intervalIndex, coordinate);
       }
       syncPlotAreaWidth();
-      setRegimeIconPositionsIfChanged(nextPositions);
+      setOverlayRenderStateIfChanged(nextPositions);
     };
 
     updateRegimeIconPositions();
     const layoutRoot = typeof chart.chartElement === 'function' ? chart.chartElement() : container;
-    const stopObservingLayout = observeChartLayout(layoutRoot, updateRegimeIconPositions);
+    const stopObservingLayout = observeChartLayout(layoutRoot, updateRegimeIconPositions, undefined, {
+      mutationThrottleMs: 48,
+    });
     chart.timeScale().subscribeVisibleLogicalRangeChange(updateRegimeIconPositions);
     return () => {
       stopObservingLayout();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(updateRegimeIconPositions);
     };
-  }, [chartModel.pointByIntervalIndex, overlayPointIntervals, plotAreaWidth]);
+  }, [
+    chartModel,
+    editableIndicatorSettings,
+    language,
+    onSelectInterval,
+    overlayPointIntervals,
+    plotAreaWidth,
+    regimePaneId,
+    showRegimeBackground,
+    showRegimeIcons,
+    visibleRegimePoints,
+  ]);
 
   function updateDraftIndicator(id: TradingChartIndicatorId, patch: Partial<TradingChartIndicatorSettings[TradingChartIndicatorId]>) {
     setDraftIndicatorSettings((current) => {
