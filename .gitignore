@@ -50,6 +50,8 @@ tree_dir.txt
 .env.local
 .env.*.local
 config/env/*.local
+src/renderer/src/routes/*.bak.*
+test_plugin.txt
 
 # Symbolication related
 app.*.symbols

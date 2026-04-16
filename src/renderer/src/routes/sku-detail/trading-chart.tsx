@@ -613,6 +613,45 @@ function paneHeightsRecordFromAnchors(
   );
 }
 
+function paneAnchorListsEqual(
+  left: Array<{ top: number; height: number }>,
+  right: Array<{ top: number; height: number }>,
+) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((anchor, index) => {
+    const other = right[index];
+    return other != null && anchor.top === other.top && anchor.height === other.height;
+  });
+}
+
+function numberRecordEqual(left: Record<string, number> | null | undefined, right: Record<string, number> | null | undefined) {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  const leftEntries = Object.entries(left);
+  if (leftEntries.length !== Object.keys(right).length) {
+    return false;
+  }
+  return leftEntries.every(([key, value]) => right[key] === value);
+}
+
+function numberMapEqual(left: Map<number, number>, right: Map<number, number>) {
+  if (left.size !== right.size) {
+    return false;
+  }
+  for (const [key, value] of left) {
+    if (right.get(key) !== value) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function cleanupEmptyTrailingPanes(chart: IChartApi | null) {
   if (!chart || typeof chart.panes !== 'function' || typeof chart.removePane !== 'function') {
     return;
@@ -1448,6 +1487,83 @@ function setSeriesData(
   setInputSeriesData(series.price, chartModel.points, 'price', settings.price);
 }
 
+function structuralIndicatorSettingsSignature(
+  settings: TradingChartIndicatorSettings,
+  availability: TradingChartModel['availability'],
+) {
+  return INDICATOR_ORDER.map((id) => {
+    const setting = settings[id];
+    return [
+      id,
+      availability[id] ? '1' : '0',
+      setting.enabled ? '1' : '0',
+      setting.paneId,
+      String(setting.layerOrder),
+      setting.axisSide,
+      setting.plotStyle,
+    ].join(':');
+  }).join('|');
+}
+
+function applySeriesOptions(
+  series: ChartSeriesRefs,
+  settings: TradingChartIndicatorSettings,
+) {
+  const inventory = settings.inventory;
+  series.inventory?.applyOptions({
+    color: inventory.color,
+    lineStyle: lineStyleValue(inventory.lineStyle),
+    lineWidth: Math.max(1, Math.min(4, inventory.lineWidth ?? 2)) as 1 | 2 | 3 | 4,
+    lastValueVisible: inventory.showPriceScaleLabel ?? true,
+  });
+
+  const uncertainty = settings.uncertainty;
+  const uncertaintyColor = rgba(
+    uncertainty.color,
+    uncertainty.plotStyle === 'band'
+      ? Math.max(uncertainty.opacity ?? 0.35, 0.42)
+      : uncertainty.opacity ?? 0.35,
+  );
+  series.uncertaintyLow?.applyOptions({
+    color: uncertaintyColor,
+    lineStyle: lineStyleValue(uncertainty.lineStyle),
+    lineWidth: (uncertainty.lineWidth ?? 1) as 1,
+    lastValueVisible: false,
+  });
+  series.uncertaintyHigh?.applyOptions({
+    color: uncertaintyColor,
+    lineStyle: lineStyleValue(uncertainty.lineStyle),
+    lineWidth: (uncertainty.lineWidth ?? 1) as 1,
+    lastValueVisible: uncertainty.showPriceScaleLabel ?? false,
+  });
+
+  for (const indicatorId of ['reorderPoint', 'safetyStock'] as const) {
+    const setting = settings[indicatorId];
+    series[indicatorId]?.applyOptions({
+      color: setting.color,
+      lineStyle: lineStyleValue(setting.lineStyle),
+      lineWidth: (setting.lineWidth ?? 1) as 1,
+      lastValueVisible: setting.showPriceScaleLabel ?? true,
+    });
+  }
+
+  for (const indicatorId of HISTOGRAM_INDICATOR_IDS) {
+    const setting = settings[indicatorId];
+    series[indicatorId]?.applyOptions({
+      color: histogramSeriesColor(setting.color, setting.opacity ?? 0.5, setting.plotStyle),
+      lastValueVisible: setting.showPriceScaleLabel ?? false,
+    });
+  }
+
+  const price = settings.price;
+  series.price?.applyOptions({
+    color: price.color,
+    lineStyle: lineStyleValue(price.lineStyle),
+    lineWidth: Math.max(1, Math.min(4, price.lineWidth ?? 2)) as 1 | 2 | 3 | 4,
+    lastValueVisible: price.showPriceScaleLabel ?? true,
+  });
+}
+
 function indicatorAvailabilityKey(availability: TradingChartModel['availability']) {
   return INDICATOR_ORDER.map((id) => `${id}:${availability[id] ? '1' : '0'}`).join('|');
 }
@@ -1802,6 +1918,14 @@ export function SkuTradingChart({
   const paneHeightSyncGenerationRef = useRef(0);
   const paneRelayoutPendingRef = useRef(false);
   const activeAdditionalPaneCountRef = useRef(0);
+  const paneLegendPositionsRef = useRef<Array<{ top: number; height: number }>>([]);
+  const lastEmittedPaneHeightsRef = useRef<Record<string, number> | null>(null);
+  const pendingPaneHeightsRef = useRef<Record<string, number> | null>(null);
+  const paneHeightsDebounceTimerRef = useRef<number | null>(null);
+  const lastEmittedVisibleDateRangeRef = useRef<ChartVisibleDateRange | null>(null);
+  const pendingVisibleDateRangeRef = useRef<ChartVisibleDateRange | null>(null);
+  const visibleDateRangeDebounceTimerRef = useRef<number | null>(null);
+  const regimeIconPositionsRef = useRef<Map<number, number>>(new Map());
   const [hoveredTime, setHoveredTime] = useState<Time | null>(null);
   const [indicatorsDialogOpen, setIndicatorsDialogOpen] = useState(false);
   const [layoutDialogOpen, setLayoutDialogOpen] = useState(false);
@@ -1908,13 +2032,13 @@ export function SkuTradingChart({
     onChartResolutionChange?.('Custom', parsed);
     setCustomResolutionDialogOpen(false);
   }
-  const editableIndicatorSettingsKey = useMemo(
-    () => JSON.stringify(editableIndicatorSettings),
-    [editableIndicatorSettings],
+  const structuralSettingsSignature = useMemo(
+    () => structuralIndicatorSettingsSignature(editableIndicatorSettings, chartModel.availability),
+    [chartModel.availability, editableIndicatorSettings],
   );
   const paneLayout = useMemo(
     () => deriveTradingChartPaneLayout(editableIndicatorSettings, chartModel.availability),
-    [availabilityKey, editableIndicatorSettingsKey],
+    [availabilityKey, structuralSettingsSignature],
   );
   const activeAdditionalPaneCount = Math.max(0, paneLayout.length - 1);
   const regimeSetting = editableIndicatorSettings.regime;
@@ -1949,12 +2073,10 @@ export function SkuTradingChart({
   const regimePaneTop = regimePanePosition?.top ?? 0;
   const regimePaneHeight = regimePanePosition?.height ?? 0;
   const hasMeasuredRegimePane = regimePaneHeight > 0 && plotAreaWidth > 0;
-  const seriesLayoutKey = useMemo(() => JSON.stringify({
-    availability: availabilityKey,
-    settings: editableIndicatorSettings,
-    reorderPoint: chartModel.points.find((point) => point.reorderPoint != null)?.reorderPoint ?? null,
-    safetyStock: chartModel.points.find((point) => point.safetyStock != null)?.safetyStock ?? null,
-  }), [availabilityKey, chartModel.points, editableIndicatorSettings]);
+  const seriesStructureSignature = useMemo(
+    () => structuralIndicatorSettingsSignature(editableIndicatorSettings, chartModel.availability),
+    [chartModel.availability, editableIndicatorSettings],
+  );
   const visibleRegimePoints = useMemo(
     () => (
       regimeIndicatorEnabled && (showRegimeIcons || showRegimeBackground)
@@ -2017,8 +2139,8 @@ export function SkuTradingChart({
       initialPaneHeights,
     );
     const anchors = paneLegendAnchors(chartRef.current);
-    setPaneLegendPositions(anchors);
-    onPaneHeightsChange?.(paneHeightsRecordFromAnchors(paneLayout, anchors));
+    setPaneLegendPositionsIfChanged(anchors);
+    emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, anchors));
     syncPlotAreaWidth();
     if (!paneHeightsMatchTargets(chartRef.current, totalHeight, paneIds, initialPaneHeights) && retryCount < 6) {
       paneHeightUpdateFrameRef.current = requestAnimationFrame(() => {
@@ -2068,13 +2190,108 @@ export function SkuTradingChart({
     setPlotAreaWidth((current) => (Math.abs(current - nextWidth) < 1 ? current : nextWidth));
   }
 
+  function emitPaneHeightsChange(nextPaneHeights: Record<string, number>, options?: { immediate?: boolean }) {
+    if (!onPaneHeightsChange) {
+      return;
+    }
+    if (numberRecordEqual(lastEmittedPaneHeightsRef.current, nextPaneHeights)) {
+      pendingPaneHeightsRef.current = null;
+      if (paneHeightsDebounceTimerRef.current != null) {
+        window.clearTimeout(paneHeightsDebounceTimerRef.current);
+        paneHeightsDebounceTimerRef.current = null;
+      }
+      return;
+    }
+    const flush = () => {
+      paneHeightsDebounceTimerRef.current = null;
+      const pending = pendingPaneHeightsRef.current;
+      if (!pending || numberRecordEqual(lastEmittedPaneHeightsRef.current, pending)) {
+        pendingPaneHeightsRef.current = null;
+        return;
+      }
+      pendingPaneHeightsRef.current = null;
+      lastEmittedPaneHeightsRef.current = pending;
+      onPaneHeightsChange(pending);
+    };
+    pendingPaneHeightsRef.current = nextPaneHeights;
+    if (options?.immediate) {
+      if (paneHeightsDebounceTimerRef.current != null) {
+        window.clearTimeout(paneHeightsDebounceTimerRef.current);
+      }
+      flush();
+      return;
+    }
+    if (paneHeightsDebounceTimerRef.current != null) {
+      window.clearTimeout(paneHeightsDebounceTimerRef.current);
+    }
+    paneHeightsDebounceTimerRef.current = window.setTimeout(flush, 120);
+  }
+
+  function emitVisibleDateRangeChange(nextRange: ChartVisibleDateRange | null, options?: { immediate?: boolean }) {
+    if (!onVisibleDateRangeChange) {
+      return;
+    }
+    const sameAsLast =
+      lastEmittedVisibleDateRangeRef.current?.startAt === nextRange?.startAt &&
+      lastEmittedVisibleDateRangeRef.current?.endAt === nextRange?.endAt;
+    if (sameAsLast) {
+      pendingVisibleDateRangeRef.current = null;
+      if (visibleDateRangeDebounceTimerRef.current != null) {
+        window.clearTimeout(visibleDateRangeDebounceTimerRef.current);
+        visibleDateRangeDebounceTimerRef.current = null;
+      }
+      return;
+    }
+    const flush = () => {
+      visibleDateRangeDebounceTimerRef.current = null;
+      const pending = pendingVisibleDateRangeRef.current;
+      const matchesLast =
+        lastEmittedVisibleDateRangeRef.current?.startAt === pending?.startAt &&
+        lastEmittedVisibleDateRangeRef.current?.endAt === pending?.endAt;
+      pendingVisibleDateRangeRef.current = null;
+      if (matchesLast) {
+        return;
+      }
+      lastEmittedVisibleDateRangeRef.current = pending;
+      onVisibleDateRangeChange(pending ?? null);
+    };
+    pendingVisibleDateRangeRef.current = nextRange;
+    if (options?.immediate) {
+      if (visibleDateRangeDebounceTimerRef.current != null) {
+        window.clearTimeout(visibleDateRangeDebounceTimerRef.current);
+      }
+      flush();
+      return;
+    }
+    if (visibleDateRangeDebounceTimerRef.current != null) {
+      window.clearTimeout(visibleDateRangeDebounceTimerRef.current);
+    }
+    visibleDateRangeDebounceTimerRef.current = window.setTimeout(flush, 120);
+  }
+
+  function setPaneLegendPositionsIfChanged(nextAnchors: Array<{ top: number; height: number }>) {
+    if (paneAnchorListsEqual(paneLegendPositionsRef.current, nextAnchors)) {
+      return;
+    }
+    paneLegendPositionsRef.current = nextAnchors;
+    setPaneLegendPositions(nextAnchors);
+  }
+
+  function setRegimeIconPositionsIfChanged(nextPositions: Map<number, number>) {
+    if (numberMapEqual(regimeIconPositionsRef.current, nextPositions)) {
+      return;
+    }
+    regimeIconPositionsRef.current = nextPositions;
+    setRegimeIconPositions(nextPositions);
+  }
+
   function snapshotCurrentLayoutPreferences() {
     const chart = chartRef.current;
     if (!chart) {
       return;
     }
-    onVisibleDateRangeChange?.(visibleDateRangeForLogicalRange(chartModel, chart.timeScale().getVisibleLogicalRange()));
-    onPaneHeightsChange?.(paneHeightsRecordFromAnchors(paneLayout, paneLegendAnchors(chart)));
+    emitVisibleDateRangeChange(visibleDateRangeForLogicalRange(chartModel, chart.timeScale().getVisibleLogicalRange()), { immediate: true });
+    emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, paneLegendAnchors(chart)), { immediate: true });
   }
 
   function setChartVisibleLogicalRange(range: { from: number; to: number }) {
@@ -2330,14 +2547,14 @@ export function SkuTradingChart({
     const chart = chartRef.current;
     const container = chartContainerRef.current;
     if (!chart || !container) {
-      setPaneLegendPositions([]);
+      setPaneLegendPositionsIfChanged([]);
       return;
     }
 
     const updatePaneLegendPositions = () => {
       const anchors = paneLegendAnchors(chart);
-      setPaneLegendPositions(anchors);
-      onPaneHeightsChange?.(paneHeightsRecordFromAnchors(paneLayout, anchors));
+      setPaneLegendPositionsIfChanged(anchors);
+      emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, anchors));
       syncPlotAreaWidth();
     };
 
@@ -2353,7 +2570,7 @@ export function SkuTradingChart({
       stopObservingLayout();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(updatePaneLegendPositions);
     };
-  }, [activeAdditionalPaneCount, chartBootstrapVersion, seriesLayoutKey]);
+  }, [activeAdditionalPaneCount, chartBootstrapVersion, paneLayout, seriesStructureSignature]);
 
   useLayoutEffect(() => {
     if (!chartRef.current || !chartContainerRef.current) {
@@ -2425,6 +2642,14 @@ export function SkuTradingChart({
     resizeObserver.observe(container);
 
     return () => {
+      if (paneHeightsDebounceTimerRef.current != null) {
+        window.clearTimeout(paneHeightsDebounceTimerRef.current);
+        paneHeightsDebounceTimerRef.current = null;
+      }
+      if (visibleDateRangeDebounceTimerRef.current != null) {
+        window.clearTimeout(visibleDateRangeDebounceTimerRef.current);
+        visibleDateRangeDebounceTimerRef.current = null;
+      }
       resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
@@ -2674,7 +2899,11 @@ export function SkuTradingChart({
     setSeriesData(chartSeriesRefs.current, chartModel, editableIndicatorSettings);
     cleanupEmptyTrailingPanes(chart);
     syncPaneHeightImmediately({ lockDuringSync: true });
-  }, [chartBootstrapVersion, paneLayout, paneIndexById, seriesLayoutKey]);
+  }, [chartBootstrapVersion, paneLayout, paneIndexById, seriesStructureSignature]);
+
+  useEffect(() => {
+    applySeriesOptions(chartSeriesRefs.current, editableIndicatorSettings);
+  }, [editableIndicatorSettings]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -2712,7 +2941,7 @@ export function SkuTradingChart({
       return;
     }
     const updateVisibleDateRange = (range: { from: number; to: number } | null) => {
-      onVisibleDateRangeChange(visibleDateRangeForLogicalRange(chartModel, range));
+      emitVisibleDateRangeChange(visibleDateRangeForLogicalRange(chartModel, range));
     };
     updateVisibleDateRange(chart.timeScale().getVisibleLogicalRange());
     chart.timeScale().subscribeVisibleLogicalRangeChange(updateVisibleDateRange);
@@ -2975,14 +3204,14 @@ export function SkuTradingChart({
     const chart = chartRef.current;
     const container = chartContainerRef.current;
     if (!chart || !container || overlayPointIntervals.length === 0) {
-      setRegimeIconPositions(new Map());
+      setRegimeIconPositionsIfChanged(new Map());
       return;
     }
 
     // Guard: ensure timeScale is ready
     const timeScaleWidth = chart.timeScale().width?.();
     if (!timeScaleWidth || timeScaleWidth <= 0) {
-      setRegimeIconPositions(new Map());
+      setRegimeIconPositionsIfChanged(new Map());
       return;
     }
 
@@ -3005,7 +3234,7 @@ export function SkuTradingChart({
         nextPositions.set(intervalIndex, coordinate);
       }
       syncPlotAreaWidth();
-      setRegimeIconPositions(nextPositions);
+      setRegimeIconPositionsIfChanged(nextPositions);
     };
 
     updateRegimeIconPositions();
