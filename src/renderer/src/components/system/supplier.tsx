@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { SenaCatalog, SenaSku } from '@shared/sena';
+import type { SenaCatalog, SenaService, SenaSku } from '@shared/sena';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ItemIdentityBlock } from '@/components/system/item-identity';
 import {
   supplierNameForSku,
   supplierNamesFromCatalog,
@@ -104,7 +105,11 @@ export function SupplierField({
         onValueChange={(nextValue) => {
           if (nextValue === customSupplierValue) {
             setCustomMode(true);
-            setCustomDraft(isCustomSupplier ? value : '');
+            const nextDraft = isCustomSupplier ? value : '';
+            setCustomDraft(nextDraft);
+            if (!isCustomSupplier) {
+              onChange(nextDraft);
+            }
             return;
           }
           if (nextValue === noSupplierFieldValue) {
@@ -165,7 +170,13 @@ export function SupplierFilter({
 
   return (
     <Select value={supplierFilterQueryValue(value) ?? 'all'} onValueChange={(nextValue) => onChange(supplierFilterValueForQuery(nextValue))}>
-      <SelectTrigger aria-label={label} className={cn('min-w-[12rem] justify-between', className)}>
+      <SelectTrigger
+        aria-label={label}
+        className={cn(
+          'min-w-[12rem] justify-between border border-border/70 bg-background/80 text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
+          className,
+        )}
+      >
         <SelectValue placeholder="All suppliers" />
       </SelectTrigger>
       <SelectContent>
@@ -182,6 +193,7 @@ export function SupplierFilter({
 }
 
 export function SkuIdentityCell({
+  align = 'center',
   children,
   className,
   secondary,
@@ -189,6 +201,7 @@ export function SkuIdentityCell({
   sku,
   skuName,
 }: {
+  align?: 'start' | 'center';
   children?: ReactNode;
   className?: string;
   secondary?: ReactNode;
@@ -197,13 +210,47 @@ export function SkuIdentityCell({
   skuName?: string;
 }) {
   return (
-    <div className={cn('min-w-0', className)}>
-      <span className="block font-medium text-foreground">{sku?.name ?? skuName}</span>
-      <div className="mt-1 flex flex-wrap items-center gap-2">
-        <SupplierBadge showEmpty={showEmptySupplier} supplierName={supplierNameForSku(sku)} />
-        {secondary ? <span className="text-xs text-muted-foreground">{secondary}</span> : null}
-        {children}
-      </div>
-    </div>
+    <ItemIdentityBlock
+      align={align}
+      className={className}
+      imagePath={sku?.imagePath}
+      metadata={<SupplierBadge showEmpty={showEmptySupplier} supplierName={supplierNameForSku(sku)} />}
+      name={sku?.name ?? skuName ?? ''}
+      secondary={secondary}
+      size="compact"
+      type="sku"
+    >
+      {children}
+    </ItemIdentityBlock>
+  );
+}
+
+export function ServiceIdentityCell({
+  align = 'center',
+  children,
+  className,
+  secondary,
+  service,
+  serviceName,
+}: {
+  align?: 'start' | 'center';
+  children?: ReactNode;
+  className?: string;
+  secondary?: ReactNode;
+  service?: SenaService | null;
+  serviceName?: string;
+}) {
+  return (
+    <ItemIdentityBlock
+      align={align}
+      className={className}
+      imagePath={service?.imagePath}
+      name={service?.name ?? serviceName ?? ''}
+      secondary={secondary}
+      size="compact"
+      type="service"
+    >
+      {children}
+    </ItemIdentityBlock>
   );
 }

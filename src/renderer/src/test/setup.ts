@@ -1,4 +1,6 @@
 import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
 
 class ResizeObserverMock {
   observe() {}
@@ -6,10 +8,24 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
+class MutationObserverMock {
+  observe() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+
 Object.defineProperty(globalThis, 'ResizeObserver', {
   configurable: true,
   writable: true,
   value: ResizeObserverMock,
+});
+
+Object.defineProperty(globalThis, 'MutationObserver', {
+  configurable: true,
+  writable: true,
+  value: MutationObserverMock,
 });
 
 if (typeof window !== 'undefined') {
@@ -19,3 +35,8 @@ if (typeof window !== 'undefined') {
     value: () => {},
   });
 }
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});

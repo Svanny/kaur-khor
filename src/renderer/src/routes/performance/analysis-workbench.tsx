@@ -72,6 +72,7 @@ import {
   HeaderedTableMobileLabel,
   HeaderedTableRow,
 } from '@/components/system/headered-table';
+import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { useFloatingTitleActions } from '@/components/system/floating-title-actions';
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
@@ -1565,13 +1566,18 @@ function EntityPressureTable({
               onClick={() => setSelection({ type: 'entity', entityId: row.id, entityType: row.entityType })}
             >
               <div className="group min-w-0 text-left" data-pressure-cell="true">
-                <div className="min-w-0">
-                  <div className="flex items-start gap-2.5">
-                    <span className="shrink-0 pt-0.5">{entityIcon(row.entityType)}</span>
-                    <p className="truncate font-semibold text-foreground transition-colors group-hover:text-primary">{row.name}</p>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{row.summary}</p>
-                </div>
+                <ItemIdentityBlock
+                  align="center"
+                  description={row.summary}
+                  imagePath={row.imagePath}
+                  name={
+                    <span className="truncate font-semibold text-foreground transition-colors group-hover:text-primary">
+                      {row.name}
+                    </span>
+                  }
+                  size="compact"
+                  type={row.entityType}
+                />
               </div>
               <div className="flex items-center justify-center" data-pressure-cell="true">
                 <HeaderedTableMobileLabel className={pressureTableLayout.mobileLabelClassName}>{t('analysisWorkbenchPressureScoreHeader')}</HeaderedTableMobileLabel>
@@ -1724,6 +1730,7 @@ function SupplyFragilityMap({
         key: `sku:${column.skuId}`,
         skuId: column.skuId,
         name: column.name,
+        imagePath: column.imagePath,
         cells: model.fragilityRows
           .map((service, serviceIndex) => ({
             serviceId: service.entityId,
@@ -1846,8 +1853,13 @@ function SupplyFragilityMap({
                   type="button"
                   onClick={() => setSelection({ type: 'entity', entityId: service.entityId, entityType: service.entityType })}
                 >
-                  <EntityServiceIcon className="size-4 shrink-0" />
-                  <span>{service.name}</span>
+                  <ItemIdentityBlock
+                    align="center"
+                    imagePath={service.imagePath}
+                    name={<span>{service.name}</span>}
+                    size="compact"
+                    type="service"
+                  />
                 </button>
               ))}
             </div>
@@ -1864,25 +1876,32 @@ function SupplyFragilityMap({
             <button
               key={service.entityId}
               ref={serviceIndex === 0 ? serviceHeaderAnchorRef : undefined}
-              className="flex items-center gap-2 rounded-[1.15rem] border border-transparent bg-transparent px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="flex items-center gap-2 rounded-[1rem] border border-border/60 bg-white px-3 py-3 text-left text-sm font-medium text-foreground transition-colors hover:bg-muted/30"
               style={{ gridColumnStart: serviceIndex + 2, gridRowStart: 1 }}
               type="button"
               onClick={() => setSelection({ type: 'entity', entityId: service.entityId, entityType: service.entityType })}
             >
-              <EntityServiceIcon className="size-4 shrink-0" />
-              <span>{service.name}</span>
+              <ItemIdentityBlock
+                align="center"
+                imagePath={service.imagePath}
+                name={<span>{service.name}</span>}
+                size="compact"
+                type="service"
+              />
             </button>
           ))}
 
           {transposedRows.map((row, rowIndex) => (
             <Fragment key={row.key}>
               <div className="flex items-center rounded-[1rem] border border-border/60 bg-white px-3 py-3" style={{ gridColumnStart: 1, gridRowStart: rowIndex + 2 }}>
-                <div className="max-w-full min-w-0">
-                  <p className="flex items-center gap-2 font-medium text-foreground">
-                    <EntitySkuIcon className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 break-words">{row.name}</span>
-                  </p>
-                </div>
+                <ItemIdentityBlock
+                  align="center"
+                  className="max-w-full min-w-0"
+                  imagePath={row.imagePath}
+                  name={<span className="min-w-0 break-words">{row.name}</span>}
+                  size="compact"
+                  type="sku"
+                />
               </div>
               {row.cells.map(({ serviceId, serviceName, serviceColumnStart, cell }) => (
                 <div

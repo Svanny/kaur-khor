@@ -3,6 +3,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SenaService } from '@shared/sena';
 import { SearchInput } from '@/components/system/search-input';
+import { ItemAvatar } from '@/components/system/item-identity';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import { useInventory } from '@/state/inventory';
 import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { catalogItemIdErrorMessage } from './catalog-id-validation';
+import { CatalogImageField } from './catalog-image-field';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { DetailHeroWireframe } from './loading-wireframes';
 import { SkuPageHero } from './sku-page-hero';
@@ -26,6 +28,7 @@ function emptyService(serviceId = ''): SenaService {
     serviceId,
     name: '',
     description: '',
+    imagePath: null,
     price: 0,
     archived: false,
     bundle: false,
@@ -42,6 +45,7 @@ function normalizedServiceDirtySnapshot(service: SenaService) {
     serviceId: service.serviceId.trim(),
     name: service.name.trim(),
     description: service.description.trim(),
+    imagePath: service.imagePath?.trim() || null,
   };
 }
 
@@ -95,6 +99,7 @@ function ServiceSkuGridTile({
   checked,
   className,
   description,
+  imagePath,
   label,
   measure = false,
   skuId,
@@ -103,6 +108,7 @@ function ServiceSkuGridTile({
   checked: boolean;
   className?: string;
   description?: string;
+  imagePath?: string | null;
   label: string;
   measure?: boolean;
   skuId: string;
@@ -154,6 +160,7 @@ function ServiceSkuGridTile({
           </div>
         </>
       )}
+      <ItemAvatar imagePath={imagePath} name={label} size="compact" type="sku" />
       <div className="grid min-w-0 gap-1">
         <div className="flex min-h-5 cursor-pointer items-center font-medium leading-5 text-foreground">
           {label}
@@ -393,6 +400,15 @@ export function ServiceFormRoute() {
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             />
           </EditorField>
+
+          <CatalogImageField
+            helper="Choose one picture for this service. Banji will show it on supported item surfaces."
+            imagePath={form.imagePath}
+            label="Picture"
+            name={form.name || 'Service image'}
+            type="service"
+            onChange={(value) => setForm((current) => ({ ...current, imagePath: value }))}
+          />
         </WorkspacePanel>
 
         <WorkspacePanel
@@ -458,6 +474,7 @@ export function ServiceFormRoute() {
                     key={sku.skuId}
                     checked={selectedSkuIds.includes(sku.skuId)}
                     description={sku.description || undefined}
+                    imagePath={sku.imagePath}
                     label={sku.name}
                     skuId={sku.skuId}
                     onCheckedChange={(checked) =>

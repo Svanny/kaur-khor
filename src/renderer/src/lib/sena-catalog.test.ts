@@ -3,9 +3,11 @@ import { vi } from 'vitest';
 import {
   createUniqueSkuId,
   hasCatalogEntityIdConflict,
+  matchesServiceSupplier,
   matchesSkuSupplier,
   normalizeSenaSku,
   skuSearchParts,
+  supplierNamesForService,
   supplierNamesFromCatalog,
   upsertSenaService,
   upsertSenaSku,
@@ -38,6 +40,18 @@ const sampleCatalog: SenaCatalog = {
       leadTimeMeanDaysHint: null,
       leadTimeStdDaysHint: null,
     },
+    {
+      skuId: 'sku-2',
+      name: 'SKU 2',
+      description: 'Secondary SKU',
+      supplierName: 'Tonle Supply',
+      costPerUnit: 5,
+      archived: false,
+      soldAsProduct: true,
+      productPrice: 10,
+      leadTimeMeanDaysHint: 4,
+      leadTimeStdDaysHint: 1,
+    },
   ],
   services: [
     {
@@ -56,6 +70,22 @@ const sampleCatalog: SenaCatalog = {
       archived: true,
       bundle: false,
     },
+    {
+      serviceId: 'service-2',
+      name: 'Service 2',
+      description: 'Secondary service',
+      price: 16,
+      archived: false,
+      bundle: false,
+    },
+    {
+      serviceId: 'service-3',
+      name: 'Service 3',
+      description: 'No supplier service',
+      price: 14,
+      archived: false,
+      bundle: false,
+    },
   ],
   bundles: [
     {
@@ -69,6 +99,18 @@ const sampleCatalog: SenaCatalog = {
       enabled: true,
       serviceId: 'service-1',
       skuId: 'sku-1',
+      usageProbability: null,
+    },
+    {
+      enabled: true,
+      serviceId: 'service-2',
+      skuId: 'sku-2',
+      usageProbability: null,
+    },
+    {
+      enabled: true,
+      serviceId: 'service-3',
+      skuId: 'sku-archived',
       usageProbability: null,
     },
   ],
@@ -89,14 +131,16 @@ describe('sena catalog helpers', () => {
       skuId: 'sku-1-renamed',
       archived: false,
     });
-    expect(nextCatalog.sharingMask).toEqual([
-      {
-        enabled: true,
-        serviceId: 'service-1',
-        skuId: 'sku-1-renamed',
-        usageProbability: null,
-      },
-    ]);
+    expect(nextCatalog.sharingMask).toEqual(
+      expect.arrayContaining([
+        {
+          enabled: true,
+          serviceId: 'service-1',
+          skuId: 'sku-1-renamed',
+          usageProbability: null,
+        },
+      ]),
+    );
   });
 
   it('renames a service and rewrites sharing mask and bundle references', () => {
@@ -121,14 +165,16 @@ describe('sena catalog helpers', () => {
         name: 'Bundle 1',
       },
     ]);
-    expect(nextCatalog.sharingMask).toEqual([
-      {
-        enabled: true,
-        serviceId: 'service-1-renamed',
-        skuId: 'sku-1',
-        usageProbability: null,
-      },
-    ]);
+    expect(nextCatalog.sharingMask).toEqual(
+      expect.arrayContaining([
+        {
+          enabled: true,
+          serviceId: 'service-1-renamed',
+          skuId: 'sku-1',
+          usageProbability: null,
+        },
+      ]),
+    );
   });
 
   it('treats archived ids as conflicts', () => {
@@ -155,12 +201,20 @@ describe('sena catalog helpers', () => {
   });
 
   it('normalizes supplier names and exposes supplier filters', () => {
+    const primaryService = sampleCatalog.services.find((service) => service.serviceId === 'service-1')!;
+    const secondaryService = sampleCatalog.services.find((service) => service.serviceId === 'service-2')!;
+    const noSupplierService = sampleCatalog.services.find((service) => service.serviceId === 'service-3')!;
+
     expect(normalizeSenaSku({ ...sampleCatalog.skus[0], supplierName: '  Mekong Looms  ' }).supplierName).toBe('Mekong Looms');
     expect(normalizeSenaSku({ ...sampleCatalog.skus[0], supplierName: '   ' }).supplierName).toBeNull();
-    expect(supplierNamesFromCatalog(sampleCatalog)).toEqual(['Mekong Looms']);
+    expect(supplierNamesFromCatalog(sampleCatalog)).toEqual(['Mekong Looms', 'Tonle Supply']);
     expect(matchesSkuSupplier(sampleCatalog.skus[0], 'Mekong Looms')).toBe(true);
     expect(matchesSkuSupplier(sampleCatalog.skus[0], 'none')).toBe(false);
     expect(matchesSkuSupplier(sampleCatalog.skus[1], 'none')).toBe(true);
+    expect(supplierNamesForService(sampleCatalog, 'service-1')).toEqual(['Mekong Looms']);
+    expect(matchesServiceSupplier(primaryService, sampleCatalog, 'Mekong Looms')).toBe(true);
+    expect(matchesServiceSupplier(secondaryService, sampleCatalog, 'Mekong Looms')).toBe(false);
+    expect(matchesServiceSupplier(noSupplierService, sampleCatalog, 'none')).toBe(true);
     expect(skuSearchParts(sampleCatalog.skus[0])).toEqual(['sku-1', 'SKU 1', 'Primary SKU', 'Mekong Looms']);
   });
 });

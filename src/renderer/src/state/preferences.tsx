@@ -8,10 +8,16 @@ import {
 } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import {
+  DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
+  DEFAULT_TASK_BATCH_UPDATE_PREFERENCES,
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeDesktopPreferenceTimestamp,
+  normalizeDesktopTaskBatchUpdatePreferences,
   normalizeSenaEngineParameters,
   senaEngineParametersEqual,
+  type DesktopItemImageMode,
+  type DesktopTaskBatchUpdatePreference,
+  type DesktopTaskBatchUpdatePreferences,
   type SenaEngineParameters,
 } from '@shared/ipc';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
@@ -22,6 +28,8 @@ interface PreferencesContextValue {
   currency: AppCurrency;
   usdToKhrExchangeRate: number;
   displayViewMode: 'compact' | 'custom';
+  itemImageMode: DesktopItemImageMode;
+  taskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
@@ -46,6 +54,7 @@ interface PreferencesContextValue {
   persistedCurrency: AppCurrency;
   persistedUsdToKhrExchangeRate: number;
   persistedDisplayViewMode: 'compact' | 'custom';
+  persistedItemImageMode: DesktopItemImageMode;
   persistedShowExplanatoryTooltips: boolean;
   persistedShowFloatingTitleActions: boolean;
   persistedShowRightRailCards: boolean;
@@ -55,6 +64,7 @@ interface PreferencesContextValue {
   persistedShowPerformanceTimelineCard: boolean;
   persistedShowLogsViewToggle: boolean;
   persistedShowHeartbeatRibbons: boolean;
+  persistedTaskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
   persistedCustomShowExplanatoryTooltips: boolean;
   persistedCustomShowFloatingTitleActions: boolean;
   persistedCustomShowRightRailCards: boolean;
@@ -70,6 +80,7 @@ interface PreferencesContextValue {
   setCurrency: (value: AppCurrency) => void;
   setUsdToKhrExchangeRate: (value: number) => void;
   setDisplayViewMode: (value: 'compact' | 'custom') => void;
+  setItemImageMode: (value: DesktopItemImageMode) => void;
   setShowExplanatoryTooltips: (value: boolean) => void;
   setShowFloatingTitleActions: (value: boolean) => void;
   setShowRightRailCards: (value: boolean) => void;
@@ -79,6 +90,10 @@ interface PreferencesContextValue {
   setShowPerformanceTimelineCard: (value: boolean) => void;
   setShowLogsViewToggle: (value: boolean) => void;
   setShowHeartbeatRibbons: (value: boolean) => void;
+  setTaskBatchUpdatePreference: (
+    key: keyof DesktopTaskBatchUpdatePreferences,
+    value: DesktopTaskBatchUpdatePreference,
+  ) => void;
   setSenaEngineParameters: (value: SenaEngineParameters) => void;
   setOverviewStaleUpdateReminderSnoozeUntil: (value: string | null) => void;
   applySenaEngineParameters: (value: SenaEngineParameters) => Promise<void>;
@@ -89,6 +104,7 @@ interface PreferencesContextValue {
     currency: AppCurrency;
     usdToKhrExchangeRate: number;
     displayViewMode: 'compact' | 'custom';
+    itemImageMode: DesktopItemImageMode;
     showExplanatoryTooltips: boolean;
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
@@ -107,6 +123,7 @@ interface PreferencesContextValue {
     customShowPerformanceTimelineCard: boolean;
     customShowLogsViewToggle: boolean;
     customShowHeartbeatRibbons: boolean;
+    taskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
     senaEngineParameters: SenaEngineParameters;
     overviewStaleUpdateReminderSnoozeUntil: string | null;
   }>) => Promise<void>;
@@ -130,6 +147,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [currency, setCurrencyState] = useState<AppCurrency>('USD');
   const [usdToKhrExchangeRate, setUsdToKhrExchangeRateState] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
   const [displayViewMode, setDisplayViewModeState] = useState<'compact' | 'custom'>('custom');
+  const [itemImageMode, setItemImageModeState] = useState<DesktopItemImageMode>(DEFAULT_DESKTOP_ITEM_IMAGE_MODE);
   const [showExplanatoryTooltips, setShowExplanatoryTooltipsState] = useState(true);
   const [showFloatingTitleActions, setShowFloatingTitleActionsState] = useState(true);
   const [showRightRailCards, setShowRightRailCardsState] = useState(true);
@@ -139,6 +157,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [showPerformanceTimelineCard, setShowPerformanceTimelineCardState] = useState(true);
   const [showLogsViewToggle, setShowLogsViewToggleState] = useState(true);
   const [showHeartbeatRibbons, setShowHeartbeatRibbonsState] = useState(true);
+  const [taskBatchUpdatePreferences, setTaskBatchUpdatePreferencesState] =
+    useState<DesktopTaskBatchUpdatePreferences>(DEFAULT_TASK_BATCH_UPDATE_PREFERENCES);
   const [customShowExplanatoryTooltips, setCustomShowExplanatoryTooltipsState] = useState(true);
   const [customShowFloatingTitleActions, setCustomShowFloatingTitleActionsState] = useState(true);
   const [customShowRightRailCards, setCustomShowRightRailCardsState] = useState(true);
@@ -157,6 +177,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedCurrency, setPersistedCurrency] = useState<AppCurrency>('USD');
   const [persistedUsdToKhrExchangeRate, setPersistedUsdToKhrExchangeRate] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
   const [persistedDisplayViewMode, setPersistedDisplayViewMode] = useState<'compact' | 'custom'>('custom');
+  const [persistedItemImageMode, setPersistedItemImageMode] =
+    useState<DesktopItemImageMode>(DEFAULT_DESKTOP_ITEM_IMAGE_MODE);
   const [persistedShowExplanatoryTooltips, setPersistedShowExplanatoryTooltips] = useState(true);
   const [persistedShowFloatingTitleActions, setPersistedShowFloatingTitleActions] = useState(true);
   const [persistedShowRightRailCards, setPersistedShowRightRailCards] = useState(true);
@@ -166,6 +188,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedShowPerformanceTimelineCard, setPersistedShowPerformanceTimelineCard] = useState(true);
   const [persistedShowLogsViewToggle, setPersistedShowLogsViewToggle] = useState(true);
   const [persistedShowHeartbeatRibbons, setPersistedShowHeartbeatRibbons] = useState(true);
+  const [persistedTaskBatchUpdatePreferences, setPersistedTaskBatchUpdatePreferences] =
+    useState<DesktopTaskBatchUpdatePreferences>(DEFAULT_TASK_BATCH_UPDATE_PREFERENCES);
   const [persistedCustomShowExplanatoryTooltips, setPersistedCustomShowExplanatoryTooltips] = useState(true);
   const [persistedCustomShowFloatingTitleActions, setPersistedCustomShowFloatingTitleActions] = useState(true);
   const [persistedCustomShowRightRailCards, setPersistedCustomShowRightRailCards] = useState(true);
@@ -199,6 +223,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
         setUsdToKhrExchangeRateState(nextUsdToKhrExchangeRate);
         setDisplayViewModeState(preferences.displayViewMode);
+        setItemImageModeState(preferences.itemImageMode);
         setShowExplanatoryTooltipsState(preferences.showExplanatoryTooltips);
         setShowFloatingTitleActionsState(preferences.showFloatingTitleActions);
         setShowRightRailCardsState(preferences.showRightRailCards);
@@ -208,6 +233,10 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowPerformanceTimelineCardState(preferences.showPerformanceTimelineCard);
         setShowLogsViewToggleState(preferences.showLogsViewToggle);
         setShowHeartbeatRibbonsState(preferences.showHeartbeatRibbons);
+        const nextTaskBatchUpdatePreferences = normalizeDesktopTaskBatchUpdatePreferences(
+          preferences.taskBatchUpdatePreferences,
+        );
+        setTaskBatchUpdatePreferencesState(nextTaskBatchUpdatePreferences);
         setCustomShowExplanatoryTooltipsState(preferences.customShowExplanatoryTooltips);
         setCustomShowFloatingTitleActionsState(preferences.customShowFloatingTitleActions);
         setCustomShowRightRailCardsState(preferences.customShowRightRailCards);
@@ -225,6 +254,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedCurrency(preferences.currency);
         setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
         setPersistedDisplayViewMode(preferences.displayViewMode);
+        setPersistedItemImageMode(preferences.itemImageMode);
         setPersistedShowExplanatoryTooltips(preferences.showExplanatoryTooltips);
         setPersistedShowFloatingTitleActions(preferences.showFloatingTitleActions);
         setPersistedShowRightRailCards(preferences.showRightRailCards);
@@ -234,6 +264,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedShowPerformanceTimelineCard(preferences.showPerformanceTimelineCard);
         setPersistedShowLogsViewToggle(preferences.showLogsViewToggle);
         setPersistedShowHeartbeatRibbons(preferences.showHeartbeatRibbons);
+        setPersistedTaskBatchUpdatePreferences(nextTaskBatchUpdatePreferences);
         setPersistedCustomShowExplanatoryTooltips(preferences.customShowExplanatoryTooltips);
         setPersistedCustomShowFloatingTitleActions(preferences.customShowFloatingTitleActions);
         setPersistedCustomShowRightRailCards(preferences.customShowRightRailCards);
@@ -262,6 +293,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     currency: AppCurrency;
     usdToKhrExchangeRate: number;
     displayViewMode: 'compact' | 'custom';
+    itemImageMode: DesktopItemImageMode;
     showExplanatoryTooltips: boolean;
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
@@ -280,6 +312,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     customShowPerformanceTimelineCard: boolean;
     customShowLogsViewToggle: boolean;
     customShowHeartbeatRibbons: boolean;
+    taskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
     senaEngineParameters: SenaEngineParameters;
     overviewStaleUpdateReminderSnoozeUntil: string | null;
   }>) {
@@ -293,6 +326,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     const nextUsdToKhrExchangeRate = normalizeUsdToKhrExchangeRate(nextPreferences.usdToKhrExchangeRate);
     setUsdToKhrExchangeRateState(nextUsdToKhrExchangeRate);
     setDisplayViewModeState(nextPreferences.displayViewMode);
+    setItemImageModeState(nextPreferences.itemImageMode);
     setShowExplanatoryTooltipsState(nextPreferences.showExplanatoryTooltips);
     setShowFloatingTitleActionsState(nextPreferences.showFloatingTitleActions);
     setShowRightRailCardsState(nextPreferences.showRightRailCards);
@@ -302,6 +336,10 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setShowPerformanceTimelineCardState(nextPreferences.showPerformanceTimelineCard);
     setShowLogsViewToggleState(nextPreferences.showLogsViewToggle);
     setShowHeartbeatRibbonsState(nextPreferences.showHeartbeatRibbons);
+    const nextTaskBatchUpdatePreferences = normalizeDesktopTaskBatchUpdatePreferences(
+      nextPreferences.taskBatchUpdatePreferences,
+    );
+    setTaskBatchUpdatePreferencesState(nextTaskBatchUpdatePreferences);
     setCustomShowExplanatoryTooltipsState(nextPreferences.customShowExplanatoryTooltips);
     setCustomShowFloatingTitleActionsState(nextPreferences.customShowFloatingTitleActions);
     setCustomShowRightRailCardsState(nextPreferences.customShowRightRailCards);
@@ -317,6 +355,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedCurrency(nextPreferences.currency);
     setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
     setPersistedDisplayViewMode(nextPreferences.displayViewMode);
+    setPersistedItemImageMode(nextPreferences.itemImageMode);
     setPersistedShowExplanatoryTooltips(nextPreferences.showExplanatoryTooltips);
     setPersistedShowFloatingTitleActions(nextPreferences.showFloatingTitleActions);
     setPersistedShowRightRailCards(nextPreferences.showRightRailCards);
@@ -326,6 +365,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedShowPerformanceTimelineCard(nextPreferences.showPerformanceTimelineCard);
     setPersistedShowLogsViewToggle(nextPreferences.showLogsViewToggle);
     setPersistedShowHeartbeatRibbons(nextPreferences.showHeartbeatRibbons);
+    setPersistedTaskBatchUpdatePreferences(nextTaskBatchUpdatePreferences);
     setPersistedCustomShowExplanatoryTooltips(nextPreferences.customShowExplanatoryTooltips);
     setPersistedCustomShowFloatingTitleActions(nextPreferences.customShowFloatingTitleActions);
     setPersistedCustomShowRightRailCards(nextPreferences.customShowRightRailCards);
@@ -346,6 +386,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       currency,
       usdToKhrExchangeRate,
       displayViewMode,
+      itemImageMode,
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,
@@ -355,6 +396,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       showPerformanceTimelineCard,
       showLogsViewToggle,
       showHeartbeatRibbons,
+      taskBatchUpdatePreferences,
       customShowExplanatoryTooltips,
       customShowFloatingTitleActions,
       customShowRightRailCards,
@@ -370,6 +412,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedCurrency,
       persistedUsdToKhrExchangeRate,
       persistedDisplayViewMode,
+      persistedItemImageMode,
       persistedShowExplanatoryTooltips,
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
@@ -379,6 +422,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedShowPerformanceTimelineCard,
       persistedShowLogsViewToggle,
       persistedShowHeartbeatRibbons,
+      persistedTaskBatchUpdatePreferences,
       persistedCustomShowExplanatoryTooltips,
       persistedCustomShowFloatingTitleActions,
       persistedCustomShowRightRailCards,
@@ -393,6 +437,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setLanguage: setLanguageState,
       setCurrency: setCurrencyState,
       setUsdToKhrExchangeRate: setUsdToKhrExchangeRateState,
+      setItemImageMode: setItemImageModeState,
       setDisplayViewMode: (next) => {
         setDisplayViewModeState(next);
         if (next === 'compact') {
@@ -463,6 +508,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowHeartbeatRibbonsState(next);
         setCustomShowHeartbeatRibbonsState(next);
       },
+      setTaskBatchUpdatePreference: (key, next) =>
+        setTaskBatchUpdatePreferencesState((current) => ({
+          ...current,
+          [key]: next,
+        })),
       setSenaEngineParameters: (next) =>
         setSenaEngineParametersState(normalizeSenaEngineParameters(next)),
       setOverviewStaleUpdateReminderSnoozeUntil: (next) =>
@@ -608,6 +658,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           currency: overrides?.currency ?? currency,
           usdToKhrExchangeRate: overrides?.usdToKhrExchangeRate ?? usdToKhrExchangeRate,
           displayViewMode: resolvedDisplayViewMode,
+          itemImageMode: overrides?.itemImageMode ?? itemImageMode,
           showExplanatoryTooltips:
             resolvedDisplayViewMode === 'compact' ? false : resolvedShowExplanatoryTooltips,
           showFloatingTitleActions:
@@ -635,6 +686,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           customShowPerformanceTimelineCard: resolvedCustomShowPerformanceTimelineCard,
           customShowLogsViewToggle: resolvedCustomShowLogsViewToggle,
           customShowHeartbeatRibbons: resolvedCustomShowHeartbeatRibbons,
+          taskBatchUpdatePreferences:
+            overrides?.taskBatchUpdatePreferences ?? taskBatchUpdatePreferences,
           senaEngineParameters: overrides?.senaEngineParameters ?? senaEngineParameters,
           overviewStaleUpdateReminderSnoozeUntil:
             overrides?.overviewStaleUpdateReminderSnoozeUntil ?? overviewStaleUpdateReminderSnoozeUntil,
@@ -645,6 +698,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setCurrencyState(persistedCurrency);
         setUsdToKhrExchangeRateState(persistedUsdToKhrExchangeRate);
         setDisplayViewModeState(persistedDisplayViewMode);
+        setItemImageModeState(persistedItemImageMode);
         setShowExplanatoryTooltipsState(persistedShowExplanatoryTooltips);
         setShowFloatingTitleActionsState(persistedShowFloatingTitleActions);
         setShowRightRailCardsState(persistedShowRightRailCards);
@@ -663,6 +717,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setCustomShowPerformanceTimelineCardState(persistedCustomShowPerformanceTimelineCard);
         setCustomShowLogsViewToggleState(persistedCustomShowLogsViewToggle);
         setCustomShowHeartbeatRibbonsState(persistedCustomShowHeartbeatRibbons);
+        setTaskBatchUpdatePreferencesState(persistedTaskBatchUpdatePreferences);
         setSenaEngineParametersState(persistedSenaEngineParameters);
         setOverviewStaleUpdateReminderSnoozeUntilState(
           persistedOverviewStaleUpdateReminderSnoozeUntil,
@@ -673,6 +728,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         currency !== persistedCurrency ||
         usdToKhrExchangeRate !== persistedUsdToKhrExchangeRate ||
         displayViewMode !== persistedDisplayViewMode ||
+        itemImageMode !== persistedItemImageMode ||
         showExplanatoryTooltips !== persistedShowExplanatoryTooltips ||
         showFloatingTitleActions !== persistedShowFloatingTitleActions ||
         showRightRailCards !== persistedShowRightRailCards ||
@@ -691,6 +747,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         customShowPerformanceTimelineCard !== persistedCustomShowPerformanceTimelineCard ||
         customShowLogsViewToggle !== persistedCustomShowLogsViewToggle ||
         customShowHeartbeatRibbons !== persistedCustomShowHeartbeatRibbons ||
+        JSON.stringify(taskBatchUpdatePreferences) !== JSON.stringify(persistedTaskBatchUpdatePreferences) ||
         overviewStaleUpdateReminderSnoozeUntil !== persistedOverviewStaleUpdateReminderSnoozeUntil ||
         !senaEngineParametersEqual(senaEngineParameters, persistedSenaEngineParameters),
       t: (key, variables) => getTranslation(language, key, variables),
@@ -709,6 +766,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       customShowLogsViewToggle,
       customShowHeartbeatRibbons,
       displayViewMode,
+      itemImageMode,
       language,
       persistedCustomShowExplanatoryTooltips,
       persistedCustomShowFloatingTitleActions,
@@ -720,6 +778,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedCustomShowLogsViewToggle,
       persistedCustomShowHeartbeatRibbons,
       persistedDisplayViewMode,
+      persistedItemImageMode,
+      persistedTaskBatchUpdatePreferences,
       persistedUsdToKhrExchangeRate,
       persistedCurrency,
       persistedLanguage,
@@ -735,6 +795,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedSenaEngineParameters,
       persistedOverviewStaleUpdateReminderSnoozeUntil,
       senaEngineParameters,
+      taskBatchUpdatePreferences,
       overviewStaleUpdateReminderSnoozeUntil,
       usdToKhrExchangeRate,
       showExplanatoryTooltips,

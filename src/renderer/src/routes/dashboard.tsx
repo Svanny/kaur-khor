@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useState } from 'react';
+import type { DesktopTaskBatchUpdatePreferences } from '@shared/ipc';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { SenaSkuDetail } from '@shared/sena';
 import {
@@ -25,6 +26,7 @@ import {
   WorkspaceTitleCard,
 } from '@/components/system/workspace';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
+import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
@@ -43,13 +45,15 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildOverviewSearchParams, readOverviewRouteState } from '@/lib/navigation-state';
-import { type SupplierFilterValue } from '@/lib/sena-catalog';
+import { matchesSupplierName, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
+import { buildBatchUpdateHref, getLaneForTaskAction, type RecordUpdateLaneId } from '@/lib/record-update-routes';
 import { statusPillClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { OverviewTaskDrawer } from './overview/task-drawer';
+import { BatchActionPrompt, type TaskGroup } from '@/components/system/batch-action-prompt';
 import {
   buildOverviewModel,
   isOverviewSkuTask,
@@ -170,12 +174,25 @@ function matchesOverviewSupplier(task: OverviewTask, supplierFilter: SupplierFil
     return true;
   }
 
-  const supplierName = task.supplierName?.trim() || null;
-  if (supplierFilter === 'none') {
-    return supplierName == null;
-  }
+  return matchesSupplierName(task.supplierName, supplierFilter);
+}
 
-  return supplierName === supplierFilter;
+function preferenceKeyForTaskAction(
+  action: OverviewSkuTask['action'],
+): keyof DesktopTaskBatchUpdatePreferences {
+  switch (action) {
+    case 'log_order':
+      return 'logOrder';
+    case 'update_eta':
+      return 'updateEta';
+    case 'follow_up':
+      return 'followUp';
+    case 'receive':
+      return 'receive';
+    case 'review':
+    default:
+      return 'review';
+  }
 }
 
 export function DashboardRoute() {
@@ -186,13 +203,22 @@ export function DashboardRoute() {
     showExplanatoryTooltips,
     showOverviewTaskTabs,
     showRightRailCards,
+    savePreferences,
     t,
+    taskBatchUpdatePreferences,
   } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const [detailBySkuId, setDetailBySkuId] = useState<Record<string, SenaSkuDetail | null>>({});
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
+  const [selectedTaskGroup, setSelectedTaskGroup] = useState<{
+    group: TaskGroup;
+    laneId: RecordUpdateLaneId;
+    preferenceKey: keyof DesktopTaskBatchUpdatePreferences;
+    selectedTask: Pick<OverviewSkuTask, 'id' | 'defaultDrawerMode'>;
+  } | null>(null);
+  const [rememberBatchChoice, setRememberBatchChoice] = useState(false);
   const routeState = readOverviewRouteState(searchParams);
   const searchScope = routeState.scope;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
@@ -204,6 +230,87 @@ export function DashboardRoute() {
 
   function updateRouteState(nextState: Parameters<typeof buildOverviewSearchParams>[1], replace = false) {
     setSearchParams(buildOverviewSearchParams(searchParams, nextState), { replace });
+  }
+
+  function openSingleTask(task: Pick<OverviewSkuTask, 'id' | 'defaultDrawerMode'>) {
+    updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode });
+  }
+
+  function openBatchTaskGroup(group: TaskGroup, laneId: RecordUpdateLaneId) {
+    const firstTask = group.tasks[0] ?? null;
+    const batchHref = buildBatchUpdateHref(
+      group.action === 'log_order'
+        ? { skuIds: group.tasks.map((t) => t.skuId), laneId }
+        : {
+            batchOrderId: firstTask?.batchOrderId ?? null,
+            childOrderId: firstTask?.childOrderId ?? null,
+            skuIds: group.tasks.map((t) => t.skuId),
+            laneId,
+          },
+    );
+    window.location.href = batchHref;
+  }
+
+  async function persistRememberedBatchChoice(
+    preferenceKey: keyof DesktopTaskBatchUpdatePreferences,
+    nextValue: DesktopTaskBatchUpdatePreferences[keyof DesktopTaskBatchUpdatePreferences],
+  ) {
+    await savePreferences({
+      taskBatchUpdatePreferences: {
+        ...taskBatchUpdatePreferences,
+        [preferenceKey]: nextValue,
+      },
+    });
+  }
+
+  function handleTaskActionClick(task: OverviewSkuTask) {
+    const { action, supplierName } = task;
+    const sameGroupTasks = visibleTasks.filter(
+      (t): t is OverviewSkuTask =>
+        isOverviewSkuTask(t) &&
+        t.action === action &&
+        (action === 'log_order'
+          ? t.supplierName === supplierName
+          : task.batchOrderId != null
+            ? t.batchOrderId === task.batchOrderId
+            : t.id === task.id),
+    );
+    const group: TaskGroup = {
+      action,
+      supplierName,
+      tasks: sameGroupTasks.map((t) => ({
+        id: t.id,
+        skuId: t.skuId,
+        skuName: t.skuName,
+        batchOrderId: t.batchOrderId,
+        childOrderId: t.childOrderId,
+      })),
+    };
+    if (group.tasks.length <= 1) {
+      openSingleTask(task);
+      return;
+    }
+    const laneId = getLaneForTaskAction(action as never);
+    const preferenceKey = preferenceKeyForTaskAction(action);
+    const taskBatchUpdatePreference = taskBatchUpdatePreferences[preferenceKey];
+    if (taskBatchUpdatePreference === 'always_batch') {
+      openBatchTaskGroup(group, laneId);
+      return;
+    }
+    if (taskBatchUpdatePreference === 'always_alone') {
+      openSingleTask(task);
+      return;
+    }
+    setRememberBatchChoice(false);
+    setSelectedTaskGroup({
+      group,
+      laneId,
+      preferenceKey,
+      selectedTask: {
+        id: task.id,
+        defaultDrawerMode: task.defaultDrawerMode,
+      },
+    });
   }
 
   useEffect(() => {
@@ -244,6 +351,7 @@ export function DashboardRoute() {
     forceStaleUpdateReminder: import.meta.env.MODE === 'development',
     language,
     observations: inventory.observations,
+    orderBatches: inventory.orderBatches,
     staleUpdateReminderSnoozeUntil: overviewStaleUpdateReminderSnoozeUntil,
     workspaceSummary: inventory.workspaceSummary,
   });
@@ -357,7 +465,7 @@ export function DashboardRoute() {
           </ToggleGroup>
           <SupplierFilter
             catalog={inventory.catalog}
-            className="h-12 w-full rounded-full border-transparent bg-muted/65 px-4 shadow-none data-[size=default]:h-12 sm:w-auto"
+            className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
             value={supplierFilter}
             onChange={(nextSupplier) =>
               updateRouteState({
@@ -440,25 +548,32 @@ export function DashboardRoute() {
                         >
                           <div className="min-w-0">
                             {isOverviewSkuTask(task) ? (
-                                <button
-                                  className="group min-w-0 text-left"
-                                  type="button"
-                                  onClick={() => updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode })}
-                                >
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
-                                    {task.skuName}
-                                  </span>
-                                  <SupplierBadge supplierName={task.supplierName} />
-                                  <span
-                                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
-                                  >
-                                    {task.stateLabel}
-                                  </span>
-                                </div>
-                                {showExplanatoryTooltips ? (
-                                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.serviceImpact}</p>
-                                ) : null}
+                              <button
+                                className="group min-w-0 text-left"
+                                type="button"
+                                onClick={() => updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode })}
+                              >
+                                <ItemIdentityBlock
+                                  align="center"
+                                  description={showExplanatoryTooltips ? task.serviceImpact : undefined}
+                                  imagePath={task.imagePath}
+                                  metadata={
+                                    <>
+                                      <SupplierBadge supplierName={task.supplierName} />
+                                      <span
+                                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
+                                      >
+                                        {task.stateLabel}
+                                      </span>
+                                    </>
+                                  }
+                                  name={
+                                    <span className="text-base font-semibold text-foreground transition-colors group-hover:text-primary">
+                                      {task.skuName}
+                                    </span>
+                                  }
+                                  type="sku"
+                                />
                               </button>
                             ) : (
                               <div className="min-w-0">
@@ -511,7 +626,7 @@ export function DashboardRoute() {
                                 size="sm"
                                 type="button"
                                 variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
-                                onClick={() => updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode })}
+                                onClick={() => handleTaskActionClick(task)}
                               >
                                 {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
                                 {task.actionLabel}
@@ -623,8 +738,8 @@ export function DashboardRoute() {
                       type="button"
                       onClick={() => updateRouteState({ taskId: row.skuId, taskMode: 'goods_received' })}
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground">
+                      <div className="min-w-0 pr-3">
+                        <p className="truncate text-sm font-medium text-foreground">
                           {row.quantityLabel} {row.name}
                         </p>
                       </div>
@@ -687,6 +802,45 @@ export function DashboardRoute() {
           if (!open) {
             updateRouteState({ taskId: null, taskMode: null }, true);
           }
+        }}
+      />
+
+      <BatchActionPrompt
+        open={selectedTaskGroup != null}
+        rememberChoice={rememberBatchChoice}
+        taskGroup={selectedTaskGroup?.group ?? { action: '', supplierName: null, tasks: [] }}
+        onBatchUpdate={() => {
+          if (!selectedTaskGroup) {
+            return;
+          }
+          const run = async () => {
+            if (rememberBatchChoice) {
+              await persistRememberedBatchChoice(selectedTaskGroup.preferenceKey, 'always_batch');
+            }
+            openBatchTaskGroup(selectedTaskGroup.group, selectedTaskGroup.laneId);
+          };
+          void run();
+          setSelectedTaskGroup(null);
+          setRememberBatchChoice(false);
+        }}
+        onClose={() => {
+          setSelectedTaskGroup(null);
+          setRememberBatchChoice(false);
+        }}
+        onRememberChoiceChange={setRememberBatchChoice}
+        onUpdateIndividually={() => {
+          if (!selectedTaskGroup) {
+            return;
+          }
+          const run = async () => {
+            if (rememberBatchChoice) {
+              await persistRememberedBatchChoice(selectedTaskGroup.preferenceKey, 'always_alone');
+            }
+            openSingleTask(selectedTaskGroup.selectedTask);
+          };
+          void run();
+          setSelectedTaskGroup(null);
+          setRememberBatchChoice(false);
         }}
       />
     </WorkspacePage>

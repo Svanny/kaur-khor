@@ -1,7 +1,11 @@
 use anyhow::{anyhow, Context, Result};
 use banji_desktop_core::legacy_inventory::types::SubmitStockReportRequest;
 use banji_desktop_core::store;
-use banji_sena_core::{SenaCatalog, SenaEngineParameters, SenaObservationInput, SenaObservationRecord};
+use banji_sena_core::{
+    SenaCatalog, SenaCreateOrderBatchPayload, SenaEngineParameters, SenaObservationInput,
+    SenaObservationRecord, SenaOrderLookupPayload, SenaSplitOrderChildPayload,
+    SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
+};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -188,6 +192,48 @@ fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
         "sena.listObservations" => Ok(Some(serde_json::to_value(store::list_observations(
             owner,
         )?)?)),
+        "sena.listOrderBatches" => {
+            let filters: Option<SenaOrderLookupPayload> = if payload.is_null() {
+                None
+            } else {
+                Some(
+                    serde_json::from_value(payload)
+                        .context("invalid sena.listOrderBatches payload")?,
+                )
+            };
+            Ok(Some(serde_json::to_value(store::list_order_batches(
+                owner,
+                filters.as_ref(),
+            )?)?))
+        }
+        "sena.createOrderBatch" => {
+            let request: SenaCreateOrderBatchPayload = serde_json::from_value(payload)
+                .context("invalid sena.createOrderBatch payload")?;
+            Ok(Some(serde_json::to_value(store::create_order_batch(
+                owner, &request,
+            )?)?))
+        }
+        "sena.updateOrderBatch" => {
+            let request: SenaUpdateOrderBatchPayload = serde_json::from_value(payload)
+                .context("invalid sena.updateOrderBatch payload")?;
+            Ok(Some(serde_json::to_value(store::update_order_batch(
+                owner, &request,
+            )?)?))
+        }
+        "sena.updateOrderChild" => {
+            let request: SenaUpdateOrderChildPayload = serde_json::from_value(payload)
+                .context("invalid sena.updateOrderChild payload")?;
+            Ok(Some(serde_json::to_value(store::update_order_child(
+                owner, &request,
+            )?)?))
+        }
+        "sena.splitOrderChild" => {
+            let request: SenaSplitOrderChildPayload = serde_json::from_value(payload)
+                .context("invalid sena.splitOrderChild payload")?;
+            Ok(Some(serde_json::to_value(store::split_order_child(
+                owner, &request,
+            )?)?))
+        }
         "sena.triggerRun" => {
             let request: TriggerRunPayload =
                 serde_json::from_value(payload).context("invalid sena.triggerRun payload")?;

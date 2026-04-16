@@ -145,6 +145,7 @@ function freezeDate(isoString: string) {
 }
 
 const inventoryHook = vi.fn();
+const savePreferencesMock = vi.fn(async () => undefined);
 const applyOverviewStaleUpdateReminderSnoozeUntil = vi.fn(async (value: string | null) => {
   preferenceState.overviewStaleUpdateReminderSnoozeUntil = value;
 });
@@ -155,6 +156,13 @@ const preferenceState = {
   showFloatingTitleActions: true,
   showRightRailCards: true,
   showOverviewTaskTabs: true,
+  taskBatchUpdatePreferences: {
+    logOrder: 'ask',
+    updateEta: 'ask',
+    followUp: 'ask',
+    receive: 'ask',
+    review: 'ask',
+  } as const,
   overviewStaleUpdateReminderSnoozeUntil: null as string | null,
 };
 
@@ -170,8 +178,10 @@ vi.mock('../state/preferences', () => ({
     showFloatingTitleActions: preferenceState.showFloatingTitleActions,
     showRightRailCards: preferenceState.showRightRailCards,
     showOverviewTaskTabs: preferenceState.showOverviewTaskTabs,
+    taskBatchUpdatePreferences: preferenceState.taskBatchUpdatePreferences,
     overviewStaleUpdateReminderSnoozeUntil: preferenceState.overviewStaleUpdateReminderSnoozeUntil,
     applyOverviewStaleUpdateReminderSnoozeUntil,
+    savePreferences: savePreferencesMock,
     t: (key: string) => {
       if (key === 'searchPlaceholder') {
         return 'Search name or description…';
@@ -510,8 +520,16 @@ describe('DashboardRoute', () => {
   beforeEach(() => {
     preferenceState.showRightRailCards = true;
     preferenceState.showOverviewTaskTabs = true;
+    preferenceState.taskBatchUpdatePreferences = {
+      logOrder: 'ask',
+      updateEta: 'ask',
+      followUp: 'ask',
+      receive: 'ask',
+      review: 'ask',
+    };
     preferenceState.overviewStaleUpdateReminderSnoozeUntil = null;
     applyOverviewStaleUpdateReminderSnoozeUntil.mockClear();
+    savePreferencesMock.mockClear();
     freezeDate('2026-04-03T12:00:00.000Z');
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 120,
@@ -722,6 +740,25 @@ describe('DashboardRoute', () => {
     expect(screen.getByRole('button', { name: 'Log order' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Update ETA' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Receive' })).not.toBeInTheDocument();
+  });
+
+  test('remembers an overview action choice from the batch prompt', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Remember my choice for this action.' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Update Alone' }));
+
+    await waitFor(() => {
+      expect(savePreferencesMock).toHaveBeenCalledWith({
+        taskBatchUpdatePreferences: {
+          ...preferenceState.taskBatchUpdatePreferences,
+          logOrder: 'always_alone',
+        },
+      });
+    });
   });
 
   test('writes route-backed receive state when launching a task from the queue', async () => {

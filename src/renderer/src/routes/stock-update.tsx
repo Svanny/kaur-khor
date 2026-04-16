@@ -10,6 +10,7 @@ import { NavigationGridIcon, NavigationListIcon, NavigationNextIcon, NavigationP
 import type { IconComponent } from '@icons';
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
+import { SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { SearchInput } from '@/components/system/search-input';
 import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
@@ -22,6 +23,7 @@ import {
   buildOperationsSearchParams,
   readOperationsRouteState,
 } from '@/lib/navigation-state';
+import { filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { translateUiLiteral } from '@/lib/translations';
 import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
 import { useInventory } from '@/state/inventory';
@@ -206,6 +208,33 @@ function matchesObservationQuery(
     return true;
   }
   return observationSearchText(observation, catalog).includes(normalized);
+}
+
+function matchesObservationSupplier(
+  observation: SenaObservationRecord,
+  catalog: SenaCatalog | null,
+  supplierFilter: SupplierFilterValue,
+) {
+  if (!catalog || supplierFilter === 'all') {
+    return true;
+  }
+
+  const filteredCatalog = filterCatalogBySupplier(catalog, supplierFilter);
+  const filteredSkuIds = new Set(filteredCatalog?.skus.map((sku) => sku.skuId) ?? []);
+  const filteredServiceIds = new Set(filteredCatalog?.services.map((service) => service.serviceId) ?? []);
+  const filteredServiceNames = new Set(filteredCatalog?.services.map((service) => service.name) ?? []);
+
+  return (
+    observation.input.stockSnapshot.some((entry) => filteredSkuIds.has(entry.skuId)) ||
+    observation.input.orderSignals.some((entry) => filteredSkuIds.has(entry.skuId)) ||
+    observation.input.retailPrices.some((entry) => filteredSkuIds.has(entry.skuId)) ||
+    observation.input.leadTimeHints.some((entry) => filteredSkuIds.has(entry.skuId)) ||
+    observation.input.retailRankings.some((entry) => filteredSkuIds.has(entry)) ||
+    observation.input.retailStockouts.some((entry) => filteredSkuIds.has(entry)) ||
+    observation.input.servicePrices.some((entry) => filteredServiceIds.has(entry.serviceId)) ||
+    observation.input.serviceRankings.some((entry) => filteredServiceIds.has(entry) || filteredServiceNames.has(entry)) ||
+    observation.input.serviceStockouts.some((entry) => filteredServiceIds.has(entry) || filteredServiceNames.has(entry))
+  );
 }
 
 function startOfLocalDay(value: Date | string) {
@@ -597,12 +626,14 @@ export function StockUpdateRoute() {
   const routeState = readOperationsRouteState(searchParams);
   const scope = routeState.scope as ObservationScope;
   const routeView = routeState.view as ObservationView;
+  const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const view = showLogsViewToggle ? routeView : 'all';
   const [yearOffset, setYearOffset] = useState(0);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<SenaObservationRecord | null>(null);
   const [deleteTokenValue, setDeleteTokenValue] = useState('');
+  const baseCatalog = catalog ?? null;
 
   function updateRouteState(nextState: Parameters<typeof buildOperationsSearchParams>[1], replace = false) {
     setSearchParams(buildOperationsSearchParams(searchParams, nextState), { replace });
@@ -615,23 +646,24 @@ export function StockUpdateRoute() {
         .filter(
           (observation) =>
             matchesObservationScope(observation, scope, serviceLinkedSkuIdSet) &&
-            matchesObservationQuery(observation, deferredQuery, catalog),
+            matchesObservationQuery(observation, deferredQuery, catalog) &&
+            matchesObservationSupplier(observation, baseCatalog, supplierFilter),
         )
         .sort(
           (left, right) =>
             new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
         ),
-    [catalog, deferredQuery, observations, scope, serviceLinkedSkuIdSet],
+    [baseCatalog, catalog, deferredQuery, observations, scope, serviceLinkedSkuIdSet, supplierFilter],
   );
   const latestFilteredObservedAt = filteredObservations[0]?.input.observedAt ?? null;
 
   useEffect(() => {
     setYearOffset(0);
-  }, [deferredQuery, scope]);
+  }, [deferredQuery, scope, supplierFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [deferredQuery, scope, view]);
+  }, [deferredQuery, scope, supplierFilter, view]);
 
   const baseAnchorDay = useMemo(
     () => startOfLocalDay(latestFilteredObservedAt ?? new Date().toISOString()),
@@ -800,6 +832,12 @@ export function StockUpdateRoute() {
               {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
+          <SupplierFilter
+            catalog={baseCatalog}
+            className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+            value={supplierFilter}
+            onChange={(nextSupplier) => updateRouteState({ supplier: supplierFilterQueryValue(nextSupplier) })}
+          />
           {showLogsViewToggle ? (
             <Select value={view} onValueChange={(nextValue) => updateRouteState({ view: nextValue as ObservationView })}>
               <SelectTrigger

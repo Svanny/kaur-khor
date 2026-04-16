@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { clampOverlayTransformToBoundary } from '@/routes/ranking-drag';
 import { buildRankingEntryId, reorderRankingEntries } from '@/routes/ranking-order';
+import { recordUpdateTableRowClassName } from './record-update-table-styles';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type RankingRowModel = {
@@ -255,7 +256,7 @@ export function MerchandisingEditor({
             <col style={{ width: '8rem' }} />
           </colgroup>
           <TableHeader>
-            <TableRow className="hover:bg-transparent">
+            <TableRow className={cn(recordUpdateTableRowClassName, 'hover:bg-transparent')}>
               <TableHead aria-hidden="true" className={rankingTableHeaderClassName} />
               <TableHead className={cn(rankingTableHeaderClassName, 'text-center')}>{t('rankHeaderRank')}</TableHead>
               <TableHead aria-hidden="true" className={rankingTableHeaderClassName} />
@@ -498,6 +499,7 @@ const RankingRowCard = forwardRef<HTMLTableRowElement, RankingRowCardProps>(func
     <TableRow
       {...props}
       className={cn(
+        recordUpdateTableRowClassName,
         'group/row cursor-grab touch-none transition-[background-color,box-shadow,opacity] duration-150 ease-out motion-reduce:transition-none active:cursor-grabbing',
         'bg-white hover:bg-white',
         dragging && 'opacity-0',

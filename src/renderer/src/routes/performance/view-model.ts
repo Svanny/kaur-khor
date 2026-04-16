@@ -55,6 +55,7 @@ interface ReceiptSignal {
 interface SkuBusinessRow {
   id: string;
   name: string;
+  imagePath: string | null;
   href: string;
   detailHref: string;
   type: 'sku';
@@ -85,6 +86,7 @@ interface SkuBusinessRow {
 interface ServiceBusinessRow {
   id: string;
   name: string;
+  imagePath: string | null;
   href: string;
   type: 'service';
   activityMean: number;
@@ -118,6 +120,7 @@ export interface PerformanceMoveRow {
   move: string;
   moveEntityName: string;
   moveEntityType: 'service' | 'sku';
+  imagePath: string | null;
   moveVerb: string;
   whyNow: string;
   expectedEffect: string;
@@ -131,6 +134,7 @@ export interface PerformanceBoardRow {
   id: string;
   entity: string;
   entityHref: string;
+  imagePath: string | null;
   type: string;
   supplierName: string | null;
   demandTrend: string;
@@ -159,6 +163,7 @@ export interface PerformanceBandEntry {
   id: string;
   entityType: 'service' | 'sku';
   label: string;
+  imagePath: string | null;
   href: string;
   summary: string;
   tone: StatusPillTone;
@@ -933,6 +938,7 @@ function toBoardRow(
     id: row.id,
     entity: row.name,
     entityHref: row.href,
+    imagePath: row.imagePath,
     supplierName: row.type === 'sku' ? row.supplierName : null,
     type: row.type === 'service' ? 'Service' : 'SKU',
     demandTrend: `${trendGlyph(row.trendTone)} ${row.trendLabel}`,
@@ -981,6 +987,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: App
       return {
         moveEntityName: row.name,
         moveEntityType: row.type,
+        imagePath: row.imagePath,
         moveVerb: translateUiLiteral(language, 'Push'),
         move: translateUiLiteral(language, 'Push {name}', { name: row.name }),
         whyNow: translateUiLiteral(language, '{trend} demand, {support}, {margin}', {
@@ -996,6 +1003,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: App
       return {
         moveEntityName: row.name,
         moveEntityType: row.type,
+        imagePath: row.imagePath,
         moveVerb: translateUiLiteral(language, 'Recover'),
         move: translateUiLiteral(language, 'Recover {name}', { name: row.name }),
         whyNow: translateUiLiteral(language, '{support} with {pipeline}', {
@@ -1009,6 +1017,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: App
     return {
       moveEntityName: row.name,
       moveEntityType: row.type,
+      imagePath: row.imagePath,
       moveVerb: translateUiLiteral(language, 'Review'),
       move: translateUiLiteral(language, 'Review {name} pricing', { name: row.name }),
       whyNow: translateUiLiteral(language, '{margin} and {trend} demand', {
@@ -1024,6 +1033,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: App
     return {
       moveEntityName: row.name,
       moveEntityType: row.type,
+      imagePath: row.imagePath,
       moveVerb: translateUiLiteral(language, 'Restock'),
       move: translateUiLiteral(language, 'Restock {name}', { name: row.name }),
       whyNow: translateUiLiteral(language, '{support} with {pipeline}', {
@@ -1042,6 +1052,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: App
     return {
       moveEntityName: row.name,
       moveEntityType: row.type,
+      imagePath: row.imagePath,
       moveVerb: translateUiLiteral(language, 'Review'),
       move: translateUiLiteral(language, 'Review {name} pricing', { name: row.name }),
       whyNow: translateUiLiteral(language, '{margin} while {trend} demand is visible', {
@@ -1056,6 +1067,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: App
     return {
       moveEntityName: row.name,
       moveEntityType: row.type,
+      imagePath: row.imagePath,
       moveVerb: translateUiLiteral(language, 'Clear'),
       move: translateUiLiteral(language, 'Clear {name}', { name: row.name }),
       whyNow: translateUiLiteral(language, '{trend} demand with {units}', {
@@ -1069,6 +1081,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: App
   return {
     moveEntityName: row.name,
     moveEntityType: row.type,
+    imagePath: row.imagePath,
     moveVerb: translateUiLiteral(language, 'Push'),
     move: translateUiLiteral(language, 'Push {name}', { name: row.name }),
     whyNow: translateUiLiteral(language, '{trend} demand with {margin}', {
@@ -1252,6 +1265,7 @@ export function derivePerformanceViewModel({
       detailHref: `/catalog/skus/${sku.skuId}`,
       href: `/catalog/skus/${sku.skuId}`,
       id: sku.skuId,
+      imagePath: sku.imagePath?.trim() || null,
       linkedServiceNames: linkedServices.map((service) => service.name),
       linkedServiceRevenue,
       marginLabel: marginToneLabel({ currency, marginRatio, priceSignal, language, usdToKhrExchangeRate }),
@@ -1328,6 +1342,7 @@ export function derivePerformanceViewModel({
       grossMarginRatio,
       href: `/catalog/services/${service.serviceId}`,
       id: service.serviceId,
+      imagePath: service.imagePath?.trim() || null,
       name: service.name,
       pipelineLabel,
       priceSignal,
@@ -1666,6 +1681,7 @@ export function derivePerformanceViewModel({
       id: row.id,
       entityType: row.type,
       label: row.name,
+      imagePath: row.imagePath,
       href: row.href,
       summary:
         row.type === 'service'
@@ -1681,6 +1697,7 @@ export function derivePerformanceViewModel({
       id: row.id,
       entityType: row.type,
       label: row.name,
+      imagePath: row.imagePath,
       href: row.href,
       summary:
         row.type === 'service'
@@ -1696,6 +1713,7 @@ export function derivePerformanceViewModel({
       id: row.id,
       entityType: row.type,
       label: row.name,
+      imagePath: row.imagePath,
       href: row.href,
       summary: translateUiLiteral(language, '{units} · {trend} demand', {
         units: row.unitsLabel,

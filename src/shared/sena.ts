@@ -12,6 +12,7 @@ export interface SenaSku {
   skuId: string;
   name: string;
   description: string;
+  imagePath?: string | null;
   supplierName?: string | null;
   costPerUnit: number;
   archived: boolean;
@@ -25,6 +26,7 @@ export interface SenaService {
   serviceId: string;
   name: string;
   description: string;
+  imagePath?: string | null;
   price: number;
   archived: boolean;
   bundle: boolean;
@@ -88,6 +90,94 @@ export interface SenaOrderSignal {
   placementTimestamp?: string | null;
   receiptTimestamp?: string | null;
   leadTimeDaysHint?: number | null;
+}
+
+export type SenaOrderBatchStatus =
+  | 'open'
+  | 'awaiting_receipt'
+  | 'follow_up'
+  | 'partial_receipt'
+  | 'received'
+  | 'reviewed';
+
+export type SenaOrderChildStatus =
+  | 'open'
+  | 'awaiting_receipt'
+  | 'follow_up'
+  | 'received'
+  | 'reviewed';
+
+export interface SenaOrderFieldValues {
+  supplierName: string | null;
+  supplierNote: string | null;
+  orderedQuantity: number | null;
+  receivedQuantity: number | null;
+  costPerUnit: number | null;
+  expectedArrivalAt: string | null;
+  placementTimestamp: string | null;
+  receiptTimestamp: string | null;
+  leadTimeDaysHint: number | null;
+  leadTimeVariability: SenaLeadTimeVariabilityClass | null;
+}
+
+export interface SenaOrderChildRecord {
+  childOrderId: string;
+  skuId: string;
+  status: SenaOrderChildStatus;
+  createdAt: string;
+  updatedAt: string;
+  inheritedFromBatch: boolean;
+  effective: SenaOrderFieldValues;
+  overrides: Partial<SenaOrderFieldValues>;
+}
+
+export interface SenaOrderBatchRecord {
+  batchOrderId: string;
+  ownerSub: string;
+  supplierName: string | null;
+  status: SenaOrderBatchStatus;
+  createdAt: string;
+  updatedAt: string;
+  shared: SenaOrderFieldValues;
+  children: SenaOrderChildRecord[];
+}
+
+export interface SenaOrderBatchCreateChildInput {
+  skuId: string;
+  overrides?: Partial<SenaOrderFieldValues>;
+}
+
+export interface SenaCreateOrderBatchPayload {
+  supplierName?: string | null;
+  shared: Partial<SenaOrderFieldValues>;
+  children: SenaOrderBatchCreateChildInput[];
+}
+
+export interface SenaUpdateOrderBatchPayload {
+  batchOrderId: string;
+  shared?: Partial<SenaOrderFieldValues>;
+  supplierName?: string | null;
+  status?: SenaOrderBatchStatus;
+}
+
+export interface SenaUpdateOrderChildPayload {
+  childOrderId: string;
+  skuId?: string;
+  overrides?: Partial<SenaOrderFieldValues>;
+  status?: SenaOrderChildStatus;
+  appendSupplierNote?: string | null;
+}
+
+export interface SenaSplitOrderChildPayload {
+  childOrderId: string;
+}
+
+export interface SenaOrderLookupPayload {
+  batchOrderId?: string;
+  childOrderId?: string;
+  skuId?: string;
+  supplierName?: string;
+  status?: SenaOrderBatchStatus;
 }
 
 export interface SenaServicePriceObservation {

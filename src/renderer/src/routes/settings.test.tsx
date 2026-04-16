@@ -53,6 +53,7 @@ describe('SettingsRoute', () => {
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'custom',
+      itemImageMode: 'small',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -62,6 +63,13 @@ describe('SettingsRoute', () => {
       showPerformanceTimelineCard: true,
       showLogsViewToggle: true,
       showHeartbeatRibbons: true,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
       customShowExplanatoryTooltips: true,
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
@@ -78,6 +86,7 @@ describe('SettingsRoute', () => {
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'custom',
+      itemImageMode: 'small',
       showExplanatoryTooltips: false,
       showFloatingTitleActions: false,
       showRightRailCards: false,
@@ -87,6 +96,13 @@ describe('SettingsRoute', () => {
       showPerformanceTimelineCard: false,
       showLogsViewToggle: false,
       showHeartbeatRibbons: false,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
       customShowExplanatoryTooltips: false,
       customShowFloatingTitleActions: false,
       customShowRightRailCards: false,
@@ -104,6 +120,7 @@ describe('SettingsRoute', () => {
       workspaceStorePath: '/tmp/banji/workspace.sqlite',
       preferencesPath: '/tmp/banji/desktop-preferences.json',
       backupDirectoryPath: '/tmp/banji/backup-snapshots',
+      assetDirectoryPath: '/tmp/banji/assets',
       storageFormat: 'sqlite',
     });
     createBackupSnapshot.mockResolvedValue({
@@ -163,8 +180,8 @@ describe('SettingsRoute', () => {
 
     expect(await screen.findAllByText('Interface')).not.toHaveLength(0);
     expect(
-      screen.queryByText('These switches control how much guidance and side context the desktop shows.'),
-    ).not.toBeInTheDocument();
+      screen.getByText('These switches control how much guidance and side context the desktop shows.'),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole('radio', { name: /compact view/i })[0]).toBeInTheDocument();
     expect(screen.getAllByRole('radio', { name: /custom view/i })[0]).toBeInTheDocument();
 
@@ -188,12 +205,76 @@ describe('SettingsRoute', () => {
     });
   });
 
+  it('saves the item picture mode preference', async () => {
+    renderSettingsRoute('/settings/workspace');
+    const pictureModeSelect = await screen.findByRole('combobox', { name: 'Item picture size' });
+    fireEvent.click(pictureModeSelect);
+    fireEvent.click(screen.getByRole('option', { name: 'Off' }));
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        itemImageMode: 'off',
+      }));
+    });
+  });
+
+  it('renders and saves one overview batch-action default', async () => {
+    savePreferences.mockImplementation(async (payload) => ({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
+      itemImageMode: payload.itemImageMode ?? 'small',
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      taskBatchUpdatePreferences: payload.taskBatchUpdatePreferences,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+    }));
+
+    renderSettingsRoute('/settings/workspace');
+
+    const logOrderSelect = await screen.findByRole('combobox', { name: 'Log order' });
+    fireEvent.click(logOrderSelect);
+    fireEvent.click(screen.getByRole('option', { name: 'Always batch update' }));
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        taskBatchUpdatePreferences: {
+          logOrder: 'always_batch',
+          updateEta: 'ask',
+          followUp: 'ask',
+          receive: 'ask',
+          review: 'ask',
+        },
+      }));
+    });
+  });
+
   it('renders and saves language and currency through the shared select controls', async () => {
     savePreferences.mockImplementation(async (payload) => ({
       language: payload.language ?? 'en',
       currency: payload.currency ?? 'USD',
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       displayViewMode: payload.displayViewMode ?? 'custom',
+      itemImageMode: payload.itemImageMode ?? 'small',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -249,6 +330,7 @@ describe('SettingsRoute', () => {
       currency: payload.currency ?? 'USD',
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       displayViewMode: payload.displayViewMode ?? 'custom',
+      itemImageMode: payload.itemImageMode ?? 'small',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -461,6 +543,7 @@ describe('SettingsRoute', () => {
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'compact',
+      itemImageMode: 'small',
       showExplanatoryTooltips: false,
       showFloatingTitleActions: false,
       showRightRailCards: false,
@@ -486,6 +569,7 @@ describe('SettingsRoute', () => {
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
       displayViewMode: payload.displayViewMode ?? 'custom',
+      itemImageMode: payload.itemImageMode ?? 'small',
       showExplanatoryTooltips: payload.showExplanatoryTooltips ?? false,
       showFloatingTitleActions: payload.showFloatingTitleActions ?? false,
       showRightRailCards: payload.showRightRailCards ?? false,
@@ -554,6 +638,7 @@ describe('SettingsRoute', () => {
       currency: 'USD',
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       displayViewMode: payload.displayViewMode ?? 'custom',
+      itemImageMode: payload.itemImageMode ?? 'small',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -693,6 +778,7 @@ describe('SettingsRoute', () => {
       language: 'en',
       currency: 'USD',
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
+      itemImageMode: payload.itemImageMode ?? 'small',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,

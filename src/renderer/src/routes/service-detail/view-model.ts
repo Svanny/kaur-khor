@@ -54,6 +54,7 @@ export interface ServiceIntervalViewModel {
 export interface ServiceContributorViewModel {
   skuId: string;
   name: string;
+  imagePath: string | null;
   statusLabel: string;
   roleKey: 'limiting_now' | 'next_likely_limiter' | 'safe_contributor';
   roleLabel: string;
@@ -94,6 +95,7 @@ export interface ServiceEvidenceEntryViewModel {
 export interface ServiceDependencyImpactRow {
   skuId: string;
   name: string;
+  imagePath: string | null;
   role: string;
   status: string;
   daysOfCover: string;
@@ -555,6 +557,7 @@ export function deriveServiceDetailViewModel({
     return {
       skuId: entry.sku.skuId,
       name: entry.sku.name,
+      imagePath: entry.sku.imagePath?.trim() || null,
       baseRank: index + 1,
       limitingProbability,
       usageProbability,
@@ -718,6 +721,7 @@ export function deriveServiceDetailViewModel({
   const dependencyImpact = contributors.map<ServiceDependencyImpactRow>((entry) => ({
     skuId: entry.skuId,
     name: entry.name,
+    imagePath: entry.imagePath,
     role: entry.roleLabel,
     status: `${entry.stockLabel} · ${entry.statusLabel.toLowerCase()}`,
     daysOfCover: entry.daysOfCoverLabel,

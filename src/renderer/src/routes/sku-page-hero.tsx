@@ -9,12 +9,14 @@ export function SkuPageHero({
   actions,
   badges,
   onBack,
+  visual,
   children,
 }: {
   title: string;
   actions?: ReactNode;
   badges?: ReactNode;
   onBack?: () => void;
+  visual?: ReactNode;
   children?: ReactNode;
 }) {
   const { showFloatingTitleActions } = usePreferences();
@@ -27,6 +29,7 @@ export function SkuPageHero({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <RouteBackButton onClick={onBack} />
+              {visual}
               <div className="min-w-0">
                 <h1 className="truncate text-2xl font-semibold tracking-[-0.04em] text-foreground">{title}</h1>
               </div>

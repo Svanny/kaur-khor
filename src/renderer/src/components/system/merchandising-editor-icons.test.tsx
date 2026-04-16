@@ -102,8 +102,8 @@ describe('MerchandisingEditor icons', () => {
       />,
     );
 
-    const serviceRow = screen.getByText('Market Styling').closest('[role="row"]');
-    const skuRow = screen.getByText('Cotton Scarf').closest('[role="row"]');
+    const serviceRow = screen.getByText('Market Styling').closest('tr');
+    const skuRow = screen.getByText('Cotton Scarf').closest('tr');
 
     expect(serviceRow).not.toBeNull();
     expect(skuRow).not.toBeNull();
@@ -146,15 +146,15 @@ describe('MerchandisingEditor icons', () => {
   test('keeps rank, item, cost, and price cell content vertically centered within a row', () => {
     render(<MerchandisingEditor entries={entries} onChange={vi.fn()} snapshot={snapshot} />);
 
-    const serviceRow = screen.getByText('Market Styling').closest('[role="row"]');
+    const serviceRow = screen.getByText('Market Styling').closest('tr');
     expect(serviceRow).not.toBeNull();
 
-    const cells = serviceRow?.querySelectorAll('[role="cell"]');
-    expect(cells).toHaveLength(5);
+    const cells = serviceRow?.querySelectorAll('td');
+    expect(cells).toHaveLength(6);
 
     expect(cells?.[1].querySelector('.min-h-8.items-center')).not.toBeNull();
-    expect(cells?.[2].querySelector('.min-h-8.items-center')).not.toBeNull();
     expect(cells?.[3].querySelector('.min-h-8.items-center')).not.toBeNull();
     expect(cells?.[4].querySelector('.min-h-8.items-center')).not.toBeNull();
+    expect(cells?.[5].querySelector('.min-h-8.items-center')).not.toBeNull();
   });
 });

@@ -1,9 +1,12 @@
 use crate::{
     service::{now_rfc3339, SenaRepository},
     types::{
-        SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaDiagnostics,
-        SenaObservationInput, SenaObservationRecord, SenaRunStatus, SenaServiceDetail,
-        SenaSkuDetail, SenaWorkspaceSummary,
+        SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaCreateOrderBatchPayload,
+        SenaDiagnostics, SenaObservationInput, SenaObservationRecord, SenaOrderBatchRecord,
+        SenaOrderBatchStatus, SenaOrderChildRecord, SenaOrderChildStatus,
+        SenaOrderFieldValues, SenaOrderLookupPayload, SenaRunStatus, SenaServiceDetail,
+        SenaSkuDetail, SenaSplitOrderChildPayload, SenaUpdateOrderBatchPayload,
+        SenaUpdateOrderChildPayload, SenaWorkspaceSummary,
     },
     PreprocessedWorkspace, SenaAnalysisCheckpoint,
 };
@@ -12,6 +15,7 @@ use async_trait::async_trait;
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
 use std::sync::Mutex;
+use time::{format_description::parse as parse_time_format, OffsetDateTime};
 use uuid::Uuid;
 
 pub struct SqliteSenaRepository {
@@ -48,6 +52,29 @@ impl SqliteSenaRepository {
             );
             CREATE INDEX IF NOT EXISTS idx_sena_observation_owner_observed_at
               ON sena_observation (owner_sub, observed_at);
+            CREATE TABLE IF NOT EXISTS sena_order_batch (
+              batch_order_id TEXT PRIMARY KEY,
+              owner_sub TEXT NOT NULL,
+              supplier_name TEXT,
+              status TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              payload_json TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_sena_order_batch_owner_updated_at
+              ON sena_order_batch (owner_sub, updated_at DESC);
+            CREATE TABLE IF NOT EXISTS sena_order_child_lookup (
+              child_order_id TEXT PRIMARY KEY,
+              batch_order_id TEXT NOT NULL,
+              owner_sub TEXT NOT NULL,
+              sku_id TEXT NOT NULL,
+              supplier_name TEXT,
+              status TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_sena_order_child_lookup_owner_sku
+              ON sena_order_child_lookup (owner_sub, sku_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_sena_order_child_lookup_owner_batch
+              ON sena_order_child_lookup (owner_sub, batch_order_id, updated_at DESC);
             CREATE TABLE IF NOT EXISTS sena_run (
               run_id TEXT PRIMARY KEY,
               owner_sub TEXT NOT NULL,
@@ -122,6 +149,227 @@ impl SqliteSenaRepository {
     }
 }
 
+fn merge_order_fields(base: &SenaOrderFieldValues, overrides: &SenaOrderFieldValues) -> SenaOrderFieldValues {
+    SenaOrderFieldValues {
+        supplier_name: overrides
+            .supplier_name
+            .clone()
+            .or_else(|| base.supplier_name.clone()),
+        supplier_note: overrides
+            .supplier_note
+            .clone()
+            .or_else(|| base.supplier_note.clone()),
+        ordered_quantity: overrides.ordered_quantity.or(base.ordered_quantity),
+        received_quantity: overrides.received_quantity.or(base.received_quantity),
+        cost_per_unit: overrides.cost_per_unit.or(base.cost_per_unit),
+        expected_arrival_at: overrides
+            .expected_arrival_at
+            .clone()
+            .or_else(|| base.expected_arrival_at.clone()),
+        placement_timestamp: overrides
+            .placement_timestamp
+            .clone()
+            .or_else(|| base.placement_timestamp.clone()),
+        receipt_timestamp: overrides
+            .receipt_timestamp
+            .clone()
+            .or_else(|| base.receipt_timestamp.clone()),
+        lead_time_days_hint: overrides.lead_time_days_hint.or(base.lead_time_days_hint),
+        lead_time_variability: overrides
+            .lead_time_variability
+            .or(base.lead_time_variability),
+    }
+}
+
+fn order_child_status_for_fields(fields: &SenaOrderFieldValues) -> SenaOrderChildStatus {
+    if fields.receipt_timestamp.is_some()
+        || fields
+            .received_quantity
+            .is_some_and(|value| value > 0.0)
+    {
+        return SenaOrderChildStatus::Received;
+    }
+    if fields.expected_arrival_at.is_some() {
+        if let Some(expected) = &fields.expected_arrival_at {
+            if let Ok(date) = OffsetDateTime::parse(
+                expected,
+                &time::format_description::well_known::Rfc3339,
+            ) {
+                if date < OffsetDateTime::now_utc() {
+                    return SenaOrderChildStatus::FollowUp;
+                }
+            }
+        }
+        return SenaOrderChildStatus::AwaitingReceipt;
+    }
+    SenaOrderChildStatus::Open
+}
+
+fn order_batch_status(children: &[SenaOrderChildRecord]) -> SenaOrderBatchStatus {
+    if children.is_empty() {
+        return SenaOrderBatchStatus::Open;
+    }
+    if children
+        .iter()
+        .all(|child| child.status == SenaOrderChildStatus::Reviewed)
+    {
+        return SenaOrderBatchStatus::Reviewed;
+    }
+    if children
+        .iter()
+        .all(|child| child.status == SenaOrderChildStatus::Received || child.status == SenaOrderChildStatus::Reviewed)
+    {
+        return SenaOrderBatchStatus::Received;
+    }
+    if children
+        .iter()
+        .any(|child| child.status == SenaOrderChildStatus::Received || child.status == SenaOrderChildStatus::Reviewed)
+    {
+        return SenaOrderBatchStatus::PartialReceipt;
+    }
+    if children
+        .iter()
+        .any(|child| child.status == SenaOrderChildStatus::FollowUp)
+    {
+        return SenaOrderBatchStatus::FollowUp;
+    }
+    if children
+        .iter()
+        .any(|child| child.status == SenaOrderChildStatus::AwaitingReceipt)
+    {
+        return SenaOrderBatchStatus::AwaitingReceipt;
+    }
+    SenaOrderBatchStatus::Open
+}
+
+fn slug_segment(value: Option<&str>, fallback: &str) -> String {
+    let mut out = String::new();
+    for ch in value.unwrap_or("").trim().chars() {
+        let lower = ch.to_ascii_lowercase();
+        if lower.is_ascii_alphanumeric() {
+            out.push(lower);
+        } else if (lower.is_ascii_whitespace() || matches!(lower, '-' | '_' | '/'))
+            && !out.ends_with('-')
+        {
+            out.push('-');
+        }
+    }
+    let trimmed = out.trim_matches('-');
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn unique_suffix() -> String {
+    Uuid::new_v4()
+        .simple()
+        .to_string()
+        .chars()
+        .take(8)
+        .collect()
+}
+
+fn order_timestamp_parts(now: &str) -> (String, String, String, String) {
+    if let Ok(format) = parse_time_format("[year]/[month]/[day]/[hour][minute][second]") {
+        if let Ok(parsed) = OffsetDateTime::parse(now, &time::format_description::well_known::Rfc3339) {
+            let formatted = parsed.format(&format).unwrap_or_else(|_| "1970/01/01/000000".to_string());
+            let mut parts = formatted.split('/');
+            let year = parts.next().unwrap_or("1970").to_string();
+            let month = parts.next().unwrap_or("01").to_string();
+            let day = parts.next().unwrap_or("01").to_string();
+            let time = parts.next().unwrap_or("000000").to_string();
+            return (year, month, day, time);
+        }
+    }
+    ("1970".to_string(), "01".to_string(), "01".to_string(), "000000".to_string())
+}
+
+fn build_batch_order_id(now: &str, supplier_name: Option<&str>) -> String {
+    let (year, month, day, time) = order_timestamp_parts(now);
+    format!(
+        "orders/{year}/{month}/{day}/{time}/{}/{}",
+        slug_segment(supplier_name, "unknown-supplier"),
+        unique_suffix()
+    )
+}
+
+fn build_child_order_id(batch_order_id: &str, sku_id: &str) -> String {
+    format!(
+        "{batch_order_id}/items/{}/{}",
+        slug_segment(Some(sku_id), "sku"),
+        unique_suffix()
+    )
+}
+
+fn refresh_batch(batch: &mut SenaOrderBatchRecord) {
+    let shared = batch.shared.clone();
+    for child in &mut batch.children {
+        child.effective = merge_order_fields(&shared, &child.overrides);
+        child.inherited_from_batch = child.overrides == SenaOrderFieldValues::default();
+        child.status = order_child_status_for_fields(&child.effective);
+    }
+    batch.status = order_batch_status(&batch.children);
+}
+
+fn persist_batch(connection: &Connection, batch: &SenaOrderBatchRecord) -> Result<()> {
+    connection.execute(
+        r#"
+        INSERT INTO sena_order_batch (batch_order_id, owner_sub, supplier_name, status, updated_at, payload_json)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        ON CONFLICT(batch_order_id) DO UPDATE SET
+          supplier_name = excluded.supplier_name,
+          status = excluded.status,
+          updated_at = excluded.updated_at,
+          payload_json = excluded.payload_json
+        "#,
+        params![
+            batch.batch_order_id,
+            batch.owner_sub,
+            batch.supplier_name,
+            serde_json::to_string(&batch.status)?,
+            batch.updated_at,
+            serde_json::to_string(batch)?,
+        ],
+    )?;
+    connection.execute(
+        "DELETE FROM sena_order_child_lookup WHERE batch_order_id = ?1",
+        params![batch.batch_order_id],
+    )?;
+    for child in &batch.children {
+        connection.execute(
+            r#"
+            INSERT INTO sena_order_child_lookup
+              (child_order_id, batch_order_id, owner_sub, sku_id, supplier_name, status, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "#,
+            params![
+                child.child_order_id,
+                batch.batch_order_id,
+                batch.owner_sub,
+                child.sku_id,
+                batch.supplier_name,
+                serde_json::to_string(&child.status)?,
+                child.updated_at,
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+fn load_all_batches(connection: &Connection, owner_sub: &str) -> Result<Vec<SenaOrderBatchRecord>> {
+    let mut stmt = connection.prepare(
+        "SELECT payload_json FROM sena_order_batch WHERE owner_sub = ?1 ORDER BY updated_at DESC",
+    )?;
+    let rows = stmt.query_map(params![owner_sub], |row| row.get::<_, String>(0))?;
+    let mut batches = Vec::new();
+    for row in rows {
+        batches.push(serde_json::from_str::<SenaOrderBatchRecord>(&row?)?);
+    }
+    Ok(batches)
+}
+
 #[async_trait(?Send)]
 impl SenaRepository for SqliteSenaRepository {
     async fn clear_owner(&self, owner_sub: &str) -> Result<()> {
@@ -155,6 +403,14 @@ impl SenaRepository for SqliteSenaRepository {
         )?;
         connection.execute(
             "DELETE FROM sena_observation WHERE owner_sub = ?1",
+            params![owner_sub],
+        )?;
+        connection.execute(
+            "DELETE FROM sena_order_child_lookup WHERE owner_sub = ?1",
+            params![owner_sub],
+        )?;
+        connection.execute(
+            "DELETE FROM sena_order_batch WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
         connection.execute(
@@ -294,6 +550,258 @@ impl SenaRepository for SqliteSenaRepository {
             });
         }
         Ok(records)
+    }
+
+    async fn list_order_batches(
+        &self,
+        owner_sub: &str,
+        filters: Option<&SenaOrderLookupPayload>,
+    ) -> Result<Vec<SenaOrderBatchRecord>> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let mut batches = load_all_batches(&connection, owner_sub)?;
+        if let Some(filters) = filters {
+            batches.retain(|batch| {
+                if let Some(batch_order_id) = &filters.batch_order_id {
+                    if &batch.batch_order_id != batch_order_id {
+                        return false;
+                    }
+                }
+                if let Some(supplier_name) = &filters.supplier_name {
+                    if batch.supplier_name.as_deref() != Some(supplier_name.as_str()) {
+                        return false;
+                    }
+                }
+                if let Some(status) = filters.status {
+                    if batch.status != status {
+                        return false;
+                    }
+                }
+                if let Some(child_order_id) = &filters.child_order_id {
+                    if !batch.children.iter().any(|child| &child.child_order_id == child_order_id) {
+                        return false;
+                    }
+                }
+                if let Some(sku_id) = &filters.sku_id {
+                    if !batch.children.iter().any(|child| &child.sku_id == sku_id) {
+                        return false;
+                    }
+                }
+                true
+            });
+        }
+        Ok(batches)
+    }
+
+    async fn create_order_batch(
+        &self,
+        owner_sub: &str,
+        payload: &SenaCreateOrderBatchPayload,
+    ) -> Result<SenaOrderBatchRecord> {
+        if payload.children.is_empty() {
+            return Err(anyhow!("order batch requires at least one child"));
+        }
+        let now = now_rfc3339();
+        let batch_order_id = build_batch_order_id(&now, payload.supplier_name.as_deref().or(payload.shared.supplier_name.as_deref()));
+        let shared = SenaOrderFieldValues {
+            supplier_name: payload
+                .supplier_name
+                .clone()
+                .or_else(|| payload.shared.supplier_name.clone()),
+            ..payload.shared.clone()
+        };
+        let mut batch = SenaOrderBatchRecord {
+            batch_order_id: batch_order_id.clone(),
+            owner_sub: owner_sub.to_string(),
+            supplier_name: payload
+                .supplier_name
+                .clone()
+                .or_else(|| payload.shared.supplier_name.clone()),
+            status: SenaOrderBatchStatus::Open,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            shared,
+            children: payload
+                .children
+                .iter()
+                .map(|child| SenaOrderChildRecord {
+                    child_order_id: build_child_order_id(&batch_order_id, &child.sku_id),
+                    sku_id: child.sku_id.clone(),
+                    status: SenaOrderChildStatus::Open,
+                    created_at: now.clone(),
+                    updated_at: now.clone(),
+                    inherited_from_batch: child.overrides.is_none(),
+                    effective: SenaOrderFieldValues::default(),
+                    overrides: child.overrides.clone().unwrap_or_default(),
+                })
+                .collect(),
+        };
+        refresh_batch(&mut batch);
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        persist_batch(&connection, &batch)?;
+        Ok(batch)
+    }
+
+    async fn update_order_batch(
+        &self,
+        owner_sub: &str,
+        payload: &SenaUpdateOrderBatchPayload,
+    ) -> Result<SenaOrderBatchRecord> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let mut batch = load_all_batches(&connection, owner_sub)?
+            .into_iter()
+            .find(|batch| batch.batch_order_id == payload.batch_order_id)
+            .ok_or_else(|| anyhow!("order batch not found"))?;
+        let now = now_rfc3339();
+        if let Some(shared) = &payload.shared {
+            batch.shared = merge_order_fields(&batch.shared, shared);
+        }
+        if let Some(supplier_name) = &payload.supplier_name {
+            batch.supplier_name = Some(supplier_name.clone());
+            batch.shared.supplier_name = Some(supplier_name.clone());
+        }
+        if let Some(status) = payload.status {
+            batch.status = status;
+        }
+        batch.updated_at = now.clone();
+        for child in &mut batch.children {
+            child.updated_at = now.clone();
+        }
+        refresh_batch(&mut batch);
+        if let Some(status) = payload.status {
+            batch.status = status;
+        }
+        persist_batch(&connection, &batch)?;
+        Ok(batch)
+    }
+
+    async fn update_order_child(
+        &self,
+        owner_sub: &str,
+        payload: &SenaUpdateOrderChildPayload,
+    ) -> Result<SenaOrderBatchRecord> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let mut batch = load_all_batches(&connection, owner_sub)?
+            .into_iter()
+            .find(|batch| {
+                batch.children.iter().any(|child| child.child_order_id == payload.child_order_id)
+            })
+            .ok_or_else(|| anyhow!("order child not found"))?;
+        let now = now_rfc3339();
+        let child = batch
+            .children
+            .iter_mut()
+            .find(|child| child.child_order_id == payload.child_order_id)
+            .ok_or_else(|| anyhow!("order child not found"))?;
+        if let Some(sku_id) = &payload.sku_id {
+            child.sku_id = sku_id.clone();
+        }
+        if let Some(overrides) = &payload.overrides {
+            child.overrides = merge_order_fields(&child.overrides, overrides);
+        }
+        if let Some(note) = &payload.append_supplier_note {
+            let mut joined = batch.shared.supplier_note.clone().unwrap_or_default();
+            if !joined.is_empty() && !note.trim().is_empty() {
+                joined.push('\n');
+            }
+            joined.push_str(note.trim());
+            batch.shared.supplier_note = if joined.trim().is_empty() {
+                None
+            } else {
+                Some(joined)
+            };
+        }
+        child.updated_at = now.clone();
+        if let Some(status) = payload.status {
+            child.status = status;
+        }
+        batch.updated_at = now;
+        refresh_batch(&mut batch);
+        if let Some(status) = payload.status {
+            let child = batch
+                .children
+                .iter_mut()
+                .find(|child| child.child_order_id == payload.child_order_id)
+                .ok_or_else(|| anyhow!("order child not found"))?;
+            child.status = status;
+            batch.status = order_batch_status(&batch.children);
+        }
+        persist_batch(&connection, &batch)?;
+        Ok(batch)
+    }
+
+    async fn split_order_child(
+        &self,
+        owner_sub: &str,
+        payload: &SenaSplitOrderChildPayload,
+    ) -> Result<SenaOrderBatchRecord> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let mut batches = load_all_batches(&connection, owner_sub)?;
+        let source_index = batches
+            .iter()
+            .position(|batch| {
+                batch.children.iter().any(|child| child.child_order_id == payload.child_order_id)
+            })
+            .ok_or_else(|| anyhow!("order child not found"))?;
+        let mut source = batches.remove(source_index);
+        let child_index = source
+            .children
+            .iter()
+            .position(|child| child.child_order_id == payload.child_order_id)
+            .ok_or_else(|| anyhow!("order child not found"))?;
+        let child = source.children.remove(child_index);
+        if source.children.is_empty() {
+            connection.execute(
+                "DELETE FROM sena_order_child_lookup WHERE batch_order_id = ?1",
+                params![source.batch_order_id],
+            )?;
+            connection.execute(
+                "DELETE FROM sena_order_batch WHERE batch_order_id = ?1",
+                params![source.batch_order_id],
+            )?;
+        } else {
+            source.updated_at = now_rfc3339();
+            refresh_batch(&mut source);
+            persist_batch(&connection, &source)?;
+        }
+        let now = now_rfc3339();
+        let new_batch_id = build_batch_order_id(&now, source.supplier_name.as_deref());
+        let mut new_batch = SenaOrderBatchRecord {
+            batch_order_id: new_batch_id.clone(),
+            owner_sub: owner_sub.to_string(),
+            supplier_name: source.supplier_name.clone(),
+            status: SenaOrderBatchStatus::Open,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            shared: source.shared.clone(),
+            children: vec![SenaOrderChildRecord {
+                child_order_id: build_child_order_id(&new_batch_id, &child.sku_id),
+                sku_id: child.sku_id,
+                status: child.status,
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                inherited_from_batch: child.inherited_from_batch,
+                effective: child.effective,
+                overrides: child.overrides,
+            }],
+        };
+        refresh_batch(&mut new_batch);
+        persist_batch(&connection, &new_batch)?;
+        Ok(new_batch)
     }
 
     async fn create_run(
@@ -751,9 +1259,12 @@ mod tests {
     use super::SqliteSenaRepository;
     use crate::{
         build_checkpoint_metadata, fingerprint_catalog, preprocess_workspace,
-        service::SenaRepository, PreprocessedWorkspace, SenaCatalog, SenaLeadTimeHint,
-        SenaObservationInput, SenaObservationRecord, SenaOrderSignal, SenaService,
-        SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku, SenaStockSnapshot,
+        service::SenaRepository, PreprocessedWorkspace, SenaCatalog,
+        SenaCreateOrderBatchPayload, SenaLeadTimeHint, SenaObservationInput,
+        SenaObservationRecord, SenaOrderSignal, SenaService,
+        SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
+        SenaSplitOrderChildPayload, SenaStockSnapshot, SenaUpdateOrderBatchPayload,
+        SenaUpdateOrderChildPayload,
     };
     use futures::executor::block_on;
     use std::{
@@ -777,6 +1288,7 @@ mod tests {
                 sku_id: "sku-1".to_string(),
                 name: "SKU 1".to_string(),
                 description: "Inventory".to_string(),
+                image_path: None,
                 supplier_name: Some("Seed supplier".to_string()),
                 cost_per_unit: 2.0,
                 archived: false,
@@ -789,6 +1301,7 @@ mod tests {
                 service_id: "svc-1".to_string(),
                 name: "Service".to_string(),
                 description: "Linked service".to_string(),
+                image_path: None,
                 price: 10.0,
                 archived: false,
                 bundle: true,
@@ -981,5 +1494,134 @@ mod tests {
             .expect("observation should delete");
         let remaining = block_on(repo.list_observations("owner")).expect("observations should load");
         assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn order_batches_create_path_style_ids_and_child_records() {
+        let path = temp_store_path("order-create");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let batch = block_on(repo.create_order_batch(
+            "owner",
+            &SenaCreateOrderBatchPayload {
+                supplier_name: Some("Mekong Looms".to_string()),
+                shared: crate::types::SenaOrderFieldValues {
+                    supplier_name: Some("Mekong Looms".to_string()),
+                    ordered_quantity: None,
+                    received_quantity: None,
+                    cost_per_unit: None,
+                    supplier_note: Some("batch note".to_string()),
+                    expected_arrival_at: Some("2026-04-20T00:00:00Z".to_string()),
+                    placement_timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+                    receipt_timestamp: None,
+                    lead_time_days_hint: Some(5.0),
+                    lead_time_variability: None,
+                },
+                children: vec![
+                    crate::types::SenaOrderBatchCreateChildInput {
+                        sku_id: "shirt".to_string(),
+                        overrides: Some(crate::types::SenaOrderFieldValues {
+                            ordered_quantity: Some(10.0),
+                            ..Default::default()
+                        }),
+                    },
+                    crate::types::SenaOrderBatchCreateChildInput {
+                        sku_id: "pants".to_string(),
+                        overrides: Some(crate::types::SenaOrderFieldValues {
+                            ordered_quantity: Some(8.0),
+                            ..Default::default()
+                        }),
+                    },
+                ],
+            },
+        ))
+        .expect("order batch should create");
+
+        assert!(batch.batch_order_id.starts_with("orders/"));
+        assert_eq!(batch.children.len(), 2);
+        assert!(batch.children.iter().all(|child| child.child_order_id.starts_with(&batch.batch_order_id)));
+        assert_eq!(batch.children[0].effective.supplier_note.as_deref(), Some("batch note"));
+        assert_eq!(batch.children[0].effective.ordered_quantity, Some(10.0));
+    }
+
+    #[test]
+    fn order_batches_update_child_inheritance_and_split() {
+        let path = temp_store_path("order-update");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let batch = block_on(repo.create_order_batch(
+            "owner",
+            &SenaCreateOrderBatchPayload {
+                supplier_name: Some("Mekong Looms".to_string()),
+                shared: crate::types::SenaOrderFieldValues {
+                    supplier_name: Some("Mekong Looms".to_string()),
+                    expected_arrival_at: Some("2026-04-20T00:00:00Z".to_string()),
+                    ..Default::default()
+                },
+                children: vec![
+                    crate::types::SenaOrderBatchCreateChildInput {
+                        sku_id: "shirt".to_string(),
+                        overrides: Some(crate::types::SenaOrderFieldValues {
+                            ordered_quantity: Some(10.0),
+                            ..Default::default()
+                        }),
+                    },
+                    crate::types::SenaOrderBatchCreateChildInput {
+                        sku_id: "pants".to_string(),
+                        overrides: Some(crate::types::SenaOrderFieldValues {
+                            ordered_quantity: Some(8.0),
+                            ..Default::default()
+                        }),
+                    },
+                ],
+            },
+        ))
+        .expect("order batch should create");
+
+        let updated_batch = block_on(repo.update_order_batch(
+            "owner",
+            &SenaUpdateOrderBatchPayload {
+                batch_order_id: batch.batch_order_id.clone(),
+                shared: Some(crate::types::SenaOrderFieldValues {
+                    supplier_note: Some("shared update".to_string()),
+                    ..Default::default()
+                }),
+                supplier_name: None,
+                status: None,
+            },
+        ))
+        .expect("order batch should update");
+        assert!(updated_batch.children.iter().all(|child| child.effective.supplier_note.as_deref() == Some("shared update")));
+
+        let child_id = updated_batch.children[0].child_order_id.clone();
+        let child_updated = block_on(repo.update_order_child(
+            "owner",
+            &SenaUpdateOrderChildPayload {
+                child_order_id: child_id.clone(),
+                sku_id: None,
+                overrides: Some(crate::types::SenaOrderFieldValues {
+                    received_quantity: Some(5.0),
+                    receipt_timestamp: Some("2026-04-21T00:00:00Z".to_string()),
+                    ..Default::default()
+                }),
+                status: Some(crate::types::SenaOrderChildStatus::Received),
+                append_supplier_note: None,
+            },
+        ))
+        .expect("order child should update");
+        let changed_child = child_updated
+            .children
+            .iter()
+            .find(|child| child.child_order_id == child_id)
+            .expect("updated child should exist");
+        assert_eq!(changed_child.status, crate::types::SenaOrderChildStatus::Received);
+        assert_eq!(changed_child.effective.received_quantity, Some(5.0));
+
+        let split_batch = block_on(repo.split_order_child(
+            "owner",
+            &SenaSplitOrderChildPayload { child_order_id: child_id },
+        ))
+        .expect("child should split");
+        assert_ne!(split_batch.batch_order_id, batch.batch_order_id);
+        assert_eq!(split_batch.children.len(), 1);
+        assert_eq!(split_batch.children[0].effective.received_quantity, Some(5.0));
     }
 }

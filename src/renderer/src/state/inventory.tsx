@@ -13,15 +13,21 @@ import type { SenaEngineParameters } from '@shared/ipc';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaCreateOrderBatchPayload,
   SenaObservationDeletePayload,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaOrderBatchRecord,
+  SenaOrderLookupPayload,
+  SenaSplitOrderChildPayload,
   SenaObservationUpdatePayload,
   SenaService,
   SenaServiceDetailPage,
   SenaSku,
   SenaSkuDetailPage,
+  SenaUpdateOrderBatchPayload,
+  SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { normalizeSenaCatalog } from '@/lib/sena-catalog';
@@ -40,6 +46,7 @@ type ReadCacheValue =
   | StockReport[]
   | SenaCatalog
   | SenaObservationRecord[]
+  | SenaOrderBatchRecord[]
   | SenaWorkspaceSummary
   | SenaSkuDetailPage
   | SenaServiceDetailPage
@@ -79,6 +86,7 @@ export interface InventoryContextValue {
   isSaving: boolean;
   latestRun: SenaAnalysisRunRecord | null;
   observations: SenaObservationRecord[];
+  orderBatches: SenaOrderBatchRecord[];
   senaMeta: SenaMetaCache;
   workspaceSummary: SenaWorkspaceSummary | null;
   reload: () => Promise<void>;
@@ -95,6 +103,12 @@ export interface InventoryContextValue {
   deleteSenaObservation: (payload: SenaObservationDeletePayload) => Promise<void>;
   listSenaObservations: () => Promise<SenaObservationRecord[]>;
   loadSenaObservations: () => Promise<SenaObservationRecord[]>;
+  listSenaOrderBatches: (payload?: SenaOrderLookupPayload) => Promise<SenaOrderBatchRecord[]>;
+  loadSenaOrderBatches: (payload?: SenaOrderLookupPayload) => Promise<SenaOrderBatchRecord[]>;
+  createSenaOrderBatch: (payload: SenaCreateOrderBatchPayload) => Promise<SenaOrderBatchRecord>;
+  updateSenaOrderBatch: (payload: SenaUpdateOrderBatchPayload) => Promise<SenaOrderBatchRecord>;
+  updateSenaOrderChild: (payload: SenaUpdateOrderChildPayload) => Promise<SenaOrderBatchRecord>;
+  splitSenaOrderChild: (payload: SenaSplitOrderChildPayload) => Promise<SenaOrderBatchRecord>;
   triggerSenaRun: (payload?: { algorithmVersion?: string; parameters?: SenaEngineParameters }) => Promise<SenaAnalysisRunRecord>;
   retrySenaRun: (payload: { runId: string }) => Promise<SenaAnalysisRunRecord>;
   runWorkspacePreparation: <T>(task: () => Promise<T>) => Promise<T>;
@@ -122,6 +136,7 @@ function emptyState() {
     isSaving: false,
     latestRun: null as SenaAnalysisRunRecord | null,
     observations: [] as SenaObservationRecord[],
+    orderBatches: [] as SenaOrderBatchRecord[],
     workspaceSummary: null as SenaWorkspaceSummary | null,
   };
 }
@@ -228,6 +243,25 @@ function rewriteObservationInputForRenamedEntity(
   };
 }
 
+function rewriteOrderBatchForRenamedEntity(
+  batch: SenaOrderBatchRecord,
+  payload: RenameCatalogEntityPayload,
+): SenaOrderBatchRecord {
+  if (payload.entityType !== 'sku') {
+    return batch;
+  }
+  const changed = batch.children.some((child) => child.skuId === payload.previousId);
+  if (!changed) {
+    return batch;
+  }
+  return {
+    ...batch,
+    children: batch.children.map((child) =>
+      child.skuId === payload.previousId ? { ...child, skuId: payload.nextSku.skuId } : child,
+    ),
+  };
+}
+
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => emptyState());
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
@@ -324,16 +358,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     try {
       readCacheRef.current.clear();
       inflightRef.current.clear();
-      const [catalog, workspaceSummary, diagnostics, observations] = await Promise.all([
+      const [catalog, workspaceSummary, diagnostics, observations, orderBatches] = await Promise.all([
         window.banjiDesktop.sena.getCatalog().then(normalizeSenaCatalog),
         window.banjiDesktop.sena.getWorkspaceSummary(),
         window.banjiDesktop.sena.getDiagnostics(),
         window.banjiDesktop.sena.listObservations(),
+        window.banjiDesktop.sena.listOrderBatches(),
       ]);
       readCacheRef.current.set('sena:catalog', catalog);
       readCacheRef.current.set('sena:summary', workspaceSummary);
       readCacheRef.current.set('sena:diagnostics', diagnostics);
       readCacheRef.current.set('sena:observations', observations);
+      readCacheRef.current.set('sena:order-batches:{}', orderBatches);
       const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
       setState({
         snapshot: null,
@@ -345,6 +381,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         isSaving: false,
         latestRun,
         observations,
+        orderBatches,
         workspaceSummary,
       });
     } catch (error) {
@@ -455,7 +492,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
               : upsertSenaService(currentCatalog, payload.nextService, payload.skuIds, payload.previousId);
           const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(nextCatalog));
 
-          const existingObservations = await window.banjiDesktop.sena.listObservations();
+          const [existingObservations, existingOrderBatches] = await Promise.all([
+            window.banjiDesktop.sena.listObservations(),
+            window.banjiDesktop.sena.listOrderBatches(),
+          ]);
           for (const observation of existingObservations) {
             const nextInput = rewriteObservationInputForRenamedEntity(observation.input, payload);
             if (nextInput !== observation.input) {
@@ -465,8 +505,25 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
               });
             }
           }
+          for (const batch of existingOrderBatches) {
+            const nextBatch = rewriteOrderBatchForRenamedEntity(batch, payload);
+            if (nextBatch !== batch) {
+              for (const child of nextBatch.children) {
+                const original = batch.children.find((entry) => entry.childOrderId === child.childOrderId);
+                if (original && original.skuId !== child.skuId) {
+                  await window.banjiDesktop.sena.updateOrderChild({
+                    childOrderId: child.childOrderId,
+                    skuId: child.skuId,
+                  });
+                }
+              }
+            }
+          }
 
-          const observations = await window.banjiDesktop.sena.listObservations();
+          const [observations, orderBatches] = await Promise.all([
+            window.banjiDesktop.sena.listObservations(),
+            window.banjiDesktop.sena.listOrderBatches(),
+          ]);
           const run =
             payload.previousId !== nextId
               ? await window.banjiDesktop.sena.triggerRun({
@@ -485,6 +542,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           ]);
           readCacheRef.current.set('sena:catalog', catalog);
           readCacheRef.current.set('sena:observations', observations);
+          readCacheRef.current.set('sena:order-batches:{}', orderBatches);
           readCacheRef.current.set('sena:summary', workspaceSummary);
           readCacheRef.current.set('sena:diagnostics', diagnostics);
           if (run) {
@@ -498,6 +556,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             diagnostics,
             latestRun: run ?? state.latestRun,
             observations,
+            orderBatches,
             workspaceSummary,
           });
           return catalog;
@@ -589,6 +648,58 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         setStatePartial({ observations });
         return observations;
       },
+      listSenaOrderBatches: async (payload) => {
+        const key = `sena:order-batches:${JSON.stringify(payload ?? {})}`;
+        const orderBatches = await loadWithCache(key, () => window.banjiDesktop.sena.listOrderBatches(payload));
+        if (!payload || Object.keys(payload).length === 0) {
+          setStatePartial({ orderBatches });
+        }
+        return orderBatches;
+      },
+      loadSenaOrderBatches: async (payload) => {
+        const key = `sena:order-batches:${JSON.stringify(payload ?? {})}`;
+        const orderBatches = await loadWithCache(key, () => window.banjiDesktop.sena.listOrderBatches(payload));
+        if (!payload || Object.keys(payload).length === 0) {
+          setStatePartial({ orderBatches });
+        }
+        return orderBatches;
+      },
+      createSenaOrderBatch: async (payload) =>
+        withSaving(async () => {
+          const batch = await window.banjiDesktop.sena.createOrderBatch(payload);
+          invalidateSenaReads();
+          const orderBatches = await window.banjiDesktop.sena.listOrderBatches();
+          readCacheRef.current.set('sena:order-batches:{}', orderBatches);
+          setStatePartial({ orderBatches });
+          return batch;
+        }),
+      updateSenaOrderBatch: async (payload) =>
+        withSaving(async () => {
+          const batch = await window.banjiDesktop.sena.updateOrderBatch(payload);
+          invalidateSenaReads();
+          const orderBatches = await window.banjiDesktop.sena.listOrderBatches();
+          readCacheRef.current.set('sena:order-batches:{}', orderBatches);
+          setStatePartial({ orderBatches });
+          return batch;
+        }),
+      updateSenaOrderChild: async (payload) =>
+        withSaving(async () => {
+          const batch = await window.banjiDesktop.sena.updateOrderChild(payload);
+          invalidateSenaReads();
+          const orderBatches = await window.banjiDesktop.sena.listOrderBatches();
+          readCacheRef.current.set('sena:order-batches:{}', orderBatches);
+          setStatePartial({ orderBatches });
+          return batch;
+        }),
+      splitSenaOrderChild: async (payload) =>
+        withSaving(async () => {
+          const batch = await window.banjiDesktop.sena.splitOrderChild(payload);
+          invalidateSenaReads();
+          const orderBatches = await window.banjiDesktop.sena.listOrderBatches();
+          readCacheRef.current.set('sena:order-batches:{}', orderBatches);
+          setStatePartial({ orderBatches });
+          return batch;
+        }),
       triggerSenaRun: async (payload) =>
         withSaving(async () => {
           const run = await window.banjiDesktop.sena.triggerRun(payload);

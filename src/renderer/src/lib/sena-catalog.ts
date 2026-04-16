@@ -7,9 +7,15 @@ export type SenaCatalogEntityType = 'sku' | 'service';
 export function normalizeSenaSku(sku: SenaSku): SenaSku {
   return {
     ...sku,
+    imagePath: normalizeImagePath(sku.imagePath),
     supplierName: normalizeSupplierName(sku.supplierName),
     archived: sku.archived ?? false,
   };
+}
+
+function normalizeImagePath(value: string | null | undefined) {
+  const normalized = value?.trim() ?? '';
+  return normalized.length > 0 ? normalized : null;
 }
 
 export function normalizeSupplierName(value: string | null | undefined) {
@@ -19,6 +25,17 @@ export function normalizeSupplierName(value: string | null | undefined) {
 
 export function supplierNameForSku(sku: SenaSku | null | undefined) {
   return normalizeSupplierName(sku?.supplierName);
+}
+
+export function matchesSupplierName(supplierName: string | null | undefined, supplierFilter: SupplierFilterValue | null | undefined) {
+  if (!supplierFilter || supplierFilter === 'all') {
+    return true;
+  }
+  const normalizedSupplierName = normalizeSupplierName(supplierName);
+  if (supplierFilter === 'none') {
+    return normalizedSupplierName == null;
+  }
+  return normalizedSupplierName === supplierFilter;
 }
 
 export function supplierNamesFromCatalog(catalog: SenaCatalog | null | undefined) {
@@ -34,14 +51,68 @@ export function supplierNamesFromCatalog(catalog: SenaCatalog | null | undefined
 export type SupplierFilterValue = 'all' | 'none' | string;
 
 export function matchesSkuSupplier(sku: SenaSku, supplierFilter: SupplierFilterValue | null | undefined) {
+  return matchesSupplierName(supplierNameForSku(sku), supplierFilter);
+}
+
+export function linkedSkusForService(catalog: SenaCatalog | null | undefined, serviceId: string) {
+  if (!catalog) {
+    return [];
+  }
+
+  const skuById = new Map(catalog.skus.map((sku) => [sku.skuId, sku] as const));
+  return catalog.sharingMask
+    .filter((entry) => entry.enabled && entry.serviceId === serviceId)
+    .map((entry) => skuById.get(entry.skuId))
+    .filter((sku): sku is SenaSku => Boolean(sku));
+}
+
+export function supplierNamesForService(catalog: SenaCatalog | null | undefined, serviceId: string) {
+  return Array.from(
+    new Set(
+      linkedSkusForService(catalog, serviceId)
+        .map((sku) => supplierNameForSku(sku))
+        .filter((supplierName): supplierName is string => Boolean(supplierName)),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+}
+
+export function matchesServiceSupplier(
+  service: SenaService,
+  catalog: SenaCatalog | null | undefined,
+  supplierFilter: SupplierFilterValue | null | undefined,
+) {
   if (!supplierFilter || supplierFilter === 'all') {
     return true;
   }
-  const supplierName = supplierNameForSku(sku);
+
+  const linkedSkus = linkedSkusForService(catalog, service.serviceId);
   if (supplierFilter === 'none') {
-    return supplierName == null;
+    return linkedSkus.every((sku) => supplierNameForSku(sku) == null);
   }
-  return supplierName === supplierFilter;
+
+  return linkedSkus.some((sku) => matchesSkuSupplier(sku, supplierFilter));
+}
+
+export function filterCatalogBySupplier(
+  catalog: SenaCatalog | null | undefined,
+  supplierFilter: SupplierFilterValue | null | undefined,
+) {
+  if (!catalog || !supplierFilter || supplierFilter === 'all') {
+    return catalog ?? null;
+  }
+
+  const skus = catalog.skus.filter((sku) => matchesSkuSupplier(sku, supplierFilter));
+  const services = catalog.services.filter((service) => matchesServiceSupplier(service, catalog, supplierFilter));
+  const skuIds = new Set(skus.map((sku) => sku.skuId));
+  const serviceIds = new Set(services.map((service) => service.serviceId));
+
+  return {
+    ...catalog,
+    skus,
+    services,
+    bundles: catalog.bundles.filter((bundle) => serviceIds.has(bundle.serviceId)),
+    sharingMask: catalog.sharingMask.filter((entry) => serviceIds.has(entry.serviceId) && skuIds.has(entry.skuId)),
+  };
 }
 
 export function skuSearchParts(sku: SenaSku) {
@@ -69,6 +140,7 @@ export function groupSkusBySupplier<T extends { skuId: string }>(
 export function normalizeSenaService(service: SenaService): SenaService {
   return {
     ...service,
+    imagePath: normalizeImagePath(service.imagePath),
     archived: service.archived ?? false,
   };
 }

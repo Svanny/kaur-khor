@@ -5,8 +5,10 @@ use crate::{
         SenaAnalysisCheckpoint, SenaEngineParameters,
     },
     types::{
-        SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaObservationInput,
-        SenaObservationRecord,
+        SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog,
+        SenaCreateOrderBatchPayload, SenaObservationInput, SenaObservationRecord,
+        SenaOrderBatchRecord, SenaOrderLookupPayload, SenaSplitOrderChildPayload,
+        SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
     },
 };
 use anyhow::{anyhow, Result};
@@ -31,6 +33,31 @@ pub trait SenaRepository {
     ) -> Result<SenaObservationRecord>;
     async fn delete_observation(&self, owner_sub: &str, observation_id: &str) -> Result<()>;
     async fn list_observations(&self, owner_sub: &str) -> Result<Vec<SenaObservationRecord>>;
+    async fn list_order_batches(
+        &self,
+        owner_sub: &str,
+        filters: Option<&SenaOrderLookupPayload>,
+    ) -> Result<Vec<SenaOrderBatchRecord>>;
+    async fn create_order_batch(
+        &self,
+        owner_sub: &str,
+        payload: &SenaCreateOrderBatchPayload,
+    ) -> Result<SenaOrderBatchRecord>;
+    async fn update_order_batch(
+        &self,
+        owner_sub: &str,
+        payload: &SenaUpdateOrderBatchPayload,
+    ) -> Result<SenaOrderBatchRecord>;
+    async fn update_order_child(
+        &self,
+        owner_sub: &str,
+        payload: &SenaUpdateOrderChildPayload,
+    ) -> Result<SenaOrderBatchRecord>;
+    async fn split_order_child(
+        &self,
+        owner_sub: &str,
+        payload: &SenaSplitOrderChildPayload,
+    ) -> Result<SenaOrderBatchRecord>;
     async fn create_run(
         &self,
         owner_sub: &str,

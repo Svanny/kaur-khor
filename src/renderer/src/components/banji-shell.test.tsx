@@ -356,6 +356,29 @@ describe('BanjiShell', () => {
     expect(screen.getByText('ស្វែងរក')).toBeInTheDocument();
   });
 
+  test('hides the sidebar search hint when the desktop rail is collapsed', async () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Search')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('sidebar-collapse-toggle'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Search')).not.toBeInTheDocument();
+      expect(screen.queryByText('K')).not.toBeInTheDocument();
+    });
+  });
+
   test('shows the global workspace-preparing screen during a post-save preparation run', () => {
     inventoryHook.mockReturnValue({
       error: null,

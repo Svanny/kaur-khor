@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActionResetIcon } from '@icons/actions';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
+import { SupplierFilter } from '@/components/system/supplier';
 import { WorkspaceActionRow, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { activeSenaCatalog } from '@/lib/sena-catalog';
+import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { usePreferences } from '@/state/preferences';
 import { AnalysisWorkbench } from './analysis-workbench';
 import {
@@ -30,9 +31,11 @@ type AnalysisContentProps = {
   serviceDetailsById: Record<string, import('@shared/sena').SenaServiceDetail | null>;
   setScope: (scope: AnalysisScope) => void;
   setSection: (section: AnalysisSection) => void;
+  setSupplierFilter: (supplierFilter: SupplierFilterValue) => void;
   setTimeframe: (timeframe: AnalysisTimeframe) => void;
   showRightRailCards: boolean;
   skuDetailsById: Record<string, import('@shared/sena').SenaSkuDetail | null>;
+  supplierFilter: SupplierFilterValue;
   timeframe: AnalysisTimeframe;
   timeframeHydrationProgress: { current: number; total: number } | null;
 };
@@ -51,9 +54,11 @@ export function AnalysisContent({
   serviceDetailsById,
   setScope,
   setSection,
+  setSupplierFilter,
   setTimeframe,
   showRightRailCards,
   skuDetailsById,
+  supplierFilter,
   timeframe,
   timeframeHydrationProgress,
 }: AnalysisContentProps) {
@@ -62,7 +67,11 @@ export function AnalysisContent({
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
   const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
   const [pendingTimeframe, setPendingTimeframe] = useState<AnalysisTimeframe | null>(null);
-  const visibleCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
+  const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
+  const visibleCatalog = useMemo(
+    () => filterCatalogBySupplier(baseCatalog, supplierFilter),
+    [baseCatalog, supplierFilter],
+  );
   const model = useMemo(() => {
     if (!visibleCatalog || !inventory.workspaceSummary) {
       return null;
@@ -187,6 +196,12 @@ export function AnalysisContent({
                 </ToggleGroupItem>
                 </ToggleGroup>
             )}
+            <SupplierFilter
+              catalog={baseCatalog}
+              className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+              value={supplierFilter}
+              onChange={setSupplierFilter}
+            />
             <Button
               aria-busy={isRunningAnalysis}
               disabled={inventory.isSaving || isRunningAnalysis}

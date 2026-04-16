@@ -63,6 +63,7 @@ export type OverviewRouteState = {
 export type AnalysisRouteState = {
   scope: AnalysisScopeValue;
   section: AnalysisSectionValue;
+  supplier: string | null;
   timeframe: AnalysisTimeframeValue;
 };
 
@@ -75,6 +76,7 @@ export type PerformanceRouteState = {
 
 export type OperationsRouteState = {
   scope: OperationsScopeValue;
+  supplier: string | null;
   view: OperationsViewValue;
 };
 
@@ -203,6 +205,7 @@ export function readAnalysisRouteState(searchParams: URLSearchParams): AnalysisR
   return {
     scope: readEnumValue(searchParams, 'scope', analysisScopeValues, 'all'),
     section: readEnumValue(searchParams, 'section', analysisSectionValues, 'workbench'),
+    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
     timeframe: readEnumValue(searchParams, 'timeframe', analysisTimeframeValues, 'Recent'),
   };
 }
@@ -217,6 +220,7 @@ export function buildAnalysisSearchParams(
 
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
   writeEnumValue(searchParams, 'section', resolvedState.section, 'workbench');
+  writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   writeEnumValue(searchParams, 'timeframe', resolvedState.timeframe, 'Recent');
   return searchParams;
 }
@@ -259,6 +263,7 @@ export function buildPerformanceHref(
 export function readOperationsRouteState(searchParams: URLSearchParams): OperationsRouteState {
   return {
     scope: readEnumValue(searchParams, 'scope', operationsScopeValues, 'all'),
+    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
     view: readEnumValue(searchParams, 'view', operationsViewValues, 'heatmap'),
   };
 }
@@ -272,6 +277,7 @@ export function buildOperationsSearchParams(
   const resolvedState = { ...currentState, ...nextState };
 
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
+  writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   writeEnumValue(searchParams, 'view', resolvedState.view, 'heatmap');
   return searchParams;
 }

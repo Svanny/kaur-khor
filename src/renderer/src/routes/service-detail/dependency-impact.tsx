@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { MeasuredPagedDetailPanel } from '@/routes/detail-panels';
 import { usePreferences } from '@/state/preferences';
 import type { ServiceDetailViewModel } from './view-model';
@@ -18,12 +19,18 @@ export function ServiceDependencyImpact({
       renderItem={(row) => (
         <div className="grid gap-3 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <Link className="font-medium text-foreground underline-offset-4 hover:underline" to={row.openSkuHref}>
-                {row.name}
-              </Link>
-              <p className="mt-1 text-sm text-muted-foreground">{row.role}</p>
-            </div>
+            <ItemIdentityBlock
+              align="center"
+              description={row.role}
+              imagePath={row.imagePath}
+              name={
+                <Link className="font-medium text-foreground underline-offset-4 hover:underline" to={row.openSkuHref}>
+                  {row.name}
+                </Link>
+              }
+              size="compact"
+              type="sku"
+            />
             <div className="text-right text-sm text-muted-foreground">
               <p>{row.daysOfCover}</p>
               <p>{row.limitingProbability}</p>

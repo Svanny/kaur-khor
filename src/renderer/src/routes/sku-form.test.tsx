@@ -97,9 +97,24 @@ function renderWithProviders(
   );
 }
 
+function findButtonByText(text: string) {
+  return screen.getAllByRole('button').find((button) => button.textContent?.includes(text)) as HTMLButtonElement;
+}
+
 describe('SkuFormRoute', () => {
+  const pickAndStoreImage = vi.fn();
+
   beforeEach(() => {
     window.sessionStorage.clear();
+    pickAndStoreImage.mockReset();
+    pickAndStoreImage.mockResolvedValue('/tmp/sku-image.png');
+    window.banjiDesktop = {
+      ...(window.banjiDesktop ?? {}),
+      system: {
+        ...(window.banjiDesktop?.system ?? {}),
+        pickAndStoreImage,
+      },
+    };
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isSaving: false,
@@ -167,6 +182,32 @@ describe('SkuFormRoute', () => {
     await waitFor(() => {
       expect(screen.getByText('SKU detail destination')).toBeInTheDocument();
     });
+  });
+
+  test('adds a sku picture in edit mode', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.click(findButtonByText('Choose image'));
+
+    await waitFor(() => {
+      expect(pickAndStoreImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].imagePath).toBe('/tmp/sku-image.png');
   });
 
   test('replaces the new SKU route so back from the created detail page returns to catalog', async () => {
@@ -253,6 +294,23 @@ describe('SkuFormRoute', () => {
     });
     expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0]).toMatchObject({
       supplierName: 'Tonle Linen Works',
+    });
+  });
+
+  test('marks edit form dirty when switching supplier field to custom mode', async () => {
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const saveButton = screen.getByRole('button', { name: 'Save changes' });
+    await waitFor(() => {
+      expect(saveButton).toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Custom supplier' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Custom supplier' })).toBeInTheDocument();
+      expect(saveButton).toBeEnabled();
     });
   });
 

@@ -6,8 +6,11 @@ import {
   ActionExplosionIcon,
   ActionOpenFolderIcon,
   ActionSaveIcon,
+  ActionSquareDashedIcon,
+  ActionSquareIcon,
   ActionUndoIcon,
 } from '@icons/actions';
+import { overviewTaskActionIcons } from '@icons/domain';
 import { EntityBackupIcon, EntityComparisonIcon, EntityFavoriteIcon, EntitySignalIcon } from '@icons/entities';
 import {
   NavigationAnalysisIcon,
@@ -26,6 +29,7 @@ import {
   normalizeSenaEngineParameters,
   senaEngineParametersEqual,
   type DesktopClearCurrentDataResult,
+  type DesktopItemImageMode,
   type DesktopLocalDataInfo,
   type SenaEngineParameters,
 } from '@shared/ipc';
@@ -141,6 +145,61 @@ type ExportFormat = SettingsExportFormat;
 type SenaEngineNumberDrafts = Record<SenaEngineNumberField, string>;
 type SenaEngineNumberErrors = Partial<Record<SenaEngineNumberField, string>>;
 type TranslateFn = ReturnType<typeof usePreferences>['t'];
+type TaskBatchUpdatePreference = ReturnType<typeof usePreferences>['taskBatchUpdatePreferences']['logOrder'];
+
+type TaskBatchUpdatePreferenceField = {
+  key: keyof ReturnType<typeof usePreferences>['taskBatchUpdatePreferences'];
+  label: string;
+  action: 'log_order' | 'update_eta' | 'follow_up' | 'receive' | 'review';
+};
+
+const TASK_BATCH_UPDATE_PREFERENCE_OPTIONS: Array<{
+  value: TaskBatchUpdatePreference;
+  label: string;
+}> = [
+  { value: 'ask', label: 'Ask every time' },
+  { value: 'always_alone', label: 'Always update alone' },
+  { value: 'always_batch', label: 'Always batch update' },
+];
+
+const TASK_BATCH_UPDATE_PREFERENCE_FIELDS: TaskBatchUpdatePreferenceField[] = [
+  {
+    key: 'logOrder',
+    label: 'Log order',
+    action: 'log_order',
+  },
+  {
+    key: 'updateEta',
+    label: 'Update ETA',
+    action: 'update_eta',
+  },
+  {
+    key: 'followUp',
+    label: 'Follow up',
+    action: 'follow_up',
+  },
+  {
+    key: 'receive',
+    label: 'Receive',
+    action: 'receive',
+  },
+  {
+    key: 'review',
+    label: 'Review',
+    action: 'review',
+  },
+];
+
+const ITEM_IMAGE_MODE_OPTIONS: Array<{
+  icon: React.ElementType;
+  value: DesktopItemImageMode;
+  label: string;
+}> = [
+  { icon: ActionSquareDashedIcon, value: 'off', label: 'Off' },
+  { icon: ActionSquareIcon, value: 'thumbnail', label: 'Thumbnail' },
+  { icon: ActionSquareIcon, value: 'small', label: 'Small' },
+  { icon: ActionSquareIcon, value: 'medium', label: 'Medium' },
+];
 
 function buildSenaEngineParameterFields(t: TranslateFn) {
   return SENA_ENGINE_PARAMETER_FIELD_META.map((field) => ({
@@ -364,19 +423,30 @@ function WorkspacePreferencesPage({
   currency,
   exchangeRateDraft,
   exchangeRateError,
+  itemImageMode,
   language,
   setCurrency,
   setExchangeRateDraft,
+  setItemImageMode,
   setLanguage,
+  setTaskBatchUpdatePreference,
+  taskBatchUpdatePreferences,
   t,
 }: {
   currency: 'USD' | 'KHR';
   exchangeRateDraft: string;
   exchangeRateError: string | null;
+  itemImageMode: DesktopItemImageMode;
   language: 'en' | 'km';
   setCurrency: (value: 'USD' | 'KHR') => void;
   setExchangeRateDraft: (value: string) => void;
+  setItemImageMode: (value: DesktopItemImageMode) => void;
   setLanguage: (value: 'en' | 'km') => void;
+  setTaskBatchUpdatePreference: (
+    key: keyof ReturnType<typeof usePreferences>['taskBatchUpdatePreferences'],
+    value: TaskBatchUpdatePreference,
+  ) => void;
+  taskBatchUpdatePreferences: ReturnType<typeof usePreferences>['taskBatchUpdatePreferences'];
   t: TranslateFn;
 }) {
   return (
@@ -433,8 +503,116 @@ function WorkspacePreferencesPage({
             )}
           </label>
         </div>
+        <div className="grid gap-1">
+          <p className="text-sm font-medium text-foreground">Item pictures</p>
+          <p className="text-sm text-muted-foreground">
+            Control whether SKU and service pictures appear, and how large they render.
+          </p>
+          <Select value={itemImageMode} onValueChange={(value) => setItemImageMode(value as DesktopItemImageMode)}>
+            <SelectTrigger aria-label="Item picture size" className={preferenceSelectTriggerClassName}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ITEM_IMAGE_MODE_OPTIONS.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <SelectItem key={option.value} value={option.value}>
+                    <span className="flex items-center gap-3">
+                      <span className="flex w-6 items-center justify-center">
+                        <Icon
+                          className={`${option.value === 'thumbnail' ? 'size-3' : option.value === 'small' ? 'size-4' : 'size-6 text-muted-foreground'}`}
+                        />
+                      </span>
+                      <span className="align-baseline text-foreground">{option.label}</span>
+                    </span>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">Overview batch-action defaults</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Choose whether Banji should ask, open one SKU at a time, or jump straight into a batch update for each overview action button.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            {TASK_BATCH_UPDATE_PREFERENCE_FIELDS.map((field) => {
+              const TaskActionIcon = overviewTaskActionIcons[field.action] ?? NavigationTaskListIcon;
+
+              return (
+                <div
+                  key={field.key}
+                  className="flex flex-col gap-3 border-b border-border/60 py-2 last:border-b-0 sm:flex-row sm:items-center"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <TaskActionIcon className="size-5 shrink-0 text-foreground" />
+                    <span className="text-sm font-medium text-foreground">{field.label}</span>
+                  </div>
+                  <Select
+                    value={taskBatchUpdatePreferences[field.key]}
+                    onValueChange={(value) =>
+                      setTaskBatchUpdatePreference(field.key, value as TaskBatchUpdatePreference)
+                    }
+                  >
+                    <SelectTrigger
+                      aria-label={field.label}
+                      className={`${preferenceSelectTriggerClassName} sm:ml-auto sm:max-w-xs`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start" position="popper">
+                      {TASK_BATCH_UPDATE_PREFERENCE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </WorkspacePanel>
+  );
+}
+
+function DisplayViewModeToggle({
+  displayViewMode,
+  setDisplayViewMode,
+  t,
+}: {
+  displayViewMode: 'compact' | 'custom';
+  setDisplayViewMode: (value: 'compact' | 'custom') => void;
+  t: TranslateFn;
+}) {
+  return (
+    <ToggleGroup
+      aria-label="Display view mode"
+      className="max-w-full justify-start overflow-x-auto rounded-full"
+      orientation="horizontal"
+      spacing={1}
+      type="single"
+      value={displayViewMode}
+      onValueChange={(nextValue) => {
+        if (nextValue === 'compact' || nextValue === 'custom') {
+          setDisplayViewMode(nextValue);
+        }
+      }}
+    >
+      <ToggleGroupItem aria-label="Compact View" value="compact">
+        <NavigationSplitViewIcon data-icon="inline-start" />
+        {t('shellViewModeMinimal')}
+      </ToggleGroupItem>
+      <ToggleGroupItem aria-label="Custom View" value="custom">
+        <NavigationBoardViewIcon data-icon="inline-start" />
+        {t('shellViewModeMaximal')}
+      </ToggleGroupItem>
+    </ToggleGroup>
   );
 }
 
@@ -483,134 +661,125 @@ function InterfaceVisibilityPage({
 }) {
   return (
     <WorkspacePanel>
-      <div className="divide-y divide-border/60">
-        <CheckboxRow
-          checked={showExplanatoryTooltips}
-          className="pt-2"
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowOptionalHelpHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<StatusHelpBadgeIcon className="size-4" />}
-          label={t('settingsShowOptionalHelpLabel')}
-          variant="flat"
-          onCheckedChange={setShowExplanatoryTooltips}
-        />
-        <CheckboxRow
-          checked={showFloatingTitleActions}
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowFloatingActionsHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<NavigationWorkspacePanelsIcon className="size-4" />}
-          label={t('settingsShowFloatingActionsLabel')}
-          variant="flat"
-          onCheckedChange={setShowFloatingTitleActions}
-        />
-        <CheckboxRow
-          checked={showRightRailCards}
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowRightRailCardsHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<NavigationRightPanelIcon className="size-4" />}
-          label="Show right rail cards"
-          variant="flat"
-          onCheckedChange={setShowRightRailCards}
-        />
-        <CheckboxRow
-          checked={showOverviewTaskTabs}
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowOverviewTaskTabsHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<NavigationTaskListIcon className="size-4" />}
-          label={t('settingsShowOverviewTaskTabsLabel')}
-          variant="flat"
-          onCheckedChange={setShowOverviewTaskTabs}
-        />
-        <CheckboxRow
-          checked={showAnalysisPage}
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowAnalysisPageHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<NavigationAnalysisIcon className="size-4" />}
-          label={t('settingsShowAnalysisPageLabel')}
-          variant="flat"
-          onCheckedChange={setShowAnalysisPage}
-        />
-        <CheckboxRow
-          checked={showPerformanceCompareToggle}
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowPerformanceCompareToggleHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<EntityComparisonIcon className="size-4" />}
-          label={t('settingsShowPerformanceCompareToggleLabel')}
-          variant="flat"
-          onCheckedChange={setShowPerformanceCompareToggle}
-        />
-        <CheckboxRow
-          checked={showPerformanceTimelineCard}
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowPerformanceTimelineCardHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<NavigationPerformanceIcon className="size-4" />}
-          label={t('settingsShowPerformanceTimelineCardLabel')}
-          variant="flat"
-          onCheckedChange={setShowPerformanceTimelineCard}
-        />
-        <CheckboxRow
-          checked={showLogsViewToggle}
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowLogsViewToggleHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<NavigationListIcon className="size-4" />}
-          label={t('settingsShowLogsViewToggleLabel')}
-          variant="flat"
-          onCheckedChange={setShowLogsViewToggle}
-        />
-        <CheckboxRow
-          checked={showHeartbeatRibbons}
-          disabled={interfaceVisibilityDisabled}
-          helper={t('settingsShowHeartbeatRibbonsHelp')}
-          hint={interfaceVisibilityDisabled ? t('settingsViewModeCompactLocksHelp') : undefined}
-          icon={<EntitySignalIcon className="size-4" />}
-          label={t('settingsShowHeartbeatRibbonsLabel')}
-          variant="flat"
-          onCheckedChange={setShowHeartbeatRibbons}
-        />
+      <div className="grid">
+        <div>
+          <CheckboxRow
+            checked={showExplanatoryTooltips}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show extra guidance"
+            hint="Adds extra explanatory labels and helper copy across the desktop."
+            icon={<StatusHelpBadgeIcon className="size-4" />}
+            label="Show extra guidance"
+            onCheckedChange={setShowExplanatoryTooltips}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showFloatingTitleActions}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show floating title actions"
+            hint="Keeps contextual page actions visible near workspace titles."
+            icon={<NavigationWorkspacePanelsIcon className="size-4" />}
+            label="Show floating title actions"
+            onCheckedChange={setShowFloatingTitleActions}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showRightRailCards}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show right rail cards"
+            hint="Displays supplemental side cards for context and quick actions."
+            icon={<NavigationRightPanelIcon className="size-4" />}
+            label="Show right rail cards"
+            onCheckedChange={setShowRightRailCards}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showOverviewTaskTabs}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show overview task tabs"
+            hint="Keeps task-focused tabs visible in the overview workspace."
+            icon={<NavigationTaskListIcon className="size-4" />}
+            label="Show overview task tabs"
+            onCheckedChange={setShowOverviewTaskTabs}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showAnalysisPage}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show analysis page"
+            hint="Keeps the analysis route available in navigation."
+            icon={<NavigationAnalysisIcon className="size-4" />}
+            label="Show analysis page"
+            onCheckedChange={setShowAnalysisPage}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showPerformanceCompareToggle}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show performance compare toggle"
+            hint="Lets you switch between comparison views inside performance analysis."
+            icon={<EntityComparisonIcon className="size-4" />}
+            label="Show performance compare toggle"
+            onCheckedChange={setShowPerformanceCompareToggle}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showPerformanceTimelineCard}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show business timeline card"
+            hint="Shows the timeline card in performance and business review screens."
+            icon={<NavigationPerformanceIcon className="size-4" />}
+            label="Show business timeline card"
+            onCheckedChange={setShowPerformanceTimelineCard}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showLogsViewToggle}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show logs view button"
+            hint="Keeps the logs view shortcut visible where available."
+            icon={<NavigationListIcon className="size-4" />}
+            label="Show logs view button"
+            onCheckedChange={setShowLogsViewToggle}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showHeartbeatRibbons}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show heartbeats and ribbons"
+            hint="Shows heartbeat indicators and status ribbons throughout the shell."
+            icon={<EntitySignalIcon className="size-4" />}
+            label="Show heartbeats and ribbons"
+            onCheckedChange={setShowHeartbeatRibbons}
+            variant="flat"
+          />
+        </div>
       </div>
     </WorkspacePanel>
-  );
-}
-
-function DisplayViewModeToggle({
-  displayViewMode,
-  setDisplayViewMode,
-  t,
-}: {
-  displayViewMode: 'compact' | 'custom';
-  setDisplayViewMode: (mode: 'compact' | 'custom') => void;
-  t: TranslateFn;
-}) {
-  return (
-    <ToggleGroup
-      className="max-w-full justify-start overflow-x-auto rounded-full"
-      orientation="horizontal"
-      spacing={1}
-      type="single"
-      value={displayViewMode}
-      onValueChange={(nextValue) => {
-        if (nextValue === 'compact' || nextValue === 'custom') {
-          setDisplayViewMode(nextValue);
-        }
-      }}
-    >
-      <ToggleGroupItem value="compact">
-        <NavigationSplitViewIcon data-icon="inline-start" />
-        {t('shellViewModeMinimal')}
-      </ToggleGroupItem>
-      <ToggleGroupItem value="custom">
-        <NavigationBoardViewIcon data-icon="inline-start" />
-        {t('shellViewModeMaximal')}
-      </ToggleGroupItem>
-    </ToggleGroup>
   );
 }
 
@@ -909,7 +1078,11 @@ export function SettingsRoute() {
     setShowPerformanceCompareToggle,
     setShowPerformanceTimelineCard,
     setDisplayViewMode,
+    setItemImageMode,
+    setTaskBatchUpdatePreference,
+    taskBatchUpdatePreferences,
     displayViewMode,
+    itemImageMode,
     showFloatingTitleActions,
     showHeartbeatRibbons,
     showRightRailCards,
@@ -1185,7 +1358,7 @@ export function SettingsRoute() {
               </WorkspaceActionRow>
             ) : undefined
           }
-          descriptor={isInterfaceSection ? undefined : t(currentSection.descriptionKey)}
+          descriptor={t(currentSection.descriptionKey)}
           eyebrow={t('settingsTitle')}
           title={t(currentSection.titleKey)}
         />
@@ -1198,10 +1371,14 @@ export function SettingsRoute() {
                   currency={currency}
                   exchangeRateDraft={exchangeRateDraft}
                   exchangeRateError={exchangeRateError}
+                  itemImageMode={itemImageMode}
                   language={language}
                   setCurrency={setCurrency}
                   setExchangeRateDraft={setExchangeRateDraft}
+                  setItemImageMode={setItemImageMode}
                   setLanguage={setLanguage}
+                  setTaskBatchUpdatePreference={setTaskBatchUpdatePreference}
+                  taskBatchUpdatePreferences={taskBatchUpdatePreferences}
                   t={t}
                 />
               }

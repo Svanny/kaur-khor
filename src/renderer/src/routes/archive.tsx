@@ -23,6 +23,7 @@ import {
 import {
   archivedSenaServices,
   archivedSenaSkus,
+  matchesServiceSupplier,
   matchesSkuSupplier,
   skuSearchParts,
 } from '@/lib/sena-catalog';
@@ -60,7 +61,8 @@ export function ArchiveRoute() {
     matchesCatalogQuery(skuSearchParts(sku).filter(Boolean).join(' '), query) && matchesSkuSupplier(sku, supplierFilter),
   );
   const archivedServices = archivedSenaServices(inventory.catalog).filter((service) =>
-    matchesCatalogQuery([service.serviceId, service.name, service.description].join(' '), query),
+    matchesCatalogQuery([service.serviceId, service.name, service.description].join(' '), query) &&
+    matchesServiceSupplier(service, inventory.catalog, supplierFilter),
   );
   const showSkus = view !== 'services';
   const showServices = view !== 'skus';
@@ -166,7 +168,7 @@ export function ArchiveRoute() {
           </ToggleGroup>
           <SupplierFilter
             catalog={inventory.catalog}
-            className="h-12 w-full rounded-full border-transparent bg-muted/65 px-4 shadow-none data-[size=default]:h-12 sm:w-auto"
+            className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
             value={supplierFilter}
             onChange={(nextSupplier) => {
               setSearchParams(

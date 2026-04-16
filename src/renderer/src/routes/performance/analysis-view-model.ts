@@ -74,6 +74,7 @@ export interface AnalysisEntityPressureRow {
   id: string;
   entityType: AnalysisEntityType;
   name: string;
+  imagePath: string | null;
   href: string;
   pressureScoreValue: number;
   pressureScoreLabel: string;
@@ -140,6 +141,7 @@ export interface AnalysisFragilityRow {
   entityId: string;
   entityType: 'service';
   name: string;
+  imagePath: string | null;
   cells: AnalysisFragilityCell[];
 }
 
@@ -254,7 +256,7 @@ export interface AnalysisWorkbenchViewModel {
   entityRows: AnalysisEntityPressureRow[];
   evidenceRows: AnalysisObservationLedgerRow[];
   fragilityRows: AnalysisFragilityRow[];
-  fragilityColumns: Array<{ skuId: string; name: string }>;
+  fragilityColumns: Array<{ skuId: string; name: string; imagePath: string | null }>;
   inspectorOverview: AnalysisInspectorOverview;
   settings: AnalysisSettingsModel;
   internalNavSummary: string;
@@ -1126,6 +1128,7 @@ export function deriveAnalysisViewModel({
       id: sku.skuId,
       entityType: 'sku',
       name: sku.name,
+      imagePath: sku.imagePath?.trim() || null,
       href: `/catalog/skus/${sku.skuId}`,
       pressureScoreValue: Math.round(pressureScore * 100),
       pressureScoreLabel: `${Math.round(pressureScore * 100)}`,
@@ -1204,6 +1207,7 @@ export function deriveAnalysisViewModel({
       id: service.serviceId,
       entityType: 'service',
       name: service.name,
+      imagePath: service.imagePath?.trim() || null,
       href: `/catalog/services/${service.serviceId}`,
       pressureScoreValue: Math.round(pressureScore * 100),
       pressureScoreLabel: `${Math.round(pressureScore * 100)}`,
@@ -1331,6 +1335,7 @@ export function deriveAnalysisViewModel({
     .map((sku) => ({
       skuId: sku.skuId,
       name: sku.name,
+      imagePath: sku.imagePath?.trim() || null,
     }));
 
   const fragilityRows: AnalysisFragilityRow[] = eligibleServices
@@ -1342,6 +1347,7 @@ export function deriveAnalysisViewModel({
         entityId: service.serviceId,
         entityType: 'service' as const,
         name: service.name,
+        imagePath: service.imagePath?.trim() || null,
         cells: fragilityColumns.map((column) => {
           const contributor = detail?.contributors.find((entry) => entry.skuId === column.skuId) ?? null;
           const skuDetail = skuDetailsById[column.skuId];

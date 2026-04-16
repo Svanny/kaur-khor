@@ -14,6 +14,7 @@ import {
 import { StatusArchiveIcon } from '@icons/status';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SearchInput } from '@/components/system/search-input';
+import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
@@ -38,6 +39,7 @@ import {
   activeSenaCatalog,
   linkedServiceIdsForSku,
   linkedSkuIdsForService,
+  matchesServiceSupplier,
   matchesSkuSupplier,
   skuSearchParts,
 } from '@/lib/sena-catalog';
@@ -323,9 +325,10 @@ export function InventoryRoute() {
   const filteredServices = useMemo(
     () =>
       visibleCatalog?.services.filter((service) =>
-        matchesCatalogRow([service.serviceId, service.name, service.description], query),
+        matchesCatalogRow([service.serviceId, service.name, service.description], query) &&
+        matchesServiceSupplier(service, visibleCatalog, supplierFilter),
       ) ?? [],
-    [query, visibleCatalog],
+    [query, supplierFilter, visibleCatalog],
   );
   const filteredServiceIdsKey = useMemo(
     () => filteredServices.map((service) => service.serviceId).join('|'),
@@ -492,7 +495,7 @@ export function InventoryRoute() {
           </ToggleGroup>
           <SupplierFilter
             catalog={catalog}
-            className="h-12 w-full rounded-full border-transparent bg-muted/65 px-4 shadow-none data-[size=default]:h-12 sm:w-auto"
+            className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
             value={supplierFilter}
             onChange={(nextSupplier) => {
               setSearchParams(
@@ -563,7 +566,7 @@ export function InventoryRoute() {
               title={`SKUs (${filteredSkus.length})`}
               descriptor={translateUiLiteral(language, 'Stock-carrying items Banji tracks directly.')}
             >
-              <div className="grid gap-3">
+              <div className="grid">
                 {filteredSkus.map((sku) => {
                   const linkedServices = linkedServiceIdsForSku(catalog, sku.skuId);
                   const fallbackSkuActionContext = {
@@ -579,64 +582,68 @@ export function InventoryRoute() {
                   } satisfies SenaSkuDetailViewModel['actionContext'];
 
                   return (
-                    <div
-                      key={sku.skuId}
-                      className={`group flex flex-col gap-2 rounded-[1.25rem] border border-border/70 bg-background/70 p-4 transition-colors md:flex-row md:items-center md:justify-between ${rowHoverClassName}`}
-                    >
-                      <div className="min-w-0">
-                        <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/skus/${sku.skuId}`}>
-                          {sku.name}
-                        </Link>
-                        <p className="text-sm text-muted-foreground">{sku.description || translateUiLiteral(language, 'No description')}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <SupplierBadge supplierName={sku.supplierName} />
-                          <span>
-                            {skuMetaLine(linkedServices.length, {
-                              costPerUnit: sku.costPerUnit,
-                              currency,
-                              language,
-                              productPrice: sku.productPrice,
-                              soldAsProduct: sku.soldAsProduct,
-                              usdToKhrExchangeRate,
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      <WorkspaceActionRow>
-                        <Button asChild size="sm" variant="outline">
-                          <Link to={`/catalog/skus/${sku.skuId}`}>
-                            <EntityPreviewIcon data-icon="inline-start" />
-                            {translateUiLiteral(language, 'Detail')}
-                          </Link>
-                        </Button>
-                        <Button asChild size="sm" variant="outline">
-                          <Link to={`/catalog/skus/${sku.skuId}/edit`}>
-                            <ActionEditPencilIcon data-icon="inline-start" />
-                            {translateUiLiteral(language, 'Edit')}
-                          </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setPendingArchive({
-                              entityId: sku.skuId,
-                              entityName: sku.name,
-                              entityType: 'sku',
-                            });
-                          }}
-                        >
-                          <StatusArchiveIcon data-icon="inline-start" />
-                          {translateUiLiteral(language, 'Archive')}
-                        </Button>
-                        <CatalogSkuRowActions
-                          actionContext={fallbackSkuActionContext}
-                          label={translateUiLiteral(language, 'More actions for {name}', { name: sku.name })}
-                          name={sku.name}
-                          skuId={sku.skuId}
+                    <div key={sku.skuId}>
+                      <div
+                        className={`group flex flex-col gap-2 px-5 py-4 transition-colors md:flex-row md:items-center md:justify-between sm:px-6 ${rowHoverClassName}`}
+                      >
+                        <ItemIdentityBlock
+                          className="min-w-0"
+                          description={sku.description || translateUiLiteral(language, 'No description')}
+                          imagePath={sku.imagePath}
+                          metadata={<SupplierBadge supplierName={sku.supplierName} />}
+                          name={
+                            <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/skus/${sku.skuId}`}>
+                              {sku.name}
+                            </Link>
+                          }
+                          secondary={skuMetaLine(linkedServices.length, {
+                            costPerUnit: sku.costPerUnit,
+                            currency,
+                            language,
+                            productPrice: sku.productPrice,
+                            soldAsProduct: sku.soldAsProduct,
+                            usdToKhrExchangeRate,
+                          })}
+                          size="default"
+                          type="sku"
                         />
-                      </WorkspaceActionRow>
+                        <WorkspaceActionRow>
+                          <Button asChild size="sm" variant="outline">
+                            <Link to={`/catalog/skus/${sku.skuId}`}>
+                              <EntityPreviewIcon data-icon="inline-start" />
+                              {translateUiLiteral(language, 'Detail')}
+                            </Link>
+                          </Button>
+                          <Button asChild size="sm" variant="outline">
+                            <Link to={`/catalog/skus/${sku.skuId}/edit`}>
+                              <ActionEditPencilIcon data-icon="inline-start" />
+                              {translateUiLiteral(language, 'Edit')}
+                            </Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setPendingArchive({
+                                entityId: sku.skuId,
+                                entityName: sku.name,
+                                entityType: 'sku',
+                              });
+                            }}
+                          >
+                            <StatusArchiveIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Archive')}
+                          </Button>
+                          <CatalogSkuRowActions
+                            actionContext={fallbackSkuActionContext}
+                            label={translateUiLiteral(language, 'More actions for {name}', { name: sku.name })}
+                            name={sku.name}
+                            skuId={sku.skuId}
+                          />
+                        </WorkspaceActionRow>
+                      </div>
+                      <div className="border-b border-border/60" />
                     </div>
                   );
                 })}
@@ -649,7 +656,7 @@ export function InventoryRoute() {
               title={`${translateUiLiteral(language, 'Services')} (${filteredServices.length})`}
               descriptor={translateUiLiteral(language, 'Sellable services and the SKUs that support them.')}
             >
-              <div className="grid gap-3">
+              <div className="grid">
                 {filteredServices.map((service) => {
                   const linkedSkus = linkedSkuIdsForService(catalog, service.serviceId);
                   const serviceModel = serviceActionModels[service.serviceId] ?? null;
@@ -667,57 +674,68 @@ export function InventoryRoute() {
                   } satisfies ServiceDetailViewModel['actions'];
 
                   return (
-                    <div
-                      key={service.serviceId}
-                      className={`group flex flex-col gap-2 rounded-[1.25rem] border border-border/70 bg-background/70 p-4 transition-colors md:flex-row md:items-center md:justify-between ${rowHoverClassName}`}
-                    >
-                      <div className="min-w-0">
-                        <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/services/${service.serviceId}`}>
-                          {service.name}
-                        </Link>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{service.serviceId}</p>
-                        <p className="text-sm text-muted-foreground">{service.description || translateUiLiteral(language, 'No description')}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {translateUiLiteral(language, '{count} linked SKUs', { count: linkedSkus.length })} ·{' '}
-                          {translateUiLiteral(language, 'price {value}', {
+                    <div key={service.serviceId}>
+                      <div
+                        className={`group flex flex-col gap-2 px-5 py-4 transition-colors md:flex-row md:items-center md:justify-between sm:px-6 ${rowHoverClassName}`}
+                      >
+                        <ItemIdentityBlock
+                          className="min-w-0"
+                          description={
+                            <>
+                              <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+                                {service.serviceId}
+                              </span>
+                              <span>{service.description || translateUiLiteral(language, 'No description')}</span>
+                            </>
+                          }
+                          imagePath={service.imagePath}
+                          name={
+                            <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/services/${service.serviceId}`}>
+                              {service.name}
+                            </Link>
+                          }
+                          secondary={`${translateUiLiteral(language, '{count} linked SKUs', { count: linkedSkus.length })} · ${translateUiLiteral(language, 'price {value}', {
                             value: formatCurrency(service.price, currency, language, usdToKhrExchangeRate),
-                          })}
-                        </p>
-                      </div>
-                      <WorkspaceActionRow>
-                        <Button asChild size="sm" variant="outline">
-                          <Link to={`/catalog/services/${service.serviceId}`}>
-                            <EntityPreviewIcon data-icon="inline-start" />
-                            {translateUiLiteral(language, 'Detail')}
-                          </Link>
-                        </Button>
-                        <Button asChild size="sm" variant="outline">
-                          <Link to={`/catalog/services/${service.serviceId}/edit`}>
-                            <ActionEditPencilIcon data-icon="inline-start" />
-                            {translateUiLiteral(language, 'Edit')}
-                          </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setPendingArchive({
-                              entityId: service.serviceId,
-                              entityName: service.name,
-                              entityType: 'service',
-                            });
-                          }}
-                        >
-                          <StatusArchiveIcon data-icon="inline-start" />
-                          {translateUiLiteral(language, 'Archive')}
-                        </Button>
-                        <CatalogServiceRowActions
-                          actions={serviceModel?.actions ?? fallbackServiceActions}
-                          label={translateUiLiteral(language, 'More actions for {name}', { name: service.name })}
-                          name={service.name}
+                          })}`}
+                          size="default"
+                          type="service"
                         />
-                      </WorkspaceActionRow>
+                        <WorkspaceActionRow>
+                          <Button asChild size="sm" variant="outline">
+                            <Link to={`/catalog/services/${service.serviceId}`}>
+                              <EntityPreviewIcon data-icon="inline-start" />
+                              {translateUiLiteral(language, 'Detail')}
+                            </Link>
+                          </Button>
+                          <Button asChild size="sm" variant="outline">
+                            <Link to={`/catalog/services/${service.serviceId}/edit`}>
+                              <ActionEditPencilIcon data-icon="inline-start" />
+                              {translateUiLiteral(language, 'Edit')}
+                            </Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setPendingArchive({
+                                entityId: service.serviceId,
+                                entityName: service.name,
+                                entityType: 'service',
+                              });
+                            }}
+                          >
+                            <StatusArchiveIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Archive')}
+                          </Button>
+                          <CatalogServiceRowActions
+                            actions={serviceModel?.actions ?? fallbackServiceActions}
+                            label={translateUiLiteral(language, 'More actions for {name}', { name: service.name })}
+                            name={service.name}
+                          />
+                        </WorkspaceActionRow>
+                      </div>
+                      <div className="border-b border-border/60" />
                     </div>
                   );
                 })}

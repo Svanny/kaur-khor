@@ -1141,6 +1141,7 @@ function buildOverviewTaskCommands(inventory: InventoryContextValue, language: A
     detailBySkuId: {},
     language,
     observations: inventory.observations,
+    orderBatches: inventory.orderBatches,
     staleUpdateReminderSnoozeUntil: null,
     workspaceSummary: inventory.workspaceSummary,
   });

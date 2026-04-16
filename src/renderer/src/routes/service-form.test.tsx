@@ -94,9 +94,24 @@ function renderWithProviders(
   );
 }
 
+function findButtonByText(text: string) {
+  return screen.getAllByRole('button').find((button) => button.textContent?.includes(text)) as HTMLButtonElement;
+}
+
 describe('ServiceFormRoute', () => {
+  const pickAndStoreImage = vi.fn();
+
   beforeEach(() => {
     window.sessionStorage.clear();
+    pickAndStoreImage.mockReset();
+    pickAndStoreImage.mockResolvedValue('/tmp/service-image.png');
+    window.banjiDesktop = {
+      ...(window.banjiDesktop ?? {}),
+      system: {
+        ...(window.banjiDesktop?.system ?? {}),
+        pickAndStoreImage,
+      },
+    };
     preferencesHook.mockReturnValue({
       currency: 'USD',
       language: 'en',
@@ -211,6 +226,34 @@ describe('ServiceFormRoute', () => {
     await waitFor(() => {
       expect(screen.getByText('Service detail destination')).toBeInTheDocument();
     });
+  });
+
+  test('adds a service picture in edit mode', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.click(findButtonByText('Choose image'));
+
+    await waitFor(() => {
+      expect(pickAndStoreImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].imagePath).toBe('/tmp/service-image.png');
   });
 
   test('replaces the new service route so back from the created detail page returns to catalog', async () => {

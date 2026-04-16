@@ -45,3 +45,51 @@ const recordUpdateLaneByPath = new Map(RECORD_UPDATE_LANES.map((lane) => [lane.p
 export function getRecordUpdateLane(pathname: string) {
   return recordUpdateLaneByPath.get(pathname) ?? RECORD_UPDATE_LANES[0];
 }
+
+export type OverviewTaskAction = 'log_order' | 'update_eta' | 'follow_up' | 'receive' | 'review' | 'start_update' | 'remind_tomorrow';
+
+const ACTION_TO_LANE: Record<OverviewTaskAction, RecordUpdateLaneId> = {
+  log_order: 'record-order',
+  update_eta: 'record-order',
+  follow_up: 'sales-update',
+  receive: 'record-receipt',
+  review: 'stock-count',
+  start_update: 'stock-count',
+  remind_tomorrow: 'stock-count',
+};
+
+export function getLaneForTaskAction(action: OverviewTaskAction): RecordUpdateLaneId {
+  return ACTION_TO_LANE[action];
+}
+
+export function buildBatchUpdateHref(
+  options:
+    | string[]
+    | {
+        skuIds?: string[];
+        batchOrderId?: string | null;
+        childOrderId?: string | null;
+        laneId?: RecordUpdateLaneId;
+      },
+  laneId?: RecordUpdateLaneId,
+): string {
+  const resolved =
+    Array.isArray(options)
+      ? { skuIds: options, laneId }
+      : options;
+  const lane = laneId ?? 'stock-count';
+  const nextLane = resolved.laneId ?? lane;
+  const basePath = RECORD_UPDATE_LANES.find((l) => l.id === nextLane)?.path ?? RECORD_UPDATE_HUB_PATH;
+  const params = new URLSearchParams();
+  if (resolved.skuIds && resolved.skuIds.length > 0) {
+    params.set('skus', resolved.skuIds.join(','));
+  }
+  if (resolved.batchOrderId) {
+    params.set('batchOrderId', resolved.batchOrderId);
+  }
+  if (resolved.childOrderId) {
+    params.set('childOrderId', resolved.childOrderId);
+  }
+  const query = params.toString();
+  return query ? `${basePath}?${query}` : basePath;
+}

@@ -4,6 +4,7 @@ import {
   buildOverviewHref,
   buildPerformanceHref,
   buildSkuDetailHref,
+  readAnalysisRouteState,
   readOverviewRouteState,
   readPerformanceRouteState,
   readServiceAction,
@@ -19,6 +20,7 @@ describe('navigation-state', () => {
     expect(state).toEqual({
       filter: 'all',
       scope: 'all',
+      supplier: null,
       taskId: 'sku-1',
       taskMode: 'not_ordered',
     });
@@ -34,7 +36,18 @@ describe('navigation-state', () => {
       }),
     ).toBe('/?filter=ready_to_receive&scope=services&task=sku-1&taskMode=goods_received');
 
-    expect(buildAnalysisHref({ section: 'pressure', timeframe: '1Y' })).toBe('/analysis?section=pressure&timeframe=1Y');
+    expect(buildAnalysisHref({ section: 'pressure', timeframe: '1Y', supplier: 'Mekong Looms' })).toBe(
+      '/analysis?section=pressure&supplier=Mekong+Looms&timeframe=1Y',
+    );
+  });
+
+  test('reads analysis supplier filter safely', () => {
+    expect(readAnalysisRouteState(new URLSearchParams('scope=services&supplier=Mekong%20Looms'))).toEqual({
+      scope: 'services',
+      section: 'workbench',
+      supplier: 'Mekong Looms',
+      timeframe: 'Recent',
+    });
   });
 
   test('reads performance compare mode safely and omits default compare state', () => {
@@ -42,6 +55,7 @@ describe('navigation-state', () => {
       compare: false,
       range: '7d',
       scope: 'skus',
+      supplier: null,
     });
 
     expect(buildPerformanceHref({ compare: true, range: '30d', scope: 'all' })).toBe('/performance');

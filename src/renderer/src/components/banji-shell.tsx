@@ -185,24 +185,9 @@ function SidebarSectionMenu({
 
 function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'en' | 'km'; showSidebarText: boolean }) {
   const shortcutLabel = isMacPlatform() ? '⌘ + K' : 'Ctrl + K';
-  const openPaletteLabel = translateUiLiteral(language, 'Open command palette with {shortcut}', {
-    shortcut: shortcutLabel,
-  });
 
   if (!showSidebarText) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            aria-label={openPaletteLabel}
-            className="flex size-8 items-center justify-center rounded-[1rem] border border-sidebar-border/60 bg-sidebar-accent/35 text-sidebar-foreground/80"
-          >
-            <NavigationCommandPaletteIcon className="size-4" />
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={10}>{openPaletteLabel}</TooltipContent>
-      </Tooltip>
-    );
+    return null;
   }
 
   return (

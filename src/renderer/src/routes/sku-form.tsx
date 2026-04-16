@@ -25,6 +25,7 @@ import { createUniqueSkuId, emptySenaCatalog, upsertSenaSku } from '@/lib/sena-c
 import { useInventory } from '@/state/inventory';
 import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { CatalogImageField } from './catalog-image-field';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { SkuPageHero } from './sku-page-hero';
 import { SectionLabel, SectionTitle } from './sku-detail/section-heading';
@@ -34,6 +35,7 @@ function emptySku(skuId = ''): SenaSku {
     skuId,
     name: '',
     description: '',
+    imagePath: null,
     supplierName: null,
     costPerUnit: 0,
     archived: false,
@@ -50,6 +52,7 @@ function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTime
   return {
     name: sku.name.trim(),
     description: sku.description.trim(),
+    imagePath: sku.imagePath?.trim() || null,
     supplierName: sku.supplierName?.trim() || null,
     costPerUnit: sku.costPerUnit,
     soldAsProduct: sku.soldAsProduct,
@@ -260,6 +263,15 @@ export function SkuFormRoute() {
                 onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
               />
             </EditorField>
+
+            <CatalogImageField
+              helper="Choose one picture for this SKU. Banji will show it on supported item surfaces."
+              imagePath={form.imagePath}
+              label="Picture"
+              name={form.name || 'SKU image'}
+              type="sku"
+              onChange={(value) => setForm((current) => ({ ...current, imagePath: value }))}
+            />
           </WorkspacePanel>
 
           <WorkspacePanel

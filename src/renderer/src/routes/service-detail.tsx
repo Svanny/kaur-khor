@@ -359,6 +359,7 @@ export function ServiceDetailRoute() {
               onComplete={refreshPage}
             />
           )}
+          imagePath={catalogService?.imagePath}
           model={model}
         />
 

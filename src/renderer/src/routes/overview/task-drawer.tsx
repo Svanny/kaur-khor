@@ -11,6 +11,7 @@ import {
   ActionSaveIcon,
 } from '@icons/actions';
 import { overviewDrawerBandIcons } from '@icons/domain';
+import { ItemAvatar } from '@/components/system/item-identity';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { SupplierBadge } from '@/components/system/supplier';
 import { Button } from '@/components/ui/button';
@@ -647,17 +648,22 @@ export function OverviewTaskDrawer({
         <SheetHeader className="sticky top-0 z-20 gap-4 border-b border-border/40 bg-[#f8f4ef]/96 px-8 py-7 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{task.skuName}</SheetTitle>
-                <SupplierBadge supplierName={task.supplierName} />
-                <span
-                  className={cn(
-                    'inline-flex items-center self-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium',
-                    statusPillClassName(task.statusTone),
-                  )}
-                >
-                  {task.stateLabel}
-                </span>
+              <div className="flex items-start gap-4">
+                <ItemAvatar imagePath={task.imagePath} name={task.skuName} size="hero" type="sku" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{task.skuName}</SheetTitle>
+                    <SupplierBadge supplierName={task.supplierName} />
+                    <span
+                      className={cn(
+                        'inline-flex items-center self-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium',
+                        statusPillClassName(task.statusTone),
+                      )}
+                    >
+                      {task.stateLabel}
+                    </span>
+                  </div>
+                </div>
               </div>
               <SheetDescription className="mt-3 max-w-2xl text-[0.98rem] leading-7">
                 {task.whyNow} · {task.serviceImpact} · {task.etaLabel}
@@ -742,7 +748,7 @@ export function OverviewTaskDrawer({
                 />
               </div>
 
-              <RecommendedOrderPanel task={task} t={t} />
+              {mode === 'not_ordered' ? <RecommendedOrderPanel task={task} t={t} /> : null}
 
               <DrawerBand
                 bandId="timing"

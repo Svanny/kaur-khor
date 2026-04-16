@@ -13,7 +13,8 @@ import {
   buildAnalysisSearchParams,
   readAnalysisRouteState,
 } from '@/lib/navigation-state';
-import { activeSenaCatalog } from '@/lib/sena-catalog';
+import { activeSenaCatalog, filterCatalogBySupplier } from '@/lib/sena-catalog';
+import { supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { WireframeRightRailLayout, WireframeRows, WorkspaceTitleCardWireframe } from './loading-wireframes';
 import {
   type AnalysisScope,
@@ -116,6 +117,7 @@ export function AnalysisRoute() {
   const scope = routeState.scope as AnalysisScope;
   const section = routeState.section as AnalysisSection;
   const timeframe = routeState.timeframe as AnalysisTimeframe;
+  const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const {
     hasOlderIntervals,
     isHydratingDetails,
@@ -126,7 +128,7 @@ export function AnalysisRoute() {
     skuDetailsById,
     timeframeHydrationProgress,
   } = useSenaDetailHydration(timeframe);
-  const visibleCatalog = activeSenaCatalog(inventory.catalog);
+  const visibleCatalog = filterCatalogBySupplier(activeSenaCatalog(inventory.catalog), supplierFilter);
   const hasCatalog = Boolean(visibleCatalog && (visibleCatalog.skus.length > 0 || visibleCatalog.services.length > 0));
   const hasWorkspaceSummary = Boolean(inventory.workspaceSummary);
   const expectedHydratedEntityCount =
@@ -220,9 +222,11 @@ export function AnalysisRoute() {
         serviceDetailsById={serviceDetailsById}
         setScope={(nextScope) => updateRouteState({ scope: nextScope as typeof scope })}
         setSection={(nextSection) => updateRouteState({ section: nextSection as typeof section })}
+        setSupplierFilter={(nextSupplierFilter) => updateRouteState({ supplier: supplierFilterQueryValue(nextSupplierFilter) })}
         setTimeframe={(nextTimeframe) => updateRouteState({ timeframe: nextTimeframe as typeof timeframe })}
         showRightRailCards={showRightRailCards}
         skuDetailsById={skuDetailsById}
+        supplierFilter={supplierFilter}
         timeframe={timeframe}
         timeframeHydrationProgress={timeframeHydrationProgress}
       />

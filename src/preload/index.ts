@@ -13,13 +13,19 @@ import type { InventorySnapshot, StockReport, StockReportSubmission } from '@sha
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaCreateOrderBatchPayload,
   SenaObservationDeletePayload,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaOrderBatchRecord,
+  SenaOrderLookupPayload,
+  SenaSplitOrderChildPayload,
   SenaObservationUpdatePayload,
   SenaServiceDetailPage,
   SenaSkuDetailPage,
+  SenaUpdateOrderBatchPayload,
+  SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 
@@ -31,6 +37,7 @@ const desktopBridge: DesktopBridge = {
     restoreBackupSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.systemRestoreBackupSnapshot),
     clearCurrentData: () => ipcRenderer.invoke(IPC_CHANNELS.systemClearCurrentData),
     revealPath: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.systemRevealPath, path),
+    pickAndStoreImage: (): Promise<string | null> => ipcRenderer.invoke(IPC_CHANNELS.systemPickAndStoreImage),
   },
   inventory: {
     loadSnapshot: (): Promise<InventorySnapshot> => ipcRenderer.invoke(IPC_CHANNELS.inventoryLoadSnapshot),
@@ -42,6 +49,8 @@ const desktopBridge: DesktopBridge = {
     getCatalog: (): Promise<SenaCatalog | null> => ipcRenderer.invoke(IPC_CHANNELS.senaGetCatalog),
     listObservations: (): Promise<SenaObservationRecord[]> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaListObservations),
+    listOrderBatches: (payload?: SenaOrderLookupPayload): Promise<SenaOrderBatchRecord[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaListOrderBatches, payload),
     upsertCatalog: (payload: SenaCatalog): Promise<SenaCatalog> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaUpsertCatalog, payload),
     ingestObservation: (payload: SenaObservationInput): Promise<SenaObservationRecord> =>
@@ -50,6 +59,14 @@ const desktopBridge: DesktopBridge = {
       ipcRenderer.invoke(IPC_CHANNELS.senaUpdateObservation, payload),
     deleteObservation: (payload: SenaObservationDeletePayload): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaDeleteObservation, payload),
+    createOrderBatch: (payload: SenaCreateOrderBatchPayload): Promise<SenaOrderBatchRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaCreateOrderBatch, payload),
+    updateOrderBatch: (payload: SenaUpdateOrderBatchPayload): Promise<SenaOrderBatchRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaUpdateOrderBatch, payload),
+    updateOrderChild: (payload: SenaUpdateOrderChildPayload): Promise<SenaOrderBatchRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaUpdateOrderChild, payload),
+    splitOrderChild: (payload: SenaSplitOrderChildPayload): Promise<SenaOrderBatchRecord> =>
+      ipcRenderer.invoke(IPC_CHANNELS.senaSplitOrderChild, payload),
     triggerRun: (payload?: SenaTriggerRunPayload): Promise<SenaAnalysisRunRecord> =>
       ipcRenderer.invoke(IPC_CHANNELS.senaTriggerRun, payload),
     retryRun: (payload: SenaRunLookupPayload): Promise<SenaAnalysisRunRecord> =>

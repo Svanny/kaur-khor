@@ -149,3 +149,157 @@ export const ExplosionIcon = forwardRef<SVGSVGElement, IconProps>(
     );
   },
 );
+
+export const ChartLineTypeIcon = forwardRef<SVGSVGElement, IconProps>(
+  function ChartLineTypeIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <path d="M3 16 8 10l4 3 9-10" />
+      </svg>
+    );
+  },
+);
+
+export const ChartAreaTypeIcon = forwardRef<SVGSVGElement, IconProps>(
+  function ChartAreaTypeIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <path d="M3 17 8 11l4 3 8-9" />
+        <path d="M3 17h18" />
+        <path d="M3 17 8 11l4 3 8-9v12H3Z" fill="currentColor" fillOpacity="0.18" stroke="none" />
+      </svg>
+    );
+  },
+);
+
+export const ChartStepLineTypeIcon = forwardRef<SVGSVGElement, IconProps>(
+  function ChartStepLineTypeIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <path d="M4 18h5V8h6v6h5" />
+      </svg>
+    );
+  },
+);
+
+export const ChartHistogramTypeIcon = forwardRef<SVGSVGElement, IconProps>(
+  function ChartHistogramTypeIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <path d="M4 19V9" />
+        <path d="M10 19V5" />
+        <path d="M16 19v-7" />
+        <path d="M20 19v-4" />
+      </svg>
+    );
+  },
+);
+
+export const ChartBarsTypeIcon = forwardRef<SVGSVGElement, IconProps>(
+  function ChartBarsTypeIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <path d="M5 5v14" />
+        <path d="M3 9h4" />
+        <path d="M5 13h3" />
+        <path d="M12 4v16" />
+        <path d="M10 8h4" />
+        <path d="M12 14h3" />
+        <path d="M19 6v12" />
+        <path d="M17 10h4" />
+        <path d="M19 13h3" />
+      </svg>
+    );
+  },
+);
+
+export const ChartCandlesTypeIcon = forwardRef<SVGSVGElement, IconProps>(
+  function ChartCandlesTypeIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <path d="M7 4v16" />
+        <rect x="5" y="7" width="4" height="8" rx="0.5" />
+        <path d="M16 4v16" />
+        <rect x="13.5" y="5" width="5" height="11" rx="0.5" />
+      </svg>
+    );
+  },
+);

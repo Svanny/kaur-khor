@@ -8,6 +8,7 @@ function PreferencesProbe() {
     currency,
     displayViewMode,
     hasPendingChanges,
+    itemImageMode,
     language,
     persistedCustomShowExplanatoryTooltips,
     persistedCustomShowFloatingTitleActions,
@@ -19,6 +20,7 @@ function PreferencesProbe() {
     persistedCustomShowLogsViewToggle,
     persistedCustomShowHeartbeatRibbons,
     persistedDisplayViewMode,
+    persistedItemImageMode,
     persistedCurrency,
     persistedLanguage,
     persistedUsdToKhrExchangeRate,
@@ -43,6 +45,7 @@ function PreferencesProbe() {
     resetPreferences,
     savePreferences,
     setCurrency,
+    setItemImageMode,
     setLanguage,
     setUsdToKhrExchangeRate,
     setShowExplanatoryTooltips,
@@ -73,6 +76,7 @@ function PreferencesProbe() {
       <div data-testid="currency">{currency}</div>
       <div data-testid="exchange-rate">{usdToKhrExchangeRate}</div>
       <div data-testid="display-view-mode">{displayViewMode}</div>
+      <div data-testid="item-image-mode">{itemImageMode}</div>
       <div data-testid="persisted-language">{persistedLanguage}</div>
       <div data-testid="persisted-currency">{persistedCurrency}</div>
       <div data-testid="persisted-exchange-rate">{persistedUsdToKhrExchangeRate}</div>
@@ -113,6 +117,7 @@ function PreferencesProbe() {
       <div data-testid="persisted-custom-show-performance-timeline-card">{String(persistedCustomShowPerformanceTimelineCard)}</div>
       <div data-testid="persisted-custom-show-logs-view-toggle">{String(persistedCustomShowLogsViewToggle)}</div>
       <div data-testid="persisted-custom-show-heartbeat-ribbons">{String(persistedCustomShowHeartbeatRibbons)}</div>
+      <div data-testid="persisted-item-image-mode">{persistedItemImageMode}</div>
       <div data-testid="pending">{String(hasPendingChanges)}</div>
       <div data-testid="translation">{t('settingsTitle')}</div>
       <div data-testid="description-translation">{t('settingsBody')}</div>
@@ -121,6 +126,9 @@ function PreferencesProbe() {
       </button>
       <button type="button" onClick={() => setCurrency('KHR')}>
         preview-currency
+      </button>
+      <button type="button" onClick={() => setItemImageMode('off')}>
+        hide-item-pictures
       </button>
       <button type="button" onClick={() => setUsdToKhrExchangeRate(4100)}>
         preview-exchange-rate
@@ -174,6 +182,7 @@ describe('preferences state', () => {
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'custom',
+      itemImageMode: 'small',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -183,6 +192,13 @@ describe('preferences state', () => {
       showPerformanceTimelineCard: true,
       showLogsViewToggle: true,
       showHeartbeatRibbons: true,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
       customShowExplanatoryTooltips: true,
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
@@ -194,11 +210,12 @@ describe('preferences state', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
     });
-    savePreferences.mockResolvedValue({
+    savePreferences.mockImplementation(async (payload) => ({
       language: 'km',
       currency: 'KHR',
       usdToKhrExchangeRate: 4100,
       displayViewMode: 'custom',
+      itemImageMode: payload.itemImageMode ?? 'small',
       showExplanatoryTooltips: false,
       showFloatingTitleActions: false,
       showRightRailCards: false,
@@ -208,6 +225,13 @@ describe('preferences state', () => {
       showPerformanceTimelineCard: false,
       showLogsViewToggle: false,
       showHeartbeatRibbons: false,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
       customShowExplanatoryTooltips: false,
       customShowFloatingTitleActions: false,
       customShowRightRailCards: false,
@@ -218,7 +242,7 @@ describe('preferences state', () => {
       customShowLogsViewToggle: false,
       customShowHeartbeatRibbons: false,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
-    });
+    }));
     window.banjiDesktop = {
       ...window.banjiDesktop,
       preferences: {
@@ -262,6 +286,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('currency').textContent).toBe('KHR');
     expect(screen.getByTestId('exchange-rate').textContent).toBe('4100');
     expect(screen.getByTestId('display-view-mode').textContent).toBe('custom');
+    expect(screen.getByTestId('item-image-mode').textContent).toBe('small');
     expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('false');
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('false');
@@ -300,8 +325,17 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-logs-view-toggle').textContent).toBe('true');
     expect(screen.getByTestId('show-heartbeat-ribbons').textContent).toBe('true');
 
+    fireEvent.click(screen.getByText('hide-item-pictures'));
+    expect(screen.getByTestId('item-image-mode').textContent).toBe('off');
+    expect(screen.getByTestId('pending').textContent).toBe('true');
+
+    fireEvent.click(screen.getByText('reset'));
+    expect(screen.getByTestId('item-image-mode').textContent).toBe('small');
+    expect(screen.getByTestId('pending').textContent).toBe('false');
+
     fireEvent.click(screen.getByText('preview-language'));
     fireEvent.click(screen.getByText('preview-currency'));
+    fireEvent.click(screen.getByText('hide-item-pictures'));
     fireEvent.click(screen.getByText('preview-exchange-rate'));
     fireEvent.click(screen.getByText('hide-explanatory-tooltips'));
     fireEvent.click(screen.getByText('hide-floating-title-actions'));
@@ -319,6 +353,7 @@ describe('preferences state', () => {
         language: 'km',
         currency: 'KHR',
         usdToKhrExchangeRate: 4100,
+        itemImageMode: 'off',
         showExplanatoryTooltips: false,
         showFloatingTitleActions: false,
         showRightRailCards: false,
@@ -335,6 +370,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('persisted-currency').textContent).toBe('KHR');
     expect(screen.getByTestId('persisted-exchange-rate').textContent).toBe('4100');
     expect(screen.getByTestId('persisted-display-view-mode').textContent).toBe('custom');
+    expect(screen.getByTestId('persisted-item-image-mode').textContent).toBe('off');
     expect(screen.getByTestId('persisted-show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-floating-title-actions').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-right-rail-cards').textContent).toBe('false');

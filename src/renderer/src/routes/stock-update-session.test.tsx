@@ -13,8 +13,11 @@ import { buildStockRowOrderStorageKey } from './stock-row-order';
 import { StockUpdateSessionRoute } from './stock-update-session';
 
 const inventoryHook = vi.fn();
+const createSenaOrderBatch = vi.fn();
 const ingestSenaObservation = vi.fn();
 const runWorkspacePreparation = vi.fn();
+const updateSenaOrderBatch = vi.fn();
+const updateSenaOrderChild = vi.fn();
 const updateSenaObservation = vi.fn();
 const triggerSenaRun = vi.fn();
 const preferenceState = {
@@ -63,6 +66,7 @@ const catalog = {
       skuId: 'sku-1',
       name: 'Razor refill',
       description: 'Refill pack',
+      supplierName: 'Mekong Looms',
       costPerUnit: 4,
       soldAsProduct: true,
       productPrice: 9,
@@ -73,6 +77,7 @@ const catalog = {
       skuId: 'sku-2',
       name: 'Towel',
       description: 'Cotton towel',
+      supplierName: null,
       costPerUnit: 2,
       soldAsProduct: false,
       productPrice: null,
@@ -88,11 +93,19 @@ const catalog = {
       price: 12,
       bundle: false,
     },
+    {
+      serviceId: 'service-2',
+      name: 'Towel wrap',
+      description: '',
+      price: 8,
+      bundle: false,
+    },
   ],
   bundles: [],
   sharingMask: [
     { serviceId: 'service-1', skuId: 'sku-1', enabled: true, usageProbability: 1 },
-    { serviceId: 'service-1', skuId: 'sku-2', enabled: true, usageProbability: 1 },
+    { serviceId: 'service-1', skuId: 'sku-2', enabled: false, usageProbability: 1 },
+    { serviceId: 'service-2', skuId: 'sku-2', enabled: true, usageProbability: 1 },
   ],
 };
 
@@ -120,6 +133,26 @@ const observations = [
     },
   },
 ];
+
+function inventoryState(overrides: Record<string, unknown> = {}) {
+  return {
+    catalog,
+    createSenaOrderBatch,
+    ingestSenaObservation,
+    isLoading: false,
+    isSaving: false,
+    latestRun: null,
+    observations,
+    orderBatches: [],
+    runWorkspacePreparation,
+    triggerSenaRun,
+    updateSenaObservation,
+    updateSenaOrderBatch,
+    updateSenaOrderChild,
+    workspaceSummary,
+    ...overrides,
+  };
+}
 
 const workspaceSummary = {
   highRiskSkuIds: ['sku-1'],
@@ -157,18 +190,7 @@ const workspaceSummary = {
 };
 
 function renderRoute(nextObservations = observations, initialPath = RECORD_UPDATE_STOCK_COUNT_PATH) {
-  inventoryHook.mockReturnValue({
-    catalog,
-    ingestSenaObservation,
-    isLoading: false,
-    isSaving: false,
-    latestRun: null,
-    observations: nextObservations,
-    runWorkspacePreparation,
-    triggerSenaRun,
-    updateSenaObservation,
-    workspaceSummary,
-  });
+  inventoryHook.mockReturnValue(inventoryState({ observations: nextObservations }));
 
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -201,18 +223,7 @@ function renderRouteWithCatalog(
   nextObservations = observations,
   initialPath = RECORD_UPDATE_STOCK_COUNT_PATH,
 ) {
-  inventoryHook.mockReturnValue({
-    catalog: nextCatalog,
-    ingestSenaObservation,
-    isLoading: false,
-    isSaving: false,
-    latestRun: null,
-    observations: nextObservations,
-    runWorkspacePreparation,
-    triggerSenaRun,
-    updateSenaObservation,
-    workspaceSummary,
-  });
+  inventoryHook.mockReturnValue(inventoryState({ catalog: nextCatalog, observations: nextObservations }));
 
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -222,18 +233,7 @@ function renderRouteWithCatalog(
 }
 
 function renderRoutedSession(nextObservations = observations) {
-  inventoryHook.mockReturnValue({
-    catalog,
-    ingestSenaObservation,
-    isLoading: false,
-    isSaving: false,
-    latestRun: null,
-    observations: nextObservations,
-    runWorkspacePreparation,
-    triggerSenaRun,
-    updateSenaObservation,
-    workspaceSummary,
-  });
+  inventoryHook.mockReturnValue(inventoryState({ observations: nextObservations }));
 
   return render(
     <MemoryRouter initialEntries={[RECORD_UPDATE_STOCK_COUNT_PATH]}>
@@ -259,18 +259,7 @@ function renderEditRoute(
   nextObservations = observations,
   pathname = RECORD_UPDATE_STOCK_COUNT_PATH,
 ) {
-  inventoryHook.mockReturnValue({
-    catalog,
-    ingestSenaObservation,
-    isLoading: false,
-    isSaving: false,
-    latestRun: null,
-    observations: nextObservations,
-    runWorkspacePreparation,
-    triggerSenaRun,
-    updateSenaObservation,
-    workspaceSummary,
-  });
+  inventoryHook.mockReturnValue(inventoryState({ observations: nextObservations }));
 
   return render(
     <MemoryRouter
@@ -293,17 +282,7 @@ function renderRouteWithInlineEditLink(
   nextObservations = observations,
   pathname = RECORD_UPDATE_STOCK_COUNT_PATH,
 ) {
-  inventoryHook.mockReturnValue({
-    catalog,
-    ingestSenaObservation,
-    isLoading: false,
-    isSaving: false,
-    latestRun: null,
-    observations: nextObservations,
-    triggerSenaRun,
-    updateSenaObservation,
-    workspaceSummary,
-  });
+  inventoryHook.mockReturnValue(inventoryState({ observations: nextObservations }));
 
   return render(
     <MemoryRouter initialEntries={[pathname]}>
@@ -374,8 +353,11 @@ describe('StockUpdateSessionRoute', () => {
     preferenceState.showHeartbeatRibbons = true;
     preferenceState.showFloatingTitleActions = false;
     installMemoryLocalStorage();
+    createSenaOrderBatch.mockResolvedValue({ batchOrderId: 'orders/2026/04/12/120000/test/child' });
     ingestSenaObservation.mockResolvedValue({ observationId: 'obs-new' });
     updateSenaObservation.mockResolvedValue({ observationId: 'obs-1' });
+    updateSenaOrderBatch.mockResolvedValue({ batchOrderId: 'orders/2026/04/12/120000/test/child' });
+    updateSenaOrderChild.mockResolvedValue({ batchOrderId: 'orders/2026/04/12/120000/test/child' });
     triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
     runWorkspacePreparation.mockImplementation(async (task: () => Promise<unknown>) => task());
   });
@@ -730,6 +712,21 @@ describe('StockUpdateSessionRoute', () => {
     expect(ingestSenaObservation).not.toHaveBeenCalled();
   }, 10_000);
 
+  it('filters service sales step by linked sku supplier', async () => {
+    renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+
+    goNext(2);
+    chooseOptionalStepYes();
+    goNext();
+    chooseOptionalStepYes();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Filter by supplier' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Mekong Looms' }));
+
+    expect(screen.getByLabelText('Current interval sales for Haircut')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Current interval sales for Towel wrap')).not.toBeInTheDocument();
+  });
+
   it('resets the session immediately after saving and starts the rerun in the background', async () => {
     const rerun = deferredPromise<void>();
     triggerSenaRun.mockReturnValueOnce(rerun.promise);
@@ -800,18 +797,7 @@ describe('StockUpdateSessionRoute', () => {
       },
     };
 
-    inventoryHook.mockReturnValue({
-      catalog: archivedCatalog,
-      ingestSenaObservation,
-      isLoading: false,
-      isSaving: false,
-      latestRun: null,
-      observations,
-      runWorkspacePreparation,
-      triggerSenaRun,
-      updateSenaObservation,
-      workspaceSummary,
-    });
+    inventoryHook.mockReturnValue(inventoryState({ catalog: archivedCatalog }));
 
     render(
       <MemoryRouter

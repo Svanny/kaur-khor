@@ -13,6 +13,7 @@ import { NavigationDashboardIcon, NavigationForwardIcon, NavigationPerformanceIc
 import { StatusAchievementIcon, StatusSavingsIcon, StatusWarningIcon } from '@icons/status';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
+import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
@@ -29,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { CompactSparkline } from '@/components/ui/compact-sparkline';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { activeSenaCatalog, type SupplierFilterValue } from '@/lib/sena-catalog';
+import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import {
   buildPerformanceSearchParams,
   readPerformanceRouteState,
@@ -204,11 +205,14 @@ function CashBandColumn({
               className={`block rounded-[0.9rem] border px-4 py-2.5 transition-colors ${tintedSurfaceClassName(row.tone)} ${rowHoverClassName}`}
               to={row.href}
             >
-              <div className="flex items-center gap-2.5">
-                <ItemTypeIcon type={row.entityType === 'service' ? 'Service' : 'SKU'} />
-                <p className="font-medium text-foreground">{row.label}</p>
-              </div>
-              <p className="mt-1.5 pl-[1.65rem] text-sm leading-6 text-muted-foreground">{row.summary}</p>
+              <ItemIdentityBlock
+                align="center"
+                description={row.summary}
+                imagePath={row.imagePath}
+                name={<span className="font-medium text-foreground">{row.label}</span>}
+                size="compact"
+                type={row.entityType}
+              />
             </Link>
           ))
         ) : (
@@ -310,9 +314,18 @@ function MoveNowTable({
             <HeaderedTableRow key={row.id} className={`${rowHoverClassName} ${moveNowTableLayout.rowClassName}`}>
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2.5 font-semibold text-foreground">
-                  <span>{row.moveVerb}</span>
-                  <ItemTypeIcon type={row.moveEntityType === 'service' ? 'Service' : 'SKU'} />
-                  <span className="truncate">{row.moveEntityName}</span>
+                  <ItemIdentityBlock
+                    align="center"
+                    className="min-w-0"
+                    imagePath={row.imagePath}
+                    name={
+                      <span className="truncate">
+                        {row.moveVerb} {row.moveEntityName}
+                      </span>
+                    }
+                    size="compact"
+                    type={row.moveEntityType}
+                  />
                 </div>
               </div>
               <div className="min-w-0">
@@ -363,7 +376,11 @@ export function PerformanceRoute() {
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
-  const visibleCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
+  const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
+  const visibleCatalog = useMemo(
+    () => filterCatalogBySupplier(baseCatalog, supplierFilter),
+    [baseCatalog, supplierFilter],
+  );
 
   function updateRouteState(nextState: Parameters<typeof buildPerformanceSearchParams>[1], replace = false) {
     setSearchParams(buildPerformanceSearchParams(searchParams, nextState), { replace });
@@ -402,21 +419,7 @@ export function PerformanceRoute() {
     timeRange,
     usdToKhrExchangeRate,
   ]);
-  const visibleBoardRows = useMemo(() => {
-    if (!model) {
-      return [];
-    }
-    return model.boardRows.filter((row) => {
-      if (row.type !== 'SKU' || supplierFilter === 'all') {
-        return true;
-      }
-      const supplierName = row.supplierName?.trim() || null;
-      if (supplierFilter === 'none') {
-        return supplierName == null;
-      }
-      return supplierName === supplierFilter;
-    });
-  }, [model, supplierFilter]);
+  const visibleBoardRows = model?.boardRows ?? [];
   const latestUpdateAt = latestObservationAt(inventory.observations);
   const latestUpdateAgeDays = intervalDaysBetween(latestUpdateAt, new Date().toISOString());
 
@@ -511,8 +514,8 @@ export function PerformanceRoute() {
             </ToggleGroup>
 
             <SupplierFilter
-              catalog={visibleCatalog}
-              className="h-12 w-full rounded-full border-transparent bg-muted/65 px-4 shadow-none data-[size=default]:h-12 sm:w-auto"
+              catalog={baseCatalog}
+              className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
               value={supplierFilter}
               onChange={(nextSupplier: SupplierFilterValue) =>
                 updateRouteState({ supplier: supplierFilterQueryValue(nextSupplier) })
@@ -655,16 +658,21 @@ export function PerformanceRoute() {
                       </HeaderedTableMobileLabel>
                       <HeaderedTableCellStack
                         primary={
-                          <div className="flex items-start gap-2.5">
-                            <ItemTypeIcon type={row.type} />
-                            <Link className="font-semibold text-foreground hover:text-primary" to={row.entityHref}>
-                              {row.entity}
-                            </Link>
-                            <SupplierBadge supplierName={row.supplierName} />
-                          </div>
+                          <ItemIdentityBlock
+                            align="center"
+                            description={row.compareEnabled && row.rowCompareSummary ? `${row.rowCompareSummary}.` : undefined}
+                            imagePath={row.imagePath}
+                            metadata={<SupplierBadge supplierName={row.supplierName} />}
+                            name={
+                              <Link className="font-semibold text-foreground hover:text-primary" to={row.entityHref}>
+                                {row.entity}
+                              </Link>
+                            }
+                            size="compact"
+                            type={row.type === 'Service' ? 'service' : 'sku'}
+                          />
                         }
-                        secondary={row.compareEnabled && row.rowCompareSummary ? `${row.rowCompareSummary}.` : undefined}
-                        primaryClassName="font-semibold"
+                        primaryClassName="font-normal"
                       />
                     </div>
                     <div className="min-w-0 px-2">

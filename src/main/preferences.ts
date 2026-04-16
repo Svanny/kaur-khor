@@ -1,11 +1,15 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
   DEFAULT_SENA_ENGINE_PARAMETERS,
+  DEFAULT_TASK_BATCH_UPDATE_PREFERENCES,
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeDesktopPreferenceTimestamp,
+  normalizeDesktopTaskBatchUpdatePreferences,
   normalizeSenaEngineParameters,
   type DesktopPreferences,
+  type DesktopTaskBatchUpdatePreference,
 } from '@shared/ipc';
 
 const DEFAULT_PREFERENCES: DesktopPreferences = {
@@ -13,6 +17,7 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   currency: 'USD',
   usdToKhrExchangeRate: DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   displayViewMode: 'custom',
+  itemImageMode: DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
   showExplanatoryTooltips: true,
   showFloatingTitleActions: true,
   showRightRailCards: true,
@@ -22,6 +27,7 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   showPerformanceTimelineCard: true,
   showLogsViewToggle: true,
   showHeartbeatRibbons: true,
+  taskBatchUpdatePreferences: DEFAULT_TASK_BATCH_UPDATE_PREFERENCES,
   customShowExplanatoryTooltips: true,
   customShowFloatingTitleActions: true,
   customShowRightRailCards: true,
@@ -47,6 +53,9 @@ function normalizeUsdToKhrExchangeRate(value: unknown): number {
 }
 
 function normalizePreferences(value: Partial<DesktopPreferences> | null | undefined): DesktopPreferences {
+  const legacyTaskBatchUpdateMode = (value as Partial<DesktopPreferences> & {
+    taskBatchUpdateMode?: DesktopTaskBatchUpdatePreference;
+  } | null | undefined)?.taskBatchUpdateMode;
   const showExplanatoryTooltips = value?.showExplanatoryTooltips ?? true;
   const showFloatingTitleActions = value?.showFloatingTitleActions ?? true;
   const showRightRailCards = value?.showRightRailCards ?? true;
@@ -81,12 +90,20 @@ function normalizePreferences(value: Partial<DesktopPreferences> | null | undefi
           !showHeartbeatRibbons
         ? 'compact'
         : 'custom';
+  const itemImageMode =
+    value?.itemImageMode === 'off' ||
+    value?.itemImageMode === 'thumbnail' ||
+    value?.itemImageMode === 'small' ||
+    value?.itemImageMode === 'medium'
+      ? value.itemImageMode
+      : DEFAULT_DESKTOP_ITEM_IMAGE_MODE;
 
   return {
     language: value?.language === 'km' ? 'km' : 'en',
     currency: value?.currency === 'KHR' ? 'KHR' : 'USD',
     usdToKhrExchangeRate: normalizeUsdToKhrExchangeRate(value?.usdToKhrExchangeRate),
     displayViewMode,
+    itemImageMode,
     showExplanatoryTooltips,
     showFloatingTitleActions,
     showRightRailCards,
@@ -96,6 +113,10 @@ function normalizePreferences(value: Partial<DesktopPreferences> | null | undefi
     showPerformanceTimelineCard,
     showLogsViewToggle,
     showHeartbeatRibbons,
+    taskBatchUpdatePreferences: normalizeDesktopTaskBatchUpdatePreferences(
+      value?.taskBatchUpdatePreferences,
+      legacyTaskBatchUpdateMode,
+    ),
     customShowExplanatoryTooltips,
     customShowFloatingTitleActions,
     customShowRightRailCards,

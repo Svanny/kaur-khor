@@ -6,11 +6,14 @@ use anyhow::Result;
 use banji_sena_core::{
     classify_relative_width, derive_relative_width, execute_analysis_run,
     execute_analysis_run_with_parameters, trigger_analysis_run, SenaAdjustmentSignal,
-    SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaDiagnostics, SenaEngineParameters,
-    SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord, SenaObservationRegimeHint,
-    SenaOrderSignal, SenaRecipeUsageHint, SenaRepository, SenaRetailPriceObservation, SenaService,
-    SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
-    SenaSkuDetail, SenaStockSnapshot, SenaWorkspaceSummary, SqliteSenaRepository,
+    SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaCreateOrderBatchPayload,
+    SenaDiagnostics, SenaEngineParameters, SenaLeadTimeHint, SenaObservationInput,
+    SenaObservationRecord, SenaObservationRegimeHint, SenaOrderBatchRecord,
+    SenaOrderLookupPayload, SenaOrderSignal, SenaRecipeUsageHint, SenaRepository,
+    SenaRetailPriceObservation, SenaService, SenaServiceDetail, SenaServicePriceObservation,
+    SenaServiceSkuMaskEntry, SenaSku, SenaSkuDetail, SenaSplitOrderChildPayload,
+    SenaStockSnapshot, SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
+    SenaWorkspaceSummary, SqliteSenaRepository,
 };
 use futures::executor::block_on;
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -526,6 +529,7 @@ fn sample_catalog() -> SenaCatalog {
             sku_id: profile.sku_id.to_string(),
             name: profile.name.to_string(),
             description: profile.description.to_string(),
+            image_path: None,
             supplier_name: profile.supplier_name.map(str::to_string),
             cost_per_unit: profile.cost_per_unit,
             archived: false,
@@ -542,6 +546,7 @@ fn sample_catalog() -> SenaCatalog {
             service_id: profile.service_id.to_string(),
             name: profile.name.to_string(),
             description: profile.description.to_string(),
+            image_path: None,
             price: profile.price,
             archived: false,
             bundle: profile.bundle,
@@ -1344,6 +1349,41 @@ pub fn get_catalog(owner_sub: &str) -> Result<Option<SenaCatalog>> {
 
 pub fn list_observations(owner_sub: &str) -> Result<Vec<SenaObservationRecord>> {
     block_on(repository()?.list_observations(owner_sub))
+}
+
+pub fn list_order_batches(
+    owner_sub: &str,
+    filters: Option<&SenaOrderLookupPayload>,
+) -> Result<Vec<SenaOrderBatchRecord>> {
+    block_on(repository()?.list_order_batches(owner_sub, filters))
+}
+
+pub fn create_order_batch(
+    owner_sub: &str,
+    payload: &SenaCreateOrderBatchPayload,
+) -> Result<SenaOrderBatchRecord> {
+    block_on(repository()?.create_order_batch(owner_sub, payload))
+}
+
+pub fn update_order_batch(
+    owner_sub: &str,
+    payload: &SenaUpdateOrderBatchPayload,
+) -> Result<SenaOrderBatchRecord> {
+    block_on(repository()?.update_order_batch(owner_sub, payload))
+}
+
+pub fn update_order_child(
+    owner_sub: &str,
+    payload: &SenaUpdateOrderChildPayload,
+) -> Result<SenaOrderBatchRecord> {
+    block_on(repository()?.update_order_child(owner_sub, payload))
+}
+
+pub fn split_order_child(
+    owner_sub: &str,
+    payload: &SenaSplitOrderChildPayload,
+) -> Result<SenaOrderBatchRecord> {
+    block_on(repository()?.split_order_child(owner_sub, payload))
 }
 
 pub fn trigger_run(owner_sub: &str, algorithm_version: &str) -> Result<SenaAnalysisRunRecord> {

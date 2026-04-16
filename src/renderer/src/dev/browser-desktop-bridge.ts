@@ -559,6 +559,7 @@ const mockLocalDataInfo: DesktopLocalDataInfo = {
   workspaceStorePath: '/tmp/banji-browser-mock/sena.sqlite',
   preferencesPath: '/tmp/banji-browser-mock/preferences.json',
   backupDirectoryPath: '/tmp/banji-browser-mock/backup-snapshots',
+  assetDirectoryPath: '/tmp/banji-browser-mock/assets',
   storageFormat: 'sqlite',
 };
 
@@ -628,6 +629,7 @@ function createMockState(): BrowserMockState {
       language: 'en',
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
+      itemImageMode: 'small',
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -695,6 +697,7 @@ function installBrowserDesktopBridge() {
         },
       }),
       revealPath: async () => {},
+      pickAndStoreImage: async () => null,
     },
     preferences: {
       get: async () => clone(browserMockState.preferences),

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ItemAvatar } from '@/components/system/item-identity';
 import { SkuPageHero } from '@/routes/sku-page-hero';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
@@ -6,9 +7,11 @@ import type { ServiceDetailViewModel } from './view-model';
 
 export function ServiceDetailHero({
   actions,
+  imagePath,
   model,
 }: {
   actions: ReactNode;
+  imagePath?: string | null;
   model: ServiceDetailViewModel;
 }) {
   const { showHeartbeatRibbons = true, t } = usePreferences();
@@ -29,6 +32,7 @@ export function ServiceDetailHero({
           </span>
         </>
       }
+      visual={<ItemAvatar imagePath={imagePath} name={model.identity.name} size="hero" type="service" />}
       title={model.identity.name}
     >
       {showHeartbeatRibbons ? (

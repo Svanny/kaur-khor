@@ -27,6 +27,8 @@ pub struct SenaSku {
     pub name: String,
     pub description: String,
     #[serde(default)]
+    pub image_path: Option<String>,
+    #[serde(default)]
     pub supplier_name: Option<String>,
     pub cost_per_unit: f64,
     #[serde(default)]
@@ -44,6 +46,8 @@ pub struct SenaService {
     pub service_id: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub image_path: Option<String>,
     pub price: f64,
     #[serde(default)]
     pub archived: bool,
@@ -142,6 +146,133 @@ pub struct SenaOrderSignal {
     pub receipt_timestamp: Option<String>,
     #[serde(default)]
     pub lead_time_days_hint: Option<f64>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaOrderBatchStatus {
+    Open,
+    AwaitingReceipt,
+    FollowUp,
+    PartialReceipt,
+    Received,
+    Reviewed,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaOrderChildStatus {
+    Open,
+    AwaitingReceipt,
+    FollowUp,
+    Received,
+    Reviewed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaOrderFieldValues {
+    pub supplier_name: Option<String>,
+    pub supplier_note: Option<String>,
+    pub ordered_quantity: Option<f64>,
+    pub received_quantity: Option<f64>,
+    pub cost_per_unit: Option<f64>,
+    pub expected_arrival_at: Option<String>,
+    pub placement_timestamp: Option<String>,
+    pub receipt_timestamp: Option<String>,
+    pub lead_time_days_hint: Option<f64>,
+    pub lead_time_variability: Option<SenaLeadTimeVariabilityClass>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaOrderChildRecord {
+    pub child_order_id: String,
+    pub sku_id: String,
+    pub status: SenaOrderChildStatus,
+    pub created_at: String,
+    pub updated_at: String,
+    pub inherited_from_batch: bool,
+    pub effective: SenaOrderFieldValues,
+    #[serde(default)]
+    pub overrides: SenaOrderFieldValues,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaOrderBatchRecord {
+    pub batch_order_id: String,
+    pub owner_sub: String,
+    pub supplier_name: Option<String>,
+    pub status: SenaOrderBatchStatus,
+    pub created_at: String,
+    pub updated_at: String,
+    pub shared: SenaOrderFieldValues,
+    pub children: Vec<SenaOrderChildRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaOrderBatchCreateChildInput {
+    pub sku_id: String,
+    #[serde(default)]
+    pub overrides: Option<SenaOrderFieldValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaCreateOrderBatchPayload {
+    #[serde(default)]
+    pub supplier_name: Option<String>,
+    pub shared: SenaOrderFieldValues,
+    pub children: Vec<SenaOrderBatchCreateChildInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaUpdateOrderBatchPayload {
+    pub batch_order_id: String,
+    #[serde(default)]
+    pub shared: Option<SenaOrderFieldValues>,
+    #[serde(default)]
+    pub supplier_name: Option<String>,
+    #[serde(default)]
+    pub status: Option<SenaOrderBatchStatus>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaUpdateOrderChildPayload {
+    pub child_order_id: String,
+    #[serde(default)]
+    pub sku_id: Option<String>,
+    #[serde(default)]
+    pub overrides: Option<SenaOrderFieldValues>,
+    #[serde(default)]
+    pub status: Option<SenaOrderChildStatus>,
+    #[serde(default)]
+    pub append_supplier_note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaSplitOrderChildPayload {
+    pub child_order_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaOrderLookupPayload {
+    #[serde(default)]
+    pub batch_order_id: Option<String>,
+    #[serde(default)]
+    pub child_order_id: Option<String>,
+    #[serde(default)]
+    pub sku_id: Option<String>,
+    #[serde(default)]
+    pub supplier_name: Option<String>,
+    #[serde(default)]
+    pub status: Option<SenaOrderBatchStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -699,6 +830,7 @@ mod tests {
                 sku_id: "shared-id".to_string(),
                 name: "SKU".to_string(),
                 description: String::new(),
+                image_path: None,
                 supplier_name: Some("Test supplier".to_string()),
                 cost_per_unit: 2.0,
                 archived: false,
@@ -711,6 +843,7 @@ mod tests {
                 service_id: "shared-id".to_string(),
                 name: "Service".to_string(),
                 description: String::new(),
+                image_path: None,
                 price: 10.0,
                 archived: false,
                 bundle: false,

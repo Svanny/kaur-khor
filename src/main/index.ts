@@ -1,7 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, screen, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, screen, session, shell } from 'electron';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { basename, dirname, extname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 import { createManagedCoreController } from './core-manager';
 import { migrateLegacyDesktopData } from './data-migration';
@@ -31,13 +32,19 @@ import type { InventorySnapshot, StockReport, StockReportSubmission } from '@sha
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaCreateOrderBatchPayload,
   SenaObservationDeletePayload,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaOrderBatchRecord,
+  SenaOrderLookupPayload,
+  SenaSplitOrderChildPayload,
   SenaObservationUpdatePayload,
   SenaServiceDetailPage,
   SenaSkuDetailPage,
+  SenaUpdateOrderBatchPayload,
+  SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 
@@ -52,6 +59,15 @@ const SENA_STORE_FILENAME = 'desktop-sena-store.sqlite3';
 const PREFERENCES_STORE_FILENAME = 'desktop-preferences.json';
 const SENA_READ_CACHE_FILENAME = 'desktop-sena-read-cache.json';
 const SENA_READ_CACHE_SCHEMA_VERSION = 1;
+const DESKTOP_ASSET_DIRECTORY = 'assets';
+const DESKTOP_ASSET_PROTOCOL = 'banji-asset';
+const DESKTOP_ASSET_HOST = 'local';
+const DESKTOP_IMAGE_IMPORT_EXTENSIONS = ['png', 'jpg', 'jpeg'] as const;
+const DESKTOP_ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const DESKTOP_IMAGE_MAX_DIMENSION_PX = 1600;
+const DESKTOP_IMAGE_TARGET_MAX_BYTES = 1_500_000;
+const DESKTOP_IMAGE_SCALE_STEPS = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25] as const;
+const DESKTOP_IMAGE_JPEG_QUALITY_STEPS = [88, 80, 72, 64, 56, 48] as const;
 
 let mainWindow: BrowserWindow | null = null;
 let desktopContext: DesktopAppContext = {
@@ -93,6 +109,126 @@ async function snapshotBeforeWorkspaceMutation(reason: string) {
 
 function senaReadCachePath() {
   return join(desktopDataPath, SENA_READ_CACHE_FILENAME);
+}
+
+function desktopAssetDirectoryPath() {
+  return join(desktopDataPath, DESKTOP_ASSET_DIRECTORY);
+}
+
+function normalizeImportedImageExtension(sourcePath: string) {
+  const extension = extname(sourcePath).toLowerCase();
+  if (extension === '.png') {
+    return '.png' as const;
+  }
+  if (extension === '.jpg' || extension === '.jpeg') {
+    return '.jpg' as const;
+  }
+  return null;
+}
+
+function computeImportedImageDimensions(width: number, height: number, scaleStep: number) {
+  const maxEdge = Math.max(width, height);
+  const boundedScale = Math.min(1, DESKTOP_IMAGE_MAX_DIMENSION_PX / maxEdge);
+  const effectiveScale = Math.min(1, boundedScale * scaleStep);
+
+  return {
+    width: Math.max(1, Math.round(width * effectiveScale)),
+    height: Math.max(1, Math.round(height * effectiveScale)),
+  };
+}
+
+function encodeImportedImage(
+  image: Electron.NativeImage,
+  targetExtension: '.png' | '.jpg',
+  jpegQuality?: number,
+) {
+  return targetExtension === '.png' ? image.toPNG() : image.toJPEG(jpegQuality ?? 80);
+}
+
+function normalizeImportedImage(sourcePath: string) {
+  const targetExtension = normalizeImportedImageExtension(sourcePath);
+  if (!targetExtension) {
+    throw new Error('Please choose a PNG or JPEG image.');
+  }
+
+  const importedImage = nativeImage.createFromPath(sourcePath);
+  if (importedImage.isEmpty()) {
+    throw new Error('Banji could not read that image file.');
+  }
+
+  const { width, height } = importedImage.getSize();
+  if (width <= 0 || height <= 0) {
+    throw new Error('Banji could not determine the image dimensions.');
+  }
+
+  let bestBytes = encodeImportedImage(importedImage, targetExtension);
+
+  for (const scaleStep of DESKTOP_IMAGE_SCALE_STEPS) {
+    const dimensions = computeImportedImageDimensions(width, height, scaleStep);
+    const resizedImage = importedImage.resize(dimensions);
+
+    if (targetExtension === '.png') {
+      const pngBytes = encodeImportedImage(resizedImage, '.png');
+      if (pngBytes.byteLength < bestBytes.byteLength) {
+        bestBytes = pngBytes;
+      }
+      if (pngBytes.byteLength <= DESKTOP_IMAGE_TARGET_MAX_BYTES) {
+        return { bytes: pngBytes, extension: '.png' as const };
+      }
+      continue;
+    }
+
+    for (const jpegQuality of DESKTOP_IMAGE_JPEG_QUALITY_STEPS) {
+      const jpegBytes = encodeImportedImage(resizedImage, '.jpg', jpegQuality);
+      if (jpegBytes.byteLength < bestBytes.byteLength) {
+        bestBytes = jpegBytes;
+      }
+      if (jpegBytes.byteLength <= DESKTOP_IMAGE_TARGET_MAX_BYTES) {
+        return { bytes: jpegBytes, extension: '.jpg' as const };
+      }
+    }
+  }
+
+  return { bytes: bestBytes, extension: targetExtension };
+}
+
+function resolveDesktopAssetPathFromRequest(requestUrl: string) {
+  try {
+    const assetUrl = new URL(requestUrl);
+    if (assetUrl.protocol !== `${DESKTOP_ASSET_PROTOCOL}:` || assetUrl.hostname !== DESKTOP_ASSET_HOST) {
+      return null;
+    }
+
+    const requestedAssetName = decodeURIComponent(assetUrl.pathname.replace(/^\/+/, ''));
+    if (!requestedAssetName || requestedAssetName !== basename(requestedAssetName)) {
+      return null;
+    }
+
+    const assetExtension = extname(requestedAssetName).toLowerCase();
+    if (!DESKTOP_ALLOWED_IMAGE_EXTENSIONS.has(assetExtension)) {
+      return null;
+    }
+
+    return join(desktopAssetDirectoryPath(), requestedAssetName);
+  } catch {
+    return null;
+  }
+}
+
+function installDesktopAssetProtocol() {
+  protocol.handle(DESKTOP_ASSET_PROTOCOL, async (request) => {
+    const assetPath = resolveDesktopAssetPathFromRequest(request.url);
+    if (!assetPath) {
+      return new Response('Not found', { status: 404 });
+    }
+
+    const assetStats = await stat(assetPath).catch(() => null);
+    if (!assetStats?.isFile()) {
+      return new Response('Not found', { status: 404 });
+    }
+
+    return net.fetch(pathToFileURL(assetPath).toString());
+  });
 }
 
 function serializeSenaReadCache() {
@@ -162,7 +298,7 @@ function buildRendererContentSecurityPolicy() {
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: file: banji-asset:",
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
   ];
@@ -511,6 +647,7 @@ async function createMainWindow() {
 
 async function boot() {
   installRendererContentSecurityPolicy();
+  installDesktopAssetProtocol();
   installApplicationMenu();
   await loadPersistedSenaReadCache();
   if (!app.isPackaged) {
@@ -548,6 +685,7 @@ ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, async () => {
     workspaceStorePath: join(desktopDataPath, SENA_STORE_FILENAME),
     preferencesPath: join(desktopDataPath, PREFERENCES_STORE_FILENAME),
     backupDirectoryPath: desktopBackupDirectoryPath(desktopDataPath),
+    assetDirectoryPath: desktopAssetDirectoryPath(),
     storageFormat: 'sqlite',
   };
   return info;
@@ -604,6 +742,40 @@ ipcMain.handle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string)
 
   shell.showItemInFolder(normalizedPath);
 });
+ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, async () => {
+  const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
+    buttonLabel: 'Use image',
+    filters: [
+      {
+        name: 'Images',
+        extensions: [...DESKTOP_IMAGE_IMPORT_EXTENSIONS],
+      },
+    ],
+    properties: ['openFile'],
+    title: 'Choose an item picture',
+  });
+  if (selection.canceled || selection.filePaths.length === 0) {
+    return null;
+  }
+
+  const sourcePath = selection.filePaths[0];
+  if (!sourcePath) {
+    return null;
+  }
+
+  const extension = extname(sourcePath).toLowerCase();
+  if (!DESKTOP_ALLOWED_IMAGE_EXTENSIONS.has(extension)) {
+    throw new Error('Please choose a PNG or JPEG image.');
+  }
+
+  const normalizedImage = normalizeImportedImage(sourcePath);
+
+  const targetDirectory = desktopAssetDirectoryPath();
+  await mkdir(targetDirectory, { recursive: true });
+  const targetPath = join(targetDirectory, `${randomUUID()}${normalizedImage.extension}`);
+  await writeFile(targetPath, normalizedImage.bytes);
+  return targetPath;
+});
 
 ipcMain.handle(IPC_CHANNELS.inventoryLoadSnapshot, async () =>
   managedCore.invoke<InventorySnapshot>('inventory.loadSnapshot', undefined, {
@@ -629,6 +801,13 @@ ipcMain.handle(IPC_CHANNELS.senaGetCatalog, async () =>
 ipcMain.handle(IPC_CHANNELS.senaListObservations, async () =>
   loadCachedSenaRead('observations', () =>
     managedCore.invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+  ),
+);
+ipcMain.handle(IPC_CHANNELS.senaListOrderBatches, async (_event, payload?: SenaOrderLookupPayload) =>
+  loadCachedSenaRead(`order-batches:${JSON.stringify(payload ?? {})}`, () =>
+    managedCore.invoke<SenaOrderBatchRecord[]>('sena.listOrderBatches', payload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
@@ -663,6 +842,38 @@ ipcMain.handle(IPC_CHANNELS.senaDeleteObservation, async (_event, payload: SenaO
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
+});
+ipcMain.handle(IPC_CHANNELS.senaCreateOrderBatch, async (_event, payload: SenaCreateOrderBatchPayload) => {
+  await snapshotBeforeWorkspaceMutation('sena-create-order-batch');
+  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.createOrderBatch', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  await invalidateSenaReadCache();
+  return result;
+});
+ipcMain.handle(IPC_CHANNELS.senaUpdateOrderBatch, async (_event, payload: SenaUpdateOrderBatchPayload) => {
+  await snapshotBeforeWorkspaceMutation('sena-update-order-batch');
+  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.updateOrderBatch', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  await invalidateSenaReadCache();
+  return result;
+});
+ipcMain.handle(IPC_CHANNELS.senaUpdateOrderChild, async (_event, payload: SenaUpdateOrderChildPayload) => {
+  await snapshotBeforeWorkspaceMutation('sena-update-order-child');
+  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.updateOrderChild', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  await invalidateSenaReadCache();
+  return result;
+});
+ipcMain.handle(IPC_CHANNELS.senaSplitOrderChild, async (_event, payload: SenaSplitOrderChildPayload) => {
+  await snapshotBeforeWorkspaceMutation('sena-split-order-child');
+  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.splitOrderChild', payload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  await invalidateSenaReadCache();
+  return result;
 });
 ipcMain.handle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) => {
   await snapshotBeforeWorkspaceMutation('sena-trigger-run');

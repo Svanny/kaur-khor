@@ -63,6 +63,10 @@ if (!Element.prototype.releasePointerCapture) {
   Element.prototype.releasePointerCapture = () => {};
 }
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
 }));
@@ -78,10 +82,22 @@ const sampleCatalog = {
       skuId: 'sku-1',
       name: 'Razor refill',
       description: 'Refill pack',
+      supplierName: 'Salon Tools',
       costPerUnit: 4,
       soldAsProduct: true,
       productPrice: 9,
       leadTimeMeanDaysHint: 5,
+      leadTimeStdDaysHint: 1,
+    },
+    {
+      skuId: 'sku-2',
+      name: 'Color shampoo',
+      description: 'Color support',
+      supplierName: 'Mekong Looms',
+      costPerUnit: 5,
+      soldAsProduct: true,
+      productPrice: 12,
+      leadTimeMeanDaysHint: 4,
       leadTimeStdDaysHint: 1,
     },
   ],
@@ -93,9 +109,19 @@ const sampleCatalog = {
       price: 12,
       bundle: false,
     },
+    {
+      serviceId: 'service-2',
+      name: 'Hair Coloring',
+      description: '',
+      price: 18,
+      bundle: false,
+    },
   ],
   bundles: [],
-  sharingMask: [{ serviceId: 'service-1', skuId: 'sku-1', enabled: true, usageProbability: 1 }],
+  sharingMask: [
+    { serviceId: 'service-1', skuId: 'sku-1', enabled: true, usageProbability: 1 },
+    { serviceId: 'service-2', skuId: 'sku-2', enabled: true, usageProbability: 1 },
+  ],
 };
 
 const sampleObservations = [
@@ -148,6 +174,23 @@ const sampleObservations = [
       retailPrices: [],
       leadTimeHints: [],
       notes: 'Haircut price updated',
+    },
+  },
+  {
+    observationId: 'obs-service-color',
+    ownerSub: 'desktop-owner',
+    input: {
+      observedAt: '2026-04-01T12:00:00.000Z',
+      stockSnapshot: [],
+      serviceRankings: ['Hair Coloring'],
+      retailRankings: [],
+      serviceStockouts: [],
+      retailStockouts: [],
+      orderSignals: [],
+      servicePrices: [{ serviceId: 'service-2', price: 20 }],
+      retailPrices: [],
+      leadTimeHints: [],
+      notes: 'Hair coloring price updated',
     },
   },
   {
@@ -262,12 +305,13 @@ describe('StockUpdateRoute', () => {
     expect(screen.getByText('Update history')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by supplier' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Select log view' })).toBeInTheDocument();
     expect(screen.getByText('View: Heatmap')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Start update' })).toHaveAttribute('href', RECORD_UPDATE_HUB_PATH);
     expect(screen.queryByRole('button', { name: 'Run analysis' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Re-run analysis' })).not.toBeInTheDocument();
-    expect(screen.getByText('3 contributions in 2025-2026')).toBeInTheDocument();
+    expect(screen.getByText('4 contributions in 2025-2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous contribution year' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next contribution year' })).toBeDisabled();
   }, 10_000);
@@ -319,8 +363,8 @@ describe('StockUpdateRoute', () => {
     expect(screen.queryByRole('combobox', { name: 'Select log view' })).not.toBeInTheDocument();
     expect(screen.queryByText('View: Heatmap')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Observation contribution heatmap')).not.toBeInTheDocument();
-    expect(screen.getByText('All observations (4)')).toBeInTheDocument();
-    expect(screen.getByText('Showing 1-4 of 4 filtered observations.')).toBeInTheDocument();
+    expect(screen.getByText('All observations (5)')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1-5 of 5 filtered observations.')).toBeInTheDocument();
   });
 
   it('selects the newest active day by default and shows that day detail list', () => {
@@ -377,21 +421,27 @@ describe('StockUpdateRoute', () => {
     expect(screen.queryByText('Supplier order logged')).not.toBeInTheDocument();
   });
 
-  it('applies scope and search filters to both the heatmap and selected-day details', () => {
-    const { container } = renderRoute();
+  it('applies scope, supplier, and search filters to both the heatmap and selected-day details', () => {
+    renderRoute();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Services' }));
-    fireEvent.click(container.querySelector<HTMLButtonElement>('button[data-count="1"]')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Apr 2, 2026, 1 observation' }));
 
     expect(screen.getByText('Haircut price updated')).toBeInTheDocument();
     expect(screen.queryByText('Supplier order logged')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Filter by supplier' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Mekong Looms' }));
+
+    expect(screen.getByText('Hair coloring price updated')).toBeInTheDocument();
+    expect(screen.queryByText('Haircut price updated')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Search name or description…'), {
       target: { value: 'No such observation' },
     });
 
     expect(screen.getByText('0 contributions in 2025-2026')).toBeInTheDocument();
-    expect(screen.queryByText('Haircut price updated')).not.toBeInTheDocument();
+    expect(screen.queryByText('Hair coloring price updated')).not.toBeInTheDocument();
   });
 
   it('navigates to older year windows and disables forward navigation at the newest window', () => {
@@ -412,7 +462,7 @@ describe('StockUpdateRoute', () => {
     expect(nextYearButton).toBeDisabled();
     expect(screen.getByText('Supplier order logged')).toBeInTheDocument();
     expect(screen.queryByText('Older snapshot')).not.toBeInTheDocument();
-    expect(screen.getByText('3 contributions in 2025-2026')).toBeInTheDocument();
+    expect(screen.getByText('4 contributions in 2025-2026')).toBeInTheDocument();
     expect(screen.getByText('Apr 4, 2025 to Apr 3, 2026')).toBeInTheDocument();
   });
 

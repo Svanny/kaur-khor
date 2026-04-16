@@ -8,14 +8,20 @@ import type {
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
+  SenaCreateOrderBatchPayload,
   SenaObservationDeletePayload,
   SenaDetailWindowRequest,
   SenaDiagnostics,
   SenaObservationInput,
+  SenaOrderBatchRecord,
+  SenaOrderLookupPayload,
   SenaObservationRecord,
+  SenaSplitOrderChildPayload,
   SenaObservationUpdatePayload,
   SenaServiceDetailPage,
   SenaSkuDetailPage,
+  SenaUpdateOrderBatchPayload,
+  SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from './sena';
 
@@ -29,8 +35,11 @@ export interface DesktopLocalDataInfo {
   workspaceStorePath: string;
   preferencesPath: string;
   backupDirectoryPath: string;
+  assetDirectoryPath: string;
   storageFormat: 'sqlite';
 }
+
+export type DesktopItemImageMode = 'off' | 'thumbnail' | 'small' | 'medium';
 
 export interface DesktopBackupSnapshotResult {
   createdAt: string;
@@ -49,11 +58,22 @@ export interface DesktopClearCurrentDataResult {
   safetySnapshot: DesktopBackupSnapshotResult;
 }
 
+export type DesktopTaskBatchUpdatePreference = 'always_batch' | 'always_alone' | 'ask';
+
+export interface DesktopTaskBatchUpdatePreferences {
+  logOrder: DesktopTaskBatchUpdatePreference;
+  updateEta: DesktopTaskBatchUpdatePreference;
+  followUp: DesktopTaskBatchUpdatePreference;
+  receive: DesktopTaskBatchUpdatePreference;
+  review: DesktopTaskBatchUpdatePreference;
+}
+
 export interface DesktopPreferences {
   language: AppLanguage;
   currency: AppCurrency;
   usdToKhrExchangeRate: number;
   displayViewMode: 'compact' | 'custom';
+  itemImageMode: DesktopItemImageMode;
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
@@ -63,6 +83,7 @@ export interface DesktopPreferences {
   showPerformanceTimelineCard: boolean;
   showLogsViewToggle: boolean;
   showHeartbeatRibbons: boolean;
+  taskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
   customShowExplanatoryTooltips: boolean;
   customShowFloatingTitleActions: boolean;
   customShowRightRailCards: boolean;
@@ -117,10 +138,15 @@ export interface SenaDetailCacheClearPayload {
 export interface DesktopSenaBridge {
   getCatalog: () => Promise<SenaCatalog | null>;
   listObservations: () => Promise<SenaObservationRecord[]>;
+  listOrderBatches: (payload?: SenaOrderLookupPayload) => Promise<SenaOrderBatchRecord[]>;
   upsertCatalog: (payload: SenaCatalog) => Promise<SenaCatalog>;
   ingestObservation: (payload: SenaObservationInput) => Promise<SenaObservationRecord>;
   updateObservation: (payload: SenaObservationUpdatePayload) => Promise<SenaObservationRecord>;
   deleteObservation: (payload: SenaObservationDeletePayload) => Promise<void>;
+  createOrderBatch: (payload: SenaCreateOrderBatchPayload) => Promise<SenaOrderBatchRecord>;
+  updateOrderBatch: (payload: SenaUpdateOrderBatchPayload) => Promise<SenaOrderBatchRecord>;
+  updateOrderChild: (payload: SenaUpdateOrderChildPayload) => Promise<SenaOrderBatchRecord>;
+  splitOrderChild: (payload: SenaSplitOrderChildPayload) => Promise<SenaOrderBatchRecord>;
   triggerRun: (payload?: SenaTriggerRunPayload) => Promise<SenaAnalysisRunRecord>;
   retryRun: (payload: SenaRunLookupPayload) => Promise<SenaAnalysisRunRecord>;
   getWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
@@ -149,6 +175,7 @@ export interface DesktopSystemBridge {
   restoreBackupSnapshot: () => Promise<DesktopBackupRestoreResult | null>;
   clearCurrentData: () => Promise<DesktopClearCurrentDataResult>;
   revealPath: (path: string) => Promise<void>;
+  pickAndStoreImage: () => Promise<string | null>;
 }
 
 export interface DesktopBridge {
@@ -165,15 +192,21 @@ export const IPC_CHANNELS = {
   systemRestoreBackupSnapshot: 'banji:system:restore-backup-snapshot',
   systemClearCurrentData: 'banji:system:clear-current-data',
   systemRevealPath: 'banji:system:reveal-path',
+  systemPickAndStoreImage: 'banji:system:pick-and-store-image',
   inventoryLoadSnapshot: 'banji:inventory:load-snapshot',
   inventoryListReports: 'banji:inventory:list-reports',
   inventorySubmitReport: 'banji:inventory:submit-report',
   senaGetCatalog: 'banji:sena:get-catalog',
   senaListObservations: 'banji:sena:list-observations',
+  senaListOrderBatches: 'banji:sena:list-order-batches',
   senaUpsertCatalog: 'banji:sena:upsert-catalog',
   senaIngestObservation: 'banji:sena:ingest-observation',
   senaUpdateObservation: 'banji:sena:update-observation',
   senaDeleteObservation: 'banji:sena:delete-observation',
+  senaCreateOrderBatch: 'banji:sena:create-order-batch',
+  senaUpdateOrderBatch: 'banji:sena:update-order-batch',
+  senaUpdateOrderChild: 'banji:sena:update-order-child',
+  senaSplitOrderChild: 'banji:sena:split-order-child',
   senaTriggerRun: 'banji:sena:trigger-run',
   senaRetryRun: 'banji:sena:retry-run',
   senaGetWorkspaceSummary: 'banji:sena:get-workspace-summary',
@@ -187,6 +220,15 @@ export const IPC_CHANNELS = {
 } as const;
 
 export const DEFAULT_USD_TO_KHR_EXCHANGE_RATE = 4000;
+export const DEFAULT_DESKTOP_ITEM_IMAGE_MODE: DesktopItemImageMode = 'small';
+
+export const DEFAULT_TASK_BATCH_UPDATE_PREFERENCES: DesktopTaskBatchUpdatePreferences = {
+  logOrder: 'ask',
+  updateEta: 'ask',
+  followUp: 'ask',
+  receive: 'ask',
+  review: 'ask',
+};
 
 export const DEFAULT_SENA_ENGINE_PARAMETERS: SenaEngineParameters = {
   algorithmVersion: 'sena-analysis-v3',
@@ -199,6 +241,42 @@ export const DEFAULT_SENA_ENGINE_PARAMETERS: SenaEngineParameters = {
   reviewDelayDays: 0,
   smoothingEnabled: false,
 };
+
+export function normalizeDesktopTaskBatchUpdatePreferences(
+  value:
+    | Partial<DesktopTaskBatchUpdatePreferences>
+    | null
+    | undefined,
+  legacyValue?: DesktopTaskBatchUpdatePreference | null,
+): DesktopTaskBatchUpdatePreferences {
+  const fallbackValue =
+    legacyValue === 'always_batch' || legacyValue === 'always_alone' || legacyValue === 'ask'
+      ? legacyValue
+      : 'ask';
+
+  return {
+    logOrder:
+      value?.logOrder === 'always_batch' || value?.logOrder === 'always_alone' || value?.logOrder === 'ask'
+        ? value.logOrder
+        : fallbackValue,
+    updateEta:
+      value?.updateEta === 'always_batch' || value?.updateEta === 'always_alone' || value?.updateEta === 'ask'
+        ? value.updateEta
+        : fallbackValue,
+    followUp:
+      value?.followUp === 'always_batch' || value?.followUp === 'always_alone' || value?.followUp === 'ask'
+        ? value.followUp
+        : fallbackValue,
+    receive:
+      value?.receive === 'always_batch' || value?.receive === 'always_alone' || value?.receive === 'ask'
+        ? value.receive
+        : fallbackValue,
+    review:
+      value?.review === 'always_batch' || value?.review === 'always_alone' || value?.review === 'ask'
+        ? value.review
+        : fallbackValue,
+  };
+}
 
 export function normalizeDesktopPreferenceTimestamp(value: string | null | undefined) {
   if (typeof value !== 'string' || value.trim().length === 0) {

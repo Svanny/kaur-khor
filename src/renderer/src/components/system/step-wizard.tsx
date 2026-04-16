@@ -116,7 +116,7 @@ function WizardStepButton({
         <span
           className={cn(
             'flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold',
-            complete && 'border-primary bg-primary text-primary-foreground',
+            complete && 'border-[#41985e] bg-[#41985e] text-white',
             !complete && current && 'border-primary/60 text-primary',
             !complete && !current && !disabled && 'border-border/70 text-foreground',
             disabled && 'border-border/50 text-muted-foreground/80',

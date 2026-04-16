@@ -67,6 +67,7 @@ const catalog = {
       leadTimeStdDaysHint: 1,
       name: 'Razor Refill',
       productPrice: 18,
+      supplierName: 'Salon Tools',
       skuId: 'sku-razor',
       soldAsProduct: true,
     },
@@ -77,6 +78,7 @@ const catalog = {
       leadTimeStdDaysHint: 1,
       name: 'Shampoo Classic',
       productPrice: 20,
+      supplierName: 'Mekong Looms',
       skuId: 'sku-shampoo',
       soldAsProduct: true,
     },
@@ -488,6 +490,12 @@ describe('PerformanceRoute', () => {
     expect(screen.getByText('Revenue at risk')).toBeInTheDocument();
   });
 
+  test('shows supplier filter on analysis page', async () => {
+    renderAnalysisRoute();
+
+    expect(await screen.findByRole('combobox', { name: 'Filter by supplier' })).toBeInTheDocument();
+  });
+
   test('uses a taller status pill line box for translated board labels', async () => {
     preferenceState.language = 'km';
 
@@ -794,6 +802,18 @@ describe('PerformanceRoute', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'SKUs' }));
     expect(boardQueries.getByText('Razor Refill')).toBeInTheDocument();
     expect(boardQueries.queryByText('Hair Coloring')).not.toBeInTheDocument();
+  });
+
+  test('filters services by linked sku supplier', async () => {
+    renderRoute('/performance?scope=services&supplier=Mekong+Looms');
+
+    const boardHeading = await screen.findByRole('heading', { name: 'Demand × capacity board' });
+    const board = boardHeading.closest('section');
+    expect(board).not.toBeNull();
+    const boardQueries = within(board!);
+
+    expect(boardQueries.getByText('Hair Coloring')).toBeInTheDocument();
+    expect(boardQueries.queryByText('Haircut')).not.toBeInTheDocument();
   });
 
   test('hides the right rail and expands the main content when the global toggle is off', async () => {

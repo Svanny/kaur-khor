@@ -3,6 +3,7 @@ import type {
   SenaCatalog,
   SenaLeadTimeVariabilityClass,
   SenaObservationRecord,
+  SenaOrderBatchRecord,
   SenaSkuDetail,
   SenaSkuSummary,
   SenaWorkspaceSummary,
@@ -74,7 +75,11 @@ export interface OverviewSkuTask extends OverviewTaskBase {
   id: string;
   skuId: string;
   skuName: string;
+  imagePath: string | null;
   supplierName: string | null;
+  batchOrderId: string | null;
+  childOrderId: string | null;
+  batchChildCount: number;
   state: Exclude<OverviewTaskFilter, 'all'>;
   stateLabel: string;
   statusTone: 'danger' | 'warning' | 'success' | 'info' | 'neutral';
@@ -129,6 +134,7 @@ export interface OverviewInTransitRow {
   id: string;
   skuId: string;
   name: string;
+  imagePath: string | null;
   supplierName: string | null;
   etaLabel: string;
 }
@@ -137,6 +143,7 @@ export interface OverviewReceiptRow {
   id: string;
   skuId: string;
   name: string;
+  imagePath: string | null;
   supplierName: string | null;
   quantityLabel: string;
   receivedAt: string;
@@ -319,6 +326,28 @@ function summarizeObservations(observations: SenaObservationRecord[], skuId: str
     latestReceiptQuantity,
     latestPriceAt,
     latestLeadTimeObservedAt,
+  };
+}
+
+function orderBatchesForSku(orderBatches: SenaOrderBatchRecord[] | undefined, skuId: string) {
+  return (orderBatches ?? [])
+    .filter((batch) => batch.children.some((child) => child.skuId === skuId))
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
+function latestOrderContext(orderBatches: SenaOrderBatchRecord[], skuId: string) {
+  const batch = orderBatchesForSku(orderBatches, skuId)[0] ?? null;
+  if (!batch) {
+    return null;
+  }
+  const child = batch.children.find((entry) => entry.skuId === skuId) ?? null;
+  if (!child) {
+    return null;
+  }
+  return {
+    batch,
+    child,
+    effective: child.effective,
   };
 }
 
@@ -659,6 +688,7 @@ function buildTask({
   detail,
   language,
   observations,
+  orderBatches,
   summary,
   workspaceLatestObservedAt,
 }: {
@@ -666,6 +696,7 @@ function buildTask({
   detail: SenaSkuDetail | null;
   language: AppLanguage;
   observations: SenaObservationRecord[];
+  orderBatches: SenaOrderBatchRecord[];
   summary: SenaSkuSummary;
   workspaceLatestObservedAt: string | null;
 }) {
@@ -675,18 +706,35 @@ function buildTask({
   }
 
   const observationSignals = summarizeObservations(observations, summary.skuId);
+  const orderContext = latestOrderContext(orderBatches, summary.skuId);
+  const latestOrderAt = orderContext?.effective.placementTimestamp ?? observationSignals.latestOrderAt;
+  const latestReceiptAt = orderContext?.effective.receiptTimestamp ?? observationSignals.latestReceiptAt;
   const receiptWindow = receiptWindowSummary({
     detail,
     language,
-    latestOrderAt: observationSignals.latestOrderAt,
+    latestOrderAt,
     summary,
   });
-  const state = deriveTaskState({
-    latestOrderAt: observationSignals.latestOrderAt,
-    latestReceiptAt: observationSignals.latestReceiptAt,
-    receiptWindow,
-    summary,
-  });
+  const state = orderContext
+    ? (() => {
+        switch (orderContext.child.status) {
+          case 'reviewed':
+            return null;
+          case 'received':
+            return 'received_today' as const;
+          case 'follow_up':
+            return 'follow_up_today' as const;
+          case 'awaiting_receipt':
+          case 'open':
+            return receiptWindow?.dueNow ? ('ready_to_receive' as const) : ('awaiting_receipt' as const);
+        }
+      })()
+    : deriveTaskState({
+        latestOrderAt: observationSignals.latestOrderAt,
+        latestReceiptAt: observationSignals.latestReceiptAt,
+        receiptWindow,
+        summary,
+      });
 
   if (!state) {
     return null;
@@ -732,7 +780,11 @@ function buildTask({
     id: summary.skuId,
     skuId: summary.skuId,
     skuName: sku.name,
+    imagePath: sku.imagePath?.trim() || null,
     supplierName: sku.supplierName?.trim() || null,
+    batchOrderId: orderContext?.batch.batchOrderId ?? null,
+    childOrderId: orderContext?.child.childOrderId ?? null,
+    batchChildCount: orderContext?.batch.children.length ?? 0,
     state,
     stateLabel: taskStateLabel(state, language),
     statusTone: narrative.statusTone,
@@ -796,11 +848,11 @@ function buildTask({
     leadTimeStdDays: detail?.leadTimePosterior.at(-1)?.stdDays ?? summary.leadTimeStdDays,
     variabilityClass,
     suggestedOrderQuantity: reorderRecommendation.recommendedUnits,
-    recentOrderQuantity: observationSignals.latestOrderQuantity,
-    recentReceiptQuantity: observationSignals.latestReceiptQuantity,
+    recentOrderQuantity: orderContext?.effective.orderedQuantity ?? observationSignals.latestOrderQuantity,
+    recentReceiptQuantity: orderContext?.effective.receivedQuantity ?? observationSignals.latestReceiptQuantity,
     latestObservationAt: observationSignals.latestObservationAt,
-    latestOrderAt: observationSignals.latestOrderAt,
-    latestReceiptAt: observationSignals.latestReceiptAt,
+    latestOrderAt,
+    latestReceiptAt,
     hasRecentPriceSignal: Boolean(observationSignals.latestPriceAt),
     regimeKey: dominantRegime,
     regimeLabel: translateRegimeLabel(language, dominantRegime),
@@ -921,6 +973,7 @@ export function buildOverviewModel({
   forceStaleUpdateReminder,
   language,
   observations,
+  orderBatches,
   staleUpdateReminderSnoozeUntil,
   workspaceSummary,
 }: {
@@ -929,6 +982,7 @@ export function buildOverviewModel({
   forceStaleUpdateReminder?: boolean;
   language: AppLanguage;
   observations: SenaObservationRecord[];
+  orderBatches: SenaOrderBatchRecord[];
   staleUpdateReminderSnoozeUntil?: string | null;
   workspaceSummary: SenaWorkspaceSummary | null;
 }): OverviewModel {
@@ -968,6 +1022,7 @@ export function buildOverviewModel({
         detail: detailBySkuId[summary.skuId] ?? null,
         language,
         observations,
+        orderBatches,
         summary,
         workspaceLatestObservedAt: workspaceSummary.latestObservedAt,
       }),
@@ -998,6 +1053,7 @@ export function buildOverviewModel({
       id: task.id,
       skuId: task.skuId,
       name: task.skuName,
+      imagePath: task.imagePath,
       supplierName: task.supplierName,
       etaLabel: task.etaLabel,
     }))
@@ -1010,6 +1066,7 @@ export function buildOverviewModel({
       id: `receipt:${task.skuId}`,
       skuId: task.skuId,
       name: task.skuName,
+      imagePath: task.imagePath,
       supplierName: task.supplierName,
       quantityLabel:
         task.recentReceiptQuantity != null
