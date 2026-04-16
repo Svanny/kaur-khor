@@ -3215,51 +3215,21 @@ export function SkuTradingChart({
     };
 
     let animationFrame: number | null = null;
-    let interactiveTimer: number | null = null;
+    let interactionFrame: number | null = null;
     let wheelStopTimer: number | null = null;
-    let pointerDragActive = false;
-    let lastInteractiveUpdateAt = 0;
-    const INTERACTIVE_UPDATE_INTERVAL_MS = 33;
-    const scheduleUncertaintyBandPathUpdate = (interactive = false) => {
-      if (!interactive) {
-        if (interactiveTimer != null) {
-          window.clearTimeout(interactiveTimer);
-          interactiveTimer = null;
-        }
-        if (animationFrame != null) {
-          return;
-        }
-        animationFrame = window.requestAnimationFrame(() => {
-          animationFrame = null;
-          updateUncertaintyBandPath();
-        });
+    const scheduleUncertaintyBandPathUpdate = () => {
+      if (animationFrame != null) {
         return;
       }
-
-      const now = performance.now();
-      const elapsed = now - lastInteractiveUpdateAt;
-      const delay = Math.max(0, INTERACTIVE_UPDATE_INTERVAL_MS - elapsed);
-      if (animationFrame != null || interactiveTimer != null) {
-        return;
-      }
-      if (delay === 0) {
-        animationFrame = window.requestAnimationFrame(() => {
-          animationFrame = null;
-          lastInteractiveUpdateAt = performance.now();
-          updateUncertaintyBandPath();
-        });
-        return;
-      }
-      interactiveTimer = window.setTimeout(() => {
-        interactiveTimer = null;
-        scheduleUncertaintyBandPathUpdate(true);
-      }, delay);
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateUncertaintyBandPath();
+      });
     };
     const stopInteractiveUpdates = () => {
-      pointerDragActive = false;
-      if (interactiveTimer != null) {
-        window.clearTimeout(interactiveTimer);
-        interactiveTimer = null;
+      if (interactionFrame != null) {
+        window.cancelAnimationFrame(interactionFrame);
+        interactionFrame = null;
       }
       if (wheelStopTimer != null) {
         window.clearTimeout(wheelStopTimer);
@@ -3267,18 +3237,18 @@ export function SkuTradingChart({
       }
       scheduleUncertaintyBandPathUpdate();
     };
-    const handlePointerDown = () => {
-      pointerDragActive = true;
-      scheduleUncertaintyBandPathUpdate(true);
+    const runInteractiveUpdate = () => {
+      updateUncertaintyBandPath();
+      interactionFrame = window.requestAnimationFrame(runInteractiveUpdate);
     };
-    const handlePointerMove = () => {
-      if (!pointerDragActive) {
+    const startInteractiveUpdates = () => {
+      if (interactionFrame != null) {
         return;
       }
-      scheduleUncertaintyBandPathUpdate(true);
+      runInteractiveUpdate();
     };
     const handleWheel = () => {
-      scheduleUncertaintyBandPathUpdate(true);
+      startInteractiveUpdates();
       if (wheelStopTimer != null) {
         window.clearTimeout(wheelStopTimer);
       }
@@ -3288,8 +3258,7 @@ export function SkuTradingChart({
     const stopObservingLayout = observeChartLayout(container, scheduleUncertaintyBandPathUpdate, undefined, {
       mutationThrottleMs: 48,
     });
-    container.addEventListener('pointerdown', handlePointerDown);
-    container.addEventListener('pointermove', handlePointerMove);
+    container.addEventListener('pointerdown', startInteractiveUpdates);
     container.addEventListener('wheel', handleWheel, { passive: true });
     window.addEventListener('pointerup', stopInteractiveUpdates);
     window.addEventListener('pointercancel', stopInteractiveUpdates);
@@ -3299,15 +3268,14 @@ export function SkuTradingChart({
       if (animationFrame != null) {
         window.cancelAnimationFrame(animationFrame);
       }
-      if (interactiveTimer != null) {
-        window.clearTimeout(interactiveTimer);
+      if (interactionFrame != null) {
+        window.cancelAnimationFrame(interactionFrame);
       }
       if (wheelStopTimer != null) {
         window.clearTimeout(wheelStopTimer);
       }
       stopObservingLayout();
-      container.removeEventListener('pointerdown', handlePointerDown);
-      container.removeEventListener('pointermove', handlePointerMove);
+      container.removeEventListener('pointerdown', startInteractiveUpdates);
       container.removeEventListener('wheel', handleWheel);
       window.removeEventListener('pointerup', stopInteractiveUpdates);
       window.removeEventListener('pointercancel', stopInteractiveUpdates);
