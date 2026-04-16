@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SenaSkuDetailPage } from '@shared/sena';
 import { StatusLoadingIcon } from '@icons/status';
 import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/system/chart-timeframe';
@@ -139,6 +139,8 @@ export function SkuDetailLedger({
   const [indicatorSettings, setIndicatorSettings] = useState(
     () => initialPersistedSettings.indicatorSettings,
   );
+  const pendingIndicatorSettingsRef = useRef<TradingChartIndicatorSettings | null>(null);
+  const indicatorSettingsWriteTimerRef = useRef<number | null>(null);
   const chartModel = useMemo(() => deriveTradingChartModel(model), [model]);
   const isBusy = isHydratingDetails || isLoadingOlderIntervals;
 
@@ -158,12 +160,39 @@ export function SkuDetailLedger({
     if (settingsSubjectKey !== subjectKey) {
       return;
     }
-    writeEntityChartSettings(
-      chartSettingsSubtype,
-      model.identity.skuId,
-      indicatorSettings,
-      normalizeTradingChartIndicatorSettings,
-    );
+    pendingIndicatorSettingsRef.current = indicatorSettings;
+    if (indicatorSettingsWriteTimerRef.current != null) {
+      window.clearTimeout(indicatorSettingsWriteTimerRef.current);
+    }
+    indicatorSettingsWriteTimerRef.current = window.setTimeout(() => {
+      indicatorSettingsWriteTimerRef.current = null;
+      if (!pendingIndicatorSettingsRef.current) {
+        return;
+      }
+      writeEntityChartSettings(
+        chartSettingsSubtype,
+        model.identity.skuId,
+        pendingIndicatorSettingsRef.current,
+        normalizeTradingChartIndicatorSettings,
+      );
+      pendingIndicatorSettingsRef.current = null;
+    }, 120);
+    return () => {
+      if (indicatorSettingsWriteTimerRef.current != null) {
+        window.clearTimeout(indicatorSettingsWriteTimerRef.current);
+        indicatorSettingsWriteTimerRef.current = null;
+      }
+      if (!pendingIndicatorSettingsRef.current) {
+        return;
+      }
+      writeEntityChartSettings(
+        chartSettingsSubtype,
+        model.identity.skuId,
+        pendingIndicatorSettingsRef.current,
+        normalizeTradingChartIndicatorSettings,
+      );
+      pendingIndicatorSettingsRef.current = null;
+    };
   }, [chartSettingsSubtype, indicatorSettings, model.identity.skuId, settingsSubjectKey]);
 
   function saveDefaultIndicatorSettings(next: TradingChartIndicatorSettings) {

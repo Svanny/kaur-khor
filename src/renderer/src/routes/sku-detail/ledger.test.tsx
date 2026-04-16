@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultChartLayoutPreferences } from '@/lib/chart-layout-preferences';
@@ -249,5 +249,45 @@ describe('SkuDetailLedger', () => {
 
     expect(onChartLayoutPreferencesChange).toHaveBeenNthCalledWith(1, { visibleDateRange: { startAt: '2026-02-01T00:00:00.000Z', endAt: '2026-03-01T00:00:00.000Z' } });
     expect(onChartLayoutPreferencesChange).toHaveBeenNthCalledWith(2, { paneHeights: { main: 320, 'pane-1': 120 } });
+  });
+
+  it('debounces indicator setting persistence to session storage', async () => {
+    vi.useFakeTimers();
+    try {
+      const props = {
+        chartLayoutPreferences: defaultChartLayoutPreferences(),
+        hasOlderIntervals: false,
+        isHydratingDetails: false,
+        isLoadingOlderIntervals: false,
+        loadOlderIntervals: async () => null,
+        onResetCharts: vi.fn(),
+        onTimeframeChange: vi.fn(),
+        selectedIntervalIndex: null,
+        setSelectedIntervalIndex: vi.fn(),
+        timeframe: 'Recent' as const,
+      };
+
+      render(<SkuDetailLedger {...props} model={buildModel('sku-1')} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Enable demand' }));
+
+      const persistedBeforeDebounce = JSON.parse(window.sessionStorage.getItem('banji:chart-settings:entity:v1') ?? '{}');
+      expect(persistedBeforeDebounce['sku:sku-1']?.demand?.enabled).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(119);
+      });
+      const persistedStillBuffered = JSON.parse(window.sessionStorage.getItem('banji:chart-settings:entity:v1') ?? '{}');
+      expect(persistedStillBuffered['sku:sku-1']?.demand?.enabled).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      const persisted = JSON.parse(window.sessionStorage.getItem('banji:chart-settings:entity:v1') ?? '{}');
+      expect(persisted['sku:sku-1']?.demand?.enabled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
