@@ -273,10 +273,15 @@ describe('deriveTradingChartModel', () => {
     const defaults = defaultTradingChartIndicators();
 
     expect(defaults.inventory.plotStyle).toBe('line');
-    expect(defaults.uncertainty.plotStyle).toBe('band');
+    expect(defaults.uncertainty.plotStyle).toBe('lines');
+    expect(defaults.uncertainty.lineWidth).toBe(2);
+    expect(defaults.uncertainty.lineStyle).toBe('dashed');
+    expect(defaults.reorderPoint.lineWidth).toBe(3);
+    expect(defaults.safetyStock.lineWidth).toBe(3);
     expect(defaults.reorderPoint.plotStyle).toBe('price-line');
     expect(defaults.regime.plotStyle).toBe('icons');
     expect(compatiblePlotStyles('inventory')).toEqual(['line', 'area', 'step-line', 'histogram', 'bars', 'candles']);
+    expect(compatiblePlotStyles('uncertainty')).toEqual(['lines', 'band']);
     expect(compatiblePlotStyles('regime')).toEqual(['icons', 'background-highlight', 'background-highlight-icons']);
     expect(compatiblePlotStyles('demand')).toEqual(['histogram', 'line', 'area', 'step-line', 'bars', 'candles']);
   });
