@@ -23,9 +23,34 @@ import { ServiceDependencyImpact } from './service-detail/dependency-impact';
 import { ServiceEvidenceTimeline } from './service-detail/evidence';
 import { ServiceDetailActions } from './service-detail/actions';
 import { ServiceDetailHero } from './service-detail/hero';
-import { ServiceDetailLedger } from './service-detail/ledger';
+import { ServiceTradingChartLedger } from './service-detail/trading-chart-ledger';
 import { ServiceDetailRightRail } from './service-detail/right-rail';
 import { deriveServiceDetailViewModel, type ServiceInspectorSelection } from './service-detail/view-model';
+
+function chartSearchValue(searchParams: URLSearchParams) {
+  return searchParams.get('chart');
+}
+
+function buildServiceDetailSearchParams(
+  searchParams: URLSearchParams,
+  options: {
+    action?: string | null;
+    chart?: string | null;
+  },
+) {
+  const nextSearchParams = new URLSearchParams(searchParams);
+  if (options.action) {
+    nextSearchParams.set('action', options.action);
+  } else if (options.action === null) {
+    nextSearchParams.delete('action');
+  }
+  if (options.chart) {
+    nextSearchParams.set('chart', options.chart);
+  } else if (options.chart === null) {
+    nextSearchParams.delete('chart');
+  }
+  return nextSearchParams;
+}
 
 function mergeServiceDetailPages(older: SenaServiceDetail, newer: SenaServiceDetail) {
   return {
@@ -89,15 +114,22 @@ export function ServiceDetailRoute() {
   const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
   const actionMode = readServiceAction(searchParams);
+  const isLedgerExpanded = chartSearchValue(searchParams) === 'expanded';
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
 
   function updateActionMode(nextMode: typeof actionMode, replace = false) {
-    const nextSearchParams = new URLSearchParams(searchParams);
-    if (nextMode) {
-      nextSearchParams.set('action', nextMode);
-    } else {
-      nextSearchParams.delete('action');
-    }
+    const nextSearchParams = buildServiceDetailSearchParams(searchParams, {
+      action: nextMode,
+      chart: chartSearchValue(searchParams),
+    });
+    setSearchParams(nextSearchParams, { replace });
+  }
+
+  function setLedgerExpanded(nextExpanded: boolean, replace = false) {
+    const nextSearchParams = buildServiceDetailSearchParams(searchParams, {
+      action: actionMode,
+      chart: nextExpanded ? 'expanded' : null,
+    });
     setSearchParams(nextSearchParams, { replace });
   }
 
@@ -365,20 +397,30 @@ export function ServiceDetailRoute() {
 
         <div className={rightRailLayoutClassName(showRightRailCards)}>
           <div className="grid min-w-0 gap-6">
-            <ServiceDetailLedger
-              chartZoomResetToken={chartZoomResetToken}
-              hasOlderIntervals={hasOlder}
-              isHydratingDetails={effectiveIsHydratingDetails}
-              isLoadingOlderIntervals={isLoadingOlder}
-              loadOlderIntervals={loadOlder}
-              model={model}
-              onOlderLoadProgressChange={setOlderLoadProgress}
-              onResetCharts={() => void handleResetCharts()}
-              onTimeframeChange={handleTimeframeChange}
-              selection={selection}
-              setSelection={setSelection}
-              timeframe={timeframe}
-            />
+            <div>
+              {!isLedgerExpanded ? (
+                <ServiceTradingChartLedger
+                  chartZoomResetToken={chartZoomResetToken}
+                  hasOlderIntervals={hasOlder}
+                  isHydratingDetails={effectiveIsHydratingDetails}
+                  isLoadingOlderIntervals={isLoadingOlder}
+                  loadOlderIntervals={loadOlder}
+                  model={model}
+                  onOlderLoadProgressChange={setOlderLoadProgress}
+                  onResetCharts={() => void handleResetCharts()}
+                  onTimeframeChange={handleTimeframeChange}
+                  onToggleExpand={() => setLedgerExpanded(true)}
+                  selection={selection}
+                  setSelection={setSelection}
+                  timeframe={timeframe}
+                />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className="min-h-[100svh] rounded-[2rem]"
+                />
+              )}
+            </div>
             <div className="grid gap-6 xl:grid-cols-2">
               <ServiceDependencyImpact rows={model.dependencyImpact} />
               <ServiceEvidenceTimeline evidence={model.evidence} />
@@ -387,6 +429,39 @@ export function ServiceDetailRoute() {
           {showRightRailCards ? <ServiceDetailRightRail model={model} selection={selection} /> : null}
         </div>
       </div>
+      {isLedgerExpanded ? (
+        <div
+          aria-label={`Expanded ledger for ${model.identity.name}`}
+          aria-modal="true"
+          className="fixed inset-0 z-50 p-4"
+          role="dialog"
+        >
+          <button
+            aria-label="Close expanded ledger"
+            className="absolute inset-0 bg-[rgba(29,20,12,0.46)] backdrop-blur-sm"
+            onClick={() => setLedgerExpanded(false, true)}
+            type="button"
+          />
+          <div className="relative z-10 flex h-full w-full">
+            <ServiceTradingChartLedger
+              chartZoomResetToken={chartZoomResetToken}
+              expanded
+              hasOlderIntervals={hasOlder}
+              isHydratingDetails={effectiveIsHydratingDetails}
+              isLoadingOlderIntervals={isLoadingOlder}
+              loadOlderIntervals={loadOlder}
+              model={model}
+              onOlderLoadProgressChange={setOlderLoadProgress}
+              onResetCharts={() => void handleResetCharts()}
+              onTimeframeChange={handleTimeframeChange}
+              onToggleExpand={() => setLedgerExpanded(false, true)}
+              selection={selection}
+              setSelection={setSelection}
+              timeframe={timeframe}
+            />
+          </div>
+        </div>
+      ) : null}
     </WorkspacePage>
   );
 }

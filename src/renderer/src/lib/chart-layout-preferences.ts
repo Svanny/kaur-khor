@@ -29,6 +29,9 @@ function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
 }
 
 function readStorageRecord<T>(storage: Storage, key: string): Record<string, T> {
+  if (!storage || typeof storage.getItem !== 'function') {
+    return {};
+  }
   const rawValue = storage.getItem(key);
   if (!rawValue) {
     return {};
@@ -41,6 +44,9 @@ function readStorageRecord<T>(storage: Storage, key: string): Record<string, T> 
 }
 
 function writeStorageRecord<T>(storage: Storage, key: string, value: Record<string, T>) {
+  if (!storage || typeof storage.setItem !== 'function') {
+    return;
+  }
   storage.setItem(key, JSON.stringify(value));
 }
 

@@ -65,6 +65,7 @@ export function AnalysisContent({
   const { t } = usePreferences();
   const [isRunningAnalysis, setIsRunningAnalysis] = useState(false);
   const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
+  const [isLedgerExpanded, setIsLedgerExpanded] = useState(false);
   const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
   const [pendingTimeframe, setPendingTimeframe] = useState<AnalysisTimeframe | null>(null);
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
@@ -223,20 +224,60 @@ export function AnalysisContent({
         </div>
       </WorkspaceTitleCard>
 
-      <AnalysisWorkbench
-        chartZoomResetToken={chartZoomResetToken}
-        hasOlderIntervals={hasOlderIntervals}
-        isLoadingOlderIntervals={isLoadingOlderIntervals}
-        loadOlderIntervals={loadOlderIntervals}
-        model={model}
-        onOlderLoadProgressChange={setOlderLoadProgress}
-        onResetCharts={handleResetChartZooms}
-        section={section}
-        setSection={setSection}
-        setTimeframe={handleTimeframeChange}
-        showRightRailCards={showRightRailCards}
-        timeframe={timeframe}
-      />
+      {!isLedgerExpanded ? (
+        <AnalysisWorkbench
+          chartZoomResetToken={chartZoomResetToken}
+          hasOlderIntervals={hasOlderIntervals}
+          isHydratingDetails={isHydratingDetails}
+          isLoadingOlderIntervals={isLoadingOlderIntervals}
+          loadOlderIntervals={loadOlderIntervals}
+          model={model}
+          onOlderLoadProgressChange={setOlderLoadProgress}
+          onResetCharts={handleResetChartZooms}
+          onToggleExpand={() => setIsLedgerExpanded(true)}
+          section={section}
+          setSection={setSection}
+          setTimeframe={handleTimeframeChange}
+          showRightRailCards={showRightRailCards}
+          timeframe={timeframe}
+        />
+      ) : (
+        <div aria-hidden="true" className="min-h-[100svh] rounded-[2rem]" />
+      )}
+      {isLedgerExpanded ? (
+        <div
+          aria-label="Expanded system ledger"
+          aria-modal="true"
+          className="fixed inset-0 z-50 p-4"
+          role="dialog"
+        >
+          <button
+            aria-label="Close expanded system ledger"
+            className="absolute inset-0 bg-[rgba(29,20,12,0.46)] backdrop-blur-sm"
+            onClick={() => setIsLedgerExpanded(false)}
+            type="button"
+          />
+          <div className="relative z-10 flex h-full w-full min-w-0">
+            <AnalysisWorkbench
+              chartZoomResetToken={chartZoomResetToken}
+              expanded
+              hasOlderIntervals={hasOlderIntervals}
+              isHydratingDetails={isHydratingDetails}
+              isLoadingOlderIntervals={isLoadingOlderIntervals}
+              loadOlderIntervals={loadOlderIntervals}
+              model={model}
+              onOlderLoadProgressChange={setOlderLoadProgress}
+              onResetCharts={handleResetChartZooms}
+              onToggleExpand={() => setIsLedgerExpanded(false)}
+              section={section}
+              setSection={setSection}
+              setTimeframe={handleTimeframeChange}
+              showRightRailCards={showRightRailCards}
+              timeframe={timeframe}
+            />
+          </div>
+        </div>
+      ) : null}
     </WorkspacePage>
   );
 }

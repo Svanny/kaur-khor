@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 import type { SenaSkuDetailViewModel } from './view-model';
 import {
   compatiblePlotStyles,
+  defaultAnalysisTradingChartIndicators,
+  defaultServiceTradingChartIndicators,
   defaultTradingChartIndicators,
   deriveTradingChartDisplayModel,
   deriveTradingChartPaneLayout,
@@ -318,7 +320,73 @@ describe('deriveTradingChartModel', () => {
   test('creates new bottom pane ids monotonically', () => {
     const defaults = defaultTradingChartIndicators();
 
-    expect(nextTradingChartPaneId(defaults)).toBe('pane-9');
+    expect(nextTradingChartPaneId(defaults)).toBe('pane-11');
+  });
+
+  test('service chart defaults put demand gap into its own pane', () => {
+    const defaults = defaultServiceTradingChartIndicators();
+    const layout = deriveTradingChartPaneLayout(defaults, {
+      inventory: false,
+      uncertainty: false,
+      reorderPoint: false,
+      safetyStock: false,
+      demand: true,
+      serviceDemand: false,
+      retailDemand: false,
+      availableCapacity: true,
+      demandMinusAvailableCapacity: true,
+      receipts: false,
+      ordersInTransit: false,
+      ordersLate: false,
+      ordersReadyToReceive: false,
+      ordersReceived: false,
+      newOrderFlags: false,
+      newReceiptFlags: false,
+      price: true,
+      leadTime: false,
+      leadTimeRange: false,
+      regime: true,
+    });
+
+    expect(layout).toEqual([
+      { id: 'main', indicatorIds: ['demandMinusAvailableCapacity', 'regime'] },
+      { id: 'pane-1', indicatorIds: ['price'] },
+      { id: 'pane-2', indicatorIds: ['demand', 'availableCapacity'] },
+    ]);
+  });
+
+  test('analysis chart defaults isolate inventory and uncertainty in their own pane', () => {
+    const defaults = defaultAnalysisTradingChartIndicators();
+    const layout = deriveTradingChartPaneLayout(defaults, {
+      inventory: true,
+      uncertainty: true,
+      reorderPoint: false,
+      safetyStock: false,
+      demand: false,
+      serviceDemand: true,
+      retailDemand: true,
+      availableCapacity: false,
+      demandMinusAvailableCapacity: false,
+      receipts: true,
+      ordersInTransit: true,
+      ordersLate: true,
+      ordersReadyToReceive: true,
+      ordersReceived: true,
+      newOrderFlags: true,
+      newReceiptFlags: true,
+      price: true,
+      leadTime: true,
+      leadTimeRange: true,
+      regime: true,
+    });
+
+    expect(layout).toEqual([
+      { id: 'main', indicatorIds: ['inventory', 'uncertainty', 'regime'] },
+      { id: 'pane-1', indicatorIds: ['price'] },
+      { id: 'pane-2', indicatorIds: ['serviceDemand', 'retailDemand', 'receipts'] },
+      { id: 'pane-3', indicatorIds: ['ordersInTransit', 'ordersReceived', 'newOrderFlags', 'newReceiptFlags', 'ordersLate', 'ordersReadyToReceive'] },
+      { id: 'pane-4', indicatorIds: ['leadTime', 'leadTimeRange'] },
+    ]);
   });
 
   test('moves indicators into target pane, including regime', () => {

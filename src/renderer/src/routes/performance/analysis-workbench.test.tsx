@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
@@ -386,7 +386,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getByRole('button', { name: 'Scope help' })).toBeInTheDocument();
   });
 
-  test('pinch zoom shrinks the workbench slot width across the synchronized lanes', async () => {
+  test('renders the shared chart viewport in place of the legacy synchronized lanes', () => {
     const { container } = render(
       <AnalysisWorkbench
         hasOlderIntervals={false}
@@ -399,231 +399,98 @@ test('shows reorder policy in the selected SKU inspector', async () => {
       />,
     );
 
-    const regimePoint = screen.getByRole('button', { name: /sales pattern normal/i });
-    const regimeScroller = regimePoint.closest('.hidden-scrollbar') as HTMLDivElement | null;
-    expect(regimeScroller).not.toBeNull();
-    if (!regimeScroller?.firstElementChild) {
-      return;
-    }
-
-    const content = regimeScroller.firstElementChild as HTMLElement;
-    const beforeWidth = Number.parseFloat(content.style.width);
-
-    fireEvent.wheel(regimeScroller, { clientX: 360, ctrlKey: true, deltaX: 0, deltaY: 500 });
-
-    await waitFor(() => {
-      expect(Number.parseFloat(content.style.width)).toBeLessThan(beforeWidth);
-    });
-
-    expect(container.querySelectorAll('[data-analysis-datalabel="true"]').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'System ledger' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument();
   });
 
-  test('horizontal trackpad wheel scrolling moves the synchronized chart lanes', async () => {
-    const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
-    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
-      configurable: true,
-      get() {
-        return (this as HTMLElement).classList.contains('hidden-scrollbar') ? 120 : 720;
-      },
-    });
+  test('renders the shared ledger controls on the workbench surface', () => {
+    render(
+      <AnalysisWorkbench
+        hasOlderIntervals={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => 0)}
+        model={buildModel()}
+        section="workbench"
+        setSection={vi.fn()}
+        showRightRailCards={false}
+      />,
+    );
 
-    try {
-      render(
-        <AnalysisWorkbench
-          hasOlderIntervals={false}
-          isLoadingOlderIntervals={false}
-          loadOlderIntervals={vi.fn(async () => 0)}
-          model={buildModel()}
-          section="workbench"
-          setSection={vi.fn()}
-          showRightRailCards={false}
-        />,
-      );
-
-      const regimePoint = screen.getByRole('button', { name: /sales pattern normal/i });
-      const regimeScroller = regimePoint.closest('.hidden-scrollbar') as HTMLDivElement | null;
-      expect(regimeScroller).not.toBeNull();
-      if (!regimeScroller?.firstElementChild) {
-        return;
-      }
-
-      const content = regimeScroller.firstElementChild as HTMLElement;
-      const beforeWidth = Number.parseFloat(content.style.width);
-
-      fireEvent.wheel(regimeScroller, { clientX: 60, ctrlKey: true, deltaX: 0, deltaY: -500 });
-
-      await waitFor(() => {
-        expect(Number.parseFloat(content.style.width)).toBeGreaterThan(beforeWidth);
-      });
-
-      fireEvent.wheel(regimeScroller!, { clientX: 60, ctrlKey: false, deltaX: 80, deltaY: 0 });
-
-      await waitFor(() => {
-        expect(regimeScroller!.scrollLeft).toBeGreaterThan(0);
-      });
-    } finally {
-      if (originalClientWidth) {
-        Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidth);
-      }
-    }
+    expect(screen.getByRole('heading', { name: 'System ledger' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Indicators' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Layout' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset chart' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument();
   });
 
-  test('moves chart controls into a separate floating island left of the title actions island when the header scrolls away', async () => {
-    preferenceState.showFloatingTitleActions = true;
-
-    const titleActionsIsland = document.createElement('div');
-    titleActionsIsland.dataset.slot = 'floating-title-actions';
-    document.body.appendChild(titleActionsIsland);
-
-    const defaultGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
-    Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
-      configurable: true,
-      value: function getBoundingClientRect() {
-        if ((this as HTMLElement).dataset.analysisChartControlsAnchor === 'true') {
-          return {
-            bottom: -8,
-            height: 36,
-            left: 0,
-            right: 120,
-            toJSON() {
-              return {};
-            },
-            top: -44,
-            width: 120,
-            x: 0,
-            y: -44,
-          } as DOMRect;
-        }
-        if ((this as HTMLElement).dataset.slot === 'floating-title-actions') {
-          return {
-            bottom: 300,
-            height: 64,
-            left: 320,
-            right: 680,
-            toJSON() {
-              return {};
-            },
-            top: 236,
-            width: 360,
-            x: 320,
-            y: 236,
-          } as DOMRect;
-        }
-        return defaultGetBoundingClientRect.call(this);
-      },
-    });
-
-    try {
-      render(
-        <AnalysisWorkbench
-          hasOlderIntervals={false}
-          isLoadingOlderIntervals={false}
-          loadOlderIntervals={vi.fn(async () => 0)}
-          model={buildModel()}
-          section="workbench"
-          setSection={vi.fn()}
-          showRightRailCards={false}
-        />,
-      );
-
-      await waitFor(() => {
-        const floatingTimeframeIsland = document.querySelector('[data-slot="floating-timeframe-actions"]') as HTMLElement | null;
-        const floatingChartIsland = document.querySelector('[data-slot="floating-chart-actions"]') as HTMLElement | null;
-        expect(floatingTimeframeIsland).not.toBeNull();
-        expect(floatingChartIsland).not.toBeNull();
-        expect(Number.parseFloat(floatingChartIsland?.style.right ?? '0')).toBeGreaterThan(
-          Number.parseFloat(floatingTimeframeIsland?.style.right ?? '0'),
-        );
-      });
-    } finally {
-      Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
-        configurable: true,
-        value: defaultGetBoundingClientRect,
-      });
-      titleActionsIsland.remove();
-    }
-  });
-
-  test('floating chart controls keep the zoom and reset handlers wired', async () => {
-    preferenceState.showFloatingTitleActions = true;
+  test('forwards shared chart reset actions from the analysis workbench', async () => {
     const user = userEvent.setup();
     const onResetCharts = vi.fn(async () => {});
 
-    const defaultGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
-    Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
-      configurable: true,
-      value: function getBoundingClientRect() {
-        if ((this as HTMLElement).dataset.analysisChartControlsAnchor === 'true') {
-          return {
-            bottom: -8,
-            height: 36,
-            left: 0,
-            right: 120,
-            toJSON() {
-              return {};
-            },
-            top: -44,
-            width: 120,
-            x: 0,
-            y: -44,
-          } as DOMRect;
-        }
-        return defaultGetBoundingClientRect.call(this);
-      },
-    });
-
-    try {
-      render(
-        <AnalysisWorkbench
-          hasOlderIntervals={false}
-          isLoadingOlderIntervals={false}
-          loadOlderIntervals={vi.fn(async () => 0)}
-          model={buildModel()}
-          onResetCharts={onResetCharts}
-          section="workbench"
-          setSection={vi.fn()}
-          showRightRailCards={false}
-        />,
-      );
-
-      await waitFor(() => {
-        expect(document.querySelector('[data-slot="floating-chart-actions"]')).not.toBeNull();
-      });
-      const floatingChartIsland = document.querySelector('[data-slot="floating-chart-actions"]') as HTMLElement | null;
-      expect(floatingChartIsland).not.toBeNull();
-
-      const regimePoint = screen.getByRole('button', { name: /sales pattern normal/i });
-      const regimeScroller = regimePoint.closest('.hidden-scrollbar') as HTMLDivElement | null;
-      expect(regimeScroller?.firstElementChild).not.toBeNull();
-      const content = regimeScroller?.firstElementChild as HTMLElement;
-      const beforeWidth = Number.parseFloat(content.style.width);
-
-      const floatingChartScope = within(floatingChartIsland as HTMLElement);
-
-      await user.click(floatingChartScope.getByRole('button', { name: 'Zoom out chart' }));
-
-      await waitFor(() => {
-        expect(Number.parseFloat(content.style.width)).toBeLessThan(beforeWidth);
-      });
-
-      await user.click(floatingChartScope.getByRole('button', { name: 'Zoom in chart' }));
-
-      await user.click(floatingChartScope.getByRole('button', { name: 'Reset chart zoom' }));
-
-      expect(onResetCharts).toHaveBeenCalledTimes(1);
-    } finally {
-      Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
-        configurable: true,
-        value: defaultGetBoundingClientRect,
-      });
-    }
-  });
-
-  test('expands one lane into single-lane mode until minimized', async () => {
-    const user = userEvent.setup();
-    const { container } = render(
+    render(
       <AnalysisWorkbench
         hasOlderIntervals={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => 0)}
+        model={buildModel()}
+        onResetCharts={onResetCharts}
+        section="workbench"
+        setSection={vi.fn()}
+        showRightRailCards={false}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Reset chart' }));
+
+    expect(onResetCharts).toHaveBeenCalledTimes(1);
+  });
+
+  test('forwards shared chart expand and collapse controls from the analysis workbench', async () => {
+    const user = userEvent.setup();
+    const onToggleExpand = vi.fn();
+    const { rerender } = render(
+      <AnalysisWorkbench
+        hasOlderIntervals={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => 0)}
+        model={buildModel()}
+        onToggleExpand={onToggleExpand}
+        section="workbench"
+        setSection={vi.fn()}
+        showRightRailCards={false}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Expand chart' }));
+    expect(onToggleExpand).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <AnalysisWorkbench
+        expanded
+        hasOlderIntervals={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => 0)}
+        model={buildModel()}
+        onToggleExpand={onToggleExpand}
+        section="workbench"
+        setSection={vi.fn()}
+        showRightRailCards={false}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Collapse chart' }));
+    expect(onToggleExpand).toHaveBeenCalledTimes(2);
+  });
+
+  test('shows the shared loading overlay when the expanded analysis ledger is busy', () => {
+    render(
+      <AnalysisWorkbench
+        expanded
+        hasOlderIntervals={false}
+        isHydratingDetails
         isLoadingOlderIntervals={false}
         loadOlderIntervals={vi.fn(async () => 0)}
         model={buildModel()}
@@ -633,197 +500,6 @@ test('shows reorder policy in the selected SKU inspector', async () => {
       />,
     );
 
-    expect(container.querySelectorAll('[data-lane]').length).toBe(4);
-    expect(screen.getAllByText('Likely range').length).toBeGreaterThan(0);
-    expect(screen.getByText('On-the-way window')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Expand Incoming stock' }));
-
-    expect(container.querySelectorAll('[data-lane]').length).toBe(1);
-    expect(screen.queryAllByText('Likely range')).toHaveLength(0);
-    expect(screen.getByText('On-the-way window')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Minimize Incoming stock' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Minimize Incoming stock' }));
-
-    expect(container.querySelectorAll('[data-lane]').length).toBe(4);
-    expect(screen.getAllByText('Likely range').length).toBeGreaterThan(0);
-    expect(screen.getByText('Middle estimate')).toBeInTheDocument();
-    expect(screen.getByText('Typical timing')).toBeInTheDocument();
-  });
-
-  test('grows the focused chart surface when a lane is expanded', async () => {
-    const user = userEvent.setup();
-    const { container } = render(
-      <AnalysisWorkbench
-        hasOlderIntervals={false}
-        isLoadingOlderIntervals={false}
-        loadOlderIntervals={vi.fn(async () => 0)}
-        model={buildModel()}
-        section="workbench"
-        setSection={vi.fn()}
-        showRightRailCards={false}
-      />,
-    );
-
-    const inventoryChart = container.querySelector('[data-analysis-chart="inventory"]') as HTMLElement | null;
-    expect(inventoryChart).not.toBeNull();
-    const initialHeight = inventoryChart?.style.height;
-
-    await user.click(screen.getByRole('button', { name: 'Expand Stock estimate and demand' }));
-
-    const expandedInventoryChart = container.querySelector('[data-analysis-chart="inventory"]') as HTMLElement | null;
-    expect(expandedInventoryChart).not.toBeNull();
-    expect(expandedInventoryChart?.style.height).not.toBe(initialHeight);
-    expect(Number.parseFloat(expandedInventoryChart?.style.height ?? '0')).toBeGreaterThan(Number.parseFloat(initialHeight ?? '0'));
-  });
-
-  test('keeps the section height class stable when expanding a lane', async () => {
-    const user = userEvent.setup();
-    const { container } = render(
-      <AnalysisWorkbench
-        hasOlderIntervals={false}
-        isLoadingOlderIntervals={false}
-        loadOlderIntervals={vi.fn(async () => 0)}
-        model={buildModel()}
-        section="workbench"
-        setSection={vi.fn()}
-        showRightRailCards={false}
-      />,
-    );
-
-    const section = container.querySelector('section');
-    const beforeClassName = section?.className;
-
-    await user.click(screen.getByRole('button', { name: 'Expand Stock estimate and demand' }));
-
-    expect(section?.className).toBe(beforeClassName);
-  });
-
-  test('does not force the expanded lane rows to fill the full section height', async () => {
-    const user = userEvent.setup();
-    const { container } = render(
-      <AnalysisWorkbench
-        hasOlderIntervals={false}
-        isLoadingOlderIntervals={false}
-        loadOlderIntervals={vi.fn(async () => 0)}
-        model={buildModel()}
-        section="workbench"
-        setSection={vi.fn()}
-        showRightRailCards={false}
-      />,
-    );
-
-    const laneRows = container.querySelector('[data-analysis-lane-rows="true"]') as HTMLElement | null;
-    expect(laneRows).not.toBeNull();
-
-    await user.click(screen.getByRole('button', { name: 'Expand Stock estimate and demand' }));
-
-    expect(laneRows?.style.height).toBe('');
-    expect(laneRows?.style.minHeight).toBe('');
-    expect(laneRows?.style.maxHeight).toBe('');
-  });
-
-  test('expanded inventory lane increases bar area while capping line weight', async () => {
-    const user = userEvent.setup();
-    const { container } = render(
-      <AnalysisWorkbench
-        hasOlderIntervals={false}
-        isLoadingOlderIntervals={false}
-        loadOlderIntervals={vi.fn(async () => 0)}
-        model={buildModel()}
-        section="workbench"
-        setSection={vi.fn()}
-        showRightRailCards={false}
-      />,
-    );
-
-    const initialFlowCell = container.querySelector('[data-analysis-flow-cell="inventory"]') as HTMLElement | null;
-    expect(initialFlowCell).not.toBeNull();
-    const initialFlowHeight = Number.parseFloat(initialFlowCell?.style.height ?? '0');
-
-    await user.click(screen.getByRole('button', { name: 'Expand Stock estimate and demand' }));
-
-    const expandedFlowCell = container.querySelector('[data-analysis-flow-cell="inventory"]') as HTMLElement | null;
-    const expandedInventoryLine = container.querySelector('[data-analysis-line="inventory"]') as SVGPolylineElement | null;
-    expect(expandedFlowCell).not.toBeNull();
-    expect(expandedInventoryLine).not.toBeNull();
-    expect(Number.parseFloat(expandedFlowCell?.style.height ?? '0')).toBeGreaterThan(initialFlowHeight);
-    expect(Number.parseFloat(expandedInventoryLine?.getAttribute('stroke-width') ?? '0')).toBeLessThanOrEqual(2.6);
-  });
-
-  test('expanded lead-time line keeps a capped stroke width', async () => {
-    const user = userEvent.setup();
-    const { container } = render(
-      <AnalysisWorkbench
-        hasOlderIntervals={false}
-        isLoadingOlderIntervals={false}
-        loadOlderIntervals={vi.fn(async () => 0)}
-        model={buildModel()}
-        section="workbench"
-        setSection={vi.fn()}
-        showRightRailCards={false}
-      />,
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Expand Delivery timing' }));
-
-    const expandedLeadTimeLine = container.querySelector('[data-analysis-line="lead-time"]') as SVGPolylineElement | null;
-    expect(expandedLeadTimeLine).not.toBeNull();
-    expect(Number.parseFloat(expandedLeadTimeLine?.getAttribute('stroke-width') ?? '0')).toBeLessThanOrEqual(2.6);
-  });
-
-  test('expanded pipeline pills grow in height', async () => {
-    const user = userEvent.setup();
-    const { container } = render(
-      <AnalysisWorkbench
-        hasOlderIntervals={false}
-        isLoadingOlderIntervals={false}
-        loadOlderIntervals={vi.fn(async () => 0)}
-        model={buildModel()}
-        section="workbench"
-        setSection={vi.fn()}
-        showRightRailCards={false}
-      />,
-    );
-
-    const initialPipelinePill = container.querySelector('[data-analysis-pipeline-pill="true"]') as HTMLElement | null;
-    expect(initialPipelinePill).not.toBeNull();
-    const initialPillHeight = Number.parseFloat(initialPipelinePill?.style.height ?? '0');
-
-    await user.click(screen.getByRole('button', { name: 'Expand Incoming stock' }));
-
-    const expandedPipelinePill = container.querySelector('[data-analysis-pipeline-pill="true"]') as HTMLElement | null;
-    expect(expandedPipelinePill).not.toBeNull();
-    expect(Number.parseFloat(expandedPipelinePill?.style.height ?? '0')).toBeGreaterThan(initialPillHeight);
-  });
-
-  test('expanded regime lane increases tile height without overflowing the section', async () => {
-    const user = userEvent.setup();
-    const { container } = render(
-      <AnalysisWorkbench
-        hasOlderIntervals={false}
-        isLoadingOlderIntervals={false}
-        loadOlderIntervals={vi.fn(async () => 0)}
-        model={buildModel()}
-        section="workbench"
-        setSection={vi.fn()}
-        showRightRailCards={false}
-      />,
-    );
-
-    const initialRegimeTile = screen.getByRole('button', { name: /sales pattern normal/i });
-    const initialTileHeight = Number.parseFloat(initialRegimeTile.style.height || '0');
-    const initialTileMarginLeft = Number.parseFloat(initialRegimeTile.style.marginLeft || '0');
-    const initialTileMarginRight = Number.parseFloat(initialRegimeTile.style.marginRight || '0');
-
-    await user.click(screen.getByRole('button', { name: 'Expand Sales pattern and price' }));
-
-    const expandedRegimeTile = screen.getByRole('button', { name: /sales pattern normal/i });
-    const section = container.querySelector('section');
-    expect(Number.parseFloat(expandedRegimeTile.style.height || '0')).toBeGreaterThan(initialTileHeight);
-    expect(Number.parseFloat(expandedRegimeTile.style.height || '0')).toBeLessThanOrEqual(section?.clientHeight ?? Number.POSITIVE_INFINITY);
-    expect(Number.parseFloat(expandedRegimeTile.style.marginLeft || '0')).toBe(initialTileMarginLeft);
-    expect(Number.parseFloat(expandedRegimeTile.style.marginRight || '0')).toBe(initialTileMarginRight);
+    expect(screen.getByText('Loading data')).toBeInTheDocument();
   });
 }, 10_000);

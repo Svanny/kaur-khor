@@ -117,6 +117,7 @@ import type {
   TradingChartPoint,
 } from './trading-chart-model';
 import {
+  ALL_TRADING_CHART_INDICATOR_IDS,
   compatiblePlotStyles,
   deriveTradingChartDisplayModel,
   deriveTradingChartPaneLayout,
@@ -141,6 +142,10 @@ type ChartSeriesRefs = Partial<Record<
   | 'reorderPoint'
   | 'safetyStock'
   | 'demand'
+  | 'serviceDemand'
+  | 'retailDemand'
+  | 'availableCapacity'
+  | 'demandMinusAvailableCapacity'
   | 'receipts'
   | 'ordersInTransit'
   | 'ordersLate'
@@ -148,13 +153,24 @@ type ChartSeriesRefs = Partial<Record<
   | 'ordersReceived'
   | 'newOrderFlags'
   | 'newReceiptFlags'
-  | 'price',
+  | 'price'
+  | 'leadTime'
+  | 'leadTimeRangeLow'
+  | 'leadTimeRangeHigh',
   AnySeries
 >>;
 type InputSeriesData = LineData<Time>[] | HistogramData<Time>[] | Array<BarData<Time> | CandlestickData<Time>>;
 type LegendRow = ReturnType<typeof buildLegendRows>[number];
 type ChartSettingsDialogId = 'settings' | 'indicators' | 'layout';
-type HistogramIndicatorId = 'demand' | 'receipts' | 'ordersInTransit' | 'ordersLate' | 'ordersReadyToReceive' | 'ordersReceived';
+type HistogramIndicatorId =
+  | 'demand'
+  | 'serviceDemand'
+  | 'retailDemand'
+  | 'receipts'
+  | 'ordersInTransit'
+  | 'ordersLate'
+  | 'ordersReadyToReceive'
+  | 'ordersReceived';
 type OverlayIndicatorId = 'regime' | 'newOrderFlags' | 'newReceiptFlags';
 interface OverlayFlagMarker {
   key: string;
@@ -187,24 +203,11 @@ type LayoutDropTarget =
   | { type: 'pane'; paneId: string }
   | { type: 'new-pane' };
 
-const INDICATOR_ORDER: TradingChartIndicatorId[] = [
-  'inventory',
-  'uncertainty',
-  'reorderPoint',
-  'safetyStock',
-  'demand',
-  'receipts',
-  'ordersInTransit',
-  'ordersLate',
-  'ordersReadyToReceive',
-  'ordersReceived',
-  'newOrderFlags',
-  'newReceiptFlags',
-  'price',
-  'regime',
-];
+const INDICATOR_ORDER: TradingChartIndicatorId[] = ALL_TRADING_CHART_INDICATOR_IDS;
 const HISTOGRAM_INDICATOR_IDS: HistogramIndicatorId[] = [
   'demand',
+  'serviceDemand',
+  'retailDemand',
   'receipts',
   'ordersInTransit',
   'ordersLate',
@@ -218,6 +221,10 @@ const INDICATOR_ICONS: Record<TradingChartIndicatorId, IconComponent> = {
   reorderPoint: StatusReorderPointIcon,
   safetyStock: EntitySafetyStockIcon,
   demand: StatusTrendChartIcon,
+  serviceDemand: StatusTrendChartIcon,
+  retailDemand: StatusTrendChartIcon,
+  availableCapacity: EntityLayersIcon,
+  demandMinusAvailableCapacity: StatusTrendChartIcon,
   receipts: EntityReceiptDocumentIcon,
   ordersInTransit: EntityTransitIcon,
   ordersLate: StatusReorderPointIcon,
@@ -226,13 +233,16 @@ const INDICATOR_ICONS: Record<TradingChartIndicatorId, IconComponent> = {
   newOrderFlags: ActionAddBadgeIcon,
   newReceiptFlags: ActionAddBadgeIcon,
   price: EntityRevenueIcon,
+  leadTime: EntityTransitIcon,
+  leadTimeRange: StatusRadarIcon,
   regime: StatusGaugeIcon,
 };
 const INDICATOR_SECTIONS: Array<{ title: string; ids: TradingChartIndicatorId[] }> = [
-  { title: 'Stock', ids: ['inventory', 'uncertainty', 'reorderPoint', 'safetyStock'] },
-  { title: 'Flow', ids: ['demand', 'receipts'] },
+  { title: 'Stock', ids: ['inventory', 'uncertainty', 'reorderPoint', 'safetyStock', 'availableCapacity'] },
+  { title: 'Flow', ids: ['demand', 'serviceDemand', 'retailDemand', 'demandMinusAvailableCapacity', 'receipts'] },
   { title: 'Orders', ids: ['ordersInTransit', 'ordersLate', 'ordersReadyToReceive', 'ordersReceived', 'newOrderFlags', 'newReceiptFlags'] },
   { title: 'Commercial', ids: ['price'] },
+  { title: 'Timing', ids: ['leadTime', 'leadTimeRange'] },
   { title: 'Pattern', ids: ['regime'] },
 ];
 
@@ -982,6 +992,14 @@ function indicatorLabel(id: TradingChartIndicatorId) {
       return 'Safety stock';
     case 'demand':
       return 'Demand';
+    case 'serviceDemand':
+      return 'Service demand';
+    case 'retailDemand':
+      return 'Retail demand';
+    case 'availableCapacity':
+      return 'Available capacity';
+    case 'demandMinusAvailableCapacity':
+      return 'Demand minus available capacity';
     case 'receipts':
       return 'Receipts';
     case 'ordersInTransit':
@@ -998,6 +1016,10 @@ function indicatorLabel(id: TradingChartIndicatorId) {
       return 'New receipt flags';
     case 'price':
       return 'Price';
+    case 'leadTime':
+      return 'Lead time';
+    case 'leadTimeRange':
+      return 'Lead time range';
     case 'regime':
       return 'Sales Pattern';
   }
@@ -1007,6 +1029,14 @@ function indicatorDescription(id: TradingChartIndicatorId) {
   switch (id) {
     case 'demand':
       return 'Expected service and retail demand for each interval.';
+    case 'serviceDemand':
+      return 'Expected service demand for each interval.';
+    case 'retailDemand':
+      return 'Expected retail demand for each interval.';
+    case 'availableCapacity':
+      return 'Projected available capacity for the interval.';
+    case 'demandMinusAvailableCapacity':
+      return 'Gap between demand and available capacity in the interval.';
     case 'inventory':
       return 'Projected on-hand inventory across the loaded intervals.';
     case 'price':
@@ -1033,6 +1063,10 @@ function indicatorDescription(id: TradingChartIndicatorId) {
       return 'Buffer inventory intended to absorb variability.';
     case 'uncertainty':
       return 'Upper and lower inventory uncertainty around the main forecast.';
+    case 'leadTime':
+      return 'Average lead time for the interval.';
+    case 'leadTimeRange':
+      return 'Lead time variability range around the interval mean.';
   }
 }
 
@@ -1051,6 +1085,10 @@ function histogramIndicatorValue(point: TradingChartPoint, id: HistogramIndicato
         return null;
       }
       return -((point.serviceDemandMean ?? 0) + (point.retailDemandMean ?? 0));
+    case 'serviceDemand':
+      return point.serviceDemandMean == null ? null : -(point.serviceDemandMean ?? 0);
+    case 'retailDemand':
+      return point.retailDemandMean == null ? null : -(point.retailDemandMean ?? 0);
     case 'receipts':
       if (point.receiptsMean == null && point.adjustmentsMean == null) {
         return null;
@@ -1074,14 +1112,22 @@ function scalarIndicatorValue(point: TradingChartPoint, id: TradingChartIndicato
     case 'inventory':
       return point.inventoryMean;
     case 'demand':
+    case 'serviceDemand':
+    case 'retailDemand':
     case 'receipts':
     case 'ordersInTransit':
     case 'ordersLate':
     case 'ordersReadyToReceive':
     case 'ordersReceived':
       return histogramIndicatorValue(point, id);
+    case 'availableCapacity':
+      return point.availableCapacity;
+    case 'demandMinusAvailableCapacity':
+      return point.demandMinusAvailableCapacity;
     case 'price':
       return point.price;
+    case 'leadTime':
+      return point.leadTimeMean;
     default:
       return null;
   }
@@ -1234,13 +1280,19 @@ function histogramIndicatorLegendValue(
 ) {
   if (source && source !== 'close') {
     const value = valueForInputSource(point, id, source);
-    return id === 'demand' ? formatValue(value == null ? value : Math.abs(value), 'u', precision) : formatValue(value, 'u', precision);
+    return id === 'demand' || id === 'serviceDemand' || id === 'retailDemand'
+      ? formatValue(value == null ? value : Math.abs(value), 'u', precision)
+      : formatValue(value, 'u', precision);
   }
   switch (id) {
     case 'demand': {
       const totalDemand = (point.serviceDemandMean ?? 0) + (point.retailDemandMean ?? 0);
       return point.serviceDemandMean == null && point.retailDemandMean == null ? 'No data' : formatValue(totalDemand, 'u', precision);
     }
+    case 'serviceDemand':
+      return formatValue(point.serviceDemandMean, 'u', precision);
+    case 'retailDemand':
+      return formatValue(point.retailDemandMean, 'u', precision);
     case 'receipts':
       return point.receiptsMean == null && point.adjustmentsMean == null
         ? 'No data'
@@ -1284,6 +1336,13 @@ function lineStyleValue(style: TradingChartIndicatorLineStyle | undefined) {
     return LineStyle.Dotted;
   }
   return LineStyle.Solid;
+}
+
+function applySeriesApiOptions(series: AnySeries | undefined, options: unknown) {
+  if (!series) {
+    return;
+  }
+  (series as AnySeries & { applyOptions: (next: unknown) => void }).applyOptions(options);
 }
 
 function addInputSeries({
@@ -1353,6 +1412,61 @@ function addInputSeries({
     priceLineVisible: false,
     lastValueVisible: setting.showPriceScaleLabel ?? true,
   }, paneIndex);
+}
+
+function applyInputSeriesOptions(
+  series: AnySeries | undefined,
+  setting: TradingChartIndicatorSettings[TradingChartIndicatorId],
+) {
+  const lineWidth = Math.max(1, Math.min(4, setting.lineWidth ?? 2)) as 1 | 2 | 3 | 4;
+  if (setting.plotStyle === 'area') {
+    applySeriesApiOptions(series, {
+      lineColor: setting.color,
+      lineStyle: lineStyleValue(setting.lineStyle),
+      lineWidth,
+      topColor: rgba(setting.color, 0.22),
+      bottomColor: rgba(setting.color, 0.03),
+      lastValueVisible: setting.showPriceScaleLabel ?? true,
+    });
+    return;
+  }
+  if (setting.plotStyle === 'histogram') {
+    applySeriesApiOptions(series, {
+      color: histogramSeriesColor(setting.color, setting.opacity ?? 0.5, setting.plotStyle),
+      lastValueVisible: setting.showPriceScaleLabel ?? false,
+      base: 0,
+    });
+    return;
+  }
+  if (setting.plotStyle === 'bars') {
+    applySeriesApiOptions(series, {
+      upColor: setting.color,
+      downColor: rgba(setting.color, Math.max(0.45, setting.opacity ?? 0.55)),
+      thinBars: false,
+      lastValueVisible: setting.showPriceScaleLabel ?? true,
+    });
+    return;
+  }
+  if (setting.plotStyle === 'candles') {
+    const downColor = colorWheelInverse(setting.color);
+    applySeriesApiOptions(series, {
+      upColor: rgba(setting.color, Math.max(0.82, setting.opacity ?? 0.82)),
+      downColor: rgba(downColor, Math.max(0.82, setting.opacity ?? 0.82)),
+      borderUpColor: setting.color,
+      borderDownColor: downColor,
+      wickUpColor: setting.color,
+      wickDownColor: downColor,
+      lastValueVisible: setting.showPriceScaleLabel ?? true,
+    });
+    return;
+  }
+  applySeriesApiOptions(series, {
+    color: setting.color,
+    lineStyle: lineStyleValue(setting.lineStyle),
+    lineType: setting.plotStyle === 'step-line' ? LineType.WithSteps : LineType.Simple,
+    lineWidth,
+    lastValueVisible: setting.showPriceScaleLabel ?? true,
+  });
 }
 
 function inputSourceOptionDisabled(plotStyle: TradingChartIndicatorPlotStyle, source: ChartInputValueSource) {
@@ -1569,6 +1683,11 @@ function setSeriesData(
     setInputSeriesData(targetSeries, chartModel.points, indicatorId, settings[indicatorId]);
   }
   setInputSeriesData(series.price, chartModel.points, 'price', settings.price);
+  setInputSeriesData(series.availableCapacity, chartModel.points, 'availableCapacity', settings.availableCapacity);
+  setInputSeriesData(series.demandMinusAvailableCapacity, chartModel.points, 'demandMinusAvailableCapacity', settings.demandMinusAvailableCapacity);
+  setInputSeriesData(series.leadTime, chartModel.points, 'leadTime', settings.leadTime);
+  series.leadTimeRangeLow?.setData(cachedLineSeriesData(chartModel.points, 'lead-time-range:low', (point) => point.leadTimeLow));
+  series.leadTimeRangeHigh?.setData(cachedLineSeriesData(chartModel.points, 'lead-time-range:high', (point) => point.leadTimeHigh));
 }
 
 function cachedOverlayAnchorData(points: TradingChartPoint[]) {
@@ -1830,13 +1949,7 @@ function applySeriesOptions(
   series: ChartSeriesRefs,
   settings: TradingChartIndicatorSettings,
 ) {
-  const inventory = settings.inventory;
-  series.inventory?.applyOptions({
-    color: inventory.color,
-    lineStyle: lineStyleValue(inventory.lineStyle),
-    lineWidth: Math.max(1, Math.min(4, inventory.lineWidth ?? 2)) as 1 | 2 | 3 | 4,
-    lastValueVisible: inventory.showPriceScaleLabel ?? true,
-  });
+  applyInputSeriesOptions(series.inventory, settings.inventory);
 
   const uncertainty = settings.uncertainty;
   const uncertaintyColor = rgba(
@@ -1860,7 +1973,7 @@ function applySeriesOptions(
 
   for (const indicatorId of ['reorderPoint', 'safetyStock'] as const) {
     const setting = settings[indicatorId];
-    series[indicatorId]?.applyOptions({
+    applySeriesApiOptions(series[indicatorId], {
       color: setting.color,
       lineStyle: lineStyleValue(setting.lineStyle),
       lineWidth: (setting.lineWidth ?? 1) as 1,
@@ -1869,19 +1982,32 @@ function applySeriesOptions(
   }
 
   for (const indicatorId of HISTOGRAM_INDICATOR_IDS) {
-    const setting = settings[indicatorId];
-    series[indicatorId]?.applyOptions({
-      color: histogramSeriesColor(setting.color, setting.opacity ?? 0.5, setting.plotStyle),
-      lastValueVisible: setting.showPriceScaleLabel ?? false,
-    });
+    applyInputSeriesOptions(series[indicatorId], settings[indicatorId]);
   }
 
-  const price = settings.price;
-  series.price?.applyOptions({
-    color: price.color,
-    lineStyle: lineStyleValue(price.lineStyle),
-    lineWidth: Math.max(1, Math.min(4, price.lineWidth ?? 2)) as 1 | 2 | 3 | 4,
-    lastValueVisible: price.showPriceScaleLabel ?? true,
+  applyInputSeriesOptions(series.price, settings.price);
+  applyInputSeriesOptions(series.availableCapacity, settings.availableCapacity);
+  applyInputSeriesOptions(series.demandMinusAvailableCapacity, settings.demandMinusAvailableCapacity);
+  applyInputSeriesOptions(series.leadTime, settings.leadTime);
+
+  const leadTimeRange = settings.leadTimeRange;
+  const leadTimeRangeColor = rgba(
+    leadTimeRange.color,
+    leadTimeRange.plotStyle === 'band'
+      ? Math.max(leadTimeRange.opacity ?? 0.22, 0.22)
+      : leadTimeRange.opacity ?? 0.22,
+  );
+  series.leadTimeRangeLow?.applyOptions({
+    color: leadTimeRangeColor,
+    lineStyle: lineStyleValue(leadTimeRange.lineStyle),
+    lineWidth: Math.max(1, Math.min(4, leadTimeRange.lineWidth ?? 2)) as 1 | 2 | 3 | 4,
+    lastValueVisible: false,
+  });
+  series.leadTimeRangeHigh?.applyOptions({
+    color: leadTimeRangeColor,
+    lineStyle: lineStyleValue(leadTimeRange.lineStyle),
+    lineWidth: Math.max(1, Math.min(4, leadTimeRange.lineWidth ?? 2)) as 1 | 2 | 3 | 4,
+    lastValueVisible: leadTimeRange.showPriceScaleLabel ?? false,
   });
 }
 
@@ -1917,6 +2043,10 @@ function buildLegendRows({
         value = formatValue(point.reorderPoint, 'u', setting.precision);
       } else if (id === 'safetyStock') {
         value = formatValue(point.safetyStock, 'u', setting.precision);
+      } else if (id === 'availableCapacity') {
+        value = formatValue(point.availableCapacity, 'u', setting.precision);
+      } else if (id === 'demandMinusAvailableCapacity') {
+        value = formatValue(point.demandMinusAvailableCapacity, 'u', setting.precision);
       } else if (isHistogramIndicatorId(id)) {
         value = histogramIndicatorLegendValue(point, id, setting.precision, setting.inputSource);
       } else if (id === 'newOrderFlags') {
@@ -1925,6 +2055,12 @@ function buildLegendRows({
         value = point.newReceiptFlag ? 'New receipt' : 'No flag';
       } else if (id === 'price') {
         value = formatValue(valueForInputSource(point, id, setting.inputSource), '', setting.precision);
+      } else if (id === 'leadTime') {
+        value = formatValue(point.leadTimeMean, 'd', setting.precision);
+      } else if (id === 'leadTimeRange') {
+        value = point.leadTimeLow == null || point.leadTimeHigh == null
+          ? 'No data'
+          : `${formatValue(point.leadTimeLow, 'd', setting.precision)} - ${formatValue(point.leadTimeHigh, 'd', setting.precision)}`;
       } else if (id === 'regime') {
         value = point.dominantRegime ? translateRegimeLabel(language, point.dominantRegime) : 'No data';
       }
@@ -2123,6 +2259,14 @@ function hasRenderedIndicatorData(chartModel: TradingChartModel, id: TradingChar
         return point.safetyStock != null;
       case 'demand':
         return point.serviceDemandMean != null || point.retailDemandMean != null;
+      case 'serviceDemand':
+        return point.serviceDemandMean != null;
+      case 'retailDemand':
+        return point.retailDemandMean != null;
+      case 'availableCapacity':
+        return point.availableCapacity != null;
+      case 'demandMinusAvailableCapacity':
+        return point.demandMinusAvailableCapacity != null;
       case 'receipts':
         return point.receiptsMean != null || point.adjustmentsMean != null;
       case 'ordersInTransit':
@@ -2139,6 +2283,10 @@ function hasRenderedIndicatorData(chartModel: TradingChartModel, id: TradingChar
         return (point.newReceiptFlag ?? 0) > 0;
       case 'price':
         return point.price != null;
+      case 'leadTime':
+        return point.leadTimeMean != null;
+      case 'leadTimeRange':
+        return point.leadTimeLow != null || point.leadTimeHigh != null;
       case 'regime':
         return Boolean(point.dominantRegime);
     }
@@ -3027,6 +3175,29 @@ export function SkuTradingChart({
           registerSide(paneIndex, setting.axisSide);
           continue;
         }
+        if (indicatorId === 'leadTimeRange') {
+          const lowSeries = chart.addSeries(LineSeries, {
+            priceScaleId,
+            color: rgba(setting.color, setting.opacity ?? 0.22),
+            lineStyle: lineStyleValue(setting.lineStyle),
+            lineWidth: Math.max(1, Math.min(4, setting.lineWidth ?? 2)) as 1 | 2 | 3 | 4,
+            priceLineVisible: false,
+            lastValueVisible: false,
+          }, paneIndex);
+          const highSeries = chart.addSeries(LineSeries, {
+            priceScaleId,
+            color: rgba(setting.color, setting.opacity ?? 0.22),
+            lineStyle: lineStyleValue(setting.lineStyle),
+            lineWidth: Math.max(1, Math.min(4, setting.lineWidth ?? 2)) as 1 | 2 | 3 | 4,
+            priceLineVisible: false,
+            lastValueVisible: setting.showPriceScaleLabel ?? false,
+          }, paneIndex);
+          registerSeries(paneIndex, lowSeries, highSeries);
+          chartSeriesRefs.current.leadTimeRangeLow = lowSeries;
+          chartSeriesRefs.current.leadTimeRangeHigh = highSeries;
+          registerSide(paneIndex, setting.axisSide);
+          continue;
+        }
         if (indicatorId === 'reorderPoint' || indicatorId === 'safetyStock') {
           const lineSeries = chart.addSeries(LineSeries, {
             priceScaleId,
@@ -3036,6 +3207,13 @@ export function SkuTradingChart({
             priceLineVisible: false,
             lastValueVisible: setting.showPriceScaleLabel ?? true,
           }, paneIndex);
+          registerSeries(paneIndex, lineSeries);
+          chartSeriesRefs.current[indicatorId] = lineSeries;
+          registerSide(paneIndex, setting.axisSide);
+          continue;
+        }
+        if (indicatorId === 'availableCapacity' || indicatorId === 'demandMinusAvailableCapacity' || indicatorId === 'leadTime') {
+          const lineSeries = addInputSeries({ chart, paneIndex, priceScaleId, setting });
           registerSeries(paneIndex, lineSeries);
           chartSeriesRefs.current[indicatorId] = lineSeries;
           registerSide(paneIndex, setting.axisSide);
@@ -3666,6 +3844,7 @@ export function SkuTradingChart({
   const stylePopoverPortal = stylePopover && stylePopoverAnchorRect && stylePopoverSetting
     ? createPortal(
       <div
+        data-chart-style-popover="true"
         ref={activeStylePopoverRef}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -3820,10 +3999,12 @@ export function SkuTradingChart({
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
               <DialogPrimitive.Overlay
+                data-chart-dialog-overlay="true"
                 className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
                 onPointerDown={() => requestSettingsDialogLeave('settings', leaveSettingsDialog)}
               />
               <DialogPrimitive.Content
+                data-chart-dialog-content="true"
                 ref={settingsContentRef}
                 className={SETTINGS_DIALOG_CLASS}
                 onEscapeKeyDown={(event) => {
@@ -4086,10 +4267,12 @@ export function SkuTradingChart({
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
               <DialogPrimitive.Overlay
+                data-chart-dialog-overlay="true"
                 className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
                 onPointerDown={() => requestSettingsDialogLeave('indicators', leaveIndicatorsDialog)}
               />
               <DialogPrimitive.Content
+                data-chart-dialog-content="true"
                 ref={settingsContentRef}
                 className={SETTINGS_DIALOG_CLASS}
                 onEscapeKeyDown={(event) => {
@@ -4226,10 +4409,12 @@ export function SkuTradingChart({
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
               <DialogPrimitive.Overlay
+                data-chart-dialog-overlay="true"
                 className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
                 onPointerDown={() => requestSettingsDialogLeave('layout', leaveLayoutDialog)}
               />
               <DialogPrimitive.Content
+                data-chart-dialog-content="true"
                 ref={settingsContentRef}
                 className={SETTINGS_DIALOG_CLASS}
                 onEscapeKeyDown={(event) => {

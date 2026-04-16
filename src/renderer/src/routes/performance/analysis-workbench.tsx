@@ -100,6 +100,7 @@ import type {
 } from './analysis-view-model';
 import { PIPELINE_PILL_END_OFFSET, PIPELINE_PILL_START_OFFSET } from './analysis-view-model';
 import { ANALYSIS_TIMEFRAME_OPTIONS, type AnalysisTimeframe } from './analysis-timeframe';
+import { AnalysisTradingChartLedger } from './trading-chart-ledger';
 
 const pressureTableLayout = createHeaderedTableLayout({
   breakpoint: 'xl',
@@ -152,6 +153,15 @@ function selectionsEqual(left: AnalysisSelection, right: AnalysisSelection) {
     return left.observationId === right.observationId;
   }
   return false;
+}
+
+function eventTargetsChartDialog(target: HTMLElement) {
+  return Boolean(
+    target.closest('[data-chart-dialog-overlay="true"]') ||
+    target.closest('[data-chart-dialog-content="true"]') ||
+    target.closest('[data-chart-style-popover="true"]') ||
+    target.closest('[role="dialog"]'),
+  );
 }
 
 type IntervalRailSectionKey = 'observed-signals' | 'what-happened' | 'orders-transit-lead-time';
@@ -2230,48 +2240,51 @@ function InspectorRail({
 
 function WorkbenchSurface({
   chartZoomResetToken = 0,
+  expanded = false,
   hasOlderIntervals,
+  isHydratingDetails = false,
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
   onOlderLoadProgressChange,
   onResetCharts,
   onTimeframeChange,
+  onToggleExpand,
   selectedIntervalIndex,
   setSelection,
-  onIntervalChartLabelClick,
-  showRightRailCards,
   timeframe,
 }: {
   chartZoomResetToken?: number;
+  expanded?: boolean;
   hasOlderIntervals: boolean;
+  isHydratingDetails?: boolean;
   isLoadingOlderIntervals: boolean;
   loadOlderIntervals: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
   onResetCharts?: () => Promise<void> | void;
   onTimeframeChange: (value: AnalysisTimeframe) => void;
+  onToggleExpand?: () => void;
   selectedIntervalIndex: number | null;
   setSelection: (value: AnalysisSelection) => void;
-  onIntervalChartLabelClick: (intervalIndex: number, section: IntervalRailSectionKey) => void;
-  showRightRailCards: boolean;
   timeframe: AnalysisTimeframe;
 }) {
   return (
-    <div className="grid gap-6">
-      <SystemLedger
+    <div className="grid w-full min-w-0 gap-6">
+      <AnalysisTradingChartLedger
         chartZoomResetToken={chartZoomResetToken}
+        expanded={expanded}
         hasOlderIntervals={hasOlderIntervals}
+        isBusy={isHydratingDetails || isLoadingOlderIntervals}
         isLoadingOlderIntervals={isLoadingOlderIntervals}
         loadOlderIntervals={loadOlderIntervals}
         model={model}
         onOlderLoadProgressChange={onOlderLoadProgressChange}
         onResetCharts={onResetCharts}
         onTimeframeChange={onTimeframeChange}
+        onToggleExpand={onToggleExpand}
         selectedIntervalIndex={selectedIntervalIndex}
         setSelection={setSelection}
-        onIntervalChartLabelClick={onIntervalChartLabelClick}
-        showRightRailCards={showRightRailCards}
         timeframe={timeframe}
       />
     </div>
@@ -2394,12 +2407,15 @@ function SettingsSurface({
 
 export function AnalysisWorkbench({
   chartZoomResetToken = 0,
+  expanded = false,
   hasOlderIntervals,
+  isHydratingDetails = false,
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
   onOlderLoadProgressChange,
   onResetCharts,
+  onToggleExpand,
   section,
   setSection,
   setTimeframe = () => {},
@@ -2407,12 +2423,15 @@ export function AnalysisWorkbench({
   timeframe = 'Recent',
 }: {
   chartZoomResetToken?: number;
+  expanded?: boolean;
   hasOlderIntervals: boolean;
+  isHydratingDetails?: boolean;
   isLoadingOlderIntervals: boolean;
   loadOlderIntervals: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
   onResetCharts?: () => Promise<void> | void;
+  onToggleExpand?: () => void;
   section: AnalysisSection;
   setSection: (value: AnalysisSection) => void;
   setTimeframe?: (value: AnalysisTimeframe) => void;
@@ -2428,20 +2447,6 @@ export function AnalysisWorkbench({
   const railEnabled = showRightRailCards && sectionSupportsRightRail(activeSection);
   const handleSelection = (nextSelection: AnalysisSelection) => {
     setSelection((current) => (selectionsEqual(current, nextSelection) ? current : nextSelection));
-  };
-  const flashIntervalSection = (sectionKey: IntervalRailSectionKey) => {
-    setFlashedIntervalSection(sectionKey);
-    if (flashTimeoutRef.current != null) {
-      window.clearTimeout(flashTimeoutRef.current);
-    }
-    flashTimeoutRef.current = window.setTimeout(() => {
-      setFlashedIntervalSection((current) => (current === sectionKey ? null : current));
-      flashTimeoutRef.current = null;
-    }, 550);
-  };
-  const handleIntervalChartLabelClick = (intervalIndex: number, sectionKey: IntervalRailSectionKey) => {
-    handleSelection({ type: 'interval', intervalIndex });
-    flashIntervalSection(sectionKey);
   };
   const clearIntervalSelection = () => {
     setFlashedIntervalSection(null);
@@ -2482,6 +2487,9 @@ export function AnalysisWorkbench({
   const handleWorkbenchPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    if (eventTargetsChartDialog(target)) {
       return;
     }
     if (target.closest('[data-analysis-inspector="true"]')) {
@@ -2529,21 +2537,22 @@ export function AnalysisWorkbench({
     return (
             <WorkbenchSurface
               chartZoomResetToken={chartZoomResetToken}
+              expanded={expanded}
               hasOlderIntervals={hasOlderIntervals}
+              isHydratingDetails={isHydratingDetails}
               isLoadingOlderIntervals={isLoadingOlderIntervals}
               loadOlderIntervals={loadOlderIntervals}
               model={model}
               onOlderLoadProgressChange={onOlderLoadProgressChange}
               onResetCharts={onResetCharts}
               onTimeframeChange={setTimeframe}
+              onToggleExpand={onToggleExpand}
               selectedIntervalIndex={selectedIntervalIndex}
               setSelection={handleSelection}
-              onIntervalChartLabelClick={handleIntervalChartLabelClick}
-              showRightRailCards={railEnabled}
               timeframe={timeframe}
             />
     );
-  }, [activeSection, chartZoomResetToken, handleIntervalChartLabelClick, handleSelection, isSectionPending, model, onOlderLoadProgressChange, onResetCharts, railEnabled, section, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
+  }, [activeSection, chartZoomResetToken, expanded, handleSelection, isHydratingDetails, isSectionPending, model, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, section, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
 
   return (
     <div className="grid gap-6" onPointerDown={handleWorkbenchPointerDown}>

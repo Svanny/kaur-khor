@@ -170,6 +170,7 @@ export interface AnalysisWorkbenchRegimeLaneInterval {
   intervalPosition: number;
   startAt: string | null;
   endAt: string | null;
+  regimeKey: string;
   dominantRegime: string;
   priceCueCount: number;
   stockoutCueCount: number;
@@ -1015,6 +1016,7 @@ export function deriveAnalysisViewModel({
         intervalPosition,
         startAt: seed.startAt,
         endAt: seed.endAt,
+        regimeKey: seed.regime ?? 'normal',
         dominantRegime: translateRegimeLabel(language, seed.regime ?? 'normal'),
         priceCueCount: seed.priceShiftCount,
         stockoutCueCount: seed.stockoutCueCount,
