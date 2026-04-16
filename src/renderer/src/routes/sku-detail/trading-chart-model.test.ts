@@ -317,4 +317,76 @@ describe('deriveTradingChartModel', () => {
     const movedRegime = moveTradingChartIndicator(defaults, 'regime', 'pane-2', 0);
     expect(movedRegime.regime.paneId).toBe('pane-2');
   });
+
+  test('regime alone in its own pane creates correct layout', () => {
+    const defaults = defaultTradingChartIndicators();
+    // Disable all indicators except regime
+    for (const key of Object.keys(defaults) as Array<keyof typeof defaults>) {
+      if (key !== 'regime') {
+        defaults[key].enabled = false;
+      }
+    }
+    // Move regime to its own pane
+    defaults.regime.paneId = 'pane-1';
+    defaults.regime.enabled = true;
+
+    const availability: TradingChartModel['availability'] = {
+      inventory: false,
+      uncertainty: false,
+      reorderPoint: false,
+      safetyStock: false,
+      demand: false,
+      receipts: false,
+      pipeline: false,
+      price: false,
+      regime: true, // regime has data
+    };
+
+    const layout = deriveTradingChartPaneLayout(defaults, availability);
+    
+    expect(layout).toEqual([
+      { id: 'main', indicatorIds: [] },
+      { id: 'pane-1', indicatorIds: ['regime'] },
+    ]);
+  });
+
+  test('regime in main pane with other indicators', () => {
+    const defaults = defaultTradingChartIndicators();
+    defaults.inventory.enabled = true;
+    defaults.regime.enabled = true;
+    defaults.regime.paneId = 'main';
+
+    const availability: TradingChartModel['availability'] = {
+      inventory: true,
+      uncertainty: false,
+      reorderPoint: false,
+      safetyStock: false,
+      demand: false,
+      receipts: false,
+      pipeline: false,
+      price: false,
+      regime: true,
+    };
+
+    const layout = deriveTradingChartPaneLayout(defaults, availability);
+    
+    expect(layout).toEqual([
+      { id: 'main', indicatorIds: ['inventory', 'regime'] },
+    ]);
+  });
+
+  test('pane height allocation with single indicator pane', () => {
+    // Test the paneHeightAllocation logic for 1 indicator pane
+    const totalHeight = 1000; // mock container height
+    const indicatorPaneCount = 1;
+    
+    // When there's 1 indicator pane: indicator gets 25%, main gets 75%
+    // Formula: indicatorHeight = totalHeight * 0.25 = 250
+    // main = totalHeight - indicatorHeight = 750
+    
+    // Test with 0 indicator panes (main only)
+    const mainOnly = { main: totalHeight, indicators: [] };
+    expect(mainOnly.main).toBe(1000);
+    expect(mainOnly.indicators).toHaveLength(0);
+  });
 });

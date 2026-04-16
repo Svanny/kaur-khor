@@ -13,7 +13,7 @@ import { RecordUpdateHubRoute } from '@/routes/record-update-hub';
 import { ServiceDetailRoute } from '@/routes/service-detail';
 import { ServiceFormRoute } from '@/routes/service-form';
 import { SettingsRoute } from '@/routes/settings';
-import { SkuDetailRoute } from '@/routes/sku-detail';
+import { SkuDetailLedgerRoute, SkuDetailRoute } from '@/routes/sku-detail';
 import { SkuFormRoute } from '@/routes/sku-form';
 import { StockUpdateRoute } from '@/routes/stock-update';
 import { StockUpdateSessionRoute } from '@/routes/stock-update-session';
@@ -64,6 +64,7 @@ export function AppRoutes() {
       <Route element={<HelpRoute />} path="/help" />
       <Route element={<SkuFormRoute />} path="/catalog/skus/new" />
       <Route element={<SkuDetailRoute />} path="/catalog/skus/:skuId" />
+      <Route element={<SkuDetailLedgerRoute />} path="/catalog/skus/:skuId/ledger" />
       <Route element={<SkuFormRoute />} path="/catalog/skus/:skuId/edit" />
       <Route element={<ServiceFormRoute />} path="/catalog/services/new" />
       <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />

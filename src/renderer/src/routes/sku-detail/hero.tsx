@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { getRegimeIcon } from '@icons/domain';
 import { translateRegimeLabel } from '@/lib/localized-display';
 import { SkuPageHero } from '@/routes/sku-page-hero';
+import { ItemAvatar } from '@/components/system/item-identity';
 import { SupplierBadge } from '@/components/system/supplier';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel } from './section-heading';
@@ -22,9 +23,11 @@ export function ribbonGridClassName(metricCount: number) {
 
 export function SkuDetailHero({
   actions,
+  imagePath,
   model,
 }: {
   actions: ReactNode;
+  imagePath?: string | null;
   model: SenaSkuDetailViewModel;
 }) {
   const { language, showHeartbeatRibbons = true, t } = usePreferences();
@@ -48,6 +51,7 @@ export function SkuDetailHero({
           <SupplierBadge showEmpty className="px-3 py-1 text-sm" supplierName={model.identity.supplierName} />
         </>
       }
+      visual={<ItemAvatar imagePath={imagePath} name={model.identity.name} size="hero" type="sku" />}
       title={model.identity.name}
     >
       {showHeartbeatRibbons ? (

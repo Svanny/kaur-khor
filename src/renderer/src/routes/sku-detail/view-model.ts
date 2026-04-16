@@ -3,6 +3,7 @@ import type {
   SenaDiagnostics,
   SenaLeadTimeVariabilityClass,
   SenaObservationRecord,
+  SenaOrderBatchRecord,
   SenaPipelinePosteriorPoint,
   SenaRegimePosteriorPoint,
   SenaServiceDetail,
@@ -22,6 +23,14 @@ import { displayMoneyFromUsd } from '@/lib/format';
 import { formatSenaCurrency, formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity, formatSenaUnits } from './format';
 
 export type SkuStatusTone = 'neutral' | 'success' | 'warning' | 'danger';
+
+export interface SenaSkuDetailPipelineChartInterval extends SenaPipelinePosteriorPoint {
+  ordersLateMean: number;
+  ordersReadyToReceiveMean: number;
+  ordersReceivedMean: number;
+  newOrderFlag: number;
+  newReceiptFlag: number;
+}
 
 export interface SenaSkuDetailViewModel {
   identity: {
@@ -71,7 +80,7 @@ export interface SenaSkuDetailViewModel {
     };
     pipelineLane: {
       summary: string;
-      intervals: SenaSkuDetail['pipelinePosterior'];
+      intervals: SenaSkuDetailPipelineChartInterval[];
     };
   };
   rail: {
@@ -109,6 +118,7 @@ export interface SenaSkuDetailViewModel {
   dependencyImpact: Array<{
     serviceId: string;
     name: string;
+    imagePath: string | null;
     severity: 'limiting_now' | 'at_risk' | 'linked';
     usageProbability: string;
     bottleneckProbability: string;
@@ -423,12 +433,150 @@ function extractSkuEvidence(
   return extractEvidence(observations, skuId, language).filter((entry) => soldAsProduct || entry.type !== 'price_changed');
 }
 
+function parseTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function intervalIndexForTimestamp(
+  timestamp: number | null,
+  intervals: Array<{ intervalIndex: number; startAt: string; endAt: string }>,
+) {
+  if (timestamp == null) {
+    return null;
+  }
+  const exact = intervals.find((interval) => {
+    const start = parseTimestamp(interval.startAt);
+    const end = parseTimestamp(interval.endAt);
+    if (start == null || end == null) {
+      return false;
+    }
+    return timestamp >= start && timestamp <= end;
+  });
+  if (exact) {
+    return exact.intervalIndex;
+  }
+  const nearestFuture = intervals.find((interval) => {
+    const end = parseTimestamp(interval.endAt);
+    return end != null && timestamp <= end;
+  });
+  return nearestFuture?.intervalIndex ?? intervals.at(-1)?.intervalIndex ?? null;
+}
+
+function buildPipelineChartIntervals({
+  detail,
+  observations,
+  orderBatches,
+  skuId,
+}: {
+  detail: SenaSkuDetail | null;
+  observations: SenaObservationRecord[];
+  orderBatches: SenaOrderBatchRecord[];
+  skuId: string;
+}) {
+  const flowIntervals = detail?.demandPosterior ?? [];
+  const pipelineIntervals = detail?.pipelinePosterior ?? [];
+  const latestObservationTimestamp = parseTimestamp(observations.at(-1)?.input.observedAt) ?? Date.now();
+  const byInterval = new Map<number, SenaSkuDetailPipelineChartInterval>();
+
+  for (const interval of pipelineIntervals) {
+    byInterval.set(interval.intervalIndex, {
+      ...interval,
+      ordersLateMean: 0,
+      ordersReadyToReceiveMean: 0,
+      ordersReceivedMean: interval.receiptQuantityMean,
+      newOrderFlag: 0,
+      newReceiptFlag: 0,
+    });
+  }
+
+  const ensureInterval = (intervalIndex: number) => {
+    const current = byInterval.get(intervalIndex);
+    if (current) {
+      return current;
+    }
+    const fallback = pipelineIntervals.find((entry) => entry.intervalIndex === intervalIndex);
+    const next: SenaSkuDetailPipelineChartInterval = {
+      intervalIndex,
+      inTransitMean: fallback?.inTransitMean ?? 0,
+      orderProbability: fallback?.orderProbability ?? 0,
+      orderQuantityMean: fallback?.orderQuantityMean ?? 0,
+      receiptQuantityMean: fallback?.receiptQuantityMean ?? 0,
+      ageDaysMean: fallback?.ageDaysMean ?? 0,
+      ordersLateMean: 0,
+      ordersReadyToReceiveMean: 0,
+      ordersReceivedMean: fallback?.receiptQuantityMean ?? 0,
+      newOrderFlag: 0,
+      newReceiptFlag: 0,
+    };
+    byInterval.set(intervalIndex, next);
+    return next;
+  };
+
+  for (const observation of observations) {
+    for (const signal of observation.input.orderSignals.filter((entry) => entry.skuId === skuId)) {
+      if (signal.orderPlaced) {
+        const intervalIndex = intervalIndexForTimestamp(
+          parseTimestamp(signal.placementTimestamp ?? observation.input.observedAt),
+          flowIntervals,
+        );
+        if (intervalIndex != null) {
+          ensureInterval(intervalIndex).newOrderFlag = 1;
+        }
+      }
+      if (signal.receiptArrived) {
+        const intervalIndex = intervalIndexForTimestamp(
+          parseTimestamp(signal.receiptTimestamp ?? observation.input.observedAt),
+          flowIntervals,
+        );
+        if (intervalIndex != null) {
+          ensureInterval(intervalIndex).newReceiptFlag = 1;
+        }
+      }
+    }
+  }
+
+  for (const batch of orderBatches) {
+    for (const child of batch.children.filter((entry) => entry.skuId === skuId)) {
+      if (child.status === 'received' || child.status === 'reviewed') {
+        continue;
+      }
+      const orderedQuantity = child.effective.orderedQuantity ?? 0;
+      const receivedQuantity = child.effective.receivedQuantity ?? 0;
+      const outstandingQuantity = Math.max(0, orderedQuantity - receivedQuantity);
+      if (outstandingQuantity <= 0) {
+        continue;
+      }
+      const etaTimestamp = parseTimestamp(child.effective.expectedArrivalAt);
+      const intervalIndex = intervalIndexForTimestamp(etaTimestamp ?? latestObservationTimestamp, flowIntervals);
+      if (intervalIndex == null) {
+        continue;
+      }
+      const interval = ensureInterval(intervalIndex);
+      if (child.status === 'awaiting_receipt') {
+        interval.ordersReadyToReceiveMean += outstandingQuantity;
+        continue;
+      }
+      const isLate = etaTimestamp != null && etaTimestamp < latestObservationTimestamp;
+      if (child.status === 'follow_up' || isLate) {
+        interval.ordersLateMean += outstandingQuantity;
+      }
+    }
+  }
+
+  return [...byInterval.values()].sort((left, right) => left.intervalIndex - right.intervalIndex);
+}
+
 export function deriveSenaSkuDetailViewModel({
   currency,
   usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   diagnostics,
   observations,
   linkedServiceDetails,
+  orderBatches = [],
   selectedIntervalIndex,
   skuId,
   supplierName = null,
@@ -443,6 +591,7 @@ export function deriveSenaSkuDetailViewModel({
   diagnostics: SenaDiagnostics | null;
   observations: SenaObservationRecord[];
   linkedServiceDetails: SenaServiceDetail[];
+  orderBatches?: SenaOrderBatchRecord[];
   selectedIntervalIndex: number | null;
   skuId: string;
   supplierName?: string | null;
@@ -471,7 +620,10 @@ export function deriveSenaSkuDetailViewModel({
     language,
     orderBand.high,
   );
-  const openPipelineCount = (latestPipeline?.inTransitMean ?? 0) > 0.5 ? 1 : 0;
+  const pendingOrderBatches = orderBatches.filter((batch) =>
+    batch.children.some((child) => child.skuId === skuId && child.status !== 'reviewed'),
+  );
+  const pendingBatchCount = pendingOrderBatches.length;
   const visibleIntervalIndices = new Set((detail?.demandPosterior ?? []).map((entry) => entry.intervalIndex));
   const visibleRegimeHistory =
     diagnostics?.regimeHistory.filter((entry) => visibleIntervalIndices.size === 0 || visibleIntervalIndices.has(entry.intervalIndex)) ?? [];
@@ -526,6 +678,7 @@ export function deriveSenaSkuDetailViewModel({
       return {
         serviceId: service.serviceId,
         name: service.name,
+        imagePath: service.imagePath?.trim() || null,
         severity,
         usageProbability: usageProbability == null ? '—' : formatSenaPercent(usageProbability, language),
         bottleneckProbability: formatSenaPercent(bottleneck, language),
@@ -557,6 +710,12 @@ export function deriveSenaSkuDetailViewModel({
     )
     .sort((left, right) => right.observedAt.localeCompare(left.observedAt))
     .slice(0, 5);
+  const pipelineChartIntervals = buildPipelineChartIntervals({
+    detail,
+    observations,
+    orderBatches,
+    skuId,
+  });
 
   const currentPrice = observations
     .flatMap((observation) =>
@@ -582,8 +741,8 @@ export function deriveSenaSkuDetailViewModel({
       : receipt.label;
   const openOrderCountLabel = translate(
     language,
-    openPipelineCount === 1 ? 'skuVmOpenOrderSingular' : 'skuVmOpenOrderPlural',
-    { count: openPipelineCount },
+    pendingBatchCount === 1 ? 'skuVmOpenOrderSingular' : 'skuVmOpenOrderPlural',
+    { count: pendingBatchCount },
   );
 
   return {
@@ -665,9 +824,9 @@ export function deriveSenaSkuDetailViewModel({
       },
       pipelineLane: {
         summary: translate(language, 'skuVmLanePipelineSummary', {
-          count: (detail?.pipelinePosterior ?? []).length,
+          count: pipelineChartIntervals.length,
         }),
-        intervals: detail?.pipelinePosterior ?? [],
+        intervals: pipelineChartIntervals,
       },
     },
     rail: {
@@ -703,6 +862,7 @@ export function deriveSenaSkuDetailViewModel({
           translate(language, 'skuVmOpenPipelineOrderProbability', {
             probability: formatSenaPercent(intervalPipeline?.orderProbability ?? latestPipeline?.orderProbability ?? 0, language),
           }),
+          translate(language, 'skuVmOpenOrderPlural', { count: pendingBatchCount }),
           translate(language, 'skuVmOpenPipelineAge', {
             age: formatSenaDays(intervalPipeline?.ageDaysMean ?? latestPipeline?.ageDaysMean ?? null, language),
           }),
@@ -714,6 +874,7 @@ export function deriveSenaSkuDetailViewModel({
       exposure: dependencyImpact.map((entry) => ({
         serviceId: entry.serviceId,
         serviceName: entry.name,
+        imagePath: entry.imagePath,
         usageProbability: entry.usageProbability,
         bottleneckProbability: entry.bottleneckProbability,
         severity: entry.severity,

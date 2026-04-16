@@ -1,4 +1,5 @@
 import { MeasuredPagedDetailPanel } from '@/routes/detail-panels';
+import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { translateUiLiteral } from '@/lib/translations';
 import { usePreferences } from '@/state/preferences';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -25,10 +26,14 @@ export function SkuDetailExposure({ rows }: { rows: SenaSkuDetailViewModel['depe
       tooltip={t('catalogSenaSkuDependencyImpactTooltip')}
       renderItem={(row) => (
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-4">
-          <div>
-            <p className="font-medium text-foreground">{row.name}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{severityLabel(row.severity)}</p>
-          </div>
+          <ItemIdentityBlock
+            align="center"
+            description={severityLabel(row.severity)}
+            imagePath={row.imagePath}
+            name={row.name}
+            size="compact"
+            type="service"
+          />
           <div className="text-right text-sm text-muted-foreground">
             <p>{translateUiLiteral(language, 'Usage {value}', { value: row.usageProbability })}</p>
             <p>{translateUiLiteral(language, 'Blocker {value}', { value: row.bottleneckProbability })}</p>

@@ -1,5 +1,10 @@
 import type { Time, UTCTimestamp } from 'lightweight-charts';
-import type { SenaSkuDetailViewModel } from './view-model';
+import {
+  bucketTimestampForResolution,
+  type ChartResolutionSpec,
+} from '@/components/system/chart-resolution';
+import type { ChartInputValueSource } from '@/components/system/chart-series-config';
+import type { SenaSkuDetailPipelineChartInterval, SenaSkuDetailViewModel } from './view-model';
 
 export type TradingChartIndicatorId =
   | 'inventory'
@@ -8,7 +13,12 @@ export type TradingChartIndicatorId =
   | 'safetyStock'
   | 'demand'
   | 'receipts'
-  | 'pipeline'
+  | 'ordersInTransit'
+  | 'ordersLate'
+  | 'ordersReadyToReceive'
+  | 'ordersReceived'
+  | 'newOrderFlags'
+  | 'newReceiptFlags'
   | 'price'
   | 'regime';
 
@@ -18,10 +28,13 @@ export type TradingChartIndicatorAxisSide = 'left' | 'right';
 export type TradingChartIndicatorPlotStyle =
   | 'area'
   | 'line'
+  | 'step-line'
   | 'band'
   | 'lines'
   | 'price-line'
   | 'histogram'
+  | 'bars'
+  | 'candles'
   | 'columns'
   | 'icons'
   | 'background-highlight'
@@ -38,6 +51,7 @@ export interface TradingChartIndicatorSetting {
   lineWidth?: number;
   opacity?: number;
   plotStyle: TradingChartIndicatorPlotStyle;
+  inputSource?: ChartInputValueSource;
   precision?: TradingChartIndicatorPrecision;
   showPriceScaleLabel?: boolean;
   showStatusLineValue?: boolean;
@@ -66,10 +80,15 @@ export interface TradingChartPoint {
   retailDemandMean: number | null;
   receiptsMean: number | null;
   adjustmentsMean: number | null;
-  inTransitMean: number | null;
-  orderQuantityMean: number | null;
+  ordersInTransitMean: number | null;
+  ordersLateMean: number | null;
+  ordersReadyToReceiveMean: number | null;
+  ordersReceivedMean: number | null;
+  newOrderFlag: number | null;
+  newReceiptFlag: number | null;
   price: number | null;
   dominantRegime: string | null;
+  sourceMembers?: TradingChartPoint[];
 }
 
 export interface TradingChartModel {
@@ -87,8 +106,13 @@ const DEFAULT_PANE_IDS: Record<TradingChartIndicatorId, string> = {
   safetyStock: TRADING_CHART_MAIN_PANE_ID,
   demand: 'pane-1',
   receipts: 'pane-2',
-  pipeline: 'pane-3',
-  price: 'pane-4',
+  ordersInTransit: 'pane-3',
+  ordersLate: 'pane-4',
+  ordersReadyToReceive: 'pane-5',
+  ordersReceived: 'pane-6',
+  newOrderFlags: 'pane-7',
+  newReceiptFlags: 'pane-8',
+  price: 'pane-9',
   regime: TRADING_CHART_MAIN_PANE_ID,
 };
 const DEFAULT_LAYER_ORDER: Record<TradingChartIndicatorId, number> = {
@@ -98,7 +122,12 @@ const DEFAULT_LAYER_ORDER: Record<TradingChartIndicatorId, number> = {
   safetyStock: 3,
   demand: 0,
   receipts: 0,
-  pipeline: 0,
+  ordersInTransit: 0,
+  ordersLate: 0,
+  ordersReadyToReceive: 0,
+  ordersReceived: 0,
+  newOrderFlags: 0,
+  newReceiptFlags: 0,
   price: 0,
   regime: 4,
 };
@@ -109,7 +138,12 @@ const INDICATOR_ORDER: TradingChartIndicatorId[] = [
   'safetyStock',
   'demand',
   'receipts',
-  'pipeline',
+  'ordersInTransit',
+  'ordersLate',
+  'ordersReadyToReceive',
+  'ordersReceived',
+  'newOrderFlags',
+  'newReceiptFlags',
   'price',
   'regime',
 ];
@@ -125,6 +159,7 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 2,
     opacity: 1,
     plotStyle: 'line',
+    inputSource: 'close',
     precision: 'default',
     showPriceScaleLabel: true,
     showStatusLineValue: true,
@@ -141,6 +176,7 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 1,
     opacity: 0.22,
     plotStyle: 'band',
+    inputSource: 'close',
     precision: 'default',
     showPriceScaleLabel: false,
     showStatusLineValue: true,
@@ -157,6 +193,7 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 1,
     opacity: 0.95,
     plotStyle: 'price-line',
+    inputSource: 'close',
     precision: 'default',
     showPriceScaleLabel: true,
     showStatusLineValue: true,
@@ -173,6 +210,7 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 1,
     opacity: 0.9,
     plotStyle: 'price-line',
+    inputSource: 'close',
     precision: 'default',
     showPriceScaleLabel: true,
     showStatusLineValue: true,
@@ -189,6 +227,7 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 1,
     opacity: 0.5,
     plotStyle: 'histogram',
+    inputSource: 'close',
     precision: 'default',
     showPriceScaleLabel: false,
     showStatusLineValue: true,
@@ -205,13 +244,14 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 1,
     opacity: 0.5,
     plotStyle: 'histogram',
+    inputSource: 'close',
     precision: 'default',
     showPriceScaleLabel: false,
     showStatusLineValue: true,
     showInputValuesInStatusLine: true,
     scale: 'overlay',
   },
-  pipeline: {
+  ordersInTransit: {
     enabled: false,
     color: '#2563eb',
     paneId: 'pane-3',
@@ -221,7 +261,93 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 1,
     opacity: 0.45,
     plotStyle: 'histogram',
+    inputSource: 'close',
     precision: 'default',
+    showPriceScaleLabel: false,
+    showStatusLineValue: true,
+    showInputValuesInStatusLine: true,
+    scale: 'overlay',
+  },
+  ordersLate: {
+    enabled: false,
+    color: '#dc2626',
+    paneId: 'pane-4',
+    layerOrder: 0,
+    axisSide: 'right',
+    lineStyle: 'solid',
+    lineWidth: 1,
+    opacity: 0.5,
+    plotStyle: 'histogram',
+    inputSource: 'close',
+    precision: 'default',
+    showPriceScaleLabel: false,
+    showStatusLineValue: true,
+    showInputValuesInStatusLine: true,
+    scale: 'overlay',
+  },
+  ordersReadyToReceive: {
+    enabled: false,
+    color: '#d97706',
+    paneId: 'pane-5',
+    layerOrder: 0,
+    axisSide: 'right',
+    lineStyle: 'solid',
+    lineWidth: 1,
+    opacity: 0.5,
+    plotStyle: 'histogram',
+    inputSource: 'close',
+    precision: 'default',
+    showPriceScaleLabel: false,
+    showStatusLineValue: true,
+    showInputValuesInStatusLine: true,
+    scale: 'overlay',
+  },
+  ordersReceived: {
+    enabled: false,
+    color: '#16a34a',
+    paneId: 'pane-6',
+    layerOrder: 0,
+    axisSide: 'right',
+    lineStyle: 'solid',
+    lineWidth: 1,
+    opacity: 0.5,
+    plotStyle: 'histogram',
+    inputSource: 'close',
+    precision: 'default',
+    showPriceScaleLabel: false,
+    showStatusLineValue: true,
+    showInputValuesInStatusLine: true,
+    scale: 'overlay',
+  },
+  newOrderFlags: {
+    enabled: false,
+    color: '#7c3aed',
+    paneId: 'pane-7',
+    layerOrder: 0,
+    axisSide: 'right',
+    lineStyle: 'solid',
+    lineWidth: 1,
+    opacity: 0.9,
+    plotStyle: 'icons',
+    inputSource: 'close',
+    precision: '0',
+    showPriceScaleLabel: false,
+    showStatusLineValue: true,
+    showInputValuesInStatusLine: true,
+    scale: 'overlay',
+  },
+  newReceiptFlags: {
+    enabled: false,
+    color: '#0891b2',
+    paneId: 'pane-8',
+    layerOrder: 0,
+    axisSide: 'right',
+    lineStyle: 'solid',
+    lineWidth: 1,
+    opacity: 0.9,
+    plotStyle: 'icons',
+    inputSource: 'close',
+    precision: '0',
     showPriceScaleLabel: false,
     showStatusLineValue: true,
     showInputValuesInStatusLine: true,
@@ -237,6 +363,7 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 2,
     opacity: 1,
     plotStyle: 'line',
+    inputSource: 'close',
     precision: 'default',
     showPriceScaleLabel: true,
     showStatusLineValue: true,
@@ -253,6 +380,7 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     lineWidth: 1,
     opacity: 0.9,
     plotStyle: 'icons',
+    inputSource: 'close',
     precision: 'default',
     showPriceScaleLabel: false,
     showStatusLineValue: true,
@@ -262,14 +390,19 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
 };
 
 const INDICATOR_PLOT_STYLE_OPTIONS: Record<TradingChartIndicatorId, TradingChartIndicatorPlotStyle[]> = {
-  inventory: ['line', 'area'],
+  inventory: ['line', 'area', 'step-line', 'histogram', 'bars', 'candles'],
   uncertainty: ['band', 'lines'],
   reorderPoint: ['price-line'],
   safetyStock: ['price-line'],
-  demand: ['histogram', 'columns'],
-  receipts: ['histogram', 'columns'],
-  pipeline: ['histogram', 'columns'],
-  price: ['line', 'area'],
+  demand: ['histogram', 'line', 'area', 'step-line', 'bars', 'candles'],
+  receipts: ['histogram', 'line', 'area', 'step-line', 'bars', 'candles'],
+  ordersInTransit: ['histogram', 'line', 'area', 'step-line', 'bars', 'candles'],
+  ordersLate: ['histogram', 'line', 'area', 'step-line', 'bars', 'candles'],
+  ordersReadyToReceive: ['histogram', 'line', 'area', 'step-line', 'bars', 'candles'],
+  ordersReceived: ['histogram', 'line', 'area', 'step-line', 'bars', 'candles'],
+  newOrderFlags: ['icons'],
+  newReceiptFlags: ['icons'],
+  price: ['line', 'area', 'step-line', 'histogram', 'bars', 'candles'],
   regime: ['icons', 'background-highlight', 'background-highlight-icons'],
 };
 
@@ -278,11 +411,24 @@ export function compatiblePlotStyles(id: TradingChartIndicatorId) {
 }
 
 export function supportsLineType(plotStyle: TradingChartIndicatorPlotStyle) {
-  return plotStyle === 'area' || plotStyle === 'line' || plotStyle === 'band' || plotStyle === 'lines' || plotStyle === 'price-line';
+  return plotStyle === 'area' || plotStyle === 'line' || plotStyle === 'step-line' || plotStyle === 'band' || plotStyle === 'lines' || plotStyle === 'price-line';
 }
 
 export function supportsLineWidth(plotStyle: TradingChartIndicatorPlotStyle) {
-  return plotStyle === 'area' || plotStyle === 'line' || plotStyle === 'band' || plotStyle === 'lines' || plotStyle === 'price-line';
+  return plotStyle === 'area' || plotStyle === 'line' || plotStyle === 'step-line' || plotStyle === 'band' || plotStyle === 'lines' || plotStyle === 'price-line';
+}
+
+export function isOhlcTradingChartPlotStyle(plotStyle: TradingChartIndicatorPlotStyle) {
+  return plotStyle === 'bars' || plotStyle === 'candles';
+}
+
+export function supportsTradingChartInputSource(plotStyle: TradingChartIndicatorPlotStyle) {
+  return plotStyle === 'area' ||
+    plotStyle === 'line' ||
+    plotStyle === 'step-line' ||
+    plotStyle === 'histogram' ||
+    plotStyle === 'bars' ||
+    plotStyle === 'candles';
 }
 
 export function plotStyleLabel(plotStyle: TradingChartIndicatorPlotStyle) {
@@ -291,6 +437,8 @@ export function plotStyleLabel(plotStyle: TradingChartIndicatorPlotStyle) {
       return 'Area';
     case 'line':
       return 'Line';
+    case 'step-line':
+      return 'Step-line';
     case 'band':
       return 'Band';
     case 'lines':
@@ -299,6 +447,10 @@ export function plotStyleLabel(plotStyle: TradingChartIndicatorPlotStyle) {
       return 'Price line';
     case 'histogram':
       return 'Histogram';
+    case 'bars':
+      return 'Bars';
+    case 'candles':
+      return 'Candles';
     case 'columns':
       return 'Columns';
     case 'icons':
@@ -387,8 +539,12 @@ function addEntry(
     retailDemandMean: values.retailDemandMean ?? null,
     receiptsMean: values.receiptsMean ?? null,
     adjustmentsMean: values.adjustmentsMean ?? null,
-    inTransitMean: values.inTransitMean ?? null,
-    orderQuantityMean: values.orderQuantityMean ?? null,
+    ordersInTransitMean: values.ordersInTransitMean ?? null,
+    ordersLateMean: values.ordersLateMean ?? null,
+    ordersReadyToReceiveMean: values.ordersReadyToReceiveMean ?? null,
+    ordersReceivedMean: values.ordersReceivedMean ?? null,
+    newOrderFlag: values.newOrderFlag ?? null,
+    newReceiptFlag: values.newReceiptFlag ?? null,
     price: values.price ?? null,
     dominantRegime: values.dominantRegime ?? null,
   });
@@ -422,6 +578,17 @@ function sanitizeUncertaintyBounds(mean: number | null, low: number | null, high
     low: Math.min(low, high, mean),
     high: Math.max(low, high, mean),
   };
+}
+
+function addPipelineInterval(entries: Map<number, TradingChartPoint>, interval: SenaSkuDetailPipelineChartInterval) {
+  addEntry(entries, interval.intervalIndex, {
+    ordersInTransitMean: interval.inTransitMean,
+    ordersLateMean: interval.ordersLateMean,
+    ordersReadyToReceiveMean: interval.ordersReadyToReceiveMean,
+    ordersReceivedMean: interval.ordersReceivedMean,
+    newOrderFlag: interval.newOrderFlag,
+    newReceiptFlag: interval.newReceiptFlag,
+  });
 }
 
 export function deriveTradingChartModel(model: SenaSkuDetailViewModel): TradingChartModel {
@@ -475,10 +642,7 @@ export function deriveTradingChartModel(model: SenaSkuDetailViewModel): TradingC
   }
 
   for (const interval of model.lanes.pipelineLane.intervals) {
-    addEntry(entries, interval.intervalIndex, {
-      inTransitMean: interval.inTransitMean,
-      orderQuantityMean: interval.orderQuantityMean,
-    });
+    addPipelineInterval(entries, interval);
   }
 
   const points = [...entries.values()].sort((left, right) => left.intervalIndex - right.intervalIndex);
@@ -500,6 +664,95 @@ export function deriveTradingChartModel(model: SenaSkuDetailViewModel): TradingC
   };
 }
 
+function pointTimestampMs(point: TradingChartPoint) {
+  const timestamp =
+    Date.parse(point.endAt ?? '') ||
+    Date.parse(point.startAt ?? '') ||
+    (typeof point.time === 'number' ? point.time * 1000 : Number(point.time) * 1000);
+  return Number.isFinite(timestamp) ? timestamp : point.intervalIndex;
+}
+
+function lastDefined<T>(values: T[]) {
+  return [...values].reverse().find((value) => value != null) ?? null;
+}
+
+function maxDefined(values: Array<number | null | undefined>) {
+  const finite = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  return finite.length > 0 ? Math.max(...finite) : null;
+}
+
+function minDefined(values: Array<number | null | undefined>) {
+  const finite = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  return finite.length > 0 ? Math.min(...finite) : null;
+}
+
+export function deriveTradingChartDisplayModel(
+  model: TradingChartModel,
+  resolution: ChartResolutionSpec | null,
+): TradingChartModel {
+  if (!resolution || model.points.length <= 1) {
+    return model;
+  }
+
+  const buckets = new Map<number, TradingChartPoint[]>();
+  for (const point of model.points) {
+    const timestamp = pointTimestampMs(point);
+    const bucketTime = bucketTimestampForResolution(timestamp, resolution);
+    const bucket = buckets.get(bucketTime) ?? [];
+    bucket.push(point);
+    buckets.set(bucketTime, bucket);
+  }
+
+  const resolvedPoints = [...buckets.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([bucketTime, members]) => {
+      const sortedMembers = [...members].sort((left, right) => pointTimestampMs(left) - pointTimestampMs(right));
+      const first = sortedMembers[0]!;
+      const last = sortedMembers.at(-1)!;
+      const sourceMembers = sortedMembers.flatMap((point) => point.sourceMembers ?? [point]);
+      return {
+        intervalIndex: last.intervalIndex,
+        startAt: first.startAt,
+        endAt: last.endAt,
+        time: Math.floor(bucketTime / 1000) as UTCTimestamp,
+        label: last.endAt ?? first.startAt ?? `Interval ${last.intervalIndex + 1}`,
+        inventoryMean: lastDefined(sortedMembers.map((point) => point.inventoryMean)),
+        inventoryLow: minDefined(sortedMembers.map((point) => point.inventoryLow)),
+        inventoryHigh: maxDefined(sortedMembers.map((point) => point.inventoryHigh)),
+        reorderPoint: lastDefined(sortedMembers.map((point) => point.reorderPoint)),
+        safetyStock: lastDefined(sortedMembers.map((point) => point.safetyStock)),
+        serviceDemandMean: lastDefined(sortedMembers.map((point) => point.serviceDemandMean)),
+        retailDemandMean: lastDefined(sortedMembers.map((point) => point.retailDemandMean)),
+        receiptsMean: lastDefined(sortedMembers.map((point) => point.receiptsMean)),
+        adjustmentsMean: lastDefined(sortedMembers.map((point) => point.adjustmentsMean)),
+        ordersInTransitMean: lastDefined(sortedMembers.map((point) => point.ordersInTransitMean)),
+        ordersLateMean: lastDefined(sortedMembers.map((point) => point.ordersLateMean)),
+        ordersReadyToReceiveMean: lastDefined(sortedMembers.map((point) => point.ordersReadyToReceiveMean)),
+        ordersReceivedMean: lastDefined(sortedMembers.map((point) => point.ordersReceivedMean)),
+        newOrderFlag: maxDefined(sortedMembers.map((point) => point.newOrderFlag)),
+        newReceiptFlag: maxDefined(sortedMembers.map((point) => point.newReceiptFlag)),
+        price: lastDefined(sortedMembers.map((point) => point.price)),
+        dominantRegime: lastDefined(sortedMembers.map((point) => point.dominantRegime)),
+        sourceMembers,
+      } satisfies TradingChartPoint;
+    });
+
+  const pointByIntervalIndex = new Map<number, TradingChartPoint>();
+  for (const point of resolvedPoints) {
+    for (const member of point.sourceMembers ?? [point]) {
+      pointByIntervalIndex.set(member.intervalIndex, point);
+    }
+    pointByIntervalIndex.set(point.intervalIndex, point);
+  }
+
+  return {
+    points: resolvedPoints,
+    pointByIntervalIndex,
+    pointByTimeKey: new Map(resolvedPoints.map((point) => [timeKey(point.time), point])),
+    availability: model.availability,
+  };
+}
+
 function deriveAvailability(points: TradingChartPoint[]) {
   return {
     inventory: points.some((point) => point.inventoryMean != null),
@@ -508,7 +761,12 @@ function deriveAvailability(points: TradingChartPoint[]) {
     safetyStock: points.some((point) => point.safetyStock != null),
     demand: points.some((point) => point.serviceDemandMean != null || point.retailDemandMean != null),
     receipts: points.some((point) => point.receiptsMean != null || point.adjustmentsMean != null),
-    pipeline: points.some((point) => point.inTransitMean != null),
+    ordersInTransit: points.some((point) => point.ordersInTransitMean != null),
+    ordersLate: points.some((point) => point.ordersLateMean != null && point.ordersLateMean > 0),
+    ordersReadyToReceive: points.some((point) => point.ordersReadyToReceiveMean != null && point.ordersReadyToReceiveMean > 0),
+    ordersReceived: points.some((point) => point.ordersReceivedMean != null && point.ordersReceivedMean > 0),
+    newOrderFlags: points.some((point) => point.newOrderFlag != null && point.newOrderFlag > 0),
+    newReceiptFlags: points.some((point) => point.newReceiptFlag != null && point.newReceiptFlag > 0),
     price: points.some((point) => point.price != null),
     regime: points.some((point) => point.dominantRegime != null),
   } satisfies TradingChartModel['availability'];
@@ -553,9 +811,21 @@ export function normalizeTradingChartIndicatorSettings(settings: TradingChartInd
 
   for (const id of INDICATOR_ORDER) {
     const current = next[id];
+    const defaultSetting = DEFAULT_TRADING_CHART_INDICATORS[id];
     current.paneId = current.paneId || DEFAULT_PANE_IDS[id];
     current.layerOrder = Number.isFinite(current.layerOrder) ? current.layerOrder : DEFAULT_LAYER_ORDER[id];
     current.axisSide = current.axisSide === 'left' ? 'left' : 'right';
+    if (current.plotStyle === 'columns') {
+      current.plotStyle = 'histogram';
+    }
+    if (!compatiblePlotStyles(id).includes(current.plotStyle)) {
+      current.plotStyle = defaultSetting.plotStyle;
+    }
+    current.inputSource = isOhlcTradingChartPlotStyle(current.plotStyle)
+      ? 'ohlc'
+      : current.inputSource && current.inputSource !== 'ohlc'
+        ? current.inputSource
+        : defaultSetting.inputSource ?? 'close';
   }
 
   const paneIds = Array.from(new Set(INDICATOR_ORDER.map((id) => next[id].paneId))).sort((left, right) => {

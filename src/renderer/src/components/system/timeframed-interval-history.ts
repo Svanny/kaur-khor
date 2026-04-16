@@ -22,6 +22,8 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   onPruneTransition,
   hydrateTimeframeSequentially = false,
   timeframe,
+  timeframeBoundaryOverride,
+  timeframeCacheKey,
 }: {
   fetchInitialPage: (limit?: number) => Promise<TPage | null>;
   fetchOlderPage: (beforeIntervalIndex: number, limit?: number) => Promise<TPage | null>;
@@ -34,6 +36,8 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   onPruneTransition?: () => Promise<void> | void;
   hydrateTimeframeSequentially?: boolean;
   timeframe: ChartTimeframe;
+  timeframeBoundaryOverride?: Date | null;
+  timeframeCacheKey?: string;
 }) {
   const [page, setPage] = useState<TPage | null>(initialPage);
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
@@ -44,10 +48,9 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   );
   const pageRef = useRef<TPage | null>(initialPage);
   const isLoadingOlderRef = useRef(false);
-  const timeframeCacheRef = useRef<Partial<Record<ChartTimeframe, TPage | null>>>({
-    Recent: initialPage,
-  });
+  const timeframeCacheRef = useRef<Record<string, TPage | null>>({ Recent: initialPage });
   const previousTimeframeRef = useRef<ChartTimeframe | null>(null);
+  const previousHadBoundaryOverrideRef = useRef(Boolean(timeframeBoundaryOverride));
   const latestInitialKeyRef = useRef<number | null>(initialPage?.latestIntervalIndex ?? null);
   const hydrationRequestIdRef = useRef(0);
   const fetchInitialPageRef = useRef(fetchInitialPage);
@@ -114,15 +117,20 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     };
   }, []);
 
-  const hydrateTimeframe = useCallback(async (targetTimeframe: ChartTimeframe, requestId: number) => {
+  const hydrateTimeframe = useCallback(async (
+    targetTimeframe: ChartTimeframe,
+    requestId: number,
+    targetCacheKey: string,
+    targetBoundaryOverride?: Date | null,
+  ) => {
     const isCurrentRequest = () => hydrationRequestIdRef.current === requestId;
-    let nextPage = targetTimeframe === 'Recent'
+    let nextPage = targetCacheKey === 'Recent'
       ? timeframeCacheRef.current.Recent ?? initialPage ?? await fetchInitialPageRef.current(RECENT_TIMEFRAME_MIN_REPORTS)
       : await fetchInitialPageRef.current(INTERVAL_PAGE_SIZE);
     if (!isCurrentRequest()) {
       return null;
     }
-    timeframeCacheRef.current[targetTimeframe] = nextPage;
+    timeframeCacheRef.current[targetCacheKey] = nextPage;
     setPage(nextPage);
 
     if (!nextPage) {
@@ -130,7 +138,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
       return nextPage;
     }
 
-    const boundary = deriveChartTimeframeBoundary(latestObservedAt, targetTimeframe);
+    const boundary = targetBoundaryOverride ?? deriveChartTimeframeBoundary(latestObservedAt, targetTimeframe);
 
     if (
       nextPage &&
@@ -161,7 +169,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
             return null;
           }
           nextPage = nextBatch.page;
-          timeframeCacheRef.current[targetTimeframe] = nextPage;
+          timeframeCacheRef.current[targetCacheKey] = nextPage;
           setPage(nextPage);
           if (nextBatch.prependedCount <= 0) {
             break;
@@ -193,8 +201,8 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
           return null;
         }
         nextPage = nextBatch.page;
-        timeframeCacheRef.current[targetTimeframe] = nextPage;
-        setPage(nextPage);
+          timeframeCacheRef.current[targetCacheKey] = nextPage;
+          setPage(nextPage);
       }
     }
 
@@ -208,12 +216,17 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
 
   useEffect(() => {
     let active = true;
+    const activeCacheKey = timeframeCacheKey ?? timeframe;
 
-    if (shouldPruneTimeframeTransition({
-      latestObservedAt,
-      nextTimeframe: timeframe,
-      previousTimeframe: previousTimeframeRef.current,
-    })) {
+    if (
+      !timeframeBoundaryOverride &&
+      !previousHadBoundaryOverrideRef.current &&
+      shouldPruneTimeframeTransition({
+        latestObservedAt,
+        nextTimeframe: timeframe,
+        previousTimeframe: previousTimeframeRef.current,
+      })
+    ) {
       timeframeCacheRef.current = {
         Recent: timeframeCacheRef.current.Recent ?? initialPage,
       };
@@ -224,8 +237,9 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     }
 
     previousTimeframeRef.current = timeframe;
-    const cachedPage = timeframeCacheRef.current[timeframe];
-    const cachedBoundary = deriveChartTimeframeBoundary(latestObservedAt, timeframe);
+    previousHadBoundaryOverrideRef.current = Boolean(timeframeBoundaryOverride);
+    const cachedPage = timeframeCacheRef.current[activeCacheKey];
+    const cachedBoundary = timeframeBoundaryOverride ?? deriveChartTimeframeBoundary(latestObservedAt, timeframe);
     const cachedPageSatisfiesTimeframe = cachedPage
       ? isChartTimeframeSatisfied({
         boundary: cachedBoundary,
@@ -248,7 +262,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     setIsHydratingDetails(true);
     const requestId = hydrationRequestIdRef.current + 1;
     hydrationRequestIdRef.current = requestId;
-    void hydrateTimeframe(timeframe, requestId).finally(() => {
+    void hydrateTimeframe(timeframe, requestId, activeCacheKey, timeframeBoundaryOverride).finally(() => {
       if (active) {
         setIsHydratingDetails(false);
       }
@@ -257,10 +271,11 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     return () => {
       active = false;
     };
-  }, [hydrateTimeframe, initialPage, latestObservedAt, timeframe]);
+  }, [hydrateTimeframe, initialPage, latestObservedAt, timeframe, timeframeBoundaryOverride, timeframeCacheKey]);
 
   const loadOlder = useCallback(async (limit = INTERVAL_LOAD_BATCH_SIZE) => {
     const currentPage = pageRef.current;
+    const activeCacheKey = timeframeCacheKey ?? timeframe;
     if (
       isLoadingOlderRef.current ||
       !currentPage?.hasOlder ||
@@ -274,28 +289,29 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
         currentPage,
         limit,
       });
-      timeframeCacheRef.current[timeframe] = nextBatch.page;
+      timeframeCacheRef.current[activeCacheKey] = nextBatch.page;
       setPage(nextBatch.page);
       return nextBatch.page;
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [loadOlderBatch, timeframe]);
+  }, [loadOlderBatch, timeframe, timeframeCacheKey]);
 
   const resetHydratedDetails = useCallback(async () => {
-    timeframeCacheRef.current[timeframe] = null;
+    const activeCacheKey = timeframeCacheKey ?? timeframe;
+    timeframeCacheRef.current[activeCacheKey] = null;
     setPage(null);
     setTimeframeHydrationProgress(null);
     setIsHydratingDetails(true);
     try {
       const requestId = hydrationRequestIdRef.current + 1;
       hydrationRequestIdRef.current = requestId;
-      const nextPage = await hydrateTimeframe(timeframe, requestId);
+      const nextPage = await hydrateTimeframe(timeframe, requestId, activeCacheKey, timeframeBoundaryOverride);
       return nextPage;
     } finally {
       setIsHydratingDetails(false);
     }
-  }, [hydrateTimeframe, timeframe]);
+  }, [hydrateTimeframe, timeframe, timeframeBoundaryOverride, timeframeCacheKey]);
 
   return {
     detail: page?.detail ?? null,

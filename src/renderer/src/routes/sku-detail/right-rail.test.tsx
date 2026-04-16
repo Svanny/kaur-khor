@@ -18,6 +18,12 @@ function expectBefore(left: HTMLElement, right: HTMLElement) {
 describe('SkuDetailRightRail', () => {
   test('renders the act now card above the other right rail cards', () => {
     const model = {
+      identity: {
+        supplierName: 'Mekong Looms',
+      },
+      actionContext: {
+        latestObservationAt: null,
+      },
       rail: {
         actNow: {
           headline: 'Monitor',

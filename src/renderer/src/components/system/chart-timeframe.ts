@@ -1,4 +1,8 @@
 export type ChartTimeframe = 'Recent' | '1M' | '3M' | '1Y' | 'YTD' | 'MAX';
+export interface ChartCustomTimeframeRange {
+  startAt: string;
+  endAt: string;
+}
 
 export const CHART_TIMEFRAME_OPTIONS: ChartTimeframe[] = ['Recent', '1M', '3M', 'YTD', '1Y', 'MAX'];
 export const RECENT_TIMEFRAME_DAYS = 7;

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type HTMLAttributes, type SetStateAction } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type HTMLAttributes, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import {
@@ -25,11 +25,16 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   AreaSeries,
+  BarSeries,
+  CandlestickSeries,
   ColorType,
   createChart,
   HistogramSeries,
   LineSeries,
+  LineType,
   LineStyle,
+  type BarData,
+  type CandlestickData,
   type HistogramData,
   type IChartApi,
   type ISeriesApi,
@@ -38,7 +43,19 @@ import {
   type SeriesType,
   type Time,
 } from 'lightweight-charts';
-import { ActionAddBadgeIcon, ActionCloseIcon, ActionDeleteIcon, ActionDragHandleIcon, ActionResetIcon } from '@icons/actions';
+import {
+  ActionAddBadgeIcon,
+  ActionChartAreaTypeIcon,
+  ActionChartBarsTypeIcon,
+  ActionChartCandlesTypeIcon,
+  ActionChartHistogramTypeIcon,
+  ActionChartLineTypeIcon,
+  ActionChartStepLineTypeIcon,
+  ActionCloseIcon,
+  ActionDeleteIcon,
+  ActionDragHandleIcon,
+  ActionResetIcon,
+} from '@icons/actions';
 import { getRegimeIcon } from '@icons/domain';
 import {
   EntityLayersIcon,
@@ -50,17 +67,40 @@ import {
 } from '@icons/entities';
 import {
   StatusGaugeIcon,
+  StatusMaximizeIcon,
+  StatusMinimizeIcon,
   StatusRadarIcon,
   StatusReorderPointIcon,
   StatusSettingsControlIcon,
   StatusTrendChartIcon,
 } from '@icons/status';
 import type { IconComponent } from '@icons/types';
-import { CHART_TIMEFRAME_OPTIONS, deriveChartTimeframeBoundary, RECENT_TIMEFRAME_MIN_REPORTS, type ChartTimeframe } from '@/components/system/chart-timeframe';
+import {
+  CHART_TIMEFRAME_OPTIONS,
+  deriveChartTimeframeBoundary,
+  RECENT_TIMEFRAME_MIN_REPORTS,
+  type ChartCustomTimeframeRange,
+  type ChartTimeframe,
+} from '@/components/system/chart-timeframe';
+import {
+  CHART_RESOLUTION_OPTIONS,
+  DEFAULT_CHART_RESOLUTION,
+  formatChartResolution,
+  parseChartCustomResolution,
+  resolutionSpecForOption,
+  type ChartCustomResolution,
+  type ChartResolutionOption,
+} from '@/components/system/chart-resolution';
+import {
+  CHART_INPUT_VALUE_SOURCE_OPTIONS,
+  type ChartInputValueSource,
+} from '@/components/system/chart-series-config';
 import { intervalTooltipLabel } from '@/components/system/interval-strip';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { ChartVisibleDateRange } from '@/lib/chart-layout-preferences';
 import { translateChartTimeframeLabel, translateRegimeLabel } from '@/lib/localized-display';
 import { regimeChartFill } from '@/lib/state-tones';
 import { cn } from '@/lib/utils';
@@ -78,7 +118,9 @@ import type {
 } from './trading-chart-model';
 import {
   compatiblePlotStyles,
+  deriveTradingChartDisplayModel,
   deriveTradingChartPaneLayout,
+  isOhlcTradingChartPlotStyle,
   moveTradingChartIndicator,
   nextTradingChartPaneId,
   normalizeTradingChartIndicatorSettings,
@@ -86,17 +128,50 @@ import {
   plotStyleLabel,
   supportsLineType,
   supportsLineWidth,
+  supportsTradingChartInputSource,
   TRADING_CHART_MAIN_PANE_ID,
   tradingChartTimeKey,
 } from './trading-chart-model';
 
 type AnySeries = ISeriesApi<SeriesType, Time>;
 type ChartSeriesRefs = Partial<Record<
-  'inventory' | 'uncertaintyLow' | 'uncertaintyHigh' | 'reorderPoint' | 'safetyStock' | 'demand' | 'receipts' | 'pipeline' | 'price',
+  | 'inventory'
+  | 'uncertaintyLow'
+  | 'uncertaintyHigh'
+  | 'reorderPoint'
+  | 'safetyStock'
+  | 'demand'
+  | 'receipts'
+  | 'ordersInTransit'
+  | 'ordersLate'
+  | 'ordersReadyToReceive'
+  | 'ordersReceived'
+  | 'newOrderFlags'
+  | 'newReceiptFlags'
+  | 'price',
   AnySeries
 >>;
 type LegendRow = ReturnType<typeof buildLegendRows>[number];
 type ChartSettingsDialogId = 'settings' | 'indicators' | 'layout';
+type HistogramIndicatorId = 'demand' | 'receipts' | 'ordersInTransit' | 'ordersLate' | 'ordersReadyToReceive' | 'ordersReceived';
+type OverlayIndicatorId = 'regime' | 'newOrderFlags' | 'newReceiptFlags';
+interface OverlayFlagMarker {
+  key: string;
+  indicatorId: OverlayIndicatorId;
+  paneId: string;
+  intervalIndex: number;
+  layerOrder: number;
+  left: number;
+  width: number;
+  color: string;
+  label: string;
+  onClick: () => void;
+  icon: IconComponent;
+  clustered?: boolean;
+}
+interface StackedOverlayFlagMarker extends OverlayFlagMarker {
+  bottom: number;
+}
 type LayoutDropTarget =
   | { type: 'row'; indicatorId: TradingChartIndicatorId }
   | { type: 'pane'; paneId: string }
@@ -109,10 +184,24 @@ const INDICATOR_ORDER: TradingChartIndicatorId[] = [
   'safetyStock',
   'demand',
   'receipts',
-  'pipeline',
+  'ordersInTransit',
+  'ordersLate',
+  'ordersReadyToReceive',
+  'ordersReceived',
+  'newOrderFlags',
+  'newReceiptFlags',
   'price',
   'regime',
 ];
+const HISTOGRAM_INDICATOR_IDS: HistogramIndicatorId[] = [
+  'demand',
+  'receipts',
+  'ordersInTransit',
+  'ordersLate',
+  'ordersReadyToReceive',
+  'ordersReceived',
+];
+const OVERLAY_INDICATOR_IDS: OverlayIndicatorId[] = ['regime', 'newOrderFlags', 'newReceiptFlags'];
 const INDICATOR_ICONS: Record<TradingChartIndicatorId, IconComponent> = {
   inventory: EntitySkuIcon,
   uncertainty: StatusRadarIcon,
@@ -120,13 +209,19 @@ const INDICATOR_ICONS: Record<TradingChartIndicatorId, IconComponent> = {
   safetyStock: EntitySafetyStockIcon,
   demand: StatusTrendChartIcon,
   receipts: EntityReceiptDocumentIcon,
-  pipeline: EntityTransitIcon,
+  ordersInTransit: EntityTransitIcon,
+  ordersLate: StatusReorderPointIcon,
+  ordersReadyToReceive: EntityReceiptDocumentIcon,
+  ordersReceived: EntityReceiptDocumentIcon,
+  newOrderFlags: ActionAddBadgeIcon,
+  newReceiptFlags: ActionAddBadgeIcon,
   price: EntityRevenueIcon,
   regime: StatusGaugeIcon,
 };
 const INDICATOR_SECTIONS: Array<{ title: string; ids: TradingChartIndicatorId[] }> = [
   { title: 'Stock', ids: ['inventory', 'uncertainty', 'reorderPoint', 'safetyStock'] },
-  { title: 'Flow', ids: ['demand', 'receipts', 'pipeline'] },
+  { title: 'Flow', ids: ['demand', 'receipts'] },
+  { title: 'Orders', ids: ['ordersInTransit', 'ordersLate', 'ordersReadyToReceive', 'ordersReceived', 'newOrderFlags', 'newReceiptFlags'] },
   { title: 'Commercial', ids: ['price'] },
   { title: 'Pattern', ids: ['regime'] },
 ];
@@ -160,18 +255,20 @@ const CHART_MIN_RENDER_HEIGHT = 420;
 const CHART_ADDITIONAL_PANE_MIN_RENDER_HEIGHT = 120;
 const CHART_TIME_AXIS_FALLBACK_HEIGHT = 32;
 const CHART_MAX_TIME_AXIS_HEIGHT_RATIO = 0.35;
-const CHART_ICON_AXIS_OFFSET = 56;
-const CHART_INDICATOR_PANE_MIN_HEIGHT = 120;
+const CHART_INDICATOR_PANE_RATIO = 0.25;
+const CHART_MIN_MAIN_PANE_RATIO = 0.5;
 const LAYOUT_DROP_ANIMATION = {
   duration: 160,
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
 const REGIME_ICON_SIZE = 28;
-const REGIME_HIGHLIGHT_ICON_BOTTOM_OFFSET = CHART_ICON_AXIS_OFFSET - REGIME_ICON_SIZE;
 const REGIME_CLUSTER_GAP = 8;
+const OVERLAY_FLAG_STACK_GAP = 6;
+const CHART_ICON_BOTTOM_INSET = OVERLAY_FLAG_STACK_GAP;
 const OLDER_LOAD_MIN_LOGICAL_RANGE_THRESHOLD = 5;
 const OLDER_LOAD_RANGE_FRACTION = 0.25;
 const OLDER_LOAD_MAX_LOGICAL_RANGE_THRESHOLD = 40;
+const ENABLE_CHART_INTERACTION_LOCK = false;
 
 const SETTINGS_PANEL_ACCENT = '#2d1a10';
 const SETTINGS_INPUT_CLASS = 'h-10 rounded-[1rem] border border-border/70 bg-[#fffaf3] shadow-[0_1px_0_rgba(255,255,255,0.75)]';
@@ -195,9 +292,57 @@ function pointTimestampMs(point: TradingChartPoint) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-function visibleRangeForTimeframe(chartModel: TradingChartModel, timeframe: ChartTimeframe) {
+function dateInputValueFromIsoString(value: string | null | undefined) {
+  if (!value) {
+    return '';
+  }
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return '';
+  }
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function isoStringFromDateInput(value: string, boundary: 'start' | 'end') {
+  if (!value) {
+    return null;
+  }
+  const suffix = boundary === 'start' ? 'T00:00:00.000Z' : 'T23:59:59.999Z';
+  const timestamp = Date.parse(`${value}${suffix}`);
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  return new Date(timestamp).toISOString();
+}
+
+function visibleRangeForTimeframe(
+  chartModel: TradingChartModel,
+  timeframe: ChartTimeframe,
+  customTimeframeRange?: ChartCustomTimeframeRange | null,
+) {
   if (chartModel.points.length === 0) {
     return null;
+  }
+  if (customTimeframeRange) {
+    const startBoundary = Date.parse(customTimeframeRange.startAt);
+    const endBoundary = Date.parse(customTimeframeRange.endAt);
+    if (Number.isFinite(startBoundary) && Number.isFinite(endBoundary)) {
+      const firstIndexInRange = chartModel.points.findIndex((point) => {
+        const timestamp = pointTimestampMs(point);
+        return timestamp != null && timestamp >= startBoundary;
+      });
+      const lastIndexInRange = [...chartModel.points].reverse().findIndex((point) => {
+        const timestamp = pointTimestampMs(point);
+        return timestamp != null && timestamp <= endBoundary;
+      });
+      if (firstIndexInRange >= 0 && lastIndexInRange >= 0) {
+        const lastIndex = chartModel.points.length - 1 - lastIndexInRange;
+        return {
+          from: Math.max(0, Math.min(firstIndexInRange, lastIndex) - 0.5),
+          to: Math.max(0, Math.max(firstIndexInRange, lastIndex) + 0.5),
+        };
+      }
+    }
   }
   const latestTimestamp = chartModel.points.reduce<number | null>((latest, point) => {
     const timestamp = pointTimestampMs(point);
@@ -243,6 +388,68 @@ function logicalRangesAreClose(
   return Math.abs(left.from - right.from) <= 0.01 && Math.abs(left.to - right.to) <= 0.01;
 }
 
+function visibleRangeForDateRange(
+  chartModel: TradingChartModel,
+  visibleDateRange: ChartVisibleDateRange | null | undefined,
+) {
+  if (!visibleDateRange || chartModel.points.length === 0) {
+    return null;
+  }
+  const startBoundary = Date.parse(visibleDateRange.startAt);
+  const endBoundary = Date.parse(visibleDateRange.endAt);
+  if (!Number.isFinite(startBoundary) || !Number.isFinite(endBoundary)) {
+    return null;
+  }
+  const firstIndexInRange = chartModel.points.findIndex((point) => {
+    const timestamp = pointTimestampMs(point);
+    return timestamp != null && timestamp >= startBoundary;
+  });
+  const lastIndexInRange = [...chartModel.points].reverse().findIndex((point) => {
+    const pointStart = point.startAt ? Date.parse(point.startAt) : pointTimestampMs(point);
+    return pointStart != null && Number.isFinite(pointStart) && pointStart <= endBoundary;
+  });
+  if (firstIndexInRange < 0 || lastIndexInRange < 0) {
+    return null;
+  }
+  const lastIndex = chartModel.points.length - 1 - lastIndexInRange;
+  return {
+    from: Math.max(0, Math.min(firstIndexInRange, lastIndex) - 0.5),
+    to: Math.max(0, Math.max(firstIndexInRange, lastIndex) + 0.5),
+  };
+}
+
+function visibleDateRangeForLogicalRange(
+  chartModel: TradingChartModel,
+  range: { from: number; to: number } | null,
+): ChartVisibleDateRange | null {
+  if (!range || chartModel.points.length === 0) {
+    return null;
+  }
+  const startIndex = Math.max(0, Math.min(chartModel.points.length - 1, Math.floor(range.from)));
+  const endIndex = Math.max(0, Math.min(chartModel.points.length - 1, Math.ceil(range.to)));
+  const firstPoint = chartModel.points[Math.min(startIndex, endIndex)];
+  const lastPoint = chartModel.points[Math.max(startIndex, endIndex)];
+  const startAt = firstPoint?.startAt ?? firstPoint?.endAt ?? null;
+  const endAt = lastPoint?.endAt ?? lastPoint?.startAt ?? null;
+  if (!startAt || !endAt) {
+    return null;
+  }
+  return { startAt, endAt };
+}
+
+export function shouldAutoCenterSelectedInterval(
+  previousSelectedIntervalIndex: number | null,
+  selectedIntervalIndex: number | null,
+) {
+  if (selectedIntervalIndex == null) {
+    return false;
+  }
+  if (previousSelectedIntervalIndex == null) {
+    return false;
+  }
+  return previousSelectedIntervalIndex !== selectedIntervalIndex;
+}
+
 function olderLoadThreshold(range: { from: number; to: number }) {
   const visibleWidth = Math.max(1, range.to - range.from);
   return Math.max(
@@ -251,32 +458,49 @@ function olderLoadThreshold(range: { from: number; to: number }) {
   );
 }
 
-function paneHeightAllocation(totalHeight: number, indicatorPaneCount: number) {
+function olderLoadGapThresholdPx(chart: IChartApi) {
+  const paneWidth = typeof chart.paneSize === 'function' ? chart.paneSize().width : 0;
+  return Math.max(24, Math.min(160, Math.max(0, paneWidth) * 0.12));
+}
+
+function shouldLoadOlderIntervalsForViewport(
+  chart: IChartApi,
+  points: TradingChartPoint[],
+  range: { from: number; to: number } | null,
+) {
+  if (!range) {
+    return false;
+  }
+  if (range.from <= olderLoadThreshold(range)) {
+    return true;
+  }
+  const earliestPoint = points[0];
+  if (!earliestPoint) {
+    return false;
+  }
+  const earliestPointX = chart.timeScale().timeToCoordinate(earliestPoint.time);
+  if (earliestPointX == null) {
+    return false;
+  }
+  return earliestPointX > olderLoadGapThresholdPx(chart);
+}
+
+export function paneHeightAllocation(totalHeight: number, indicatorPaneCount: number) {
   if (indicatorPaneCount <= 0) {
     return { main: totalHeight, indicators: [] as number[] };
   }
-  if (indicatorPaneCount === 1) {
-    const indicatorHeight = Math.round(totalHeight * 0.25);
-    return {
-      main: totalHeight - indicatorHeight,
-      indicators: [indicatorHeight],
-    };
-  }
-  const defaultMainRatio = 1 - indicatorPaneCount * 0.25;
-  if (defaultMainRatio >= 0.5) {
-    const indicatorHeight = Math.round(totalHeight * 0.25);
-    const indicators = Array.from({ length: indicatorPaneCount }, () => indicatorHeight);
-    return {
-      main: Math.max(0, totalHeight - indicatorHeight * indicatorPaneCount),
-      indicators,
-    };
-  }
-  const main = Math.round(totalHeight * 0.5);
+
+  const mainRatio = indicatorPaneCount === 1
+    ? 1 - CHART_INDICATOR_PANE_RATIO
+    : Math.max(CHART_MIN_MAIN_PANE_RATIO, 1 - indicatorPaneCount * CHART_INDICATOR_PANE_RATIO);
+
+  const main = Math.round(totalHeight * mainRatio);
   const remaining = Math.max(0, totalHeight - main);
   const baseIndicator = Math.floor(remaining / indicatorPaneCount);
   const indicators = Array.from({ length: indicatorPaneCount }, (_, index) =>
     index === indicatorPaneCount - 1 ? remaining - baseIndicator * (indicatorPaneCount - 1) : baseIndicator,
   );
+
   return { main, indicators };
 }
 
@@ -293,40 +517,100 @@ function stableTimeScaleHeight(chart: IChartApi, totalHeight: number) {
   return measuredHeight;
 }
 
-function applyPaneHeights(
-  chart: IChartApi | null,
+function paneHeightTargets(
+  chart: IChartApi,
   totalHeight: number,
-  indicatorPaneCount: number,
+  paneIds: string[],
+  preferredPaneHeights?: Record<string, number> | null,
 ) {
-  if (!chart || typeof chart.panes !== 'function') {
-    return;
-  }
-  const panes = chart.panes();
-  if (panes.length === 0) {
-    return;
-  }
-  const targetPaneCount = Math.min(panes.length, indicatorPaneCount + 1);
-  if (targetPaneCount <= 0) {
-    return;
-  }
   const timeScaleHeight = stableTimeScaleHeight(chart, totalHeight);
   const plottableHeight = Math.max(0, totalHeight - timeScaleHeight);
   if (plottableHeight <= 0) {
-    return;
+    return [] as number[];
   }
-  const allocation = paneHeightAllocation(plottableHeight, Math.max(0, targetPaneCount - 1));
-  const targets = [allocation.main, ...allocation.indicators].map((height, index) => {
-    if (index === 0) {
-      return height;
+  const normalizedPreferredPaneHeights = paneIds.map((paneId) => preferredPaneHeights?.[paneId] ?? 0);
+  const canUsePreferredPaneHeights =
+    normalizedPreferredPaneHeights.length === paneIds.length &&
+    normalizedPreferredPaneHeights.every((height) => Number.isFinite(height) && height > 0);
+  if (canUsePreferredPaneHeights) {
+    const totalPreferredHeight = normalizedPreferredPaneHeights.reduce((sum, height) => sum + height, 0);
+    if (totalPreferredHeight > 0) {
+      const scaled = normalizedPreferredPaneHeights.map((height, index) =>
+        index === normalizedPreferredPaneHeights.length - 1
+          ? 0
+          : Math.max(1, Math.round((height / totalPreferredHeight) * plottableHeight)),
+      );
+      const consumed = scaled.slice(0, -1).reduce((sum, height) => sum + height, 0);
+      scaled[scaled.length - 1] = Math.max(1, plottableHeight - consumed);
+      return scaled;
     }
-    return Math.max(CHART_INDICATOR_PANE_MIN_HEIGHT, height);
-  });
+  }
+  const allocation = paneHeightAllocation(plottableHeight, Math.max(0, paneIds.length - 1));
+  return [allocation.main, ...allocation.indicators];
+}
+
+function applyPaneHeights(
+  chart: IChartApi | null,
+  totalHeight: number,
+  paneIds: string[],
+  preferredPaneHeights?: Record<string, number> | null,
+) {
+  if (!chart || typeof chart.panes !== 'function') {
+    return [] as number[];
+  }
+  const panes = chart.panes();
+  if (panes.length === 0) {
+    return [] as number[];
+  }
+  const targetPaneCount = Math.min(panes.length, paneIds.length);
+  if (targetPaneCount <= 0) {
+    return [] as number[];
+  }
+  const targets = paneHeightTargets(chart, totalHeight, paneIds.slice(0, targetPaneCount), preferredPaneHeights);
   for (let pass = 0; pass < 4; pass += 1) {
     for (let index = 1; index < targetPaneCount; index += 1) {
       panes[index]?.setHeight(targets[index]!);
     }
     panes[0]?.setHeight(targets[0]!);
   }
+  return targets;
+}
+
+function paneHeightsMatchTargets(
+  chart: IChartApi | null,
+  totalHeight: number,
+  paneIds: string[],
+  preferredPaneHeights?: Record<string, number> | null,
+  tolerancePx = 2,
+) {
+  if (!chart || typeof chart.panes !== 'function') {
+    return false;
+  }
+  const panes = chart.panes();
+  if (panes.length === 0) {
+    return false;
+  }
+  const targetPaneCount = Math.min(panes.length, paneIds.length);
+  if (targetPaneCount <= 0) {
+    return false;
+  }
+  const targets = paneHeightTargets(chart, totalHeight, paneIds.slice(0, targetPaneCount), preferredPaneHeights);
+  const anchors = paneLegendAnchors(chart);
+  if (anchors.length < targetPaneCount) {
+    return false;
+  }
+  return targets.every((target, index) => Math.abs((anchors[index]?.height ?? -1) - target) <= tolerancePx);
+}
+
+function paneHeightsRecordFromAnchors(
+  paneLayout: TradingChartPaneLayout[],
+  anchors: Array<{ top: number; height: number }>,
+) {
+  return Object.fromEntries(
+    paneLayout
+      .map((pane, index) => [pane.id, anchors[index]?.height ?? 0] as const)
+      .filter((entry): entry is [string, number] => Number.isFinite(entry[1]) && entry[1] > 0),
+  );
 }
 
 function cleanupEmptyTrailingPanes(chart: IChartApi | null) {
@@ -343,8 +627,13 @@ function cleanupEmptyTrailingPanes(chart: IChartApi | null) {
   }
 }
 
-function observeChartLayout(container: HTMLElement, onLayoutChange: () => void) {
+function observeChartLayout(
+  container: HTMLElement,
+  onLayoutChange: () => void,
+  getObservedElements?: () => HTMLElement[],
+) {
   let frame: number | null = null;
+  let dragFrame: number | null = null;
   const schedule = () => {
     if (frame != null) {
       return;
@@ -356,22 +645,65 @@ function observeChartLayout(container: HTMLElement, onLayoutChange: () => void) 
   };
 
   const resizeObserver = new ResizeObserver(schedule);
-  resizeObserver.observe(container);
+  const observed = new Set<HTMLElement>();
+  const syncObservedElements = () => {
+    const next = new Set<HTMLElement>([container, ...(getObservedElements?.() ?? [])]);
+    for (const element of observed) {
+      if (!next.has(element)) {
+        resizeObserver.unobserve(element);
+        observed.delete(element);
+      }
+    }
+    for (const element of next) {
+      if (!observed.has(element)) {
+        resizeObserver.observe(element);
+        observed.add(element);
+      }
+    }
+    schedule();
+  };
+  const mutationObserver = new MutationObserver(syncObservedElements);
+  mutationObserver.observe(container, { childList: true, subtree: true });
 
-  const mutationObserver = new MutationObserver(schedule);
-  mutationObserver.observe(container, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ['style', 'width', 'height'],
-  });
+  const stopDragLoop = () => {
+    if (dragFrame == null) {
+      return;
+    }
+    window.cancelAnimationFrame(dragFrame);
+    dragFrame = null;
+  };
+  const startDragLoop = () => {
+    if (dragFrame != null) {
+      return;
+    }
+    const tick = () => {
+      onLayoutChange();
+      dragFrame = window.requestAnimationFrame(tick);
+    };
+    dragFrame = window.requestAnimationFrame(tick);
+  };
+  const handlePointerDown = (event: PointerEvent) => {
+    if (!(event.target instanceof Node) || !container.contains(event.target)) {
+      return;
+    }
+    startDragLoop();
+  };
+
+  syncObservedElements();
+  container.addEventListener('pointerdown', handlePointerDown, true);
+  window.addEventListener('pointerup', stopDragLoop, true);
+  window.addEventListener('pointercancel', stopDragLoop, true);
 
   return () => {
     if (frame != null) {
       window.cancelAnimationFrame(frame);
     }
-    resizeObserver.disconnect();
+    stopDragLoop();
+    container.removeEventListener('pointerdown', handlePointerDown, true);
+    window.removeEventListener('pointerup', stopDragLoop, true);
+    window.removeEventListener('pointercancel', stopDragLoop, true);
     mutationObserver.disconnect();
+    resizeObserver.disconnect();
   };
 }
 
@@ -568,12 +900,22 @@ function indicatorLabel(id: TradingChartIndicatorId) {
       return 'Demand';
     case 'receipts':
       return 'Receipts';
-    case 'pipeline':
-      return 'Pipeline';
+    case 'ordersInTransit':
+      return 'Orders in transit';
+    case 'ordersLate':
+      return 'Orders late';
+    case 'ordersReadyToReceive':
+      return 'Orders ready to receive';
+    case 'ordersReceived':
+      return 'Orders received';
+    case 'newOrderFlags':
+      return 'New order flags';
+    case 'newReceiptFlags':
+      return 'New receipt flags';
     case 'price':
       return 'Price';
     case 'regime':
-      return 'Regime';
+      return 'Sales Pattern';
   }
 }
 
@@ -583,12 +925,22 @@ function indicatorDescription(id: TradingChartIndicatorId) {
       return 'Expected service and retail demand for each interval.';
     case 'inventory':
       return 'Projected on-hand inventory across the loaded intervals.';
-    case 'pipeline':
-      return 'In-transit units and ordered quantity moving toward stock.';
     case 'price':
       return 'Observed selling price when product price data is available.';
     case 'receipts':
       return 'Receipts and adjustments that increase or correct stock.';
+    case 'ordersInTransit':
+      return 'Posterior in-transit units for each interval.';
+    case 'ordersLate':
+      return 'Open order quantity now late against expected arrival.';
+    case 'ordersReadyToReceive':
+      return 'Open order quantity marked awaiting receipt.';
+    case 'ordersReceived':
+      return 'Posterior received quantity landing in each interval.';
+    case 'newOrderFlags':
+      return 'Intervals where new order placement signals were recorded.';
+    case 'newReceiptFlags':
+      return 'Intervals where new receipt signals were recorded.';
     case 'regime':
       return 'Sales-pattern state markers such as stock-limited or spike intervals.';
     case 'reorderPoint':
@@ -600,6 +952,203 @@ function indicatorDescription(id: TradingChartIndicatorId) {
   }
 }
 
+function isHistogramIndicatorId(id: TradingChartIndicatorId): id is HistogramIndicatorId {
+  return HISTOGRAM_INDICATOR_IDS.includes(id as HistogramIndicatorId);
+}
+
+function isOverlayIndicatorId(id: TradingChartIndicatorId): id is OverlayIndicatorId {
+  return OVERLAY_INDICATOR_IDS.includes(id as OverlayIndicatorId);
+}
+
+function histogramIndicatorValue(point: TradingChartPoint, id: HistogramIndicatorId) {
+  switch (id) {
+    case 'demand':
+      if (point.serviceDemandMean == null && point.retailDemandMean == null) {
+        return null;
+      }
+      return -((point.serviceDemandMean ?? 0) + (point.retailDemandMean ?? 0));
+    case 'receipts':
+      if (point.receiptsMean == null && point.adjustmentsMean == null) {
+        return null;
+      }
+      return (point.receiptsMean ?? 0) + (point.adjustmentsMean ?? 0);
+    case 'ordersInTransit':
+      return point.ordersInTransitMean;
+    case 'ordersLate':
+      return point.ordersLateMean;
+    case 'ordersReadyToReceive':
+      return point.ordersReadyToReceiveMean;
+    case 'ordersReceived':
+      return point.ordersReceivedMean;
+    default:
+      return null;
+  }
+}
+
+function scalarIndicatorValue(point: TradingChartPoint, id: TradingChartIndicatorId) {
+  switch (id) {
+    case 'inventory':
+      return point.inventoryMean;
+    case 'demand':
+    case 'receipts':
+    case 'ordersInTransit':
+    case 'ordersLate':
+    case 'ordersReadyToReceive':
+    case 'ordersReceived':
+      return histogramIndicatorValue(point, id);
+    case 'price':
+      return point.price;
+    default:
+      return null;
+  }
+}
+
+function sourceMembersForPoint(point: TradingChartPoint) {
+  return point.sourceMembers?.length ? point.sourceMembers : [point];
+}
+
+function indicatorOhlc(point: TradingChartPoint, id: TradingChartIndicatorId) {
+  const values = sourceMembersForPoint(point)
+    .map((member) => scalarIndicatorValue(member, id))
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  if (values.length === 0) {
+    return null;
+  }
+  return {
+    open: values[0]!,
+    high: Math.max(...values),
+    low: Math.min(...values),
+    close: values.at(-1)!,
+  };
+}
+
+function valueForInputSource(
+  point: TradingChartPoint,
+  id: TradingChartIndicatorId,
+  source: ChartInputValueSource | undefined,
+) {
+  const ohlc = indicatorOhlc(point, id);
+  if (!ohlc) {
+    return null;
+  }
+  switch (source ?? 'close') {
+    case 'open':
+      return ohlc.open;
+    case 'high':
+      return ohlc.high;
+    case 'low':
+      return ohlc.low;
+    case 'hl2':
+      return (ohlc.high + ohlc.low) / 2;
+    case 'ohlc4':
+      return (ohlc.open + ohlc.high + ohlc.low + ohlc.close) / 4;
+    case 'close':
+    case 'ohlc':
+      return ohlc.close;
+  }
+}
+
+function sourceLineData(
+  points: TradingChartPoint[],
+  id: TradingChartIndicatorId,
+  setting: { inputSource?: ChartInputValueSource },
+): LineData<Time>[] {
+  return lineData(points, (point) => valueForInputSource(point, id, setting.inputSource));
+}
+
+function sourceHistogramData(
+  points: TradingChartPoint[],
+  id: TradingChartIndicatorId,
+  setting: { color: string; inputSource?: ChartInputValueSource },
+  color: string,
+): HistogramData<Time>[] {
+  return histogramData(points, (point) => valueForInputSource(point, id, setting.inputSource), color);
+}
+
+function sourceOhlcData(points: TradingChartPoint[], id: TradingChartIndicatorId): Array<BarData<Time> | CandlestickData<Time>> {
+  return points
+    .map((point) => {
+      const ohlc = indicatorOhlc(point, id);
+      return ohlc ? { time: point.time, ...ohlc } : null;
+    })
+    .filter((point): point is BarData<Time> | CandlestickData<Time> => point != null);
+}
+
+function setInputSeriesData(
+  series: AnySeries | undefined,
+  points: TradingChartPoint[],
+  id: TradingChartIndicatorId,
+  setting: TradingChartIndicatorSettings[TradingChartIndicatorId],
+) {
+  if (!series) {
+    return;
+  }
+  if (isOhlcTradingChartPlotStyle(setting.plotStyle)) {
+    series.setData(sourceOhlcData(points, id) as never);
+    return;
+  }
+  if (setting.plotStyle === 'histogram') {
+    series.setData(sourceHistogramData(
+      points,
+      id,
+      setting,
+      histogramSeriesColor(setting.color, setting.opacity ?? 0.5, setting.plotStyle),
+    ) as never);
+    return;
+  }
+  series.setData(sourceLineData(points, id, setting) as never);
+}
+
+function histogramIndicatorLegendValue(
+  point: TradingChartPoint,
+  id: HistogramIndicatorId,
+  precision: TradingChartIndicatorPrecision,
+  source: ChartInputValueSource | undefined,
+) {
+  if (source && source !== 'close') {
+    const value = valueForInputSource(point, id, source);
+    return id === 'demand' ? formatValue(value == null ? value : Math.abs(value), 'u', precision) : formatValue(value, 'u', precision);
+  }
+  switch (id) {
+    case 'demand': {
+      const totalDemand = (point.serviceDemandMean ?? 0) + (point.retailDemandMean ?? 0);
+      return point.serviceDemandMean == null && point.retailDemandMean == null ? 'No data' : formatValue(totalDemand, 'u', precision);
+    }
+    case 'receipts':
+      return point.receiptsMean == null && point.adjustmentsMean == null
+        ? 'No data'
+        : `${formatValue(point.receiptsMean ?? 0, 'u', precision)} / ${formatValue(point.adjustmentsMean ?? 0, 'u', precision)} adj`;
+    case 'ordersInTransit':
+      return formatValue(point.ordersInTransitMean, 'u', precision);
+    case 'ordersLate':
+      return formatValue(point.ordersLateMean, 'u', precision);
+    case 'ordersReadyToReceive':
+      return formatValue(point.ordersReadyToReceiveMean, 'u', precision);
+    case 'ordersReceived':
+      return formatValue(point.ordersReceivedMean, 'u', precision);
+    default:
+      return 'No data';
+  }
+}
+
+export function stackOverlayFlagMarkers(markers: OverlayFlagMarker[]): StackedOverlayFlagMarker[] {
+  const grouped = new Map<string, OverlayFlagMarker[]>();
+  for (const marker of markers) {
+    const key = `${marker.paneId}:${marker.intervalIndex}`;
+    const current = grouped.get(key) ?? [];
+    current.push(marker);
+    grouped.set(key, current);
+  }
+  return [...grouped.values()].flatMap((group) =>
+    [...group]
+      .sort((left, right) => left.layerOrder - right.layerOrder || INDICATOR_ORDER.indexOf(left.indicatorId) - INDICATOR_ORDER.indexOf(right.indicatorId))
+      .map((marker, index) => ({
+        ...marker,
+        bottom: CHART_ICON_BOTTOM_INSET + index * (REGIME_ICON_SIZE + OVERLAY_FLAG_STACK_GAP),
+      })),
+  );
+}
+
 function lineStyleValue(style: TradingChartIndicatorLineStyle | undefined) {
   if (style === 'dashed') {
     return LineStyle.Dashed;
@@ -608,6 +1157,85 @@ function lineStyleValue(style: TradingChartIndicatorLineStyle | undefined) {
     return LineStyle.Dotted;
   }
   return LineStyle.Solid;
+}
+
+function addInputSeries({
+  chart,
+  paneIndex,
+  priceScaleId,
+  setting,
+}: {
+  chart: IChartApi;
+  paneIndex: number;
+  priceScaleId: TradingChartIndicatorAxisSide;
+  setting: TradingChartIndicatorSettings[TradingChartIndicatorId];
+}) {
+  const lineWidth = Math.max(1, Math.min(4, setting.lineWidth ?? 2)) as 1 | 2 | 3 | 4;
+  if (setting.plotStyle === 'area') {
+    return chart.addSeries(AreaSeries, {
+      priceScaleId,
+      lineColor: setting.color,
+      lineStyle: lineStyleValue(setting.lineStyle),
+      lineWidth,
+      topColor: rgba(setting.color, 0.22),
+      bottomColor: rgba(setting.color, 0.03),
+      priceLineVisible: false,
+      lastValueVisible: setting.showPriceScaleLabel ?? true,
+    }, paneIndex);
+  }
+  if (setting.plotStyle === 'histogram') {
+    return chart.addSeries(HistogramSeries, {
+      color: histogramSeriesColor(setting.color, setting.opacity ?? 0.5, setting.plotStyle),
+      priceScaleId,
+      priceLineVisible: false,
+      lastValueVisible: setting.showPriceScaleLabel ?? false,
+      base: 0,
+      priceFormat: { type: 'volume' },
+    }, paneIndex);
+  }
+  if (setting.plotStyle === 'bars') {
+    return chart.addSeries(BarSeries, {
+      priceScaleId,
+      upColor: setting.color,
+      downColor: rgba(setting.color, Math.max(0.45, setting.opacity ?? 0.55)),
+      thinBars: false,
+      priceLineVisible: false,
+      lastValueVisible: setting.showPriceScaleLabel ?? true,
+    }, paneIndex);
+  }
+  if (setting.plotStyle === 'candles') {
+    const downColor = colorWheelInverse(setting.color);
+    return chart.addSeries(CandlestickSeries, {
+      priceScaleId,
+      upColor: rgba(setting.color, Math.max(0.82, setting.opacity ?? 0.82)),
+      downColor: rgba(downColor, Math.max(0.82, setting.opacity ?? 0.82)),
+      borderUpColor: setting.color,
+      borderDownColor: downColor,
+      wickUpColor: setting.color,
+      wickDownColor: downColor,
+      priceLineVisible: false,
+      lastValueVisible: setting.showPriceScaleLabel ?? true,
+    }, paneIndex);
+  }
+  return chart.addSeries(LineSeries, {
+    priceScaleId,
+    color: setting.color,
+    lineStyle: lineStyleValue(setting.lineStyle),
+    lineType: setting.plotStyle === 'step-line' ? LineType.WithSteps : LineType.Simple,
+    lineWidth,
+    priceLineVisible: false,
+    lastValueVisible: setting.showPriceScaleLabel ?? true,
+  }, paneIndex);
+}
+
+function inputSourceOptionDisabled(plotStyle: TradingChartIndicatorPlotStyle, source: ChartInputValueSource) {
+  if (!supportsTradingChartInputSource(plotStyle)) {
+    return true;
+  }
+  if (isOhlcTradingChartPlotStyle(plotStyle)) {
+    return source !== 'ohlc';
+  }
+  return source === 'ohlc';
 }
 
 function histogramSeriesColor(color: string, opacity: number, plotStyle: TradingChartIndicatorPlotStyle) {
@@ -627,6 +1255,102 @@ function rgba(hex: string, opacity: number) {
   const green = Number.parseInt(hex.slice(3, 5), 16);
   const blue = Number.parseInt(hex.slice(5, 7), 16);
   return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(1, opacity))})`;
+}
+
+function hexToRgb(hex: string) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    return null;
+  }
+  return {
+    red: Number.parseInt(hex.slice(1, 3), 16),
+    green: Number.parseInt(hex.slice(3, 5), 16),
+    blue: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+function rgbToHex({ red, green, blue }: { red: number; green: number; blue: number }) {
+  return `#${[red, green, blue].map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function rgbToHsl({ red, green, blue }: { red: number; green: number; blue: number }) {
+  const r = red / 255;
+  const g = green / 255;
+  const b = blue / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const lightness = (max + min) / 2;
+  const delta = max - min;
+  if (delta === 0) {
+    return { hue: 0, saturation: 0, lightness };
+  }
+  const saturation = lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+  let hue = 0;
+  switch (max) {
+    case r:
+      hue = (g - b) / delta + (g < b ? 6 : 0);
+      break;
+    case g:
+      hue = (b - r) / delta + 2;
+      break;
+    default:
+      hue = (r - g) / delta + 4;
+      break;
+  }
+  return { hue: hue / 6, saturation, lightness };
+}
+
+function hslToRgb({ hue, saturation, lightness }: { hue: number; saturation: number; lightness: number }) {
+  if (saturation === 0) {
+    const value = lightness * 255;
+    return { red: value, green: value, blue: value };
+  }
+  const hueToRgb = (p: number, q: number, t: number) => {
+    let next = t;
+    if (next < 0) next += 1;
+    if (next > 1) next -= 1;
+    if (next < 1 / 6) return p + (q - p) * 6 * next;
+    if (next < 1 / 2) return q;
+    if (next < 2 / 3) return p + (q - p) * (2 / 3 - next) * 6;
+    return p;
+  };
+  const q = lightness < 0.5 ? lightness * (1 + saturation) : lightness + saturation - lightness * saturation;
+  const p = 2 * lightness - q;
+  return {
+    red: hueToRgb(p, q, hue + 1 / 3) * 255,
+    green: hueToRgb(p, q, hue) * 255,
+    blue: hueToRgb(p, q, hue - 1 / 3) * 255,
+  };
+}
+
+function colorWheelInverse(hex: string) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) {
+    return hex;
+  }
+  const hsl = rgbToHsl(rgb);
+  return rgbToHex(hslToRgb({
+    hue: (hsl.hue + 0.5) % 1,
+    saturation: hsl.saturation,
+    lightness: hsl.lightness,
+  }));
+}
+
+function plotStyleIcon(plotStyle: TradingChartIndicatorPlotStyle) {
+  switch (plotStyle) {
+    case 'area':
+      return ActionChartAreaTypeIcon;
+    case 'step-line':
+      return ActionChartStepLineTypeIcon;
+    case 'histogram':
+      return ActionChartHistogramTypeIcon;
+    case 'bars':
+      return ActionChartBarsTypeIcon;
+    case 'candles':
+      return ActionChartCandlesTypeIcon;
+    case 'line':
+    default:
+      return ActionChartLineTypeIcon;
+  }
 }
 
 function regimeUsesIcons(plotStyle: TradingChartIndicatorPlotStyle) {
@@ -712,37 +1436,16 @@ function setSeriesData(
   chartModel: TradingChartModel,
   settings: TradingChartIndicatorSettings,
 ) {
-  series.inventory?.setData(lineData(chartModel.points, (point) => point.inventoryMean));
+  setInputSeriesData(series.inventory, chartModel.points, 'inventory', settings.inventory);
   series.uncertaintyLow?.setData(lineData(chartModel.points, (point) => point.inventoryLow));
   series.uncertaintyHigh?.setData(lineData(chartModel.points, (point) => point.inventoryHigh));
   series.reorderPoint?.setData(constantLineData(chartModel.points, (point) => point.reorderPoint));
   series.safetyStock?.setData(constantLineData(chartModel.points, (point) => point.safetyStock));
-  series.demand?.setData(histogramData(
-    chartModel.points,
-    (point) => {
-      if (point.serviceDemandMean == null && point.retailDemandMean == null) {
-        return null;
-      }
-      return -((point.serviceDemandMean ?? 0) + (point.retailDemandMean ?? 0));
-    },
-    histogramSeriesColor(settings.demand.color, settings.demand.opacity ?? 0.5, settings.demand.plotStyle),
-  ));
-  series.receipts?.setData(histogramData(
-    chartModel.points,
-    (point) => {
-      if (point.receiptsMean == null && point.adjustmentsMean == null) {
-        return null;
-      }
-      return (point.receiptsMean ?? 0) + (point.adjustmentsMean ?? 0);
-    },
-    histogramSeriesColor(settings.receipts.color, settings.receipts.opacity ?? 0.5, settings.receipts.plotStyle),
-  ));
-  series.pipeline?.setData(histogramData(
-    chartModel.points,
-    (point) => point.inTransitMean,
-    histogramSeriesColor(settings.pipeline.color, settings.pipeline.opacity ?? 0.45, settings.pipeline.plotStyle),
-  ));
-  series.price?.setData(lineData(chartModel.points, (point) => point.price));
+  for (const indicatorId of HISTOGRAM_INDICATOR_IDS) {
+    const targetSeries = series[indicatorId];
+    setInputSeriesData(targetSeries, chartModel.points, indicatorId, settings[indicatorId]);
+  }
+  setInputSeriesData(series.price, chartModel.points, 'price', settings.price);
 }
 
 function indicatorAvailabilityKey(availability: TradingChartModel['availability']) {
@@ -768,7 +1471,7 @@ function buildLegendRows({
     let value = 'No data';
     if (point) {
       if (id === 'inventory') {
-        value = formatValue(point.inventoryMean, 'u', setting.precision);
+        value = formatValue(valueForInputSource(point, id, setting.inputSource), 'u', setting.precision);
       } else if (id === 'uncertainty') {
         value = point.inventoryLow == null || point.inventoryHigh == null
           ? 'No data'
@@ -777,19 +1480,14 @@ function buildLegendRows({
         value = formatValue(point.reorderPoint, 'u', setting.precision);
       } else if (id === 'safetyStock') {
         value = formatValue(point.safetyStock, 'u', setting.precision);
-      } else if (id === 'demand') {
-        const totalDemand = (point.serviceDemandMean ?? 0) + (point.retailDemandMean ?? 0);
-        value = point.serviceDemandMean == null && point.retailDemandMean == null ? 'No data' : formatValue(totalDemand, 'u', setting.precision);
-      } else if (id === 'receipts') {
-        value = point.receiptsMean == null && point.adjustmentsMean == null
-          ? 'No data'
-          : `${formatValue(point.receiptsMean ?? 0, 'u', setting.precision)} / ${formatValue(point.adjustmentsMean ?? 0, 'u', setting.precision)} adj`;
-      } else if (id === 'pipeline') {
-        value = point.inTransitMean == null
-          ? 'No data'
-          : `${formatValue(point.inTransitMean, 'u', setting.precision)} in transit, ${formatValue(point.orderQuantityMean, 'u', setting.precision)} ordered`;
+      } else if (isHistogramIndicatorId(id)) {
+        value = histogramIndicatorLegendValue(point, id, setting.precision, setting.inputSource);
+      } else if (id === 'newOrderFlags') {
+        value = point.newOrderFlag ? 'New order' : 'No flag';
+      } else if (id === 'newReceiptFlags') {
+        value = point.newReceiptFlag ? 'New receipt' : 'No flag';
       } else if (id === 'price') {
-        value = formatValue(point.price, '', setting.precision);
+        value = formatValue(valueForInputSource(point, id, setting.inputSource), '', setting.precision);
       } else if (id === 'regime') {
         value = point.dominantRegime ? translateRegimeLabel(language, point.dominantRegime) : 'No data';
       }
@@ -821,6 +1519,18 @@ function paneLegendAnchors(chart: IChartApi | null) {
   const anchors: Array<{ top: number; height: number }> = [];
   let top = 0;
   panes.forEach((pane, index) => {
+    if (typeof pane.getHTMLElement === 'function') {
+      const element = pane.getHTMLElement();
+      if (element) {
+        const height = Math.max(0, element.clientHeight);
+        anchors.push({
+          top: Math.max(0, element.offsetTop),
+          height,
+        });
+        top = Math.max(top, element.offsetTop + height);
+        return;
+      }
+    }
     const height = Math.max(0, pane.getHeight());
     anchors.push({ top, height });
     top += height;
@@ -978,8 +1688,18 @@ function hasRenderedIndicatorData(chartModel: TradingChartModel, id: TradingChar
         return point.serviceDemandMean != null || point.retailDemandMean != null;
       case 'receipts':
         return point.receiptsMean != null || point.adjustmentsMean != null;
-      case 'pipeline':
-        return point.inTransitMean != null;
+      case 'ordersInTransit':
+        return point.ordersInTransitMean != null;
+      case 'ordersLate':
+        return (point.ordersLateMean ?? 0) > 0;
+      case 'ordersReadyToReceive':
+        return (point.ordersReadyToReceiveMean ?? 0) > 0;
+      case 'ordersReceived':
+        return (point.ordersReceivedMean ?? 0) > 0;
+      case 'newOrderFlags':
+        return (point.newOrderFlag ?? 0) > 0;
+      case 'newReceiptFlags':
+        return (point.newReceiptFlag ?? 0) > 0;
       case 'price':
         return point.price != null;
       case 'regime':
@@ -1003,36 +1723,58 @@ function centeredSettingsPosition() {
 interface SkuTradingChartProps {
   chartModel: TradingChartModel;
   chartZoomResetToken: string | number;
+  expanded?: boolean;
   hasOlderIntervals: boolean;
   isBusy: boolean;
   isLoadingOlderIntervals: boolean;
   loadOlderIntervals: (limit?: number) => Promise<unknown>;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
+  onPaneHeightsChange?: (paneHeights: Record<string, number>) => void;
   onReset: () => void;
   onSelectInterval: (index: number) => void;
+  onCustomTimeframeChange?: (range: ChartCustomTimeframeRange | null) => void;
+  onChartResolutionChange?: (value: ChartResolutionOption, custom: ChartCustomResolution | null) => void;
   onTimeframeChange: (value: ChartTimeframe) => void;
   onSaveDefaultIndicatorSettings: (settings: TradingChartIndicatorSettings) => void;
+  onToggleExpand?: () => void;
+  onVisibleDateRangeChange?: (range: ChartVisibleDateRange | null) => void;
   selectedIntervalIndex: number | null;
   defaultIndicatorSettings: TradingChartIndicatorSettings;
+  initialPaneHeights?: Record<string, number> | null;
+  initialVisibleDateRange?: ChartVisibleDateRange | null;
   setIndicatorSettings: Dispatch<SetStateAction<TradingChartIndicatorSettings>>;
+  customTimeframeRange?: ChartCustomTimeframeRange | null;
+  chartResolution?: ChartResolutionOption;
+  customChartResolution?: ChartCustomResolution | null;
   indicatorSettings: TradingChartIndicatorSettings;
   timeframe: ChartTimeframe;
 }
 
 export function SkuTradingChart({
-  chartModel,
+  chartModel: rawChartModel,
   chartZoomResetToken,
+  chartResolution = DEFAULT_CHART_RESOLUTION,
+  customTimeframeRange = null,
+  customChartResolution = null,
+  expanded = false,
   hasOlderIntervals,
   isBusy,
   isLoadingOlderIntervals,
   loadOlderIntervals,
   onOlderLoadProgressChange,
+  onPaneHeightsChange,
   onReset,
   onSelectInterval,
+  onCustomTimeframeChange,
+  onChartResolutionChange,
   onSaveDefaultIndicatorSettings,
+  onToggleExpand,
   onTimeframeChange,
+  onVisibleDateRangeChange,
   selectedIntervalIndex,
   defaultIndicatorSettings,
+  initialPaneHeights = null,
+  initialVisibleDateRange = null,
   setIndicatorSettings,
   indicatorSettings,
   timeframe,
@@ -1046,6 +1788,7 @@ export function SkuTradingChart({
   const previousChartPointsRef = useRef<TradingChartPoint[]>([]);
   const previousTimeframeRef = useRef<ChartTimeframe | null>(null);
   const previousSelectedIntervalRef = useRef<number | null>(null);
+  const restoredVisibleDateRangeRef = useRef<ChartVisibleDateRange | null>(initialVisibleDateRange);
   const timeframeRangeLockRef = useRef(true);
   const appliedChartZoomResetTokenRef = useRef<string | number | null>(null);
   const uncertaintyBandPathRef = useRef('');
@@ -1056,6 +1799,8 @@ export function SkuTradingChart({
   const dragFrameRef = useRef<number | null>(null);
   const settingsPositionRef = useRef<{ top: number; left: number } | null>(null);
   const paneHeightUpdateFrameRef = useRef<number | null>(null);
+  const paneHeightSyncGenerationRef = useRef(0);
+  const paneRelayoutPendingRef = useRef(false);
   const activeAdditionalPaneCountRef = useRef(0);
   const [hoveredTime, setHoveredTime] = useState<Time | null>(null);
   const [indicatorsDialogOpen, setIndicatorsDialogOpen] = useState(false);
@@ -1079,16 +1824,97 @@ export function SkuTradingChart({
   const [plotAreaWidth, setPlotAreaWidth] = useState(0);
   const [uncertaintyBandPath, setUncertaintyBandPath] = useState('');
   const [activeLayoutRowId, setActiveLayoutRowId] = useState<string | null>(null);
+  const [chartBootstrapVersion, setChartBootstrapVersion] = useState(0);
+  const [isPaneRelayoutPending, setIsPaneRelayoutPending] = useState(false);
+  const [isOlderLoadPending, setIsOlderLoadPending] = useState(false);
+  const [customRangeDialogOpen, setCustomRangeDialogOpen] = useState(false);
+  const [customResolutionDialogOpen, setCustomResolutionDialogOpen] = useState(false);
+  const [draftCustomRangeStart, setDraftCustomRangeStart] = useState(() => dateInputValueFromIsoString(customTimeframeRange?.startAt));
+  const [draftCustomRangeEnd, setDraftCustomRangeEnd] = useState(() => dateInputValueFromIsoString(customTimeframeRange?.endAt));
+  const [draftCustomResolution, setDraftCustomResolution] = useState(() => customChartResolution?.expression ?? '1D');
   const activeLayoutIndicatorId = activeLayoutRowId ? layoutIndicatorIdFromRowId(activeLayoutRowId) : null;
+  const chartInteractionLocked = ENABLE_CHART_INTERACTION_LOCK && (isBusy || isLoadingOlderIntervals || isOlderLoadPending || isPaneRelayoutPending);
+  const hideChartVisualsDuringRelayout = ENABLE_CHART_INTERACTION_LOCK && isPaneRelayoutPending;
+  const showBusyState = isBusy || isLoadingOlderIntervals || isOlderLoadPending;
   const draftEditableIndicatorSettings =
     draftIndicatorSettings ?? draftIndicatorsDialogSettings ?? draftLayoutIndicatorSettings ?? indicatorSettings;
   const editableIndicatorSettings = useMemo(
     () => normalizeTradingChartIndicatorSettings(draftEditableIndicatorSettings),
     [draftEditableIndicatorSettings],
   );
+  const effectiveResolutionSpec = useMemo(
+    () => resolutionSpecForOption(chartResolution, customChartResolution),
+    [chartResolution, customChartResolution],
+  );
+  const chartModel = useMemo(
+    () => deriveTradingChartDisplayModel(rawChartModel, effectiveResolutionSpec),
+    [rawChartModel, effectiveResolutionSpec],
+  );
+  const availabilityKey = useMemo(
+    () => indicatorAvailabilityKey(chartModel.availability),
+    [chartModel.availability],
+  );
+  const hasCustomTimeframe = customTimeframeRange != null;
+  const activeDurationOption = hasCustomTimeframe ? 'Custom' : timeframe;
+
+  useEffect(() => {
+    if (!customRangeDialogOpen) {
+      setDraftCustomRangeStart(dateInputValueFromIsoString(customTimeframeRange?.startAt));
+      setDraftCustomRangeEnd(dateInputValueFromIsoString(customTimeframeRange?.endAt));
+    }
+  }, [customRangeDialogOpen, customTimeframeRange]);
+
+  useEffect(() => {
+    if (!customResolutionDialogOpen) {
+      setDraftCustomResolution(customChartResolution?.expression ?? '1D');
+    }
+  }, [customChartResolution, customResolutionDialogOpen]);
+
+  useEffect(() => {
+    restoredVisibleDateRangeRef.current = initialVisibleDateRange;
+  }, [initialVisibleDateRange]);
+
+  function openCustomRangeDialog() {
+    const earliestPoint = chartModel.points[0] ?? null;
+    const latestPoint = chartModel.points.at(-1) ?? null;
+    setDraftCustomRangeStart(
+      dateInputValueFromIsoString(customTimeframeRange?.startAt ?? earliestPoint?.startAt ?? earliestPoint?.endAt ?? null),
+    );
+    setDraftCustomRangeEnd(
+      dateInputValueFromIsoString(customTimeframeRange?.endAt ?? latestPoint?.endAt ?? latestPoint?.startAt ?? null),
+    );
+    setCustomRangeDialogOpen(true);
+  }
+
+  function applyCustomRange() {
+    if (!onCustomTimeframeChange) {
+      setCustomRangeDialogOpen(false);
+      return;
+    }
+    const startAt = isoStringFromDateInput(draftCustomRangeStart, 'start');
+    const endAt = isoStringFromDateInput(draftCustomRangeEnd, 'end');
+    if (!startAt || !endAt || Date.parse(startAt) > Date.parse(endAt)) {
+      return;
+    }
+    onCustomTimeframeChange({ startAt, endAt });
+    setCustomRangeDialogOpen(false);
+  }
+
+  function applyCustomResolution() {
+    const parsed = parseChartCustomResolution(draftCustomResolution);
+    if (!parsed) {
+      return;
+    }
+    onChartResolutionChange?.('Custom', parsed);
+    setCustomResolutionDialogOpen(false);
+  }
+  const editableIndicatorSettingsKey = useMemo(
+    () => JSON.stringify(editableIndicatorSettings),
+    [editableIndicatorSettings],
+  );
   const paneLayout = useMemo(
     () => deriveTradingChartPaneLayout(editableIndicatorSettings, chartModel.availability),
-    [chartModel.availability, editableIndicatorSettings],
+    [availabilityKey, editableIndicatorSettingsKey],
   );
   const activeAdditionalPaneCount = Math.max(0, paneLayout.length - 1);
   const regimeSetting = editableIndicatorSettings.regime;
@@ -1114,17 +1940,21 @@ export function SkuTradingChart({
     () => new Map(paneLayout.map((pane, index) => [pane.id, index])),
     [paneLayout],
   );
-  const regimePaneIndex = Math.max(0, paneLayout.findIndex((pane) => pane.indicatorIds.includes('regime')));
+  const regimePaneId = useMemo(
+    () => paneLayout.find((pane) => pane.indicatorIds.includes('regime'))?.id ?? 'main',
+    [paneLayout],
+  );
+  const regimePaneIndex = paneIndexById.get(regimePaneId) ?? 0;
   const regimePanePosition = paneLegendPositions[regimePaneIndex];
   const regimePaneTop = regimePanePosition?.top ?? 0;
   const regimePaneHeight = regimePanePosition?.height ?? 0;
-  const hasMeasuredRegimePane = regimePaneHeight > 0;
+  const hasMeasuredRegimePane = regimePaneHeight > 0 && plotAreaWidth > 0;
   const seriesLayoutKey = useMemo(() => JSON.stringify({
-    availability: indicatorAvailabilityKey(chartModel.availability),
+    availability: availabilityKey,
     settings: editableIndicatorSettings,
     reorderPoint: chartModel.points.find((point) => point.reorderPoint != null)?.reorderPoint ?? null,
     safetyStock: chartModel.points.find((point) => point.safetyStock != null)?.safetyStock ?? null,
-  }), [chartModel.availability, chartModel.points, editableIndicatorSettings]);
+  }), [availabilityKey, chartModel.points, editableIndicatorSettings]);
   const visibleRegimePoints = useMemo(
     () => (
       regimeIndicatorEnabled && (showRegimeIcons || showRegimeBackground)
@@ -1133,6 +1963,31 @@ export function SkuTradingChart({
     ),
     [chartModel.points, regimeIndicatorEnabled, showRegimeBackground, showRegimeIcons],
   );
+  const overlayPointIntervals = useMemo(() => {
+    const intervals = new Set<number>();
+    if (showRegimeIcons) {
+      for (const point of chartModel.points) {
+        if (point.dominantRegime) {
+          intervals.add(point.intervalIndex);
+        }
+      }
+    }
+    if (isEnabled(editableIndicatorSettings, chartModel.availability, 'newOrderFlags')) {
+      for (const point of chartModel.points) {
+        if ((point.newOrderFlag ?? 0) > 0) {
+          intervals.add(point.intervalIndex);
+        }
+      }
+    }
+    if (isEnabled(editableIndicatorSettings, chartModel.availability, 'newReceiptFlags')) {
+      for (const point of chartModel.points) {
+        if ((point.newReceiptFlag ?? 0) > 0) {
+          intervals.add(point.intervalIndex);
+        }
+      }
+    }
+    return [...intervals].sort((left, right) => left - right);
+  }, [chartModel.availability, chartModel.points, editableIndicatorSettings, showRegimeIcons]);
   const layoutSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -1144,30 +1999,90 @@ export function SkuTradingChart({
     }),
   );
 
-  function schedulePaneHeightSync() {
+  function setPaneRelayoutPendingState(next: boolean) {
+    paneRelayoutPendingRef.current = next;
+    setIsPaneRelayoutPending(next);
+  }
+
+  function finishPaneHeightSync(lockDuringSync: boolean, generation: number, retryCount = 0) {
+    paneHeightUpdateFrameRef.current = null;
+    const currentPaneCount = Math.max(0, paneLayout.length - 1);
+    const minimumRenderHeight = deriveTradingChartMinRenderHeight(currentPaneCount);
+    const totalHeight = Math.max(minimumRenderHeight, chartContainerRef.current?.clientHeight || minimumRenderHeight);
+    const paneIds = paneLayout.map((pane) => pane.id);
+    applyPaneHeights(
+      chartRef.current,
+      totalHeight,
+      paneIds,
+      initialPaneHeights,
+    );
+    const anchors = paneLegendAnchors(chartRef.current);
+    setPaneLegendPositions(anchors);
+    onPaneHeightsChange?.(paneHeightsRecordFromAnchors(paneLayout, anchors));
+    syncPlotAreaWidth();
+    if (!paneHeightsMatchTargets(chartRef.current, totalHeight, paneIds, initialPaneHeights) && retryCount < 6) {
+      paneHeightUpdateFrameRef.current = requestAnimationFrame(() => {
+        finishPaneHeightSync(lockDuringSync, generation, retryCount + 1);
+      });
+      return;
+    }
+    if (lockDuringSync && paneHeightSyncGenerationRef.current === generation) {
+      setPaneRelayoutPendingState(false);
+    }
+  }
+
+  function syncPaneHeightImmediately(options?: { lockDuringSync?: boolean }) {
+    const lockDuringSync = options?.lockDuringSync ?? paneRelayoutPendingRef.current;
+    const generation = paneHeightSyncGenerationRef.current + 1;
+    paneHeightSyncGenerationRef.current = generation;
+    if (lockDuringSync && !paneRelayoutPendingRef.current) {
+      setPaneRelayoutPendingState(true);
+    }
+    if (paneHeightUpdateFrameRef.current != null) {
+      cancelAnimationFrame(paneHeightUpdateFrameRef.current);
+      paneHeightUpdateFrameRef.current = null;
+    }
+    finishPaneHeightSync(lockDuringSync, generation);
+  }
+
+  function schedulePaneHeightSync(options?: { lockDuringSync?: boolean }) {
+    const lockDuringSync = options?.lockDuringSync ?? paneRelayoutPendingRef.current;
+    const generation = paneHeightSyncGenerationRef.current + 1;
+    paneHeightSyncGenerationRef.current = generation;
+    if (lockDuringSync && !paneRelayoutPendingRef.current) {
+      setPaneRelayoutPendingState(true);
+    }
     if (paneHeightUpdateFrameRef.current != null) {
       cancelAnimationFrame(paneHeightUpdateFrameRef.current);
     }
     paneHeightUpdateFrameRef.current = requestAnimationFrame(() => {
-      paneHeightUpdateFrameRef.current = requestAnimationFrame(() => {
-        paneHeightUpdateFrameRef.current = null;
-        const minimumRenderHeight = deriveTradingChartMinRenderHeight(activeAdditionalPaneCountRef.current);
-        applyPaneHeights(
-          chartRef.current,
-          Math.max(minimumRenderHeight, chartContainerRef.current?.clientHeight || minimumRenderHeight),
-          activeAdditionalPaneCountRef.current,
-        );
-        setPaneLegendPositions(paneLegendAnchors(chartRef.current));
-        syncPlotAreaWidth();
-      });
+      finishPaneHeightSync(lockDuringSync, generation);
     });
   }
 
   function syncPlotAreaWidth() {
     const chart = chartRef.current;
     const container = chartContainerRef.current;
-    const nextWidth = Math.max(0, Math.floor(chart?.timeScale().width?.() ?? container?.clientWidth ?? 0));
+    const paneWidth = typeof chart?.paneSize === 'function' ? chart.paneSize().width : null;
+    const nextWidth = Math.max(0, Math.floor(paneWidth ?? chart?.timeScale().width?.() ?? container?.clientWidth ?? 0));
     setPlotAreaWidth((current) => (Math.abs(current - nextWidth) < 1 ? current : nextWidth));
+  }
+
+  function snapshotCurrentLayoutPreferences() {
+    const chart = chartRef.current;
+    if (!chart) {
+      return;
+    }
+    onVisibleDateRangeChange?.(visibleDateRangeForLogicalRange(chartModel, chart.timeScale().getVisibleLogicalRange()));
+    onPaneHeightsChange?.(paneHeightsRecordFromAnchors(paneLayout, paneLegendAnchors(chart)));
+  }
+
+  function setChartVisibleLogicalRange(range: { from: number; to: number }) {
+    const chart = chartRef.current;
+    if (!chart) {
+      return;
+    }
+    chart.timeScale().setVisibleLogicalRange(range);
   }
 
   function updateDraftLayoutIndicator(
@@ -1281,6 +2196,91 @@ export function SkuTradingChart({
 
     return clusters;
   }, [regimeIconPositions, visibleRegimePoints]);
+  const stackedOverlayMarkers = useMemo(() => {
+    const markers: OverlayFlagMarker[] = [];
+
+    if (showRegimeIcons) {
+      for (const cluster of clusteredRegimeIcons) {
+        const regimeKey = cluster.dominantRegime.toLowerCase();
+        markers.push({
+          key: `${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}-${cluster.dominantRegime}`,
+          indicatorId: 'regime',
+          paneId: regimePaneId,
+          intervalIndex: cluster.lastIntervalIndex,
+          layerOrder: editableIndicatorSettings.regime.layerOrder,
+          left: cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2,
+          width: cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE,
+          color: REGIME_COLORS[regimeKey] ?? REGIME_COLORS.unknown,
+          label: regimeClusterLabel(language, cluster.dominantRegime, cluster.count),
+          onClick: () => onSelectInterval(cluster.lastIntervalIndex),
+          icon: getRegimeIcon(cluster.dominantRegime),
+          clustered: cluster.count > 1,
+        });
+      }
+    }
+
+    const pushPointFlagMarkers = (
+      indicatorId: 'newOrderFlags' | 'newReceiptFlags',
+      enabled: boolean,
+      hasValue: (point: TradingChartPoint) => boolean,
+      Icon: IconComponent,
+      label: string,
+    ) => {
+      if (!enabled) {
+        return;
+      }
+      const setting = editableIndicatorSettings[indicatorId];
+      for (const point of chartModel.points) {
+        if (!hasValue(point)) {
+          continue;
+        }
+        const x = regimeIconPositions.get(point.intervalIndex);
+        if (x == null) {
+          continue;
+        }
+        markers.push({
+          key: `${indicatorId}:${point.intervalIndex}`,
+          indicatorId,
+          paneId: setting.paneId,
+          intervalIndex: point.intervalIndex,
+          layerOrder: setting.layerOrder,
+          left: x - REGIME_ICON_SIZE / 2,
+          width: REGIME_ICON_SIZE,
+          color: setting.color,
+          label,
+          onClick: () => onSelectInterval(point.intervalIndex),
+          icon: Icon,
+        });
+      }
+    };
+
+    pushPointFlagMarkers(
+      'newOrderFlags',
+      isEnabled(editableIndicatorSettings, chartModel.availability, 'newOrderFlags'),
+      (point) => (point.newOrderFlag ?? 0) > 0,
+      ActionAddBadgeIcon,
+      'New order flag',
+    );
+    pushPointFlagMarkers(
+      'newReceiptFlags',
+      isEnabled(editableIndicatorSettings, chartModel.availability, 'newReceiptFlags'),
+      (point) => (point.newReceiptFlag ?? 0) > 0,
+      EntityReceiptDocumentIcon,
+      'New receipt flag',
+    );
+
+    return stackOverlayFlagMarkers(markers);
+  }, [
+    chartModel.availability,
+    chartModel.points,
+    clusteredRegimeIcons,
+    editableIndicatorSettings,
+    language,
+    onSelectInterval,
+    regimeIconPositions,
+    regimePaneId,
+    showRegimeIcons,
+  ]);
   const regimeBackgroundBands = useMemo(() => {
     if (!showRegimeBackground) {
       return [];
@@ -1310,10 +2310,21 @@ export function SkuTradingChart({
     });
   }, [plotAreaWidth, regimeIconPositions, showRegimeBackground, visibleRegimePoints]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeAdditionalPaneCountRef.current = activeAdditionalPaneCount;
-    schedulePaneHeightSync();
+    syncPaneHeightImmediately({ lockDuringSync: true });
   }, [activeAdditionalPaneCount]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) {
+      return;
+    }
+    chart.applyOptions({
+      handleScroll: !chartInteractionLocked,
+      handleScale: !chartInteractionLocked,
+    });
+  }, [chartInteractionLocked]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1324,18 +2335,36 @@ export function SkuTradingChart({
     }
 
     const updatePaneLegendPositions = () => {
-      setPaneLegendPositions(paneLegendAnchors(chart));
+      const anchors = paneLegendAnchors(chart);
+      setPaneLegendPositions(anchors);
+      onPaneHeightsChange?.(paneHeightsRecordFromAnchors(paneLayout, anchors));
       syncPlotAreaWidth();
     };
 
     updatePaneLegendPositions();
-    const stopObservingLayout = observeChartLayout(container, updatePaneLegendPositions);
+    const layoutRoot = typeof chart.chartElement === 'function' ? chart.chartElement() : container;
+    const stopObservingLayout = observeChartLayout(layoutRoot, updatePaneLegendPositions, () =>
+      chart
+        .panes()
+        .flatMap((pane) => (typeof pane.getHTMLElement === 'function' ? [pane.getHTMLElement()].filter((element): element is HTMLElement => element instanceof HTMLElement) : [])),
+    );
     chart.timeScale().subscribeVisibleLogicalRangeChange(updatePaneLegendPositions);
     return () => {
       stopObservingLayout();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(updatePaneLegendPositions);
     };
-  }, [activeAdditionalPaneCount, seriesLayoutKey]);
+  }, [activeAdditionalPaneCount, chartBootstrapVersion, seriesLayoutKey]);
+
+  useLayoutEffect(() => {
+    if (!chartRef.current || !chartContainerRef.current) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      syncPaneHeightImmediately({ lockDuringSync: true });
+      syncPlotAreaWidth();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [expanded]);
 
   useEffect(() => {
     const container = chartContainerRef.current;
@@ -1385,9 +2414,10 @@ export function SkuTradingChart({
       handleScale: true,
     });
     chartRef.current = chart;
+    setChartBootstrapVersion((current) => current + 1);
 
     const syncChartRenderSize = () => {
-      schedulePaneHeightSync();
+      syncPaneHeightImmediately();
       syncPlotAreaWidth();
     };
     syncChartRenderSize();
@@ -1400,6 +2430,7 @@ export function SkuTradingChart({
       chartRef.current = null;
       seriesRefs.current = [];
       chartSeriesRefs.current = {};
+      setChartBootstrapVersion((current) => current + 1);
       if (paneHeightUpdateFrameRef.current != null) {
         cancelAnimationFrame(paneHeightUpdateFrameRef.current);
         paneHeightUpdateFrameRef.current = null;
@@ -1494,7 +2525,7 @@ export function SkuTradingChart({
     timeframeRangeLockRef.current = true;
   }, [timeframe]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const chart = chartRef.current;
     if (!chart) {
       return;
@@ -1523,31 +2554,26 @@ export function SkuTradingChart({
       seriesRefs.current.push(...series);
     };
 
+    const chartPanes = chart.panes();
+    for (let i = chartPanes.length; i < paneLayout.length; i++) {
+      chart.addPane();
+    }
+
+    // Ensure price scales exist and are properly configured for all panes
+    for (let i = 0; i < paneLayout.length; i++) {
+      const rightScale = chart.priceScale('right', i);
+      const leftScale = chart.priceScale('left', i);
+      rightScale.applyOptions({ visible: true });
+      leftScale.applyOptions({ visible: false });
+    }
+
     for (const pane of paneLayout) {
       const paneIndex = paneIndexById.get(pane.id) ?? 0;
       for (const indicatorId of pane.indicatorIds) {
         const setting = editableIndicatorSettings[indicatorId];
         const priceScaleId = setting.axisSide;
         if (indicatorId === 'inventory') {
-          const inventorySeries = setting.plotStyle === 'line'
-            ? chart.addSeries(LineSeries, {
-              priceScaleId,
-              color: setting.color,
-              lineStyle: lineStyleValue(setting.lineStyle),
-              lineWidth: (setting.lineWidth ?? 2) as 2,
-              priceLineVisible: false,
-              lastValueVisible: setting.showPriceScaleLabel ?? true,
-            }, paneIndex)
-            : chart.addSeries(AreaSeries, {
-              priceScaleId,
-              lineColor: setting.color,
-              lineStyle: lineStyleValue(setting.lineStyle),
-              lineWidth: (setting.lineWidth ?? 2) as 2,
-              topColor: rgba(setting.color, 0.22),
-              bottomColor: rgba(setting.color, 0.03),
-              priceLineVisible: false,
-              lastValueVisible: setting.showPriceScaleLabel ?? true,
-            }, paneIndex);
+          const inventorySeries = addInputSeries({ chart, paneIndex, priceScaleId, setting });
           registerSeries(paneIndex, inventorySeries);
           chartSeriesRefs.current.inventory = inventorySeries;
           registerSide(paneIndex, setting.axisSide);
@@ -1591,57 +2617,42 @@ export function SkuTradingChart({
           registerSide(paneIndex, setting.axisSide);
           continue;
         }
-        if (indicatorId === 'demand' || indicatorId === 'receipts' || indicatorId === 'pipeline') {
-          const opacity = indicatorId === 'pipeline' ? setting.opacity ?? 0.45 : setting.opacity ?? 0.5;
-          const histogramSeries = chart.addSeries(HistogramSeries, {
-            color: histogramSeriesColor(setting.color, opacity, setting.plotStyle),
-            priceScaleId,
-            priceLineVisible: false,
-            lastValueVisible: setting.showPriceScaleLabel ?? false,
-            base: 0,
-            priceFormat: { type: 'volume' },
-            ...(setting.plotStyle === 'columns' ? { lastValueVisible: setting.showPriceScaleLabel ?? false } : {}),
-          }, paneIndex);
-          registerSeries(paneIndex, histogramSeries);
-          chartSeriesRefs.current[indicatorId] = histogramSeries;
+        if (isOverlayIndicatorId(indicatorId)) {
+          registerSide(paneIndex, setting.axisSide);
+          continue;
+        }
+        if (isHistogramIndicatorId(indicatorId)) {
+          const inputSeries = addInputSeries({ chart, paneIndex, priceScaleId, setting });
+          registerSeries(paneIndex, inputSeries);
+          chartSeriesRefs.current[indicatorId] = inputSeries;
           registerSide(paneIndex, setting.axisSide);
           continue;
         }
         if (indicatorId === 'price') {
-          const priceSeries = setting.plotStyle === 'area'
-            ? chart.addSeries(AreaSeries, {
-              lineColor: setting.color,
-              lineStyle: lineStyleValue(setting.lineStyle),
-              lineWidth: (setting.lineWidth ?? 2) as 2,
-              topColor: rgba(setting.color, 0.2),
-              bottomColor: rgba(setting.color, 0.03),
-              priceScaleId,
-              priceLineVisible: false,
-              lastValueVisible: setting.showPriceScaleLabel ?? true,
-            }, paneIndex)
-            : chart.addSeries(LineSeries, {
-              color: setting.color,
-              lineStyle: lineStyleValue(setting.lineStyle),
-              lineWidth: (setting.lineWidth ?? 2) as 2,
-              priceScaleId,
-              priceLineVisible: false,
-              lastValueVisible: setting.showPriceScaleLabel ?? true,
-            }, paneIndex);
+          const priceSeries = addInputSeries({ chart, paneIndex, priceScaleId, setting });
           registerSeries(paneIndex, priceSeries);
           chartSeriesRefs.current.price = priceSeries;
           registerSide(paneIndex, setting.axisSide);
         }
       }
-      if (pane.indicatorIds.includes('regime') && !panesWithSeries.has(paneIndex)) {
-        const anchorSeries = chart.addSeries(LineSeries, {
+      if (pane.indicatorIds.some((indicatorId) => isOverlayIndicatorId(indicatorId)) && !panesWithSeries.has(paneIndex)) {
+        // Overlay-only panes render via DOM overlays rather than chart series, so add an
+        // invisible anchor series to keep the pane alive and its right axis configured.
+        const zeroLineSeries = chart.addSeries(LineSeries, {
           color: 'rgba(0,0,0,0)',
           crosshairMarkerVisible: false,
           lastValueVisible: false,
           priceLineVisible: false,
           priceScaleId: 'right',
         }, paneIndex);
-        anchorSeries.setData([]);
-        registerSeries(paneIndex, anchorSeries);
+
+        const zeroData = chartModel.points.map((point) => ({
+          time: point.time,
+          value: 0,
+        }));
+        zeroLineSeries.setData(zeroData);
+        registerSeries(paneIndex, zeroLineSeries);
+        registerSide(paneIndex, 'right');
       }
     }
 
@@ -1662,8 +2673,8 @@ export function SkuTradingChart({
 
     setSeriesData(chartSeriesRefs.current, chartModel, editableIndicatorSettings);
     cleanupEmptyTrailingPanes(chart);
-    schedulePaneHeightSync();
-  }, [paneIndexById, paneLayout, seriesLayoutKey]);
+    syncPaneHeightImmediately({ lockDuringSync: true });
+  }, [chartBootstrapVersion, paneLayout, paneIndexById, seriesLayoutKey]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1678,17 +2689,35 @@ export function SkuTradingChart({
       previousTimeframeRef.current = timeframe;
       return;
     }
+    const shouldRestoreVisibleDateRange = previousTimeframe == null && restoredVisibleDateRangeRef.current != null;
     const shouldFitTimeframe = previousTimeframe !== timeframe || !visibleRange || (timeframeRangeLockRef.current && !isBusy);
-    const nextVisibleRange = shouldFitTimeframe ? visibleRangeForTimeframe(chartModel, timeframe) : null;
+    const nextVisibleRange = shouldRestoreVisibleDateRange
+      ? visibleRangeForDateRange(chartModel, restoredVisibleDateRangeRef.current)
+      : shouldFitTimeframe
+        ? visibleRangeForTimeframe(chartModel, timeframe, customTimeframeRange)
+        : null;
     if (nextVisibleRange && !logicalRangesAreClose(nextVisibleRange, visibleRange)) {
-      chart.timeScale().setVisibleLogicalRange(nextVisibleRange);
+      setChartVisibleLogicalRange(nextVisibleRange);
     }
     if (timeframeRangeLockRef.current && !isBusy) {
       timeframeRangeLockRef.current = false;
     }
     previousChartPointsRef.current = chartModel.points;
     previousTimeframeRef.current = timeframe;
-  }, [chartModel, editableIndicatorSettings, isBusy, timeframe]);
+  }, [chartModel, customTimeframeRange, editableIndicatorSettings, isBusy, timeframe]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !onVisibleDateRangeChange) {
+      return;
+    }
+    const updateVisibleDateRange = (range: { from: number; to: number } | null) => {
+      onVisibleDateRangeChange(visibleDateRangeForLogicalRange(chartModel, range));
+    };
+    updateVisibleDateRange(chart.timeScale().getVisibleLogicalRange());
+    chart.timeScale().subscribeVisibleLogicalRangeChange(updateVisibleDateRange);
+    return () => chart.timeScale().unsubscribeVisibleLogicalRangeChange(updateVisibleDateRange);
+  }, [chartModel, onVisibleDateRangeChange]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1740,9 +2769,13 @@ export function SkuTradingChart({
           continue;
         }
         const x = chart.timeScale().timeToCoordinate(point.time);
+        if (x == null) {
+          flushSegment();
+          continue;
+        }
         const yHigh = uncertaintyHighSeries.priceToCoordinate(point.inventoryHigh);
         const yLow = uncertaintyLowSeries.priceToCoordinate(point.inventoryLow);
-        if (x == null || yHigh == null || yLow == null) {
+        if (yHigh == null || yLow == null) {
           flushSegment();
           continue;
         }
@@ -1851,40 +2884,59 @@ export function SkuTradingChart({
   }, [chartModel, onSelectInterval]);
 
   useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) {
-      return;
-    }
-    const handleRangeChange = (range: { from: number; to: number } | null) => {
-      if (!range || !hasOlderIntervals || isBusy || isLoadingOlderIntervals || loadingOlderRef.current) {
+    const maybeLoadOlderIntervals = (range: { from: number; to: number } | null) => {
+      const chart = chartRef.current;
+      if (!chart || !hasOlderIntervals || isBusy || isLoadingOlderIntervals || loadingOlderRef.current) {
         return;
       }
-      if (range.from > olderLoadThreshold(range)) {
+      if (!shouldLoadOlderIntervalsForViewport(chart, chartModel.points, range)) {
         return;
       }
       loadingOlderRef.current = true;
+      setIsOlderLoadPending(true);
       onOlderLoadProgressChange?.({ current: 1, total: 1 });
       void loadOlderIntervals()
         .catch(() => null)
         .finally(() => {
           loadingOlderRef.current = false;
+          setIsOlderLoadPending(false);
           onOlderLoadProgressChange?.(null);
         });
     };
+    const chart = chartRef.current;
+    if (!chart) {
+      return;
+    }
+    const handleRangeChange = (range: { from: number; to: number } | null) => {
+      maybeLoadOlderIntervals(range);
+    };
     chart.timeScale().subscribeVisibleLogicalRangeChange(handleRangeChange);
-    return () => chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleRangeChange);
-  }, [hasOlderIntervals, isBusy, isLoadingOlderIntervals, loadOlderIntervals, onOlderLoadProgressChange]);
+    const frame = window.requestAnimationFrame(() => {
+      maybeLoadOlderIntervals(chart.timeScale().getVisibleLogicalRange());
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleRangeChange);
+    };
+  }, [
+    chartModel.points,
+    hasOlderIntervals,
+    isBusy,
+    isLoadingOlderIntervals,
+    loadOlderIntervals,
+    onOlderLoadProgressChange,
+  ]);
 
   useEffect(() => {
-    const range = visibleRangeForTimeframe(chartModel, timeframe);
+    const range = visibleRangeForTimeframe(chartModel, timeframe, customTimeframeRange);
     const chart = chartRef.current;
     if (!range || !chart || appliedChartZoomResetTokenRef.current === chartZoomResetToken) {
       return;
     }
-    chart.timeScale().setVisibleLogicalRange(range);
+    setChartVisibleLogicalRange(range);
     appliedChartZoomResetTokenRef.current = chartZoomResetToken;
     setHoveredTime(null);
-  }, [chartModel, chartZoomResetToken, timeframe]);
+  }, [chartModel, chartZoomResetToken, customTimeframeRange, timeframe]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1895,7 +2947,8 @@ export function SkuTradingChart({
     if (!chart) {
       return;
     }
-    if (previousSelectedIntervalRef.current === selectedIntervalIndex) {
+    if (!shouldAutoCenterSelectedInterval(previousSelectedIntervalRef.current, selectedIntervalIndex)) {
+      previousSelectedIntervalRef.current = selectedIntervalIndex;
       return;
     }
     const selectedPoint = chartModel.pointByIntervalIndex.get(selectedIntervalIndex);
@@ -1912,7 +2965,7 @@ export function SkuTradingChart({
     if (numericIndex >= visibleRange.from && numericIndex <= visibleRange.to) {
       return;
     }
-    chart.timeScale().setVisibleLogicalRange({
+    setChartVisibleLogicalRange({
       from: Math.max(0, numericIndex - 8),
       to: numericIndex + 8,
     });
@@ -1921,44 +2974,60 @@ export function SkuTradingChart({
   useEffect(() => {
     const chart = chartRef.current;
     const container = chartContainerRef.current;
-    if (!chart || !container || visibleRegimePoints.length === 0) {
+    if (!chart || !container || overlayPointIntervals.length === 0) {
+      setRegimeIconPositions(new Map());
+      return;
+    }
+
+    // Guard: ensure timeScale is ready
+    const timeScaleWidth = chart.timeScale().width?.();
+    if (!timeScaleWidth || timeScaleWidth <= 0) {
       setRegimeIconPositions(new Map());
       return;
     }
 
     const updateRegimeIconPositions = () => {
+      const tsWidth = chart.timeScale().width?.();
+      if (!tsWidth || tsWidth <= 0) {
+        return;
+      }
       const nextPositions = new Map<number, number>();
       const clipWidth = plotAreaWidth || container.clientWidth;
-      for (const point of visibleRegimePoints) {
+      for (const intervalIndex of overlayPointIntervals) {
+        const point = chartModel.pointByIntervalIndex.get(intervalIndex);
+        if (!point) {
+          continue;
+        }
         const coordinate = chart.timeScale().timeToCoordinate(point.time);
         if (coordinate == null || coordinate < -clipWidth || coordinate > clipWidth * 2) {
           continue;
         }
-        nextPositions.set(point.intervalIndex, coordinate);
+        nextPositions.set(intervalIndex, coordinate);
       }
       syncPlotAreaWidth();
       setRegimeIconPositions(nextPositions);
     };
 
     updateRegimeIconPositions();
-    const stopObservingLayout = observeChartLayout(container, updateRegimeIconPositions);
+    const layoutRoot = typeof chart.chartElement === 'function' ? chart.chartElement() : container;
+    const stopObservingLayout = observeChartLayout(layoutRoot, updateRegimeIconPositions);
     chart.timeScale().subscribeVisibleLogicalRangeChange(updateRegimeIconPositions);
     return () => {
       stopObservingLayout();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(updateRegimeIconPositions);
     };
-  }, [plotAreaWidth, visibleRegimePoints]);
+  }, [chartModel.pointByIntervalIndex, overlayPointIntervals, plotAreaWidth]);
 
   function updateDraftIndicator(id: TradingChartIndicatorId, patch: Partial<TradingChartIndicatorSettings[TradingChartIndicatorId]>) {
     setDraftIndicatorSettings((current) => {
       const base = current ?? structuredClone(indicatorSettings);
-      return {
+      return normalizeTradingChartIndicatorSettings({
         ...base,
         [id]: {
           ...base[id],
           ...patch,
         },
-      };
+      });
     });
   }
 
@@ -2141,7 +3210,12 @@ export function SkuTradingChart({
   );
   const stylePopoverSetting = stylePopover ? editableIndicatorSettings[stylePopover.indicatorId] : null;
   const stylePopoverWidth = 304;
-  const stylePopoverHeight = stylePopover?.kind === 'color' ? 520 : 260;
+  const plotStyleOptionCount = stylePopover?.kind === 'plotStyle' ? compatiblePlotStyles(stylePopover.indicatorId).length : 0;
+  const stylePopoverHeight = stylePopover?.kind === 'color'
+    ? 520
+    : plotStyleOptionCount > 0
+      ? plotStyleOptionCount * 56 + 24
+      : 260;
   const stylePopoverPortal = stylePopover && stylePopoverAnchorRect && stylePopoverSetting
     ? createPortal(
       <div
@@ -2152,7 +3226,7 @@ export function SkuTradingChart({
           'fixed z-[90] overscroll-contain border border-border/70 bg-[#fdfaf6] shadow-[0_24px_60px_rgba(48,31,20,0.16)]',
           stylePopover.kind === 'color'
             ? 'grid w-[min(19rem,calc(100vw-2rem))] max-h-[min(32.5rem,calc(100vh-2rem))] gap-3 overflow-y-auto rounded-[1.25rem] p-4'
-            : 'grid w-72 max-h-[min(20rem,calc(100vh-4rem))] overflow-y-auto rounded-[1.5rem]',
+            : 'grid w-72 rounded-[1.5rem] py-2',
         )}
         style={{
           left: Math.max(16, Math.min(stylePopoverAnchorRect.left, window.innerWidth - stylePopoverWidth - 16)),
@@ -2243,19 +3317,25 @@ export function SkuTradingChart({
           </>
         ) : (
           compatiblePlotStyles(stylePopover.indicatorId).map((option) => (
-            <button
-              key={option}
-              aria-pressed={stylePopoverSetting.plotStyle === option}
-              className={cn(
-                'flex items-center justify-between px-5 py-4 text-left text-base transition-colors',
-                stylePopoverSetting.plotStyle === option ? 'bg-[color:var(--indicator-accent)] text-background' : 'text-foreground hover:bg-white/80',
-              )}
-              style={{ ['--indicator-accent' as string]: SETTINGS_PANEL_ACCENT }}
-              type="button"
-              onClick={() => updateDraftIndicator(stylePopover.indicatorId, { plotStyle: option })}
-            >
-              <span>{plotStyleLabel(option)}</span>
-            </button>
+            (() => {
+              const PlotStyleIcon = plotStyleIcon(option);
+              return (
+                <button
+                  key={option}
+                  aria-pressed={stylePopoverSetting.plotStyle === option}
+                  className={cn(
+                    'flex items-center gap-3 px-5 py-4 text-left text-base transition-colors',
+                    stylePopoverSetting.plotStyle === option ? 'bg-[color:var(--indicator-accent)] text-background' : 'text-foreground hover:bg-white/80',
+                  )}
+                  style={{ ['--indicator-accent' as string]: SETTINGS_PANEL_ACCENT }}
+                  type="button"
+                  onClick={() => updateDraftIndicator(stylePopover.indicatorId, { plotStyle: option })}
+                >
+                  <PlotStyleIcon aria-hidden="true" className="size-5 shrink-0" />
+                  <span>{plotStyleLabel(option)}</span>
+                </button>
+              );
+            })()
           ))
         )}
       </div>,
@@ -2292,7 +3372,10 @@ export function SkuTradingChart({
               </Button>
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
-              <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+              <DialogPrimitive.Overlay
+                className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
+                onPointerDown={() => requestSettingsDialogLeave('settings', leaveSettingsDialog)}
+              />
               <DialogPrimitive.Content
                 ref={settingsContentRef}
                 className={SETTINGS_DIALOG_CLASS}
@@ -2396,6 +3479,39 @@ export function SkuTradingChart({
                             </div>
                           </div>
                           <div className="grid gap-4">
+                            <div className="grid gap-4">
+                              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Input Values</p>
+                              <div className="flex flex-wrap items-center gap-4">
+                                <label className="text-sm font-medium text-foreground" htmlFor={`indicator-source-${id}`}>Source</label>
+                                <Select
+                                  disabled={!supportsTradingChartInputSource(setting.plotStyle)}
+                                  value={isOhlcTradingChartPlotStyle(setting.plotStyle) ? 'ohlc' : setting.inputSource ?? 'close'}
+                                  onOpenChange={setSettingsSelectOpen}
+                                  onValueChange={(value) => updateDraftIndicator(id, { inputSource: value as ChartInputValueSource })}
+                                >
+                                  <SelectTrigger
+                                    id={`indicator-source-${id}`}
+                                    aria-label={`${indicatorLabel(id)} source`}
+                                    className={cn(SETTINGS_INPUT_CLASS, 'w-full max-w-56 px-4')}
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="overscroll-contain">
+                                    <SelectGroup>
+                                      {CHART_INPUT_VALUE_SOURCE_OPTIONS.map((option) => (
+                                        <SelectItem
+                                          key={option.value}
+                                          disabled={inputSourceOptionDisabled(setting.plotStyle, option.value)}
+                                          value={option.value}
+                                        >
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
                             <div className="grid gap-4">
                               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Output Values</p>
                               <div className="flex flex-wrap items-center gap-4">
@@ -2522,7 +3638,10 @@ export function SkuTradingChart({
               </Button>
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
-              <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+              <DialogPrimitive.Overlay
+                className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
+                onPointerDown={() => requestSettingsDialogLeave('indicators', leaveIndicatorsDialog)}
+              />
               <DialogPrimitive.Content
                 ref={settingsContentRef}
                 className={SETTINGS_DIALOG_CLASS}
@@ -2568,10 +3687,10 @@ export function SkuTradingChart({
                             const IndicatorIcon = INDICATOR_ICONS[id];
                             return (
                               <div key={id} className="border-b border-border/50 py-4 first:pt-0 last:border-b-0 last:pb-0">
-                                <label className={cn('flex items-start gap-3 text-sm text-foreground', disabled && 'opacity-55')}>
+                                <label className={cn('flex items-center gap-3 text-sm text-foreground', disabled && 'opacity-55')}>
                                   <Checkbox
                                     aria-label={`Show ${indicatorLabel(id)}`}
-                                    className="mt-0.5"
+                                    className="self-center"
                                     checked={setting.enabled && available}
                                     disabled={disabled}
                                     onCheckedChange={(checked) => {
@@ -2589,7 +3708,7 @@ export function SkuTradingChart({
                                       });
                                     }}
                                   />
-                                  <IndicatorIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                                  <IndicatorIcon aria-hidden="true" className="size-4 shrink-0 self-center text-muted-foreground" />
                                   <span className="grid gap-1">
                                     <span className="font-medium">{indicatorLabel(id)}</span>
                                     <span className="text-sm leading-5 text-muted-foreground">
@@ -2659,7 +3778,10 @@ export function SkuTradingChart({
               </Button>
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
-              <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+              <DialogPrimitive.Overlay
+                className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
+                onPointerDown={() => requestSettingsDialogLeave('layout', leaveLayoutDialog)}
+              />
               <DialogPrimitive.Content
                 ref={settingsContentRef}
                 className={SETTINGS_DIALOG_CLASS}
@@ -2760,20 +3882,38 @@ export function SkuTradingChart({
               </DialogPrimitive.Content>
             </DialogPrimitive.Portal>
           </DialogPrimitive.Root>
-          <Button className="gap-2" disabled={isBusy} size="sm" type="button" variant="outline" onClick={onReset}>
+          <Button className="gap-2" size="sm" type="button" variant="outline" onClick={onReset}>
             <ActionResetIcon aria-hidden="true" className="size-4" />
             <span>Reset chart</span>
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground">{legendPoint ? intervalTooltipLabel(legendPoint.endAt ?? legendPoint.startAt, legendPoint.intervalIndex, language) : 'No interval selected'}</p>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <p className="text-sm text-muted-foreground">{legendPoint ? intervalTooltipLabel(legendPoint.endAt ?? legendPoint.startAt, legendPoint.intervalIndex, language) : 'No interval selected'}</p>
+          {onToggleExpand ? (
+            <Button
+              aria-label={expanded ? 'Collapse chart' : 'Expand chart'}
+              className="gap-2 rounded-full px-3"
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => {
+                snapshotCurrentLayoutPreferences();
+                onToggleExpand();
+              }}
+            >
+              {expanded ? <StatusMinimizeIcon className="size-4" /> : <StatusMaximizeIcon className="size-4" />}
+              <span>{expanded ? 'Collapse' : 'Expand'}</span>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div
         className={cn(
           'relative min-h-[420px] flex-1 overflow-hidden rounded-lg border border-border/70 bg-white transition-opacity duration-200 motion-reduce:transition-none',
-          isBusy && 'opacity-45',
+          showBusyState && 'opacity-45',
         )}
-        data-busy={isBusy || undefined}
+        data-busy={showBusyState || undefined}
         style={{ minHeight: deriveTradingChartMinRenderHeight(activeAdditionalPaneCount) }}
       >
         {hasPoints ? (
@@ -2802,7 +3942,7 @@ export function SkuTradingChart({
               </div>
             ) : null}
             <div className="absolute left-4 top-3 z-10 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-x-4 gap-y-2">
-              {(paneLegendGroups[0]?.rows ?? []).filter((row) => editableIndicatorSettings[row.id].showStatusLineValue !== false).map((row) => (
+              {(paneLegendGroups[0]?.rows ?? []).map((row) => (
                 <span key={row.id} className="inline-flex min-w-0 items-center gap-2 text-xs font-medium text-foreground">
                   <span aria-hidden="true" className="size-2 rounded-full" style={{ backgroundColor: row.color }} />
                   <span>{row.label}</span>
@@ -2810,9 +3950,9 @@ export function SkuTradingChart({
                 </span>
               ))}
             </div>
-            {paneLegendGroups.slice(1).map((group, index) => {
+            {paneLegendPositions.length === paneLayout.length ? paneLegendGroups.slice(1).map((group, index) => {
               const pane = paneLegendPositions[index + 1];
-              const visibleRows = group.rows.filter((row) => editableIndicatorSettings[row.id].showStatusLineValue !== false);
+              const visibleRows = group.rows;
               if (!pane || visibleRows.length === 0) {
                 return null;
               }
@@ -2831,37 +3971,40 @@ export function SkuTradingChart({
                   ))}
                 </div>
               );
-            })}
-            {hasMeasuredRegimePane && showRegimeIcons && clusteredRegimeIcons.length > 0 ? (
+            }) : null}
+            {stackedOverlayMarkers.length > 0 ? (
               <div
-                aria-label="Sales pattern markers"
-                className="pointer-events-none absolute left-0 z-10 overflow-hidden"
-                style={{ top: regimePaneTop, width: plotAreaWidth || '100%', height: regimePaneHeight, bottom: 'auto' }}
+                aria-label="Chart flags"
+                className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
               >
-                {clusteredRegimeIcons.map((cluster) => {
-                  const regimeKey = cluster.dominantRegime.toLowerCase();
-                  const Icon = getRegimeIcon(cluster.dominantRegime);
-                  const clusterWidth = Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left);
-                  const clustered = cluster.count > 1;
+                {stackedOverlayMarkers.map((marker) => {
+                  const paneIndex = paneIndexById.get(marker.paneId);
+                  const pane = paneIndex == null ? null : paneLegendPositions[paneIndex];
+                  if (!pane || pane.height <= 0) {
+                    return null;
+                  }
+                  const Icon = marker.icon;
                   return (
                     <button
-                      key={`${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}-${cluster.dominantRegime}`}
-                      aria-label={`Select ${regimeClusterLabel(language, cluster.dominantRegime, cluster.count)}`}
+                      key={marker.key}
+                      aria-label={`Select ${marker.label}`}
                       className={cn(
                         'pointer-events-auto absolute flex h-7 items-center justify-center rounded-full border border-background/80 bg-background/92 text-foreground shadow-sm transition-transform hover:scale-105',
-                        clustered ? 'px-2' : 'w-7 -translate-x-1/2',
+                        marker.clustered ? 'px-2' : 'w-7',
                       )}
                       style={{
-                        bottom: CHART_ICON_AXIS_OFFSET,
-                        left: clustered ? cluster.left : cluster.center,
-                        width: clustered ? clusterWidth : undefined,
-                        color: REGIME_COLORS[regimeKey] ?? REGIME_COLORS.unknown,
+                        top: Math.max(pane.top, pane.top + pane.height - marker.bottom - REGIME_ICON_SIZE),
+                        left: marker.left,
+                        width: marker.width,
+                        color: marker.color,
                       }}
                       type="button"
-                      onClick={() => onSelectInterval(cluster.lastIntervalIndex)}
+                      onClick={marker.onClick}
                     >
                       <Icon aria-hidden="true" className="size-4" />
-                      <span className="sr-only">{shortRegimeLabel(translateRegimeLabel(language, cluster.dominantRegime))}</span>
+                      <span className="sr-only">
+                        {marker.indicatorId === 'regime' ? shortRegimeLabel(marker.label) : marker.label}
+                      </span>
                     </button>
                   );
                 })}
@@ -2889,30 +4032,191 @@ export function SkuTradingChart({
         ) : null}
         <div
           ref={chartContainerRef}
-          className="relative z-[2] h-full min-h-[420px] w-full"
+          className={cn(
+            'relative z-[2] h-full min-h-[420px] w-full transition-opacity duration-75 motion-reduce:transition-none',
+            hideChartVisualsDuringRelayout && 'opacity-0',
+          )}
           data-testid="sku-trading-chart"
           style={{ minHeight: deriveTradingChartMinRenderHeight(activeAdditionalPaneCount) }}
         />
+        {showBusyState ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-[25] bg-white/55 backdrop-blur-[0.25px]"
+          />
+        ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3" aria-label="Chart timeframe">
-        {CHART_TIMEFRAME_OPTIONS.map((option) => (
-          <button
-            key={option}
-            className={cn(
-              'rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-              timeframe === option ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted',
-            )}
-            type="button"
-            onClick={() => {
-              if (option !== timeframe) {
-                onTimeframeChange(option);
-              }
-            }}
-          >
-            {option === 'MAX' ? 'All' : translateChartTimeframeLabel(language, option)}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+        <div className="flex flex-wrap items-center gap-2" aria-label="Chart duration">
+          {CHART_TIMEFRAME_OPTIONS.map((option) => (
+            <button
+              key={option}
+              className={cn(
+                'rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                activeDurationOption === option ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted',
+              )}
+              type="button"
+              onClick={() => {
+                if (hasCustomTimeframe || option !== timeframe) {
+                  onTimeframeChange(option);
+                }
+              }}
+            >
+              {option === 'MAX' ? 'All' : translateChartTimeframeLabel(language, option)}
+            </button>
+          ))}
+          {onCustomTimeframeChange ? (
+          <DialogPrimitive.Root open={customRangeDialogOpen} onOpenChange={setCustomRangeDialogOpen}>
+            <DialogPrimitive.Trigger asChild>
+              <button
+                aria-label="Custom duration"
+                className={cn(
+                  'rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                  activeDurationOption === 'Custom' ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted',
+                )}
+                type="button"
+                onClick={openCustomRangeDialog}
+              >
+                Custom
+              </button>
+            </DialogPrimitive.Trigger>
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/30 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+              <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[110] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+                <DialogPrimitive.Title className="text-lg font-semibold tracking-[-0.03em] text-foreground">Custom duration</DialogPrimitive.Title>
+                <DialogPrimitive.Description className="mt-3 text-sm leading-6 text-muted-foreground">
+                  Choose a start and end date for the chart range.
+                </DialogPrimitive.Description>
+                <div className="mt-5 grid gap-4">
+                  <label className="grid gap-2 text-sm font-medium text-foreground">
+                    <span>Start date</span>
+                    <Input
+                      aria-label="Custom timeframe start date"
+                      className="h-11 rounded-[1rem] bg-background px-4"
+                      max={draftCustomRangeEnd || undefined}
+                      type="date"
+                      value={draftCustomRangeStart}
+                      onChange={(event) => setDraftCustomRangeStart(event.currentTarget.value)}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium text-foreground">
+                    <span>End date</span>
+                    <Input
+                      aria-label="Custom timeframe end date"
+                      className="h-11 rounded-[1rem] bg-background px-4"
+                      min={draftCustomRangeStart || undefined}
+                      type="date"
+                      value={draftCustomRangeEnd}
+                      onChange={(event) => setDraftCustomRangeEnd(event.currentTarget.value)}
+                    />
+                  </label>
+                </div>
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                  <Button
+                    disabled={!hasCustomTimeframe}
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      onCustomTimeframeChange(null);
+                      setCustomRangeDialogOpen(false);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setCustomRangeDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={!draftCustomRangeStart || !draftCustomRangeEnd || draftCustomRangeStart > draftCustomRangeEnd}
+                      type="button"
+                      onClick={applyCustomRange}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+              </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2" aria-label="Chart timeframe">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Timeframe</span>
+          {CHART_RESOLUTION_OPTIONS.map((option) => {
+            const active = chartResolution === option;
+            if (option === 'Custom') {
+              return (
+                <DialogPrimitive.Root key={option} open={customResolutionDialogOpen} onOpenChange={setCustomResolutionDialogOpen}>
+                  <DialogPrimitive.Trigger asChild>
+                    <button
+                      aria-label="Custom timeframe"
+                      className={cn(
+                        'rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                        active ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted',
+                      )}
+                      type="button"
+                    >
+                      {formatChartResolution(option, customChartResolution)}
+                    </button>
+                  </DialogPrimitive.Trigger>
+                  <DialogPrimitive.Portal>
+                    <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/30 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+                    <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[110] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+                      <DialogPrimitive.Title className="text-lg font-semibold tracking-[-0.03em] text-foreground">Custom timeframe</DialogPrimitive.Title>
+                      <DialogPrimitive.Description className="mt-3 text-sm leading-6 text-muted-foreground">
+                        Use minutes, hours, days, weeks, months, or years. Examples: 15m, 2H, 10D, 1W, 3M, 1Y.
+                      </DialogPrimitive.Description>
+                      <div className="mt-5 grid gap-2">
+                        <label className="text-sm font-medium text-foreground" htmlFor="custom-chart-timeframe">Timeframe</label>
+                        <Input
+                          id="custom-chart-timeframe"
+                          aria-label="Custom chart timeframe"
+                          className="h-11 rounded-[1rem] bg-background px-4"
+                          placeholder="15m"
+                          value={draftCustomResolution}
+                          onChange={(event) => setDraftCustomResolution(event.currentTarget.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Seconds and smaller units are not supported.</p>
+                      </div>
+                      <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+                        <Button type="button" variant="ghost" onClick={() => setCustomResolutionDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          disabled={!parseChartCustomResolution(draftCustomResolution)}
+                          type="button"
+                          onClick={applyCustomResolution}
+                        >
+                          Apply
+                        </Button>
+                      </div>
+                    </DialogPrimitive.Content>
+                  </DialogPrimitive.Portal>
+                </DialogPrimitive.Root>
+              );
+            }
+            return (
+              <button
+                key={option}
+                className={cn(
+                  'rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                  active ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted',
+                )}
+                type="button"
+                onClick={() => onChartResolutionChange?.(option, null)}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
       </div>
       {stylePopoverPortal}
       <ChartSettingsLeavePrompt

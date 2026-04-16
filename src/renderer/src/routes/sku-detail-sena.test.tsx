@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaDiagnostics, SenaObservationRecord, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
@@ -9,7 +9,7 @@ import { RECENT_TIMEFRAME_MIN_REPORTS } from '@/components/system/chart-timefram
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
-import { SkuDetailRoute } from './sku-detail';
+import { SkuDetailLedgerRoute, SkuDetailRoute } from './sku-detail';
 import { buildLeadTimeHintFromInputs } from './sku-detail/actions';
 import { SkuDetailEvidence } from './sku-detail/evidence';
 import { SkuDetailExposure } from './sku-detail/exposure';
@@ -1055,6 +1055,132 @@ describe('SKU detail SENA helpers', () => {
 });
 
 describe('SKU detail route', () => {
+  test('redirects the legacy ledger route into expanded chart state on the sku detail route', async () => {
+    function LocationProbe() {
+      const location = useLocation();
+      return <output data-testid="route-location">{`${location.pathname}${location.search}`}</output>;
+    }
+
+    render(
+      <MemoryRouter initialEntries={['/catalog/skus/sku-1/ledger?action=log-order']}>
+        <Routes>
+          <Route element={<SkuDetailLedgerRoute />} path="/catalog/skus/:skuId/ledger" />
+          <Route element={<LocationProbe />} path="/catalog/skus/:skuId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId('route-location')).toHaveTextContent('/catalog/skus/sku-1?action=log-order&chart=expanded');
+  });
+
+  test('keeps ledger expand and collapse on the sku detail route', async () => {
+    const storageState = new Map<string, string>();
+    const storageMock = {
+      getItem(key: string) {
+        return storageState.get(key) ?? null;
+      },
+      setItem(key: string, value: string) {
+        storageState.set(key, value);
+      },
+      removeItem(key: string) {
+        storageState.delete(key);
+      },
+      clear() {
+        storageState.clear();
+      },
+    };
+    const originalLocalStorage = window.localStorage;
+    const originalSessionStorage = window.sessionStorage;
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: storageMock,
+    });
+    Object.defineProperty(window, 'sessionStorage', {
+      configurable: true,
+      value: storageMock,
+    });
+    const user = userEvent.setup();
+
+    inventoryHook.mockReturnValue({
+      snapshot,
+      reports: [report],
+      catalog: seedSenaCatalogFromSnapshot(snapshot),
+      diagnostics,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      latestRun: null,
+      observations,
+      senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
+      workspaceSummary: workspace,
+      reload: vi.fn(),
+      loadInventorySnapshot: vi.fn(async () => snapshot),
+      listStockReports: vi.fn(async () => [report]),
+      submitLegacyReport: vi.fn(async () => report),
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+      loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
+      ingestSenaObservation: vi.fn(async () => observations[0]),
+      listSenaObservations: vi.fn(async () => observations),
+      loadSenaObservations: vi.fn(async () => observations),
+      triggerSenaRun: vi.fn(),
+      retrySenaRun: vi.fn(),
+      loadSenaWorkspaceSummary: vi.fn(async () => workspace),
+      loadSenaSkuDetail: vi.fn(async () => detail),
+      loadSenaServiceDetail: vi.fn(async () => null),
+      loadSenaDiagnostics: vi.fn(async () => diagnostics),
+      loadSenaRunStatus: vi.fn(async () => null),
+      updateSenaMeta: vi.fn(),
+    });
+
+    function RouteHarness() {
+      const location = useLocation();
+
+      return (
+        <>
+          <SkuDetailRoute />
+          <output data-testid="route-location">{`${location.pathname}${location.search}`}</output>
+        </>
+      );
+    }
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+          <NavigationHistoryProvider>
+            <Routes>
+              <Route element={<RouteHarness />} path="/catalog/skus/:skuId" />
+            </Routes>
+          </NavigationHistoryProvider>
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByTestId('sku-trading-chart')).toBeInTheDocument();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/catalog/skus/sku-1');
+
+      await user.click(screen.getByRole('button', { name: 'Expand chart' }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('route-location')).toHaveTextContent('/catalog/skus/sku-1?chart=expanded');
+      });
+      expect(screen.getByRole('button', { name: 'Collapse chart' })).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Collapse chart' }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('route-location')).toHaveTextContent('/catalog/skus/sku-1');
+      });
+    } finally {
+      Object.defineProperty(window, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      Object.defineProperty(window, 'sessionStorage', {
+        configurable: true,
+        value: originalSessionStorage,
+      });
+    }
+  });
+
   test('renders the onboarding state without the old tab chrome', async () => {
     inventoryHook.mockReturnValue({
       snapshot,
