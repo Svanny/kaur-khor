@@ -6,6 +6,7 @@ import {
   buildAnalysisHref,
   buildOperationsArchiveHref,
   buildCatalogHref,
+  buildFinancialsHref,
   buildOverviewHref,
   buildOperationsHref,
   buildPerformanceHref,
@@ -16,6 +17,8 @@ import {
   type AnalysisTimeframeValue,
   type ArchiveViewValue,
   type CatalogViewValue,
+  type FinancialsRangeValue,
+  type FinancialsScopeValue,
   type OverviewSearchScope,
   type OverviewTaskFilterValue,
   type OverviewTaskModeValue,
@@ -299,6 +302,18 @@ function buildPageCommands(t: Translator, { showAnalysisPage }: { showAnalysisPa
       subtitle: 'Demand, capacity, and cash movement',
       title: t('navPerformance'),
     }),
+    pageCommand({
+      aliases: ['money', 'finance', 'financials'],
+      href: buildFinancialsHref(),
+      id: 'page:financials',
+      keywords: ['financials', 'money', 'margin', 'capital', 'commitments'],
+      pageId: 'financials',
+      pageOrder: 4,
+      pagePrefix: '/financials',
+      priority: 13,
+      subtitle: 'Stock-linked sales, margin, capital, and commitments',
+      title: t('navFinancials'),
+    }),
     ...(showAnalysisPage
       ? [
           pageCommand({
@@ -307,9 +322,9 @@ function buildPageCommands(t: Translator, { showAnalysisPage }: { showAnalysisPa
             id: 'page:analysis',
             keywords: ['analysis', 'workbench', 'fragility', 'pressure'],
             pageId: 'analysis',
-            pageOrder: 4,
+            pageOrder: 5,
             pagePrefix: '/analysis',
-            priority: 13,
+            priority: 14,
             subtitle: 'Detailed analysis tools',
             title: t('navAnalysis'),
           }),
@@ -588,6 +603,79 @@ function buildPerformanceCommands() {
       subtitle: 'Performance comparison',
       tabOrder: rangeCommands.length + scopeCommands.length + 1,
       title: 'Performance / Single view',
+    }),
+  ];
+}
+
+function buildFinancialsCommands() {
+  const rangeCommands: Array<{ label: string; value: FinancialsRangeValue }> = [
+    { label: 'Financials / 1D', value: '1d' },
+    { label: 'Financials / 7D', value: '7d' },
+    { label: 'Financials / 30D', value: '30d' },
+    { label: 'Financials / 90D', value: '90d' },
+  ];
+  const scopeCommands: Array<{ label: string; value: FinancialsScopeValue }> = [
+    { label: 'Financials / All items', value: 'all' },
+    { label: 'Financials / Services', value: 'services' },
+    { label: 'Financials / SKUs', value: 'skus' },
+  ];
+
+  return [
+    ...rangeCommands.map((command, index) =>
+      tabCommand({
+        aliases: ['financials', 'range'],
+        href: buildFinancialsHref({ range: command.value }),
+        id: `financials:range:${command.value}`,
+        keywords: ['financials', 'money', 'range', command.value],
+        pageId: 'financials',
+        pageOrder: 4,
+        pagePrefix: '/financials',
+        priority: 106 + index,
+        subtitle: 'Financials range',
+        tabOrder: index,
+        title: command.label,
+      }),
+    ),
+    ...scopeCommands.map((command, index) =>
+      tabCommand({
+        aliases: ['financials', 'scope'],
+        href: buildFinancialsHref({ scope: command.value }),
+        id: `financials:scope:${command.value}`,
+        keywords: ['financials', 'money', 'scope', command.value],
+        pageId: 'financials',
+        pageOrder: 4,
+        pagePrefix: '/financials',
+        priority: 109 + index,
+        subtitle: 'Financials scope',
+        tabOrder: rangeCommands.length + index,
+        title: command.label,
+      }),
+    ),
+    tabCommand({
+      aliases: ['financials', 'compare'],
+      href: buildFinancialsHref({ compare: true }),
+      id: 'financials:compare:on',
+      keywords: ['financials', 'money', 'compare', 'on'],
+      pageId: 'financials',
+      pageOrder: 4,
+      pagePrefix: '/financials',
+      priority: 112,
+      subtitle: 'Financials comparison',
+      tabOrder: rangeCommands.length + scopeCommands.length,
+      title: 'Financials / Compare view',
+    }),
+    tabCommand({
+      aliases: ['financials', 'compare'],
+      href: buildFinancialsHref({ compare: false }),
+      id: 'financials:compare:off',
+      keywords: ['financials', 'money', 'compare', 'off'],
+      pageId: 'financials',
+      pageOrder: 4,
+      pagePrefix: '/financials',
+      priority: 113,
+      subtitle: 'Financials comparison',
+      tabOrder: rangeCommands.length + scopeCommands.length + 1,
+      title: 'Financials / Single view',
     }),
   ];
 }
@@ -1236,6 +1324,7 @@ export function buildCommandDescriptors({
     ...buildOperationsCommands(),
     ...buildArchiveCommands(),
     ...buildPerformanceCommands(),
+    ...buildFinancialsCommands(),
     ...(showAnalysisPage ? buildAnalysisCommands() : []),
   ];
 

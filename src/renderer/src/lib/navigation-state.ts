@@ -28,6 +28,12 @@ export type PerformanceScopeValue = typeof performanceScopeValues[number];
 export const performanceRangeValues = ['7d', '30d', '90d'] as const;
 export type PerformanceRangeValue = typeof performanceRangeValues[number];
 
+export const financialsScopeValues = ['all', 'services', 'skus'] as const;
+export type FinancialsScopeValue = typeof financialsScopeValues[number];
+
+export const financialsRangeValues = ['1d', '7d', '30d', '90d'] as const;
+export type FinancialsRangeValue = typeof financialsRangeValues[number];
+
 export const analysisScopeValues = ['all', 'services', 'skus'] as const;
 export type AnalysisScopeValue = typeof analysisScopeValues[number];
 
@@ -72,6 +78,13 @@ export type PerformanceRouteState = {
   compare: boolean;
   range: PerformanceRangeValue;
   scope: PerformanceScopeValue;
+  supplier: string | null;
+};
+
+export type FinancialsRouteState = {
+  compare: boolean;
+  range: FinancialsRangeValue;
+  scope: FinancialsScopeValue;
   supplier: string | null;
 };
 
@@ -262,6 +275,37 @@ export function buildPerformanceHref(
   currentSearchParams?: URLSearchParams | null,
 ) {
   return createHref('/performance', buildPerformanceSearchParams(currentSearchParams, nextState));
+}
+
+export function readFinancialsRouteState(searchParams: URLSearchParams): FinancialsRouteState {
+  return {
+    compare: readBooleanValue(searchParams, 'compare', true),
+    range: readEnumValue(searchParams, 'range', financialsRangeValues, '1d'),
+    scope: readEnumValue(searchParams, 'scope', financialsScopeValues, 'all'),
+    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+  };
+}
+
+export function buildFinancialsSearchParams(
+  currentSearchParams?: URLSearchParams | null,
+  nextState?: Partial<FinancialsRouteState>,
+) {
+  const currentState = readFinancialsRouteState(cloneSearchParams(currentSearchParams));
+  const searchParams = cloneSearchParams(currentSearchParams);
+  const resolvedState = { ...currentState, ...nextState };
+
+  writeBooleanValue(searchParams, 'compare', resolvedState.compare, true);
+  writeEnumValue(searchParams, 'range', resolvedState.range, '1d');
+  writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
+  writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
+  return searchParams;
+}
+
+export function buildFinancialsHref(
+  nextState?: Partial<FinancialsRouteState>,
+  currentSearchParams?: URLSearchParams | null,
+) {
+  return createHref('/financials', buildFinancialsSearchParams(currentSearchParams, nextState));
 }
 
 export function readOperationsRouteState(searchParams: URLSearchParams): OperationsRouteState {

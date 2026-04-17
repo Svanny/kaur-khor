@@ -4,6 +4,7 @@ export const enUiCopyV1 = {
   navOverview: 'Overview',
   navRecordUpdate: 'Record update',
   navPerformance: 'Performance',
+  navFinancials: 'Financials',
   navAnalysis: 'Analysis',
   navCatalog: 'Catalog',
   navOperations: 'Logs',
@@ -1147,9 +1148,9 @@ export const enUiCopyV1 = {
     'Show the View selector on Logs. When off, Logs stays in View: All mode.',
   settingsShowHeartbeatRibbonsLabel: 'Show heartbeats and ribbons',
   settingsShowHeartbeatRibbonsHelp:
-    'Show heartbeat summaries and key-signal ribbons on detail, performance, and update pages.',
+    'Show heartbeat summaries and key-signal ribbons on detail, performance, financials, and update pages.',
   settingsShowRightRailCardsHelp:
-    'Show the right-side context panels on analysis, performance, and detail pages.',
+    'Show the right-side context panels on analysis, performance, financials, and detail pages.',
   settingsSenaParametersPanelTitle: 'Advanced',
   settingsSenaParametersPanelDescription:
     'Tune how local SENA runs sample uncertainty and turn the posterior into reorder guidance.',
@@ -1609,6 +1610,19 @@ export const enUiCopyV1 = {
   performanceRouteTimelineTitle: 'Business timeline',
   performanceRouteTimelineTooltip: 'The main shifts that shaped the current business posture.',
   performanceRouteTimelineDescriptor: 'What has been changing across the business posture.',
+  financialsRouteEyebrow: 'Financials',
+  financialsRouteTitle: 'Cash Flow',
+  financialsRouteDescriptor:
+    'See the stock-linked money view of the business: sales, gross profit, inventory value, supplier commitments, and margin pressure.',
+  financialsRouteScopeAll: 'All',
+  financialsRouteScopeServices: 'Services',
+  financialsRouteScopeSkus: 'SKUs',
+  financialsRouteEmptyCatalogTitle: 'Financials needs the catalog first',
+  financialsRouteEmptyCatalogHint:
+    'Create the first SKU so Banji can read stock-linked sales, margin, inventory value, and supplier commitments.',
+  financialsRouteEmptyWorkspaceTitle: 'Financials needs the first SENA run',
+  financialsRouteEmptyWorkspaceHint:
+    'Capture a live observation so Banji can turn stock, sales, orders, receipts, and price evidence into a money view.',
   analysisRouteEyebrow: 'Analysis',
   analysisRouteTitle: 'Deep Review',
   analysisRouteDescriptor:

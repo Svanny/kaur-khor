@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import {
   buildAnalysisHref,
+  buildFinancialsHref,
   buildOverviewHref,
   buildPerformanceHref,
   buildSkuDetailHref,
   readAnalysisRouteState,
+  readFinancialsRouteState,
   readOverviewRouteState,
   readPerformanceRouteState,
   readServiceAction,
@@ -75,6 +77,27 @@ describe('navigation-state', () => {
 
     expect(buildPerformanceHref({ compare: true, range: '30d', scope: 'all' })).toBe('/performance');
     expect(buildPerformanceHref({ compare: false, range: '7d' })).toBe('/performance?compare=0&range=7d');
+  });
+
+  test('reads financials route state safely and omits default financials params', () => {
+    expect(readFinancialsRouteState(new URLSearchParams('compare=false&range=90d&scope=services&supplier=Salon%20Tools'))).toEqual({
+      compare: false,
+      range: '90d',
+      scope: 'services',
+      supplier: 'Salon Tools',
+    });
+
+    expect(readFinancialsRouteState(new URLSearchParams('compare=maybe&range=bad&scope=nope'))).toEqual({
+      compare: true,
+      range: '1d',
+      scope: 'all',
+      supplier: null,
+    });
+
+    expect(buildFinancialsHref({ compare: true, range: '1d', scope: 'all' })).toBe('/financials');
+    expect(buildFinancialsHref({ compare: false, range: '7d', scope: 'skus' })).toBe(
+      '/financials?compare=0&range=7d&scope=skus',
+    );
   });
 
   test('reads entity action params only when valid', () => {

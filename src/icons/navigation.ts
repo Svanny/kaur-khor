@@ -14,6 +14,7 @@ export {
   ChevronUpIcon as NavigationSelectCollapseIcon,
   ClipboardList as NavigationTaskListIcon,
   Command as NavigationCommandPaletteIcon,
+  CircleDollarSign as NavigationFinancialsIcon,
   Grid3x3 as NavigationDenseGridIcon,
   Grid3X3 as NavigationGridIcon,
   LayoutDashboard as NavigationDashboardIcon,

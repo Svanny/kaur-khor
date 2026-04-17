@@ -20,6 +20,7 @@ import {
   NavigationAnalysisIcon,
   NavigationCatalogIcon,
   NavigationDashboardIcon,
+  NavigationFinancialsIcon,
   NavigationLogsIcon,
   NavigationMoveDownIcon,
   NavigationMoveUpIcon,
@@ -100,6 +101,8 @@ function pageIcon(pageId: string): CommandIconComponent {
       return NavigationTaskListIcon;
     case 'performance':
       return NavigationPerformanceIcon;
+    case 'financials':
+      return NavigationFinancialsIcon;
     case 'catalog':
       return NavigationCatalogIcon;
     case 'analysis':

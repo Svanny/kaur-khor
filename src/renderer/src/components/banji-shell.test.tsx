@@ -44,6 +44,7 @@ describe('BanjiShell', () => {
           navOverview: 'Overview',
           navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
+          navFinancials: 'Financials',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
@@ -127,6 +128,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Record update' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Archive' })).not.toBeInTheDocument();
@@ -137,7 +139,8 @@ describe('BanjiShell', () => {
     const navLinks = screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'));
     expect(navLinks.indexOf('Overview')).toBeLessThan(navLinks.indexOf('Record update'));
     expect(navLinks.indexOf('Record update')).toBeLessThan(navLinks.indexOf('Performance'));
-    expect(navLinks.indexOf('Catalog')).toBeLessThan(navLinks.indexOf('Analysis'));
+    expect(navLinks.indexOf('Catalog')).toBeLessThan(navLinks.indexOf('Financials'));
+    expect(navLinks.indexOf('Financials')).toBeLessThan(navLinks.indexOf('Analysis'));
     expect(navLinks.indexOf('Analysis')).toBeLessThan(navLinks.indexOf('Logs'));
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
@@ -235,6 +238,7 @@ describe('BanjiShell', () => {
           navOverview: 'Overview',
           navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
+          navFinancials: 'Financials',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
@@ -283,6 +287,7 @@ describe('BanjiShell', () => {
           navOverview: 'Overview',
           navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
+          navFinancials: 'Financials',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
@@ -309,6 +314,7 @@ describe('BanjiShell', () => {
     );
 
     expect(screen.queryByRole('link', { name: 'Analysis' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
   });
 
@@ -327,6 +333,7 @@ describe('BanjiShell', () => {
           navOverview: 'ទិដ្ឋភាពទូទៅ',
           navRecordUpdate: 'កត់ត្រាការអាប់ដេត',
           navPerformance: 'សុខភាពអាជីវកម្ម',
+          navFinancials: 'ហិរញ្ញវត្ថុ',
           navAnalysis: 'ការវិភាគ',
           navCatalog: 'កាតាឡុក',
           navOperations: 'កំណត់ហេតុ',

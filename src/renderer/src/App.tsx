@@ -6,6 +6,7 @@ import { CommandPaletteProvider } from '@/components/command-palette';
 import { AnalysisRoute } from '@/routes/analysis';
 import { ArchiveRoute } from '@/routes/archive';
 import { DashboardRoute } from '@/routes/dashboard';
+import { FinancialsRoute } from '@/routes/financials';
 import { HelpRoute } from '@/routes/help';
 import { InventoryRoute } from '@/routes/inventory';
 import { PerformanceRoute } from '@/routes/performance';
@@ -47,6 +48,7 @@ export function AppRoutes() {
         <Route key={lane.id} element={<StockUpdateSessionRoute />} path={lane.path} />
       ))}
       <Route element={<PerformanceRoute />} path="/performance" />
+      <Route element={<FinancialsRoute />} path="/financials" />
       <Route element={<RedirectWithSearch to="/catalog" />} path="/inventory" />
       <Route element={<RedirectWithSearch to="/catalog/skus/new" />} path="/inventory/skus/new" />
       <Route element={<RedirectWithSearch to="/catalog/skus/:skuId" />} path="/inventory/skus/:skuId" />

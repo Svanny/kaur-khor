@@ -5,6 +5,7 @@ import {
   NavigationCatalogIcon,
   NavigationCommandPaletteIcon,
   NavigationDashboardIcon,
+  NavigationFinancialsIcon,
   NavigationLogsIcon,
   NavigationRightPanelIcon,
   NavigationSettingsIcon,
@@ -42,8 +43,8 @@ import brandLogo from '@/assets/banji-logo.svg';
 type ShellSectionConfig = {
   destination: string;
   icon: IconComponent;
-  id: 'overview' | 'recordUpdate' | 'performance' | 'analysis' | 'catalog' | 'operations' | 'archive' | 'help' | 'settings';
-  labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navArchive' | 'navHelp' | 'navSettings';
+  id: 'overview' | 'recordUpdate' | 'performance' | 'financials' | 'analysis' | 'catalog' | 'operations' | 'archive' | 'help' | 'settings';
+  labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navFinancials' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navArchive' | 'navHelp' | 'navSettings';
   matches: (pathname: string) => boolean;
 };
 
@@ -68,7 +69,7 @@ function matchesSection(pathname: string, sectionRoot: string) {
 }
 
 function routeSupportsLocalLoadingState(pathname: string) {
-  return matchesSection(pathname, '/catalog') || matchesSection(pathname, '/analysis');
+  return matchesSection(pathname, '/catalog') || matchesSection(pathname, '/analysis') || matchesSection(pathname, '/financials');
 }
 
 const PRIMARY_SECTIONS: ShellSectionConfig[] = [
@@ -103,6 +104,13 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
 ];
 
 const SECONDARY_SECTIONS: ShellSectionConfig[] = [
+  {
+    id: 'financials',
+    destination: '/financials',
+    labelKey: 'navFinancials',
+    icon: NavigationFinancialsIcon,
+    matches: (pathname) => matchesSection(pathname, '/financials'),
+  },
   {
     id: 'analysis',
     destination: '/analysis',

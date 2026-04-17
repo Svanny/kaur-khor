@@ -393,9 +393,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បង្ហាញប៊ូតុងជ្រើសទិដ្ឋភាពលើទំព័រកំណត់ហេតុ។ បើបិទ ទំព័រកំណត់ហេតុនឹងនៅក្នុងទិដ្ឋភាព All។',
   settingsShowHeartbeatRibbonsLabel: 'បង្ហាញសង្ខេប heartbeat និងខ្សែសញ្ញា',
   settingsShowHeartbeatRibbonsHelp:
-    'បង្ហាញសង្ខេប heartbeat និងខ្សែសញ្ញាសំខាន់លើទំព័រលម្អិត សុខភាពអាជីវកម្ម និងទំព័រអាប់ដេត។',
+    'បង្ហាញសង្ខេប heartbeat និងខ្សែសញ្ញាសំខាន់លើទំព័រលម្អិត សុខភាពអាជីវកម្ម ហិរញ្ញវត្ថុ និងទំព័រអាប់ដេត។',
   settingsShowRightRailCardsHelp:
-    'បង្ហាញផ្ទាំងព័ត៌មានខាងស្ដាំលើទំព័រវិភាគ សុខភាពអាជីវកម្ម និងទំព័រលម្អិត។',
+    'បង្ហាញផ្ទាំងព័ត៌មានខាងស្ដាំលើទំព័រវិភាគ សុខភាពអាជីវកម្ម ហិរញ្ញវត្ថុ និងទំព័រលម្អិត។',
   settingsSenaParametersPanelDescription:
     'កែថា Banji ប្រើព័ត៌មានលម្អិតប៉ុន្មាន នៅពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញបន្ថែម។',
   settingsAnalysisProfileTooltip:
@@ -845,6 +845,20 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   performanceRouteActionHeaderTooltip: 'កន្លែងដែលត្រូវទៅក្នុង Banji ដើម្បីធ្វើសកម្មភាពបន្តលើជួរនេះ។',
   performanceRouteBoardTooltip: 'ទិដ្ឋភាពចម្រុះនៃតម្រូវការ ការគាំទ្រ ស្តុកកំពុងមកដល់ និងស្ថានភាពប្រាក់ចំណេញ។',
   performanceRouteBoardDescriptor: 'ពិនិត្យសេវាកម្ម និង SKU ជាមួយគ្នាក្នុងល្បឿនតែមួយ។',
+  navFinancials: 'ហិរញ្ញវត្ថុ',
+  financialsRouteEyebrow: 'ហិរញ្ញវត្ថុ',
+  financialsRouteTitle: 'លំហូរសាច់ប្រាក់',
+  financialsRouteDescriptor:
+    'មើលទិដ្ឋភាពប្រាក់ដែលភ្ជាប់នឹងស្តុក៖ ការលក់ ប្រាក់ចំណេញ ស្តុកមានតម្លៃ ការប្តេជ្ញាជាមួយអ្នកផ្គត់ផ្គង់ និងសម្ពាធលើប្រាក់ចំណេញ។',
+  financialsRouteScopeAll: 'ទាំងអស់',
+  financialsRouteScopeServices: 'សេវាកម្ម',
+  financialsRouteScopeSkus: 'SKU',
+  financialsRouteEmptyCatalogTitle: 'ទំព័រហិរញ្ញវត្ថុ ត្រូវការកាតាឡុកជាមុន',
+  financialsRouteEmptyCatalogHint:
+    'បង្កើត SKU ដំបូង ដើម្បីឲ្យ Banji អាចអានការលក់ ប្រាក់ចំណេញ តម្លៃស្តុក និងការប្តេជ្ញាជាមួយអ្នកផ្គត់ផ្គង់។',
+  financialsRouteEmptyWorkspaceTitle: 'ទំព័រហិរញ្ញវត្ថុ ត្រូវការការរត់ SENA ដំបូង',
+  financialsRouteEmptyWorkspaceHint:
+    'កត់ត្រាការអាប់ដេតពិតមួយ ដើម្បីឲ្យ Banji អាចបម្លែងភស្តុតាងស្តុក ការលក់ ការបញ្ជាទិញ ការដឹកមកដល់ និងតម្លៃ ទៅជាទិដ្ឋភាពប្រាក់។',
 };
 
 const overviewTranslations: Partial<Record<TranslationKey, string>> = {
