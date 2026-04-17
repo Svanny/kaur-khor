@@ -323,6 +323,9 @@ describe('AnalysisContent', () => {
     expect(button.querySelector('.animate-spin')).not.toBeNull();
 
     run.resolve({ runId: 'run-1' });
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+    });
   });
 
   it('renders only the shared ledger card in expanded mode', async () => {

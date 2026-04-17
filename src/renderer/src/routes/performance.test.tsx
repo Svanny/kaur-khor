@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -477,8 +477,26 @@ describe('PerformanceRoute', () => {
     );
   }
 
-  test('renders the performance steering surface', () => {
-    renderRoute();
+  async function renderPerformanceRouteSettled(initialEntry = '/performance') {
+    let view!: ReturnType<typeof renderRoute>;
+    await act(async () => {
+      view = renderRoute(initialEntry);
+      await Promise.resolve();
+    });
+    return view;
+  }
+
+  async function renderAnalysisRouteSettledWithDescriptionVisibility(visible: boolean) {
+    let view!: ReturnType<typeof renderAnalysisRouteWithDescriptionVisibility>;
+    await act(async () => {
+      view = renderAnalysisRouteWithDescriptionVisibility(visible);
+      await Promise.resolve();
+    });
+    return view;
+  }
+
+  test('renders the performance steering surface', async () => {
+    await renderPerformanceRouteSettled();
 
     expect(screen.getByText('Performance')).toBeInTheDocument();
     expect(screen.getByText('Demand, available capacity, incoming stock, and pricing in one business view.')).toBeInTheDocument();
@@ -499,7 +517,7 @@ describe('PerformanceRoute', () => {
   test('uses a taller status pill line box for translated board labels', async () => {
     preferenceState.language = 'km';
 
-    const { container } = renderRoute();
+    const { container } = await renderPerformanceRouteSettled();
 
     const statusPills = Array.from(container.querySelectorAll('span')).filter((node) =>
       node.className.includes('min-h-8'),
@@ -707,7 +725,7 @@ describe('PerformanceRoute', () => {
   });
 
   test('hides analysis page descriptors when explanatory text is disabled', async () => {
-    renderAnalysisRouteWithDescriptionVisibility(false);
+    await renderAnalysisRouteSettledWithDescriptionVisibility(false);
 
     expect(screen.getByText('Analysis details')).toBeInTheDocument();
     expect(

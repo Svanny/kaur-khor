@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
@@ -256,8 +257,20 @@ describe('SENA routes', () => {
     );
   }
 
-  test('renders the catalog route', () => {
+  async function renderWithProvidersSettled(route: string, element: ReactNode, path: string) {
+    let view!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      view = renderWithProviders(route, element, path);
+      await Promise.resolve();
+    });
+    return view;
+  }
+
+  test('renders the catalog route', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+    await waitFor(() => {
+      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalled();
+    });
 
     expect(screen.getByText('Catalog workspace')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
@@ -291,6 +304,9 @@ describe('SENA routes', () => {
 
   test('renders inline catalog actions for SKU and service rows', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+    await waitFor(() => {
+      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalled();
+    });
 
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
     expect(skuRow).not.toBeNull();
@@ -480,6 +496,9 @@ describe('SENA routes', () => {
     });
 
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+    await waitFor(() => {
+      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalled();
+    });
 
     const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest('div.group');
     expect(unsellableRow).not.toBeNull();
@@ -549,20 +568,23 @@ describe('SENA routes', () => {
     });
   });
 
-  test('filters the catalog route from the title-card search and toggle pill', () => {
-    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+  test('filters the catalog route from the title-card search and toggle pill', async () => {
+    const user = userEvent.setup();
+    await renderWithProvidersSettled('/catalog', <InventoryRoute />, '/catalog');
 
-    fireEvent.change(screen.getByPlaceholderText('Search name or description…'), {
-      target: { value: 'service-1' },
+    await user.type(screen.getByPlaceholderText('Search name or description…'), 'service-1');
+
+    await waitFor(() => {
+      expect(screen.queryByText('SKU 1')).not.toBeInTheDocument();
+      expect(screen.getByText('Service 1')).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('SKU 1')).not.toBeInTheDocument();
-    expect(screen.getByText('Service 1')).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'SKUs' }));
 
-    fireEvent.click(screen.getByRole('radio', { name: 'SKUs' }));
-
-    expect(screen.queryByText('Service 1')).not.toBeInTheDocument();
-    expect(screen.getByText('No matching catalog items')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Service 1')).not.toBeInTheDocument();
+      expect(screen.getByText('No matching catalog items')).toBeInTheDocument();
+    });
   });
 
   test('loads SKU detail without snapshot bootstrap', async () => {

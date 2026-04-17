@@ -37,7 +37,11 @@ vi.mock('@/components/ui/sheet', () => ({
     onOpenChange?: (open: boolean) => void;
     open?: boolean;
   }) => (open ? <sheetContext.Provider value={{ onOpenChange }}>{children}</sheetContext.Provider> : null),
-  SheetContent: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  SheetContent: ({
+    children,
+    showCloseButton: _showCloseButton,
+    ...props
+  }: HTMLAttributes<HTMLDivElement> & { showCloseButton?: boolean }) => <div {...props}>{children}</div>,
   SheetHeader: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   SheetFooter: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   SheetTitle: ({ children, ...props }: HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
@@ -88,10 +92,14 @@ vi.mock('@/components/ui/toggle-group', () => ({
   ),
   ToggleGroupItem: ({
     children,
+    disableHoverSurface: _disableHoverSurface,
+    disableSelectedShadow: _disableSelectedShadow,
     value,
     ...props
   }: {
     children: ReactNode;
+    disableHoverSurface?: boolean;
+    disableSelectedShadow?: boolean;
     value: string;
   } & ButtonHTMLAttributes<HTMLButtonElement>) => {
     const context = useContext(toggleGroupContext);

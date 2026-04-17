@@ -38,6 +38,10 @@ function downloadFile(filename: string, content: BlobPart, mimeType: string) {
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
+  if (typeof navigator !== 'undefined' && /\bjsdom\b/i.test(navigator.userAgent)) {
+    URL.revokeObjectURL(url);
+    return;
+  }
   link.click();
   URL.revokeObjectURL(url);
 }

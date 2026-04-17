@@ -33,26 +33,39 @@ function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
   return `${subtype}:${subjectId}`;
 }
 
-function readStorageRecord<T>(storage: Storage, key: string): Record<string, T> {
-  if (!storage || typeof storage.getItem !== 'function') {
-    return {};
+function getWindowStorage(kind: 'localStorage' | 'sessionStorage'): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
   }
-  const rawValue = storage.getItem(key);
-  if (!rawValue) {
+  try {
+    return window[kind];
+  } catch {
+    return null;
+  }
+}
+
+function readStorageRecord<T>(storage: Storage | null, key: string): Record<string, T> {
+  if (!storage) {
     return {};
   }
   try {
+    const rawValue = storage.getItem(key);
+    if (!rawValue) {
+      return {};
+    }
     return JSON.parse(rawValue) as Record<string, T>;
   } catch {
     return {};
   }
 }
 
-function writeStorageRecord<T>(storage: Storage, key: string, value: Record<string, T>) {
-  if (!storage || typeof storage.setItem !== 'function') {
+function writeStorageRecord<T>(storage: Storage | null, key: string, value: Record<string, T>) {
+  if (!storage) {
     return;
   }
-  storage.setItem(key, JSON.stringify(value));
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch {}
 }
 
 export function defaultChartLayoutPreferences(): PersistedChartLayoutPreferences {
@@ -205,10 +218,10 @@ export function readEntityChartLayoutPreferences(
   subtype: ChartSettingsSubtype,
   subjectId: string,
 ) {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const record = readStorageRecord<PersistedChartLayoutPreferences>(window.sessionStorage, ENTITY_CHART_LAYOUT_STORAGE_KEY);
+  const record = readStorageRecord<PersistedChartLayoutPreferences>(
+    getWindowStorage('sessionStorage'),
+    ENTITY_CHART_LAYOUT_STORAGE_KEY,
+  );
   const persisted = record[subjectStorageKey(subtype, subjectId)];
   return persisted ? normalizeChartLayoutPreferences(persisted) : null;
 }
@@ -218,19 +231,20 @@ export function writeEntityChartLayoutPreferences(
   subjectId: string,
   preferences: PersistedChartLayoutPreferences,
 ) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  const record = readStorageRecord<PersistedChartLayoutPreferences>(window.sessionStorage, ENTITY_CHART_LAYOUT_STORAGE_KEY);
+  const storage = getWindowStorage('sessionStorage');
+  const record = readStorageRecord<PersistedChartLayoutPreferences>(
+    storage,
+    ENTITY_CHART_LAYOUT_STORAGE_KEY,
+  );
   record[subjectStorageKey(subtype, subjectId)] = normalizeChartLayoutPreferences(preferences);
-  writeStorageRecord(window.sessionStorage, ENTITY_CHART_LAYOUT_STORAGE_KEY, record);
+  writeStorageRecord(storage, ENTITY_CHART_LAYOUT_STORAGE_KEY, record);
 }
 
 export function readSubtypeDefaultChartLayoutPreferences(subtype: ChartSettingsSubtype) {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const record = readStorageRecord<PersistedChartLayoutPreferences>(window.localStorage, SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY);
+  const record = readStorageRecord<PersistedChartLayoutPreferences>(
+    getWindowStorage('localStorage'),
+    SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY,
+  );
   const persisted = record[subtype];
   return persisted ? normalizeChartLayoutPreferences(persisted) : null;
 }
@@ -250,10 +264,11 @@ export function writeSubtypeDefaultChartLayoutPreferences(
   subtype: ChartSettingsSubtype,
   preferences: PersistedChartLayoutPreferences,
 ) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  const record = readStorageRecord<PersistedChartLayoutPreferences>(window.localStorage, SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY);
+  const storage = getWindowStorage('localStorage');
+  const record = readStorageRecord<PersistedChartLayoutPreferences>(
+    storage,
+    SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY,
+  );
   record[subtype] = normalizeChartLayoutPreferences(preferences);
-  writeStorageRecord(window.localStorage, SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY, record);
+  writeStorageRecord(storage, SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY, record);
 }

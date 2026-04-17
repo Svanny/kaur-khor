@@ -28,7 +28,11 @@ vi.mock('@/components/ui/sheet', () => ({
     open?: boolean;
   }) =>
     open ? <sheetContext.Provider value={{ onOpenChange }}>{children}</sheetContext.Provider> : null,
-  SheetContent: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => (
+  SheetContent: ({
+    children,
+    showCloseButton: _showCloseButton,
+    ...props
+  }: HTMLAttributes<HTMLDivElement> & { showCloseButton?: boolean }) => (
     <div data-slot="sheet-content" {...props}>
       {children}
     </div>
@@ -87,10 +91,14 @@ vi.mock('@/components/ui/toggle-group', () => ({
   ),
   ToggleGroupItem: ({
     children,
+    disableHoverSurface: _disableHoverSurface,
+    disableSelectedShadow: _disableSelectedShadow,
     value,
     ...props
   }: {
     children: ReactNode;
+    disableHoverSurface?: boolean;
+    disableSelectedShadow?: boolean;
     value: string;
   } & ButtonHTMLAttributes<HTMLButtonElement>) => {
     const context = useContext(toggleGroupContext);
@@ -715,6 +723,9 @@ describe('DashboardRoute', () => {
 
   test('filters overview tasks by services even without a search query', async () => {
     renderRoute();
+    await waitFor(() => {
+      expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalled();
+    });
 
     expect(screen.getByText('Cotton pads')).toBeInTheDocument();
 

@@ -1236,7 +1236,10 @@ describe('SkuTradingChart settings', () => {
     });
 
     await waitFor(() => expect(chartMockState.visibleRangeHandler).not.toBeNull());
-    chartMockState.visibleRangeHandler?.({ from: 5, to: 15 });
+    await act(async () => {
+      chartMockState.visibleRangeHandler?.({ from: 5, to: 15 });
+      await Promise.resolve();
+    });
 
     expect(loadOlderIntervals).not.toHaveBeenCalled();
 
@@ -1265,10 +1268,16 @@ describe('SkuTradingChart settings', () => {
     );
 
     await waitFor(() => expect(chartMockState.visibleRangeHandler).not.toBeNull());
-    chartMockState.visibleRangeHandler?.({ from: 6, to: 16 });
+    await act(async () => {
+      chartMockState.visibleRangeHandler?.({ from: 6, to: 16 });
+      await Promise.resolve();
+    });
     expect(loadOlderIntervals).not.toHaveBeenCalled();
 
-    chartMockState.visibleRangeHandler?.({ from: 5, to: 15 });
+    await act(async () => {
+      chartMockState.visibleRangeHandler?.({ from: 5, to: 15 });
+      await Promise.resolve();
+    });
 
     expect(loadOlderIntervals).toHaveBeenCalled();
   });
@@ -1284,7 +1293,7 @@ describe('SkuTradingChart settings', () => {
     });
 
     await waitFor(() => expect(chartMockState.visibleRangeHandlers.length).toBeGreaterThan(0));
-    act(() => {
+    await act(async () => {
       for (const handler of chartMockState.visibleRangeHandlers) {
         const callCount = loadOlderIntervals.mock.calls.length;
         handler({ from: 5, to: 15 });
@@ -1292,6 +1301,7 @@ describe('SkuTradingChart settings', () => {
           break;
         }
       }
+      await Promise.resolve();
     });
 
     expect(loadOlderIntervals).toHaveBeenCalled();
