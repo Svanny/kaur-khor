@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   DesktopBridge,
@@ -10,11 +11,35 @@ import type {
   SenaCatalog,
   SenaDiagnostics,
   SenaObservationRecord,
+  SenaSkuDetailPage,
   SenaServiceDetail,
   SenaSkuDetail,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import {
+  deriveSenaDetailCacheFreshnessFingerprint,
+  readPersistedSenaDetailPage,
+  writePersistedSenaDetailPage,
+} from '@/lib/sena-detail-page-cache';
 import { InventoryProvider, useInventory } from './inventory';
+
+function createStorageMock(): Storage {
+  const values = new Map<string, string>();
+  return {
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => Array.from(values.keys())[index] ?? null,
+    get length() {
+      return values.size;
+    },
+    removeItem: (key) => {
+      values.delete(key);
+    },
+    setItem: (key, value) => {
+      values.set(key, value);
+    },
+  };
+}
 
 const sampleCatalog: SenaCatalog = {
   schemaVersion: 1,
@@ -192,6 +217,40 @@ const sampleServiceDetail: SenaServiceDetail = {
   regimeTimeline: [],
 };
 
+function makeSkuDetailPage(latestIntervalIndex: number): SenaSkuDetailPage {
+  return {
+    detail: {
+      ...sampleSkuDetail,
+      demandPosterior: [
+        {
+          adjustmentsMean: 0,
+          deltaDays: 1,
+          endAt: '2026-04-02T00:00:00Z',
+          intervalIndex: latestIntervalIndex,
+          realizedConsumptionMean: 1,
+          receiptsMean: 0,
+          retailDemandMean: 1,
+          serviceDemandMean: 0,
+          startAt: '2026-04-01T00:00:00Z',
+          unconstrainedDemandMean: 1,
+        },
+      ],
+    },
+    hasOlder: false,
+    latestIntervalIndex,
+    nextBeforeIntervalIndex: null,
+    pageLimit: 20,
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 function TestHarness() {
   const inventory = useInventory();
 
@@ -213,6 +272,10 @@ function TestHarness() {
 
 describe('InventoryProvider', () => {
   beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: createStorageMock(),
+    });
     const bridge: DesktopBridge = {
       system: {
         getAppContext: vi.fn(),
@@ -378,6 +441,76 @@ describe('InventoryProvider', () => {
       expect(window.banjiDesktop.sena.triggerRun).toHaveBeenCalledTimes(1);
     });
     expect(window.banjiDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns a persisted detail page immediately and refreshes local storage in the background', async () => {
+    function CacheHarness() {
+      const inventory = useInventory();
+      const [latestIntervalIndex, setLatestIntervalIndex] = useState<string>('none');
+
+      return (
+        <div>
+          <div data-testid="cache-workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <div data-testid="latest-interval-index">{latestIntervalIndex}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.loadSenaSkuDetail('sku-1').then((page) => {
+                setLatestIntervalIndex(String(page?.latestIntervalIndex ?? 'none'));
+              })
+            }
+          >
+            load cached sku
+          </button>
+        </div>
+      );
+    }
+
+    const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(sampleWorkspace);
+    const livePage = deferred<SenaSkuDetailPage>();
+    writePersistedSenaDetailPage({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint,
+      limit: 20,
+      page: makeSkuDetailPage(20),
+      storage: window.localStorage,
+    });
+    window.banjiDesktop.sena.getSkuDetail = vi.fn(async () => livePage.promise);
+
+    render(
+      <InventoryProvider>
+        <CacheHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cache-workspace-run').textContent).toBe('run-1');
+    });
+
+    fireEvent.click(screen.getByText('load cached sku'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('latest-interval-index').textContent).toBe('20');
+    });
+
+    await act(async () => {
+      livePage.resolve(makeSkuDetailPage(40));
+      await livePage.promise;
+    });
+
+    await waitFor(() => {
+      expect(window.banjiDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(1);
+    });
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint,
+      limit: 20,
+      storage: window.localStorage,
+    })?.latestIntervalIndex).toBe(40);
   });
 
   it('updates and deletes observations through the bridge and refreshes cached observations', async () => {

@@ -30,6 +30,14 @@ import type {
   SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
+import {
+  clearPersistedSenaDetailPagesForEntity,
+  deriveSenaDetailCacheFreshnessFingerprint,
+  prunePersistedSenaDetailPages,
+  readPersistedSenaDetailPage,
+  writePersistedSenaDetailPage,
+} from '@/lib/sena-detail-page-cache';
 import { normalizeSenaCatalog } from '@/lib/sena-catalog';
 import {
   archiveSenaService,
@@ -55,6 +63,13 @@ type ReadCacheValue =
   | null;
 
 const DEFAULT_INTERVAL_PAGE_LIMIT = 20;
+
+type SenaDetailLoadStrategy = 'cache-first' | 'network-only';
+type SenaDetailLoadOptions = {
+  beforeIntervalIndex?: number | null;
+  limit?: number;
+  strategy?: SenaDetailLoadStrategy;
+};
 
 type SenaMetaCache = {
   catalogHash: string | null;
@@ -113,8 +128,8 @@ export interface InventoryContextValue {
   retrySenaRun: (payload: { runId: string }) => Promise<SenaAnalysisRunRecord>;
   runWorkspacePreparation: <T>(task: () => Promise<T>) => Promise<T>;
   loadSenaWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
-  loadSenaSkuDetail: (skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaSkuDetailPage | null>;
-  loadSenaServiceDetail: (serviceId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => Promise<SenaServiceDetailPage | null>;
+  loadSenaSkuDetail: (skuId: string, options?: SenaDetailLoadOptions) => Promise<SenaSkuDetailPage | null>;
+  loadSenaServiceDetail: (serviceId: string, options?: SenaDetailLoadOptions) => Promise<SenaServiceDetailPage | null>;
   clearSenaSkuDetailCache: (skuId: string) => Promise<void>;
   clearSenaServiceDetailCache: (serviceId: string) => Promise<void>;
   loadSenaDiagnostics: () => Promise<SenaDiagnostics | null>;
@@ -266,6 +281,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => emptyState());
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
   const inflightRef = useRef<Map<string, Promise<ReadCacheValue>>>(new Map());
+  const activeDetailFreshnessFingerprintRef = useRef<string | null>(null);
   const workspacePreparationDepthRef = useRef(0);
   const senaMetaRef = useRef<SenaMetaCache>({
     catalogHash: null,
@@ -312,10 +328,28 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const clearSenaDetailCache = useCallback(
     async (entityType: SenaCatalogEntityType, entityId: string) => {
       clearLocalSenaDetailCache(entityType, entityId);
+      if (typeof window !== 'undefined') {
+        clearPersistedSenaDetailPagesForEntity({ entityId, entityType, storage: window.localStorage });
+      }
       await window.banjiDesktop.sena.clearDetailCache({ entityId, entityType });
     },
     [clearLocalSenaDetailCache],
   );
+
+  const syncPersistentSenaDetailCache = useCallback((workspaceSummary: SenaWorkspaceSummary | null) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const nextFingerprint = deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary);
+    if (nextFingerprint === activeDetailFreshnessFingerprintRef.current) {
+      return;
+    }
+    activeDetailFreshnessFingerprintRef.current = nextFingerprint;
+    prunePersistedSenaDetailPages({
+      activeFreshnessFingerprint: nextFingerprint,
+      storage: window.localStorage,
+    });
+  }, []);
 
   const loadWithCache = useCallback(async <T extends ReadCacheValue>(key: string, loader: () => Promise<T>) => {
     if (readCacheRef.current.has(key)) {
@@ -339,6 +373,60 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return (await request) as T;
   }, []);
 
+  const loadSenaDetailPage = useCallback(async <
+    TPage extends SenaServiceDetailPage | SenaSkuDetailPage,
+  >({
+    key,
+    loadFresh,
+    readPersisted,
+  }: {
+    key: string;
+    loadFresh: () => Promise<TPage | null>;
+    readPersisted: () => TPage | null;
+  }) => {
+    const cached = readCacheRef.current.get(key);
+    if (cached !== undefined) {
+      return cached as TPage | null;
+    }
+
+    const persisted = readPersisted();
+    if (persisted) {
+      readCacheRef.current.set(key, persisted);
+      if (!inflightRef.current.has(key)) {
+        const request = loadFresh()
+          .then((value) => {
+            readCacheRef.current.set(key, value);
+            inflightRef.current.delete(key);
+            return value;
+          })
+          .catch((error) => {
+            inflightRef.current.delete(key);
+            throw error;
+          });
+        inflightRef.current.set(key, request);
+      }
+      return persisted;
+    }
+
+    const inflight = inflightRef.current.get(key);
+    if (inflight) {
+      return (await inflight) as TPage | null;
+    }
+
+    const request = loadFresh()
+      .then((value) => {
+        readCacheRef.current.set(key, value);
+        inflightRef.current.delete(key);
+        return value;
+      })
+      .catch((error) => {
+        inflightRef.current.delete(key);
+        throw error;
+      });
+    inflightRef.current.set(key, request);
+    return (await request) as TPage | null;
+  }, []);
+
   const loadLatestRun = useCallback(
     async (runId: string | null) => {
       if (!runId) {
@@ -352,6 +440,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     },
     [loadWithCache, updateSenaMeta],
   );
+
+  useEffect(() => {
+    syncPersistentSenaDetailCache(state.workspaceSummary);
+  }, [state.workspaceSummary, syncPersistentSenaDetailCache]);
 
   const reload = useCallback(async () => {
     setState((current) => ({ ...current, error: null, isLoading: true }));
@@ -751,6 +843,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       runWorkspacePreparation,
       loadSenaWorkspaceSummary: async () => {
         const workspaceSummary = await loadWithCache('sena:summary', () => window.banjiDesktop.sena.getWorkspaceSummary());
+        syncPersistentSenaDetailCache(workspaceSummary);
         const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
         setStatePartial({ latestRun, workspaceSummary });
         return workspaceSummary;
@@ -758,18 +851,82 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       loadSenaSkuDetail: async (skuId, options) => {
         const beforeIntervalIndex = options?.beforeIntervalIndex ?? null;
         const limit = options?.limit ?? DEFAULT_INTERVAL_PAGE_LIMIT;
-        return loadWithCache(
-          `sena:sku:${skuId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`,
-          () => window.banjiDesktop.sena.getSkuDetail({ skuId, beforeIntervalIndex, limit }),
-        );
+        const strategy = options?.strategy ?? 'cache-first';
+        const key = `sena:sku:${skuId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
+        const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(state.workspaceSummary);
+        const loadFresh = async () => {
+          const page = normalizeSkuDetailPage(await window.banjiDesktop.sena.getSkuDetail({ skuId, beforeIntervalIndex, limit }), limit);
+          if (typeof window !== 'undefined') {
+            writePersistedSenaDetailPage({
+              beforeIntervalIndex,
+              entityId: skuId,
+              entityType: 'sku',
+              freshnessFingerprint,
+              limit,
+              page,
+              storage: window.localStorage,
+            });
+          }
+          return page;
+        };
+        if (strategy === 'network-only') {
+          return loadFresh();
+        }
+        return loadSenaDetailPage({
+          key,
+          loadFresh,
+          readPersisted: () =>
+            typeof window === 'undefined'
+              ? null
+              : readPersistedSenaDetailPage({
+                beforeIntervalIndex,
+                entityId: skuId,
+                entityType: 'sku',
+                freshnessFingerprint,
+                limit,
+                storage: window.localStorage,
+              }),
+        });
       },
       loadSenaServiceDetail: async (serviceId, options) => {
         const beforeIntervalIndex = options?.beforeIntervalIndex ?? null;
         const limit = options?.limit ?? DEFAULT_INTERVAL_PAGE_LIMIT;
-        return loadWithCache(
-          `sena:service:${serviceId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`,
-          () => window.banjiDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }),
-        );
+        const strategy = options?.strategy ?? 'cache-first';
+        const key = `sena:service:${serviceId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
+        const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(state.workspaceSummary);
+        const loadFresh = async () => {
+          const page = normalizeServiceDetailPage(await window.banjiDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }), limit);
+          if (typeof window !== 'undefined') {
+            writePersistedSenaDetailPage({
+              beforeIntervalIndex,
+              entityId: serviceId,
+              entityType: 'service',
+              freshnessFingerprint,
+              limit,
+              page,
+              storage: window.localStorage,
+            });
+          }
+          return page;
+        };
+        if (strategy === 'network-only') {
+          return loadFresh();
+        }
+        return loadSenaDetailPage({
+          key,
+          loadFresh,
+          readPersisted: () =>
+            typeof window === 'undefined'
+              ? null
+              : readPersistedSenaDetailPage({
+                beforeIntervalIndex,
+                entityId: serviceId,
+                entityType: 'service',
+                freshnessFingerprint,
+                limit,
+                storage: window.localStorage,
+              }),
+        });
       },
       clearSenaSkuDetailCache: async (skuId) => clearSenaDetailCache('sku', skuId),
       clearSenaServiceDetailCache: async (serviceId) => clearSenaDetailCache('service', serviceId),
@@ -789,7 +946,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return run;
       },
     }),
-    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadWithCache, reload, runWorkspacePreparation, setStatePartial, state, updateSenaMeta, withSaving],
+    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadSenaDetailPage, loadWithCache, reload, runWorkspacePreparation, setStatePartial, state, syncPersistentSenaDetailCache, updateSenaMeta, withSaving],
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
