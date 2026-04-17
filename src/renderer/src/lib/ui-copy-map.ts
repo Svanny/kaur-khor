@@ -1151,7 +1151,7 @@ export const enUiCopyV1 = {
     'Show heartbeat summaries and key-signal ribbons on detail, performance, financials, and update pages.',
   settingsShowRightRailCardsHelp:
     'Show the right-side context panels on analysis, performance, financials, and detail pages.',
-  settingsSenaParametersPanelTitle: 'Advanced',
+  settingsSenaParametersPanelTitle: 'Planning settings',
   settingsSenaParametersPanelDescription:
     'Tune how local SENA runs sample uncertainty and turn the posterior into reorder guidance.',
   settingsResetDefaultsAction: 'Reset to defaults',
@@ -2275,7 +2275,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Keep page actions visible after the page title scrolls away.',
   settingsShowRightRailCardsHelp:
     'Show the side context panels on analysis, performance, and detail pages.',
-  settingsSenaParametersPanelTitle: 'Advanced',
+  settingsSenaParametersPanelTitle: 'Planning settings',
   settingsSenaParametersPanelDescription:
     'Adjust how much detail Banji uses when estimating stock and suggesting reorder quantities.',
   settingsAnalysisProfileLabel: 'Analysis profile',
@@ -2871,7 +2871,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     catalogSkuDetailLoaderTitle: 'Detailed view',
     catalogSkuDetailLoaderLoading: 'Loading fuller details…',
     catalogSkuDetailLoaderFallback: 'Fuller details are not available right now.',
-    settingsSenaParametersPanelTitle: 'Advanced',
+    settingsSenaParametersPanelTitle: 'Planning settings',
     settingsSenaParametersPanelDescription:
       'Adjust how local planning handles uncertainty when it estimates stock and suggests order amounts.',
     settingsAnalysisProfileTooltip:

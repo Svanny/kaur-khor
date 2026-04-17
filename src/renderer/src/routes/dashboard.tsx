@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useState } from 'react';
 import type { DesktopTaskBatchUpdatePreferences } from '@shared/ipc';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { SenaSkuDetail } from '@shared/sena';
 import {
   ActionOpenExternalIcon,
@@ -207,6 +207,7 @@ export function DashboardRoute() {
     t,
     taskBatchUpdatePreferences,
   } = usePreferences();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
@@ -248,7 +249,7 @@ export function DashboardRoute() {
             laneId,
           },
     );
-    window.location.href = batchHref;
+    navigate(batchHref);
   }
 
   async function persistRememberedBatchChoice(

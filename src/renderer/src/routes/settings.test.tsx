@@ -651,7 +651,7 @@ describe('SettingsRoute', () => {
     }));
     renderSettingsRoute('/settings/planning');
 
-    expect(await screen.findAllByText('Advanced')).not.toHaveLength(0);
+    expect(await screen.findAllByText('Planning settings')).not.toHaveLength(0);
     expect(screen.queryByLabelText(/analysis profile/i)).not.toBeInTheDocument();
     const resetDefaultsButton = screen.getAllByRole('button', { name: /reset to defaults/i })[0];
     const savePreferencesButton = firstSavePreferencesButton();

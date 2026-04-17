@@ -1368,7 +1368,8 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuDetailLoaderTitle: 'ទិដ្ឋភាពលម្អិត',
   catalogSkuDetailLoaderLoading: 'កំពុងផ្ទុកព័ត៌មានលម្អិតបន្ថែម…',
   catalogSkuDetailLoaderFallback: 'ព័ត៌មានលម្អិតបន្ថែមមិនអាចប្រើបានឥឡូវនេះទេ។',
-  settingsSenaParametersPanelTitle: 'លម្អិត',
+  settingsSenaParametersPanelTitle: 'ការកំណត់លម្អិតផែនការ',
+  searchPlaceholder: 'ស្វែងរកឈ្មោះ ការពិពណ៌នា ឬលេខសម្គាល់…',
   settingsSenaParametersPanelDescription:
     'កែថា ផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់យ៉ាងដូចម្តេច ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
   settingsAnalysisProfileTooltip:
