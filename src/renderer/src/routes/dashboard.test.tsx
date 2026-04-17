@@ -791,6 +791,22 @@ describe('DashboardRoute', () => {
     });
   });
 
+  test('navigates grouped log-order tasks through the router when batch mode is remembered', async () => {
+    preferenceState.taskBatchUpdatePreferences = {
+      ...preferenceState.taskBatchUpdatePreferences,
+      logOrder: 'always_batch',
+    };
+
+    renderRouteWithLocation();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/record-update/record-order');
+      expect(screen.getByTestId('route-location').textContent).toContain('skus=');
+    });
+  });
+
   test('hides the overview right rail when the global toggle is off', async () => {
     preferenceState.showRightRailCards = false;
 

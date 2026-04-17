@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  chartLayoutPreferencesEqual,
   defaultChartLayoutPreferences,
   mergeChartLayoutPreferencesWithViewportSync,
+  readEntityChartLayoutPreferences,
+  readSubtypeDefaultChartLayoutPreferences,
+  resolveEntityChartLayoutPreferences,
+  writeEntityChartLayoutPreferences,
+  writeSubtypeDefaultChartLayoutPreferences,
 } from './chart-layout-preferences';
 
 describe('mergeChartLayoutPreferencesWithViewportSync', () => {
@@ -289,5 +295,85 @@ describe('mergeChartLayoutPreferencesWithViewportSync', () => {
     expect(result.promotedCustomTimeframeRange).toBeNull();
     expect(result.preferences.customTimeframeRange).toBeNull();
     expect(result.preferences.visibleDateRange).toBeNull();
+  });
+});
+
+describe('chart layout preference storage', () => {
+  it('round-trips entity and subtype preferences through storage', () => {
+    const subtypeDefaults = {
+      ...defaultChartLayoutPreferences(),
+      timeframe: '1Y' as const,
+    };
+    const entityOverride = {
+      ...defaultChartLayoutPreferences(),
+      timeframe: '3M' as const,
+      paneHeights: { inventory: 320 },
+    };
+
+    writeSubtypeDefaultChartLayoutPreferences('service', subtypeDefaults);
+    writeEntityChartLayoutPreferences('service', 'service-1', entityOverride);
+
+    expect(readSubtypeDefaultChartLayoutPreferences('service')).toEqual(subtypeDefaults);
+    expect(readEntityChartLayoutPreferences('service', 'service-1')).toEqual(entityOverride);
+    expect(resolveEntityChartLayoutPreferences('service', 'service-1')).toEqual(entityOverride);
+    expect(resolveEntityChartLayoutPreferences('service', 'service-2')).toEqual(subtypeDefaults);
+  });
+
+  it('falls back to defaults when storage access throws', () => {
+    const localStorageGetter = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const sessionStorageGetter = vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+
+    expect(readSubtypeDefaultChartLayoutPreferences('sku')).toBeNull();
+    expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toBeNull();
+    expect(resolveEntityChartLayoutPreferences('sku', 'sku-1')).toEqual(defaultChartLayoutPreferences());
+    expect(() =>
+      writeSubtypeDefaultChartLayoutPreferences('sku', {
+        ...defaultChartLayoutPreferences(),
+        timeframe: 'MAX',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      writeEntityChartLayoutPreferences('sku', 'sku-1', {
+        ...defaultChartLayoutPreferences(),
+        timeframe: '1M',
+      }),
+    ).not.toThrow();
+
+    localStorageGetter.mockRestore();
+    sessionStorageGetter.mockRestore();
+  });
+
+  it('normalizes invalid persisted values before comparison and resolution', () => {
+    window.sessionStorage.setItem(
+      'banji:chart-layout:entity:v1',
+      JSON.stringify({
+        'sku:sku-1': {
+          timeframe: 'Bogus',
+          chartResolution: 'Fake',
+          customChartResolution: { expression: 'not-a-resolution' },
+          customTimeframeRange: { startAt: '2026-03-01T00:00:00.000Z' },
+          visibleDateRange: { endAt: '2026-03-05T00:00:00.000Z' },
+          paneHeights: { valid: 220, zero: 0, invalid: 'wide' },
+        },
+      }),
+    );
+
+    expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toEqual({
+      ...defaultChartLayoutPreferences(),
+      paneHeights: { valid: 220 },
+    });
+    expect(
+      chartLayoutPreferencesEqual(
+        resolveEntityChartLayoutPreferences('sku', 'sku-1'),
+        {
+          ...defaultChartLayoutPreferences(),
+          paneHeights: { valid: 220 },
+        },
+      ),
+    ).toBe(true);
   });
 });
