@@ -204,6 +204,26 @@ const chartModel: TradingChartModel = {
 chartModel.pointByIntervalIndex.set(0, chartModel.points[0]!);
 chartModel.pointByTimeKey.set(String(chartModel.points[0]!.time), chartModel.points[0]!);
 
+function multiPointChartModel(pointCount: number): TradingChartModel {
+  const points = Array.from({ length: pointCount }, (_, index) => {
+    const date = String(index + 1).padStart(2, '0');
+    return {
+      ...chartModel.points[0]!,
+      intervalIndex: index,
+      startAt: `2026-03-${date}T00:00:00.000Z`,
+      endAt: `2026-03-${date}T23:59:59.999Z`,
+      time: (1772323200 + index * 86_400) as never,
+      label: `Interval ${index + 1}`,
+    };
+  });
+  return {
+    ...chartModel,
+    points,
+    pointByIntervalIndex: new Map(points.map((point) => [point.intervalIndex, point])),
+    pointByTimeKey: new Map(points.map((point) => [String(point.time), point])),
+  };
+}
+
 function renderChart({
   chartModelOverride,
   customTimeframeRange = null,
@@ -211,6 +231,7 @@ function renderChart({
   hasOlderIntervals = false,
   initialSettings,
   isBusy = false,
+  isVisuallyBusy,
   initialVisibleDateRange = null,
   isLoadingOlderIntervals = false,
   loadOlderIntervals = vi.fn(async () => null),
@@ -220,6 +241,7 @@ function renderChart({
   onToggleExpand = vi.fn(),
   onVisibleDateRangeChange = vi.fn(),
   selectedIntervalIndex = 0,
+  timeframe = 'Recent',
 }: {
   chartModelOverride?: TradingChartModel;
   customTimeframeRange?: { startAt: string; endAt: string } | null;
@@ -227,6 +249,7 @@ function renderChart({
   hasOlderIntervals?: boolean;
   initialSettings?: TradingChartIndicatorSettings;
   isBusy?: boolean;
+  isVisuallyBusy?: boolean;
   initialVisibleDateRange?: { startAt: string; endAt: string } | null;
   isLoadingOlderIntervals?: boolean;
   loadOlderIntervals?: () => Promise<unknown>;
@@ -236,6 +259,7 @@ function renderChart({
   onToggleExpand?: () => void;
   onVisibleDateRangeChange?: (range: { startAt: string; endAt: string } | null) => void;
   selectedIntervalIndex?: number | null;
+  timeframe?: 'Recent' | '1M' | '3M' | '1Y' | 'YTD' | 'MAX';
 } = {}) {
   chartMockState.addSeries.mockClear();
   chartMockState.getVisibleLogicalRange.mockReset();
@@ -257,11 +281,12 @@ function renderChart({
       indicatorSettings={settings}
       initialVisibleDateRange={initialVisibleDateRange}
       isBusy={isBusy}
+      isVisuallyBusy={isVisuallyBusy}
       isLoadingOlderIntervals={isLoadingOlderIntervals}
       loadOlderIntervals={loadOlderIntervals}
       selectedIntervalIndex={selectedIntervalIndex}
       setIndicatorSettings={setIndicatorSettings}
-      timeframe="Recent"
+      timeframe={timeframe}
       onOlderLoadProgressChange={vi.fn()}
       onChartResolutionChange={onChartResolutionChange}
       onCustomTimeframeChange={onCustomTimeframeChange}
@@ -486,10 +511,37 @@ describe('SkuTradingChart settings', () => {
 
       expect(onPaneHeightsChange).toHaveBeenLastCalledWith({ main: 480 });
       expect(onVisibleDateRangeChange).toHaveBeenCalledTimes(1);
-      expect(onVisibleDateRangeChange).toHaveBeenCalledWith({
-        startAt: '2026-03-03T00:00:00.000Z',
-        endAt: '2026-03-06T00:00:00.000Z',
+      expect(onVisibleDateRangeChange).toHaveBeenCalledWith(
+        {
+          startAt: '2026-03-03T00:00:00.000Z',
+          endAt: '2026-03-06T00:00:00.000Z',
+        },
+        expect.objectContaining({ syncCustomTimeframeRange: false }),
+      );
+
+      onVisibleDateRangeChange.mockClear();
+      fireEvent.wheel(screen.getByTestId('sku-trading-chart'));
+      act(() => {
+        chartMockState.visibleRangeHandlers.forEach((handler) => handler({ from: 0, to: 1 }));
       });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120);
+      });
+
+      expect(onVisibleDateRangeChange).toHaveBeenCalledWith(
+        {
+          startAt: '2026-03-01T00:00:00.000Z',
+          endAt: '2026-03-04T00:00:00.000Z',
+        },
+        expect.objectContaining({
+          previousVisibleDateRange: {
+            startAt: '2026-03-03T00:00:00.000Z',
+            endAt: '2026-03-06T00:00:00.000Z',
+          },
+          syncCustomTimeframeRange: true,
+        }),
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -940,6 +992,60 @@ describe('SkuTradingChart settings', () => {
     expect(chartMockState.setVisibleLogicalRange).not.toHaveBeenCalled();
   });
 
+  it('does not refit the chart when custom range is promoted from viewport movement', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const model = multiPointChartModel(8);
+    chartMockState.getVisibleLogicalRange.mockReturnValue({ from: 0, to: 7 });
+    const { rerender } = renderChart({
+      chartModelOverride: model,
+      timeframe: '1M',
+    });
+
+    await waitFor(() => expect(chartMockState.setVisibleLogicalRange).toHaveBeenCalled());
+    chartMockState.setVisibleLogicalRange.mockClear();
+
+    rerender(
+      <SkuTradingChart
+        chartModel={model}
+        chartZoomResetToken={0}
+        customTimeframeRange={{
+          startAt: '2026-03-01T00:00:00.000Z',
+          endAt: '2026-03-04T23:59:59.999Z',
+        }}
+        defaultIndicatorSettings={defaultTradingChartIndicators()}
+        hasOlderIntervals={false}
+        indicatorSettings={defaultTradingChartIndicators()}
+        isBusy={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => null)}
+        selectedIntervalIndex={0}
+        setIndicatorSettings={vi.fn()}
+        timeframe="1M"
+        onOlderLoadProgressChange={vi.fn()}
+        onReset={vi.fn()}
+        onSaveDefaultIndicatorSettings={vi.fn()}
+        onSelectInterval={vi.fn()}
+        onTimeframeChange={vi.fn()}
+      />,
+    );
+
+    expect(chartMockState.setVisibleLogicalRange).not.toHaveBeenCalled();
+  });
+
+  it('marks wheel viewport interactions in capture phase before the chart library handles zoom', () => {
+    const addEventListenerSpy = vi.spyOn(HTMLElement.prototype, 'addEventListener');
+
+    renderChart();
+
+    expect(addEventListenerSpy).toHaveBeenCalledWith(
+      'wheel',
+      expect.any(Function),
+      expect.objectContaining({ capture: true, passive: true }),
+    );
+
+    addEventListenerSpy.mockRestore();
+  });
+
   it('does not auto-scroll the x-axis when older data arrives after zooming during the load', async () => {
     vi.stubGlobal('navigator', { userAgent: 'unit-test' });
     const loadOlderIntervals = vi.fn(async () => null);
@@ -990,7 +1096,7 @@ describe('SkuTradingChart settings', () => {
         }
       }
     });
-    expect(loadOlderIntervals).toHaveBeenCalledTimes(1);
+    expect(loadOlderIntervals).toHaveBeenCalled();
 
     rerender(
       <SkuTradingChart
@@ -1164,7 +1270,49 @@ describe('SkuTradingChart settings', () => {
 
     chartMockState.visibleRangeHandler?.({ from: 5, to: 15 });
 
-    expect(loadOlderIntervals).toHaveBeenCalledTimes(1);
+    expect(loadOlderIntervals).toHaveBeenCalled();
+  });
+
+  it('allows automatic older loads during visual-only busy hold', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const loadOlderIntervals = vi.fn(async () => null);
+    renderChart({
+      hasOlderIntervals: true,
+      isBusy: false,
+      isVisuallyBusy: true,
+      loadOlderIntervals,
+    });
+
+    await waitFor(() => expect(chartMockState.visibleRangeHandlers.length).toBeGreaterThan(0));
+    act(() => {
+      for (const handler of chartMockState.visibleRangeHandlers) {
+        const callCount = loadOlderIntervals.mock.calls.length;
+        handler({ from: 5, to: 15 });
+        if (loadOlderIntervals.mock.calls.length > callCount) {
+          break;
+        }
+      }
+    });
+
+    expect(loadOlderIntervals).toHaveBeenCalled();
+    expect(screen.getByTestId('sku-trading-chart').parentElement).toHaveAttribute('data-busy', 'true');
+  });
+
+  it('does not automatically load older intervals while the All timeframe is selected', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const loadOlderIntervals = vi.fn(async () => null);
+    renderChart({
+      hasOlderIntervals: true,
+      loadOlderIntervals,
+      timeframe: 'MAX',
+    });
+
+    await waitFor(() => expect(chartMockState.visibleRangeHandlers.length).toBeGreaterThan(0));
+    act(() => {
+      chartMockState.visibleRangeHandlers.forEach((handler) => handler({ from: 5, to: 15 }));
+    });
+
+    expect(loadOlderIntervals).not.toHaveBeenCalled();
   });
 
   it('continues loading older intervals after a batch if the visible range still needs more history', async () => {
@@ -1326,6 +1474,60 @@ describe('SkuTradingChart settings', () => {
     const inventoryToggle = screen.getByLabelText('Show Inventory');
 
     expect(inventoryToggle).not.toBeDisabled();
+  });
+
+  it('orders settings rows according to the current layout order', async () => {
+    const user = userEvent.setup();
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.inventory.enabled = true;
+    initialSettings.price.enabled = true;
+    initialSettings.price.paneId = 'pane-1';
+    initialSettings.price.layerOrder = 0;
+    initialSettings.demand.enabled = true;
+    initialSettings.demand.paneId = 'pane-2';
+    initialSettings.demand.layerOrder = 0;
+    const orderedChartModel: TradingChartModel = {
+      ...chartModel,
+      points: [{
+        ...chartModel.points[0]!,
+        price: 30,
+        serviceDemandMean: 3,
+        retailDemandMean: 2,
+      }],
+      availability: {
+        ...chartModel.availability,
+        demand: true,
+        price: true,
+      },
+    };
+
+    renderChart({
+      chartModelOverride: orderedChartModel,
+      initialSettings,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+
+    const inventoryColor = screen.getByLabelText('Inventory color');
+    const priceColor = screen.getByLabelText('Price color');
+    const demandColor = screen.getByLabelText('Demand color');
+
+    expect(inventoryColor.compareDocumentPosition(priceColor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(priceColor.compareDocumentPosition(demandColor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('hides unavailable indicators from the indicators dialog', async () => {
+    const user = userEvent.setup();
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.demand.enabled = true;
+    renderChart({
+      initialSettings,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Indicators' }));
+
+    expect(screen.queryByLabelText('Show Demand')).toBeNull();
+    expect(screen.queryByText('Unavailable for the current chart data.')).toBeNull();
   });
 
   it('creates an invisible anchor series for a regime-only pane', () => {

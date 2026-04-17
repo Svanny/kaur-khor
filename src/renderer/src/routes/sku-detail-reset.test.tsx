@@ -50,6 +50,44 @@ vi.mock('./sku-detail/view-model', () => ({
 }));
 
 vi.mock('./sku-detail/bootstrap', () => ({
+  buildSkuDetailBootstrapPreview: vi.fn(() => ({
+    snapshot: {
+      skus: [
+        {
+          skuId: 'sku-1',
+          name: 'SKU 1',
+          description: 'Cotton tee',
+          unitsInStock: 10,
+          costPerUnit: 4,
+          soldAsProduct: true,
+          productPrice: 9,
+          leadTimeMeanDays: 5,
+          leadTimeStdDays: 1,
+        },
+      ],
+      services: [],
+      ranking: [],
+      sist: null,
+    },
+    detail: null,
+    detailPage: null,
+    diagnostics: null,
+    observations: [],
+    linkedServiceDetails: [],
+    uiState: 'ready',
+    workspaceSummary: {
+      ownerSub: 'desktop-owner',
+      runId: 'run-1',
+      latestObservedAt: '2026-04-02T00:00:00Z',
+      skuCount: 1,
+      serviceCount: 0,
+      intervalCount: 0,
+      pendingReorderCount: 0,
+      topRegime: 'normal',
+      highRiskSkuIds: [],
+      skuSummaries: [],
+    },
+  })),
   bootstrapSkuDetail: vi.fn(async () => ({
     snapshot: {
       skus: [

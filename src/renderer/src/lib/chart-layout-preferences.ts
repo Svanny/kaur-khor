@@ -12,6 +12,11 @@ export interface ChartVisibleDateRange {
   endAt: string;
 }
 
+export interface ChartLayoutPreferenceMergeOptions {
+  previousVisibleDateRange?: ChartVisibleDateRange | null;
+  syncCustomTimeframeRange?: boolean;
+}
+
 export interface PersistedChartLayoutPreferences {
   timeframe: ChartTimeframe;
   customTimeframeRange: ChartCustomTimeframeRange | null;
@@ -135,6 +140,67 @@ export function chartLayoutPreferencesEqual(
   return leftPaneHeightEntries.every(([paneId, height]) => right.paneHeights[paneId] === height);
 }
 
+export function mergeChartLayoutPreferencesWithViewportSync(
+  current: PersistedChartLayoutPreferences,
+  next: Partial<PersistedChartLayoutPreferences>,
+  timeframe: ChartTimeframe,
+  options: ChartLayoutPreferenceMergeOptions = {},
+): {
+  preferences: PersistedChartLayoutPreferences;
+  promotedCustomTimeframeRange: ChartCustomTimeframeRange | null;
+} {
+  const hasCustomTimeframeRangeUpdate = Object.prototype.hasOwnProperty.call(next, 'customTimeframeRange');
+  const nextVisibleDateRange = next.visibleDateRange;
+  const previousVisibleDateRange = current.visibleDateRange ?? options.previousVisibleDateRange ?? null;
+  const shouldSyncCustomTimeframeRange = timeframe !== 'MAX' && (options.syncCustomTimeframeRange ?? true);
+  let promotedCustomTimeframeRange: ChartCustomTimeframeRange | null = null;
+
+  if (
+    shouldSyncCustomTimeframeRange &&
+    !hasCustomTimeframeRangeUpdate &&
+    nextVisibleDateRange != null &&
+    current.customTimeframeRange != null
+  ) {
+    promotedCustomTimeframeRange = nextVisibleDateRange;
+  } else if (
+    shouldSyncCustomTimeframeRange &&
+    !hasCustomTimeframeRangeUpdate &&
+    nextVisibleDateRange != null &&
+    current.customTimeframeRange == null &&
+    previousVisibleDateRange == null
+  ) {
+    promotedCustomTimeframeRange = null;
+  } else if (
+    shouldSyncCustomTimeframeRange &&
+    !hasCustomTimeframeRangeUpdate &&
+    nextVisibleDateRange != null &&
+    current.customTimeframeRange == null &&
+    previousVisibleDateRange != null
+  ) {
+    const nextStart = Date.parse(nextVisibleDateRange.startAt);
+    const nextEnd = Date.parse(nextVisibleDateRange.endAt);
+    const currentStart = Date.parse(previousVisibleDateRange.startAt);
+    const currentEnd = Date.parse(previousVisibleDateRange.endAt);
+    const extendsViewport =
+      (Number.isFinite(nextStart) && Number.isFinite(currentStart) && nextStart < currentStart) ||
+      (Number.isFinite(nextEnd) && Number.isFinite(currentEnd) && nextEnd > currentEnd);
+    if (extendsViewport) {
+      promotedCustomTimeframeRange = nextVisibleDateRange;
+    }
+  }
+
+  return {
+    preferences: normalizeChartLayoutPreferences({
+      ...current,
+      ...next,
+      customTimeframeRange: hasCustomTimeframeRangeUpdate
+        ? next.customTimeframeRange ?? null
+        : promotedCustomTimeframeRange ?? current.customTimeframeRange,
+    }),
+    promotedCustomTimeframeRange,
+  };
+}
+
 export function readEntityChartLayoutPreferences(
   subtype: ChartSettingsSubtype,
   subjectId: string,
@@ -167,6 +233,17 @@ export function readSubtypeDefaultChartLayoutPreferences(subtype: ChartSettingsS
   const record = readStorageRecord<PersistedChartLayoutPreferences>(window.localStorage, SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY);
   const persisted = record[subtype];
   return persisted ? normalizeChartLayoutPreferences(persisted) : null;
+}
+
+export function resolveEntityChartLayoutPreferences(
+  subtype: ChartSettingsSubtype,
+  subjectId: string,
+) {
+  return normalizeChartLayoutPreferences(
+    readEntityChartLayoutPreferences(subtype, subjectId) ??
+    readSubtypeDefaultChartLayoutPreferences(subtype) ??
+    defaultChartLayoutPreferences(),
+  );
 }
 
 export function writeSubtypeDefaultChartLayoutPreferences(

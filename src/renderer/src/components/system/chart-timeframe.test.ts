@@ -49,4 +49,24 @@ describe('chart timeframe helpers', () => {
       timeframe: 'Recent',
     })).toBe(true);
   });
+
+  test('can require Recent to satisfy an explicit custom boundary', () => {
+    expect(isChartTimeframeSatisfied({
+      boundary: new Date('2026-02-01T00:00:00.000Z'),
+      hasOlder: true,
+      loadedIntervalCount: 20,
+      oldestIntervalAt: '2026-03-01T00:00:00.000Z',
+      respectRecentBoundary: true,
+      timeframe: 'Recent',
+    })).toBe(false);
+
+    expect(isChartTimeframeSatisfied({
+      boundary: new Date('2026-02-01T00:00:00.000Z'),
+      hasOlder: true,
+      loadedIntervalCount: 40,
+      oldestIntervalAt: '2026-01-15T00:00:00.000Z',
+      respectRecentBoundary: true,
+      timeframe: 'Recent',
+    })).toBe(true);
+  });
 });

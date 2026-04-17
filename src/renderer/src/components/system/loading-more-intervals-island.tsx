@@ -6,8 +6,6 @@ const LOADING_ISLAND_MIN_VISIBLE_MS = 450;
 
 export function LoadingMoreIntervalsIsland({
   className,
-  currentBatch,
-  totalBatches,
   visible,
 }: {
   className?: string;
@@ -15,13 +13,6 @@ export function LoadingMoreIntervalsIsland({
   totalBatches?: number | null;
   visible: boolean;
 }) {
-  const incomingProgress =
-    typeof currentBatch === 'number' &&
-    typeof totalBatches === 'number' &&
-    totalBatches > 1
-      ? { current: Math.max(1, currentBatch), total: totalBatches }
-      : null;
-  const [lastProgress, setLastProgress] = useState<typeof incomingProgress>(null);
   const [renderVisible, setRenderVisible] = useState(visible);
   const [visibleSince, setVisibleSince] = useState<number | null>(() => (visible ? Date.now() : null));
 
@@ -43,25 +34,11 @@ export function LoadingMoreIntervalsIsland({
     return () => window.clearTimeout(timeout);
   }, [renderVisible, visible, visibleSince]);
 
-  useEffect(() => {
-    if (!renderVisible) {
-      setLastProgress(null);
-      return;
-    }
-    if (incomingProgress) {
-      setLastProgress(incomingProgress);
-    }
-  }, [incomingProgress?.current, incomingProgress?.total, renderVisible]);
-
   if (!renderVisible) {
     return null;
   }
 
-  const displayProgress = incomingProgress ?? lastProgress;
   const label = 'Loading data';
-  const progressLabel = displayProgress
-    ? `[${displayProgress.current}/${displayProgress.total}]`
-    : null;
 
   return (
     <div
@@ -74,7 +51,6 @@ export function LoadingMoreIntervalsIsland({
       <div className="inline-flex items-center gap-3 rounded-[1.2rem] border border-[rgba(95,61,39,0.28)] bg-[rgba(63,39,25,0.96)] px-4 py-3 text-sm font-medium text-[rgba(255,248,241,0.98)] shadow-[0_20px_44px_rgba(48,31,20,0.28)] backdrop-blur-[14px]">
         <StatusLoadingIcon className="size-4 animate-spin text-[rgba(255,232,209,0.95)]" />
         <span>{label}</span>
-        {progressLabel ? <span className="pl-2 text-right tabular-nums">{progressLabel}</span> : null}
       </div>
     </div>
   );

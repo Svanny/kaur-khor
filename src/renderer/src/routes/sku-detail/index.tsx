@@ -1,37 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, generatePath, useParams, useSearchParams } from 'react-router-dom';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
-import { type ChartCustomTimeframeRange, type ChartTimeframe } from '@/components/system/chart-timeframe';
-import {
-  DEFAULT_CHART_RESOLUTION,
-  type ChartCustomResolution,
-  type ChartResolutionOption,
-} from '@/components/system/chart-resolution';
 import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
+import { ChartLedgerOverlay, useHeldTradingChartBusy, useTradingChartController } from '@/components/system/trading-chart';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  chartLayoutPreferencesEqual,
-  defaultChartLayoutPreferences,
-  normalizeChartLayoutPreferences,
-  readEntityChartLayoutPreferences,
-  readSubtypeDefaultChartLayoutPreferences,
-  writeEntityChartLayoutPreferences,
-  writeSubtypeDefaultChartLayoutPreferences,
-  type PersistedChartLayoutPreferences,
-} from '@/lib/chart-layout-preferences';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
+import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { readSkuAction } from '@/lib/navigation-state';
 import { hasActiveSenaSku } from '@/lib/sena-catalog';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from '../loading-wireframes';
 import { SkuDetailActions } from './actions';
-import { bootstrapSkuDetail, type BootstrapSkuDetailResult } from './bootstrap';
+import { bootstrapSkuDetail, buildSkuDetailBootstrapPreview, type BootstrapSkuDetailResult } from './bootstrap';
 import { SkuDetailEvidence } from './evidence';
 import { SkuDetailExposure } from './exposure';
 import { SkuDetailHero } from './hero';
@@ -70,14 +56,6 @@ function buildSkuDetailSearchParams(
     nextSearchParams.delete('chart');
   }
   return nextSearchParams;
-}
-
-function resolveSkuChartLayoutPreferences(skuId: string): PersistedChartLayoutPreferences {
-  return (
-    readEntityChartLayoutPreferences('sku', skuId) ??
-    readSubtypeDefaultChartLayoutPreferences('sku') ??
-    defaultChartLayoutPreferences()
-  );
 }
 
 function SkuDetailLoadingState({
@@ -141,15 +119,10 @@ function SkuDetailScreen() {
   const [bootstrap, setBootstrap] = useState<BootstrapSkuDetailResult | null>(() => emptyBootstrap());
   const [selectedIntervalIndex, setSelectedIntervalIndex] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
-  const initialChartLayoutPreferences = resolveSkuChartLayoutPreferences(skuId);
-  const [timeframe, setTimeframe] = useState<ChartTimeframe>(initialChartLayoutPreferences.timeframe);
-  const [customTimeframeRange, setCustomTimeframeRange] = useState<ChartCustomTimeframeRange | null>(initialChartLayoutPreferences.customTimeframeRange);
-  const [chartResolution, setChartResolution] = useState<ChartResolutionOption>(initialChartLayoutPreferences.chartResolution);
-  const [customChartResolution, setCustomChartResolution] = useState<ChartCustomResolution | null>(initialChartLayoutPreferences.customChartResolution);
-  const [chartLayoutPreferences, setChartLayoutPreferences] = useState<PersistedChartLayoutPreferences>(initialChartLayoutPreferences);
-  const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
-  const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
+  const chartController = useTradingChartController({
+    subjectId: skuId,
+    subtype: 'sku',
+  });
   const actionMode = readSkuAction(searchParams);
   const isLedgerExpanded = chartSearchValue(searchParams) === 'expanded';
 
@@ -193,25 +166,30 @@ function SkuDetailScreen() {
     if (!skuId) {
       return;
     }
+    const cachedDetailPage =
+      typeof window === 'undefined'
+        ? null
+        : readPersistedSenaDetailPage({
+          beforeIntervalIndex: null,
+          entityId: skuId,
+          entityType: 'sku',
+          freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(inventory.workspaceSummary),
+          limit: INTERVAL_PAGE_SIZE,
+          storage: window.localStorage,
+        });
     setBootstrap(emptyBootstrap());
+    setBootstrap(buildSkuDetailBootstrapPreview({
+      catalog: inventory.catalog,
+      detailPage: cachedDetailPage,
+      diagnostics: inventory.diagnostics,
+      observations: inventory.observations,
+      reports: inventory.reports,
+      skuId,
+      workspaceSummary: inventory.workspaceSummary,
+    }));
     setSelectedIntervalIndex(null);
-    const nextLayoutPreferences = resolveSkuChartLayoutPreferences(skuId);
-    setChartLayoutPreferences(nextLayoutPreferences);
-    setTimeframe(nextLayoutPreferences.timeframe);
-    setCustomTimeframeRange(nextLayoutPreferences.customTimeframeRange);
-    setChartResolution(nextLayoutPreferences.chartResolution);
-    setCustomChartResolution(nextLayoutPreferences.customChartResolution);
-    setChartZoomResetToken(0);
-    setPendingTimeframe(null);
     void loadPage();
   }, [inventory.catalog, skuId]);
-
-  useEffect(() => {
-    if (!skuId) {
-      return;
-    }
-    writeEntityChartLayoutPreferences('sku', skuId, chartLayoutPreferences);
-  }, [chartLayoutPreferences, skuId]);
 
   const snapshotSku = bootstrap?.snapshot.skus.find((entry) => entry.skuId === skuId) ?? null;
   const {
@@ -221,13 +199,14 @@ function SkuDetailScreen() {
     isLoadingOlder,
     loadOlder,
     resolvedTimeframe,
+    resolvedTimeframeCacheKey,
     resetHydratedDetails,
     timeframeHydrationProgress,
   } = useTimeframedIntervalHistory({
     fetchInitialPage: async (limit = INTERVAL_PAGE_SIZE) =>
-      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit }), limit),
+      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { limit, strategy: 'network-only' }), limit),
     fetchOlderPage: async (beforeIntervalIndex, limit = INTERVAL_PAGE_SIZE) =>
-      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { beforeIntervalIndex, limit }), limit),
+      normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId, { beforeIntervalIndex, limit, strategy: 'network-only' }), limit),
     getLoadedIntervalCount: (page) => page?.detail.demandPosterior.length ?? 0,
     getOldestIntervalAt: (page) =>
       page?.detail.demandPosterior[0]?.startAt ?? page?.detail.demandPosterior[0]?.endAt ?? null,
@@ -237,92 +216,32 @@ function SkuDetailScreen() {
     latestObservedAt: bootstrap?.workspaceSummary?.latestObservedAt,
     mergeDetails: mergeSkuDetailPages,
     onPruneTransition: () => inventory.clearSenaSkuDetailCache(skuId),
-    timeframe,
-    timeframeBoundaryOverride: customTimeframeRange ? new Date(customTimeframeRange.startAt) : undefined,
-    timeframeCacheKey: customTimeframeRange ? `Custom:${customTimeframeRange.startAt}:${customTimeframeRange.endAt}` : undefined,
+    timeframe: chartController.timeframe,
+    timeframeBoundaryOverride: chartController.timeframeBoundaryOverride,
+    timeframeCacheKey: chartController.timeframeCacheKey,
   });
   const effectiveIsHydratingDetails =
-    isHydratingDetails || timeframeHydrationProgress != null || pendingTimeframe != null;
+    isHydratingDetails ||
+    timeframeHydrationProgress != null ||
+    chartController.pendingTimeframe != null ||
+    chartController.pendingCustomTimeframeRange != null;
+  const isChartLoading =
+    effectiveIsHydratingDetails ||
+    isLoadingOlder ||
+    chartController.olderLoadProgress != null;
+  const heldIsChartLoading = useHeldTradingChartBusy(isChartLoading);
 
   useEffect(() => {
-    if (pendingTimeframe == null) {
-      return;
-    }
-    if (timeframe !== pendingTimeframe) {
-      return;
-    }
-    if (
-      resolvedTimeframe === pendingTimeframe ||
-      isHydratingDetails ||
-      timeframeHydrationProgress != null
-    ) {
-      setPendingTimeframe(null);
-    }
-  }, [isHydratingDetails, pendingTimeframe, resolvedTimeframe, timeframe, timeframeHydrationProgress]);
-
-  function handleTimeframeChange(nextTimeframe: ChartTimeframe) {
-    if (nextTimeframe === timeframe) {
-      if (customTimeframeRange == null) {
-        return;
-      }
-    } else {
-      setPendingTimeframe(nextTimeframe);
-      setTimeframe(nextTimeframe);
-    }
-    setCustomTimeframeRange(null);
-    setChartLayoutPreferences((current) => ({
-      ...current,
-      timeframe: nextTimeframe,
-      customTimeframeRange: null,
-      visibleDateRange: null,
-    }));
-    setOlderLoadProgress(null);
-    setChartZoomResetToken((current) => current + 1);
-  }
-
-  function handleCustomTimeframeChange(nextRange: ChartCustomTimeframeRange | null) {
-    setOlderLoadProgress(null);
-    setCustomTimeframeRange(nextRange);
-    setChartLayoutPreferences((current) => ({
-      ...current,
-      customTimeframeRange: nextRange,
-      visibleDateRange: nextRange,
-    }));
-    if (nextRange == null && timeframe === 'Recent') {
-      return;
-    }
-    setChartZoomResetToken((current) => current + 1);
-  }
-
-  function handleChartResolutionChange(nextResolution: ChartResolutionOption, nextCustom: ChartCustomResolution | null) {
-    setChartResolution(nextResolution);
-    setCustomChartResolution(nextResolution === 'Custom' ? nextCustom : null);
-    setChartLayoutPreferences((current) => ({
-      ...current,
-      chartResolution: nextResolution,
-      customChartResolution: nextResolution === 'Custom' ? nextCustom : null,
-    }));
-    setChartZoomResetToken((current) => current + 1);
-  }
-
-  function handleChartLayoutPreferencesChange(next: Partial<PersistedChartLayoutPreferences>) {
-    setChartLayoutPreferences((current) => {
-      const normalized = normalizeChartLayoutPreferences({
-        ...current,
-        ...next,
-      });
-      return chartLayoutPreferencesEqual(current, normalized) ? current : normalized;
+    chartController.settlePendingTimeframe({
+      isHydratingDetails,
+      resolvedTimeframe,
+      resolvedTimeframeCacheKey,
+      timeframeHydrationProgress,
     });
-  }
-
-  function handleSaveDefaultChartLayoutPreferences(next: PersistedChartLayoutPreferences) {
-    writeSubtypeDefaultChartLayoutPreferences('sku', next);
-  }
+  }, [chartController, isHydratingDetails, resolvedTimeframe, resolvedTimeframeCacheKey, timeframeHydrationProgress]);
 
   async function handleResetCharts() {
-    setOlderLoadProgress(null);
-    await resetHydratedDetails();
-    setChartZoomResetToken((current) => current + 1);
+    await chartController.handleResetCharts(resetHydratedDetails);
   }
 
   const model = useMemo(() => {
@@ -383,9 +302,9 @@ function SkuDetailScreen() {
   return (
     <WorkspacePage>
       <LoadingMoreIntervalsIsland
-        currentBatch={(timeframeHydrationProgress ?? olderLoadProgress)?.current ?? null}
-        totalBatches={(timeframeHydrationProgress ?? olderLoadProgress)?.total ?? null}
-        visible={effectiveIsHydratingDetails || isLoadingOlder || olderLoadProgress != null}
+        currentBatch={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.current ?? null}
+        totalBatches={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.total ?? null}
+        visible={heldIsChartLoading}
       />
       <div className="grid gap-6">
         {bootstrap.uiState === 'running' || isRefreshing ? (
@@ -423,27 +342,27 @@ function SkuDetailScreen() {
             <div>
               {!isLedgerExpanded ? (
                 <SkuDetailLedger
-                  chartLayoutPreferences={chartLayoutPreferences}
-                  chartZoomResetToken={chartZoomResetToken}
-                  chartResolution={chartResolution}
-                  customChartResolution={customChartResolution}
+                  chartLayoutPreferences={chartController.chartLayoutPreferences}
+                  chartZoomResetToken={chartController.chartZoomResetToken}
+                  chartResolution={chartController.chartResolution}
+                  customChartResolution={chartController.customChartResolution}
                   hasOlderIntervals={hasOlder}
                   isHydratingDetails={effectiveIsHydratingDetails}
+                  isVisuallyBusy={heldIsChartLoading}
                   isLoadingOlderIntervals={isLoadingOlder}
                   loadOlderIntervals={loadOlder}
                   model={model}
-                  customTimeframeRange={customTimeframeRange}
-                  onChartLayoutPreferencesChange={handleChartLayoutPreferencesChange}
-                  onOlderLoadProgressChange={setOlderLoadProgress}
-                  onCustomTimeframeChange={handleCustomTimeframeChange}
-                  onChartResolutionChange={handleChartResolutionChange}
+                  customTimeframeRange={chartController.customTimeframeRange}
+                  onChartLayoutPreferencesChange={chartController.handleChartLayoutPreferencesChange}
+                  onOlderLoadProgressChange={chartController.setOlderLoadProgress}
+                  onCustomTimeframeChange={chartController.handleCustomTimeframeChange}
+                  onChartResolutionChange={chartController.handleChartResolutionChange}
                   onResetCharts={() => void handleResetCharts()}
-                  onSaveDefaultChartLayoutPreferences={handleSaveDefaultChartLayoutPreferences}
-                  onTimeframeChange={handleTimeframeChange}
+                  onTimeframeChange={chartController.handleTimeframeChange}
                   onToggleExpand={() => setLedgerExpanded(true)}
                   selectedIntervalIndex={selectedIntervalIndex}
                   setSelectedIntervalIndex={setSelectedIntervalIndex}
-                  timeframe={timeframe}
+                  timeframe={chartController.timeframe}
                 />
               ) : (
                 <div
@@ -461,45 +380,35 @@ function SkuDetailScreen() {
         </div>
       </div>
       {isLedgerExpanded ? (
-        <div
-          aria-label={`Expanded ledger for ${model.identity.name}`}
-          aria-modal="true"
-          className="fixed inset-0 z-50 p-4"
-          role="dialog"
+        <ChartLedgerOverlay
+          ariaLabel={`Expanded ledger for ${model.identity.name}`}
+          onClose={() => setLedgerExpanded(false, true)}
         >
-          <button
-            aria-label="Close expanded ledger"
-            className="absolute inset-0 bg-[rgba(29,20,12,0.46)] backdrop-blur-sm"
-            onClick={() => setLedgerExpanded(false, true)}
-            type="button"
-          />
-          <div className="relative z-10 flex h-full w-full">
             <SkuDetailLedger
-              chartLayoutPreferences={chartLayoutPreferences}
-              chartZoomResetToken={chartZoomResetToken}
-              chartResolution={chartResolution}
-              customChartResolution={customChartResolution}
+              chartLayoutPreferences={chartController.chartLayoutPreferences}
+              chartZoomResetToken={chartController.chartZoomResetToken}
+              chartResolution={chartController.chartResolution}
+              customChartResolution={chartController.customChartResolution}
               expanded
               hasOlderIntervals={hasOlder}
               isHydratingDetails={effectiveIsHydratingDetails}
+              isVisuallyBusy={heldIsChartLoading}
               isLoadingOlderIntervals={isLoadingOlder}
               loadOlderIntervals={loadOlder}
               model={model}
-              customTimeframeRange={customTimeframeRange}
-              onChartLayoutPreferencesChange={handleChartLayoutPreferencesChange}
-              onOlderLoadProgressChange={setOlderLoadProgress}
-              onCustomTimeframeChange={handleCustomTimeframeChange}
-              onChartResolutionChange={handleChartResolutionChange}
+              customTimeframeRange={chartController.customTimeframeRange}
+              onChartLayoutPreferencesChange={chartController.handleChartLayoutPreferencesChange}
+              onOlderLoadProgressChange={chartController.setOlderLoadProgress}
+              onCustomTimeframeChange={chartController.handleCustomTimeframeChange}
+              onChartResolutionChange={chartController.handleChartResolutionChange}
               onResetCharts={() => void handleResetCharts()}
-              onSaveDefaultChartLayoutPreferences={handleSaveDefaultChartLayoutPreferences}
-              onTimeframeChange={handleTimeframeChange}
+              onTimeframeChange={chartController.handleTimeframeChange}
               onToggleExpand={() => setLedgerExpanded(false, true)}
               selectedIntervalIndex={selectedIntervalIndex}
               setSelectedIntervalIndex={setSelectedIntervalIndex}
-              timeframe={timeframe}
+              timeframe={chartController.timeframe}
             />
-          </div>
-        </div>
+        </ChartLedgerOverlay>
       ) : null}
     </WorkspacePage>
   );

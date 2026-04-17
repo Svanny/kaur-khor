@@ -913,7 +913,6 @@ describe('SKU detail SENA helpers', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Indicators' }));
     const indicatorsDialog = screen.getByRole('dialog', { name: 'Chart indicators' });
     expect(within(indicatorsDialog).getByText('Inventory')).toBeInTheDocument();
-    expect(within(indicatorsDialog).getByText('Regime')).toBeInTheDocument();
     expect(within(indicatorsDialog).getByText('Stock')).toBeInTheDocument();
     expect(within(indicatorsDialog).getByText('Flow')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Show Demand' })).toBeInTheDocument();
@@ -998,7 +997,7 @@ describe('SKU detail SENA helpers', () => {
 
     render(<LedgerHarness />);
 
-    fireEvent.click(screen.getByRole('button', { name: '1M' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '1M' })[0]!);
 
     expect(handleTimeframeChange).toHaveBeenCalledWith('1M');
   });

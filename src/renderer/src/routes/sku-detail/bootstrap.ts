@@ -1,6 +1,7 @@
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type {
   SenaAdjustmentSignal,
+  SenaCatalog,
   SenaDiagnostics,
   SenaObservationInput,
   SenaObservationRecord,
@@ -195,6 +196,47 @@ export async function reloadSenaSkuData({
   const observations = await inventory.listSenaObservations();
   const linkedServiceDetails = await loadLinkedServiceDetails(inventory, snapshot, skuId);
   return { workspaceSummary, detailPage, detail, diagnostics, observations, linkedServiceDetails };
+}
+
+export function buildSkuDetailBootstrapPreview({
+  catalog,
+  detailPage,
+  diagnostics,
+  observations,
+  reports,
+  skuId,
+  workspaceSummary,
+}: {
+  catalog: SenaCatalog | null;
+  detailPage: SenaSkuDetailPage | null;
+  diagnostics: SenaDiagnostics | null;
+  observations: SenaObservationRecord[];
+  reports: StockReport[];
+  skuId: string;
+  workspaceSummary: SenaWorkspaceSummary | null;
+}): BootstrapSkuDetailResult | null {
+  const visibleCatalog = activeSenaCatalog(catalog) ?? catalog;
+  if (!visibleCatalog) {
+    return null;
+  }
+  const snapshot = projectInventorySnapshotFromSena(visibleCatalog, observations);
+  const snapshotSku = snapshot.skus.find((entry) => entry.skuId === skuId);
+  if (!snapshotSku) {
+    return null;
+  }
+  return {
+    snapshot,
+    reports,
+    observations,
+    workspaceSummary,
+    detailPage,
+    detail: detailPage?.detail ?? null,
+    diagnostics,
+    linkedServiceDetails: [],
+    uiState: observations.length < 2 ? 'needs_observations' : 'bootstrapping',
+    error: null,
+    catalogHash: hashSenaCatalog(catalog),
+  };
 }
 
 export async function bootstrapSkuDetail({

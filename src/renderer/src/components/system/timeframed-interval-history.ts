@@ -46,6 +46,9 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   const [resolvedTimeframe, setResolvedTimeframe] = useState<ChartTimeframe | null>(
     initialPage ? 'Recent' : null,
   );
+  const [resolvedTimeframeCacheKey, setResolvedTimeframeCacheKey] = useState<string | null>(
+    initialPage ? 'Recent' : null,
+  );
   const pageRef = useRef<TPage | null>(initialPage);
   const isLoadingOlderRef = useRef(false);
   const timeframeCacheRef = useRef<Record<string, TPage | null>>({ Recent: initialPage });
@@ -147,6 +150,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
         hasOlder: nextPage.hasOlder,
         loadedIntervalCount: getLoadedIntervalCountRef.current(nextPage),
         oldestIntervalAt: getOldestIntervalAtRef.current(nextPage),
+        respectRecentBoundary: Boolean(targetBoundaryOverride),
         timeframe: targetTimeframe,
       })
     ) {
@@ -158,6 +162,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
             hasOlder: nextPage.hasOlder,
             loadedIntervalCount: getLoadedIntervalCountRef.current(nextPage),
             oldestIntervalAt: getOldestIntervalAtRef.current(nextPage),
+            respectRecentBoundary: Boolean(targetBoundaryOverride),
             timeframe: targetTimeframe,
           })
         ) {
@@ -211,6 +216,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     }
     setTimeframeHydrationProgress(null);
     setResolvedTimeframe(targetTimeframe);
+    setResolvedTimeframeCacheKey(targetCacheKey);
     return nextPage;
   }, [hydrateTimeframeSequentially, initialPage, intervalCount, latestObservedAt, loadOlderBatch]);
 
@@ -233,6 +239,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
       setPage(null);
       setTimeframeHydrationProgress(null);
       setResolvedTimeframe(null);
+      setResolvedTimeframeCacheKey(null);
       void onPruneTransitionRef.current?.();
     }
 
@@ -246,6 +253,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
         hasOlder: cachedPage.hasOlder,
         loadedIntervalCount: getLoadedIntervalCountRef.current(cachedPage),
         oldestIntervalAt: getOldestIntervalAtRef.current(cachedPage),
+        respectRecentBoundary: Boolean(timeframeBoundaryOverride),
         timeframe,
       })
       : false;
@@ -254,6 +262,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
       setTimeframeHydrationProgress(null);
       setPage(cachedPage);
       setResolvedTimeframe(timeframe);
+      setResolvedTimeframeCacheKey(activeCacheKey);
       return () => {
         active = false;
       };
@@ -322,6 +331,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     loadOlder,
     page,
     resolvedTimeframe,
+    resolvedTimeframeCacheKey,
     resetHydratedDetails,
     timeframeHydrationProgress,
   };

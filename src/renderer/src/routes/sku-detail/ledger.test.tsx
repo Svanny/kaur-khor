@@ -45,7 +45,7 @@ vi.mock('./trading-chart-model', async () => {
   };
 });
 
-vi.mock('./trading-chart', () => ({
+vi.mock('@/components/system/trading-chart/chart', () => ({
   SkuTradingChart: ({
     chartResolution,
     customChartResolution,
@@ -247,7 +247,11 @@ describe('SkuDetailLedger', () => {
 
     await user.click(screen.getByRole('button', { name: 'Update layout preferences' }));
 
-    expect(onChartLayoutPreferencesChange).toHaveBeenNthCalledWith(1, { visibleDateRange: { startAt: '2026-02-01T00:00:00.000Z', endAt: '2026-03-01T00:00:00.000Z' } });
+    expect(onChartLayoutPreferencesChange).toHaveBeenNthCalledWith(
+      1,
+      { visibleDateRange: { startAt: '2026-02-01T00:00:00.000Z', endAt: '2026-03-01T00:00:00.000Z' } },
+      undefined,
+    );
     expect(onChartLayoutPreferencesChange).toHaveBeenNthCalledWith(2, { paneHeights: { main: 320, 'pane-1': 120 } });
   });
 

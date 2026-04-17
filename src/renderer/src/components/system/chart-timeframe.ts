@@ -82,12 +82,14 @@ export function isChartTimeframeSatisfied({
   hasOlder,
   loadedIntervalCount,
   oldestIntervalAt,
+  respectRecentBoundary = false,
   timeframe,
   boundary,
 }: {
   hasOlder: boolean;
   loadedIntervalCount?: number;
   oldestIntervalAt: string | null;
+  respectRecentBoundary?: boolean;
   timeframe: ChartTimeframe;
   boundary: Date | null;
 }) {
@@ -97,7 +99,7 @@ export function isChartTimeframeSatisfied({
   if (timeframe === 'Recent' && (loadedIntervalCount ?? 0) < RECENT_TIMEFRAME_MIN_REPORTS) {
     return false;
   }
-  if (timeframe === 'Recent') {
+  if (timeframe === 'Recent' && !respectRecentBoundary) {
     return true;
   }
   if (timeframe === 'MAX') {
