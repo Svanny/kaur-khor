@@ -693,7 +693,7 @@ function InterfaceVisibilityPage({
             checked={showRightRailCards}
             disabled={interfaceVisibilityDisabled}
             helper="Show right rail cards"
-            hint="Displays supplemental side cards for context and quick actions."
+            hint="Displays supplemental side cards for analysis, performance, financials, and detail context."
             icon={<NavigationRightPanelIcon className="size-4" />}
             label="Show right rail cards"
             onCheckedChange={setShowRightRailCards}
@@ -771,7 +771,7 @@ function InterfaceVisibilityPage({
             checked={showHeartbeatRibbons}
             disabled={interfaceVisibilityDisabled}
             helper="Show heartbeats and ribbons"
-            hint="Shows heartbeat indicators and status ribbons throughout the shell."
+            hint="Shows heartbeat indicators and key-signal ribbons across detail, performance, financials, and update pages."
             icon={<EntitySignalIcon className="size-4" />}
             label="Show heartbeats and ribbons"
             onCheckedChange={setShowHeartbeatRibbons}
