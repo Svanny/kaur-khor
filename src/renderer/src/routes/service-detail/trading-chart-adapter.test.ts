@@ -41,7 +41,7 @@ describe('deriveServiceTradingChartModel', () => {
     expect(point.price).toBe(12);
     expect(point.serviceDemandMean).toBe(14);
     expect(point.availableCapacity).toBe(10);
-    expect(point.demandMinusAvailableCapacity).toBe(4);
+    expect(point.demandMinusAvailableCapacity).toBe(-4);
     expect(point.dominantRegime).toBe('promo');
     expect(chartModel.availability.price).toBe(true);
     expect(chartModel.availability.demand).toBe(true);

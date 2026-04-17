@@ -3,8 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaServiceDetail, SenaServiceDetailPage } from '@shared/sena';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
-import { type ChartTimeframe } from '@/components/system/chart-timeframe';
 import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
+import { ChartLedgerOverlay, useHeldTradingChartBusy, useTradingChartController } from '@/components/system/trading-chart';
 import { WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scroll';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
@@ -15,6 +15,7 @@ import { linkedSkuIdsForService } from '@/lib/sena-catalog';
 import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { readServiceAction } from '@/lib/navigation-state';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
+import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
@@ -109,13 +110,27 @@ export function ServiceDetailRoute() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selection, setSelection] = useState<ServiceInspectorSelection>({ type: 'overview' });
-  const [olderLoadProgress, setOlderLoadProgress] = useState<{ current: number; total: number } | null>(null);
-  const [timeframe, setTimeframe] = useState<ChartTimeframe>('Recent');
-  const [pendingTimeframe, setPendingTimeframe] = useState<ChartTimeframe | null>(null);
-  const [chartZoomResetToken, setChartZoomResetToken] = useState(0);
+  const chartController = useTradingChartController({
+    subjectId: serviceId,
+    subtype: 'service',
+  });
   const actionMode = readServiceAction(searchParams);
   const isLedgerExpanded = chartSearchValue(searchParams) === 'expanded';
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
+  const cachedRecentDetailPage = useMemo(
+    () =>
+      typeof window === 'undefined'
+        ? null
+        : readPersistedSenaDetailPage({
+          beforeIntervalIndex: null,
+          entityId: serviceId,
+          entityType: 'service',
+          freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary),
+          limit: INTERVAL_PAGE_SIZE,
+          storage: window.localStorage,
+        }),
+    [serviceId, workspaceSummary],
+  );
 
   function updateActionMode(nextMode: typeof actionMode, replace = false) {
     const nextSearchParams = buildServiceDetailSearchParams(searchParams, {
@@ -167,7 +182,7 @@ export function ServiceDetailRoute() {
 
   const fetchPageData = useCallback(async () => {
     const [nextDetail, nextSnapshot, nextReports] = await Promise.all([
-      loadSenaServiceDetail(serviceId, { limit: INTERVAL_PAGE_SIZE }).catch(() => null),
+      loadSenaServiceDetail(serviceId, { limit: INTERVAL_PAGE_SIZE, strategy: 'network-only' }).catch(() => null),
       snapshot ? Promise.resolve(snapshot) : projectedSnapshot ? Promise.resolve(projectedSnapshot) : loadInventorySnapshot(),
       reports.length > 0 ? Promise.resolve(reports) : listStockReports().catch(() => []),
     ]);
@@ -195,8 +210,7 @@ export function ServiceDetailRoute() {
 
     setIsLoading(true);
     setError(null);
-    setTimeframe('Recent');
-    setChartZoomResetToken(0);
+    setDetailPage(cachedRecentDetailPage);
 
     fetchPageData()
       .then(({ nextDetail, nextReports, nextSnapshot }) => {
@@ -221,7 +235,7 @@ export function ServiceDetailRoute() {
     return () => {
       cancelled = true;
     };
-  }, [fetchPageData, serviceId]);
+  }, [cachedRecentDetailPage, fetchPageData, serviceId]);
 
   const {
     detail,
@@ -229,18 +243,18 @@ export function ServiceDetailRoute() {
     isHydratingDetails,
     isLoadingOlder,
     loadOlder,
-    page: hydratedPage,
     resolvedTimeframe,
+    resolvedTimeframeCacheKey,
     resetHydratedDetails,
     timeframeHydrationProgress,
   } = useTimeframedIntervalHistory({
     fetchInitialPage: async (limit = INTERVAL_PAGE_SIZE) =>
       normalizeServiceDetailPage(
-        (await loadSenaServiceDetail(serviceId, { limit }).catch(() => null)) ?? null,
+        (await loadSenaServiceDetail(serviceId, { limit, strategy: 'network-only' }).catch(() => null)) ?? null,
       ),
     fetchOlderPage: async (beforeIntervalIndex, limit = INTERVAL_PAGE_SIZE) =>
       normalizeServiceDetailPage(
-        (await loadSenaServiceDetail(serviceId, { beforeIntervalIndex, limit }).catch(() => null)) ?? null,
+        (await loadSenaServiceDetail(serviceId, { beforeIntervalIndex, limit, strategy: 'network-only' }).catch(() => null)) ?? null,
       ),
     getLoadedIntervalCount: (page) => page?.detail.regimeTimeline.length ?? 0,
     getOldestIntervalAt: (page) => page?.detail.regimeTimeline[0]?.startAt ?? page?.detail.regimeTimeline[0]?.endAt ?? null,
@@ -249,46 +263,33 @@ export function ServiceDetailRoute() {
     latestObservedAt: workspaceSummary?.latestObservedAt,
     mergeDetails: mergeServiceDetailPages,
     onPruneTransition: () => clearSenaServiceDetailCache(serviceId),
-    timeframe,
+    timeframe: chartController.timeframe,
+    timeframeBoundaryOverride: chartController.timeframeBoundaryOverride,
+    timeframeCacheKey: chartController.timeframeCacheKey,
   });
   const effectiveIsHydratingDetails =
-    isHydratingDetails || timeframeHydrationProgress != null || pendingTimeframe != null;
+    isHydratingDetails ||
+    timeframeHydrationProgress != null ||
+    chartController.pendingTimeframe != null ||
+    chartController.pendingCustomTimeframeRange != null;
+  const isChartLoading =
+    effectiveIsHydratingDetails ||
+    isLoadingOlder ||
+    chartController.olderLoadProgress != null;
+  const heldIsChartLoading = useHeldTradingChartBusy(isChartLoading);
 
   useEffect(() => {
-    if (pendingTimeframe == null) {
-      return;
-    }
-    if (timeframe !== pendingTimeframe) {
-      return;
-    }
-    if (
-      resolvedTimeframe === pendingTimeframe ||
-      isHydratingDetails ||
-      timeframeHydrationProgress != null
-    ) {
-      setPendingTimeframe(null);
-    }
-  }, [isHydratingDetails, pendingTimeframe, resolvedTimeframe, timeframe, timeframeHydrationProgress]);
-
-  function handleTimeframeChange(nextTimeframe: ChartTimeframe) {
-    if (nextTimeframe === timeframe) {
-      return;
-    }
-    setOlderLoadProgress(null);
-    setPendingTimeframe(nextTimeframe);
-    setTimeframe(nextTimeframe);
-    setChartZoomResetToken((current) => current + 1);
-  }
+    chartController.settlePendingTimeframe({
+      isHydratingDetails,
+      resolvedTimeframe,
+      resolvedTimeframeCacheKey,
+      timeframeHydrationProgress,
+    });
+  }, [chartController, isHydratingDetails, resolvedTimeframe, resolvedTimeframeCacheKey, timeframeHydrationProgress]);
 
   async function handleResetCharts() {
-    setOlderLoadProgress(null);
-    await resetHydratedDetails();
-    setChartZoomResetToken((current) => current + 1);
+    await chartController.handleResetCharts(resetHydratedDetails);
   }
-
-  useEffect(() => {
-    setDetailPage(hydratedPage);
-  }, [hydratedPage]);
 
   const model = useMemo(() => {
     if (!service || !activeSnapshot) {
@@ -371,9 +372,9 @@ export function ServiceDetailRoute() {
   return (
     <WorkspacePage>
       <LoadingMoreIntervalsIsland
-        currentBatch={(timeframeHydrationProgress ?? olderLoadProgress)?.current ?? null}
-        totalBatches={(timeframeHydrationProgress ?? olderLoadProgress)?.total ?? null}
-        visible={effectiveIsHydratingDetails || isLoadingOlder || olderLoadProgress != null}
+        currentBatch={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.current ?? null}
+        totalBatches={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.total ?? null}
+        visible={heldIsChartLoading}
       />
       <div className="grid gap-6">
         {error ? (
@@ -400,19 +401,27 @@ export function ServiceDetailRoute() {
             <div>
               {!isLedgerExpanded ? (
                 <ServiceTradingChartLedger
-                  chartZoomResetToken={chartZoomResetToken}
+                  chartZoomResetToken={chartController.chartZoomResetToken}
+                  chartLayoutPreferences={chartController.chartLayoutPreferences}
+                  chartResolution={chartController.chartResolution}
+                  customChartResolution={chartController.customChartResolution}
                   hasOlderIntervals={hasOlder}
                   isHydratingDetails={effectiveIsHydratingDetails}
+                  isVisuallyBusy={heldIsChartLoading}
                   isLoadingOlderIntervals={isLoadingOlder}
                   loadOlderIntervals={loadOlder}
                   model={model}
-                  onOlderLoadProgressChange={setOlderLoadProgress}
+                  onChartLayoutPreferencesChange={chartController.handleChartLayoutPreferencesChange}
+                  onChartResolutionChange={chartController.handleChartResolutionChange}
+                  customTimeframeRange={chartController.customTimeframeRange}
+                  onOlderLoadProgressChange={chartController.setOlderLoadProgress}
+                  onCustomTimeframeChange={chartController.handleCustomTimeframeChange}
                   onResetCharts={() => void handleResetCharts()}
-                  onTimeframeChange={handleTimeframeChange}
+                  onTimeframeChange={chartController.handleTimeframeChange}
                   onToggleExpand={() => setLedgerExpanded(true)}
                   selection={selection}
                   setSelection={setSelection}
-                  timeframe={timeframe}
+                  timeframe={chartController.timeframe}
                 />
               ) : (
                 <div
@@ -430,37 +439,36 @@ export function ServiceDetailRoute() {
         </div>
       </div>
       {isLedgerExpanded ? (
-        <div
-          aria-label={`Expanded ledger for ${model.identity.name}`}
-          aria-modal="true"
-          className="fixed inset-0 z-50 p-4"
-          role="dialog"
+        <ChartLedgerOverlay
+          ariaLabel={`Expanded ledger for ${model.identity.name}`}
+          panelClassName="grid"
+          onClose={() => setLedgerExpanded(false, true)}
         >
-          <button
-            aria-label="Close expanded ledger"
-            className="absolute inset-0 bg-[rgba(29,20,12,0.46)] backdrop-blur-sm"
-            onClick={() => setLedgerExpanded(false, true)}
-            type="button"
-          />
-          <div className="relative z-10 flex h-full w-full">
             <ServiceTradingChartLedger
-              chartZoomResetToken={chartZoomResetToken}
+              chartZoomResetToken={chartController.chartZoomResetToken}
+              chartLayoutPreferences={chartController.chartLayoutPreferences}
+              chartResolution={chartController.chartResolution}
+              customChartResolution={chartController.customChartResolution}
               expanded
               hasOlderIntervals={hasOlder}
               isHydratingDetails={effectiveIsHydratingDetails}
+              isVisuallyBusy={heldIsChartLoading}
               isLoadingOlderIntervals={isLoadingOlder}
               loadOlderIntervals={loadOlder}
               model={model}
-              onOlderLoadProgressChange={setOlderLoadProgress}
+              onChartLayoutPreferencesChange={chartController.handleChartLayoutPreferencesChange}
+              onChartResolutionChange={chartController.handleChartResolutionChange}
+              customTimeframeRange={chartController.customTimeframeRange}
+              onOlderLoadProgressChange={chartController.setOlderLoadProgress}
+              onCustomTimeframeChange={chartController.handleCustomTimeframeChange}
               onResetCharts={() => void handleResetCharts()}
-              onTimeframeChange={handleTimeframeChange}
+              onTimeframeChange={chartController.handleTimeframeChange}
               onToggleExpand={() => setLedgerExpanded(false, true)}
               selection={selection}
               setSelection={setSelection}
-              timeframe={timeframe}
+              timeframe={chartController.timeframe}
             />
-          </div>
-        </div>
+        </ChartLedgerOverlay>
       ) : null}
     </WorkspacePage>
   );

@@ -70,8 +70,8 @@ vi.mock('@/components/system/timeframed-interval-history', () => ({
   }),
 }));
 
-vi.mock('./service-detail/ledger', () => ({
-  ServiceDetailLedger: (props: Record<string, unknown>) => {
+vi.mock('./service-detail/trading-chart-ledger', () => ({
+  ServiceTradingChartLedger: (props: Record<string, unknown>) => {
     ledgerPropsSpy(props);
     return (
       <div>
