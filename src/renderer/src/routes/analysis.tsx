@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { NavigationDashboardIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
@@ -7,6 +7,7 @@ import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scro
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTradingChartController } from '@/components/system/trading-chart';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import {
@@ -117,17 +118,29 @@ export function AnalysisRoute() {
   const scope = routeState.scope as AnalysisScope;
   const section = routeState.section as AnalysisSection;
   const timeframe = routeState.timeframe as AnalysisTimeframe;
+  const isLedgerExpanded = routeState.chart === 'expanded';
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
+  const chartController = useTradingChartController({
+    initialTimeframe: timeframe,
+    onTimeframeChange: (nextTimeframe) => updateRouteState({ timeframe: nextTimeframe as typeof timeframe }),
+    subjectId: 'workbench',
+    subtype: 'analysis',
+  });
   const {
     hasOlderIntervals,
     isHydratingDetails,
     isLoadingOlderIntervals,
     loadOlderIntervals,
     resetHydratedDetails,
+    resolvedTimeframeCacheKey,
     serviceDetailsById,
     skuDetailsById,
     timeframeHydrationProgress,
-  } = useSenaDetailHydration(timeframe);
+  } = useSenaDetailHydration(
+    chartController.timeframe as AnalysisTimeframe,
+    chartController.timeframeBoundaryOverride,
+    chartController.timeframeCacheKey,
+  );
   const visibleCatalog = filterCatalogBySupplier(activeSenaCatalog(inventory.catalog), supplierFilter);
   const hasCatalog = Boolean(visibleCatalog && (visibleCatalog.skus.length > 0 || visibleCatalog.services.length > 0));
   const hasWorkspaceSummary = Boolean(inventory.workspaceSummary);
@@ -143,6 +156,10 @@ export function AnalysisRoute() {
 
   function updateRouteState(nextState: Parameters<typeof buildAnalysisSearchParams>[1], replace = false) {
     setSearchParams(buildAnalysisSearchParams(searchParams, nextState), { replace });
+  }
+
+  function setLedgerExpanded(nextExpanded: boolean, replace = false) {
+    updateRouteState({ chart: nextExpanded ? 'expanded' : null }, replace);
   }
 
   useLayoutEffect(() => {
@@ -217,17 +234,19 @@ export function AnalysisRoute() {
         language={language}
         loadOlderIntervals={loadOlderIntervals}
         resetHydratedDetails={resetHydratedDetails}
+        resolvedTimeframeCacheKey={resolvedTimeframeCacheKey}
         scope={scope}
         section={section}
+        chartController={chartController}
+        isLedgerExpanded={isLedgerExpanded}
         serviceDetailsById={serviceDetailsById}
+        setLedgerExpanded={setLedgerExpanded}
         setScope={(nextScope) => updateRouteState({ scope: nextScope as typeof scope })}
         setSection={(nextSection) => updateRouteState({ section: nextSection as typeof section })}
         setSupplierFilter={(nextSupplierFilter) => updateRouteState({ supplier: supplierFilterQueryValue(nextSupplierFilter) })}
-        setTimeframe={(nextTimeframe) => updateRouteState({ timeframe: nextTimeframe as typeof timeframe })}
         showRightRailCards={showRightRailCards}
         skuDetailsById={skuDetailsById}
         supplierFilter={supplierFilter}
-        timeframe={timeframe}
         timeframeHydrationProgress={timeframeHydrationProgress}
       />
     </Suspense>

@@ -43,11 +43,26 @@ describe('navigation-state', () => {
 
   test('reads analysis supplier filter safely', () => {
     expect(readAnalysisRouteState(new URLSearchParams('scope=services&supplier=Mekong%20Looms'))).toEqual({
+      chart: null,
       scope: 'services',
       section: 'workbench',
       supplier: 'Mekong Looms',
       timeframe: 'Recent',
     });
+  });
+
+  test('preserves expanded analysis chart state in route params', () => {
+    expect(readAnalysisRouteState(new URLSearchParams('chart=expanded&section=pressure'))).toEqual({
+      chart: 'expanded',
+      scope: 'all',
+      section: 'pressure',
+      supplier: null,
+      timeframe: 'Recent',
+    });
+
+    expect(buildAnalysisHref({ chart: 'expanded', section: 'workbench', timeframe: 'Recent' })).toBe(
+      '/analysis?chart=expanded',
+    );
   });
 
   test('reads performance compare mode safely and omits default compare state', () => {

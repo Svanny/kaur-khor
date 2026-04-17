@@ -61,6 +61,7 @@ export type OverviewRouteState = {
 };
 
 export type AnalysisRouteState = {
+  chart: 'expanded' | null;
   scope: AnalysisScopeValue;
   section: AnalysisSectionValue;
   supplier: string | null;
@@ -202,7 +203,9 @@ export function buildOverviewHref(nextState?: Partial<OverviewRouteState>, curre
 }
 
 export function readAnalysisRouteState(searchParams: URLSearchParams): AnalysisRouteState {
+  const chartValue = searchParams.get('chart');
   return {
+    chart: chartValue === 'expanded' ? 'expanded' : null,
     scope: readEnumValue(searchParams, 'scope', analysisScopeValues, 'all'),
     section: readEnumValue(searchParams, 'section', analysisSectionValues, 'workbench'),
     supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
@@ -222,6 +225,7 @@ export function buildAnalysisSearchParams(
   writeEnumValue(searchParams, 'section', resolvedState.section, 'workbench');
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   writeEnumValue(searchParams, 'timeframe', resolvedState.timeframe, 'Recent');
+  writeOptionalValue(searchParams, 'chart', resolvedState.chart === 'expanded' ? 'expanded' : null);
   return searchParams;
 }
 

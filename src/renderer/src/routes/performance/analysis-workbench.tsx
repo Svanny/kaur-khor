@@ -87,6 +87,8 @@ import { statusPillClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
 import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '@/components/system/chart-workspace';
+import type { ChartCustomTimeframeRange } from '@/components/system/chart-timeframe';
+import type { ChartLayoutPreferenceMergeOptions, PersistedChartLayoutPreferences } from '@/lib/chart-layout-preferences';
 import { PagedPanelNavigation } from '@/routes/detail-panels';
 import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './chrome';
 import type {
@@ -870,7 +872,7 @@ function SystemLedger({
         tooltip={t('analysisWorkbenchLedgerTooltip')}
         descriptor={t('analysisWorkbenchLedgerDescriptor')}
         headerActions={chartHeaderActions}
-        className={cn(showRightRailCards && 'lg:rounded-r-none', expandedLaneViewportHeight > 0 && 'h-auto')}
+        className={cn(showRightRailCards && 'lg:rounded-r-none', 'h-full')}
         contentClassName="px-0 py-0"
       >
         <div
@@ -2240,12 +2242,17 @@ function InspectorRail({
 
 function WorkbenchSurface({
   chartZoomResetToken = 0,
+  chartLayoutPreferences,
+  customTimeframeRange = null,
   expanded = false,
   hasOlderIntervals,
   isHydratingDetails = false,
+  isVisuallyBusy,
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
+  onChartLayoutPreferencesChange,
+  onCustomTimeframeChange,
   onOlderLoadProgressChange,
   onResetCharts,
   onTimeframeChange,
@@ -2255,12 +2262,17 @@ function WorkbenchSurface({
   timeframe,
 }: {
   chartZoomResetToken?: number;
+  chartLayoutPreferences?: PersistedChartLayoutPreferences;
+  customTimeframeRange?: ChartCustomTimeframeRange | null;
   expanded?: boolean;
   hasOlderIntervals: boolean;
   isHydratingDetails?: boolean;
+  isVisuallyBusy?: boolean;
   isLoadingOlderIntervals: boolean;
   loadOlderIntervals: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
+  onChartLayoutPreferencesChange?: (next: Partial<PersistedChartLayoutPreferences>, options?: ChartLayoutPreferenceMergeOptions) => void;
+  onCustomTimeframeChange?: (value: ChartCustomTimeframeRange | null) => void;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
   onResetCharts?: () => Promise<void> | void;
   onTimeframeChange: (value: AnalysisTimeframe) => void;
@@ -2270,15 +2282,20 @@ function WorkbenchSurface({
   timeframe: AnalysisTimeframe;
 }) {
   return (
-    <div className="grid w-full min-w-0 gap-6">
+    <div className={cn('grid w-full min-w-0 gap-6', expanded && 'h-full min-h-0')}>
       <AnalysisTradingChartLedger
         chartZoomResetToken={chartZoomResetToken}
+        chartLayoutPreferences={chartLayoutPreferences}
+        customTimeframeRange={customTimeframeRange}
         expanded={expanded}
         hasOlderIntervals={hasOlderIntervals}
         isBusy={isHydratingDetails || isLoadingOlderIntervals}
+        isVisuallyBusy={isVisuallyBusy}
         isLoadingOlderIntervals={isLoadingOlderIntervals}
         loadOlderIntervals={loadOlderIntervals}
         model={model}
+        onChartLayoutPreferencesChange={onChartLayoutPreferencesChange}
+        onCustomTimeframeChange={onCustomTimeframeChange}
         onOlderLoadProgressChange={onOlderLoadProgressChange}
         onResetCharts={onResetCharts}
         onTimeframeChange={onTimeframeChange}
@@ -2407,12 +2424,17 @@ function SettingsSurface({
 
 export function AnalysisWorkbench({
   chartZoomResetToken = 0,
+  chartLayoutPreferences,
+  customTimeframeRange = null,
   expanded = false,
   hasOlderIntervals,
   isHydratingDetails = false,
+  isVisuallyBusy,
   isLoadingOlderIntervals,
   loadOlderIntervals,
   model,
+  onChartLayoutPreferencesChange,
+  onCustomTimeframeChange,
   onOlderLoadProgressChange,
   onResetCharts,
   onToggleExpand,
@@ -2423,12 +2445,17 @@ export function AnalysisWorkbench({
   timeframe = 'Recent',
 }: {
   chartZoomResetToken?: number;
+  chartLayoutPreferences?: PersistedChartLayoutPreferences;
+  customTimeframeRange?: ChartCustomTimeframeRange | null;
   expanded?: boolean;
   hasOlderIntervals: boolean;
   isHydratingDetails?: boolean;
+  isVisuallyBusy?: boolean;
   isLoadingOlderIntervals: boolean;
   loadOlderIntervals: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
+  onChartLayoutPreferencesChange?: (next: Partial<PersistedChartLayoutPreferences>, options?: ChartLayoutPreferenceMergeOptions) => void;
+  onCustomTimeframeChange?: (value: ChartCustomTimeframeRange | null) => void;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
   onResetCharts?: () => Promise<void> | void;
   onToggleExpand?: () => void;
@@ -2537,12 +2564,17 @@ export function AnalysisWorkbench({
     return (
             <WorkbenchSurface
               chartZoomResetToken={chartZoomResetToken}
+              chartLayoutPreferences={chartLayoutPreferences}
+              customTimeframeRange={customTimeframeRange}
               expanded={expanded}
               hasOlderIntervals={hasOlderIntervals}
               isHydratingDetails={isHydratingDetails}
+              isVisuallyBusy={isVisuallyBusy}
               isLoadingOlderIntervals={isLoadingOlderIntervals}
               loadOlderIntervals={loadOlderIntervals}
               model={model}
+              onChartLayoutPreferencesChange={onChartLayoutPreferencesChange}
+              onCustomTimeframeChange={onCustomTimeframeChange}
               onOlderLoadProgressChange={onOlderLoadProgressChange}
               onResetCharts={onResetCharts}
               onTimeframeChange={setTimeframe}
@@ -2552,13 +2584,13 @@ export function AnalysisWorkbench({
               timeframe={timeframe}
             />
     );
-  }, [activeSection, chartZoomResetToken, expanded, handleSelection, isHydratingDetails, isSectionPending, model, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, section, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
+  }, [activeSection, chartLayoutPreferences, chartZoomResetToken, customTimeframeRange, expanded, handleSelection, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, section, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
 
   return (
-    <div className="grid gap-6" onPointerDown={handleWorkbenchPointerDown}>
+    <div className={cn('grid gap-6', expanded && 'h-full min-h-0')} onPointerDown={handleWorkbenchPointerDown}>
       <DiagnosticStrip model={model} />
       <ChromeTabs
-        className="relative gap-0"
+        className={cn('relative gap-0', expanded && 'flex min-h-0 flex-1 flex-col')}
         value={activeSection}
         onValueChange={(nextValue) => {
           if (nextValue) {
@@ -2576,14 +2608,14 @@ export function AnalysisWorkbench({
         <InternalNav section={activeSection} showRightRailCards={railEnabled} />
 
         <section
-          className={ANALYSIS_BOARD_CLASS_NAME}
+          className={cn(ANALYSIS_BOARD_CLASS_NAME, expanded && 'flex min-h-0 flex-1 flex-col')}
           style={{
             marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
           }}
         >
-          <div className={railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
-            <div className={cn('min-w-0 border-b border-border/60 lg:border-b-0', railEnabled && 'lg:border-r lg:rounded-r-none')}>
-              <div className="grid min-h-full min-w-0 gap-6 px-0 py-0">{surface}</div>
+          <div className={cn(railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0', expanded && 'min-h-0 flex-1')}>
+            <div className={cn('min-w-0 border-b border-border/60 lg:border-b-0', expanded && 'flex min-h-0 flex-col', railEnabled && 'lg:border-r lg:rounded-r-none')}>
+              <div className={cn('grid min-h-full min-w-0 gap-6 px-0 py-0', expanded && 'flex min-h-0 flex-1 flex-col')}>{surface}</div>
             </div>
             {railEnabled ? (
               isSectionPending

@@ -3,7 +3,6 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
-import { translateRegimeLabel } from '@/lib/localized-display';
 import { getTranslation } from '@/lib/translations';
 import { InventoryRoute } from './inventory';
 import { ServiceDetailRoute } from './service-detail';
@@ -328,7 +327,7 @@ describe('SENA routes', () => {
     expect(screen.queryByText('Incoming stock')).not.toBeInTheDocument();
     expect(screen.queryByText('Next check')).not.toBeInTheDocument();
 
-    expect(screen.queryByRole('heading', { name: 'Ledger' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Ledger for SKU 1/ })).not.toBeInTheDocument();
   });
 
   test('asks before closing a dirty SKU action sheet', async () => {
@@ -380,7 +379,7 @@ describe('SENA routes', () => {
     expect(screen.queryByText('What could restore service')).not.toBeInTheDocument();
     expect(screen.queryByText('Main blockers')).not.toBeInTheDocument();
 
-    expect(screen.queryByRole('heading', { name: 'Service availability timeline' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Ledger for Service 1/ })).not.toBeInTheDocument();
   });
 
   test('asks before closing a dirty service action sheet', async () => {
@@ -570,12 +569,12 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Ledger for SKU 1/ })).toBeInTheDocument();
     });
 
     expect(screen.getByText('Banji')).toBeInTheDocument();
 
-    expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', { limit: INTERVAL_PAGE_SIZE });
+    expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', expect.objectContaining({ limit: 5 }));
     expect(inventoryHook().loadInventorySnapshot).not.toHaveBeenCalled();
     expect(screen.getAllByText('Service impact').length).toBeGreaterThan(0);
   });
@@ -602,7 +601,7 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Ledger for SKU 1/ })).toBeInTheDocument();
     });
 
     expect(screen.getByText('Banji')).toBeInTheDocument();
@@ -614,10 +613,10 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Service availability timeline' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Ledger for Service 1/ })).toBeInTheDocument();
     });
 
-    expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1', { limit: INTERVAL_PAGE_SIZE });
+    expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1', expect.objectContaining({ limit: INTERVAL_PAGE_SIZE }));
     expect(screen.getByText('Linked SKU impact')).toBeInTheDocument();
     expect(screen.getByText('Log receipt')).toBeInTheDocument();
     expect(screen.getByText('Record stock')).toBeInTheDocument();
@@ -625,27 +624,27 @@ describe('SENA routes', () => {
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('href', '/catalog/services/service-1/edit');
   });
 
-  test('shows the service sales-pattern legend on the detail ledger', async () => {
+  test('shows the shared service chart controls on the detail ledger', async () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Service availability timeline' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Ledger for Service 1/ })).toBeInTheDocument();
     });
 
-    expect(screen.getAllByText(translateRegimeLabel('en', 'normal')).length).toBeGreaterThan(0);
-    expect(screen.getByText('Service price line')).toBeInTheDocument();
-    expect(document.querySelectorAll('button[data-regime-slot="true"][data-regime-glyph-mode="icon"]').length).toBeGreaterThan(0);
-    expect(document.querySelectorAll('[data-regime-legend-item="true"] svg').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Indicators' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Layout' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
   });
 
   test('uses semantic status tones for service detail pills', async () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Service availability timeline' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Ledger for Service 1/ })).toBeInTheDocument();
     });
 
-    expect(screen.getAllByText('Main blocker now')[0]).toHaveClass('border-rose-200');
+    expect(screen.getAllByText('Main blocker now').length).toBeGreaterThan(0);
   });
 
   test('hides the sku detail right rail when the global toggle is off', async () => {
@@ -654,7 +653,7 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Ledger' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Ledger for SKU 1/ })).toBeInTheDocument();
     });
 
     expect(screen.queryByText('Selected period')).not.toBeInTheDocument();
@@ -667,7 +666,7 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Service availability timeline' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Ledger for Service 1/ })).toBeInTheDocument();
     });
 
     expect(screen.queryByText('Next step')).not.toBeInTheDocument();

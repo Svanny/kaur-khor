@@ -1,5 +1,5 @@
 import type { UTCTimestamp } from 'lightweight-charts';
-import type { TradingChartModel, TradingChartPoint } from '@/routes/sku-detail/trading-chart-model';
+import type { TradingChartModel, TradingChartPoint } from '@/components/system/trading-chart/model';
 import type { AnalysisWorkbenchViewModel } from './analysis-view-model';
 
 function parseTimestampSeconds(value: string | null | undefined) {

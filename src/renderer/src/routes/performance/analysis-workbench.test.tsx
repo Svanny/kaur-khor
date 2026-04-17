@@ -399,7 +399,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'System ledger' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument();
   });
@@ -417,7 +417,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'System ledger' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Indicators' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Layout' })).toBeInTheDocument();

@@ -519,13 +519,12 @@ describe('PerformanceRoute', () => {
     expect(
       await screen.findByRole('heading', { name: 'System timeline' }, { timeout: 10_000 }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Sales pattern and price')).toBeInTheDocument();
-    expect(screen.getByText('Stock estimate and demand')).toBeInTheDocument();
-    expect(screen.getByText('Incoming stock')).toBeInTheDocument();
-    expect(screen.getByText('Delivery timing')).toBeInTheDocument();
-    expect(screen.getAllByText('Likely range').length).toBeGreaterThan(0);
-    expect(screen.getByText('On-the-way window')).toBeInTheDocument();
-    expect(screen.getAllByText('Typical timing').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Indicators' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Layout' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset chart' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh analysis' })).toBeInTheDocument();
     expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
     expect(screen.queryByText('Saved updates')).not.toBeInTheDocument();
@@ -681,90 +680,22 @@ describe('PerformanceRoute', () => {
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
 
-  test('uses the shared interval strip on analysis and updates the interval rail when a pill is selected', async () => {
-    const resizeCallbacks: Array<() => void> = [];
-    const originalResizeObserver = globalThis.ResizeObserver;
+  test('renders the shared trading chart controls on analysis', async () => {
+    renderAnalysisRoute();
 
-    class ResizeObserverMock {
-      constructor(private readonly callback: ResizeObserverCallback) {}
-
-      observe() {
-        resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
-      }
-
-      disconnect() {}
-    }
-
-    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
-
-    try {
-      const { container } = renderAnalysisRoute();
-      expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
-
-      const intervalScroller = container.querySelector('.hidden-scrollbar.max-w-full.overflow-x-auto') as HTMLDivElement | null;
-      expect(intervalScroller).not.toBeNull();
-
-      Object.defineProperty(intervalScroller, 'clientWidth', {
-        configurable: true,
-        value: 120,
-      });
-      act(() => {
-        resizeCallbacks.forEach((callback) => callback());
-      });
-
-      const intervalButtons = Array.from(container.querySelectorAll('button[data-active]')) as HTMLButtonElement[];
-      expect(intervalButtons.length).toBeGreaterThan(0);
-
-      fireEvent.click(intervalButtons[0]!);
-
-      expect(await screen.findAllByText('Interval explanation')).not.toHaveLength(0);
-      expect(screen.getAllByText('What happened').length).toBeGreaterThan(0);
-      expect(intervalButtons[0]).toHaveAttribute('data-active', 'true');
-      expect(container.querySelectorAll('[data-selected-interval-column="true"]')).toHaveLength(4);
-    } finally {
-      globalThis.ResizeObserver = originalResizeObserver;
-    }
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Indicators' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Layout' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Custom timeframe' })).toBeInTheDocument();
   });
 
-  test('lets lane marks drive the selected analysis interval', async () => {
-    const resizeCallbacks: Array<() => void> = [];
-    const originalResizeObserver = globalThis.ResizeObserver;
+  test('keeps the analysis chart on the workbench tab only', async () => {
+    renderAnalysisRoute('/analysis?section=pressure');
 
-    class ResizeObserverMock {
-      constructor(private readonly callback: ResizeObserverCallback) {}
-
-      observe() {
-        resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
-      }
-
-      disconnect() {}
-    }
-
-    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
-
-    try {
-      const { container } = renderAnalysisRoute();
-      expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
-
-      const intervalScroller = container.querySelector('.hidden-scrollbar.max-w-full.overflow-x-auto') as HTMLDivElement | null;
-      expect(intervalScroller).not.toBeNull();
-
-      Object.defineProperty(intervalScroller, 'clientWidth', {
-        configurable: true,
-        value: 240,
-      });
-      act(() => {
-        resizeCallbacks.forEach((callback) => callback());
-      });
-
-      fireEvent.click(screen.getByLabelText('Estimated stock 29 units in period 1'));
-
-      expect(await screen.findAllByText('Interval explanation')).not.toHaveLength(0);
-      expect(screen.getAllByText('Feb 10').length).toBeGreaterThan(0);
-      expect(container.querySelectorAll('[data-selected-interval-column="true"]')).toHaveLength(4);
-    } finally {
-      globalThis.ResizeObserver = originalResizeObserver;
-    }
+    expect(screen.getByText('Analysis details')).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Risks' })).toHaveAttribute('data-state', 'active');
+    expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
 
 
