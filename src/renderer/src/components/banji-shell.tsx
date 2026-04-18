@@ -49,6 +49,10 @@ type ShellSectionConfig = {
 };
 
 type SidebarSectionLabelKey = 'sidebarSectionMain' | 'sidebarSectionOther';
+type SettingsSidebarGroupConfig = {
+  labelKey: SidebarSectionLabelKey;
+  sections: SettingsSectionConfig[];
+};
 
 const sidebarSectionGroupClassName = 'py-1.5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0';
 const sidebarSectionLabelClassName =
@@ -145,6 +149,18 @@ const HELP_SECTION: ShellSectionConfig = {
 
 const SETTINGS_MAIN_SECTIONS = SETTINGS_SECTIONS.filter((section) => section.id !== 'credits');
 const SETTINGS_CREDITS_SECTION = SETTINGS_SECTIONS.find((section) => section.id === 'credits');
+const SETTINGS_NAVIGATION_GROUPS: SettingsSidebarGroupConfig[] = [
+  {
+    labelKey: 'sidebarSectionMain',
+    sections: SETTINGS_MAIN_SECTIONS.filter((section) =>
+      ['workspace', 'interface', 'local-data', 'planning'].includes(section.id),
+    ),
+  },
+  {
+    labelKey: 'sidebarSectionOther',
+    sections: SETTINGS_MAIN_SECTIONS.filter((section) => ['archive', 'danger-zone'].includes(section.id)),
+  },
+];
 
 function SidebarSectionMenu({
   sections,
@@ -274,24 +290,22 @@ function SettingsBackToAppMenuItem({
   const label = translateUiLiteral(language, 'Back to app');
 
   return (
-    <div className="h-8">
-      <SidebarMenuButton
-        asChild
-        className="relative -top-1 justify-start group-data-[collapsible=icon]:justify-center"
-        tooltip={label}
+    <SidebarMenuButton
+      asChild
+      className="justify-start group-data-[collapsible=icon]:justify-center"
+      tooltip={label}
+    >
+      <NavLink
+        aria-label={label}
+        className="group-data-[collapsible=icon]:justify-center"
+        state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+        to="/"
+        onClick={onNavigate}
       >
-        <NavLink
-          aria-label={label}
-          className="group-data-[collapsible=icon]:justify-center"
-          state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-          to="/"
-          onClick={onNavigate}
-        >
-          <NavigationBackIcon className="size-4" />
-          {showSidebarText ? <span>{label}</span> : null}
-        </NavLink>
-      </SidebarMenuButton>
-    </div>
+        <NavigationBackIcon className="size-4" />
+        {showSidebarText ? <span>{label}</span> : null}
+      </NavLink>
+    </SidebarMenuButton>
   );
 }
 
@@ -390,7 +404,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
 
         <SidebarContent className="flex flex-col px-2 pb-3 group-data-[collapsible=icon]:px-1.5">
           {isSettingsRoute ? (
-            <div className="flex flex-1 flex-col">
+            <div className="flex flex-1 flex-col gap-3">
               <SidebarGroup className={sidebarSectionGroupClassName}>
                 <SidebarGroupContent>
                   <SettingsBackToAppMenuItem
@@ -398,15 +412,23 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                     showSidebarText={showSidebarText}
                     onNavigate={handleSidebarNavigation}
                   />
-                  <SettingsSidebarMenu
-                    pathname={location.pathname}
-                    sections={SETTINGS_MAIN_SECTIONS}
-                    showSidebarText={showSidebarText}
-                    t={t}
-                    onNavigate={handleSidebarNavigation}
-                  />
                 </SidebarGroupContent>
               </SidebarGroup>
+
+              {SETTINGS_NAVIGATION_GROUPS.map((group) => (
+                <SidebarGroup key={group.labelKey} className={sidebarSectionGroupClassName}>
+                  <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t(group.labelKey)}</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SettingsSidebarMenu
+                      pathname={location.pathname}
+                      sections={group.sections}
+                      showSidebarText={showSidebarText}
+                      t={t}
+                      onNavigate={handleSidebarNavigation}
+                    />
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ))}
             </div>
           ) : (
             <div className="flex flex-1 flex-col gap-3">

@@ -173,6 +173,8 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Credits' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Danger' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to app' })).toBeInTheDocument();
+    expect(screen.getAllByText('Main')).toHaveLength(1);
+    expect(screen.getAllByText('Other')).toHaveLength(1);
     expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
     const settingsLinks = screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'));
