@@ -61,6 +61,7 @@ export function useTradingChartController({
   const [customTimeframeRequiresHydration, setCustomTimeframeRequiresHydration] = useState(
     initialChartLayoutPreferences.customTimeframeRange != null,
   );
+  const [customTimeframeHydrationStarted, setCustomTimeframeHydrationStarted] = useState(false);
   const [pendingCustomTimeframeRange, setPendingCustomTimeframeRange] = useState<ChartCustomTimeframeRange | null>(null);
   const [pendingCustomTimeframeHydrationStarted, setPendingCustomTimeframeHydrationStarted] = useState(false);
   const [chartResolution, setChartResolution] = useState<ChartResolutionOption>(
@@ -84,6 +85,7 @@ export function useTradingChartController({
     setTimeframe(nextPreferences.timeframe);
     setCustomTimeframeRange(initialChartLayoutPreferences.customTimeframeRange);
     setCustomTimeframeRequiresHydration(initialChartLayoutPreferences.customTimeframeRange != null);
+    setCustomTimeframeHydrationStarted(false);
     setPendingCustomTimeframeRange(null);
     setPendingCustomTimeframeHydrationStarted(false);
     setChartResolution(initialChartLayoutPreferences.chartResolution ?? DEFAULT_CHART_RESOLUTION);
@@ -124,6 +126,7 @@ export function useTradingChartController({
     setOlderLoadProgress(null);
     setCustomTimeframeRange(null);
     setCustomTimeframeRequiresHydration(false);
+    setCustomTimeframeHydrationStarted(false);
     setPendingCustomTimeframeRange(null);
     setPendingCustomTimeframeHydrationStarted(false);
     setChartLayoutPreferences((current) => ({
@@ -146,6 +149,7 @@ export function useTradingChartController({
     setPendingCustomTimeframeHydrationStarted(false);
     setCustomTimeframeRange(null);
     setCustomTimeframeRequiresHydration(false);
+    setCustomTimeframeHydrationStarted(false);
     setChartLayoutPreferences((current) => ({
       ...current,
       customTimeframeRange: null,
@@ -180,11 +184,13 @@ export function useTradingChartController({
       if (Object.prototype.hasOwnProperty.call(next, 'customTimeframeRange')) {
         setCustomTimeframeRange(preferences.customTimeframeRange);
         setCustomTimeframeRequiresHydration(preferences.customTimeframeRange != null);
+        setCustomTimeframeHydrationStarted(false);
         setPendingCustomTimeframeRange(null);
         setPendingCustomTimeframeHydrationStarted(false);
       } else if (promotedCustomTimeframeRange) {
         setCustomTimeframeRange(promotedCustomTimeframeRange);
         setCustomTimeframeRequiresHydration(false);
+        setCustomTimeframeHydrationStarted(false);
         setPendingCustomTimeframeRange(null);
         setPendingCustomTimeframeHydrationStarted(false);
       }
@@ -214,6 +220,22 @@ export function useTradingChartController({
     resolvedTimeframe?: ChartTimeframe | null;
     timeframeHydrationProgress: TradingChartHydrationProgress;
   }) => {
+    if (customTimeframeRequiresHydration && customTimeframeRange) {
+      const hydrationCacheKey = customTimeframeCacheKey(customTimeframeRange);
+      if (isHydratingDetails || timeframeHydrationProgress != null) {
+        setCustomTimeframeHydrationStarted(true);
+      } else if (customTimeframeHydrationStarted || resolvedTimeframeCacheKey === hydrationCacheKey) {
+        const nextRange = customTimeframeRange;
+        setCustomTimeframeRequiresHydration(false);
+        setCustomTimeframeHydrationStarted(false);
+        setChartLayoutPreferences((current) => ({
+          ...current,
+          customTimeframeRange: nextRange,
+          visibleDateRange: current.visibleDateRange ?? nextRange,
+        }));
+        setChartZoomResetToken((current) => current + 1);
+      }
+    }
     if (pendingCustomTimeframeRange) {
       const pendingCustomTimeframeCacheKey = customTimeframeCacheKey(pendingCustomTimeframeRange);
       if (isHydratingDetails || timeframeHydrationProgress != null) {
@@ -238,7 +260,15 @@ export function useTradingChartController({
     if (resolvedTimeframe === pendingTimeframe || isHydratingDetails || timeframeHydrationProgress != null) {
       setPendingTimeframe(null);
     }
-  }, [pendingCustomTimeframeHydrationStarted, pendingCustomTimeframeRange, pendingTimeframe, timeframe]);
+  }, [
+    customTimeframeHydrationStarted,
+    customTimeframeRange,
+    customTimeframeRequiresHydration,
+    pendingCustomTimeframeHydrationStarted,
+    pendingCustomTimeframeRange,
+    pendingTimeframe,
+    timeframe,
+  ]);
 
   const hydrationCustomTimeframeRange =
     pendingCustomTimeframeRange ?? (customTimeframeRequiresHydration ? customTimeframeRange : null);

@@ -23,6 +23,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import type { AppLanguage } from '@shared/inventory';
 import {
   AreaSeries,
   BarSeries,
@@ -52,26 +53,33 @@ import {
   ActionChartLineTypeIcon,
   ActionChartStepLineTypeIcon,
   ActionCloseIcon,
+  ActionCreatePackageIcon,
   ActionDeleteIcon,
   ActionDragHandleIcon,
+  ActionReceiveInventoryIcon,
   ActionResetIcon,
 } from '@icons/actions';
 import { getRegimeIcon } from '@icons/domain';
 import {
+  EntityCustomerIcon,
   EntityLayersIcon,
   EntityReceiptDocumentIcon,
   EntityRevenueIcon,
   EntitySafetyStockIcon,
+  EntityServiceIcon,
   EntitySkuIcon,
   EntityTransitIcon,
 } from '@icons/entities';
 import {
+  StatusLoadingIcon,
   StatusGaugeIcon,
   StatusMaximizeIcon,
   StatusMinimizeIcon,
   StatusRadarIcon,
+  StatusReadyIcon,
   StatusReorderPointIcon,
   StatusSettingsControlIcon,
+  StatusWarningIcon,
   StatusTrendChartIcon,
 } from '@icons/status';
 import type { IconComponent } from '@icons/types';
@@ -103,6 +111,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import type { ChartLayoutPreferenceMergeOptions, ChartVisibleDateRange } from '@/lib/chart-layout-preferences';
 import { translateChartTimeframeLabel, translateRegimeLabel } from '@/lib/localized-display';
 import { regimeChartFill } from '@/lib/state-tones';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import type {
@@ -220,18 +229,18 @@ const INDICATOR_ICONS: Record<TradingChartIndicatorId, IconComponent> = {
   uncertainty: StatusRadarIcon,
   reorderPoint: StatusReorderPointIcon,
   safetyStock: EntitySafetyStockIcon,
-  demand: StatusTrendChartIcon,
-  serviceDemand: StatusTrendChartIcon,
-  retailDemand: StatusTrendChartIcon,
+  demand: EntityCustomerIcon,
+  serviceDemand: EntityServiceIcon,
+  retailDemand: EntitySkuIcon,
   availableCapacity: EntityLayersIcon,
-  demandMinusAvailableCapacity: StatusTrendChartIcon,
-  receipts: EntityReceiptDocumentIcon,
+  demandMinusAvailableCapacity: StatusWarningIcon,
+  receipts: ActionReceiveInventoryIcon,
   ordersInTransit: EntityTransitIcon,
-  ordersLate: StatusReorderPointIcon,
-  ordersReadyToReceive: EntityReceiptDocumentIcon,
+  ordersLate: StatusWarningIcon,
+  ordersReadyToReceive: StatusReadyIcon,
   ordersReceived: EntityReceiptDocumentIcon,
-  newOrderFlags: ActionAddBadgeIcon,
-  newReceiptFlags: ActionAddBadgeIcon,
+  newOrderFlags: ActionCreatePackageIcon,
+  newReceiptFlags: ActionReceiveInventoryIcon,
   price: EntityRevenueIcon,
   leadTime: EntityTransitIcon,
   leadTimeRange: StatusRadarIcon,
@@ -239,8 +248,8 @@ const INDICATOR_ICONS: Record<TradingChartIndicatorId, IconComponent> = {
 };
 const INDICATOR_SECTIONS: Array<{ title: string; ids: TradingChartIndicatorId[] }> = [
   { title: 'Stock', ids: ['inventory', 'uncertainty', 'reorderPoint', 'safetyStock', 'availableCapacity'] },
-  { title: 'Flow', ids: ['demand', 'serviceDemand', 'retailDemand', 'demandMinusAvailableCapacity', 'receipts'] },
-  { title: 'Orders', ids: ['ordersInTransit', 'ordersLate', 'ordersReadyToReceive', 'ordersReceived', 'newOrderFlags', 'newReceiptFlags'] },
+  { title: 'Customer flow', ids: ['demand', 'serviceDemand', 'retailDemand', 'demandMinusAvailableCapacity'] },
+  { title: 'Supplier flow', ids: ['receipts', 'ordersInTransit', 'ordersLate', 'ordersReadyToReceive', 'ordersReceived', 'newOrderFlags', 'newReceiptFlags'] },
   { title: 'Commercial', ids: ['price'] },
   { title: 'Timing', ids: ['leadTime', 'leadTimeRange'] },
   { title: 'Pattern', ids: ['regime'] },
@@ -301,6 +310,7 @@ const SETTINGS_DIALOG_CLASS =
 const SETTINGS_DIALOG_HEADER_CLASS = 'flex cursor-grab items-start justify-between gap-3 border-b border-border/60 px-8 py-7 active:cursor-grabbing';
 const SETTINGS_DIALOG_BODY_BASE_CLASS = 'px-8 py-6';
 const SETTINGS_DIALOG_FOOTER_CLASS = 'sticky bottom-0 flex items-center justify-between gap-3 border-t border-border/60 bg-white px-8 py-5';
+const SETTINGS_DIALOG_FOOTER_BUTTON_CLASS = 'h-9 rounded-[0.9rem] px-4';
 const LAYOUT_NEW_PANE_DROP_ID = 'layout:new-pane';
 const LAYOUT_PANE_EDGE_DROP_ZONE_PX = 32;
 
@@ -824,6 +834,7 @@ function settingsDialogBodyClassName(scrollLocked = false) {
 const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & {
   dragging?: boolean;
   indicatorId: TradingChartIndicatorId;
+  language: AppLanguage;
   onAxisSideChange?: (indicatorId: TradingChartIndicatorId, axisSide: TradingChartIndicatorAxisSide) => void;
   onDelete?: (indicatorId: TradingChartIndicatorId) => void;
   settings: TradingChartIndicatorSettings;
@@ -832,6 +843,7 @@ const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
   className,
   dragging = false,
   indicatorId,
+  language,
   onAxisSideChange,
   onDelete,
   settings,
@@ -839,11 +851,12 @@ const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
   ...props
 }, ref) {
   const IndicatorIcon = INDICATOR_ICONS[indicatorId];
+  const label = indicatorLabel(language, indicatorId);
 
   return (
     <div
       ref={ref}
-      aria-label={`Drag ${indicatorLabel(indicatorId)}`}
+      aria-label={translateUiLiteral(language, 'Drag {name}', { name: label })}
       className={cn(
         'flex cursor-grab items-center gap-3 rounded-[1rem] border border-border/60 bg-[#fffaf3] px-3 py-3 shadow-[0_1px_0_rgba(255,255,255,0.75)] transition-[box-shadow,opacity,transform] duration-150 ease-out focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing data-[dragging=true]:cursor-grabbing data-[dragging=true]:shadow-[0_16px_42px_rgba(48,31,20,0.16)] motion-reduce:transition-none',
         dragging && 'opacity-70',
@@ -861,21 +874,21 @@ const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
         <ActionDragHandleIcon className="size-4" />
       </span>
       <IndicatorIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{indicatorLabel(indicatorId)}</span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{label}</span>
       <Select
         value={settings[indicatorId].axisSide}
         onValueChange={(value) => onAxisSideChange?.(indicatorId, value as TradingChartIndicatorAxisSide)}
       >
-        <SelectTrigger aria-label={`${indicatorLabel(indicatorId)} axis side`} className="h-9 min-w-36 rounded-[0.9rem] bg-white px-3 text-sm">
+        <SelectTrigger aria-label={translateUiLiteral(language, '{name} axis side', { name: label })} className="h-9 min-w-36 rounded-[0.9rem] bg-white px-3 text-sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent align="end" className="rounded-[1rem] border-border/70 bg-[#fdfaf6]">
-          <SelectItem value="left">Left y-axis</SelectItem>
-          <SelectItem value="right">Right y-axis</SelectItem>
+          <SelectItem value="left">{translateUiLiteral(language, 'Left y-axis')}</SelectItem>
+          <SelectItem value="right">{translateUiLiteral(language, 'Right y-axis')}</SelectItem>
         </SelectContent>
       </Select>
       <Button
-        aria-label={`Delete ${indicatorLabel(indicatorId)}`}
+        aria-label={translateUiLiteral(language, 'Delete {name}', { name: label })}
         className="h-9 rounded-[0.9rem] px-3"
         type="button"
         variant="destructive-outline"
@@ -889,11 +902,13 @@ const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
 
 function LayoutIndicatorRow({
   indicatorId,
+  language,
   settings,
   onAxisSideChange,
   onDelete,
 }: {
   indicatorId: TradingChartIndicatorId;
+  language: AppLanguage;
   settings: TradingChartIndicatorSettings;
   onAxisSideChange: (indicatorId: TradingChartIndicatorId, axisSide: TradingChartIndicatorAxisSide) => void;
   onDelete: (indicatorId: TradingChartIndicatorId) => void;
@@ -909,6 +924,7 @@ function LayoutIndicatorRow({
       {...listeners}
       dragging={isDragging}
       indicatorId={indicatorId}
+      language={language}
       ref={setNodeRef}
       settings={settings}
       style={{
@@ -922,11 +938,13 @@ function LayoutIndicatorRow({
 }
 
 function LayoutPaneSection({
+  language,
   pane,
   settings,
   onAxisSideChange,
   onDelete,
 }: {
+  language: AppLanguage;
   pane: TradingChartPaneLayout;
   settings: TradingChartIndicatorSettings;
   onAxisSideChange: (indicatorId: TradingChartIndicatorId, axisSide: TradingChartIndicatorAxisSide) => void;
@@ -944,7 +962,7 @@ function LayoutPaneSection({
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          {layoutPaneLabel(pane.id)}
+          {layoutPaneLabel(language, pane.id)}
         </p>
       </div>
       <SortableContext items={pane.indicatorIds.map(layoutRowId)} strategy={verticalListSortingStrategy}>
@@ -953,6 +971,7 @@ function LayoutPaneSection({
             <LayoutIndicatorRow
               key={indicatorId}
               indicatorId={indicatorId}
+              language={language}
               settings={settings}
               onAxisSideChange={onAxisSideChange}
               onDelete={onDelete}
@@ -964,7 +983,7 @@ function LayoutPaneSection({
   );
 }
 
-function LayoutNewPaneDropZone() {
+function LayoutNewPaneDropZone({ language }: { language: AppLanguage }) {
   const { isOver, setNodeRef } = useDroppable({ id: LAYOUT_NEW_PANE_DROP_ID });
   return (
     <div
@@ -975,12 +994,13 @@ function LayoutNewPaneDropZone() {
       )}
     >
       <ActionAddBadgeIcon aria-hidden="true" className="size-4" />
-      <span>New pane</span>
+      <span>{translateUiLiteral(language, 'New pane')}</span>
     </div>
   );
 }
 
-function indicatorLabel(id: TradingChartIndicatorId) {
+function indicatorLabel(language: AppLanguage, id: TradingChartIndicatorId) {
+  const englishLabel = (() => {
   switch (id) {
     case 'inventory':
       return 'Inventory';
@@ -991,29 +1011,29 @@ function indicatorLabel(id: TradingChartIndicatorId) {
     case 'safetyStock':
       return 'Safety stock';
     case 'demand':
-      return 'Demand';
+      return 'Customer demand';
     case 'serviceDemand':
-      return 'Service demand';
+      return 'Customer service demand';
     case 'retailDemand':
-      return 'Retail demand';
+      return 'Customer retail demand';
     case 'availableCapacity':
       return 'Available capacity';
     case 'demandMinusAvailableCapacity':
-      return 'Available Capacity minus Demand';
+      return 'Demand vs capacity gap';
     case 'receipts':
-      return 'Receipts';
+      return 'Supplier receipts + adjustments';
     case 'ordersInTransit':
-      return 'Orders in transit';
+      return 'Supplier orders in transit';
     case 'ordersLate':
-      return 'Orders late';
+      return 'Supplier orders late';
     case 'ordersReadyToReceive':
-      return 'Orders ready to receive';
+      return 'Supplier orders ready to receive';
     case 'ordersReceived':
-      return 'Orders received';
+      return 'Supplier receipts';
     case 'newOrderFlags':
-      return 'New order flags';
+      return 'Supplier order activity';
     case 'newReceiptFlags':
-      return 'New receipt flags';
+      return 'Supplier receipt activity';
     case 'price':
       return 'Price';
     case 'leadTime':
@@ -1023,38 +1043,41 @@ function indicatorLabel(id: TradingChartIndicatorId) {
     case 'regime':
       return 'Sales Pattern';
   }
+  })();
+  return translateUiLiteral(language, englishLabel);
 }
 
-function indicatorDescription(id: TradingChartIndicatorId) {
+function indicatorDescription(language: AppLanguage, id: TradingChartIndicatorId) {
+  const englishDescription = (() => {
   switch (id) {
     case 'demand':
-      return 'Expected service and retail demand for each interval.';
+      return 'Expected customer demand across services and retail for each interval.';
     case 'serviceDemand':
-      return 'Expected service demand for each interval.';
+      return 'Expected customer service demand for each interval.';
     case 'retailDemand':
-      return 'Expected retail demand for each interval.';
+      return 'Expected customer retail demand for each interval.';
     case 'availableCapacity':
       return 'Projected available capacity for the interval.';
     case 'demandMinusAvailableCapacity':
-      return 'Gap between available capacity and demand in the interval.';
+      return 'Gap between customer demand and available capacity in the interval.';
     case 'inventory':
       return 'Projected on-hand inventory across the loaded intervals.';
     case 'price':
       return 'Observed selling price when product price data is available.';
     case 'receipts':
-      return 'Receipts and adjustments that increase or correct stock.';
+      return 'Supplier receipts and stock adjustments that increase or correct stock.';
     case 'ordersInTransit':
-      return 'Posterior in-transit units for each interval.';
+      return 'Posterior supplier units in transit for each interval.';
     case 'ordersLate':
-      return 'Open order quantity now late against expected arrival.';
+      return 'Open supplier order quantity now late against expected arrival.';
     case 'ordersReadyToReceive':
-      return 'Open order quantity marked awaiting receipt.';
+      return 'Open supplier order quantity marked awaiting receipt.';
     case 'ordersReceived':
-      return 'Posterior received quantity landing in each interval.';
+      return 'Posterior supplier receipt quantity landing in each interval.';
     case 'newOrderFlags':
-      return 'Intervals where new order placement signals were recorded.';
+      return 'Intervals where new supplier order placement signals were recorded.';
     case 'newReceiptFlags':
-      return 'Intervals where new receipt signals were recorded.';
+      return 'Intervals where new supplier receipt signals were recorded.';
     case 'regime':
       return 'Sales-pattern state markers such as stock-limited or spike intervals.';
     case 'reorderPoint':
@@ -1068,6 +1091,8 @@ function indicatorDescription(id: TradingChartIndicatorId) {
     case 'leadTimeRange':
       return 'Lead time variability range around the interval mean.';
   }
+  })();
+  return translateUiLiteral(language, englishDescription);
 }
 
 function isHistogramIndicatorId(id: TradingChartIndicatorId): id is HistogramIndicatorId {
@@ -1828,15 +1853,15 @@ function buildStackedOverlayMarkers({
     'newOrderFlags',
     isEnabled(editableIndicatorSettings, chartModel.availability, 'newOrderFlags'),
     (point) => (point.newOrderFlag ?? 0) > 0,
-    ActionAddBadgeIcon,
-    'New order flag',
+    ActionCreatePackageIcon,
+    'Supplier order activity',
   );
   pushPointFlagMarkers(
     'newReceiptFlags',
     isEnabled(editableIndicatorSettings, chartModel.availability, 'newReceiptFlags'),
     (point) => (point.newReceiptFlag ?? 0) > 0,
-    EntityReceiptDocumentIcon,
-    'New receipt flag',
+    ActionReceiveInventoryIcon,
+    'Supplier receipt activity',
   );
 
   return stackOverlayFlagMarkers(markers);
@@ -2031,13 +2056,13 @@ function buildLegendRows({
       return [];
     }
     const setting = settings[id];
-    let value = 'No data';
+    let value = translateUiLiteral(language, 'No data');
     if (point) {
       if (id === 'inventory') {
         value = formatValue(valueForInputSource(point, id, setting.inputSource), 'u', setting.precision);
       } else if (id === 'uncertainty') {
         value = point.inventoryLow == null || point.inventoryHigh == null
-          ? 'No data'
+          ? translateUiLiteral(language, 'No data')
           : `${formatValue(point.inventoryLow, 'u', setting.precision)} - ${formatValue(point.inventoryHigh, 'u', setting.precision)}`;
       } else if (id === 'reorderPoint') {
         value = formatValue(point.reorderPoint, 'u', setting.precision);
@@ -2050,24 +2075,28 @@ function buildLegendRows({
       } else if (isHistogramIndicatorId(id)) {
         value = histogramIndicatorLegendValue(point, id, setting.precision, setting.inputSource);
       } else if (id === 'newOrderFlags') {
-        value = point.newOrderFlag ? 'New order' : 'No flag';
+        value = point.newOrderFlag
+          ? translateUiLiteral(language, 'Supplier order recorded')
+          : translateUiLiteral(language, 'No activity');
       } else if (id === 'newReceiptFlags') {
-        value = point.newReceiptFlag ? 'New receipt' : 'No flag';
+        value = point.newReceiptFlag
+          ? translateUiLiteral(language, 'Supplier receipt recorded')
+          : translateUiLiteral(language, 'No activity');
       } else if (id === 'price') {
         value = formatValue(valueForInputSource(point, id, setting.inputSource), '', setting.precision);
       } else if (id === 'leadTime') {
         value = formatValue(point.leadTimeMean, 'd', setting.precision);
       } else if (id === 'leadTimeRange') {
         value = point.leadTimeLow == null || point.leadTimeHigh == null
-          ? 'No data'
+          ? translateUiLiteral(language, 'No data')
           : `${formatValue(point.leadTimeLow, 'd', setting.precision)} - ${formatValue(point.leadTimeHigh, 'd', setting.precision)}`;
       } else if (id === 'regime') {
-        value = point.dominantRegime ? translateRegimeLabel(language, point.dominantRegime) : 'No data';
+        value = point.dominantRegime ? translateRegimeLabel(language, point.dominantRegime) : translateUiLiteral(language, 'No data');
       }
     }
     return [{
       id,
-      label: indicatorLabel(id),
+      label: indicatorLabel(language, id),
       color: setting.color,
       value: setting.showStatusLineValue === false ? '' : value,
     }];
@@ -2125,11 +2154,13 @@ function chartSettingsEqual(
 }
 
 function ChartSettingsLeavePrompt({
+  language,
   open,
   onApply,
   onDiscard,
   onKeepEditing,
 }: {
+  language: AppLanguage;
   open: boolean;
   onApply: () => void;
   onDiscard: () => void;
@@ -2146,27 +2177,27 @@ function ChartSettingsLeavePrompt({
       onClick={onKeepEditing}
     >
       <div
-        aria-label="Apply chart changes"
+        aria-label={translateUiLiteral(language, 'Apply chart changes')}
         aria-modal="true"
         className="w-full max-w-md rounded-[1.5rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="grid gap-2">
-          <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">Apply chart changes?</p>
+          <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{translateUiLiteral(language, 'Apply chart changes?')}</p>
           <p className="text-sm leading-6 text-muted-foreground">
-            You have staged chart setting changes. Apply them before leaving, discard them, or keep editing.
+            {translateUiLiteral(language, 'You have staged chart setting changes. Apply them before leaving, discard them, or keep editing.')}
           </p>
         </div>
         <div className="mt-6 flex items-center justify-end gap-2">
           <Button className="h-11 px-4" type="button" variant="ghost" onClick={onKeepEditing}>
-            Keep editing
+            {translateUiLiteral(language, 'Keep editing')}
           </Button>
           <Button className="h-11 px-4" type="button" variant="destructive-outline" onClick={onDiscard}>
-            Discard changes
+            {translateUiLiteral(language, 'Discard changes')}
           </Button>
           <Button className="h-11 px-4" type="button" onClick={onApply}>
-            Apply changes
+            {translateUiLiteral(language, 'Apply changes')}
           </Button>
         </div>
       </div>
@@ -2242,8 +2273,8 @@ function parseLayoutDropTarget(value: string): LayoutDropTarget | null {
   return null;
 }
 
-function layoutPaneLabel(paneId: string) {
-  return paneId === TRADING_CHART_MAIN_PANE_ID ? 'Main' : 'Pane';
+function layoutPaneLabel(language: AppLanguage, paneId: string) {
+  return translateUiLiteral(language, paneId === TRADING_CHART_MAIN_PANE_ID ? 'Main' : 'Pane');
 }
 
 function hasRenderedIndicatorData(chartModel: TradingChartModel, id: TradingChartIndicatorId) {
@@ -2366,7 +2397,7 @@ export function SkuTradingChart({
   indicatorSettings,
   timeframe,
 }: SkuTradingChartProps) {
-  const { language } = usePreferences();
+  const { dimChartsWhileLoading, language } = usePreferences();
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRefs = useRef<AnySeries[]>([]);
@@ -2440,6 +2471,7 @@ export function SkuTradingChart({
   const chartInteractionLocked = ENABLE_CHART_INTERACTION_LOCK && (isBusy || isLoadingOlderIntervals || isOlderLoadPending || isPaneRelayoutPending);
   const hideChartVisualsDuringRelayout = ENABLE_CHART_INTERACTION_LOCK && isPaneRelayoutPending;
   const showBusyState = (isVisuallyBusy ?? isBusy) || isLoadingOlderIntervals || isOlderLoadPending;
+  const shouldDimChartWhileBusy = showBusyState && dimChartsWhileLoading;
   const draftEditableIndicatorSettings =
     draftIndicatorSettings ?? draftIndicatorsDialogSettings ?? draftLayoutIndicatorSettings ?? indicatorSettings;
   const editableIndicatorSettings = useMemo(
@@ -3966,7 +3998,7 @@ export function SkuTradingChart({
                   {row.map((color) => (
                     <button
                       key={color}
-                      aria-label={`Use color ${color}`}
+                      aria-label={translateUiLiteral(language, 'Use color {color}', { color })}
                       className={cn(
                         'size-6 rounded-[0.45rem] border transition-transform hover:scale-[1.04]',
                         stylePopoverSetting.color.toLowerCase() === color.toLowerCase()
@@ -3983,13 +4015,13 @@ export function SkuTradingChart({
             </div>
             {supportsLineWidth(stylePopoverSetting.plotStyle) ? (
               <div className="grid gap-2">
-                <p className="text-xs font-medium text-foreground">Thickness</p>
+                <p className="text-xs font-medium text-foreground">{translateUiLiteral(language, 'Thickness')}</p>
                 <div className={cn(SETTINGS_SEGMENTED_CLASS, 'grid grid-cols-4')}>
                   {LINE_WIDTH_OPTIONS.map((option) => (
                     <button
                       key={option}
                       aria-pressed={(stylePopoverSetting.lineWidth ?? 1) === option}
-                      aria-label={`Use line width ${option}`}
+                      aria-label={translateUiLiteral(language, 'Use line width {width}', { width: option })}
                       className={cn(
                         SETTINGS_SEGMENTED_OPTION_CLASS,
                         'h-8',
@@ -4011,13 +4043,13 @@ export function SkuTradingChart({
             ) : null}
             {supportsLineType(stylePopoverSetting.plotStyle) ? (
               <div className="grid gap-2">
-                <p className="text-xs font-medium text-foreground">Line type</p>
+                <p className="text-xs font-medium text-foreground">{translateUiLiteral(language, 'Line type')}</p>
                 <div className={cn(SETTINGS_SEGMENTED_CLASS, 'grid grid-cols-3')}>
                   {LINE_STYLE_OPTIONS.map((option) => (
                     <button
                       key={option}
                       aria-pressed={(stylePopoverSetting.lineStyle ?? 'solid') === option}
-                      aria-label={`Use line type ${option}`}
+                      aria-label={translateUiLiteral(language, 'Use line type {type}', { type: option })}
                       className={cn(
                         SETTINGS_SEGMENTED_OPTION_CLASS,
                         'h-8',
@@ -4054,7 +4086,7 @@ export function SkuTradingChart({
                   onClick={() => updateDraftIndicator(stylePopover.indicatorId, { plotStyle: option })}
                 >
                   <PlotStyleIcon aria-hidden="true" className="size-5 shrink-0" />
-                  <span>{plotStyleLabel(option)}</span>
+                  <span>{translateUiLiteral(language, plotStyleLabel(option))}</span>
                 </button>
               );
             })()
@@ -4090,7 +4122,7 @@ export function SkuTradingChart({
               <DialogPrimitive.Trigger asChild>
               <Button className="gap-2" disabled={!hasPoints} size="sm" type="button" variant="outline">
                 <StatusSettingsControlIcon aria-hidden="true" className="size-4" />
-                <span>Settings</span>
+                <span>{translateUiLiteral(language, 'Settings')}</span>
               </Button>
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
@@ -4132,20 +4164,20 @@ export function SkuTradingChart({
                 }}
                 style={settingsRenderPosition ?? { left: 16, top: 16 }}
               >
-                <DialogPrimitive.Title className="sr-only">Chart indicator settings</DialogPrimitive.Title>
+                <DialogPrimitive.Title className="sr-only">{translateUiLiteral(language, 'Chart indicator settings')}</DialogPrimitive.Title>
                 <DialogPrimitive.Description className="sr-only">
-                  Configure chart indicator styles, output values, and input values.
+                  {translateUiLiteral(language, 'Configure chart indicator styles, output values, and input values.')}
                 </DialogPrimitive.Description>
                 <div
                   className={SETTINGS_DIALOG_HEADER_CLASS}
                   onPointerDown={startSettingsDrag}
                 >
                   <div>
-                    <p className="text-[1.75rem] font-semibold text-foreground">Chart Settings</p>
-                    <p className="mt-2 text-sm text-muted-foreground">Style, output values, and input values</p>
+                    <p className="text-[1.75rem] font-semibold text-foreground">{translateUiLiteral(language, 'Chart Settings')}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{translateUiLiteral(language, 'Style, output values, and input values')}</p>
                   </div>
                   <button
-                    aria-label="Close settings"
+                    aria-label={translateUiLiteral(language, 'Close settings')}
                     className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/80"
                     type="button"
                     onClick={() => requestSettingsDialogLeave('settings', leaveSettingsDialog)}
@@ -4173,10 +4205,10 @@ export function SkuTradingChart({
                       return (
                         <section key={id} className="grid gap-5 border-b border-border/50 pb-6 last:border-b-0 last:pb-0">
                           <div className="flex flex-wrap items-center gap-4">
-                            <p className="text-base font-semibold text-foreground">{indicatorLabel(id)}</p>
+                            <p className="text-base font-semibold text-foreground">{indicatorLabel(language, id)}</p>
                             <div className="relative">
                               <button
-                                aria-label={`${indicatorLabel(id)} color`}
+                                aria-label={translateUiLiteral(language, '{name} color', { name: indicatorLabel(language, id) })}
                                 className={cn(SETTINGS_INPUT_CLASS, 'flex min-w-[9rem] items-center gap-3 px-2.5')}
                                 ref={stylePopover?.indicatorId === id && stylePopover.kind === 'color' ? activeStyleTriggerRef : null}
                                 type="button"
@@ -4192,7 +4224,7 @@ export function SkuTradingChart({
                             </div>
                             <div className="relative">
                               <button
-                                aria-label={`${indicatorLabel(id)} plot style`}
+                                aria-label={translateUiLiteral(language, '{name} plot style', { name: indicatorLabel(language, id) })}
                                 className={SETTINGS_ICON_CONTROL_CLASS}
                                 ref={stylePopover?.indicatorId === id && stylePopover.kind === 'plotStyle' ? activeStyleTriggerRef : null}
                                 type="button"
@@ -4204,9 +4236,9 @@ export function SkuTradingChart({
                           </div>
                           <div className="grid gap-4">
                             <div className="grid gap-4">
-                              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Input Values</p>
+                              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{translateUiLiteral(language, 'Input Values')}</p>
                               <div className="flex flex-wrap items-center gap-4">
-                                <label className="text-sm font-medium text-foreground" htmlFor={`indicator-source-${id}`}>Source</label>
+                                <label className="text-sm font-medium text-foreground" htmlFor={`indicator-source-${id}`}>{translateUiLiteral(language, 'Source')}</label>
                                 <Select
                                   disabled={!supportsTradingChartInputSource(setting.plotStyle)}
                                   value={isOhlcTradingChartPlotStyle(setting.plotStyle) ? 'ohlc' : setting.inputSource ?? 'close'}
@@ -4215,7 +4247,7 @@ export function SkuTradingChart({
                                 >
                                   <SelectTrigger
                                     id={`indicator-source-${id}`}
-                                    aria-label={`${indicatorLabel(id)} source`}
+                                    aria-label={translateUiLiteral(language, '{name} source', { name: indicatorLabel(language, id) })}
                                     className={cn(SETTINGS_INPUT_CLASS, 'w-full max-w-56 px-4')}
                                   >
                                     <SelectValue />
@@ -4228,7 +4260,7 @@ export function SkuTradingChart({
                                           disabled={inputSourceOptionDisabled(setting.plotStyle, option.value)}
                                           value={option.value}
                                         >
-                                          {option.label}
+                                          {translateUiLiteral(language, option.label)}
                                         </SelectItem>
                                       ))}
                                     </SelectGroup>
@@ -4237,9 +4269,9 @@ export function SkuTradingChart({
                               </div>
                             </div>
                             <div className="grid gap-4">
-                              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Output Values</p>
+                              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{translateUiLiteral(language, 'Output Values')}</p>
                               <div className="flex flex-wrap items-center gap-4">
-                                <label className="text-sm font-medium text-foreground" htmlFor={`indicator-precision-${id}`}>Precision</label>
+                                <label className="text-sm font-medium text-foreground" htmlFor={`indicator-precision-${id}`}>{translateUiLiteral(language, 'Precision')}</label>
                                 <Select
                                   value={setting.precision ?? 'default'}
                                   onOpenChange={setSettingsSelectOpen}
@@ -4247,7 +4279,7 @@ export function SkuTradingChart({
                                 >
                                   <SelectTrigger
                                     id={`indicator-precision-${id}`}
-                                    aria-label={`${indicatorLabel(id)} precision`}
+                                    aria-label={translateUiLiteral(language, '{name} precision', { name: indicatorLabel(language, id) })}
                                     className={cn(SETTINGS_INPUT_CLASS, 'w-full max-w-40 px-4')}
                                   >
                                     <SelectValue />
@@ -4255,7 +4287,7 @@ export function SkuTradingChart({
                                   <SelectContent className="overscroll-contain">
                                     <SelectGroup>
                                       {PRECISION_OPTIONS.map((option) => (
-                                        <SelectItem key={option} value={option}>{precisionLabel(option)}</SelectItem>
+                                        <SelectItem key={option} value={option}>{translateUiLiteral(language, precisionLabel(option))}</SelectItem>
                                       ))}
                                     </SelectGroup>
                                   </SelectContent>
@@ -4263,19 +4295,19 @@ export function SkuTradingChart({
                               </div>
                               <label className="inline-flex items-center gap-3 text-sm font-medium text-foreground">
                                 <Checkbox
-                                  aria-label={`${indicatorLabel(id)} labels on price scale`}
+                                  aria-label={translateUiLiteral(language, '{name} labels on price scale', { name: indicatorLabel(language, id) })}
                                   checked={setting.showPriceScaleLabel ?? false}
                                   onCheckedChange={(checked) => updateDraftIndicator(id, { showPriceScaleLabel: checked === true })}
                                 />
-                                <span>Labels on price scale</span>
+                                <span>{translateUiLiteral(language, 'Labels on price scale')}</span>
                               </label>
                               <label className="inline-flex items-center gap-3 text-sm font-medium text-foreground">
                                 <Checkbox
-                                  aria-label={`${indicatorLabel(id)} values in status line`}
+                                  aria-label={translateUiLiteral(language, '{name} values in status line', { name: indicatorLabel(language, id) })}
                                   checked={setting.showStatusLineValue ?? true}
                                   onCheckedChange={(checked) => updateDraftIndicator(id, { showStatusLineValue: checked === true })}
                                 />
-                                <span>Values in status line</span>
+                                <span>{translateUiLiteral(language, 'Values in status line')}</span>
                               </label>
                             </div>
                           </div>
@@ -4300,27 +4332,29 @@ export function SkuTradingChart({
                       }
                     }}
                   >
-                    <SelectTrigger aria-label="Default settings menu" className="h-11 min-w-36 rounded-[1rem] bg-[#fffaf3] px-4 text-sm font-medium">
-                      <SelectValue placeholder="Default" />
+                    <SelectTrigger aria-label={translateUiLiteral(language, 'Default settings menu')} className="h-11 min-w-36 rounded-[1rem] bg-[#fffaf3] px-4 text-sm font-medium">
+                      <SelectValue placeholder={translateUiLiteral(language, 'Default')} />
                     </SelectTrigger>
                     <SelectContent align="start" className="overscroll-contain rounded-[1rem] border-border/70 bg-[#fdfaf6]">
                       <SelectGroup>
-                        <SelectItem value="reset">Reset settings</SelectItem>
-                        <SelectItem value="save">Save as Default</SelectItem>
+                        <SelectItem value="reset">{translateUiLiteral(language, 'Reset settings')}</SelectItem>
+                        <SelectItem value="save">{translateUiLiteral(language, 'Save as Default')}</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-3">
                     <Button
-                      className="h-11 rounded-[1rem] px-5"
+                      className={SETTINGS_DIALOG_FOOTER_BUTTON_CLASS}
+                      size="sm"
                       type="button"
                       variant="outline"
                       onClick={() => requestSettingsDialogLeave('settings', leaveSettingsDialog)}
                     >
-                      Cancel
+                      {translateUiLiteral(language, 'Cancel')}
                     </Button>
                     <Button
-                      className="h-11 rounded-[1rem] px-5"
+                      className={SETTINGS_DIALOG_FOOTER_BUTTON_CLASS}
+                      size="sm"
                       type="button"
                       onClick={() => {
                         if (draftIndicatorSettings) {
@@ -4329,7 +4363,7 @@ export function SkuTradingChart({
                         leaveSettingsDialog();
                       }}
                     >
-                      Ok
+                      {translateUiLiteral(language, 'Ok')}
                     </Button>
                   </div>
                 </div>
@@ -4358,7 +4392,7 @@ export function SkuTradingChart({
               <DialogPrimitive.Trigger asChild>
               <Button className="gap-2" disabled={!hasPoints} size="sm" type="button" variant="outline">
                 <StatusTrendChartIcon aria-hidden="true" className="size-4" />
-                <span>Indicators</span>
+                <span>{translateUiLiteral(language, 'Indicators')}</span>
               </Button>
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
@@ -4379,20 +4413,20 @@ export function SkuTradingChart({
                 }}
                 style={settingsRenderPosition ?? { left: 16, top: 16 }}
               >
-                <DialogPrimitive.Title className="sr-only">Chart indicators</DialogPrimitive.Title>
+                <DialogPrimitive.Title className="sr-only">{translateUiLiteral(language, 'Chart indicators')}</DialogPrimitive.Title>
                 <DialogPrimitive.Description className="sr-only">
-                  Select which indicators are shown on the chart.
+                  {translateUiLiteral(language, 'Select which indicators are shown on the chart.')}
                 </DialogPrimitive.Description>
                 <div
                   className={SETTINGS_DIALOG_HEADER_CLASS}
                   onPointerDown={startSettingsDrag}
                 >
                   <div>
-                    <p className="text-[1.75rem] font-semibold text-foreground">Indicators</p>
-                    <p className="mt-2 text-sm text-muted-foreground">Choose which indicators appear on the chart.</p>
+                    <p className="text-[1.75rem] font-semibold text-foreground">{translateUiLiteral(language, 'Indicators')}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{translateUiLiteral(language, 'Choose which indicators appear on the chart.')}</p>
                   </div>
                   <button
-                    aria-label="Close indicators"
+                    aria-label={translateUiLiteral(language, 'Close indicators')}
                     className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/80"
                     type="button"
                     onClick={() => requestSettingsDialogLeave('indicators', leaveIndicatorsDialog)}
@@ -4404,7 +4438,7 @@ export function SkuTradingChart({
                   <div className="grid gap-6">
                     {visibleIndicatorSections.map((section) => (
                       <section key={section.title} className="grid gap-3">
-                        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{section.title}</p>
+                        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{translateUiLiteral(language, section.title)}</p>
                         <div className="grid gap-0">
                           {section.ids.map((id) => {
                             const setting = draftIndicatorsDialogSettings?.[id] ?? indicatorSettings[id];
@@ -4413,7 +4447,7 @@ export function SkuTradingChart({
                               <div key={id} className="border-b border-border/50 py-4 first:pt-0 last:border-b-0 last:pb-0">
                                 <label className="flex items-center gap-3 text-sm text-foreground">
                                   <Checkbox
-                                    aria-label={`Show ${indicatorLabel(id)}`}
+                                    aria-label={translateUiLiteral(language, 'Show {name}', { name: indicatorLabel(language, id) })}
                                     className="self-center"
                                     checked={setting.enabled}
                                     onCheckedChange={(checked) => {
@@ -4433,8 +4467,8 @@ export function SkuTradingChart({
                                   />
                                   <IndicatorIcon aria-hidden="true" className="size-4 shrink-0 self-center text-muted-foreground" />
                                   <span className="grid gap-1">
-                                    <span className="font-medium">{indicatorLabel(id)}</span>
-                                    <span className="text-sm leading-5 text-muted-foreground">{indicatorDescription(id)}</span>
+                                    <span className="font-medium">{indicatorLabel(language, id)}</span>
+                                    <span className="text-sm leading-5 text-muted-foreground">{indicatorDescription(language, id)}</span>
                                   </span>
                                 </label>
                               </div>
@@ -4449,15 +4483,17 @@ export function SkuTradingChart({
                   <div />
                   <div className="flex items-center gap-3">
                     <Button
-                      className="h-11 rounded-[1rem] px-5"
+                      className={SETTINGS_DIALOG_FOOTER_BUTTON_CLASS}
+                      size="sm"
                       type="button"
                       variant="outline"
                       onClick={() => requestSettingsDialogLeave('indicators', leaveIndicatorsDialog)}
                     >
-                      Cancel
+                      {translateUiLiteral(language, 'Cancel')}
                     </Button>
                     <Button
-                      className="h-11 rounded-[1rem] px-5"
+                      className={SETTINGS_DIALOG_FOOTER_BUTTON_CLASS}
+                      size="sm"
                       type="button"
                       onClick={() => {
                         if (draftIndicatorsDialogSettings) {
@@ -4466,7 +4502,7 @@ export function SkuTradingChart({
                         leaveIndicatorsDialog();
                       }}
                     >
-                      Ok
+                      {translateUiLiteral(language, 'Ok')}
                     </Button>
                   </div>
                 </div>
@@ -4495,7 +4531,7 @@ export function SkuTradingChart({
             <DialogPrimitive.Trigger asChild>
               <Button className="gap-2" disabled={!hasPoints} size="sm" type="button" variant="outline">
                 <EntityLayersIcon aria-hidden="true" className="size-4" />
-                <span>Layout</span>
+                <span>{translateUiLiteral(language, 'Layout')}</span>
               </Button>
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
@@ -4518,20 +4554,20 @@ export function SkuTradingChart({
                 }}
                 style={settingsRenderPosition ?? { left: 16, top: 16 }}
               >
-                <DialogPrimitive.Title className="sr-only">Chart layout</DialogPrimitive.Title>
+                <DialogPrimitive.Title className="sr-only">{translateUiLiteral(language, 'Chart layout')}</DialogPrimitive.Title>
                 <DialogPrimitive.Description className="sr-only">
-                  Arrange pane membership, axis side, and render order for chart indicators.
+                  {translateUiLiteral(language, 'Arrange pane membership, axis side, and render order for chart indicators.')}
                 </DialogPrimitive.Description>
                 <div
                   className={SETTINGS_DIALOG_HEADER_CLASS}
                   onPointerDown={startSettingsDrag}
                 >
                   <div>
-                    <p className="text-[1.75rem] font-semibold text-foreground">Layout</p>
-                    <p className="mt-2 text-sm text-muted-foreground">Move indicators between panes, change axis side, and remove rows from chart.</p>
+                    <p className="text-[1.75rem] font-semibold text-foreground">{translateUiLiteral(language, 'Layout')}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{translateUiLiteral(language, 'Move indicators between panes, change axis side, and remove rows from chart.')}</p>
                   </div>
                   <button
-                    aria-label="Close layout"
+                    aria-label={translateUiLiteral(language, 'Close layout')}
                     className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/80"
                     type="button"
                     onClick={() => requestSettingsDialogLeave('layout', leaveLayoutDialog)}
@@ -4551,13 +4587,14 @@ export function SkuTradingChart({
                       {paneLayout.map((pane) => (
                         <LayoutPaneSection
                           key={pane.id}
+                          language={language}
                           pane={pane}
                           settings={editableIndicatorSettings}
                           onAxisSideChange={(indicatorId, axisSide) => updateDraftLayoutIndicator(indicatorId, { axisSide })}
                           onDelete={deleteLayoutIndicator}
                         />
                       ))}
-                      <LayoutNewPaneDropZone />
+                      <LayoutNewPaneDropZone language={language} />
                     </div>
                     {typeof document !== 'undefined'
                       ? createPortal(
@@ -4566,6 +4603,7 @@ export function SkuTradingChart({
                               <LayoutIndicatorRowCard
                                 dragging
                                 indicatorId={activeLayoutIndicatorId}
+                                language={language}
                                 settings={editableIndicatorSettings}
                               />
                             ) : null}
@@ -4577,19 +4615,21 @@ export function SkuTradingChart({
                 </div>
                 <div className={SETTINGS_DIALOG_FOOTER_CLASS}>
                   <div className="text-sm text-muted-foreground">
-                    {activeLayoutRowId ? 'Drop on a pane or New pane.' : 'Drag rows to reorder their pane and draw layer.'}
+                    {translateUiLiteral(language, activeLayoutRowId ? 'Drop on a pane or New pane.' : 'Drag rows to reorder their pane and draw layer.')}
                   </div>
                   <div className="flex items-center gap-3">
                     <Button
-                      className="h-11 rounded-[1rem] px-5"
+                      className={SETTINGS_DIALOG_FOOTER_BUTTON_CLASS}
+                      size="sm"
                       type="button"
                       variant="outline"
                       onClick={() => requestSettingsDialogLeave('layout', leaveLayoutDialog)}
                     >
-                      Cancel
+                      {translateUiLiteral(language, 'Cancel')}
                     </Button>
                     <Button
-                      className="h-11 rounded-[1rem] px-5"
+                      className={SETTINGS_DIALOG_FOOTER_BUTTON_CLASS}
+                      size="sm"
                       type="button"
                       onClick={() => {
                         if (draftLayoutIndicatorSettings) {
@@ -4598,7 +4638,7 @@ export function SkuTradingChart({
                         leaveLayoutDialog();
                       }}
                     >
-                      Ok
+                      {translateUiLiteral(language, 'Ok')}
                     </Button>
                   </div>
                 </div>
@@ -4607,14 +4647,14 @@ export function SkuTradingChart({
           </DialogPrimitive.Root>
           <Button className="gap-2" size="sm" type="button" variant="outline" onClick={onReset}>
             <ActionResetIcon aria-hidden="true" className="size-4" />
-            <span>Reset chart</span>
+            <span>{translateUiLiteral(language, 'Reset chart')}</span>
           </Button>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <p className="text-sm text-muted-foreground">{legendPoint ? intervalTooltipLabel(legendPoint.endAt ?? legendPoint.startAt, legendPoint.intervalIndex, language) : 'No interval selected'}</p>
+          <p className="text-sm text-muted-foreground">{legendPoint ? intervalTooltipLabel(legendPoint.endAt ?? legendPoint.startAt, legendPoint.intervalIndex, language) : translateUiLiteral(language, 'No interval selected')}</p>
           {onToggleExpand ? (
             <Button
-              aria-label={expanded ? 'Collapse chart' : 'Expand chart'}
+              aria-label={translateUiLiteral(language, expanded ? 'Collapse chart' : 'Expand chart')}
               className="gap-2 rounded-full px-3"
               size="sm"
               type="button"
@@ -4625,7 +4665,7 @@ export function SkuTradingChart({
               }}
             >
               {expanded ? <StatusMinimizeIcon className="size-4" /> : <StatusMaximizeIcon className="size-4" />}
-              <span>{expanded ? 'Collapse' : 'Expand'}</span>
+              <span>{translateUiLiteral(language, expanded ? 'Collapse' : 'Expand')}</span>
             </Button>
           ) : null}
         </div>
@@ -4634,7 +4674,7 @@ export function SkuTradingChart({
       <div
         className={cn(
           'relative min-h-[420px] flex-1 overflow-hidden rounded-lg border border-border/70 bg-white transition-opacity duration-200 motion-reduce:transition-none',
-          showBusyState && 'opacity-45',
+          shouldDimChartWhileBusy && 'opacity-45',
         )}
         data-busy={showBusyState || undefined}
         style={{ minHeight: deriveTradingChartMinRenderHeight(activeAdditionalPaneCount) }}
@@ -4717,7 +4757,7 @@ export function SkuTradingChart({
                   return (
                     <button
                       key={marker.key}
-                      aria-label={`Select ${marker.label}`}
+                      aria-label={translateUiLiteral(language, 'Select {name}', { name: marker.label })}
                       className={cn(
                         'pointer-events-auto absolute flex h-7 items-center justify-center rounded-full border border-background/80 bg-background/92 text-foreground shadow-sm transition-transform hover:scale-105',
                         marker.clustered ? 'px-2' : 'w-7',
@@ -4743,7 +4783,7 @@ export function SkuTradingChart({
           </>
         ) : (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-6 text-center text-sm text-muted-foreground" data-testid="sku-trading-chart-empty">
-            No chart intervals are available yet.
+            {translateUiLiteral(language, 'No chart intervals are available yet.')}
           </div>
         )}
         {uncertaintyBandPath ? (
@@ -4769,7 +4809,7 @@ export function SkuTradingChart({
           data-testid="sku-trading-chart"
           style={{ minHeight: deriveTradingChartMinRenderHeight(activeAdditionalPaneCount) }}
         />
-        {showBusyState ? (
+        {shouldDimChartWhileBusy ? (
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 z-[25] bg-white/55 backdrop-blur-[0.25px]"
@@ -4777,7 +4817,7 @@ export function SkuTradingChart({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+      <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
         <div className="flex flex-wrap items-center gap-2" aria-label="Chart duration">
           {CHART_TIMEFRAME_OPTIONS.map((option) => (
             <button
@@ -4793,14 +4833,14 @@ export function SkuTradingChart({
                 }
               }}
             >
-              {option === 'MAX' ? 'All' : translateChartTimeframeLabel(language, option)}
+              {option === 'MAX' ? translateUiLiteral(language, 'All') : translateChartTimeframeLabel(language, option)}
             </button>
           ))}
           {onCustomTimeframeChange ? (
           <DialogPrimitive.Root open={customRangeDialogOpen} onOpenChange={setCustomRangeDialogOpen}>
             <DialogPrimitive.Trigger asChild>
               <button
-                aria-label="Custom duration"
+                aria-label={translateUiLiteral(language, 'Custom duration')}
                 className={cn(
                   'rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                   activeDurationOption === 'Custom' ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted',
@@ -4808,21 +4848,21 @@ export function SkuTradingChart({
                 type="button"
                 onClick={openCustomRangeDialog}
               >
-                Custom
+                {translateUiLiteral(language, 'Custom')}
               </button>
             </DialogPrimitive.Trigger>
             <DialogPrimitive.Portal>
               <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/30 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
               <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[110] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
-                <DialogPrimitive.Title className="text-lg font-semibold tracking-[-0.03em] text-foreground">Custom duration</DialogPrimitive.Title>
+                <DialogPrimitive.Title className="text-lg font-semibold tracking-[-0.03em] text-foreground">{translateUiLiteral(language, 'Custom duration')}</DialogPrimitive.Title>
                 <DialogPrimitive.Description className="mt-3 text-sm leading-6 text-muted-foreground">
-                  Choose a start and end date for the chart range.
+                  {translateUiLiteral(language, 'Choose a start and end date for the chart range.')}
                 </DialogPrimitive.Description>
                 <div className="mt-5 grid gap-4">
                   <label className="grid gap-2 text-sm font-medium text-foreground">
-                    <span>Start date</span>
+                    <span>{translateUiLiteral(language, 'Start date')}</span>
                     <Input
-                      aria-label="Custom timeframe start date"
+                      aria-label={translateUiLiteral(language, 'Custom timeframe start date')}
                       className="h-11 rounded-[1rem] bg-background px-4"
                       max={draftCustomRangeEnd || undefined}
                       type="date"
@@ -4831,9 +4871,9 @@ export function SkuTradingChart({
                     />
                   </label>
                   <label className="grid gap-2 text-sm font-medium text-foreground">
-                    <span>End date</span>
+                    <span>{translateUiLiteral(language, 'End date')}</span>
                     <Input
-                      aria-label="Custom timeframe end date"
+                      aria-label={translateUiLiteral(language, 'Custom timeframe end date')}
                       className="h-11 rounded-[1rem] bg-background px-4"
                       min={draftCustomRangeStart || undefined}
                       type="date"
@@ -4852,7 +4892,7 @@ export function SkuTradingChart({
                       setCustomRangeDialogOpen(false);
                     }}
                   >
-                    Clear
+                    {translateUiLiteral(language, 'Clear')}
                   </Button>
                   <div className="flex flex-wrap items-center justify-end gap-3">
                     <Button
@@ -4860,14 +4900,14 @@ export function SkuTradingChart({
                       variant="ghost"
                       onClick={() => setCustomRangeDialogOpen(false)}
                     >
-                      Cancel
+                      {translateUiLiteral(language, 'Cancel')}
                     </Button>
                     <Button
                       disabled={!draftCustomRangeStart || !draftCustomRangeEnd || draftCustomRangeStart > draftCustomRangeEnd}
                       type="button"
                       onClick={applyCustomRange}
                     >
-                      Apply
+                      {translateUiLiteral(language, 'Apply')}
                     </Button>
                   </div>
                 </div>
@@ -4878,7 +4918,7 @@ export function SkuTradingChart({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2" aria-label="Chart timeframe">
-          <span className="mr-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Timeframe</span>
+          <span className="mr-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{translateUiLiteral(language, 'Timeframe')}</span>
           {CHART_RESOLUTION_OPTIONS.map((option) => {
             const active = chartResolution === option;
             if (option === 'Custom') {
@@ -4886,7 +4926,7 @@ export function SkuTradingChart({
                 <DialogPrimitive.Root key={option} open={customResolutionDialogOpen} onOpenChange={setCustomResolutionDialogOpen}>
                   <DialogPrimitive.Trigger asChild>
                     <button
-                      aria-label="Custom timeframe"
+                      aria-label={translateUiLiteral(language, 'Custom timeframe')}
                       className={cn(
                         'rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                         active ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted',
@@ -4899,32 +4939,32 @@ export function SkuTradingChart({
                   <DialogPrimitive.Portal>
                     <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/30 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
                     <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[110] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
-                      <DialogPrimitive.Title className="text-lg font-semibold tracking-[-0.03em] text-foreground">Custom timeframe</DialogPrimitive.Title>
+                      <DialogPrimitive.Title className="text-lg font-semibold tracking-[-0.03em] text-foreground">{translateUiLiteral(language, 'Custom timeframe')}</DialogPrimitive.Title>
                       <DialogPrimitive.Description className="mt-3 text-sm leading-6 text-muted-foreground">
-                        Use minutes, hours, days, weeks, months, or years. Examples: 15m, 2H, 10D, 1W, 3M, 1Y.
+                        {translateUiLiteral(language, 'Use minutes, hours, days, weeks, months, or years. Examples: 15m, 2H, 10D, 1W, 3M, 1Y.')}
                       </DialogPrimitive.Description>
                       <div className="mt-5 grid gap-2">
-                        <label className="text-sm font-medium text-foreground" htmlFor="custom-chart-timeframe">Timeframe</label>
+                        <label className="text-sm font-medium text-foreground" htmlFor="custom-chart-timeframe">{translateUiLiteral(language, 'Timeframe')}</label>
                         <Input
                           id="custom-chart-timeframe"
-                          aria-label="Custom chart timeframe"
+                          aria-label={translateUiLiteral(language, 'Custom chart timeframe')}
                           className="h-11 rounded-[1rem] bg-background px-4"
                           placeholder="15m"
                           value={draftCustomResolution}
                           onChange={(event) => setDraftCustomResolution(event.currentTarget.value)}
                         />
-                        <p className="text-xs text-muted-foreground">Seconds and smaller units are not supported.</p>
+                        <p className="text-xs text-muted-foreground">{translateUiLiteral(language, 'Seconds and smaller units are not supported.')}</p>
                       </div>
                       <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
                         <Button type="button" variant="ghost" onClick={() => setCustomResolutionDialogOpen(false)}>
-                          Cancel
+                          {translateUiLiteral(language, 'Cancel')}
                         </Button>
                         <Button
                           disabled={!parseChartCustomResolution(draftCustomResolution)}
                           type="button"
                           onClick={applyCustomResolution}
                         >
-                          Apply
+                          {translateUiLiteral(language, 'Apply')}
                         </Button>
                       </div>
                     </DialogPrimitive.Content>
@@ -4947,9 +4987,18 @@ export function SkuTradingChart({
             );
           })}
         </div>
+        {expanded && showBusyState ? (
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
+            <div className="inline-flex items-center gap-3 rounded-[1.2rem] border border-[rgba(95,61,39,0.28)] bg-[rgba(63,39,25,0.96)] px-4 py-3 text-sm font-medium text-[rgba(255,248,241,0.98)] shadow-[0_20px_44px_rgba(48,31,20,0.28)] backdrop-blur-[14px]">
+              <StatusLoadingIcon className="size-4 animate-spin text-[rgba(255,232,209,0.95)]" />
+              <span>{translateUiLiteral(language, 'Loading data')}</span>
+            </div>
+          </div>
+        ) : null}
       </div>
       {stylePopoverPortal}
       <ChartSettingsLeavePrompt
+        language={language}
         open={pendingSettingsLeave != null}
         onApply={applyPendingSettingsLeave}
         onDiscard={discardPendingSettingsLeave}

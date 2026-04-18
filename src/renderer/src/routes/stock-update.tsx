@@ -10,6 +10,7 @@ import { NavigationGridIcon, NavigationListIcon, NavigationNextIcon, NavigationP
 import type { IconComponent } from '@icons';
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
+import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { SearchInput } from '@/components/system/search-input';
 import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
@@ -834,7 +835,7 @@ export function StockUpdateRoute() {
           </ToggleGroup>
           <SupplierFilter
             catalog={baseCatalog}
-            className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+            className={compactFilterControlClassName}
             value={supplierFilter}
             onChange={(nextSupplier) => updateRouteState({ supplier: supplierFilterQueryValue(nextSupplier) })}
           />

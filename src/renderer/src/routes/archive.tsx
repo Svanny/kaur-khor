@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
+import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { SearchInput } from '@/components/system/search-input';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
@@ -168,7 +169,7 @@ export function ArchiveRoute() {
           </ToggleGroup>
           <SupplierFilter
             catalog={inventory.catalog}
-            className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+            className={compactFilterControlClassName}
             value={supplierFilter}
             onChange={(nextSupplier) => {
               setSearchParams(

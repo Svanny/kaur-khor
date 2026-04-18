@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StatusLoadingIcon } from '@icons/status';
 import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/system/chart-timeframe';
 import {
   DEFAULT_CHART_RESOLUTION,
@@ -192,7 +191,7 @@ export function TradingChartLedger({
         'relative isolate flex min-w-0 flex-col',
         expanded
           ? `${cardFrameClassName} ${cardSurfaceClassName} h-full min-h-0 w-full rounded-[2rem] px-6 py-5`
-          : `${cardFrameClassName} ${cardSurfaceClassName} min-h-[100svh] self-start rounded-[2rem] px-6 py-5`,
+          : `${cardFrameClassName} ${cardSurfaceClassName} h-[100svh] self-start rounded-[2rem] px-6 py-5`,
       )}
     >
       <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
@@ -236,14 +235,6 @@ export function TradingChartLedger({
           onVisibleDateRangeChange={(visibleDateRange, options) => onChartLayoutPreferencesChange({ visibleDateRange }, options)}
         />
       </div>
-      {expanded && (isVisuallyBusy ?? isBusy) ? (
-        <div className="pointer-events-none absolute inset-0 z-[140] flex items-center justify-center bg-white/10">
-          <div className="inline-flex items-center gap-3 rounded-[1.2rem] border border-[rgba(95,61,39,0.28)] bg-[rgba(63,39,25,0.96)] px-4 py-3 text-sm font-medium text-[rgba(255,248,241,0.98)] shadow-[0_20px_44px_rgba(48,31,20,0.28)] backdrop-blur-[14px]">
-            <StatusLoadingIcon className="size-4 animate-spin text-[rgba(255,232,209,0.95)]" />
-            <span>Loading data</span>
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }

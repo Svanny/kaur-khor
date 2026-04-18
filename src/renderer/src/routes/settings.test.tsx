@@ -54,6 +54,7 @@ describe('SettingsRoute', () => {
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'custom',
       itemImageMode: 'small',
+      dimChartsWhileLoading: false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -87,6 +88,7 @@ describe('SettingsRoute', () => {
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'custom',
       itemImageMode: 'small',
+      dimChartsWhileLoading: false,
       showExplanatoryTooltips: false,
       showFloatingTitleActions: false,
       showRightRailCards: false,
@@ -219,6 +221,22 @@ describe('SettingsRoute', () => {
     });
   });
 
+  it('renders and saves the dim charts while loading preference in workspace preferences', async () => {
+    renderSettingsRoute('/settings/workspace');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /dim charts while loading/i });
+    expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        dimChartsWhileLoading: true,
+      }));
+    });
+  });
+
   it('renders and saves one overview batch-action default', async () => {
     savePreferences.mockImplementation(async (payload) => ({
       language: 'en',
@@ -226,6 +244,7 @@ describe('SettingsRoute', () => {
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'custom',
       itemImageMode: payload.itemImageMode ?? 'small',
+      dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -275,6 +294,7 @@ describe('SettingsRoute', () => {
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       displayViewMode: payload.displayViewMode ?? 'custom',
       itemImageMode: payload.itemImageMode ?? 'small',
+      dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -331,6 +351,7 @@ describe('SettingsRoute', () => {
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       displayViewMode: payload.displayViewMode ?? 'custom',
       itemImageMode: payload.itemImageMode ?? 'small',
+      dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -544,6 +565,7 @@ describe('SettingsRoute', () => {
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'compact',
       itemImageMode: 'small',
+      dimChartsWhileLoading: false,
       showExplanatoryTooltips: false,
       showFloatingTitleActions: false,
       showRightRailCards: false,
@@ -570,6 +592,7 @@ describe('SettingsRoute', () => {
       usdToKhrExchangeRate: 4000,
       displayViewMode: payload.displayViewMode ?? 'custom',
       itemImageMode: payload.itemImageMode ?? 'small',
+      dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
       showExplanatoryTooltips: payload.showExplanatoryTooltips ?? false,
       showFloatingTitleActions: payload.showFloatingTitleActions ?? false,
       showRightRailCards: payload.showRightRailCards ?? false,
@@ -639,6 +662,7 @@ describe('SettingsRoute', () => {
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       displayViewMode: payload.displayViewMode ?? 'custom',
       itemImageMode: payload.itemImageMode ?? 'small',
+      dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -779,6 +803,7 @@ describe('SettingsRoute', () => {
       currency: 'USD',
       usdToKhrExchangeRate: payload.usdToKhrExchangeRate ?? 4000,
       itemImageMode: payload.itemImageMode ?? 'small',
+      dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,

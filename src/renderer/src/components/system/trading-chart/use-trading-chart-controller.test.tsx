@@ -268,6 +268,49 @@ describe('useTradingChartController', () => {
     });
   });
 
+  it('completes persisted custom range hydration and resets chart zoom after reload', async () => {
+    let latest: TradingChartController | null = null;
+    const range: ChartCustomTimeframeRange = {
+      startAt: '2026-02-01T00:00:00.000Z',
+      endAt: '2026-03-01T00:00:00.000Z',
+    };
+    writeEntityChartLayoutPreferences('analysis', 'workbench', makePreferences({
+      customTimeframeRange: range,
+      visibleDateRange: null,
+    }));
+    const Recorder = controllerRecorder({
+      onChange: (controller) => {
+        latest = controller;
+      },
+      subjectId: 'workbench',
+      subtype: 'analysis',
+    });
+    render(<Recorder />);
+
+    expect(latest?.customTimeframeRange).toEqual(range);
+    expect(latest?.chartZoomResetToken).toBe(0);
+    expect(latest?.timeframeCacheKey).toBe(`Custom:${range.startAt}:${range.endAt}`);
+
+    act(() => latest?.settlePendingTimeframe({
+      isHydratingDetails: true,
+      resolvedTimeframe: 'Recent',
+      timeframeHydrationProgress: null,
+    }));
+
+    act(() => latest?.settlePendingTimeframe({
+      isHydratingDetails: false,
+      resolvedTimeframe: 'Recent',
+      timeframeHydrationProgress: null,
+    }));
+
+    await waitFor(() => {
+      expect(latest?.chartZoomResetToken).toBe(1);
+      expect(latest?.chartLayoutPreferences.customTimeframeRange).toEqual(range);
+      expect(latest?.chartLayoutPreferences.visibleDateRange).toEqual(range);
+      expect(latest?.timeframeCacheKey).toBeUndefined();
+    });
+  });
+
   it('applies a selected custom range when the requested range is already cached', async () => {
     let latest: TradingChartController | null = null;
     const range: ChartCustomTimeframeRange = {

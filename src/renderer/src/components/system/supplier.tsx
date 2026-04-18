@@ -7,7 +7,9 @@ import {
   supplierNamesFromCatalog,
   type SupplierFilterValue,
 } from '@/lib/sena-catalog';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
+import { usePreferences } from '@/state/preferences';
 
 export const noSupplierFilterValue = '__no_supplier__';
 const customSupplierValue = '__custom_supplier__';
@@ -36,6 +38,7 @@ export function SupplierBadge({
   showEmpty?: boolean;
   supplierName: string | null | undefined;
 }) {
+  const { language } = usePreferences();
   const normalizedSupplierName = supplierName?.trim() ?? '';
   if (!normalizedSupplierName && !showEmpty) {
     return null;
@@ -48,7 +51,7 @@ export function SupplierBadge({
         className,
       )}
     >
-      {normalizedSupplierName || 'No supplier'}
+      {normalizedSupplierName || translateUiLiteral(language, 'No supplier')}
     </span>
   );
 }
@@ -70,6 +73,7 @@ export function SupplierField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { language } = usePreferences();
   const supplierNames = supplierNamesFromCatalog(catalog);
   const normalizedValue = value.trim();
   const isExistingSupplier = supplierNames.includes(normalizedValue);
@@ -132,16 +136,16 @@ export function SupplierField({
               {supplierName}
             </SelectItem>
           ))}
-          <SelectItem value={customSupplierValue}>Custom supplier</SelectItem>
-          <SelectItem value={noSupplierFieldValue}>No supplier</SelectItem>
+          <SelectItem value={customSupplierValue}>{translateUiLiteral(language, 'Custom supplier')}</SelectItem>
+          <SelectItem value={noSupplierFieldValue}>{translateUiLiteral(language, 'No supplier')}</SelectItem>
         </SelectContent>
       </Select>
       {customMode ? (
         <input
-          aria-label="Custom supplier"
+          aria-label={translateUiLiteral(language, 'Custom supplier')}
           autoFocus
           className={inputClassName}
-          placeholder="Write supplier name"
+          placeholder={translateUiLiteral(language, 'Write supplier name')}
           value={customDraft}
           onChange={(event) => {
             setCustomDraft(event.target.value);
@@ -166,6 +170,7 @@ export function SupplierFilter({
   value: SupplierFilterValue;
   onChange: (value: SupplierFilterValue) => void;
 }) {
+  const { language } = usePreferences();
   const supplierNames = supplierNamesFromCatalog(catalog);
 
   return (
@@ -177,16 +182,16 @@ export function SupplierFilter({
           className,
         )}
       >
-        <SelectValue placeholder="All suppliers" />
+        <SelectValue placeholder={translateUiLiteral(language, 'All suppliers')} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">All suppliers</SelectItem>
+        <SelectItem value="all">{translateUiLiteral(language, 'All suppliers')}</SelectItem>
         {supplierNames.map((supplierName) => (
           <SelectItem key={supplierName} value={supplierName}>
             {supplierName}
           </SelectItem>
         ))}
-        <SelectItem value={noSupplierFilterValue}>No supplier</SelectItem>
+        <SelectItem value={noSupplierFilterValue}>{translateUiLiteral(language, 'No supplier')}</SelectItem>
       </SelectContent>
     </Select>
   );

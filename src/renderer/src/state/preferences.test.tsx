@@ -7,6 +7,7 @@ function PreferencesProbe() {
   const {
     currency,
     displayViewMode,
+    dimChartsWhileLoading: showDimChartsWhileLoading,
     hasPendingChanges,
     itemImageMode,
     language,
@@ -20,6 +21,7 @@ function PreferencesProbe() {
     persistedCustomShowLogsViewToggle,
     persistedCustomShowHeartbeatRibbons,
     persistedDisplayViewMode,
+    persistedDimChartsWhileLoading,
     persistedItemImageMode,
     persistedCurrency,
     persistedLanguage,
@@ -45,6 +47,7 @@ function PreferencesProbe() {
     resetPreferences,
     savePreferences,
     setCurrency,
+    setDimChartsWhileLoading,
     setItemImageMode,
     setLanguage,
     setUsdToKhrExchangeRate,
@@ -76,6 +79,7 @@ function PreferencesProbe() {
       <div data-testid="currency">{currency}</div>
       <div data-testid="exchange-rate">{usdToKhrExchangeRate}</div>
       <div data-testid="display-view-mode">{displayViewMode}</div>
+      <div data-testid="dim-charts-while-loading">{String(showDimChartsWhileLoading)}</div>
       <div data-testid="item-image-mode">{itemImageMode}</div>
       <div data-testid="persisted-language">{persistedLanguage}</div>
       <div data-testid="persisted-currency">{persistedCurrency}</div>
@@ -90,6 +94,7 @@ function PreferencesProbe() {
       <div data-testid="custom-show-logs-view-toggle">{String(customShowLogsViewToggle)}</div>
       <div data-testid="custom-show-heartbeat-ribbons">{String(customShowHeartbeatRibbons)}</div>
       <div data-testid="persisted-display-view-mode">{persistedDisplayViewMode}</div>
+      <div data-testid="persisted-dim-charts-while-loading">{String(persistedDimChartsWhileLoading)}</div>
       <div data-testid="show-explanatory-tooltips">{String(showExplanatoryTooltips)}</div>
       <div data-testid="persisted-show-explanatory-tooltips">{String(persistedShowExplanatoryTooltips)}</div>
       <div data-testid="show-floating-title-actions">{String(showFloatingTitleActions)}</div>
@@ -129,6 +134,9 @@ function PreferencesProbe() {
       </button>
       <button type="button" onClick={() => setItemImageMode('off')}>
         hide-item-pictures
+      </button>
+      <button type="button" onClick={() => setDimChartsWhileLoading(true)}>
+        show-chart-loading-dim
       </button>
       <button type="button" onClick={() => setUsdToKhrExchangeRate(4100)}>
         preview-exchange-rate
@@ -183,6 +191,7 @@ describe('preferences state', () => {
       usdToKhrExchangeRate: 4000,
       displayViewMode: 'custom',
       itemImageMode: 'small',
+      dimChartsWhileLoading: false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -216,6 +225,7 @@ describe('preferences state', () => {
       usdToKhrExchangeRate: 4100,
       displayViewMode: 'custom',
       itemImageMode: payload.itemImageMode ?? 'small',
+      dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
       showExplanatoryTooltips: false,
       showFloatingTitleActions: false,
       showRightRailCards: false,
@@ -286,6 +296,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('currency').textContent).toBe('KHR');
     expect(screen.getByTestId('exchange-rate').textContent).toBe('4100');
     expect(screen.getByTestId('display-view-mode').textContent).toBe('custom');
+    expect(screen.getByTestId('dim-charts-while-loading').textContent).toBe('false');
     expect(screen.getByTestId('item-image-mode').textContent).toBe('small');
     expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('false');
@@ -315,6 +326,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('currency').textContent).toBe('USD');
     expect(screen.getByTestId('exchange-rate').textContent).toBe('4000');
     expect(screen.getByTestId('display-view-mode').textContent).toBe('custom');
+    expect(screen.getByTestId('dim-charts-while-loading').textContent).toBe('false');
     expect(screen.getByTestId('show-explanatory-tooltips').textContent).toBe('true');
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('true');
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('true');
@@ -336,6 +348,7 @@ describe('preferences state', () => {
     fireEvent.click(screen.getByText('preview-language'));
     fireEvent.click(screen.getByText('preview-currency'));
     fireEvent.click(screen.getByText('hide-item-pictures'));
+    fireEvent.click(screen.getByText('show-chart-loading-dim'));
     fireEvent.click(screen.getByText('preview-exchange-rate'));
     fireEvent.click(screen.getByText('hide-explanatory-tooltips'));
     fireEvent.click(screen.getByText('hide-floating-title-actions'));
@@ -354,6 +367,7 @@ describe('preferences state', () => {
         currency: 'KHR',
         usdToKhrExchangeRate: 4100,
         itemImageMode: 'off',
+        dimChartsWhileLoading: true,
         showExplanatoryTooltips: false,
         showFloatingTitleActions: false,
         showRightRailCards: false,

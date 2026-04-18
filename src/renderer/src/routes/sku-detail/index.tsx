@@ -301,11 +301,13 @@ function SkuDetailScreen() {
 
   return (
     <WorkspacePage>
-      <LoadingMoreIntervalsIsland
-        currentBatch={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.current ?? null}
-        totalBatches={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.total ?? null}
-        visible={heldIsChartLoading}
-      />
+      {!isLedgerExpanded ? (
+        <LoadingMoreIntervalsIsland
+          currentBatch={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.current ?? null}
+          totalBatches={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.total ?? null}
+          visible={heldIsChartLoading}
+        />
+      ) : null}
       <div className="grid gap-6">
         {bootstrap.uiState === 'running' || isRefreshing ? (
           <div className="rounded-[1.4rem] border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground">

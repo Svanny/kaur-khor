@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deriveTradingChartMinRenderHeight,
   paneHeightAllocation,
@@ -30,11 +30,19 @@ const chartMockState = vi.hoisted(() => ({
   seriesApplyOptions: [] as ReturnType<typeof vi.fn>[],
 }));
 
-vi.mock('@/state/preferences', () => ({
-  usePreferences: () => ({
-    language: 'en',
-  }),
+const preferenceState = vi.hoisted(() => ({
+  dimChartsWhileLoading: true,
+  language: 'en',
 }));
+
+vi.mock('@/state/preferences', () => ({
+  usePreferences: () => preferenceState,
+}));
+
+beforeEach(() => {
+  preferenceState.dimChartsWhileLoading = true;
+  preferenceState.language = 'en';
+});
 
 vi.mock('lightweight-charts', async () => {
   chartMockState.addSeries.mockReset();
@@ -336,7 +344,7 @@ describe('SkuTradingChart settings', () => {
         left: 10,
         width: 28,
         color: '#000',
-        label: 'New order flag',
+        label: 'Supplier order activity',
         onClick: vi.fn(),
         icon: vi.fn() as never,
       },
@@ -349,7 +357,7 @@ describe('SkuTradingChart settings', () => {
         left: 10,
         width: 28,
         color: '#000',
-        label: 'New receipt flag',
+        label: 'Supplier receipt activity',
         onClick: vi.fn(),
         icon: vi.fn() as never,
       },
@@ -737,6 +745,16 @@ describe('SkuTradingChart settings', () => {
     expect(screen.getByRole('button', { name: 'Reset chart' })).toBeEnabled();
   });
 
+  it('keeps the chart fully visible while loading when the dim preference is off', () => {
+    preferenceState.dimChartsWhileLoading = false;
+
+    renderChart({ isBusy: true });
+
+    expect(screen.getByTestId('sku-trading-chart').parentElement).not.toHaveClass('opacity-45');
+    expect(screen.getByTestId('sku-trading-chart').parentElement).toHaveAttribute('data-busy', 'true');
+    expect(screen.getByTestId('sku-trading-chart').parentElement?.lastElementChild).not.toHaveClass('pointer-events-none');
+  });
+
   it('keeps the legend label visible when status line values are disabled', () => {
     const initialSettings = defaultTradingChartIndicators();
     initialSettings.ordersInTransit.enabled = true;
@@ -768,7 +786,7 @@ describe('SkuTradingChart settings', () => {
       initialSettings,
     });
 
-    expect(screen.getByText('Orders in transit')).toBeInTheDocument();
+    expect(screen.getByText('Supplier orders in transit')).toBeInTheDocument();
     expect(screen.queryByText('42.00u')).not.toBeInTheDocument();
   });
 
@@ -1180,7 +1198,7 @@ describe('SkuTradingChart settings', () => {
     const { setIndicatorSettings } = renderChart({ chartModelOverride: demandChartModel });
 
     await user.click(screen.getByRole('button', { name: 'Indicators' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Show Demand' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Show Customer demand' }));
     await user.click(screen.getByRole('button', { name: 'Close indicators' }));
 
     expect(screen.getByRole('dialog', { name: 'Apply chart changes' })).toBeInTheDocument();
@@ -1215,7 +1233,7 @@ describe('SkuTradingChart settings', () => {
     });
 
     await user.click(screen.getByRole('button', { name: 'Layout' }));
-    await user.click(screen.getByRole('button', { name: 'Delete Demand' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Customer demand' }));
     await user.click(screen.getByRole('button', { name: 'Close layout' }));
 
     expect(screen.getByRole('dialog', { name: 'Apply chart changes' })).toBeInTheDocument();
@@ -1468,7 +1486,7 @@ describe('SkuTradingChart settings', () => {
 
     await user.click(screen.getByRole('button', { name: 'Layout' }));
     expect(screen.getByRole('heading', { name: 'Chart layout' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Delete Demand' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Customer demand' }));
     await user.click(screen.getByRole('button', { name: 'Ok' }));
 
     expect(setIndicatorSettings).toHaveBeenCalledTimes(1);
@@ -1520,7 +1538,7 @@ describe('SkuTradingChart settings', () => {
 
     const inventoryColor = screen.getByLabelText('Inventory color');
     const priceColor = screen.getByLabelText('Price color');
-    const demandColor = screen.getByLabelText('Demand color');
+    const demandColor = screen.getByLabelText('Customer demand color');
 
     expect(inventoryColor.compareDocumentPosition(priceColor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(priceColor.compareDocumentPosition(demandColor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -1536,7 +1554,7 @@ describe('SkuTradingChart settings', () => {
 
     await user.click(screen.getByRole('button', { name: 'Indicators' }));
 
-    expect(screen.queryByLabelText('Show Demand')).toBeNull();
+    expect(screen.queryByLabelText('Show Customer demand')).toBeNull();
     expect(screen.queryByText('Unavailable for the current chart data.')).toBeNull();
   });
 

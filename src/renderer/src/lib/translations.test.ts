@@ -1,3 +1,5 @@
+import { readdir, readFile } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { kmUiCopy } from './km-ui-copy';
 import { getTranslation, translations, translateUiLiteral } from './translations';
@@ -10,7 +12,25 @@ function extractTemplateVariables(template: string): string[] {
 function stripAllowedLatin(text: string): string {
   return text
     .replace(/\{[A-Za-z0-9_]+\}/g, '')
-    .replace(/\b(?:SKU|SKUs|CSV|USD|KHR|API|JSON|SQLite|ID|IDs|Monysovann|ETA)\b/g, '');
+    .replace(/\b(?:SKU|SKUs|CSV|USD|KHR|API|JSON|SQLite|ID|IDs|Monysovann|ETA|SENA|Banji|ESS)\b/g, '')
+    .replace(/\b\d+(?:m|H|D|W|M|Y)\b/g, '');
+}
+
+async function collectSourceFiles(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) {
+        return collectSourceFiles(path);
+      }
+      if (!/\.(ts|tsx)$/.test(entry.name) || /\.test\.(ts|tsx)$/.test(entry.name)) {
+        return [];
+      }
+      return [path];
+    }),
+  );
+  return nested.flat();
 }
 
 describe('getTranslation', () => {
@@ -139,6 +159,92 @@ describe('getTranslation', () => {
     ).toBe(
       'ស្វែងរកការអាប់ដេតដែលបានរក្សាទុក មើលថាតើសកម្មភាពជាក់ស្តែងត្រូវបានកត់ត្រាពេលណា ហើយពិនិត្យសំណុំសញ្ញាដែលនៅពីក្រោយចន្លោះនីមួយៗ។',
     );
+  });
+
+  test('blocks runtime translation calls from hard-coding English', async () => {
+    const rendererRoot = resolve(process.cwd(), 'src/renderer/src');
+    const sourceFiles = await collectSourceFiles(rendererRoot);
+    const offenders: string[] = [];
+
+    for (const sourceFile of sourceFiles) {
+      const source = await readFile(sourceFile, 'utf8');
+      const matches = [...source.matchAll(/\b(?:getTranslation|translateUiLiteral)\(\s*['"]en['"]/g)];
+      offenders.push(
+        ...matches.map((match) => {
+          const line = source.slice(0, match.index).split('\n').length;
+          return `${relative(rendererRoot, sourceFile)}:${line}`;
+        }),
+      );
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  test('localizes the Khmer screenshot regression surfaces without English leaks', () => {
+    const screenshotRegressionLiterals = [
+      'Chart Settings',
+      'Style, output values, and input values',
+      'Settings',
+      'Indicators',
+      'Choose which indicators appear on the chart.',
+      'Layout',
+      'Move indicators between panes, change axis side, and remove rows from chart.',
+      'Input Values',
+      'Output Values',
+      'Source',
+      'Precision',
+      'Default',
+      'Labels on price scale',
+      'Values in status line',
+      'Right y-axis',
+      'Reset chart',
+      'Timeframe',
+      'All',
+      'Custom',
+      'Stock Count',
+      'Supplier Orders Pending',
+      'Supplier Receipts',
+      'Customer Orders Pending',
+      'Confirm when this update was observed.',
+      'Customer pending mode',
+      'New pending',
+      'Modify pending',
+      'Cancel pending',
+      'Supply',
+      'Customer',
+      'All suppliers',
+    ];
+
+    for (const literal of screenshotRegressionLiterals) {
+      const translated = translateUiLiteral('km', literal);
+      expect(translated).not.toBe(literal);
+      expect(/[A-Za-z]/.test(stripAllowedLatin(translated))).toBe(false);
+    }
+  });
+
+  test('keeps chart and record-update literal translations localized in Khmer', async () => {
+    const sourcePaths = [
+      'src/renderer/src/components/system/supplier.tsx',
+      'src/renderer/src/components/system/trading-chart/chart.tsx',
+      'src/renderer/src/routes/record-update-hub.tsx',
+      'src/renderer/src/routes/stock-update-session.tsx',
+    ];
+    const offenders: string[] = [];
+
+    for (const sourcePath of sourcePaths) {
+      const source = await readFile(resolve(process.cwd(), sourcePath), 'utf8');
+      const matches = [...source.matchAll(/\btranslateUiLiteral\(\s*language\s*,\s*'([^']+)'/g)];
+      for (const match of matches) {
+        const literal = match[1];
+        const translated = translateUiLiteral('km', literal);
+        if (/[A-Za-z]/.test(stripAllowedLatin(translated))) {
+          const line = source.slice(0, match.index).split('\n').length;
+          offenders.push(`${sourcePath}:${line}: ${literal} -> ${translated}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 
   test('still falls back to English defensively if a Khmer entry is unavailable at runtime', () => {

@@ -62,6 +62,8 @@ const parameterHelperClassName = 'leading-6 text-muted-foreground';
 const SHOW_SENA_ANALYSIS_PROFILE_PARAMETER = false;
 const preferenceSelectTriggerClassName =
   'h-14 w-full rounded-xl border border-border bg-background px-3 text-base shadow-none data-[size=default]:h-14';
+const compactPreferenceSelectTriggerClassName =
+  'h-12 w-full rounded-2xl border border-border bg-background px-4 text-sm font-medium shadow-none data-[size=default]:h-12';
 const exportSelectTriggerClassName =
   'h-11 w-11 rounded-l-none rounded-r-2xl border border-l-0 border-border/70 bg-background/80 px-0 text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground data-[size=default]:h-11 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:mx-auto [&_svg]:opacity-100';
 const exportActionButtonClassName =
@@ -421,11 +423,13 @@ function LocalDataLocationLink({
 
 function WorkspacePreferencesPage({
   currency,
+  dimChartsWhileLoading,
   exchangeRateDraft,
   exchangeRateError,
   itemImageMode,
   language,
   setCurrency,
+  setDimChartsWhileLoading,
   setExchangeRateDraft,
   setItemImageMode,
   setLanguage,
@@ -434,11 +438,13 @@ function WorkspacePreferencesPage({
   t,
 }: {
   currency: 'USD' | 'KHR';
+  dimChartsWhileLoading: boolean;
   exchangeRateDraft: string;
   exchangeRateError: string | null;
   itemImageMode: DesktopItemImageMode;
   language: 'en' | 'km';
   setCurrency: (value: 'USD' | 'KHR') => void;
+  setDimChartsWhileLoading: (value: boolean) => void;
   setExchangeRateDraft: (value: string) => void;
   setItemImageMode: (value: DesktopItemImageMode) => void;
   setLanguage: (value: 'en' | 'km') => void;
@@ -451,131 +457,173 @@ function WorkspacePreferencesPage({
 }) {
   return (
     <WorkspacePanel>
-      <div className="grid gap-4">
-        <label className="grid content-start gap-2 text-sm">
-          <span>{t('settingsLanguage')}</span>
-          <Select value={language} onValueChange={(value) => setLanguage(value as 'en' | 'km')}>
-            <SelectTrigger aria-label={t('settingsLanguage')} className={preferenceSelectTriggerClassName}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="start" position="popper">
-              <SelectItem value="en">
-                <LanguageOptionLabel prefix="abc" label="English" />
-              </SelectItem>
-              <SelectItem value="km">
-                <LanguageOptionLabel prefix="កខគ" label="Khmer" />
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.8fr)]">
-          <label className="grid content-start gap-2 text-sm">
-            <span>{t('settingsCurrency')}</span>
-            <Select value={currency} onValueChange={(value) => setCurrency(value as 'USD' | 'KHR')}>
-              <SelectTrigger aria-label={t('settingsCurrency')} className={preferenceSelectTriggerClassName}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="start" position="popper">
-                <SelectItem value="USD">USD</SelectItem>
-                <SelectItem value="KHR">KHR</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="grid content-start gap-2 text-sm">
-            <span>{t('settingsExchangeRateLabel')}</span>
-            <div className="flex h-14 items-center overflow-hidden rounded-xl border border-border bg-background text-base shadow-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
-              <span className="shrink-0 border-r border-border/70 px-3 text-muted-foreground">$1 =</span>
-              <input
-                aria-label={t('settingsExchangeRateInputLabel')}
-                className="h-full min-w-0 flex-1 bg-transparent px-3 outline-none"
-                min="1"
-                step="1"
-                type="number"
-                value={exchangeRateDraft}
-                onChange={(event) => setExchangeRateDraft(event.target.value)}
-              />
-              <span className="shrink-0 border-l border-border/70 px-3 text-muted-foreground">៛</span>
+      <div className="grid gap-6">
+        <section className="grid gap-5">
+          <div className="grid gap-5">
+            <div className="grid gap-1">
+              <p className="text-sm font-medium text-foreground">Regional preferences</p>
+              <p className="text-sm text-muted-foreground">
+                Choose how Banji presents language labels and KHR reference amounts across the desktop.
+              </p>
             </div>
-            {exchangeRateError ? (
-              <span className="text-xs leading-5 text-destructive">{exchangeRateError}</span>
-            ) : (
-              <span className="text-xs leading-5 text-muted-foreground">{t('settingsExchangeRateHelp')}</span>
-            )}
-          </label>
-        </div>
-        <div className="grid gap-1">
-          <p className="text-sm font-medium text-foreground">Item pictures</p>
-          <p className="text-sm text-muted-foreground">
-            Control whether SKU and service pictures appear, and how large they render.
-          </p>
-          <Select value={itemImageMode} onValueChange={(value) => setItemImageMode(value as DesktopItemImageMode)}>
-            <SelectTrigger aria-label="Item picture size" className={preferenceSelectTriggerClassName}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ITEM_IMAGE_MODE_OPTIONS.map((option) => {
-                const Icon = option.icon;
-                return (
-                  <SelectItem key={option.value} value={option.value}>
-                    <span className="flex items-center gap-3">
-                      <span className="flex w-6 items-center justify-center">
-                        <Icon
-                          className={`${option.value === 'thumbnail' ? 'size-3' : option.value === 'small' ? 'size-4' : 'size-6 text-muted-foreground'}`}
-                        />
-                      </span>
-                      <span className="align-baseline text-foreground">{option.label}</span>
-                    </span>
+            <label className="grid content-start gap-2 text-sm">
+              <span>{t('settingsLanguage')}</span>
+              <Select value={language} onValueChange={(value) => setLanguage(value as 'en' | 'km')}>
+                <SelectTrigger aria-label={t('settingsLanguage')} className={preferenceSelectTriggerClassName}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start" position="popper">
+                  <SelectItem value="en">
+                    <LanguageOptionLabel prefix="abc" label="English" />
                   </SelectItem>
+                  <SelectItem value="km">
+                    <LanguageOptionLabel prefix="កខគ" label="Khmer" />
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)]">
+              <label className="grid content-start gap-2 text-sm">
+                <span>{t('settingsCurrency')}</span>
+                <Select value={currency} onValueChange={(value) => setCurrency(value as 'USD' | 'KHR')}>
+                  <SelectTrigger aria-label={t('settingsCurrency')} className={preferenceSelectTriggerClassName}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start" position="popper">
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="KHR">KHR</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="grid content-start gap-2 text-sm">
+                <span>{t('settingsExchangeRateLabel')}</span>
+                <div className="flex h-14 items-center overflow-hidden rounded-xl border border-border bg-background text-base shadow-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+                  <span className="shrink-0 border-r border-border/70 px-3 text-muted-foreground">$1 =</span>
+                  <input
+                    aria-label={t('settingsExchangeRateInputLabel')}
+                    className="h-full min-w-0 flex-1 bg-transparent px-3 outline-none"
+                    min="1"
+                    step="1"
+                    type="number"
+                    value={exchangeRateDraft}
+                    onChange={(event) => setExchangeRateDraft(event.target.value)}
+                  />
+                  <span className="shrink-0 border-l border-border/70 px-3 text-muted-foreground">៛</span>
+                </div>
+                {exchangeRateError ? (
+                  <span className="text-xs leading-5 text-destructive">{exchangeRateError}</span>
+                ) : (
+                  <span className="text-xs leading-5 text-muted-foreground">{t('settingsExchangeRateHelp')}</span>
+                )}
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-6 border-t border-border/60 pt-6 lg:grid-cols-2 lg:items-start lg:gap-8">
+          <div className="grid gap-4">
+            <div className="grid gap-4">
+              <div className="grid gap-1">
+                <p className="text-sm font-medium text-foreground">Item pictures</p>
+                <p className="text-sm text-muted-foreground">
+                  Control whether SKU and service pictures appear, and how large they render.
+                </p>
+              </div>
+              <Select value={itemImageMode} onValueChange={(value) => setItemImageMode(value as DesktopItemImageMode)}>
+                <SelectTrigger aria-label="Item picture size" className={preferenceSelectTriggerClassName}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ITEM_IMAGE_MODE_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span className="flex items-center gap-3">
+                          <span className="flex w-6 items-center justify-center">
+                            <Icon
+                              className={`${option.value === 'thumbnail' ? 'size-3' : option.value === 'small' ? 'size-4' : 'size-6 text-muted-foreground'}`}
+                            />
+                          </span>
+                          <span className="align-baseline text-foreground">{option.label}</span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:border-l lg:border-border/60 lg:pl-8">
+            <div className="grid gap-4">
+              <div className="grid gap-1">
+                <p className="text-sm font-medium text-foreground">Chart loading</p>
+                <p className="text-sm text-muted-foreground">
+                  Control whether chart surfaces visually soften while background data refreshes.
+                </p>
+              </div>
+              <CheckboxRow
+                checked={dimChartsWhileLoading}
+                className="items-start px-0 py-0"
+                hint="Applies a loading dim to all charting surfaces while data is refreshing or older intervals are loading."
+                icon={<NavigationPerformanceIcon className="size-4" />}
+                label="Dim charts while loading"
+                onCheckedChange={setDimChartsWhileLoading}
+                variant="flat"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 border-t border-border/60 pt-6">
+          <div className="grid gap-5">
+            <div className="grid gap-1">
+              <p className="text-sm font-medium text-foreground">Overview batch-action defaults</p>
+              <p className="text-sm text-muted-foreground">
+                Choose whether Banji should ask, open one SKU at a time, or jump straight into a batch update for each overview action button.
+              </p>
+            </div>
+            <div className="divide-y divide-border/60 rounded-[1.25rem] border border-border/60 bg-background/70">
+              {TASK_BATCH_UPDATE_PREFERENCE_FIELDS.map((field) => {
+                const TaskActionIcon = overviewTaskActionIcons[field.action] ?? NavigationTaskListIcon;
+
+                return (
+                  <div
+                    key={field.key}
+                    className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-center lg:gap-6"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted/45 text-foreground">
+                        <TaskActionIcon className="size-4.5" />
+                      </span>
+                      <span className="text-sm font-medium text-foreground">{field.label}</span>
+                    </div>
+                    <Select
+                      value={taskBatchUpdatePreferences[field.key]}
+                      onValueChange={(value) =>
+                        setTaskBatchUpdatePreference(field.key, value as TaskBatchUpdatePreference)
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label={field.label}
+                        className={compactPreferenceSelectTriggerClassName}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="start" position="popper">
+                        {TASK_BATCH_UPDATE_PREFERENCE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 );
               })}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-4">
-          <div>
-            <p className="text-sm font-medium text-foreground">Overview batch-action defaults</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Choose whether Banji should ask, open one SKU at a time, or jump straight into a batch update for each overview action button.
-            </p>
+            </div>
           </div>
-          <div className="grid gap-2">
-            {TASK_BATCH_UPDATE_PREFERENCE_FIELDS.map((field) => {
-              const TaskActionIcon = overviewTaskActionIcons[field.action] ?? NavigationTaskListIcon;
-
-              return (
-                <div
-                  key={field.key}
-                  className="flex flex-col gap-3 border-b border-border/60 py-2 last:border-b-0 sm:flex-row sm:items-center"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <TaskActionIcon className="size-5 shrink-0 text-foreground" />
-                    <span className="text-sm font-medium text-foreground">{field.label}</span>
-                  </div>
-                  <Select
-                    value={taskBatchUpdatePreferences[field.key]}
-                    onValueChange={(value) =>
-                      setTaskBatchUpdatePreference(field.key, value as TaskBatchUpdatePreference)
-                    }
-                  >
-                    <SelectTrigger
-                      aria-label={field.label}
-                      className={`${preferenceSelectTriggerClassName} sm:ml-auto sm:max-w-xs`}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="start" position="popper">
-                      {TASK_BATCH_UPDATE_PREFERENCE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        </section>
       </div>
     </WorkspacePanel>
   );
@@ -1068,6 +1116,7 @@ export function SettingsRoute() {
     setLanguage,
     setUsdToKhrExchangeRate,
     setSenaEngineParameters,
+    setDimChartsWhileLoading,
     setShowExplanatoryTooltips,
     setShowFloatingTitleActions,
     setShowHeartbeatRibbons,
@@ -1082,6 +1131,7 @@ export function SettingsRoute() {
     setTaskBatchUpdatePreference,
     taskBatchUpdatePreferences,
     displayViewMode,
+    dimChartsWhileLoading,
     itemImageMode,
     showFloatingTitleActions,
     showHeartbeatRibbons,
@@ -1369,11 +1419,13 @@ export function SettingsRoute() {
               element={
                 <WorkspacePreferencesPage
                   currency={currency}
+                  dimChartsWhileLoading={dimChartsWhileLoading}
                   exchangeRateDraft={exchangeRateDraft}
                   exchangeRateError={exchangeRateError}
                   itemImageMode={itemImageMode}
                   language={language}
                   setCurrency={setCurrency}
+                  setDimChartsWhileLoading={setDimChartsWhileLoading}
                   setExchangeRateDraft={setExchangeRateDraft}
                   setItemImageMode={setItemImageMode}
                   setLanguage={setLanguage}

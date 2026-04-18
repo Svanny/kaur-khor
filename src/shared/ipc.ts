@@ -74,6 +74,7 @@ export interface DesktopPreferences {
   usdToKhrExchangeRate: number;
   displayViewMode: 'compact' | 'custom';
   itemImageMode: DesktopItemImageMode;
+  dimChartsWhileLoading: boolean;
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;

@@ -15,6 +15,7 @@ import { StatusArchiveIcon } from '@icons/status';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SearchInput } from '@/components/system/search-input';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
+import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
@@ -495,7 +496,7 @@ export function InventoryRoute() {
           </ToggleGroup>
           <SupplierFilter
             catalog={catalog}
-            className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+            className={compactFilterControlClassName}
             value={supplierFilter}
             onChange={(nextSupplier) => {
               setSearchParams(

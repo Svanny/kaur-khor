@@ -29,6 +29,7 @@ interface PreferencesContextValue {
   usdToKhrExchangeRate: number;
   displayViewMode: 'compact' | 'custom';
   itemImageMode: DesktopItemImageMode;
+  dimChartsWhileLoading: boolean;
   taskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
@@ -55,6 +56,7 @@ interface PreferencesContextValue {
   persistedUsdToKhrExchangeRate: number;
   persistedDisplayViewMode: 'compact' | 'custom';
   persistedItemImageMode: DesktopItemImageMode;
+  persistedDimChartsWhileLoading: boolean;
   persistedShowExplanatoryTooltips: boolean;
   persistedShowFloatingTitleActions: boolean;
   persistedShowRightRailCards: boolean;
@@ -81,6 +83,7 @@ interface PreferencesContextValue {
   setUsdToKhrExchangeRate: (value: number) => void;
   setDisplayViewMode: (value: 'compact' | 'custom') => void;
   setItemImageMode: (value: DesktopItemImageMode) => void;
+  setDimChartsWhileLoading: (value: boolean) => void;
   setShowExplanatoryTooltips: (value: boolean) => void;
   setShowFloatingTitleActions: (value: boolean) => void;
   setShowRightRailCards: (value: boolean) => void;
@@ -105,6 +108,7 @@ interface PreferencesContextValue {
     usdToKhrExchangeRate: number;
     displayViewMode: 'compact' | 'custom';
     itemImageMode: DesktopItemImageMode;
+    dimChartsWhileLoading: boolean;
     showExplanatoryTooltips: boolean;
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
@@ -148,6 +152,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [usdToKhrExchangeRate, setUsdToKhrExchangeRateState] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
   const [displayViewMode, setDisplayViewModeState] = useState<'compact' | 'custom'>('custom');
   const [itemImageMode, setItemImageModeState] = useState<DesktopItemImageMode>(DEFAULT_DESKTOP_ITEM_IMAGE_MODE);
+  const [dimChartsWhileLoading, setDimChartsWhileLoadingState] = useState(false);
   const [showExplanatoryTooltips, setShowExplanatoryTooltipsState] = useState(true);
   const [showFloatingTitleActions, setShowFloatingTitleActionsState] = useState(true);
   const [showRightRailCards, setShowRightRailCardsState] = useState(true);
@@ -179,6 +184,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedDisplayViewMode, setPersistedDisplayViewMode] = useState<'compact' | 'custom'>('custom');
   const [persistedItemImageMode, setPersistedItemImageMode] =
     useState<DesktopItemImageMode>(DEFAULT_DESKTOP_ITEM_IMAGE_MODE);
+  const [persistedDimChartsWhileLoading, setPersistedDimChartsWhileLoading] = useState(false);
   const [persistedShowExplanatoryTooltips, setPersistedShowExplanatoryTooltips] = useState(true);
   const [persistedShowFloatingTitleActions, setPersistedShowFloatingTitleActions] = useState(true);
   const [persistedShowRightRailCards, setPersistedShowRightRailCards] = useState(true);
@@ -224,6 +230,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setUsdToKhrExchangeRateState(nextUsdToKhrExchangeRate);
         setDisplayViewModeState(preferences.displayViewMode);
         setItemImageModeState(preferences.itemImageMode);
+        setDimChartsWhileLoadingState(preferences.dimChartsWhileLoading);
         setShowExplanatoryTooltipsState(preferences.showExplanatoryTooltips);
         setShowFloatingTitleActionsState(preferences.showFloatingTitleActions);
         setShowRightRailCardsState(preferences.showRightRailCards);
@@ -255,6 +262,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
         setPersistedDisplayViewMode(preferences.displayViewMode);
         setPersistedItemImageMode(preferences.itemImageMode);
+        setPersistedDimChartsWhileLoading(preferences.dimChartsWhileLoading);
         setPersistedShowExplanatoryTooltips(preferences.showExplanatoryTooltips);
         setPersistedShowFloatingTitleActions(preferences.showFloatingTitleActions);
         setPersistedShowRightRailCards(preferences.showRightRailCards);
@@ -294,6 +302,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     usdToKhrExchangeRate: number;
     displayViewMode: 'compact' | 'custom';
     itemImageMode: DesktopItemImageMode;
+    dimChartsWhileLoading: boolean;
     showExplanatoryTooltips: boolean;
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
@@ -327,6 +336,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setUsdToKhrExchangeRateState(nextUsdToKhrExchangeRate);
     setDisplayViewModeState(nextPreferences.displayViewMode);
     setItemImageModeState(nextPreferences.itemImageMode);
+    setDimChartsWhileLoadingState(nextPreferences.dimChartsWhileLoading);
     setShowExplanatoryTooltipsState(nextPreferences.showExplanatoryTooltips);
     setShowFloatingTitleActionsState(nextPreferences.showFloatingTitleActions);
     setShowRightRailCardsState(nextPreferences.showRightRailCards);
@@ -356,6 +366,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
     setPersistedDisplayViewMode(nextPreferences.displayViewMode);
     setPersistedItemImageMode(nextPreferences.itemImageMode);
+    setPersistedDimChartsWhileLoading(nextPreferences.dimChartsWhileLoading);
     setPersistedShowExplanatoryTooltips(nextPreferences.showExplanatoryTooltips);
     setPersistedShowFloatingTitleActions(nextPreferences.showFloatingTitleActions);
     setPersistedShowRightRailCards(nextPreferences.showRightRailCards);
@@ -387,6 +398,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       usdToKhrExchangeRate,
       displayViewMode,
       itemImageMode,
+      dimChartsWhileLoading,
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,
@@ -413,6 +425,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedUsdToKhrExchangeRate,
       persistedDisplayViewMode,
       persistedItemImageMode,
+      persistedDimChartsWhileLoading,
       persistedShowExplanatoryTooltips,
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
@@ -438,6 +451,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setCurrency: setCurrencyState,
       setUsdToKhrExchangeRate: setUsdToKhrExchangeRateState,
       setItemImageMode: setItemImageModeState,
+      setDimChartsWhileLoading: setDimChartsWhileLoadingState,
       setDisplayViewMode: (next) => {
         setDisplayViewModeState(next);
         if (next === 'compact') {
@@ -659,6 +673,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           usdToKhrExchangeRate: overrides?.usdToKhrExchangeRate ?? usdToKhrExchangeRate,
           displayViewMode: resolvedDisplayViewMode,
           itemImageMode: overrides?.itemImageMode ?? itemImageMode,
+          dimChartsWhileLoading: overrides?.dimChartsWhileLoading ?? dimChartsWhileLoading,
           showExplanatoryTooltips:
             resolvedDisplayViewMode === 'compact' ? false : resolvedShowExplanatoryTooltips,
           showFloatingTitleActions:
@@ -699,6 +714,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setUsdToKhrExchangeRateState(persistedUsdToKhrExchangeRate);
         setDisplayViewModeState(persistedDisplayViewMode);
         setItemImageModeState(persistedItemImageMode);
+        setDimChartsWhileLoadingState(persistedDimChartsWhileLoading);
         setShowExplanatoryTooltipsState(persistedShowExplanatoryTooltips);
         setShowFloatingTitleActionsState(persistedShowFloatingTitleActions);
         setShowRightRailCardsState(persistedShowRightRailCards);
@@ -729,6 +745,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         usdToKhrExchangeRate !== persistedUsdToKhrExchangeRate ||
         displayViewMode !== persistedDisplayViewMode ||
         itemImageMode !== persistedItemImageMode ||
+        dimChartsWhileLoading !== persistedDimChartsWhileLoading ||
         showExplanatoryTooltips !== persistedShowExplanatoryTooltips ||
         showFloatingTitleActions !== persistedShowFloatingTitleActions ||
         showRightRailCards !== persistedShowRightRailCards ||
@@ -765,6 +782,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       customShowPerformanceTimelineCard,
       customShowLogsViewToggle,
       customShowHeartbeatRibbons,
+      dimChartsWhileLoading,
       displayViewMode,
       itemImageMode,
       language,
@@ -777,6 +795,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedCustomShowPerformanceTimelineCard,
       persistedCustomShowLogsViewToggle,
       persistedCustomShowHeartbeatRibbons,
+      persistedDimChartsWhileLoading,
       persistedDisplayViewMode,
       persistedItemImageMode,
       persistedTaskBatchUpdatePreferences,
