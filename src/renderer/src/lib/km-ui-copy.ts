@@ -1759,6 +1759,13 @@ const exactValueTranslations: Record<string, string> = {
   'Supplier Receipts': 'ការទទួលទំនិញពីអ្នកផ្គត់ផ្គង់',
   'Record goods received from suppliers and immediate purchases.':
     'កត់ត្រាទំនិញដែលបានទទួលពីអ្នកផ្គត់ផ្គង់ និងការទិញភ្លាមៗ។',
+  'Choose any update lanes for one combined capture flow.':
+    'ជ្រើសផ្លូវអាប់ដេតណាមួយ សម្រាប់លំហូរកត់ត្រារួមមួយ។',
+  'Build a custom update': 'បង្កើតការអាប់ដេតផ្ទាល់ខ្លួន',
+  'Choose any lanes to include in one combined update wizard.':
+    'ជ្រើសផ្លូវណាខ្លះត្រូវបញ្ចូលក្នុងជំនួយការអាប់ដេតរួមមួយ។',
+  'Choose at least one update lane.': 'ជ្រើសផ្លូវអាប់ដេតយ៉ាងហោចណាស់មួយ។',
+  'Start custom update': 'ចាប់ផ្ដើមការអាប់ដេតផ្ទាល់ខ្លួន',
   'Chart Settings': 'ការកំណត់ក្រាហ្វ',
   'Style, output values, and input values': 'រចនាប័ទ្ម តម្លៃបញ្ចេញ និងតម្លៃបញ្ចូល',
   Indicators: 'សូចនាករ',
