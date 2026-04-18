@@ -18,7 +18,15 @@ import { SkuDetailLedgerRoute, SkuDetailRoute } from '@/routes/sku-detail';
 import { SkuFormRoute } from '@/routes/sku-form';
 import { StockUpdateRoute } from '@/routes/stock-update';
 import { StockUpdateSessionRoute } from '@/routes/stock-update-session';
-import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_LANES, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
+import {
+  RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
+  RECORD_UPDATE_CUSTOMER_PENDING_PATH,
+  RECORD_UPDATE_HUB_PATH,
+  RECORD_UPDATE_LANES,
+  RECORD_UPDATE_STOCK_COUNT_PATH,
+  RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
+} from '@/lib/record-update-routes';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider } from '@/state/inventory';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
@@ -47,6 +55,10 @@ export function AppRoutes() {
       {RECORD_UPDATE_LANES.map((lane) => (
         <Route key={lane.id} element={<StockUpdateSessionRoute />} path={lane.path} />
       ))}
+      <Route element={<RedirectWithSearch to={RECORD_UPDATE_CUSTOMER_PENDING_PATH} />} path="/record-update/sales-update" />
+      <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />} path="/record-update/record-order" />
+      <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_RECEIPT_PATH} />} path="/record-update/record-receipt" />
+      <Route element={<RedirectWithSearch to={RECORD_UPDATE_CUSTOMER_COMPLETED_PATH} />} path="/record-update/immediate-sale" />
       <Route element={<PerformanceRoute />} path="/performance" />
       <Route element={<FinancialsRoute />} path="/financials" />
       <Route element={<RedirectWithSearch to="/catalog" />} path="/inventory" />

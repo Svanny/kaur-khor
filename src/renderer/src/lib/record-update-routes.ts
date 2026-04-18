@@ -1,10 +1,19 @@
 export const RECORD_UPDATE_HUB_PATH = '/record-update';
 export const RECORD_UPDATE_STOCK_COUNT_PATH = '/record-update/stock-count';
-export const RECORD_UPDATE_SALES_UPDATE_PATH = '/record-update/sales-update';
-export const RECORD_UPDATE_RECORD_ORDER_PATH = '/record-update/record-order';
-export const RECORD_UPDATE_RECORD_RECEIPT_PATH = '/record-update/record-receipt';
+export const RECORD_UPDATE_CUSTOMER_PENDING_PATH = '/record-update/customer-orders-pending';
+export const RECORD_UPDATE_CUSTOMER_COMPLETED_PATH = '/record-update/customer-orders-completed';
+export const RECORD_UPDATE_SUPPLIER_PENDING_PATH = '/record-update/supplier-orders-pending';
+export const RECORD_UPDATE_SUPPLIER_RECEIPT_PATH = '/record-update/supplier-receipts';
+export const RECORD_UPDATE_SALES_UPDATE_PATH = RECORD_UPDATE_CUSTOMER_PENDING_PATH;
+export const RECORD_UPDATE_RECORD_ORDER_PATH = RECORD_UPDATE_SUPPLIER_PENDING_PATH;
+export const RECORD_UPDATE_RECORD_RECEIPT_PATH = RECORD_UPDATE_SUPPLIER_RECEIPT_PATH;
 
-export type RecordUpdateLaneId = 'stock-count' | 'sales-update' | 'record-order' | 'record-receipt';
+export type RecordUpdateLaneId =
+  | 'stock-count'
+  | 'customer-order-pending'
+  | 'customer-order-completed'
+  | 'supplier-order-pending'
+  | 'supplier-receipt';
 
 export interface RecordUpdateLaneDefinition {
   id: RecordUpdateLaneId;
@@ -21,22 +30,28 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
     draftStorageKey: 'banji:record-update:draft:stock-count:v1',
   },
   {
-    id: 'sales-update',
-    path: RECORD_UPDATE_SALES_UPDATE_PATH,
-    title: 'Sales Update',
-    draftStorageKey: 'banji:record-update:draft:sales-update:v1',
+    id: 'customer-order-pending',
+    path: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
+    title: 'Customer Orders Pending',
+    draftStorageKey: 'banji:record-update:draft:customer-order-pending:v1',
   },
   {
-    id: 'record-order',
-    path: RECORD_UPDATE_RECORD_ORDER_PATH,
-    title: 'Record Order',
-    draftStorageKey: 'banji:record-update:draft:record-order:v1',
+    id: 'customer-order-completed',
+    path: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
+    title: 'Customer Orders Fulfilled',
+    draftStorageKey: 'banji:record-update:draft:customer-order-completed:v1',
   },
   {
-    id: 'record-receipt',
-    path: RECORD_UPDATE_RECORD_RECEIPT_PATH,
-    title: 'Record Receipt',
-    draftStorageKey: 'banji:record-update:draft:record-receipt:v1',
+    id: 'supplier-order-pending',
+    path: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+    title: 'Supplier Orders Pending',
+    draftStorageKey: 'banji:record-update:draft:supplier-order-pending:v1',
+  },
+  {
+    id: 'supplier-receipt',
+    path: RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
+    title: 'Supplier Receipts',
+    draftStorageKey: 'banji:record-update:draft:supplier-receipt:v1',
   },
 ];
 
@@ -46,16 +61,29 @@ export function getRecordUpdateLane(pathname: string) {
   return recordUpdateLaneByPath.get(pathname) ?? RECORD_UPDATE_LANES[0];
 }
 
-export type OverviewTaskAction = 'log_order' | 'update_eta' | 'follow_up' | 'receive' | 'review' | 'start_update' | 'remind_tomorrow';
+export type OverviewTaskAction =
+  | 'log_order'
+  | 'update_eta'
+  | 'follow_up'
+  | 'receive'
+  | 'review'
+  | 'start_update'
+  | 'remind_tomorrow'
+  | 'open_pending'
+  | 'mark_completed'
+  | 'review_cancellation';
 
 const ACTION_TO_LANE: Record<OverviewTaskAction, RecordUpdateLaneId> = {
-  log_order: 'record-order',
-  update_eta: 'record-order',
-  follow_up: 'sales-update',
-  receive: 'record-receipt',
+  log_order: 'supplier-order-pending',
+  update_eta: 'supplier-order-pending',
+  follow_up: 'customer-order-pending',
+  receive: 'supplier-receipt',
   review: 'stock-count',
   start_update: 'stock-count',
   remind_tomorrow: 'stock-count',
+  open_pending: 'customer-order-pending',
+  mark_completed: 'customer-order-completed',
+  review_cancellation: 'customer-order-pending',
 };
 
 export function getLaneForTaskAction(action: OverviewTaskAction): RecordUpdateLaneId {

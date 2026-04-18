@@ -10,12 +10,16 @@ export function AnchoredMenu({
   className,
   label,
   triggerIcon,
+  triggerClassName,
+  triggerSize = 'icon-sm',
   align = 'right',
 }: {
   children: (closeMenu: () => void) => ReactNode;
   className?: string;
   label?: string;
   triggerIcon: ReactNode;
+  triggerClassName?: string;
+  triggerSize?: React.ComponentProps<typeof Button>['size'];
   align?: HorizontalAlign;
 }) {
   const [open, setOpen] = useState(false);
@@ -91,7 +95,8 @@ export function AnchoredMenu({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={label}
-        size="icon-sm"
+        className={triggerClassName}
+        size={triggerSize}
         type="button"
         variant="outline"
         onClick={() => setOpen((current) => !current)}

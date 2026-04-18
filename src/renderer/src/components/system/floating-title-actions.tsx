@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { compactActionSurfaceClassName } from '@/components/system/compact-controls';
 import { cn } from '@/lib/utils';
 
-export const headerActionSurfaceClassName =
-  '[&_[data-slot=button]]:!h-12 [&_[data-slot=button]]:!rounded-full [&_[data-slot=button]]:!px-4 [&_[data-slot=button]]:[&_svg]:!size-4 [&_[data-slot=toggle-group-item]]:!h-12 [&_[data-slot=toggle-group-item]]:!min-w-12 [&_[data-slot=toggle-group-item]]:!rounded-full [&_[data-slot=toggle-group-item]]:!px-4 [&_[data-slot=toggle-group-item]]:[&_svg]:!size-4';
+export const headerActionSurfaceClassName = compactActionSurfaceClassName;
 
 export function useFloatingTitleActions(enabled: boolean) {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);

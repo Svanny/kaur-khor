@@ -802,7 +802,7 @@ describe('DashboardRoute', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
 
     await waitFor(() => {
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/record-update/record-order');
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/record-update/supplier-orders-pending');
       expect(screen.getByTestId('route-location').textContent).toContain('skus=');
     });
   });

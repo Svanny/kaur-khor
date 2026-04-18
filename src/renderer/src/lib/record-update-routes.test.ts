@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
   getRecordUpdateLane,
   RECORD_UPDATE_LANES,
   RECORD_UPDATE_RECORD_ORDER_PATH,
@@ -13,6 +14,7 @@ describe('record update routes', () => {
     expect(RECORD_UPDATE_LANES.map((lane) => lane.path)).toEqual([
       RECORD_UPDATE_STOCK_COUNT_PATH,
       RECORD_UPDATE_SALES_UPDATE_PATH,
+      RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
       RECORD_UPDATE_RECORD_ORDER_PATH,
       RECORD_UPDATE_RECORD_RECEIPT_PATH,
     ]);

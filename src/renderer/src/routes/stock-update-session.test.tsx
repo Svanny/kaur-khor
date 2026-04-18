@@ -3,6 +3,7 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import {
+  RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
   RECORD_UPDATE_RECORD_ORDER_PATH,
   RECORD_UPDATE_RECORD_RECEIPT_PATH,
   RECORD_UPDATE_SALES_UPDATE_PATH,
@@ -28,7 +29,7 @@ const preferenceState = {
   showFloatingTitleActions: false,
 };
 const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:stock-count:v1';
-const SALES_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:sales-update:v1';
+const CUSTOMER_PENDING_DRAFT_STORAGE_KEY = 'banji:record-update:draft:customer-order-pending:v1';
 const STOCK_ROW_ORDER_STORAGE_KEY = buildStockRowOrderStorageKey('stock-count');
 
 if (!Element.prototype.hasPointerCapture) {
@@ -450,7 +451,7 @@ describe('StockUpdateSessionRoute', () => {
 
     goNext(2);
 
-    expect(screen.getByRole('button', { name: /Reorder table/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Supplier orders/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('columnheader', { name: 'Last order' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Current order' })).toBeInTheDocument();
     expect(screen.getByLabelText('Current order for Razor refill')).toHaveAttribute('placeholder', 'Banji recommends 8 units.');
@@ -580,7 +581,7 @@ describe('StockUpdateSessionRoute', () => {
 
     goNext(2);
 
-    expect(screen.getByRole('button', { name: /Record receipt/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('columnheader', { name: 'Last receipt' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Current receipt' })).toBeInTheDocument();
     expect(screen.getAllByText('No prior receipt')).toHaveLength(2);
@@ -680,7 +681,7 @@ describe('StockUpdateSessionRoute', () => {
       },
     };
 
-    renderEditRoute(editableObservation, observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+    renderEditRoute(editableObservation, observations, RECORD_UPDATE_CUSTOMER_COMPLETED_PATH);
 
     fireEvent.change(screen.getByLabelText('Current interval sales for Razor refill'), { target: { value: '9' } });
 
@@ -713,7 +714,7 @@ describe('StockUpdateSessionRoute', () => {
   }, 10_000);
 
   it('filters service sales step by linked sku supplier', async () => {
-    renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+    renderRoute(observations, RECORD_UPDATE_CUSTOMER_COMPLETED_PATH);
 
     goNext(2);
     chooseOptionalStepYes();
@@ -907,16 +908,15 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getByRole('combobox', { name: 'Event for Razor refill' })).toHaveTextContent('Blocked event');
   }, 10_000);
 
-  it('uses a separate draft key for the sales-update lane', () => {
+  it('uses a separate draft key for the customer pending lane', () => {
     const { unmount } = renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
 
     goNext(2);
-    chooseOptionalStepYes();
-    fireEvent.change(screen.getByLabelText('Current interval sales for Razor refill'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('New pending quantity for Razor refill'), { target: { value: '3' } });
 
     unmount();
 
-    expect(window.localStorage.getItem(SALES_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
+    expect(window.localStorage.getItem(CUSTOMER_PENDING_DRAFT_STORAGE_KEY)).not.toBeNull();
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 

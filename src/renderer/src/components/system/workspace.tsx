@@ -21,6 +21,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { Badge } from '@/components/ui/badge';
+import { compactActionButtonClassName } from '@/components/system/compact-controls';
 import { cn } from '@/lib/utils';
 import { DescriptionText, hasDescriptionText, useDescriptionTextVisible } from '@/components/system/description-text';
 import { FloatingTitleActionsIsland, headerActionSurfaceClassName, useFloatingTitleActions } from '@/components/system/floating-title-actions';
@@ -370,7 +371,7 @@ export function ActionButtonLink({
   variant?: 'default' | 'secondary' | 'outline' | 'ghost';
 }) {
   return (
-    <Button className="rounded-full px-4" variant={variant}>
+    <Button className={compactActionButtonClassName} variant={variant}>
       {children}
       <ActionOpenExternalIcon data-icon="inline-end" />
     </Button>

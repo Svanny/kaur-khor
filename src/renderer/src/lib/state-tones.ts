@@ -1,5 +1,6 @@
 export type StatusPillTone =
   | 'danger'
+  | 'orange'
   | 'warning'
   | 'success'
   | 'info'
@@ -20,6 +21,7 @@ export type RegimeToneKey =
 
 const STATUS_PILL_TONE_CLASS_NAMES: Record<StatusPillTone, string> = {
   danger: 'border-rose-200 bg-rose-50 text-rose-800 hover:border-rose-300 hover:text-rose-900',
+  orange: 'border-orange-300 bg-orange-100 text-orange-900 hover:border-orange-400 hover:text-orange-950',
   warning: 'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:text-amber-900',
   success:
     'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800',
@@ -49,6 +51,11 @@ const STATUS_TONE_COLORS: Record<StatusPillTone, StateToneColors> = {
     fill: 'rgb(225 29 72)',
     fillOpacity: 0.18,
     stroke: 'rgb(190 24 93)',
+  },
+  orange: {
+    fill: 'rgb(234 88 12)',
+    fillOpacity: 0.24,
+    stroke: 'rgb(154 52 18)',
   },
   warning: {
     fill: 'rgb(245 158 11)',
@@ -124,6 +131,7 @@ export function surfacePillClassName(tone: SurfacePillTone) {
 
 const TINTED_SURFACE_TONE_CLASS_NAMES: Record<TintedSurfaceTone, string> = {
   danger: 'border-rose-200/80 bg-rose-50/70',
+  orange: 'border-orange-300/60 bg-orange-100/75',
   warning: 'border-amber-200/80 bg-amber-50/70',
   success: 'border-emerald-200/80 bg-emerald-50/70',
   info: 'border-sky-200/80 bg-sky-50/70',

@@ -21,11 +21,12 @@ import {
   ActionCreatePackageIcon,
   ActionDragHandleIcon,
   ActionDeleteIcon,
+  ActionReceiveInventoryIcon,
   ActionSaveIcon,
   ActionUndoIcon,
 } from '@icons/actions';
 import { getRegimeIcon } from '@icons/domain';
-import { EntityFlagIcon } from '@icons/entities';
+import { EntityFlagIcon, EntityLayersIcon } from '@icons/entities';
 import { NavigationBackIcon, NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import {
   StatusGaugeIcon,
@@ -37,7 +38,7 @@ import {
 } from '@icons/status';
 import type { IconComponent } from '@icons';
 import type { SenaCatalog, SenaLeadTimeVariabilityClass, SenaObservationRegimeHint, SenaStockSnapshot } from '@shared/sena';
-import type { InventorySnapshot, RankingEntry, RankingEntryType, SistOverview } from '@shared/inventory';
+import type { AppLanguage, InventorySnapshot, RankingEntry, RankingEntryType, SistOverview } from '@shared/inventory';
 import {
   classifyLeadTimeVariability,
   compatibilityRangeForClass,
@@ -46,6 +47,7 @@ import {
 } from '@shared/sena-lead-time';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
+import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
 import {
   recordUpdateTableCellClassName,
   recordUpdateTableHeadClassName,
@@ -60,10 +62,12 @@ import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard }
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { Button } from '@/components/ui/button';
 import { AnchoredMenu } from '@/components/ui/anchored-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { buildCommercialEntitySnapshots } from '@/lib/commercial-flow';
 import { displayMoneyFromUsd, formatCurrency, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { leadTimeVariabilityPlaceholderValue } from '@/lib/lead-time-variability-select';
 import { translateLeadTimeVariabilityDescription, translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
@@ -114,6 +118,18 @@ type SkuFlagId = 'ordered' | 'received' | 'blocked';
 type ServiceFlagId = 'price' | 'blocked';
 type OptionalStockStepChoice = 'unset' | 'yes' | 'no';
 type OptionalStockStepId = 'stock-cost' | 'stock-price' | 'stock-flags';
+type CustomerPendingMode = 'new_pending' | 'modify_pending' | 'cancel_pending';
+type CustomerCompletedMode = 'from_pending' | 'immediate_sale' | 'refund_reversal';
+type SupplierPendingMode = 'new_supplier_order' | 'update_pending_supplier_order' | 'cancel_supplier_order';
+type SupplierReceiptMode = 'against_pending_supplier_order' | 'immediate_purchase' | 'return_receipt_reversal';
+type RefundStockReturnChoice = 'later' | 'now';
+type WorkflowStateFilterValue = CustomerPendingMode | CustomerCompletedMode | SupplierPendingMode | SupplierReceiptMode;
+type WorkflowStateFilterKind = 'order' | 'receipt';
+
+const CUSTOMER_PENDING_MODE_OPTIONS = ['new_pending', 'modify_pending', 'cancel_pending'] as const satisfies readonly CustomerPendingMode[];
+const CUSTOMER_COMPLETED_MODE_OPTIONS = ['immediate_sale', 'from_pending', 'refund_reversal'] as const satisfies readonly CustomerCompletedMode[];
+const SUPPLIER_PENDING_MODE_OPTIONS = ['new_supplier_order', 'update_pending_supplier_order', 'cancel_supplier_order'] as const satisfies readonly SupplierPendingMode[];
+const SUPPLIER_RECEIPT_MODE_OPTIONS = ['immediate_purchase', 'against_pending_supplier_order', 'return_receipt_reversal'] as const satisfies readonly SupplierReceiptMode[];
 
 type StockRow = SenaStockSnapshot;
 type SalesCountDrafts = Record<string, string>;
@@ -160,6 +176,11 @@ interface StockUpdateSessionDraft {
   regimeHint: SenaObservationRegimeHint | '';
   serviceRankings: string[];
   retailRankings: string[];
+  customerPendingMode?: CustomerPendingMode;
+  customerCompletedMode?: CustomerCompletedMode;
+  supplierPendingMode?: SupplierPendingMode;
+  supplierReceiptMode?: SupplierReceiptMode;
+  refundStockReturnDrafts?: Record<string, RefundStockReturnChoice>;
 }
 
 interface StockUpdateDraftState {
@@ -186,6 +207,11 @@ interface StockUpdateDraftState {
   stockBySku: Map<string, SenaStockSnapshot>;
   stockView: StockView;
   unlockedStepCount: number;
+  customerPendingMode: CustomerPendingMode;
+  customerCompletedMode: CustomerCompletedMode;
+  supplierPendingMode: SupplierPendingMode;
+  supplierReceiptMode: SupplierReceiptMode;
+  refundStockReturnDrafts: Record<string, RefundStockReturnChoice>;
 }
 
 interface EditSessionState {
@@ -228,9 +254,10 @@ const EMPTY_SIST_OVERVIEW: SistOverview = {
 
 const STOCK_UPDATE_FULL_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'service', 'rankings', 'context', 'review'];
 const STOCK_COUNT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'stock-cost', 'stock-price', 'stock-flags', 'context', 'review'];
-const SALES_UPDATE_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'stock-flags', 'context', 'review'];
-const RECORD_ORDER_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'reorder', 'stock-flags', 'context', 'review'];
-const RECORD_RECEIPT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'receipt', 'stock-flags', 'context', 'review'];
+const CUSTOMER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'context', 'review'];
+const CUSTOMER_ORDER_COMPLETED_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'stock-flags', 'context', 'review'];
+const SUPPLIER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'reorder', 'stock-flags', 'context', 'review'];
+const SUPPLIER_RECEIPT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'receipt', 'stock-flags', 'context', 'review'];
 const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
 const REPORT_NOTE_PLACEHOLDER_KEYS = [
   'stockUpdateNotesPlaceholderShiftContext',
@@ -518,9 +545,10 @@ function isStockUpdateStepId(value: unknown): value is StockUpdateStepId {
     [
       ...STOCK_UPDATE_FULL_STEP_ORDER,
       ...STOCK_COUNT_STEP_ORDER,
-      ...SALES_UPDATE_STEP_ORDER,
-      ...RECORD_ORDER_STEP_ORDER,
-      ...RECORD_RECEIPT_STEP_ORDER,
+      ...CUSTOMER_ORDER_PENDING_STEP_ORDER,
+      ...CUSTOMER_ORDER_COMPLETED_STEP_ORDER,
+      ...SUPPLIER_ORDER_PENDING_STEP_ORDER,
+      ...SUPPLIER_RECEIPT_STEP_ORDER,
     ].includes(value as StockUpdateStepId)
   );
 }
@@ -529,14 +557,17 @@ function stepOrderForLane(laneId: ReturnType<typeof getRecordUpdateLane>['id']) 
   if (laneId === 'stock-count') {
     return STOCK_COUNT_STEP_ORDER;
   }
-  if (laneId === 'sales-update') {
-    return SALES_UPDATE_STEP_ORDER;
+  if (laneId === 'customer-order-pending') {
+    return CUSTOMER_ORDER_PENDING_STEP_ORDER;
   }
-  if (laneId === 'record-order') {
-    return RECORD_ORDER_STEP_ORDER;
+  if (laneId === 'customer-order-completed') {
+    return CUSTOMER_ORDER_COMPLETED_STEP_ORDER;
   }
-  if (laneId === 'record-receipt') {
-    return RECORD_RECEIPT_STEP_ORDER;
+  if (laneId === 'supplier-order-pending') {
+    return SUPPLIER_ORDER_PENDING_STEP_ORDER;
+  }
+  if (laneId === 'supplier-receipt') {
+    return SUPPLIER_RECEIPT_STEP_ORDER;
   }
   return STOCK_UPDATE_FULL_STEP_ORDER;
 }
@@ -573,6 +604,226 @@ function isStockoutFlagValue(value: unknown): value is StockoutFlagValue {
 
 function isOptionalStockStepChoice(value: unknown): value is OptionalStockStepChoice {
   return value === 'unset' || value === 'yes' || value === 'no';
+}
+
+function isCustomerPendingMode(value: unknown): value is CustomerPendingMode {
+  return CUSTOMER_PENDING_MODE_OPTIONS.includes(value as CustomerPendingMode);
+}
+
+function isCustomerCompletedMode(value: unknown): value is CustomerCompletedMode {
+  return CUSTOMER_COMPLETED_MODE_OPTIONS.includes(value as CustomerCompletedMode);
+}
+
+function isSupplierPendingMode(value: unknown): value is SupplierPendingMode {
+  return SUPPLIER_PENDING_MODE_OPTIONS.includes(value as SupplierPendingMode);
+}
+
+function isSupplierReceiptMode(value: unknown): value is SupplierReceiptMode {
+  return SUPPLIER_RECEIPT_MODE_OPTIONS.includes(value as SupplierReceiptMode);
+}
+
+function isRefundStockReturnChoice(value: unknown): value is RefundStockReturnChoice {
+  return value === 'later' || value === 'now';
+}
+
+function workflowStateLabel(language: AppLanguage, value: WorkflowStateFilterValue) {
+  switch (value) {
+    case 'new_pending':
+      return translateUiLiteral(language, 'New pending');
+    case 'modify_pending':
+      return translateUiLiteral(language, 'Modify pending');
+    case 'cancel_pending':
+      return translateUiLiteral(language, 'Cancel pending');
+    case 'from_pending':
+      return translateUiLiteral(language, 'From pending');
+    case 'immediate_sale':
+      return translateUiLiteral(language, 'Immediate sale');
+    case 'refund_reversal':
+      return translateUiLiteral(language, 'Refund / reversal');
+    case 'new_supplier_order':
+      return translateUiLiteral(language, 'New supplier order');
+    case 'update_pending_supplier_order':
+      return translateUiLiteral(language, 'Update pending');
+    case 'cancel_supplier_order':
+      return translateUiLiteral(language, 'Cancel supplier order');
+    case 'against_pending_supplier_order':
+      return translateUiLiteral(language, 'Against pending');
+    case 'immediate_purchase':
+      return translateUiLiteral(language, 'Immediate purchase');
+    case 'return_receipt_reversal':
+      return translateUiLiteral(language, 'Return / reversal');
+  }
+}
+
+function workflowStateIcon(value: WorkflowStateFilterValue): IconComponent {
+  switch (value) {
+    case 'new_pending':
+    case 'new_supplier_order':
+      return ActionCreatePackageIcon;
+    case 'modify_pending':
+    case 'update_pending_supplier_order':
+      return StatusScheduleIcon;
+    case 'cancel_pending':
+    case 'cancel_supplier_order':
+      return StatusUnavailableIcon;
+    case 'from_pending':
+    case 'against_pending_supplier_order':
+      return StatusReadyIcon;
+    case 'immediate_sale':
+    case 'immediate_purchase':
+      return ActionCreatePackageIcon;
+    case 'refund_reversal':
+    case 'return_receipt_reversal':
+      return ActionUndoIcon;
+  }
+}
+
+function workflowStateFilterKindLabel(language: AppLanguage, kind: WorkflowStateFilterKind) {
+  return kind === 'receipt'
+    ? translateUiLiteral(language, 'Receipt')
+    : translateUiLiteral(language, 'Order');
+}
+
+function workflowStateFilterIcon(kind: WorkflowStateFilterKind): IconComponent {
+  return kind === 'receipt' ? ActionReceiveInventoryIcon : ActionCreatePackageIcon;
+}
+
+function workflowStateTriggerIcon<TValue extends WorkflowStateFilterValue>(
+  kind: WorkflowStateFilterKind,
+  values: readonly TValue[],
+  selectedValues: readonly TValue[],
+): IconComponent {
+  if (selectedValues.length === values.length) {
+    return EntityLayersIcon;
+  }
+  return workflowStateFilterIcon(kind);
+}
+
+function workflowStateFilterSummary<TValue extends WorkflowStateFilterValue>(
+  language: AppLanguage,
+  kind: WorkflowStateFilterKind,
+  values: readonly TValue[],
+  selectedValues: readonly TValue[],
+) {
+  if (selectedValues.length === values.length) {
+    return translateUiLiteral(language, 'All {kind} States', {
+      kind: workflowStateFilterKindLabel(language, kind),
+    });
+  }
+  if (selectedValues.length === 1) {
+    return workflowStateLabel(language, selectedValues[0]!);
+  }
+  return translateUiLiteral(language, '{count} {kind} States', {
+    count: selectedValues.length,
+    kind: workflowStateFilterKindLabel(language, kind),
+  });
+}
+
+function WorkflowStateColumnHeader({
+  state,
+  children,
+}: {
+  state: WorkflowStateFilterValue;
+  children: ReactNode;
+}) {
+  const StateIcon = workflowStateIcon(state);
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <StateIcon aria-hidden="true" className="size-4 text-muted-foreground" />
+      <span>{children}</span>
+    </span>
+  );
+}
+
+function WorkflowStateFilter<TValue extends WorkflowStateFilterValue>({
+  kind,
+  label,
+  options,
+  selectedValues,
+  onChange,
+}: {
+  kind: WorkflowStateFilterKind;
+  label: string;
+  options: readonly TValue[];
+  selectedValues: readonly TValue[];
+  onChange: (values: TValue[]) => void;
+}) {
+  const { language } = usePreferences();
+  const TriggerIcon = workflowStateTriggerIcon(kind, options, selectedValues);
+
+  function toggleValue(value: TValue, checked: boolean) {
+    const next = checked
+      ? Array.from(new Set([...selectedValues, value]))
+      : selectedValues.filter((entry) => entry !== value);
+    onChange(next.length > 0 ? next : [...options]);
+  }
+
+  return (
+    <div className="flex items-center">
+      <AnchoredMenu
+        align="left"
+        className="w-72 p-2"
+        label={label}
+        triggerClassName="h-10 rounded-xl px-3"
+        triggerIcon={
+          <span className="inline-flex items-center gap-2 text-sm font-medium">
+            <TriggerIcon className="size-4" />
+            {workflowStateFilterSummary(language, kind, options, selectedValues)}
+          </span>
+        }
+        triggerSize="default"
+      >
+        {() => (
+          <div className="grid gap-1 p-1">
+            {options.map((option) => {
+              const checked = selectedValues.includes(option);
+              const optionLabel = workflowStateLabel(language, option);
+              const OptionIcon = workflowStateIcon(option);
+              return (
+                <label
+                  key={option}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-muted"
+                >
+                  <Checkbox
+                    aria-label={optionLabel}
+                    checked={checked}
+                    onCheckedChange={(value) => toggleValue(option, value === true)}
+                  />
+                  <OptionIcon className="size-4 text-muted-foreground" />
+                  <span>{optionLabel}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </AnchoredMenu>
+    </div>
+  );
+}
+
+function RecordUpdateFilterRow({
+  stateFilterControl,
+  supplierFilterControl,
+}: {
+  stateFilterControl?: ReactNode;
+  supplierFilterControl?: ReactNode;
+}) {
+  const { language } = usePreferences();
+  if (!stateFilterControl && !supplierFilterControl) {
+    return null;
+  }
+  return (
+    <div className="grid gap-2">
+      <span className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {translateUiLiteral(language, 'Filter')}
+      </span>
+      <div className="flex flex-wrap items-center gap-3">
+        {supplierFilterControl}
+        {stateFilterControl}
+      </div>
+    </div>
+  );
 }
 
 function readStockUpdateDraft(draftStorageKey: string) {
@@ -718,6 +969,20 @@ function sanitizeSalesCountDrafts(value: unknown, allowedIds: Set<string>) {
   ) as SalesCountDrafts;
 }
 
+function sanitizeRefundStockReturnDrafts(value: unknown, allowedIds: Set<string>) {
+  if (!isObjectRecord(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([id, nextValue]) => {
+      if (!allowedIds.has(id) || !isRefundStockReturnChoice(nextValue)) {
+        return [];
+      }
+      return [[id, nextValue]];
+    }),
+  ) as Record<string, RefundStockReturnChoice>;
+}
+
 function sanitizeLeadTimeVariability(value: unknown): SenaLeadTimeVariabilityClass | '' {
   return typeof value === 'string' && ['very_tight', 'tight', 'normal', 'wide', 'very_wide'].includes(value)
     ? (value as SenaLeadTimeVariabilityClass)
@@ -784,6 +1049,11 @@ function hydrateStockUpdateDraft({
     regimeHint: isRegimeHint(draft.regimeHint) ? draft.regimeHint : '',
     serviceRankings: sanitizeDraftRanking(draft.serviceRankings, allowedServiceIds),
     retailRankings: sanitizeDraftRanking(draft.retailRankings, retailSkuIds),
+    customerPendingMode: isCustomerPendingMode(draft.customerPendingMode) ? draft.customerPendingMode : 'new_pending',
+    customerCompletedMode: isCustomerCompletedMode(draft.customerCompletedMode) ? draft.customerCompletedMode : 'from_pending',
+    supplierPendingMode: isSupplierPendingMode(draft.supplierPendingMode) ? draft.supplierPendingMode : 'new_supplier_order',
+    supplierReceiptMode: isSupplierReceiptMode(draft.supplierReceiptMode) ? draft.supplierReceiptMode : 'against_pending_supplier_order',
+    refundStockReturnDrafts: sanitizeRefundStockReturnDrafts(draft.refundStockReturnDrafts, retailSkuIds),
   };
 }
 
@@ -808,6 +1078,7 @@ function hasMeaningfulStockUpdateChanges({
   skuSignalDrafts,
   stockStepChoices,
   stockBySku,
+  refundStockReturnDrafts,
 }: StockUpdateDraftState) {
   return (
     rows.some((row) => stockRowChanged(catalog, stockBySku, row)) ||
@@ -825,6 +1096,7 @@ function hasMeaningfulStockUpdateChanges({
     regimeHint !== '' ||
     serviceRankings.length > 0 ||
     retailRankings.length > 0 ||
+    Object.keys(refundStockReturnDrafts).length > 0 ||
     notes.trim() !== '' ||
     observedAt !== initialObservedAt
   );
@@ -854,6 +1126,11 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     regimeHint: state.regimeHint,
     serviceRankings: state.serviceRankings,
     retailRankings: state.retailRankings,
+    customerPendingMode: state.customerPendingMode,
+    customerCompletedMode: state.customerCompletedMode,
+    supplierPendingMode: state.supplierPendingMode,
+    supplierReceiptMode: state.supplierReceiptMode,
+    refundStockReturnDrafts: state.refundStockReturnDrafts,
   };
 }
 
@@ -1352,6 +1629,11 @@ function buildDraftsFromObservationInput({
       catalog.services.some((service) => service.serviceId === serviceId),
     ),
     retailRankings: input.retailRankings.filter((skuId) => retailSkuIds.has(skuId)),
+    customerPendingMode: 'new_pending' as const,
+    customerCompletedMode: 'from_pending' as const,
+    supplierPendingMode: 'new_supplier_order' as const,
+    supplierReceiptMode: 'against_pending_supplier_order' as const,
+    refundStockReturnDrafts: {},
   };
 }
 
@@ -1699,17 +1981,17 @@ function SalesLatestCountCell({
   latestAt: string | null | undefined;
   latestValue: number | null | undefined;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
 
   return (
     <div className="min-w-0">
       <span className="block font-medium text-foreground">
-        {latestValue == null ? translateUiLiteral('en', 'No prior count') : `${latestValue} ${countLabel}`}
+        {latestValue == null ? translateUiLiteral(language, 'No prior count') : `${latestValue} ${translateUiLiteral(language, countLabel)}`}
       </span>
       <span className="mt-2 block text-sm leading-6 text-muted-foreground">
         {latestAt
           ? t('stockUpdateAsOfDate', { date: formatSenaLongDate(latestAt, 'en') })
-          : translateUiLiteral('en', 'not counted')}
+          : translateUiLiteral(language, 'not counted')}
       </span>
     </div>
   );
@@ -1730,17 +2012,17 @@ function LastOrderCell({
   latestAt: string | null | undefined;
   latestValue: number | null | undefined;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
 
   return (
     <div className="min-w-0">
       <span className="block font-medium text-foreground">
-        {latestValue == null ? translateUiLiteral('en', 'No prior order') : translateUiLiteral('en', '{count} units', { count: latestValue })}
+        {latestValue == null ? translateUiLiteral(language, 'No prior order') : translateUiLiteral(language, '{count} units', { count: latestValue })}
       </span>
       <span className="mt-2 block text-sm leading-6 text-muted-foreground">
         {latestAt
           ? t('stockUpdateAsOfDate', { date: formatSenaLongDate(latestAt, 'en') })
-          : translateUiLiteral('en', 'not ordered')}
+          : translateUiLiteral(language, 'not ordered')}
       </span>
     </div>
   );
@@ -1753,17 +2035,17 @@ function LastReceiptCell({
   latestAt: string | null | undefined;
   latestValue: number | null | undefined;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
 
   return (
     <div className="min-w-0">
       <span className="block font-medium text-foreground">
-        {latestValue == null ? translateUiLiteral('en', 'No prior receipt') : translateUiLiteral('en', '{count} units', { count: latestValue })}
+        {latestValue == null ? translateUiLiteral(language, 'No prior receipt') : translateUiLiteral(language, '{count} units', { count: latestValue })}
       </span>
       <span className="mt-2 block text-sm leading-6 text-muted-foreground">
         {latestAt
           ? t('stockUpdateAsOfDate', { date: formatSenaLongDate(latestAt, 'en') })
-          : translateUiLiteral('en', 'not received')}
+          : translateUiLiteral(language, 'not received')}
       </span>
     </div>
   );
@@ -1809,10 +2091,10 @@ function RecordOrderTimingFields({
       <div className="grid gap-3 xl:grid-cols-3">
         <div className="min-w-0">
           <RecordUpdateFieldLabel htmlFor={leadTimeMeanId}>
-            {translateUiLiteral('en', 'Lead time mean')}
+            {translateUiLiteral(language, 'Lead time mean')}
           </RecordUpdateFieldLabel>
           <Input
-            aria-label={translateUiLiteral('en', 'Lead time mean')}
+            aria-label={translateUiLiteral(language, 'Lead time mean')}
             className={`w-full ${recordUpdateInputClassName}`}
             id={leadTimeMeanId}
             min="0"
@@ -1825,7 +2107,7 @@ function RecordOrderTimingFields({
         </div>
         <div className="min-w-0">
           <RecordUpdateFieldLabel htmlFor={leadTimeVariabilityId}>
-            {translateUiLiteral('en', 'Lead time variability')}
+            {translateUiLiteral(language, 'Lead time variability')}
           </RecordUpdateFieldLabel>
           <Select
             value={selectedVariabilityValue}
@@ -1834,7 +2116,7 @@ function RecordOrderTimingFields({
             }
           >
             <SelectTrigger
-              aria-label={translateUiLiteral('en', 'Lead time variability')}
+              aria-label={translateUiLiteral(language, 'Lead time variability')}
               className={cn(recordUpdateSelectTriggerClassName, 'w-full justify-between')}
               id={leadTimeVariabilityId}
             >
@@ -1879,10 +2161,10 @@ function RecordOrderTimingFields({
         </div>
         <div className="min-w-0">
           <RecordUpdateFieldLabel htmlFor={expectedArrivalId}>
-            {translateUiLiteral('en', 'Expected date of arrival')}
+            {translateUiLiteral(language, 'Expected date of arrival')}
           </RecordUpdateFieldLabel>
           <Input
-            aria-label={translateUiLiteral('en', 'Expected date of arrival')}
+            aria-label={translateUiLiteral(language, 'Expected date of arrival')}
             className={`w-full ${recordUpdateInputClassName}`}
             id={expectedArrivalId}
             placeholder={expectedArrivalPlaceholder}
@@ -1897,21 +2179,25 @@ function RecordOrderTimingFields({
 }
 
 function OrderQuantityField({
+  ariaLabel,
   orderQuantityPlaceholder,
   orderQuantityValue,
   rowName,
   setOrderQuantity,
 }: {
+  ariaLabel?: string;
   orderQuantityPlaceholder: string;
   orderQuantityValue: string;
   rowName: string;
   setOrderQuantity: (value: string) => void;
 }) {
+  const { language } = usePreferences();
+
   return (
     <div className="min-w-0">
-      <RecordUpdateMobileLabel>{translateUiLiteral('en', 'Current order')}</RecordUpdateMobileLabel>
+      <RecordUpdateMobileLabel>{translateUiLiteral(language, 'Current order')}</RecordUpdateMobileLabel>
       <Input
-        aria-label={translateUiLiteral('en', 'Current order for {name}', { name: rowName })}
+        aria-label={ariaLabel ?? translateUiLiteral(language, 'Current order for {name}', { name: rowName })}
         className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
         min="0"
         placeholder={orderQuantityPlaceholder}
@@ -1933,16 +2219,17 @@ function RecordReceiptDateField({
   receivedDateValue: string;
   setReceivedDate: (value: string) => void;
 }) {
+  const { language } = usePreferences();
   const receivedDateId = 'record-receipt-received-date';
 
   return (
     <div className="grid gap-3 xl:grid-cols-3">
       <div className="min-w-0">
         <RecordUpdateFieldLabel htmlFor={receivedDateId}>
-          {translateUiLiteral('en', 'Received date')}
+          {translateUiLiteral(language, 'Received date')}
         </RecordUpdateFieldLabel>
         <Input
-          aria-label={translateUiLiteral('en', 'Received date')}
+          aria-label={translateUiLiteral(language, 'Received date')}
           className={`w-full ${recordUpdateInputClassName}`}
           id={receivedDateId}
           placeholder={receivedDatePlaceholder}
@@ -1956,19 +2243,23 @@ function RecordReceiptDateField({
 }
 
 function ReceiptQuantityField({
+  ariaLabel,
   receiptQuantityValue,
   rowName,
   setReceiptQuantity,
 }: {
+  ariaLabel?: string;
   receiptQuantityValue: string;
   rowName: string;
   setReceiptQuantity: (value: string) => void;
 }) {
+  const { language } = usePreferences();
+
   return (
     <div className="min-w-0">
-      <RecordUpdateMobileLabel>{translateUiLiteral('en', 'Current receipt')}</RecordUpdateMobileLabel>
+      <RecordUpdateMobileLabel>{translateUiLiteral(language, 'Current receipt')}</RecordUpdateMobileLabel>
       <Input
-        aria-label={translateUiLiteral('en', 'Current receipt for {name}', { name: rowName })}
+        aria-label={ariaLabel ?? translateUiLiteral(language, 'Current receipt for {name}', { name: rowName })}
         className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
         min="0"
         step="1"
@@ -1982,6 +2273,7 @@ function ReceiptQuantityField({
 
 type RecordUpdateTableColumn = {
   header: ReactNode;
+  ariaLabel?: string;
   className?: string;
   headClassName?: string;
   width?: string;
@@ -2011,6 +2303,7 @@ function RecordUpdateTable({
           <TableRow className={cn(recordUpdateTableRowClassName, 'hover:bg-transparent')}>
             {columns.map((column, index) => (
               <TableHead
+                aria-label={column.ariaLabel}
                 aria-hidden={column.header == null ? true : undefined}
                 className={cn(recordUpdateTableHeadClassName, recordUpdateTableHeaderClassName, column.className, column.headClassName)}
                 key={index}
@@ -2343,7 +2636,7 @@ function StockCountStep({
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
-        {supplierFilterControl}
+        <RecordUpdateFilterRow supplierFilterControl={supplierFilterControl} />
         {(catalog?.skus ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
         ) : (
@@ -2442,7 +2735,7 @@ function StockCostStep(props: {
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateCostStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateCostStepQuestion')} />
-        {choice === 'yes' ? supplierFilterControl : null}
+        {choice === 'yes' ? <RecordUpdateFilterRow supplierFilterControl={supplierFilterControl} /> : null}
         {choice === 'yes' ? (
           (catalog?.skus ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
@@ -2539,7 +2832,7 @@ function StockRetailPriceStep(props: {
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateRetailPriceStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateRetailPriceStepQuestion')} />
-        {choice === 'yes' ? supplierFilterControl : null}
+        {choice === 'yes' ? <RecordUpdateFilterRow supplierFilterControl={supplierFilterControl} /> : null}
         {choice === 'yes' ? (
           (catalog?.skus ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
@@ -2656,7 +2949,7 @@ function StockFlagsStep(props: {
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateFlagsStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateFlagsStepQuestion')} />
-        {choice === 'yes' ? supplierFilterControl : null}
+        {choice === 'yes' ? <RecordUpdateFilterRow supplierFilterControl={supplierFilterControl} /> : null}
         {choice === 'yes' ? (
           (catalog?.skus ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
@@ -2761,30 +3054,314 @@ function SalesRankingFallback({
   );
 }
 
+function customerPendingResultQuantity({
+  mode,
+  previousOpen,
+  value,
+}: {
+  mode: CustomerPendingMode;
+  previousOpen: number;
+  value: string;
+}) {
+  const quantity = value.trim() === '' ? null : Number(value);
+  if (quantity == null || !Number.isFinite(quantity) || quantity < 0) {
+    return previousOpen;
+  }
+  if (mode === 'modify_pending') {
+    return quantity;
+  }
+  if (mode === 'cancel_pending') {
+    return Math.max(0, previousOpen - quantity);
+  }
+  return previousOpen + quantity;
+}
+
+function customerPendingInputLabel(language: AppLanguage, mode: CustomerPendingMode, name: string) {
+  if (mode === 'modify_pending') {
+    return translateUiLiteral(language, 'New open quantity for {name}', { name });
+  }
+  if (mode === 'cancel_pending') {
+    return translateUiLiteral(language, 'Cancel quantity for {name}', { name });
+  }
+  return translateUiLiteral(language, 'New pending quantity for {name}', { name });
+}
+
+function workflowInputIndexes(startIndex: number, count: number) {
+  return Array.from({ length: count }, (_, index) => startIndex + index);
+}
+
+function customerCompletedInputLabel(language: AppLanguage, mode: CustomerCompletedMode, activeMode: CustomerCompletedMode, name: string) {
+  if (mode === activeMode) {
+    return translateUiLiteral(language, 'Current interval sales for {name}', { name });
+  }
+  return translateUiLiteral(language, "{state} for {name}", { state: workflowStateLabel(language, mode), name });
+}
+
+function CustomerPendingRetailStep({
+  catalog,
+  debugCellBoundaries,
+  filterControl,
+  guidance,
+  latestOpenBySku,
+  mode,
+  modes,
+  onReorderRows,
+  retailSalesDrafts,
+  retailSkuIds,
+  setMode,
+  setRetailSalesDraft,
+  supplierFilterControl,
+}: {
+  catalog: SenaCatalog | null;
+  debugCellBoundaries: boolean;
+  filterControl?: ReactNode;
+  guidance?: string | null;
+  latestOpenBySku: Map<string, number>;
+  mode: CustomerPendingMode;
+  modes: CustomerPendingMode[];
+  onReorderRows: (activeId: string, overId: string) => void;
+  retailSalesDrafts: SalesCountDrafts;
+  retailSkuIds: string[];
+  setMode: (mode: CustomerPendingMode) => void;
+  setRetailSalesDraft: (skuId: string, value: string) => void;
+  supplierFilterControl?: ReactNode;
+}) {
+  const { language } = usePreferences();
+
+  return (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={translateUiLiteral(language, 'Record open retail commitments without changing physical stock on hand.')}
+      style={recordUpdateWhiteCardStyle}
+      title={translateUiLiteral(language, 'Open retail / sellable SKU orders')}
+    >
+      <div className="grid gap-3">
+        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
+        {retailSkuIds.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No sellable SKUs available.')}</p>
+        ) : (
+          <>
+            <SortableIdTable
+              bodyTestId="customer-pending-retail-list"
+              columns={[
+                { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
+                { header: translateUiLiteral(language, 'SKU'), width: '30%' },
+                { header: translateUiLiteral(language, 'Open now'), width: '18%' },
+                ...modes.map((nextMode) => ({
+                  header: (
+                    <WorkflowStateColumnHeader state={nextMode}>
+                      {workflowStateLabel(language, nextMode)}
+                    </WorkflowStateColumnHeader>
+                  ),
+                  width: `${Math.floor(52 / Math.max(1, modes.length))}%`,
+                })),
+              ]}
+              debugCellBoundaries={debugCellBoundaries}
+              ids={retailSkuIds}
+              onReorderRows={onReorderRows}
+              renderRow={(skuId) => {
+                const sku = catalog?.skus.find((entry) => entry.skuId === skuId);
+                const latestValue = latestOpenBySku.get(skuId) ?? 0;
+                const resultingOpen = customerPendingResultQuantity({
+                  mode,
+                  previousOpen: latestValue,
+                  value: retailSalesDrafts[skuId] ?? '',
+                });
+                return {
+                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? skuId }),
+                  highlight: (retailSalesDrafts[skuId]?.trim() ?? '') !== '',
+                  inputCellIndexes: workflowInputIndexes(2, modes.length),
+                  cells: [
+                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? skuId} />,
+                    <SalesLatestCountCell countLabel="open" latestAt={null} latestValue={latestValue} />,
+                    ...modes.map((nextMode) => (
+                      <div key={nextMode} className="grid gap-2 pr-3">
+                        <Input
+                          aria-label={customerPendingInputLabel(language, nextMode, sku?.name ?? skuId)}
+                          className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                          min="0"
+                          placeholder={nextMode === 'modify_pending' ? String(latestValue) : ''}
+                          step="1"
+                          type="number"
+                          value={nextMode === mode ? retailSalesDrafts[skuId] ?? '' : ''}
+                          onChange={(event) => {
+                            setMode(nextMode);
+                            setRetailSalesDraft(skuId, event.target.value);
+                          }}
+                        />
+                        {nextMode === mode ? (
+                          <p className="text-xs text-muted-foreground">
+                            {translateUiLiteral(language, 'Resulting open: {count}', { count: resultingOpen })}
+                          </p>
+                        ) : null}
+                      </div>
+                    )),
+                  ],
+                };
+              }}
+            />
+            <StockReorderHint />
+          </>
+        )}
+      </div>
+    </WorkspacePanel>
+  );
+}
+
+function CustomerPendingServiceStep({
+  catalog,
+  debugCellBoundaries,
+  filterControl,
+  guidance,
+  latestOpenByService,
+  mode,
+  modes,
+  onReorderRows,
+  serviceIds,
+  serviceSalesDrafts,
+  setMode,
+  setServiceSalesDraft,
+  supplierFilterControl,
+}: {
+  catalog: SenaCatalog | null;
+  debugCellBoundaries: boolean;
+  filterControl?: ReactNode;
+  guidance?: string | null;
+  latestOpenByService: Map<string, number>;
+  mode: CustomerPendingMode;
+  modes: CustomerPendingMode[];
+  onReorderRows: (activeId: string, overId: string) => void;
+  serviceIds: string[];
+  serviceSalesDrafts: SalesCountDrafts;
+  setMode: (mode: CustomerPendingMode) => void;
+  setServiceSalesDraft: (serviceId: string, value: string) => void;
+  supplierFilterControl?: ReactNode;
+}) {
+  const { language } = usePreferences();
+
+  return (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={translateUiLiteral(language, 'Record open service commitments without marking them fulfilled yet.')}
+      style={recordUpdateWhiteCardStyle}
+      title={translateUiLiteral(language, 'Open service orders')}
+    >
+      <div className="grid gap-3">
+        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
+        {serviceIds.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No services available.')}</p>
+        ) : (
+          <>
+            <SortableIdTable
+              bodyTestId="customer-pending-service-list"
+              columns={[
+                { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
+                { header: translateUiLiteral(language, 'Service'), width: '30%' },
+                { header: translateUiLiteral(language, 'Open now'), width: '18%' },
+                ...modes.map((nextMode) => ({
+                  header: (
+                    <WorkflowStateColumnHeader state={nextMode}>
+                      {workflowStateLabel(language, nextMode)}
+                    </WorkflowStateColumnHeader>
+                  ),
+                  width: `${Math.floor(52 / Math.max(1, modes.length))}%`,
+                })),
+              ]}
+              debugCellBoundaries={debugCellBoundaries}
+              ids={serviceIds}
+              onReorderRows={onReorderRows}
+              renderRow={(serviceId) => {
+                const service = catalog?.services.find((entry) => entry.serviceId === serviceId);
+                const latestValue = latestOpenByService.get(serviceId) ?? 0;
+                const resultingOpen = customerPendingResultQuantity({
+                  mode,
+                  previousOpen: latestValue,
+                  value: serviceSalesDrafts[serviceId] ?? '',
+                });
+                return {
+                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: service?.name ?? serviceId }),
+                  highlight: (serviceSalesDrafts[serviceId]?.trim() ?? '') !== '',
+                  inputCellIndexes: workflowInputIndexes(2, modes.length),
+                  cells: [
+                    <ServiceSummaryCell service={service} serviceName={service?.name ?? serviceId} />,
+                    <SalesLatestCountCell countLabel="open" latestAt={null} latestValue={latestValue} />,
+                    ...modes.map((nextMode) => (
+                      <div key={nextMode} className="grid gap-2 pr-3">
+                        <Input
+                          aria-label={customerPendingInputLabel(language, nextMode, service?.name ?? serviceId)}
+                          className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                          min="0"
+                          placeholder={nextMode === 'modify_pending' ? String(latestValue) : ''}
+                          step="1"
+                          type="number"
+                          value={nextMode === mode ? serviceSalesDrafts[serviceId] ?? '' : ''}
+                          onChange={(event) => {
+                            setMode(nextMode);
+                            setServiceSalesDraft(serviceId, event.target.value);
+                          }}
+                        />
+                        {nextMode === mode ? (
+                          <p className="text-xs text-muted-foreground">
+                            {translateUiLiteral(language, 'Resulting open: {count}', { count: resultingOpen })}
+                          </p>
+                        ) : null}
+                      </div>
+                    )),
+                  ],
+                };
+              }}
+            />
+            <StockReorderHint />
+          </>
+        )}
+      </div>
+    </WorkspacePanel>
+  );
+}
+
 function SalesRetailStep({
   catalog,
   choice,
   debugCellBoundaries,
+  descriptor,
+  filterControl,
   guidance,
+  helper,
+  question,
   latestSalesAtBySku,
   latestSalesBySku,
+  mode,
+  modes,
   onChooseNo,
   onChooseYes,
   onReorderRows,
   retailRankingSeedValues,
   retailSalesDrafts,
   retailSkuIds,
+  refundMode = false,
+  refundStockReturnDrafts,
+  setMode,
   setRetailRankings,
   setRetailSalesDraft,
+  setRefundStockReturnDraft,
   retailRankings,
   supplierFilterControl,
+  title,
 }: {
   catalog: SenaCatalog | null;
   choice: OptionalStockStepChoice;
   debugCellBoundaries: boolean;
+  descriptor?: string;
+  filterControl?: ReactNode;
   guidance?: string | null;
+  helper?: string;
+  question?: string;
   latestSalesAtBySku: Map<string, string>;
   latestSalesBySku: Map<string, number | null>;
+  mode: CustomerCompletedMode;
+  modes: CustomerCompletedMode[];
   onChooseNo: () => void;
   onChooseYes: () => void;
   onReorderRows: (activeId: string, overId: string) => void;
@@ -2792,39 +3369,58 @@ function SalesRetailStep({
   retailSalesDrafts: SalesCountDrafts;
   retailSkuIds: string[];
   retailRankings: string[];
+  refundMode?: boolean;
+  refundStockReturnDrafts?: Record<string, RefundStockReturnChoice>;
+  setMode: (mode: CustomerCompletedMode) => void;
   setRetailRankings: (values: string[]) => void;
   setRetailSalesDraft: (skuId: string, value: string) => void;
+  setRefundStockReturnDraft?: (skuId: string, value: RefundStockReturnChoice) => void;
   supplierFilterControl?: ReactNode;
+  title?: string;
 }) {
+  const { language } = usePreferences();
+  const resolvedDescriptor = descriptor ?? translateUiLiteral(language, 'Capture exact retail SKU sales when you know them. Otherwise, save an ordinal fallback for SENA.');
+  const resolvedHelper = helper ?? translateUiLiteral(language, 'Choose Yes when you know exact sellable SKU sales for this interval. Choose No to record only ordinal ranking for SENA.');
+  const resolvedQuestion = question ?? translateUiLiteral(language, 'Do you know the exact count of sellable SKUs sold this interval?');
+  const resolvedTitle = title ?? translateUiLiteral(language, 'Retail / sellable SKU sales');
+
   return (
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
-      descriptor={translateUiLiteral('en', 'Capture exact retail SKU sales when you know them. Otherwise, save an ordinal fallback for SENA.')}
+      descriptor={resolvedDescriptor}
       style={recordUpdateWhiteCardStyle}
-      title="Retail / sellable SKU sales"
+      title={resolvedTitle}
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
         <OptionalStockDecisionCard
           choice={choice}
-          helper={translateUiLiteral('en', 'Choose Yes when you know exact sellable SKU sales for this interval. Choose No to record only ordinal ranking for SENA.')}
-          question={translateUiLiteral('en', 'Do you know the exact count of sellable SKUs sold this interval?')}
+          helper={resolvedHelper}
+          question={resolvedQuestion}
           onNo={onChooseNo}
           onYes={onChooseYes}
         />
-        {supplierFilterControl}
         {choice === 'yes' ? (
           retailSkuIds.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{translateUiLiteral('en', 'No sellable SKUs available.')}</p>
+            <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No sellable SKUs available.')}</p>
           ) : (
             <>
               <SortableIdTable
                 bodyTestId="sales-retail-list"
                 columns={[
                   { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
-                  { header: 'SKU', width: '37%' },
-                  { header: 'Sold last interval', width: '24%' },
-                  { header: "Current interval's sales", width: '31%' },
+                  { header: translateUiLiteral(language, 'SKU'), width: '30%' },
+                  { header: translateUiLiteral(language, 'Sold last interval'), width: '18%' },
+                  ...modes.map((nextMode) => ({
+                    ariaLabel: nextMode === mode ? translateUiLiteral(language, 'Current interval sales') : undefined,
+                    header: (
+                      <WorkflowStateColumnHeader state={nextMode}>
+                        {workflowStateLabel(language, nextMode)}
+                      </WorkflowStateColumnHeader>
+                    ),
+                    width: `${Math.floor(52 / Math.max(1, modes.length))}%`,
+                  })),
                 ]}
                 debugCellBoundaries={debugCellBoundaries}
                 ids={retailSkuIds}
@@ -2833,27 +3429,44 @@ function SalesRetailStep({
                   const sku = catalog?.skus.find((entry) => entry.skuId === skuId);
                   const latestValue = latestSalesBySku.get(skuId) ?? null;
                   return {
-                    dragLabel: translateUiLiteral('en', 'Reorder {name}', { name: sku?.name ?? skuId }),
+                    dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? skuId }),
                     highlight: (retailSalesDrafts[skuId]?.trim() ?? '') !== '',
-                    inputCellIndexes: [2],
+                    inputCellIndexes: workflowInputIndexes(2, modes.length),
                     cells: [
                       <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? skuId} />,
                       <SalesLatestCountCell countLabel="sold" latestAt={latestSalesAtBySku.get(skuId)} latestValue={latestValue} />,
-                      <>
-                        <RecordUpdateMobileLabel>{"Current interval's sales"}</RecordUpdateMobileLabel>
-                        <div className="pr-3">
+                      ...modes.map((nextMode) => (
+                        <div key={nextMode} className="grid gap-2 pr-3">
+                          <RecordUpdateMobileLabel>{workflowStateLabel(language, nextMode)}</RecordUpdateMobileLabel>
                           <Input
-                            aria-label={translateUiLiteral('en', "Current interval sales for {name}", { name: sku?.name ?? skuId })}
+                            aria-label={customerCompletedInputLabel(language, nextMode, mode, sku?.name ?? skuId)}
                             className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                             min="0"
                             placeholder={latestValue == null ? '' : String(latestValue)}
                             step="1"
                             type="number"
-                            value={retailSalesDrafts[skuId] ?? ''}
-                            onChange={(event) => setRetailSalesDraft(skuId, event.target.value)}
+                            value={nextMode === mode ? retailSalesDrafts[skuId] ?? '' : ''}
+                            onChange={(event) => {
+                              setMode(nextMode);
+                              setRetailSalesDraft(skuId, event.target.value);
+                            }}
                           />
+                          {nextMode === 'refund_reversal' ? (
+                            <Select
+                              value={refundStockReturnDrafts?.[skuId] ?? 'later'}
+                              onValueChange={(value) => setRefundStockReturnDraft?.(skuId, value as RefundStockReturnChoice)}
+                            >
+                              <SelectTrigger className={cn(recordUpdateSelectTriggerClassName, 'w-full max-w-[18rem] justify-between')}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="later">{translateUiLiteral(language, 'Handle later in Stock Count')}</SelectItem>
+                                <SelectItem value="now">{translateUiLiteral(language, 'Add returned stock now')}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : null}
                         </div>
-                      </>,
+                      )),
                     ],
                   };
                 }}
@@ -2866,8 +3479,8 @@ function SalesRetailStep({
           <SalesRankingFallback
             catalog={catalog}
             entryType="sku"
-            helper={translateUiLiteral('en', 'Use ranking when exact sellable SKU sales are unknown. This remains linked to SENA ordinal ranking.')}
-            label="Retail SKU ranking"
+            helper={translateUiLiteral(language, 'Use ranking when exact sellable SKU sales are unknown. This remains linked to SENA ordinal ranking.')}
+            label={translateUiLiteral(language, 'Retail SKU ranking')}
             seedValues={retailRankingSeedValues}
             values={retailRankings}
             onChange={setRetailRankings}
@@ -2882,66 +3495,96 @@ function SalesServiceStep({
   catalog,
   choice,
   debugCellBoundaries,
+  descriptor,
+  filterControl,
   guidance,
+  helper,
   latestSalesAtByService,
   latestSalesByService,
+  mode,
+  modes,
   onChooseNo,
   onChooseYes,
   onReorderRows,
+  question,
   serviceIds,
   serviceRankingSeedValues,
   serviceSalesDrafts,
   serviceRankings,
+  setMode,
   setServiceRankings,
   setServiceSalesDraft,
   supplierFilterControl,
+  title,
 }: {
   catalog: SenaCatalog | null;
   choice: OptionalStockStepChoice;
   debugCellBoundaries: boolean;
+  descriptor?: string;
+  filterControl?: ReactNode;
   guidance?: string | null;
+  helper?: string;
   latestSalesAtByService: Map<string, string>;
   latestSalesByService: Map<string, number | null>;
+  mode: CustomerCompletedMode;
+  modes: CustomerCompletedMode[];
   onChooseNo: () => void;
   onChooseYes: () => void;
   onReorderRows: (activeId: string, overId: string) => void;
+  question?: string;
   serviceIds: string[];
   serviceRankingSeedValues: string[];
   serviceSalesDrafts: SalesCountDrafts;
   serviceRankings: string[];
+  setMode: (mode: CustomerCompletedMode) => void;
   setServiceRankings: (values: string[]) => void;
   setServiceSalesDraft: (serviceId: string, value: string) => void;
   supplierFilterControl?: ReactNode;
+  title?: string;
 }) {
+  const { language } = usePreferences();
+  const resolvedDescriptor = descriptor ?? translateUiLiteral(language, 'Capture exact service sales when you know them. Otherwise, save an ordinal fallback for SENA.');
+  const resolvedHelper = helper ?? translateUiLiteral(language, 'Choose Yes when you know exact service sales for this interval. Choose No to record only ordinal ranking for SENA.');
+  const resolvedQuestion = question ?? translateUiLiteral(language, 'Do you know the exact count of sellable services sold this interval?');
+  const resolvedTitle = title ?? translateUiLiteral(language, 'Sellable services');
+
   return (
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
-      descriptor={translateUiLiteral('en', 'Capture exact service sales when you know them. Otherwise, save an ordinal fallback for SENA.')}
+      descriptor={resolvedDescriptor}
       style={recordUpdateWhiteCardStyle}
-      title="Sellable services"
+      title={resolvedTitle}
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
         <OptionalStockDecisionCard
           choice={choice}
-          helper={translateUiLiteral('en', 'Choose Yes when you know exact service sales for this interval. Choose No to record only ordinal ranking for SENA.')}
-          question={translateUiLiteral('en', 'Do you know the exact count of sellable services sold this interval?')}
+          helper={resolvedHelper}
+          question={resolvedQuestion}
           onNo={onChooseNo}
           onYes={onChooseYes}
         />
-        {choice === 'yes' || choice === 'no' ? supplierFilterControl : null}
         {choice === 'yes' ? (
           serviceIds.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{translateUiLiteral('en', 'No services available.')}</p>
+            <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No services available.')}</p>
           ) : (
             <>
               <SortableIdTable
                 bodyTestId="sales-service-list"
                 columns={[
                   { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
-                  { header: 'Service', width: '37%' },
-                  { header: 'Sold last interval', width: '24%' },
-                  { header: "Current interval's sales", width: '31%' },
+                  { header: translateUiLiteral(language, 'Service'), width: '30%' },
+                  { header: translateUiLiteral(language, 'Sold last interval'), width: '18%' },
+                  ...modes.map((nextMode) => ({
+                    ariaLabel: nextMode === mode ? translateUiLiteral(language, 'Current interval sales') : undefined,
+                    header: (
+                      <WorkflowStateColumnHeader state={nextMode}>
+                        {workflowStateLabel(language, nextMode)}
+                      </WorkflowStateColumnHeader>
+                    ),
+                    width: `${Math.floor(52 / Math.max(1, modes.length))}%`,
+                  })),
                 ]}
                 debugCellBoundaries={debugCellBoundaries}
                 ids={serviceIds}
@@ -2950,27 +3593,30 @@ function SalesServiceStep({
                   const service = catalog?.services.find((entry) => entry.serviceId === serviceId);
                   const latestValue = latestSalesByService.get(serviceId) ?? null;
                   return {
-                    dragLabel: translateUiLiteral('en', 'Reorder {name}', { name: service?.name ?? serviceId }),
+                    dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: service?.name ?? serviceId }),
                     highlight: (serviceSalesDrafts[serviceId]?.trim() ?? '') !== '',
-                    inputCellIndexes: [2],
+                    inputCellIndexes: workflowInputIndexes(2, modes.length),
                     cells: [
                       <ServiceSummaryCell service={service} serviceName={service?.name ?? serviceId} />,
                       <SalesLatestCountCell countLabel="sold" latestAt={latestSalesAtByService.get(serviceId)} latestValue={latestValue} />,
-                      <>
-                        <RecordUpdateMobileLabel>{"Current interval's sales"}</RecordUpdateMobileLabel>
-                        <div className="pr-3">
+                      ...modes.map((nextMode) => (
+                        <div key={nextMode} className="pr-3">
+                          <RecordUpdateMobileLabel>{workflowStateLabel(language, nextMode)}</RecordUpdateMobileLabel>
                           <Input
-                            aria-label={translateUiLiteral('en', "Current interval sales for {name}", { name: service?.name ?? serviceId })}
+                            aria-label={customerCompletedInputLabel(language, nextMode, mode, service?.name ?? serviceId)}
                             className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                             min="0"
                             placeholder={latestValue == null ? '' : String(latestValue)}
                             step="1"
                             type="number"
-                            value={serviceSalesDrafts[serviceId] ?? ''}
-                            onChange={(event) => setServiceSalesDraft(serviceId, event.target.value)}
+                            value={nextMode === mode ? serviceSalesDrafts[serviceId] ?? '' : ''}
+                            onChange={(event) => {
+                              setMode(nextMode);
+                              setServiceSalesDraft(serviceId, event.target.value);
+                            }}
                           />
                         </div>
-                      </>,
+                      )),
                     ],
                   };
                 }}
@@ -2983,8 +3629,8 @@ function SalesServiceStep({
           <SalesRankingFallback
             catalog={catalog}
             entryType="service"
-            helper={translateUiLiteral('en', 'Use ranking when exact service sales are unknown. This remains linked to SENA ordinal ranking.')}
-            label="Service ranking"
+            helper={translateUiLiteral(language, 'Use ranking when exact service sales are unknown. This remains linked to SENA ordinal ranking.')}
+            label={translateUiLiteral(language, 'Service ranking')}
             seedValues={serviceRankingSeedValues}
             values={serviceRankings}
             onChange={setServiceRankings}
@@ -2998,11 +3644,14 @@ function SalesServiceStep({
 function RecordOrderStep({
   catalog,
   debugCellBoundaries,
+  filterControl,
   guidance,
   latestOrderAtBySku,
   latestOrderQuantity,
   leadTimeMeanDefaults,
   leadTimeVariabilityDefaults,
+  mode,
+  modes,
   observedAtIso,
   onReorderRows,
   orderRecommendationBySku,
@@ -3013,17 +3662,21 @@ function RecordOrderStep({
   setRecordOrderExpectedArrivalDate,
   setRecordOrderLeadTimeMeanDays,
   setRecordOrderLeadTimeVariability,
+  setMode,
   skuSignalDrafts,
   updateSkuSignalDraft,
   supplierFilterControl,
 }: {
   catalog: SenaCatalog | null;
   debugCellBoundaries: boolean;
+  filterControl?: ReactNode;
   guidance?: string | null;
   latestOrderAtBySku: Map<string, string>;
   latestOrderQuantity: Map<string, number | null>;
   leadTimeMeanDefaults: Map<string, number | null>;
   leadTimeVariabilityDefaults: Map<string, SenaLeadTimeVariabilityClass | null>;
+  mode: SupplierPendingMode;
+  modes: SupplierPendingMode[];
   observedAtIso: string | null;
   onReorderRows: (activeSkuId: string, overSkuId: string) => void;
   orderRecommendationBySku: Map<string, number>;
@@ -3034,10 +3687,12 @@ function RecordOrderStep({
   setRecordOrderExpectedArrivalDate: (value: string) => void;
   setRecordOrderLeadTimeMeanDays: (value: string) => void;
   setRecordOrderLeadTimeVariability: (value: SenaLeadTimeVariabilityClass | '') => void;
+  setMode: (mode: SupplierPendingMode) => void;
   skuSignalDrafts: Record<string, SkuSignalDraft>;
   updateSkuSignalDraft: (skuId: string, updater: (draft: SkuSignalDraft) => SkuSignalDraft) => void;
   supplierFilterControl?: ReactNode;
 }) {
+  const { language } = usePreferences();
   const leadTimeMeanPlaceholder = rows.map((row) => leadTimeMeanDefaults.get(row.skuId)).find((value) => value != null) ?? null;
   const leadTimeVariabilityPlaceholder = rows.map((row) => leadTimeVariabilityDefaults.get(row.skuId)).find((value) => value != null) ?? '';
   const effectiveLeadTimeMean =
@@ -3063,14 +3718,14 @@ function RecordOrderStep({
   return (
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
-      descriptor={translateUiLiteral('en', 'Log new orders, confirm expected arrival timing, and optionally adjust lead time assumptions before saving.')}
+      descriptor={translateUiLiteral(language, 'Log new orders, confirm expected arrival timing, and optionally adjust lead time assumptions before saving.')}
       style={recordUpdateWhiteCardStyle}
-      title="Reorder table"
+      title={translateUiLiteral(language, 'Reorder table')}
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
         {(catalog?.skus ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">{translateUiLiteral('en', 'No SKUs are in the catalog yet. Add a SKU first if you need to record a reorder.')}</p>
+          <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No SKUs are in the catalog yet. Add a SKU first if you need to record a reorder.')}</p>
         ) : (
           <>
             <RecordOrderTimingFields
@@ -3084,15 +3739,23 @@ function RecordOrderStep({
               variabilityPlaceholder={leadTimeVariabilityPlaceholder}
               variabilityValue={recordOrderLeadTimeVariability}
             />
-            {supplierFilterControl}
+            <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
             <SortableStockTable
               bodyTestId="record-order-list"
               debugCellBoundaries={debugCellBoundaries}
               columns={[
                 { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
-                { header: 'SKU', width: '34%' },
-                { header: 'Last order', width: '26%' },
-                { header: 'Current order', width: '40%' },
+                { header: translateUiLiteral(language, 'SKU'), width: '30%' },
+                { header: translateUiLiteral(language, 'Last order'), width: '18%' },
+                ...modes.map((nextMode) => ({
+                  ariaLabel: nextMode === mode ? translateUiLiteral(language, 'Current order') : undefined,
+                  header: (
+                    <WorkflowStateColumnHeader state={nextMode}>
+                      {workflowStateLabel(language, nextMode)}
+                    </WorkflowStateColumnHeader>
+                  ),
+                  width: `${Math.floor(52 / Math.max(1, modes.length))}%`,
+                })),
               ]}
               onReorderRows={onReorderRows}
               rows={rows}
@@ -3102,26 +3765,33 @@ function RecordOrderStep({
                 const recommendedUnits = orderRecommendationBySku.get(row.skuId);
 
                 return {
-                  dragLabel: translateUiLiteral('en', 'Reorder {name}', { name: sku?.name ?? row.skuId }),
+                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? row.skuId }),
                   highlight: orderDraftHasContent(draft),
-                  inputCellIndexes: [2],
+                  inputCellIndexes: workflowInputIndexes(2, modes.length),
                   cells: [
                     <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
                     <LastOrderCell latestAt={latestOrderAtBySku.get(row.skuId)} latestValue={latestOrderQuantity.get(row.skuId) ?? null} />,
-                    <OrderQuantityField
-                      orderQuantityPlaceholder={recommendedUnits && recommendedUnits > 0
-                        ? translateUiLiteral('en', 'Banji recommends {count} units.', { count: Math.round(recommendedUnits) })
-                        : ''}
-                      orderQuantityValue={draft.orderedQuantity}
-                      rowName={sku?.name ?? row.skuId}
-                      setOrderQuantity={(value) =>
-                        updateSkuSignalDraft(row.skuId, (current) => ({
-                          ...current,
-                          orderEnabled: value.trim() !== '',
-                          orderedQuantity: value,
-                        }))
-                      }
-                    />,
+                    ...modes.map((nextMode) => (
+                      <OrderQuantityField
+                        ariaLabel={nextMode === mode
+                          ? translateUiLiteral(language, 'Current order for {name}', { name: sku?.name ?? row.skuId })
+                          : undefined}
+                        key={nextMode}
+                        orderQuantityPlaceholder={recommendedUnits && recommendedUnits > 0
+                          ? translateUiLiteral(language, 'Banji recommends {count} units.', { count: Math.round(recommendedUnits) })
+                          : ''}
+                        orderQuantityValue={nextMode === mode ? draft.orderedQuantity : ''}
+                        rowName={`${workflowStateLabel(language, nextMode)} ${sku?.name ?? row.skuId}`}
+                        setOrderQuantity={(value) => {
+                          setMode(nextMode);
+                          updateSkuSignalDraft(row.skuId, (current) => ({
+                            ...current,
+                            orderEnabled: value.trim() !== '',
+                            orderedQuantity: value,
+                          }));
+                        }}
+                      />
+                    )),
                   ],
                 };
               }}
@@ -3137,32 +3807,41 @@ function RecordOrderStep({
 function RecordReceiptStep({
   catalog,
   debugCellBoundaries,
+  filterControl,
   guidance,
   latestReceiptAtBySku,
   latestReceiptQuantity,
+  mode,
+  modes,
   observedAtIso,
   onReorderRows,
   recordReceiptReceivedDate,
   rows,
   setRecordReceiptReceivedDate,
+  setMode,
   skuSignalDrafts,
   updateSkuSignalDraft,
   supplierFilterControl,
 }: {
   catalog: SenaCatalog | null;
   debugCellBoundaries: boolean;
+  filterControl?: ReactNode;
   guidance?: string | null;
   latestReceiptAtBySku: Map<string, string>;
   latestReceiptQuantity: Map<string, number | null>;
+  mode: SupplierReceiptMode;
+  modes: SupplierReceiptMode[];
   observedAtIso: string | null;
   onReorderRows: (activeSkuId: string, overSkuId: string) => void;
   recordReceiptReceivedDate: string;
   rows: StockRow[];
   setRecordReceiptReceivedDate: (value: string) => void;
+  setMode: (mode: SupplierReceiptMode) => void;
   skuSignalDrafts: Record<string, SkuSignalDraft>;
   updateSkuSignalDraft: (skuId: string, updater: (draft: SkuSignalDraft) => SkuSignalDraft) => void;
   supplierFilterControl?: ReactNode;
 }) {
+  const { language } = usePreferences();
   const observedDate = dateInputValue(observedAtIso);
   useEffect(() => {
     if (!recordReceiptReceivedDate && observedDate) {
@@ -3173,14 +3852,14 @@ function RecordReceiptStep({
   return (
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
-      descriptor={translateUiLiteral('en', 'Record the stock that physically arrived and confirm the received date before saving.')}
+      descriptor={translateUiLiteral(language, 'Record the stock that physically arrived and confirm the received date before saving.')}
       style={recordUpdateWhiteCardStyle}
-      title="Record receipt"
+      title={translateUiLiteral(language, 'Record receipt')}
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
         {(catalog?.skus ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">{translateUiLiteral('en', 'No SKUs are in the catalog yet. Add a SKU first if you need to record a receipt.')}</p>
+          <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No SKUs are in the catalog yet. Add a SKU first if you need to record a receipt.')}</p>
         ) : (
           <>
             <RecordReceiptDateField
@@ -3188,15 +3867,23 @@ function RecordReceiptStep({
               receivedDateValue={recordReceiptReceivedDate}
               setReceivedDate={setRecordReceiptReceivedDate}
             />
-            {supplierFilterControl}
+            <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
             <SortableStockTable
               bodyTestId="record-receipt-list"
               debugCellBoundaries={debugCellBoundaries}
               columns={[
                 { header: null, className: 'w-12 px-3 text-center', width: '3.5rem' },
-                { header: 'SKU', width: '34%' },
-                { header: 'Last receipt', width: '26%' },
-                { header: 'Current receipt', width: '40%' },
+                { header: translateUiLiteral(language, 'SKU'), width: '30%' },
+                { header: translateUiLiteral(language, 'Last receipt'), width: '18%' },
+                ...modes.map((nextMode) => ({
+                  ariaLabel: nextMode === mode ? translateUiLiteral(language, 'Current receipt') : undefined,
+                  header: (
+                    <WorkflowStateColumnHeader state={nextMode}>
+                      {workflowStateLabel(language, nextMode)}
+                    </WorkflowStateColumnHeader>
+                  ),
+                  width: `${Math.floor(52 / Math.max(1, modes.length))}%`,
+                })),
               ]}
               onReorderRows={onReorderRows}
               rows={rows}
@@ -3205,23 +3892,30 @@ function RecordReceiptStep({
                 const draft = skuSignalDrafts[row.skuId] ?? createEmptySkuSignalDraft();
 
                 return {
-                  dragLabel: translateUiLiteral('en', 'Reorder {name}', { name: sku?.name ?? row.skuId }),
+                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? row.skuId }),
                   highlight: receiptDraftHasContent(draft),
-                  inputCellIndexes: [2],
+                  inputCellIndexes: workflowInputIndexes(2, modes.length),
                   cells: [
                     <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
                     <LastReceiptCell latestAt={latestReceiptAtBySku.get(row.skuId)} latestValue={latestReceiptQuantity.get(row.skuId) ?? null} />,
-                    <ReceiptQuantityField
-                      receiptQuantityValue={draft.receiptQuantity}
-                      rowName={sku?.name ?? row.skuId}
-                      setReceiptQuantity={(value) =>
-                        updateSkuSignalDraft(row.skuId, (current) => ({
-                          ...current,
-                          receiptEnabled: value.trim() !== '',
-                          receiptQuantity: value,
-                        }))
-                      }
-                    />,
+                    ...modes.map((nextMode) => (
+                      <ReceiptQuantityField
+                        ariaLabel={nextMode === mode
+                          ? translateUiLiteral(language, 'Current receipt for {name}', { name: sku?.name ?? row.skuId })
+                          : undefined}
+                        key={nextMode}
+                        receiptQuantityValue={nextMode === mode ? draft.receiptQuantity : ''}
+                        rowName={`${workflowStateLabel(language, nextMode)} ${sku?.name ?? row.skuId}`}
+                        setReceiptQuantity={(value) => {
+                          setMode(nextMode);
+                          updateSkuSignalDraft(row.skuId, (current) => ({
+                            ...current,
+                            receiptEnabled: value.trim() !== '',
+                            receiptQuantity: value,
+                          }));
+                        }}
+                      />
+                    )),
                   ],
                 };
               }}
@@ -3725,6 +4419,15 @@ export function StockUpdateSessionRoute() {
   const [serviceSalesChoice, setServiceSalesChoice] = useState<OptionalStockStepChoice>('unset');
   const [retailSalesDrafts, setRetailSalesDrafts] = useState<SalesCountDrafts>({});
   const [serviceSalesDrafts, setServiceSalesDrafts] = useState<SalesCountDrafts>({});
+  const [customerPendingMode, setCustomerPendingMode] = useState<CustomerPendingMode>('new_pending');
+  const [customerCompletedMode, setCustomerCompletedMode] = useState<CustomerCompletedMode>('from_pending');
+  const [supplierPendingMode, setSupplierPendingMode] = useState<SupplierPendingMode>('new_supplier_order');
+  const [supplierReceiptMode, setSupplierReceiptMode] = useState<SupplierReceiptMode>('against_pending_supplier_order');
+  const [customerPendingModeFilters, setCustomerPendingModeFilters] = useState<CustomerPendingMode[]>(() => [...CUSTOMER_PENDING_MODE_OPTIONS]);
+  const [customerCompletedModeFilters, setCustomerCompletedModeFilters] = useState<CustomerCompletedMode[]>(() => [...CUSTOMER_COMPLETED_MODE_OPTIONS]);
+  const [supplierPendingModeFilters, setSupplierPendingModeFilters] = useState<SupplierPendingMode[]>(() => [...SUPPLIER_PENDING_MODE_OPTIONS]);
+  const [supplierReceiptModeFilters, setSupplierReceiptModeFilters] = useState<SupplierReceiptMode[]>(() => [...SUPPLIER_RECEIPT_MODE_OPTIONS]);
+  const [refundStockReturnDrafts, setRefundStockReturnDrafts] = useState<Record<string, RefundStockReturnChoice>>({});
   const [skuSignalDrafts, setSkuSignalDrafts] = useState<Record<string, SkuSignalDraft>>({});
   const [recordOrderExpectedArrivalDate, setRecordOrderExpectedArrivalDate] = useState('');
   const [recordOrderLeadTimeMeanDays, setRecordOrderLeadTimeMeanDays] = useState('');
@@ -3753,10 +4456,10 @@ export function StockUpdateSessionRoute() {
         child.skuId,
         {
           ...createEmptySkuSignalDraft(),
-          orderEnabled: Boolean(child.effective.orderedQuantity && lane.id === 'record-order'),
+          orderEnabled: Boolean(child.effective.orderedQuantity && lane.id === 'supplier-order-pending'),
           orderedQuantity: child.effective.orderedQuantity?.toString() ?? '',
           expectedArrivalDate: dateInputValue(child.effective.expectedArrivalAt ?? selectedOrderBatch?.shared.expectedArrivalAt ?? null),
-          receiptEnabled: Boolean(child.effective.receivedQuantity && lane.id === 'record-receipt'),
+          receiptEnabled: Boolean(child.effective.receivedQuantity && lane.id === 'supplier-receipt'),
           receiptQuantity: child.effective.receivedQuantity?.toString() ?? '',
           leadTimeMeanDays: child.effective.leadTimeDaysHint?.toString() ?? '',
           leadTimeVariability: child.effective.leadTimeVariability ?? '',
@@ -3788,6 +4491,28 @@ export function StockUpdateSessionRoute() {
   const latestRetailSalesAt = useMemo(() => latestRetailSalesAtBySku(observations), [observations]);
   const latestServiceSales = useMemo(() => latestServiceSalesByService(workingCatalog, observations), [observations, workingCatalog]);
   const latestServiceSalesAt = useMemo(() => latestServiceSalesAtByService(observations), [observations]);
+  const customerCommercialSnapshots = useMemo(
+    () => buildCommercialEntitySnapshots({ observations, party: 'customer', rangeDays: 30 }),
+    [observations],
+  );
+  const latestCustomerPendingBySku = useMemo(
+    () =>
+      new Map(
+        [...customerCommercialSnapshots.pendingQuantityByEntity.entries()]
+          .filter(([key]) => key.startsWith('sku:'))
+          .map(([key, quantity]) => [key.slice(4), Math.max(0, quantity)]),
+      ),
+    [customerCommercialSnapshots.pendingQuantityByEntity],
+  );
+  const latestCustomerPendingByService = useMemo(
+    () =>
+      new Map(
+        [...customerCommercialSnapshots.pendingQuantityByEntity.entries()]
+          .filter(([key]) => key.startsWith('service:'))
+          .map(([key, quantity]) => [key.slice(8), Math.max(0, quantity)]),
+      ),
+    [customerCommercialSnapshots.pendingQuantityByEntity],
+  );
   const recommendedOrderBySku = useMemo(() => reorderRecommendationBySku(workspaceSummary), [workspaceSummary]);
   const leadTimeMeanDefaults = useMemo(() => leadTimeMeanBySku(workingCatalog, workspaceSummary), [workingCatalog, workspaceSummary]);
   const leadTimeVariabilityDefaults = useMemo(() => leadTimeVariabilityBySku(workingCatalog, workspaceSummary), [workingCatalog, workspaceSummary]);
@@ -3895,6 +4620,39 @@ export function StockUpdateSessionRoute() {
   const stockStepSatisfied = !isFirstObservation || countedSkuCount > 0;
   const skuFlagsValid = !skuFlagsHaveEmptyRequiredValues(visibleSkuSignalDrafts);
   const serviceFlagsValid = !serviceFlagsHaveEmptyRequiredValues(serviceSignalDrafts);
+  const isCustomerPendingLane = lane.id === 'customer-order-pending';
+  const isCustomerCompletedLane = lane.id === 'customer-order-completed';
+  const isSupplierPendingLane = lane.id === 'supplier-order-pending';
+  const isSupplierReceiptLane = lane.id === 'supplier-receipt';
+  const skipsFirstStockRequirement = isCustomerPendingLane || isCustomerCompletedLane || isSupplierPendingLane || isSupplierReceiptLane;
+
+  function updateCustomerPendingModeFilters(values: CustomerPendingMode[]) {
+    setCustomerPendingModeFilters(values);
+    if (!values.includes(customerPendingMode)) {
+      setCustomerPendingMode(values[0] ?? 'new_pending');
+    }
+  }
+
+  function updateCustomerCompletedModeFilters(values: CustomerCompletedMode[]) {
+    setCustomerCompletedModeFilters(values);
+    if (!values.includes(customerCompletedMode)) {
+      setCustomerCompletedMode(values[0] ?? 'from_pending');
+    }
+  }
+
+  function updateSupplierPendingModeFilters(values: SupplierPendingMode[]) {
+    setSupplierPendingModeFilters(values);
+    if (!values.includes(supplierPendingMode)) {
+      setSupplierPendingMode(values[0] ?? 'new_supplier_order');
+    }
+  }
+
+  function updateSupplierReceiptModeFilters(values: SupplierReceiptMode[]) {
+    setSupplierReceiptModeFilters(values);
+    if (!values.includes(supplierReceiptMode)) {
+      setSupplierReceiptMode(values[0] ?? 'against_pending_supplier_order');
+    }
+  }
   const draftState = useMemo<StockUpdateDraftState>(
     () => ({
       catalog: workingCatalog,
@@ -3906,10 +4664,15 @@ export function StockUpdateSessionRoute() {
       retailSalesChoice,
       retailSalesDrafts,
       retailRankings,
+      customerPendingMode,
+      customerCompletedMode,
       recordOrderExpectedArrivalDate,
       recordOrderLeadTimeMeanDays,
       recordOrderLeadTimeVariability,
       recordReceiptReceivedDate,
+      supplierPendingMode,
+      supplierReceiptMode,
+      refundStockReturnDrafts,
       rows,
       serviceSalesChoice,
       serviceSalesDrafts,
@@ -3930,10 +4693,15 @@ export function StockUpdateSessionRoute() {
       retailSalesChoice,
       retailSalesDrafts,
       retailRankings,
+      customerPendingMode,
+      customerCompletedMode,
       recordOrderExpectedArrivalDate,
       recordOrderLeadTimeMeanDays,
       recordOrderLeadTimeVariability,
       recordReceiptReceivedDate,
+      supplierPendingMode,
+      supplierReceiptMode,
+      refundStockReturnDrafts,
       rows,
       serviceSalesChoice,
       serviceSalesDrafts,
@@ -3997,6 +4765,10 @@ export function StockUpdateSessionRoute() {
     setServiceSalesChoice(hydratedState.serviceSalesChoice);
     setRetailSalesDrafts(hydratedState.retailSalesDrafts);
     setServiceSalesDrafts(hydratedState.serviceSalesDrafts);
+    setCustomerPendingMode(hydratedState.customerPendingMode);
+    setCustomerCompletedMode(hydratedState.customerCompletedMode);
+    setSupplierPendingMode(hydratedState.supplierPendingMode);
+    setSupplierReceiptMode(hydratedState.supplierReceiptMode);
     setSkuSignalDrafts(hydratedState.skuSignalDrafts);
     setRecordOrderExpectedArrivalDate(hydratedState.recordOrderExpectedArrivalDate);
     setRecordOrderLeadTimeMeanDays(hydratedState.recordOrderLeadTimeMeanDays);
@@ -4007,6 +4779,7 @@ export function StockUpdateSessionRoute() {
     setRegimeHint(hydratedState.regimeHint);
     setServiceRankings(hydratedState.serviceRankings);
     setRetailRankings(hydratedState.retailRankings);
+    setRefundStockReturnDrafts(hydratedState.refundStockReturnDrafts);
   }
 
   function hydrateEditSession(nextEditSession: EditSessionState, baselineRows: StockRow[]) {
@@ -4088,6 +4861,10 @@ export function StockUpdateSessionRoute() {
         setServiceSalesChoice(hydratedDraft.serviceSalesChoice);
         setRetailSalesDrafts(hydratedDraft.retailSalesDrafts);
         setServiceSalesDrafts(hydratedDraft.serviceSalesDrafts);
+        setCustomerPendingMode(hydratedDraft.customerPendingMode);
+        setCustomerCompletedMode(hydratedDraft.customerCompletedMode);
+        setSupplierPendingMode(hydratedDraft.supplierPendingMode);
+        setSupplierReceiptMode(hydratedDraft.supplierReceiptMode);
         setSkuSignalDrafts(hydratedDraft.skuSignalDrafts);
         setRecordOrderExpectedArrivalDate(hydratedDraft.recordOrderExpectedArrivalDate);
         setRecordOrderLeadTimeMeanDays(hydratedDraft.recordOrderLeadTimeMeanDays);
@@ -4098,6 +4875,7 @@ export function StockUpdateSessionRoute() {
         setRegimeHint(hydratedDraft.regimeHint);
         setServiceRankings(hydratedDraft.serviceRankings);
         setRetailRankings(hydratedDraft.retailRankings);
+        setRefundStockReturnDrafts(hydratedDraft.refundStockReturnDrafts);
         setHasSavedDraft(true);
         setDraftWasRestored(true);
         return;
@@ -4238,6 +5016,10 @@ export function StockUpdateSessionRoute() {
     });
   }
 
+  function updateRefundStockReturnDraft(skuId: string, value: RefundStockReturnChoice) {
+    setRefundStockReturnDrafts((current) => ({ ...current, [skuId]: value }));
+  }
+
   function updateServiceSignalDraft(serviceId: string, updater: (draft: ServiceSignalDraft) => ServiceSignalDraft) {
     setServiceSignalDrafts((current) => ({
       ...current,
@@ -4261,7 +5043,7 @@ export function StockUpdateSessionRoute() {
   }
 
   function resetSkuFlagRows() {
-    setSkuSignalDrafts((current) => (lane.id === 'record-order' || lane.id === 'record-receipt' ? skuWithoutEventDrafts(current) : {}));
+    setSkuSignalDrafts((current) => (lane.id === 'supplier-order-pending' || lane.id === 'supplier-receipt' ? skuWithoutEventDrafts(current) : {}));
   }
 
   function handleSkipOptionalStockStep(stepId: OptionalStockStepId) {
@@ -4288,7 +5070,77 @@ export function StockUpdateSessionRoute() {
   }
 
   function buildPayload() {
-    if (lane.id === 'sales-update') {
+    if (lane.id === 'customer-order-pending') {
+      const payload = createEmptyObservationInput({
+        observedAt: observedAtIso ?? new Date().toISOString(),
+        notes: notes.trim() || null,
+      });
+      payload.commercialEvents = [
+        ...retailSkuIds.flatMap((skuId) => {
+          const value = retailSalesDrafts[skuId]?.trim();
+          if (!value) {
+            return [];
+          }
+          const quantity = Number(value);
+          if (!Number.isFinite(quantity) || quantity < 0) {
+            return [];
+          }
+          const previousOpen = latestCustomerPendingBySku.get(skuId) ?? 0;
+          const quantityDelta =
+            customerPendingMode === 'cancel_pending'
+              ? -Math.min(previousOpen, quantity)
+              : customerPendingMode === 'modify_pending'
+                ? quantity - previousOpen
+                : quantity;
+          if (quantityDelta === 0) {
+            return [];
+          }
+          return [{
+            party: 'customer' as const,
+            entityType: 'sku' as const,
+            entityId: skuId,
+            stage: 'pending' as const,
+            quantityDelta,
+            flow: 'scheduled' as const,
+            reason: customerPendingMode,
+            note: notes.trim() || null,
+          }];
+        }),
+        ...serviceIds.flatMap((serviceId) => {
+          const value = serviceSalesDrafts[serviceId]?.trim();
+          if (!value) {
+            return [];
+          }
+          const quantity = Number(value);
+          if (!Number.isFinite(quantity) || quantity < 0) {
+            return [];
+          }
+          const previousOpen = latestCustomerPendingByService.get(serviceId) ?? 0;
+          const quantityDelta =
+            customerPendingMode === 'cancel_pending'
+              ? -Math.min(previousOpen, quantity)
+              : customerPendingMode === 'modify_pending'
+                ? quantity - previousOpen
+                : quantity;
+          if (quantityDelta === 0) {
+            return [];
+          }
+          return [{
+            party: 'customer' as const,
+            entityType: 'service' as const,
+            entityId: serviceId,
+            stage: 'pending' as const,
+            quantityDelta,
+            flow: 'scheduled' as const,
+            reason: customerPendingMode,
+            note: notes.trim() || null,
+          }];
+        }),
+      ];
+      payload.regimeHint = regimeHint || null;
+      return payload;
+    }
+    if (lane.id === 'customer-order-completed') {
       const payload = createEmptyObservationInput({
         observedAt: observedAtIso ?? new Date().toISOString(),
         notes: notes.trim() || null,
@@ -4313,18 +5165,122 @@ export function StockUpdateSessionRoute() {
       const derivedServiceRankings = [...serviceSalesSnapshot]
         .sort((left, right) => right.unitsSold - left.unitsSold || left.serviceId.localeCompare(right.serviceId))
         .map((entry) => entry.serviceId);
-      payload.retailSalesSnapshot = retailSalesSnapshot;
-      payload.serviceSalesSnapshot = serviceSalesSnapshot;
+      if (customerCompletedMode !== 'refund_reversal') {
+        payload.retailSalesSnapshot = retailSalesSnapshot;
+        payload.serviceSalesSnapshot = serviceSalesSnapshot;
+      }
       payload.retailRankings = retailSalesChoice === 'yes' ? derivedRetailRankings : retailRankings;
       payload.serviceRankings = serviceSalesChoice === 'yes' ? derivedServiceRankings : serviceRankings;
       payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
         .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
         .map(([skuId]) => skuId);
       payload.serviceStockouts = [];
+      payload.adjustmentSignals = retailSkuIds.flatMap((skuId) => {
+        if (customerCompletedMode !== 'refund_reversal' || refundStockReturnDrafts[skuId] !== 'now') {
+          return [];
+        }
+        const value = retailSalesDrafts[skuId]?.trim();
+        if (!value) {
+          return [];
+        }
+        const quantity = Number(value);
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          return [];
+        }
+        return [{
+          skuId,
+          quantityDelta: quantity,
+          reason: 'return_to_stock',
+        }];
+      });
+      payload.commercialEvents = [
+        ...retailSkuIds.flatMap((skuId) => {
+          const value = retailSalesDrafts[skuId]?.trim();
+          if (!value) {
+            return [];
+          }
+          const quantity = Number(value);
+          if (!Number.isFinite(quantity) || quantity <= 0) {
+            return [];
+          }
+          const pendingBefore = latestCustomerPendingBySku.get(skuId) ?? 0;
+          const realizedDelta = customerCompletedMode === 'refund_reversal' ? -quantity : quantity;
+          return [
+            ...(customerCompletedMode === 'from_pending' && quantity > 0
+              ? [{
+                  party: 'customer' as const,
+                  entityType: 'sku' as const,
+                  entityId: skuId,
+                  stage: 'pending' as const,
+                  quantityDelta: -Math.min(pendingBefore, quantity),
+                  flow: 'scheduled' as const,
+                  reason: customerCompletedMode,
+                  note: notes.trim() || null,
+                }]
+              : []),
+            {
+              party: 'customer' as const,
+              entityType: 'sku' as const,
+              entityId: skuId,
+              stage: 'realized' as const,
+              quantityDelta: realizedDelta,
+              flow:
+                customerCompletedMode === 'immediate_sale'
+                  ? ('immediate' as const)
+                  : customerCompletedMode === 'refund_reversal'
+                    ? ('reversal' as const)
+                    : ('scheduled' as const),
+              reason: customerCompletedMode,
+              note: notes.trim() || null,
+            },
+          ];
+        }),
+        ...serviceIds.flatMap((serviceId) => {
+          const value = serviceSalesDrafts[serviceId]?.trim();
+          if (!value) {
+            return [];
+          }
+          const quantity = Number(value);
+          if (!Number.isFinite(quantity) || quantity <= 0) {
+            return [];
+          }
+          const pendingBefore = latestCustomerPendingByService.get(serviceId) ?? 0;
+          const realizedDelta = customerCompletedMode === 'refund_reversal' ? -quantity : quantity;
+          return [
+            ...(customerCompletedMode === 'from_pending' && quantity > 0
+              ? [{
+                  party: 'customer' as const,
+                  entityType: 'service' as const,
+                  entityId: serviceId,
+                  stage: 'pending' as const,
+                  quantityDelta: -Math.min(pendingBefore, quantity),
+                  flow: 'scheduled' as const,
+                  reason: customerCompletedMode,
+                  note: notes.trim() || null,
+                }]
+              : []),
+            {
+              party: 'customer' as const,
+              entityType: 'service' as const,
+              entityId: serviceId,
+              stage: 'realized' as const,
+              quantityDelta: realizedDelta,
+              flow:
+                customerCompletedMode === 'immediate_sale'
+                  ? ('immediate' as const)
+                  : customerCompletedMode === 'refund_reversal'
+                    ? ('reversal' as const)
+                    : ('scheduled' as const),
+              reason: customerCompletedMode,
+              note: notes.trim() || null,
+            },
+          ];
+        }),
+      ];
       payload.regimeHint = regimeHint || null;
       return payload;
     }
-    if (lane.id === 'record-order') {
+    if (lane.id === 'supplier-order-pending') {
       const payload = createEmptyObservationInput({
         observedAt: observedAtIso ?? new Date().toISOString(),
         notes: notes.trim() || null,
@@ -4337,7 +5293,7 @@ export function StockUpdateSessionRoute() {
         const quantity = draft.orderedQuantity.trim();
         return quantity !== '' && Number(quantity) > 0;
       });
-      payload.orderSignals = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+      payload.orderSignals = supplierPendingMode === 'cancel_supplier_order' ? [] : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
         const quantity = draft.orderedQuantity.trim();
         if (quantity === '' || Number(quantity) <= 0) {
           return [];
@@ -4353,7 +5309,7 @@ export function StockUpdateSessionRoute() {
           leadTimeDaysHint: tableMeanDays,
         }];
       });
-      payload.leadTimeHints = orderedEntries.flatMap(([skuId]) => {
+      payload.leadTimeHints = supplierPendingMode === 'cancel_supplier_order' ? [] : orderedEntries.flatMap(([skuId]) => {
         const variabilityClass =
           recordOrderLeadTimeVariability ||
           (tableMeanDays != null ? leadTimeVariabilityDefaults.get(skuId) : null) ||
@@ -4370,18 +5326,34 @@ export function StockUpdateSessionRoute() {
           variabilityClass,
         }];
       });
+      payload.commercialEvents = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+        const quantity = draft.orderedQuantity.trim();
+        if (quantity === '' || Number(quantity) <= 0) {
+          return [];
+        }
+        return [{
+          party: 'supplier' as const,
+          entityType: 'sku' as const,
+          entityId: skuId,
+          stage: 'pending' as const,
+          quantityDelta: supplierPendingMode === 'cancel_supplier_order' ? -Number(quantity) : Number(quantity),
+          flow: 'scheduled' as const,
+          reason: supplierPendingMode,
+          note: notes.trim() || null,
+        }];
+      });
       payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
         .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
         .map(([skuId]) => skuId);
       payload.regimeHint = regimeHint || null;
       return payload;
     }
-    if (lane.id === 'record-receipt') {
+    if (lane.id === 'supplier-receipt') {
       const payload = createEmptyObservationInput({
         observedAt: observedAtIso ?? new Date().toISOString(),
         notes: notes.trim() || null,
       });
-      payload.orderSignals = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+      payload.orderSignals = supplierReceiptMode === 'return_receipt_reversal' ? [] : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
         const quantity = draft.receiptQuantity.trim();
         if (quantity === '' || Number(quantity) <= 0) {
           return [];
@@ -4394,6 +5366,42 @@ export function StockUpdateSessionRoute() {
           approximateReceiptQuantity: Number(quantity),
           receiptTimestamp: dateInputToIso(recordReceiptReceivedDate),
         }];
+      });
+      payload.commercialEvents = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+        const quantity = draft.receiptQuantity.trim();
+        if (quantity === '' || Number(quantity) <= 0) {
+          return [];
+        }
+        const numericQuantity = Number(quantity);
+        return [
+          ...(supplierReceiptMode === 'against_pending_supplier_order'
+            ? [{
+                party: 'supplier' as const,
+                entityType: 'sku' as const,
+                entityId: skuId,
+                stage: 'pending' as const,
+                quantityDelta: -numericQuantity,
+                flow: 'scheduled' as const,
+                reason: supplierReceiptMode,
+                note: notes.trim() || null,
+              }]
+            : []),
+          {
+            party: 'supplier' as const,
+            entityType: 'sku' as const,
+            entityId: skuId,
+            stage: 'realized' as const,
+            quantityDelta: supplierReceiptMode === 'return_receipt_reversal' ? -numericQuantity : numericQuantity,
+            flow:
+              supplierReceiptMode === 'immediate_purchase'
+                ? ('immediate' as const)
+                : supplierReceiptMode === 'return_receipt_reversal'
+                  ? ('reversal' as const)
+                  : ('scheduled' as const),
+            reason: supplierReceiptMode,
+            note: notes.trim() || null,
+          },
+        ];
       });
       payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
         .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
@@ -4479,7 +5487,7 @@ export function StockUpdateSessionRoute() {
     (stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid) ||
     (lane.id !== 'stock-count' && !serviceFlagsValid) ||
     !hasStructuredObservationSignal(previewPayload) ||
-    (lane.id !== 'sales-update' && lane.id !== 'record-order' && lane.id !== 'record-receipt' && requiresFirstStockSnapshot);
+    (!skipsFirstStockRequirement && requiresFirstStockSnapshot);
 
   const stepStates = [
     {
@@ -4494,55 +5502,59 @@ export function StockUpdateSessionRoute() {
       description: notes.trim() ? t('stockUpdateStepNotesAdded') : t('stockUpdateStepNotesOptional'),
       complete: true,
     },
-    ...(lane.id === 'record-order'
+    ...(isSupplierPendingLane
       ? [
           {
             id: 'reorder' as const,
-            title: 'Reorder table',
+            title: 'Supplier orders',
             description:
               orderSignalCount > 0
-                ? translateUiLiteral(language, '{count} current order row{suffix}', {
+                ? translateUiLiteral(language, '{count} supplier order row{suffix}', {
                     count: orderSignalCount,
                     suffix: orderSignalCount === 1 ? '' : 's',
                   })
-                : translateUiLiteral(language, 'Optional reorder capture'),
+                : translateUiLiteral(language, 'Pending supplier commitments'),
             complete: true,
           },
         ]
       : []),
-    ...(lane.id === 'record-receipt'
+    ...(isSupplierReceiptLane
       ? [
           {
             id: 'receipt' as const,
-            title: 'Record receipt',
+            title: 'Supplier receipts',
             description:
               receiptSignalCount > 0
-                ? translateUiLiteral(language, '{count} current receipt row{suffix}', {
+                ? translateUiLiteral(language, '{count} supplier receipt row{suffix}', {
                     count: receiptSignalCount,
                     suffix: receiptSignalCount === 1 ? '' : 's',
                   })
-                : translateUiLiteral(language, 'Optional receipt capture'),
+                : translateUiLiteral(language, 'Realized supplier arrivals'),
             complete: true,
           },
         ]
       : []),
-    ...(lane.id === 'sales-update'
+    ...(isCustomerPendingLane || isCustomerCompletedLane
       ? [
           {
             id: 'retail-sales' as const,
-            title: 'Retail / sellable SKU sales',
+            title: translateUiLiteral(language, isCustomerPendingLane ? 'Open retail / sellable SKU orders' : 'Completed retail / sellable orders'),
             description:
               retailSalesChoice === 'yes'
                 ? retailSalesCount > 0
-                  ? translateUiLiteral(language, '{count} exact retail sales row{suffix}', { count: retailSalesCount, suffix: retailSalesCount === 1 ? '' : 's' })
-                  : translateUiLiteral(language, 'Exact counts')
-                : retailSalesChoice === 'no'
+                  ? translateUiLiteral(language, '{count} retail row{suffix}', { count: retailSalesCount, suffix: retailSalesCount === 1 ? '' : 's' })
+                  : translateUiLiteral(language, isCustomerPendingLane ? 'Pending quantities' : 'Exact counts')
+                : isCustomerCompletedLane && retailSalesChoice === 'no'
                   ? retailRankings.length > 0
                     ? translateUiLiteral(language, '{count} ranked retail item{suffix}', { count: retailRankings.length, suffix: retailRankings.length === 1 ? '' : 's' })
                     : translateUiLiteral(language, 'Ranking fallback')
-                  : t('stockUpdateStepChooseYesNo'),
+                  : isCustomerPendingLane
+                    ? translateUiLiteral(language, 'Open quantity changes')
+                    : t('stockUpdateStepChooseYesNo'),
             complete:
-              retailSalesChoice === 'yes'
+              isCustomerPendingLane
+                ? true
+                : retailSalesChoice === 'yes'
                 ? true
                 : retailSalesChoice === 'no'
                   ? true
@@ -4550,26 +5562,30 @@ export function StockUpdateSessionRoute() {
           },
           {
             id: 'service-sales' as const,
-            title: 'Sellable services',
+            title: translateUiLiteral(language, isCustomerPendingLane ? 'Open service orders' : 'Completed service orders'),
             description:
               serviceSalesChoice === 'yes'
                 ? serviceSalesCount > 0
-                  ? translateUiLiteral(language, '{count} exact service sales row{suffix}', { count: serviceSalesCount, suffix: serviceSalesCount === 1 ? '' : 's' })
-                  : translateUiLiteral(language, 'Exact counts')
-                : serviceSalesChoice === 'no'
+                  ? translateUiLiteral(language, '{count} service row{suffix}', { count: serviceSalesCount, suffix: serviceSalesCount === 1 ? '' : 's' })
+                  : translateUiLiteral(language, isCustomerPendingLane ? 'Pending quantities' : 'Exact counts')
+                : isCustomerCompletedLane && serviceSalesChoice === 'no'
                   ? serviceRankings.length > 0
                     ? translateUiLiteral(language, '{count} ranked service{suffix}', { count: serviceRankings.length, suffix: serviceRankings.length === 1 ? '' : 's' })
                     : translateUiLiteral(language, 'Ranking fallback')
-                  : t('stockUpdateStepChooseYesNo'),
+                  : isCustomerPendingLane
+                    ? translateUiLiteral(language, 'Open quantity changes')
+                    : t('stockUpdateStepChooseYesNo'),
             complete:
-              serviceSalesChoice === 'yes'
+              isCustomerPendingLane
+                ? true
+                : serviceSalesChoice === 'yes'
                 ? true
                 : serviceSalesChoice === 'no'
                   ? true
                   : false,
           },
         ]
-      : lane.id === 'record-order' || lane.id === 'record-receipt'
+      : isSupplierPendingLane || isSupplierReceiptLane
         ? []
         : [{
             id: 'stock',
@@ -4651,21 +5667,25 @@ export function StockUpdateSessionRoute() {
       : currentStepId === 'context' || currentStepId === 'report-notes'
         ? true
         : currentStepId === 'retail-sales'
-          ? retailSalesChoice !== 'unset'
-        : currentStepId === 'service-sales'
-          ? serviceSalesChoice !== 'unset'
-        : currentStepId === 'reorder'
-          ? true
-        : currentStepId === 'receipt'
-          ? true
-        : currentStepId === 'stock'
-          ? stockStepSatisfied
-          : currentStepId === 'stock-cost'
-            ? stockStepChoices['stock-cost'] !== 'unset'
-            : currentStepId === 'stock-price'
-              ? stockStepChoices['stock-price'] !== 'unset'
-              : currentStepId === 'stock-flags'
-                ? stockStepChoices['stock-flags'] !== 'unset' && (stockStepChoices['stock-flags'] !== 'yes' || skuFlagsValid)
+          ? isCustomerPendingLane
+            ? true
+            : retailSalesChoice !== 'unset'
+          : currentStepId === 'service-sales'
+            ? isCustomerPendingLane
+              ? true
+              : serviceSalesChoice !== 'unset'
+            : currentStepId === 'reorder'
+              ? true
+            : currentStepId === 'receipt'
+              ? true
+              : currentStepId === 'stock'
+                ? stockStepSatisfied
+                : currentStepId === 'stock-cost'
+                  ? stockStepChoices['stock-cost'] !== 'unset'
+                  : currentStepId === 'stock-price'
+                    ? stockStepChoices['stock-price'] !== 'unset'
+                    : currentStepId === 'stock-flags'
+                      ? stockStepChoices['stock-flags'] !== 'unset' && (stockStepChoices['stock-flags'] !== 'yes' || skuFlagsValid)
         : currentStepId === 'service'
           ? serviceFlagsValid
           : true;
@@ -4673,12 +5693,14 @@ export function StockUpdateSessionRoute() {
   const addSignalGuidanceText =
     lane.id === 'stock-count'
       ? t('stockUpdateGuidanceAddStockCountSignal')
-      : lane.id === 'sales-update'
-        ? translateUiLiteral(language, 'Add at least one retail sales count, service sales count, row event, retail ranking, service ranking, or sales pattern before saving.')
-        : lane.id === 'record-order'
-          ? translateUiLiteral(language, 'Add at least one current order, row event, or sales pattern before saving.')
-          : lane.id === 'record-receipt'
-            ? translateUiLiteral(language, 'Add at least one current receipt, row event, or sales pattern before saving.')
+      : isCustomerPendingLane
+        ? translateUiLiteral(language, 'Add at least one open customer order change before saving.')
+        : isCustomerCompletedLane
+          ? translateUiLiteral(language, 'Add at least one completed customer order, refund, row event, ranking, or sales pattern before saving.')
+          : isSupplierPendingLane
+            ? translateUiLiteral(language, 'Add at least one supplier order change, row event, or sales pattern before saving.')
+            : isSupplierReceiptLane
+              ? translateUiLiteral(language, 'Add at least one supplier receipt, reversal, row event, or sales pattern before saving.')
         : t('stockUpdateGuidanceAddSignal');
 
   const stepGuidance =
@@ -4688,9 +5710,9 @@ export function StockUpdateSessionRoute() {
         ? null
         : currentStepId === 'receipt'
           ? null
-      : currentStepId === 'retail-sales' && retailSalesChoice === 'unset'
+      : currentStepId === 'retail-sales' && !isCustomerPendingLane && retailSalesChoice === 'unset'
         ? t('stockUpdateGuidanceChooseOptionalStep')
-        : currentStepId === 'service-sales' && serviceSalesChoice === 'unset'
+        : currentStepId === 'service-sales' && !isCustomerPendingLane && serviceSalesChoice === 'unset'
           ? t('stockUpdateGuidanceChooseOptionalStep')
       : currentStepId === 'stock' && !stockStepSatisfied
         ? t('stockUpdateGuidanceCountOneSku')
@@ -4710,7 +5732,7 @@ export function StockUpdateSessionRoute() {
               ? t('stockUpdateGuidanceFillServiceFlagsSave')
           : currentStepId === 'review' && !hasStructuredObservationSignal(previewPayload)
                 ? addSignalGuidanceText
-          : currentStepId === 'review' && lane.id !== 'sales-update' && lane.id !== 'record-order' && lane.id !== 'record-receipt' && isFirstObservation && previewPayload.stockSnapshot.length === 0
+          : currentStepId === 'review' && !skipsFirstStockRequirement && isFirstObservation && previewPayload.stockSnapshot.length === 0
             ? t('stockUpdateGuidanceFirstUpdateNeedsCount')
             : null;
 
@@ -4720,7 +5742,7 @@ export function StockUpdateSessionRoute() {
     ...(!hasStructuredObservationSignal(previewPayload)
       ? [addSignalGuidanceText]
       : []),
-    ...(lane.id !== 'sales-update' && lane.id !== 'record-order' && lane.id !== 'record-receipt' && requiresFirstStockSnapshot
+    ...(!skipsFirstStockRequirement && requiresFirstStockSnapshot
       ? [t('stockUpdateGuidanceFirstUpdateNeedsCount')]
       : []),
   ];
@@ -4765,6 +5787,11 @@ export function StockUpdateSessionRoute() {
     setServiceSalesChoice('unset');
     setRetailSalesDrafts({});
     setServiceSalesDrafts({});
+    setCustomerPendingMode('new_pending');
+    setCustomerCompletedMode('from_pending');
+    setSupplierPendingMode('new_supplier_order');
+    setSupplierReceiptMode('against_pending_supplier_order');
+    setRefundStockReturnDrafts({});
     setSkuSignalDrafts({});
     setRecordOrderExpectedArrivalDate('');
     setRecordOrderLeadTimeMeanDays('');
@@ -4806,12 +5833,12 @@ export function StockUpdateSessionRoute() {
       setError(addSignalGuidanceText);
       return;
     }
-    if (lane.id !== 'sales-update' && lane.id !== 'record-order' && lane.id !== 'record-receipt' && isFirstObservation && payload.stockSnapshot.length === 0) {
+    if (!skipsFirstStockRequirement && isFirstObservation && payload.stockSnapshot.length === 0) {
       setError(t('stockUpdateGuidanceFirstUpdateNeedsCount'));
       return;
     }
     try {
-      if (lane.id === 'record-order') {
+      if (lane.id === 'supplier-order-pending' && supplierPendingMode !== 'cancel_supplier_order') {
         const tableMeanDays =
           recordOrderLeadTimeMeanDays.trim() === ''
             ? null
@@ -4873,7 +5900,7 @@ export function StockUpdateSessionRoute() {
           }
         }
       }
-      if (lane.id === 'record-receipt' && routeBatchOrderId) {
+      if (lane.id === 'supplier-receipt' && supplierReceiptMode !== 'return_receipt_reversal' && routeBatchOrderId) {
         const targetChildren = selectedOrderChildren.length > 0 ? selectedOrderChildren : [];
         for (const child of targetChildren) {
           const draft = visibleSkuSignalDrafts[child.skuId];
@@ -5126,7 +6153,7 @@ export function StockUpdateSessionRoute() {
             style={{ left: bottomNavigationIslandLeft == null ? '50vw' : `${bottomNavigationIslandLeft}px` }}
           >
             <div className="editorial-panel rounded-[1.5rem] border-white/70 bg-background/92 p-2 shadow-[var(--shadow-float)] backdrop-blur-[10px]">
-              <WorkspaceActionRow className="justify-center [&_[data-slot=button]]:!h-12 [&_[data-slot=button]]:!rounded-full [&_[data-slot=button]]:!px-4 [&_[data-slot=button]]:[&_svg]:!size-4">
+              <WorkspaceActionRow className={cn('justify-center', headerActionSurfaceClassName)}>
                 {navigationActions}
               </WorkspaceActionRow>
             </div>
@@ -5152,6 +6179,42 @@ export function StockUpdateSessionRoute() {
       value: fullUpdate ? t('stockUpdateSummaryFullUpdate') : t('stockUpdateSummaryPartialUpdate'),
     },
   ];
+  const customerPendingStateFilterControl = (
+    <WorkflowStateFilter
+      kind="order"
+      label={translateUiLiteral(language, 'Customer pending states')}
+      options={CUSTOMER_PENDING_MODE_OPTIONS}
+      selectedValues={customerPendingModeFilters}
+      onChange={updateCustomerPendingModeFilters}
+    />
+  );
+  const customerCompletedStateFilterControl = (
+    <WorkflowStateFilter
+      kind="order"
+      label={translateUiLiteral(language, 'Customer completion states')}
+      options={CUSTOMER_COMPLETED_MODE_OPTIONS}
+      selectedValues={customerCompletedModeFilters}
+      onChange={updateCustomerCompletedModeFilters}
+    />
+  );
+  const supplierPendingStateFilterControl = (
+    <WorkflowStateFilter
+      kind="order"
+      label={translateUiLiteral(language, 'Supplier pending states')}
+      options={SUPPLIER_PENDING_MODE_OPTIONS}
+      selectedValues={supplierPendingModeFilters}
+      onChange={updateSupplierPendingModeFilters}
+    />
+  );
+  const supplierReceiptStateFilterControl = (
+    <WorkflowStateFilter
+      kind="receipt"
+      label={translateUiLiteral(language, 'Supplier receipt states')}
+      options={SUPPLIER_RECEIPT_MODE_OPTIONS}
+      selectedValues={supplierReceiptModeFilters}
+      onChange={updateSupplierReceiptModeFilters}
+    />
+  );
 
   return (
     <WorkspacePage className="pb-32 md:pb-36">
@@ -5221,7 +6284,7 @@ export function StockUpdateSessionRoute() {
             >
               <NavigationBackIcon className="size-5" />
             </Link>
-            <span className="min-w-0">{lane.title}</span>
+            <span className="min-w-0">{translateUiLiteral(language, lane.title)}</span>
           </span>
         }
       >
@@ -5337,11 +6400,14 @@ export function StockUpdateSessionRoute() {
           <RecordOrderStep
             catalog={workingCatalog}
             debugCellBoundaries={debugCellBoundaries}
+            filterControl={supplierPendingStateFilterControl}
             guidance={currentStepId === 'reorder' ? stepGuidance : null}
             latestOrderAtBySku={latestOrderedAt}
             latestOrderQuantity={latestOrderedQuantity}
             leadTimeMeanDefaults={leadTimeMeanDefaults}
             leadTimeVariabilityDefaults={leadTimeVariabilityDefaults}
+            mode={supplierPendingMode}
+            modes={supplierPendingModeFilters}
             observedAtIso={observedAtIso}
             onReorderRows={handleStockRowReorder}
             orderRecommendationBySku={recommendedOrderBySku}
@@ -5352,6 +6418,7 @@ export function StockUpdateSessionRoute() {
             setRecordOrderExpectedArrivalDate={setRecordOrderExpectedArrivalDate}
             setRecordOrderLeadTimeMeanDays={setRecordOrderLeadTimeMeanDays}
             setRecordOrderLeadTimeVariability={setRecordOrderLeadTimeVariability}
+            setMode={setSupplierPendingMode}
             skuSignalDrafts={skuSignalDrafts}
             supplierFilterControl={supplierFilterControl}
             updateSkuSignalDraft={updateSkuSignalDraft}
@@ -5362,14 +6429,18 @@ export function StockUpdateSessionRoute() {
           <RecordReceiptStep
             catalog={workingCatalog}
             debugCellBoundaries={debugCellBoundaries}
+            filterControl={supplierReceiptStateFilterControl}
             guidance={currentStepId === 'receipt' ? stepGuidance : null}
             latestReceiptAtBySku={latestReceiptAt}
             latestReceiptQuantity={latestReceiptQuantity}
+            mode={supplierReceiptMode}
+            modes={supplierReceiptModeFilters}
             observedAtIso={observedAtIso}
             onReorderRows={handleStockRowReorder}
             recordReceiptReceivedDate={recordReceiptReceivedDate}
             rows={supplierFilteredRows}
             setRecordReceiptReceivedDate={setRecordReceiptReceivedDate}
+            setMode={setSupplierReceiptMode}
             skuSignalDrafts={skuSignalDrafts}
             supplierFilterControl={supplierFilterControl}
             updateSkuSignalDraft={updateSkuSignalDraft}
@@ -5377,45 +6448,112 @@ export function StockUpdateSessionRoute() {
         ) : null}
 
         {currentStepId === 'retail-sales' ? (
-          <SalesRetailStep
-            catalog={workingCatalog}
-            choice={retailSalesChoice}
-            debugCellBoundaries={debugCellBoundaries}
-            guidance={currentStepId === 'retail-sales' ? stepGuidance : null}
-            latestSalesAtBySku={latestRetailSalesAt}
-            latestSalesBySku={latestRetailSales}
-            onChooseNo={() => setRetailSalesChoice('no')}
-            onChooseYes={() => setRetailSalesChoice('yes')}
-            onReorderRows={handleRetailSalesRowReorder}
-            retailRankingSeedValues={defaultRetailRankingIds}
-            retailSalesDrafts={retailSalesDrafts}
-            retailSkuIds={retailSkuIds}
-            retailRankings={retailRankings}
-            setRetailRankings={setRetailRankings}
-            setRetailSalesDraft={updateRetailSalesDraft}
-            supplierFilterControl={supplierFilterControl}
-          />
+          isCustomerPendingLane ? (
+            <CustomerPendingRetailStep
+              catalog={workingCatalog}
+              debugCellBoundaries={debugCellBoundaries}
+              filterControl={customerPendingStateFilterControl}
+              guidance={currentStepId === 'retail-sales' ? stepGuidance : null}
+              latestOpenBySku={latestCustomerPendingBySku}
+              mode={customerPendingMode}
+              modes={customerPendingModeFilters}
+              onReorderRows={handleRetailSalesRowReorder}
+              retailSalesDrafts={retailSalesDrafts}
+              retailSkuIds={retailSkuIds}
+              setMode={setCustomerPendingMode}
+              setRetailSalesDraft={updateRetailSalesDraft}
+              supplierFilterControl={supplierFilterControl}
+            />
+          ) : (
+            <SalesRetailStep
+              catalog={workingCatalog}
+              choice={retailSalesChoice}
+              debugCellBoundaries={debugCellBoundaries}
+              descriptor={customerCompletedMode === 'refund_reversal'
+                ? translateUiLiteral(language, 'Record reversed customer completions and choose whether usable stock should return now or later.')
+                : translateUiLiteral(language, 'Record fulfilled retail orders or immediate retail sales.')}
+              filterControl={customerCompletedStateFilterControl}
+              guidance={currentStepId === 'retail-sales' ? stepGuidance : null}
+              helper={customerCompletedMode === 'refund_reversal'
+                ? translateUiLiteral(language, 'Choose Yes when you know exact retail refunds or reversals for this interval. Choose No to keep only ordinal retail demand ranking.')
+                : translateUiLiteral(language, 'Choose Yes when you know exact fulfilled retail counts for this interval. Choose No to record only ordinal ranking for SENA.')}
+              latestSalesAtBySku={latestRetailSalesAt}
+              latestSalesBySku={customerCompletedMode === 'from_pending' ? latestCustomerPendingBySku : latestRetailSales}
+              mode={customerCompletedMode}
+              modes={customerCompletedModeFilters}
+              onChooseNo={() => setRetailSalesChoice('no')}
+              onChooseYes={() => setRetailSalesChoice('yes')}
+              onReorderRows={handleRetailSalesRowReorder}
+              question={customerCompletedMode === 'refund_reversal'
+                ? translateUiLiteral(language, 'Do you know the exact count of retail refunds or reversals this interval?')
+                : translateUiLiteral(language, 'Do you know the exact count of completed retail orders this interval?')}
+              refundMode={customerCompletedMode === 'refund_reversal'}
+              refundStockReturnDrafts={refundStockReturnDrafts}
+              retailRankingSeedValues={defaultRetailRankingIds}
+              retailSalesDrafts={retailSalesDrafts}
+              retailSkuIds={retailSkuIds}
+              retailRankings={retailRankings}
+              setRefundStockReturnDraft={updateRefundStockReturnDraft}
+              setMode={setCustomerCompletedMode}
+              setRetailRankings={setRetailRankings}
+              setRetailSalesDraft={updateRetailSalesDraft}
+              supplierFilterControl={supplierFilterControl}
+              title={translateUiLiteral(language, customerCompletedMode === 'refund_reversal' ? 'Retail refunds / reversals' : 'Completed retail / sellable orders')}
+            />
+          )
         ) : null}
 
         {currentStepId === 'service-sales' ? (
-          <SalesServiceStep
-            catalog={workingCatalog}
-            choice={serviceSalesChoice}
-            debugCellBoundaries={debugCellBoundaries}
-            guidance={currentStepId === 'service-sales' ? stepGuidance : null}
-            latestSalesAtByService={latestServiceSalesAt}
-            latestSalesByService={latestServiceSales}
-            onChooseNo={() => setServiceSalesChoice('no')}
-            onChooseYes={() => setServiceSalesChoice('yes')}
-            onReorderRows={handleServiceSalesRowReorder}
-            serviceIds={serviceIds}
-            serviceRankingSeedValues={defaultServiceRankingIds}
-            serviceSalesDrafts={serviceSalesDrafts}
-            serviceRankings={serviceRankings}
-            setServiceRankings={setServiceRankings}
-            setServiceSalesDraft={updateServiceSalesDraft}
-            supplierFilterControl={supplierFilterControl}
-          />
+          isCustomerPendingLane ? (
+            <CustomerPendingServiceStep
+              catalog={workingCatalog}
+              debugCellBoundaries={debugCellBoundaries}
+              filterControl={customerPendingStateFilterControl}
+              guidance={currentStepId === 'service-sales' ? stepGuidance : null}
+              latestOpenByService={latestCustomerPendingByService}
+              mode={customerPendingMode}
+              modes={customerPendingModeFilters}
+              onReorderRows={handleServiceSalesRowReorder}
+              serviceIds={serviceIds}
+              serviceSalesDrafts={serviceSalesDrafts}
+              setMode={setCustomerPendingMode}
+              setServiceSalesDraft={updateServiceSalesDraft}
+              supplierFilterControl={supplierFilterControl}
+            />
+          ) : (
+            <SalesServiceStep
+              catalog={workingCatalog}
+              choice={serviceSalesChoice}
+              debugCellBoundaries={debugCellBoundaries}
+              descriptor={customerCompletedMode === 'refund_reversal'
+                ? translateUiLiteral(language, 'Record reversed service completions or refunds.')
+                : translateUiLiteral(language, 'Record fulfilled service orders or immediate service sales.')}
+              filterControl={customerCompletedStateFilterControl}
+              guidance={currentStepId === 'service-sales' ? stepGuidance : null}
+              helper={customerCompletedMode === 'refund_reversal'
+                ? translateUiLiteral(language, 'Choose Yes when you know exact service refunds or reversals for this interval. Choose No to keep only ordinal service ranking.')
+                : translateUiLiteral(language, 'Choose Yes when you know exact completed service counts for this interval. Choose No to record only ordinal ranking for SENA.')}
+              latestSalesAtByService={latestServiceSalesAt}
+              latestSalesByService={customerCompletedMode === 'from_pending' ? latestCustomerPendingByService : latestServiceSales}
+              mode={customerCompletedMode}
+              modes={customerCompletedModeFilters}
+              onChooseNo={() => setServiceSalesChoice('no')}
+              onChooseYes={() => setServiceSalesChoice('yes')}
+              onReorderRows={handleServiceSalesRowReorder}
+              question={customerCompletedMode === 'refund_reversal'
+                ? translateUiLiteral(language, 'Do you know the exact count of service refunds or reversals this interval?')
+                : translateUiLiteral(language, 'Do you know the exact count of completed service orders this interval?')}
+              serviceIds={serviceIds}
+              serviceRankingSeedValues={defaultServiceRankingIds}
+              serviceSalesDrafts={serviceSalesDrafts}
+              serviceRankings={serviceRankings}
+              setMode={setCustomerCompletedMode}
+              setServiceRankings={setServiceRankings}
+              setServiceSalesDraft={updateServiceSalesDraft}
+              supplierFilterControl={supplierFilterControl}
+              title={translateUiLiteral(language, customerCompletedMode === 'refund_reversal' ? 'Service refunds / reversals' : 'Completed service orders')}
+            />
+          )
         ) : null}
 
         {currentStepId === 'stock-cost' ? (
@@ -5469,7 +6607,7 @@ export function StockUpdateSessionRoute() {
             skuSignalDrafts={skuSignalDrafts}
             stockBySku={stockBySku}
             updateSkuSignalDraft={updateSkuSignalDraft}
-            visibleRows={lane.id === 'sales-update' ? salesFlagRows : visibleRows}
+            visibleRows={isCustomerCompletedLane ? salesFlagRows : visibleRows}
             supplierFilterControl={supplierFilterControl}
             onChooseNo={() => handleSkipOptionalStockStep('stock-flags')}
             onChooseYes={() => updateStockStepChoice('stock-flags', 'yes')}
