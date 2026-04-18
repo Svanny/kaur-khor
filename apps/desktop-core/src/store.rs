@@ -1284,6 +1284,7 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
             lead_time_hints,
             regime_hint: Some(final_regime),
             adjustment_signals,
+            commercial_events: Vec::new(),
             recipe_usage_hints: service_outcomes
                 .iter()
                 .flat_map(|outcome| outcome.recipe_profiles.iter())

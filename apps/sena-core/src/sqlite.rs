@@ -1361,6 +1361,7 @@ mod tests {
                 }],
                 regime_hint: None,
                 adjustment_signals: Vec::new(),
+                commercial_events: Vec::new(),
                 recipe_usage_hints: Vec::new(),
                 notes: None,
             },

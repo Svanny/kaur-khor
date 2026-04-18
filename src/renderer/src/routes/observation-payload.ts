@@ -16,6 +16,11 @@ export interface ObservationSignalCounts {
   retailPrices: number;
   leadTimeHints: number;
   adjustments: number;
+  commercialEvents: number;
+  customerPending: number;
+  customerCompleted: number;
+  supplierPending: number;
+  supplierReceipts: number;
   recipeUsageHints: number;
   regime: number;
   notes: number;
@@ -42,12 +47,19 @@ export function createEmptyObservationInput({
     retailPrices: [],
     leadTimeHints: [],
     adjustmentSignals: [],
+    commercialEvents: [],
     recipeUsageHints: [],
     notes,
   };
 }
 
 export function observationSignalCounts(input: SenaObservationInput): ObservationSignalCounts {
+  const commercialEvents = input.commercialEvents ?? [];
+  const customerPending = commercialEvents.filter((event) => event.party === 'customer' && event.stage === 'pending').length;
+  const customerCompleted = commercialEvents.filter((event) => event.party === 'customer' && event.stage === 'realized').length;
+  const supplierPending = commercialEvents.filter((event) => event.party === 'supplier' && event.stage === 'pending').length;
+  const supplierReceipts = commercialEvents.filter((event) => event.party === 'supplier' && event.stage === 'realized').length;
+
   return {
     stockSnapshot: input.stockSnapshot.length,
     retailSalesSnapshot: input.retailSalesSnapshot?.length ?? 0,
@@ -61,6 +73,11 @@ export function observationSignalCounts(input: SenaObservationInput): Observatio
     retailPrices: input.retailPrices.length,
     leadTimeHints: input.leadTimeHints.length,
     adjustments: input.adjustmentSignals?.length ?? 0,
+    commercialEvents: commercialEvents.length,
+    customerPending,
+    customerCompleted,
+    supplierPending,
+    supplierReceipts,
     recipeUsageHints: input.recipeUsageHints?.length ?? 0,
     regime: input.regimeHint ? 1 : 0,
     notes: input.notes?.trim() ? 1 : 0,
@@ -82,6 +99,7 @@ export function hasStructuredObservationSignal(input: SenaObservationInput) {
     counts.retailPrices > 0 ||
     counts.leadTimeHints > 0 ||
     counts.adjustments > 0 ||
+    counts.commercialEvents > 0 ||
     counts.recipeUsageHints > 0 ||
     counts.regime > 0
   );
@@ -183,6 +201,38 @@ export function observationCompositionParts(input: SenaObservationInput, languag
       translateUiLiteral(language, '{count} adjustment{suffix}', {
         count: formatWholeNumber(counts.adjustments, language),
         suffix: counts.adjustments === 1 ? '' : 's',
+      }),
+    );
+  }
+  if (counts.customerPending > 0) {
+    parts.push(
+      translateUiLiteral(language, '{count} customer pending change{suffix}', {
+        count: formatWholeNumber(counts.customerPending, language),
+        suffix: counts.customerPending === 1 ? '' : 's',
+      }),
+    );
+  }
+  if (counts.customerCompleted > 0) {
+    parts.push(
+      translateUiLiteral(language, '{count} customer completion{suffix}', {
+        count: formatWholeNumber(counts.customerCompleted, language),
+        suffix: counts.customerCompleted === 1 ? '' : 's',
+      }),
+    );
+  }
+  if (counts.supplierPending > 0) {
+    parts.push(
+      translateUiLiteral(language, '{count} supplier order change{suffix}', {
+        count: formatWholeNumber(counts.supplierPending, language),
+        suffix: counts.supplierPending === 1 ? '' : 's',
+      }),
+    );
+  }
+  if (counts.supplierReceipts > 0) {
+    parts.push(
+      translateUiLiteral(language, '{count} supplier receipt{suffix}', {
+        count: formatWholeNumber(counts.supplierReceipts, language),
+        suffix: counts.supplierReceipts === 1 ? '' : 's',
       }),
     );
   }

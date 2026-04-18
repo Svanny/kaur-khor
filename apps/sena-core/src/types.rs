@@ -103,6 +103,8 @@ pub struct SenaObservationInput {
     #[serde(default)]
     pub adjustment_signals: Vec<SenaAdjustmentSignal>,
     #[serde(default)]
+    pub commercial_events: Vec<SenaCommercialEvent>,
+    #[serde(default)]
     pub recipe_usage_hints: Vec<SenaRecipeUsageHint>,
     pub notes: Option<String>,
 }
@@ -146,6 +148,50 @@ pub struct SenaOrderSignal {
     pub receipt_timestamp: Option<String>,
     #[serde(default)]
     pub lead_time_days_hint: Option<f64>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaCommercialParty {
+    Customer,
+    Supplier,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaCommercialStage {
+    Pending,
+    Realized,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaCommercialEntityType {
+    Sku,
+    Service,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaCommercialFlow {
+    Scheduled,
+    Immediate,
+    Reversal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaCommercialEvent {
+    pub party: SenaCommercialParty,
+    pub entity_type: SenaCommercialEntityType,
+    pub entity_id: String,
+    pub stage: SenaCommercialStage,
+    pub quantity_delta: f64,
+    pub flow: SenaCommercialFlow,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -621,6 +667,7 @@ impl SenaObservationInput {
             || !self.lead_time_hints.is_empty()
             || self.regime_hint.is_some()
             || !self.adjustment_signals.is_empty()
+            || !self.commercial_events.is_empty()
             || !self.recipe_usage_hints.is_empty()
     }
 
@@ -776,6 +823,15 @@ impl SenaObservationInput {
                 return Err(anyhow!("adjustmentSignals[].quantityDelta must be finite"));
             }
         }
+        for event in &self.commercial_events {
+            validate_identifier("commercialEvents[].entityId", &event.entity_id)?;
+            if !event.quantity_delta.is_finite() {
+                return Err(anyhow!("commercialEvents[].quantityDelta must be finite"));
+            }
+            if let Some(reason) = &event.reason {
+                validate_non_empty("commercialEvents[].reason", reason)?;
+            }
+        }
         for hint in &self.recipe_usage_hints {
             validate_identifier("recipeUsageHints[].serviceId", &hint.service_id)?;
             validate_identifier("recipeUsageHints[].skuId", &hint.sku_id)?;
@@ -912,6 +968,7 @@ mod tests {
             }],
             regime_hint: None,
             adjustment_signals: Vec::new(),
+            commercial_events: Vec::new(),
             recipe_usage_hints: Vec::new(),
             notes: None,
         };
@@ -936,6 +993,7 @@ mod tests {
             lead_time_hints: Vec::new(),
             regime_hint: None,
             adjustment_signals: Vec::new(),
+            commercial_events: Vec::new(),
             recipe_usage_hints: Vec::new(),
             notes: Some("operator note only".to_string()),
         };
@@ -1004,6 +1062,7 @@ mod tests {
             }],
             regime_hint: None,
             adjustment_signals: Vec::new(),
+            commercial_events: Vec::new(),
             recipe_usage_hints: Vec::new(),
             notes: None,
         };

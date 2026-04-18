@@ -60,6 +60,7 @@ export interface SenaObservationInput {
   leadTimeHints: SenaLeadTimeHint[];
   regimeHint?: SenaObservationRegimeHint | null;
   adjustmentSignals?: SenaAdjustmentSignal[];
+  commercialEvents?: SenaCommercialEvent[];
   recipeUsageHints?: SenaRecipeUsageHint[];
   notes: string | null;
 }
@@ -90,6 +91,22 @@ export interface SenaOrderSignal {
   placementTimestamp?: string | null;
   receiptTimestamp?: string | null;
   leadTimeDaysHint?: number | null;
+}
+
+export type SenaCommercialParty = 'customer' | 'supplier';
+export type SenaCommercialStage = 'pending' | 'realized';
+export type SenaCommercialEntityType = 'sku' | 'service';
+export type SenaCommercialFlow = 'scheduled' | 'immediate' | 'reversal';
+
+export interface SenaCommercialEvent {
+  party: SenaCommercialParty;
+  entityType: SenaCommercialEntityType;
+  entityId: string;
+  stage: SenaCommercialStage;
+  quantityDelta: number;
+  flow: SenaCommercialFlow;
+  reason?: string | null;
+  note?: string | null;
 }
 
 export type SenaOrderBatchStatus =

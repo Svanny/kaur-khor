@@ -185,6 +185,7 @@ function rewriteObservationInputForRenamedEntity(
     const retailPrices = input.retailPrices ?? [];
     const leadTimeHints = input.leadTimeHints ?? [];
     const adjustmentSignals = input.adjustmentSignals ?? [];
+    const commercialEvents = input.commercialEvents ?? [];
     const recipeUsageHints = input.recipeUsageHints ?? [];
     const hasChange =
       input.stockSnapshot.some((snapshot) => snapshot.skuId === payload.previousId) ||
@@ -195,6 +196,7 @@ function rewriteObservationInputForRenamedEntity(
       retailPrices.some((price) => price.skuId === payload.previousId) ||
       leadTimeHints.some((hint) => hint.skuId === payload.previousId) ||
       adjustmentSignals.some((signal) => signal.skuId === payload.previousId) ||
+      commercialEvents.some((event) => event.entityType === 'sku' && event.entityId === payload.previousId) ||
       recipeUsageHints.some((hint) => hint.skuId === payload.previousId);
     if (!hasChange) {
       return input;
@@ -221,6 +223,11 @@ function rewriteObservationInputForRenamedEntity(
       adjustmentSignals: adjustmentSignals.map((signal) =>
         signal.skuId === payload.previousId ? { ...signal, skuId: nextId } : signal,
       ),
+      commercialEvents: commercialEvents.map((event) =>
+        event.entityType === 'sku' && event.entityId === payload.previousId
+          ? { ...event, entityId: nextId }
+          : event,
+      ),
       recipeUsageHints: recipeUsageHints.map((hint) =>
         hint.skuId === payload.previousId ? { ...hint, skuId: nextId } : hint,
       ),
@@ -232,12 +239,14 @@ function rewriteObservationInputForRenamedEntity(
   const serviceRankings = input.serviceRankings ?? [];
   const serviceStockouts = input.serviceStockouts ?? [];
   const servicePrices = input.servicePrices ?? [];
+  const commercialEvents = input.commercialEvents ?? [];
   const recipeUsageHints = input.recipeUsageHints ?? [];
   const hasChange =
     serviceSalesSnapshot.some((snapshot) => snapshot.serviceId === payload.previousId) ||
     serviceRankings.includes(payload.previousId) ||
     serviceStockouts.includes(payload.previousId) ||
     servicePrices.some((price) => price.serviceId === payload.previousId) ||
+    commercialEvents.some((event) => event.entityType === 'service' && event.entityId === payload.previousId) ||
     recipeUsageHints.some((hint) => hint.serviceId === payload.previousId);
   if (!hasChange) {
     return input;
@@ -251,6 +260,11 @@ function rewriteObservationInputForRenamedEntity(
     serviceStockouts: replaceEntityId(serviceStockouts, payload.previousId, nextId),
     servicePrices: servicePrices.map((price) =>
       price.serviceId === payload.previousId ? { ...price, serviceId: nextId } : price,
+    ),
+    commercialEvents: commercialEvents.map((event) =>
+      event.entityType === 'service' && event.entityId === payload.previousId
+        ? { ...event, entityId: nextId }
+        : event,
     ),
     recipeUsageHints: recipeUsageHints.map((hint) =>
       hint.serviceId === payload.previousId ? { ...hint, serviceId: nextId } : hint,
