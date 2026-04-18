@@ -1,6 +1,6 @@
 # Security Test Matrix
 
-Developer docs entrypoint: [Banji developer docs](/Users/svanny/banji/docs/README.md)
+Developer docs entrypoint: [banji developer docs](/Users/svanny/banji/docs/README.md)
 
 ## Unit Tests
 

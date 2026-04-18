@@ -1,10 +1,10 @@
-# Banji Security Standards (Electron + OWASP ASVS)
+# banji Security Standards (Electron + OWASP ASVS)
 
-Developer docs entrypoint: [Banji developer docs](/Users/svanny/banji/docs/README.md)
+Developer docs entrypoint: [banji developer docs](/Users/svanny/banji/docs/README.md)
 
 ## Purpose
 
-This document defines the mandatory secure-by-default controls for the Banji local Electron app.
+This document defines the mandatory secure-by-default controls for the banji local Electron app.
 
 ## Mandatory Controls
 

@@ -1,10 +1,10 @@
 # Desktop Runtime and Local Data
 
-Back to the docs index: [Banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
 
 ## Runtime Layers
 
-Banji’s desktop app is split into four layers:
+banji’s desktop app is split into four layers:
 
 - `src/main`: Electron main process, desktop boot, IPC handlers, local file paths, backup/restore, runtime lifecycle
 - `src/preload`: preload bridge that exposes `window.banjiDesktop`

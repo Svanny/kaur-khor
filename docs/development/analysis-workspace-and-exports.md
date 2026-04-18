@@ -1,10 +1,10 @@
 # Analysis Workspace and Exports
 
-Back to the docs index: [Banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
 
 ## SENA in the Desktop App
 
-Banji uses SENA as the local analysis engine. The Electron app asks the managed Rust runtime for catalog state, observations, workspace summaries, diagnostics, and run results, then renders those results in the React UI.
+banji uses SENA as the local analysis engine. The Electron app asks the managed Rust runtime for catalog state, observations, workspace summaries, diagnostics, and run results, then renders those results in the React UI.
 
 Relevant code paths:
 

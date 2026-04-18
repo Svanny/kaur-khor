@@ -1,12 +1,12 @@
-# Banji User Guide
+# banji User Guide
 
-This guide explains how Banji works as a day-to-day desktop inventory workspace. It is written for people using the app, not for contributors working on the codebase.
+This guide explains how banji works as a day-to-day desktop inventory workspace. It is written for people using the app, not for contributors working on the codebase.
 
-Banji is local-first and desktop-first. It helps you keep a catalog, capture real-world changes, review what needs action now, and inspect planning, analysis, and cash signals without leaving the same workspace.
+banji is local-first and desktop-first. It helps you keep a catalog, capture real-world changes, review what needs action now, and inspect planning, analysis, and cash signals without leaving the same workspace.
 
 ## Table of Contents
 
-- [What Banji Is For](#what-banji-is-for)
+- [What banji Is For](#what-banji-is-for)
 - [How The Main Workflow Fits Together](#how-the-main-workflow-fits-together)
 - [Navigation And Global Controls](#navigation-and-global-controls)
 - [Overview](#overview)
@@ -22,26 +22,26 @@ Banji is local-first and desktop-first. It helps you keep a catalog, capture rea
 - [Glossary](#glossary)
 - [FAQ](#faq)
 
-## What Banji Is For
+## What banji Is For
 
-Banji is for teams that want a practical inventory workspace on one machine without depending on a hosted back office. It is meant for:
+banji is for teams that want a practical inventory workspace on one machine without depending on a hosted back office. It is meant for:
 
 - keeping a working catalog of SKUs and services
 - capturing stock, customer, supplier, and price changes as they happen
 - seeing what needs action next
 - reviewing demand, capacity, and cash signals on the same device
 
-Banji is not trying to be:
+banji is not trying to be:
 
 - a full ERP
 - a hosted multi-user SaaS suite
 - a blank workflow builder for every inventory model
 
-The product is opinionated. Banji works best when you use the built-in catalog, update logging, overview queue, and analysis surfaces together.
+The product is opinionated. banji works best when you use the built-in catalog, update logging, overview queue, and analysis surfaces together.
 
 ## How The Main Workflow Fits Together
 
-Most teams will use Banji in this order:
+Most teams will use banji in this order:
 
 1. Build the catalog in **Catalog** by creating SKUs and services.
 2. Capture a real-world event in **Record update** by choosing the lane that matches what changed.
@@ -57,11 +57,11 @@ If you are just starting:
 1. Create the first SKU.
 2. Add any services that depend on those SKUs.
 3. Record one stock or order update.
-4. Go back to Overview to see what Banji can now infer from the saved data.
+4. Go back to Overview to see what banji can now infer from the saved data.
 
 ## Navigation And Global Controls
 
-Banji's left navigation is the main way to move through the product. The top-level destinations are:
+banji's left navigation is the main way to move through the product. The top-level destinations are:
 
 - **Overview**: the current queue, the next move, and recent activity
 - **Record update**: lane-based entry point for new operational updates
@@ -79,13 +79,13 @@ Other global behaviors worth knowing:
 - **Command palette (`Cmd/Ctrl + K`)** is the fastest way to jump to a page, item, or action.
 - **Search and filter controls** usually narrow what you see without changing saved data.
 - **Helper copy and right-rail cards** can be reduced in Settings if you want a quieter interface.
-- **Loading states** usually mean Banji is opening the local workspace, refreshing saved data, or recomputing local analysis.
+- **Loading states** usually mean banji is opening the local workspace, refreshing saved data, or recomputing local analysis.
 
 ## Overview
 
 ### Purpose
 
-Overview is Banji's "what should I do next?" workspace. It is the best starting point after you have already created a catalog and saved at least one real update.
+Overview is banji's "what should I do next?" workspace. It is the best starting point after you have already created a catalog and saved at least one real update.
 
 ### When To Use It
 
@@ -100,7 +100,7 @@ Use Overview when you want to:
 
 #### Recommended next move
 
-This is Banji's current best suggestion. Depending on the state of the workspace, it may tell you to:
+This is banji's current best suggestion. Depending on the state of the workspace, it may tell you to:
 
 - add the first SKU
 - start the first update
@@ -150,7 +150,7 @@ This summarizes what changed recently across saved updates. Use it when you need
 
 ### Purpose
 
-Record update is Banji's lane-based entry point for saving new operational evidence. Instead of one fixed wizard for every situation, Banji lets you choose the kind of update you need to record.
+Record update is banji's lane-based entry point for saving new operational evidence. Instead of one fixed wizard for every situation, banji lets you choose the kind of update you need to record.
 
 ### When To Use It
 
@@ -165,7 +165,7 @@ Use Record update when:
 
 ### Update Lanes
 
-Banji currently offers these lanes:
+banji currently offers these lanes:
 
 - **Stock Count**: count what is physically on hand and reconcile stock facts
 - **Customer Orders Pending**: capture open customer demand, changes, or cancellations
@@ -174,7 +174,7 @@ Banji currently offers these lanes:
 - **Supplier Receipts**: record goods received and immediate purchases
 - **Custom**: combine multiple lanes into one guided flow
 
-Draft badges on the hub mean Banji found unfinished work saved on this device.
+Draft badges on the hub mean banji found unfinished work saved on this device.
 
 ### Important Controls And Buttons
 
@@ -196,7 +196,7 @@ Draft badges on the hub mean Banji found unfinished work saved on this device.
 
 ### Purpose
 
-Performance turns Banji's local planning output into action-oriented comparisons. It is for prioritization, not raw data entry.
+Performance turns banji's local planning output into action-oriented comparisons. It is for prioritization, not raw data entry.
 
 ### When To Use It
 
@@ -205,7 +205,7 @@ Use Performance when you want to:
 - see which items need action now
 - compare services and SKUs across a short or medium time horizon
 - review demand, available support, incoming stock, and price pressure together
-- understand what Banji thinks will happen next if nothing changes
+- understand what banji thinks will happen next if nothing changes
 
 ### Key Panels
 
@@ -236,7 +236,7 @@ Use Performance when you want to:
 
 ### Purpose
 
-Financials turns the same local inventory state into a money view. It is where Banji organizes what is bringing money in, what is tying money up, and what is leaking value.
+Financials turns the same local inventory state into a money view. It is where banji organizes what is bringing money in, what is tying money up, and what is leaking value.
 
 ### When To Use It
 
@@ -272,7 +272,7 @@ Use Financials when you want to:
 
 ### Purpose
 
-Catalog is the source of truth for the items Banji tracks. This is where SKUs and services are created, edited, archived, and opened for deeper detail.
+Catalog is the source of truth for the items banji tracks. This is where SKUs and services are created, edited, archived, and opened for deeper detail.
 
 ### When To Use It
 
@@ -301,7 +301,7 @@ Use Catalog when you want to:
 
 ### Purpose
 
-Analysis is the deeper explanation workspace. It helps answer "why does Banji think this?" rather than only "what should I do next?"
+Analysis is the deeper explanation workspace. It helps answer "why does banji think this?" rather than only "what should I do next?"
 
 ### When To Use It
 
@@ -330,7 +330,7 @@ Use Analysis when you want to:
 
 ### Purpose
 
-Operations is the saved update history workspace. It is where Banji shows the reports that were captured over time and lets you inspect, edit, or delete them.
+Operations is the saved update history workspace. It is where banji shows the reports that were captured over time and lets you inspect, edit, or delete them.
 
 ### When To Use It
 
@@ -389,7 +389,7 @@ Use Archive when you want to:
 
 ### Purpose
 
-Settings controls how Banji behaves on this device. It combines preferences, local workspace actions, planning controls, archive access, and maintenance flows.
+Settings controls how banji behaves on this device. It combines preferences, local workspace actions, planning controls, archive access, and maintenance flows.
 
 ### Main Sections
 
@@ -420,7 +420,7 @@ Settings controls how Banji behaves on this device. It combines preferences, loc
 
 ### Purpose
 
-Help is Banji's searchable in-app guide. It mirrors the repository copy of this document and keeps the main workflows, controls, glossary, and FAQ in one place.
+Help is banji's searchable in-app guide. It mirrors the repository copy of this document and keeps the main workflows, controls, glossary, and FAQ in one place.
 
 ### Important Controls And Buttons
 
@@ -437,12 +437,12 @@ Help is Banji's searchable in-app guide. It mirrors the repository copy of this 
 
 ## Glossary
 
-- **Record update**: a saved operational snapshot captured through one of Banji's update lanes
+- **Record update**: a saved operational snapshot captured through one of banji's update lanes
 - **Lane**: one update flow type, such as stock count or supplier receipt
-- **Overview queue**: Banji's current recommendation list for what deserves attention next
+- **Overview queue**: banji's current recommendation list for what deserves attention next
 - **Performance**: action-oriented comparison of demand, capacity, timing, and price signals
 - **Financials**: money-in, money-tied-up, and money-leaking surfaces
-- **Analysis**: deeper explanation of the signals behind Banji's recommendations
+- **Analysis**: deeper explanation of the signals behind banji's recommendations
 - **Operations**: saved update history, including heatmap and report editing
 - **Archive**: inactive catalog records kept out of active workspaces but preserved historically
 - **Backup snapshot**: a saved copy of the local workspace state created from Settings
@@ -458,7 +458,7 @@ Help is Banji's searchable in-app guide. It mirrors the repository copy of this 
 
 ### Why is Analysis empty or limited?
 
-Analysis needs a real catalog and saved updates. If nothing meaningful has been recorded yet, Banji does not have enough local evidence to show detailed analysis.
+Analysis needs a real catalog and saved updates. If nothing meaningful has been recorded yet, banji does not have enough local evidence to show detailed analysis.
 
 ### Where did Logs go?
 

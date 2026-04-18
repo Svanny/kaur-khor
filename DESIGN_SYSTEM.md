@@ -1,4 +1,4 @@
-# Banji Design System
+# banji Design System
 
 `src/renderer/src/globals.css` is the active source of truth for the desktop UI theme.
 
@@ -19,7 +19,7 @@
 
 - Tokens live in [`src/renderer/src/globals.css`](/Users/svanny/banji/src/renderer/src/globals.css).
 - UI primitives live in [`src/renderer/src/components/ui`](/Users/svanny/banji/src/renderer/src/components/ui).
-- Banji-specific reusable compositions live in [`src/renderer/src/components/system`](/Users/svanny/banji/src/renderer/src/components/system).
+- banji-specific reusable compositions live in [`src/renderer/src/components/system`](/Users/svanny/banji/src/renderer/src/components/system).
 
 ## System Structure
 

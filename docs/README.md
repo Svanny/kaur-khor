@@ -1,6 +1,6 @@
-# Banji Developer Docs
+# banji Developer Docs
 
-This directory is the contributor-facing entrypoint for Banji as a local Electron app. It documents the desktop runtime, local workspace data, SENA analysis flows, security expectations, and the product behavior exposed in the app itself.
+This directory is the contributor-facing entrypoint for banji as a local Electron app. It documents the desktop runtime, local workspace data, SENA analysis flows, security expectations, and the product behavior exposed in the app itself.
 
 ## Start Here
 
@@ -10,7 +10,7 @@ This directory is the contributor-facing entrypoint for Banji as a local Electro
 
 ## Repo Map
 
-Banji is a desktop-first Electron app with a local Rust runtime:
+banji is a desktop-first Electron app with a local Rust runtime:
 
 - `src/main`: Electron main-process boot, IPC handlers, local data paths, desktop backup/restore flow
 - `src/preload`: preload bridge exposed to the renderer
@@ -59,7 +59,7 @@ pnpm package:win:native
 - [User guide (English)](/Users/svanny/banji/docs/user-guide.md)
 - [User guide (Khmer)](/Users/svanny/banji/docs/user-guide.km.md)
 
-The Banji in-app `Help` page is sourced from these product-reference guides and should stay aligned with them.
+The banji in-app `Help` page is sourced from these product-reference guides and should stay aligned with them.
 
 ## Reading Order
 

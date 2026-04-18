@@ -1,10 +1,10 @@
 # Contributor Quickstart
 
-Back to the docs index: [Banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
 
-## What Banji Is
+## What banji Is
 
-Banji is a desktop-first Electron app for local inventory work. The primary development loop is a local Electron shell, a React renderer, and a bundled Rust desktop runtime that persists workspace data on-device.
+banji is a desktop-first Electron app for local inventory work. The primary development loop is a local Electron shell, a React renderer, and a bundled Rust desktop runtime that persists workspace data on-device.
 
 ## Environment Setup
 

@@ -1,7 +1,7 @@
 # Security Policy
 
 ## Scope
-This policy applies to the Banji local Electron app and all code and configuration in `/Users/svanny/banji`.
+This policy applies to the banji local Electron app and all code and configuration in `/Users/svanny/banji`.
 
 ## Reporting
 - Report potential vulnerabilities privately to project maintainers.
