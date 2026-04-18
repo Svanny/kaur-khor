@@ -11,6 +11,8 @@ use serde::Serialize;
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
 
+mod benchmark;
+
 #[derive(Debug, Deserialize)]
 struct CommandEnvelope {
     id: u64,
@@ -134,6 +136,11 @@ fn handle_line(line: &str) -> Result<ResponseEnvelope> {
 }
 
 fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
+    let payload_summary = benchmark::summarize_value(&payload);
+    benchmark::time_command(command, payload_summary, || handle_command_inner(command, payload))
+}
+
+fn handle_command_inner(command: &str, payload: Value) -> Result<Option<Value>> {
     let owner = store::default_owner();
     match command {
         "system.ping" => Ok(None),
