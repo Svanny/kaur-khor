@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { IpcRendererEvent } from 'electron';
 import {
   IPC_CHANNELS,
   type DesktopBridge,
@@ -13,6 +14,11 @@ import {
   isTruthyBenchmarkEnvValue,
   summarizeBenchmarkPayload,
   type BanjiBenchmarkEvent,
+  type BanjiBenchmarkComparison,
+  type BanjiBenchmarkRunEvent,
+  type BanjiBenchmarkRunOptions,
+  type BanjiBenchmarkRunRecord,
+  type BanjiBenchmarkRunnerAvailability,
 } from '@shared/benchmark';
 import type { InventorySnapshot, StockReport, StockReportSubmission } from '@shared/inventory';
 import type {
@@ -104,6 +110,31 @@ const desktopBridge: DesktopBridge = {
       if (benchmarkEnabled) {
         ipcRenderer.send(IPC_CHANNELS.benchmarkRecordEvent, event);
       }
+    },
+  },
+  benchmarkRunner: {
+    getAvailability: (): Promise<BanjiBenchmarkRunnerAvailability> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerGetAvailability),
+    listRuns: (): Promise<BanjiBenchmarkRunRecord[]> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerListRuns),
+    readRun: (runId: string): Promise<BanjiBenchmarkRunRecord | null> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerReadRun, runId),
+    startRun: (payload: BanjiBenchmarkRunOptions): Promise<BanjiBenchmarkRunRecord> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerStartRun, payload),
+    cancelRun: (runId: string): Promise<BanjiBenchmarkRunRecord> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCancelRun, runId),
+    compareRuns: (payload: { baselineRunId: string; candidateRunId: string }): Promise<BanjiBenchmarkComparison> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCompareRuns, payload),
+    revealRun: (runId: string): Promise<void> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerRevealRun, runId),
+    onRunEvent: (listener: (event: BanjiBenchmarkRunEvent) => void) => {
+      const handler = (_event: IpcRendererEvent, payload: BanjiBenchmarkRunEvent) => {
+        listener(payload);
+      };
+      ipcRenderer.on(IPC_CHANNELS.benchmarkRunnerEvent, handler);
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.benchmarkRunnerEvent, handler);
+      };
     },
   },
   system: {

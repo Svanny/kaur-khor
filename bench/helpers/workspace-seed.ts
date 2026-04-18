@@ -15,11 +15,16 @@ export interface BenchmarkWorkspaceSeed {
 export async function prepareBenchmarkWorkspace(seed: BenchmarkWorkspaceSeed) {
   await mkdir(seed.dataDirectory, { recursive: true });
   const repoRoot = resolve('.');
+  const fixtureSize = process.env.BANJI_BENCHMARK_FIXTURE_SIZE === 'minimal' ||
+    process.env.BANJI_BENCHMARK_FIXTURE_SIZE === 'medium' ||
+    process.env.BANJI_BENCHMARK_FIXTURE_SIZE === 'heavy'
+    ? process.env.BANJI_BENCHMARK_FIXTURE_SIZE
+    : seed.size;
   const historySize = {
     minimal: { years: 0, intervalDays: 7 },
     medium: { years: 1, intervalDays: 7 },
     heavy: { years: 3, intervalDays: 3.5 },
-  }[seed.size];
+  }[fixtureSize];
   await execFileAsync(
     'python3',
     [
@@ -55,6 +60,7 @@ export async function prepareBenchmarkWorkspace(seed: BenchmarkWorkspaceSeed) {
   );
   return {
     ...seed,
+    size: fixtureSize,
     mode: 'generated-history',
   };
 }

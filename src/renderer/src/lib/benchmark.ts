@@ -138,6 +138,8 @@ export function installLongTaskObserver() {
     return () => undefined;
   }
 
+  const cleanups: Array<() => void> = [];
+
   try {
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
@@ -149,9 +151,37 @@ export function installLongTaskObserver() {
       }
     });
     observer.observe({ entryTypes: ['longtask'] });
-    return () => observer.disconnect();
+    cleanups.push(() => observer.disconnect());
   } catch {
     recordBenchmarkInstant('renderer.long-task.unavailable', 'interaction');
-    return () => undefined;
   }
+
+  try {
+    const supportedEntryTypes = PerformanceObserver.supportedEntryTypes ?? [];
+    if (supportedEntryTypes.includes('long-animation-frame')) {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const loafEntry = entry as PerformanceEntry & {
+            blockingDuration?: number;
+          };
+          recordBenchmarkInstant('renderer.long-animation-frame', 'interaction', {
+            startTime: loafEntry.startTime,
+            durationMs: loafEntry.duration,
+            blockingDuration: loafEntry.blockingDuration ?? null,
+            route: window.location.hash.replace(/^#/, '') || '/',
+          });
+        }
+      });
+      observer.observe({ type: 'long-animation-frame', buffered: true });
+      cleanups.push(() => observer.disconnect());
+    } else {
+      recordBenchmarkInstant('renderer.long-animation-frame.unavailable', 'interaction');
+    }
+  } catch {
+    recordBenchmarkInstant('renderer.long-animation-frame.unavailable', 'interaction');
+  }
+
+  return () => {
+    cleanups.forEach((cleanup) => cleanup());
+  };
 }

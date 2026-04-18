@@ -54,6 +54,7 @@ import {
   snapshotProcessMemory,
   startBenchmarkSpan,
 } from './benchmark';
+import { registerBenchmarkRunnerIpc } from './benchmark-runner';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
@@ -89,6 +90,11 @@ const managedCore = createManagedCoreController({
   userDataPath: desktopDataPath,
   isPackaged: app.isPackaged,
   resourcesPath: process.resourcesPath,
+});
+
+registerBenchmarkRunnerIpc({
+  appIsPackaged: app.isPackaged,
+  projectRoot,
 });
 
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
