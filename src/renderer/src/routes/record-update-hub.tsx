@@ -140,11 +140,15 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
       <div className="space-y-3">
         <h2 className="text-2xl font-semibold tracking-[-0.04em] text-foreground">{title}</h2>
         <p className="max-w-[18rem] text-sm leading-6 text-muted-foreground">{description}</p>
-        {hasDraftSaved ? (
-          <p className="mx-auto inline-flex rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-            {translateUiLiteral(language, 'Draft saved')}
-          </p>
-        ) : null}
+        <p
+          aria-hidden={!hasDraftSaved}
+          className={cn(
+            'mx-auto inline-flex min-h-[1.625rem] min-w-[6.75rem] items-center justify-center rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary',
+            hasDraftSaved ? null : 'invisible',
+          )}
+        >
+          {hasDraftSaved ? translateUiLiteral(language, 'Draft saved') : null}
+        </p>
       </div>
     </div>
   );
