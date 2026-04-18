@@ -165,16 +165,19 @@ const HELP_SECTION: ShellSectionConfig = {
 
 const SETTINGS_MAIN_SECTIONS = SETTINGS_SECTIONS.filter((section) => section.id !== 'credits');
 const SETTINGS_CREDITS_SECTION = SETTINGS_SECTIONS.find((section) => section.id === 'credits');
+const SETTINGS_SECTION_LOOKUP = new Map(SETTINGS_MAIN_SECTIONS.map((section) => [section.id, section]));
+const orderedSettingsSections = (ids: Array<SettingsSectionConfig['id']>) =>
+  ids
+    .map((id) => SETTINGS_SECTION_LOOKUP.get(id))
+    .filter((section): section is SettingsSectionConfig => section != null);
 const SETTINGS_NAVIGATION_GROUPS: SettingsSidebarGroupConfig[] = [
   {
     labelKey: 'sidebarSectionMain',
-    sections: SETTINGS_MAIN_SECTIONS.filter((section) =>
-      ['workspace', 'interface', 'local-data', 'planning', 'benchmarks'].includes(section.id),
-    ),
+    sections: orderedSettingsSections(['workspace', 'interface', 'local-data', 'planning']),
   },
   {
     labelKey: 'sidebarSectionOther',
-    sections: SETTINGS_MAIN_SECTIONS.filter((section) => ['archive', 'danger-zone'].includes(section.id)),
+    sections: orderedSettingsSections(['archive', 'benchmarks', 'danger-zone']),
   },
 ];
 

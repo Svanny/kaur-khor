@@ -75,6 +75,7 @@ describe('BanjiShell', () => {
           settingsInterfaceVisibilityTitle: 'Interface',
           settingsSenaParametersPanelTitle: 'Advanced',
           settingsLocalWorkspaceStorageTitle: 'Local data',
+          settingsBenchmarksTitle: 'Benchmarks',
           settingsCreditsTitle: 'Credits',
           settingsDangerZoneTitle: 'Danger',
           workspaceUnavailable: 'Workspace unavailable',
@@ -201,6 +202,8 @@ describe('BanjiShell', () => {
     expect(settingsLinks.indexOf('Back to app')).toBeLessThan(settingsLinks.indexOf('Preferences'));
     expect(settingsLinks.indexOf('Local data')).toBeLessThan(settingsLinks.indexOf('Advanced'));
     expect(settingsLinks.indexOf('Advanced')).toBeLessThan(settingsLinks.indexOf('Archive'));
+    expect(settingsLinks.indexOf('Archive')).toBeLessThan(settingsLinks.indexOf('Benchmarks'));
+    expect(settingsLinks.indexOf('Benchmarks')).toBeLessThan(settingsLinks.indexOf('Danger'));
     expect(settingsLinks.indexOf('Archive')).toBeLessThan(settingsLinks.indexOf('Danger'));
     expect(settingsLinks.indexOf('Danger')).toBeLessThan(settingsLinks.indexOf('Credits'));
 
