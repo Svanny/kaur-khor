@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import {
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
+  RECORD_UPDATE_CUSTOM_PATH,
   RECORD_UPDATE_RECORD_ORDER_PATH,
   RECORD_UPDATE_RECORD_RECEIPT_PATH,
   RECORD_UPDATE_SALES_UPDATE_PATH,
@@ -30,6 +31,7 @@ const preferenceState = {
 };
 const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:stock-count:v1';
 const CUSTOMER_PENDING_DRAFT_STORAGE_KEY = 'banji:record-update:draft:customer-order-pending:v1';
+const CUSTOM_DRAFT_STORAGE_KEY = 'banji:record-update:draft:custom:v1';
 const STOCK_ROW_ORDER_STORAGE_KEY = buildStockRowOrderStorageKey('stock-count');
 
 if (!Element.prototype.hasPointerCapture) {
@@ -616,6 +618,83 @@ describe('StockUpdateSessionRoute', () => {
       }),
     );
   });
+
+  it('uses selected custom lanes to build a combined wizard without duplicate shared steps', () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-receipt`);
+
+    expect(screen.getByRole('button', { name: /Count SKU stock/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Supplier orders/i })).not.toBeInTheDocument();
+  });
+
+  it('lets a custom single-lane receipt wizard behave like the receipt lane', () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=supplier-receipt`);
+
+    goNext(2);
+
+    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('columnheader', { name: 'Last receipt' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Current receipt' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Count SKU stock/i })).not.toBeInTheDocument();
+  });
+
+  it('preserves the selected custom lanes in a saved draft', async () => {
+    const { unmount } = renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-receipt`);
+
+    goNext();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Custom draft note' } });
+
+    unmount();
+
+    expect(JSON.parse(window.localStorage.getItem(CUSTOM_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
+      expect.objectContaining({
+        customSelectedLaneIds: ['stock-count', 'supplier-receipt'],
+        notes: 'Custom draft note',
+      }),
+    );
+
+    renderRoute(observations, RECORD_UPDATE_CUSTOM_PATH);
+
+    await waitFor(() => expect(screen.getByText('Draft resumed')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Custom draft note')).toBeInTheDocument();
+  });
+
+  it('saves stock and supplier receipt signals from one custom update', async () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-receipt`);
+
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
+    goNext();
+    chooseOptionalStepNo(3);
+
+    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toHaveAttribute('aria-current', 'step');
+    fireEvent.change(screen.getByLabelText('Current receipt for Razor refill'), { target: { value: '6' } });
+    goNext(2);
+
+    expect(screen.getByRole('button', { name: /Review update/i })).toHaveAttribute('aria-current', 'step');
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockSnapshot: [
+          expect.objectContaining({
+            skuId: 'sku-1',
+            unitsInStock: 7,
+          }),
+        ],
+        orderSignals: [
+          expect.objectContaining({
+            approximateReceiptQuantity: 6,
+            orderPlaced: false,
+            receiptArrived: true,
+            skuId: 'sku-1',
+          }),
+        ],
+      }),
+    );
+  }, 10_000);
 
   it('shows a helper in the stock step when the catalog has no skus', async () => {
     renderRouteWithCatalog({

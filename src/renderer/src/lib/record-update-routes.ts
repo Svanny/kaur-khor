@@ -4,16 +4,19 @@ export const RECORD_UPDATE_CUSTOMER_PENDING_PATH = '/record-update/customer-orde
 export const RECORD_UPDATE_CUSTOMER_COMPLETED_PATH = '/record-update/customer-orders-completed';
 export const RECORD_UPDATE_SUPPLIER_PENDING_PATH = '/record-update/supplier-orders-pending';
 export const RECORD_UPDATE_SUPPLIER_RECEIPT_PATH = '/record-update/supplier-receipts';
+export const RECORD_UPDATE_CUSTOM_PATH = '/record-update/custom';
 export const RECORD_UPDATE_SALES_UPDATE_PATH = RECORD_UPDATE_CUSTOMER_PENDING_PATH;
 export const RECORD_UPDATE_RECORD_ORDER_PATH = RECORD_UPDATE_SUPPLIER_PENDING_PATH;
 export const RECORD_UPDATE_RECORD_RECEIPT_PATH = RECORD_UPDATE_SUPPLIER_RECEIPT_PATH;
 
-export type RecordUpdateLaneId =
+export type BaseRecordUpdateLaneId =
   | 'stock-count'
   | 'customer-order-pending'
   | 'customer-order-completed'
   | 'supplier-order-pending'
   | 'supplier-receipt';
+
+export type RecordUpdateLaneId = BaseRecordUpdateLaneId | 'custom';
 
 export interface RecordUpdateLaneDefinition {
   id: RecordUpdateLaneId;
@@ -53,12 +56,34 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
     title: 'Supplier Receipts',
     draftStorageKey: 'banji:record-update:draft:supplier-receipt:v1',
   },
+  {
+    id: 'custom',
+    path: RECORD_UPDATE_CUSTOM_PATH,
+    title: 'Custom',
+    draftStorageKey: 'banji:record-update:draft:custom:v1',
+  },
 ];
 
+export const BASE_RECORD_UPDATE_LANES = RECORD_UPDATE_LANES.filter(
+  (lane): lane is RecordUpdateLaneDefinition & { id: BaseRecordUpdateLaneId } => lane.id !== 'custom',
+);
+
 const recordUpdateLaneByPath = new Map(RECORD_UPDATE_LANES.map((lane) => [lane.path, lane]));
+const baseRecordUpdateLaneIds = new Set(BASE_RECORD_UPDATE_LANES.map((lane) => lane.id));
 
 export function getRecordUpdateLane(pathname: string) {
   return recordUpdateLaneByPath.get(pathname) ?? RECORD_UPDATE_LANES[0];
+}
+
+export function isBaseRecordUpdateLaneId(value: unknown): value is BaseRecordUpdateLaneId {
+  return typeof value === 'string' && baseRecordUpdateLaneIds.has(value as BaseRecordUpdateLaneId);
+}
+
+export function parseCustomRecordUpdateLaneIds(value: string | null): BaseRecordUpdateLaneId[] {
+  const selected = (value ?? '')
+    .split(',')
+    .filter(isBaseRecordUpdateLaneId);
+  return [...new Set(selected)];
 }
 
 export type OverviewTaskAction =

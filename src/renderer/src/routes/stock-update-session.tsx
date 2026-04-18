@@ -72,7 +72,13 @@ import { displayMoneyFromUsd, formatCurrency, moneyInputStep, reformatMoneyDraft
 import { leadTimeVariabilityPlaceholderValue } from '@/lib/lead-time-variability-select';
 import { translateLeadTimeVariabilityDescription, translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
-import { getRecordUpdateLane, RECORD_UPDATE_HUB_PATH } from '@/lib/record-update-routes';
+import {
+  getRecordUpdateLane,
+  isBaseRecordUpdateLaneId,
+  parseCustomRecordUpdateLaneIds,
+  RECORD_UPDATE_HUB_PATH,
+  type BaseRecordUpdateLaneId,
+} from '@/lib/record-update-routes';
 import { activeSenaCatalog, matchesServiceSupplier, matchesSkuSupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
@@ -156,35 +162,37 @@ interface ServiceSignalDraft {
 interface StockUpdateSessionDraft {
   version: 1;
   savedAt: string;
+  customSelectedLaneIds: BaseRecordUpdateLaneId[];
   currentStepId: StockUpdateStepId;
   unlockedStepCount: number;
   observedAt: string;
   notes: string;
   stockView: StockView;
   rows: StockRow[];
-  recordOrderExpectedArrivalDate?: string;
-  recordOrderLeadTimeMeanDays?: string;
-  recordOrderLeadTimeVariability?: SenaLeadTimeVariabilityClass | '';
-  recordReceiptReceivedDate?: string;
-  retailSalesChoice?: OptionalStockStepChoice;
-  serviceSalesChoice?: OptionalStockStepChoice;
-  retailSalesDrafts?: SalesCountDrafts;
-  serviceSalesDrafts?: SalesCountDrafts;
+  recordOrderExpectedArrivalDate: string;
+  recordOrderLeadTimeMeanDays: string;
+  recordOrderLeadTimeVariability: SenaLeadTimeVariabilityClass | '';
+  recordReceiptReceivedDate: string;
+  retailSalesChoice: OptionalStockStepChoice;
+  serviceSalesChoice: OptionalStockStepChoice;
+  retailSalesDrafts: SalesCountDrafts;
+  serviceSalesDrafts: SalesCountDrafts;
   skuSignalDrafts: Record<string, SkuSignalDraft>;
   stockStepChoices: Record<OptionalStockStepId, OptionalStockStepChoice>;
   serviceSignalDrafts: Record<string, ServiceSignalDraft>;
   regimeHint: SenaObservationRegimeHint | '';
   serviceRankings: string[];
   retailRankings: string[];
-  customerPendingMode?: CustomerPendingMode;
-  customerCompletedMode?: CustomerCompletedMode;
-  supplierPendingMode?: SupplierPendingMode;
-  supplierReceiptMode?: SupplierReceiptMode;
-  refundStockReturnDrafts?: Record<string, RefundStockReturnChoice>;
+  customerPendingMode: CustomerPendingMode;
+  customerCompletedMode: CustomerCompletedMode;
+  supplierPendingMode: SupplierPendingMode;
+  supplierReceiptMode: SupplierReceiptMode;
+  refundStockReturnDrafts: Record<string, RefundStockReturnChoice>;
 }
 
 interface StockUpdateDraftState {
   catalog: SenaCatalog | null;
+  customSelectedLaneIds: BaseRecordUpdateLaneId[];
   currentStepId: StockUpdateStepId;
   initialObservedAt: string;
   notes: string;
@@ -213,6 +221,8 @@ interface StockUpdateDraftState {
   supplierReceiptMode: SupplierReceiptMode;
   refundStockReturnDrafts: Record<string, RefundStockReturnChoice>;
 }
+
+type HydratedStockUpdateState = Omit<StockUpdateDraftState, 'catalog' | 'initialObservedAt' | 'stockBySku'>;
 
 interface EditSessionState {
   observationId: string;
@@ -258,6 +268,20 @@ const CUSTOMER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', '
 const CUSTOMER_ORDER_COMPLETED_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'stock-flags', 'context', 'review'];
 const SUPPLIER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'reorder', 'stock-flags', 'context', 'review'];
 const SUPPLIER_RECEIPT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'receipt', 'stock-flags', 'context', 'review'];
+const BASE_RECORD_UPDATE_STEP_ORDER_BY_LANE: Record<BaseRecordUpdateLaneId, StockUpdateStepId[]> = {
+  'stock-count': STOCK_COUNT_STEP_ORDER,
+  'customer-order-pending': CUSTOMER_ORDER_PENDING_STEP_ORDER,
+  'customer-order-completed': CUSTOMER_ORDER_COMPLETED_STEP_ORDER,
+  'supplier-order-pending': SUPPLIER_ORDER_PENDING_STEP_ORDER,
+  'supplier-receipt': SUPPLIER_RECEIPT_STEP_ORDER,
+};
+const BASE_RECORD_UPDATE_LANE_ORDER: BaseRecordUpdateLaneId[] = [
+  'stock-count',
+  'customer-order-pending',
+  'customer-order-completed',
+  'supplier-order-pending',
+  'supplier-receipt',
+];
 const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
 const REPORT_NOTE_PLACEHOLDER_KEYS = [
   'stockUpdateNotesPlaceholderShiftContext',
@@ -553,7 +577,26 @@ function isStockUpdateStepId(value: unknown): value is StockUpdateStepId {
   );
 }
 
-function stepOrderForLane(laneId: ReturnType<typeof getRecordUpdateLane>['id']) {
+function buildCustomStepOrder(selectedLaneIds: BaseRecordUpdateLaneId[]) {
+  const selectedLaneSet = new Set(selectedLaneIds);
+  const selectedSteps = BASE_RECORD_UPDATE_LANE_ORDER.filter((laneId) => selectedLaneSet.has(laneId)).flatMap((laneId) =>
+    BASE_RECORD_UPDATE_STEP_ORDER_BY_LANE[laneId].filter(
+      (stepId) => stepId !== 'observed-at' && stepId !== 'report-notes' && stepId !== 'context' && stepId !== 'review',
+    ),
+  );
+  return [
+    'observed-at',
+    'report-notes',
+    ...new Set(selectedSteps),
+    'context',
+    'review',
+  ] satisfies StockUpdateStepId[];
+}
+
+function stepOrderForLane(laneId: ReturnType<typeof getRecordUpdateLane>['id'], selectedLaneIds: BaseRecordUpdateLaneId[] = []) {
+  if (laneId === 'custom') {
+    return buildCustomStepOrder(selectedLaneIds.length > 0 ? selectedLaneIds : ['stock-count']);
+  }
   if (laneId === 'stock-count') {
     return STOCK_COUNT_STEP_ORDER;
   }
@@ -596,6 +639,13 @@ function isRegimeHint(value: unknown): value is SenaObservationRegimeHint | '' {
     value === 'promo' ||
     value === 'correction'
   );
+}
+
+function sanitizeCustomSelectedLaneIds(value: unknown): BaseRecordUpdateLaneId[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return [...new Set(value.filter(isBaseRecordUpdateLaneId))];
 }
 
 function isStockoutFlagValue(value: unknown): value is StockoutFlagValue {
@@ -1019,6 +1069,7 @@ function hydrateStockUpdateDraft({
   return {
     version: 1,
     savedAt: typeof draft.savedAt === 'string' ? draft.savedAt : new Date().toISOString(),
+    customSelectedLaneIds: sanitizeCustomSelectedLaneIds(draft.customSelectedLaneIds),
     currentStepId: normalizeStepIdForOrder(
       isStockUpdateStepId(draft.currentStepId) ? draft.currentStepId : 'stock',
       stepOrder,
@@ -1106,6 +1157,7 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
   return {
     version: 1,
     savedAt: new Date().toISOString(),
+    customSelectedLaneIds: state.customSelectedLaneIds,
     currentStepId: state.currentStepId,
     unlockedStepCount: state.unlockedStepCount,
     observedAt: state.observedAt,
@@ -1479,7 +1531,7 @@ function buildDraftsFromObservationInput({
   input: ReturnType<typeof createEmptyObservationInput>;
   stepOrder: StockUpdateStepId[];
   usdToKhrExchangeRate: number;
-}) {
+}): HydratedStockUpdateState {
   const rowsBySkuId = new Map(baselineRows.map((row) => [row.skuId, row]));
   const leadTimeHintsBySkuId = new Map(input.leadTimeHints.map((hint) => [hint.skuId, hint]));
   for (const snapshot of input.stockSnapshot) {
@@ -1585,6 +1637,7 @@ function buildDraftsFromObservationInput({
     }));
 
   return {
+    customSelectedLaneIds: [],
     currentStepId: (
       stepOrder.includes('stock')
         ? 'stock'
@@ -4344,6 +4397,13 @@ export function StockUpdateSessionRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const lane = useMemo(() => getRecordUpdateLane(location.pathname), [location.pathname]);
+  const routeCustomSelectedLaneIds = useMemo(() => {
+    if (lane.id !== 'custom') {
+      return [];
+    }
+    const selected = parseCustomRecordUpdateLaneIds(new URLSearchParams(location.search).get('lanes'));
+    return selected.length > 0 ? selected : (['stock-count'] satisfies BaseRecordUpdateLaneId[]);
+  }, [lane.id, location.search]);
   const initialSkuIds = useMemo(() => {
     const search = location.search;
     const urlParams = new URLSearchParams(search);
@@ -4356,7 +4416,12 @@ export function StockUpdateSessionRoute() {
   const stockRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(lane.id), [lane.id]);
   const retailSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:retail-sales`), [lane.id]);
   const serviceSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:service-sales`), [lane.id]);
-  const activeStepOrder = useMemo(() => stepOrderForLane(lane.id), [lane.id]);
+  const [customSelectedLaneIds, setCustomSelectedLaneIds] = useState<BaseRecordUpdateLaneId[]>(() => routeCustomSelectedLaneIds);
+  const activeStepOrder = useMemo(() => stepOrderForLane(lane.id, customSelectedLaneIds), [customSelectedLaneIds, lane.id]);
+  const selectedBaseLaneIds = useMemo(
+    () => (lane.id === 'custom' ? customSelectedLaneIds : isBaseRecordUpdateLaneId(lane.id) ? [lane.id] : []),
+    [customSelectedLaneIds, lane.id],
+  );
   const latestAt = latestObservationAt(observations);
   const incomingEditSession = useMemo(() => readRecordUpdateEditSession(location.state), [location.state]);
   const initialObservedAtRef = useRef(localDateTimeInputValue(null));
@@ -4456,10 +4521,10 @@ export function StockUpdateSessionRoute() {
         child.skuId,
         {
           ...createEmptySkuSignalDraft(),
-          orderEnabled: Boolean(child.effective.orderedQuantity && lane.id === 'supplier-order-pending'),
+          orderEnabled: Boolean(child.effective.orderedQuantity && selectedBaseLaneIds.includes('supplier-order-pending')),
           orderedQuantity: child.effective.orderedQuantity?.toString() ?? '',
           expectedArrivalDate: dateInputValue(child.effective.expectedArrivalAt ?? selectedOrderBatch?.shared.expectedArrivalAt ?? null),
-          receiptEnabled: Boolean(child.effective.receivedQuantity && lane.id === 'supplier-receipt'),
+          receiptEnabled: Boolean(child.effective.receivedQuantity && selectedBaseLaneIds.includes('supplier-receipt')),
           receiptQuantity: child.effective.receivedQuantity?.toString() ?? '',
           leadTimeMeanDays: child.effective.leadTimeDaysHint?.toString() ?? '',
           leadTimeVariability: child.effective.leadTimeVariability ?? '',
@@ -4474,7 +4539,7 @@ export function StockUpdateSessionRoute() {
     setRecordReceiptReceivedDate(
       dateInputValue(selectedOrderChildren[0]?.effective.receiptTimestamp ?? null),
     );
-  }, [draftWasRestored, editSession, lane.id, selectedOrderBatch, selectedOrderChildren]);
+  }, [draftWasRestored, editSession, selectedBaseLaneIds, selectedOrderBatch, selectedOrderChildren]);
   const buildOrderedInitialRows = useCallback(
     (nextCatalog: SenaCatalog | null) =>
       applyStockRowOrder(buildInitialRows(nextCatalog, observations), persistedStockRowOrder),
@@ -4620,11 +4685,13 @@ export function StockUpdateSessionRoute() {
   const stockStepSatisfied = !isFirstObservation || countedSkuCount > 0;
   const skuFlagsValid = !skuFlagsHaveEmptyRequiredValues(visibleSkuSignalDrafts);
   const serviceFlagsValid = !serviceFlagsHaveEmptyRequiredValues(serviceSignalDrafts);
-  const isCustomerPendingLane = lane.id === 'customer-order-pending';
-  const isCustomerCompletedLane = lane.id === 'customer-order-completed';
-  const isSupplierPendingLane = lane.id === 'supplier-order-pending';
-  const isSupplierReceiptLane = lane.id === 'supplier-receipt';
-  const skipsFirstStockRequirement = isCustomerPendingLane || isCustomerCompletedLane || isSupplierPendingLane || isSupplierReceiptLane;
+  const isCustomLane = lane.id === 'custom';
+  const hasStockCountLane = selectedBaseLaneIds.includes('stock-count');
+  const isCustomerPendingLane = selectedBaseLaneIds.includes('customer-order-pending');
+  const isCustomerCompletedLane = selectedBaseLaneIds.includes('customer-order-completed');
+  const isSupplierPendingLane = selectedBaseLaneIds.includes('supplier-order-pending');
+  const isSupplierReceiptLane = selectedBaseLaneIds.includes('supplier-receipt');
+  const skipsFirstStockRequirement = !hasStockCountLane;
 
   function updateCustomerPendingModeFilters(values: CustomerPendingMode[]) {
     setCustomerPendingModeFilters(values);
@@ -4656,6 +4723,7 @@ export function StockUpdateSessionRoute() {
   const draftState = useMemo<StockUpdateDraftState>(
     () => ({
       catalog: workingCatalog,
+      customSelectedLaneIds,
       currentStepId,
       initialObservedAt: initialObservedAtRef.current,
       notes,
@@ -4686,6 +4754,7 @@ export function StockUpdateSessionRoute() {
     }),
     [
       workingCatalog,
+      customSelectedLaneIds,
       currentStepId,
       notes,
       observedAt,
@@ -4750,11 +4819,12 @@ export function StockUpdateSessionRoute() {
     hydratedState,
     nextEditSession,
   }: {
-    hydratedState: ReturnType<typeof buildDraftsFromObservationInput>;
+    hydratedState: HydratedStockUpdateState;
     nextEditSession: EditSessionState | null;
   }) {
     initialObservedAtRef.current = hydratedState.observedAt;
     setEditSession(nextEditSession);
+    setCustomSelectedLaneIds(hydratedState.customSelectedLaneIds ?? []);
     setCurrentStepId(hydratedState.currentStepId);
     setUnlockedStepCount(hydratedState.unlockedStepCount);
     setObservedAt(hydratedState.observedAt);
@@ -4819,6 +4889,16 @@ export function StockUpdateSessionRoute() {
   }, [serviceSalesRowOrderStorageKey]);
 
   useEffect(() => {
+    if (lane.id !== 'custom') {
+      setCustomSelectedLaneIds([]);
+      return;
+    }
+    if (!draftWasRestored) {
+      setCustomSelectedLaneIds(routeCustomSelectedLaneIds);
+    }
+  }, [draftWasRestored, lane.id, routeCustomSelectedLaneIds]);
+
+  useEffect(() => {
     if (!workingCatalog) {
       setRows(buildOrderedInitialRows(workingCatalog));
       return;
@@ -4851,6 +4931,11 @@ export function StockUpdateSessionRoute() {
       });
 
       if (hydratedDraft) {
+        setCustomSelectedLaneIds(
+          lane.id === 'custom' && hydratedDraft.customSelectedLaneIds && hydratedDraft.customSelectedLaneIds.length > 0
+            ? hydratedDraft.customSelectedLaneIds
+            : routeCustomSelectedLaneIds,
+        );
         setCurrentStepId(hydratedDraft.currentStepId);
         setUnlockedStepCount(hydratedDraft.unlockedStepCount);
         setObservedAt(hydratedDraft.observedAt);
@@ -4889,7 +4974,7 @@ export function StockUpdateSessionRoute() {
     if (!hasAnyLiveDraft && !editSession) {
       setRows(baselineRows);
     }
-  }, [activeStepOrder, buildOrderedInitialRows, currency, draftStorageKey, editSession, hasAnyLiveDraft, incomingEditSession, location.pathname, navigate, observations, usdToKhrExchangeRate, workingCatalog]);
+  }, [activeStepOrder, buildOrderedInitialRows, currency, draftStorageKey, editSession, hasAnyLiveDraft, incomingEditSession, lane.id, location.pathname, navigate, observations, routeCustomSelectedLaneIds, usdToKhrExchangeRate, workingCatalog]);
 
   useEffect(() => {
     if (!(catalog ?? visibleCatalog) || !draftHydrationCheckedRef.current || !incomingEditSession) {
@@ -5070,6 +5155,396 @@ export function StockUpdateSessionRoute() {
   }
 
   function buildPayload() {
+    if (isCustomLane) {
+      const payload = createEmptyObservationInput({
+        observedAt: observedAtIso ?? new Date().toISOString(),
+        notes: notes.trim() || null,
+      });
+
+      if (isCustomerPendingLane) {
+        (payload.commercialEvents ??= []).push(
+          ...retailSkuIds.flatMap((skuId) => {
+            const value = retailSalesDrafts[skuId]?.trim();
+            if (!value) {
+              return [];
+            }
+            const quantity = Number(value);
+            if (!Number.isFinite(quantity) || quantity < 0) {
+              return [];
+            }
+            const previousOpen = latestCustomerPendingBySku.get(skuId) ?? 0;
+            const quantityDelta =
+              customerPendingMode === 'cancel_pending'
+                ? -Math.min(previousOpen, quantity)
+                : customerPendingMode === 'modify_pending'
+                  ? quantity - previousOpen
+                  : quantity;
+            if (quantityDelta === 0) {
+              return [];
+            }
+            return [{
+              party: 'customer' as const,
+              entityType: 'sku' as const,
+              entityId: skuId,
+              stage: 'pending' as const,
+              quantityDelta,
+              flow: 'scheduled' as const,
+              reason: customerPendingMode,
+              note: notes.trim() || null,
+            }];
+          }),
+          ...serviceIds.flatMap((serviceId) => {
+            const value = serviceSalesDrafts[serviceId]?.trim();
+            if (!value) {
+              return [];
+            }
+            const quantity = Number(value);
+            if (!Number.isFinite(quantity) || quantity < 0) {
+              return [];
+            }
+            const previousOpen = latestCustomerPendingByService.get(serviceId) ?? 0;
+            const quantityDelta =
+              customerPendingMode === 'cancel_pending'
+                ? -Math.min(previousOpen, quantity)
+                : customerPendingMode === 'modify_pending'
+                  ? quantity - previousOpen
+                  : quantity;
+            if (quantityDelta === 0) {
+              return [];
+            }
+            return [{
+              party: 'customer' as const,
+              entityType: 'service' as const,
+              entityId: serviceId,
+              stage: 'pending' as const,
+              quantityDelta,
+              flow: 'scheduled' as const,
+              reason: customerPendingMode,
+              note: notes.trim() || null,
+            }];
+          }),
+        );
+      }
+
+      if (isCustomerCompletedLane) {
+        const retailSalesSnapshot = retailSkuIds.flatMap((skuId) => {
+          const value = retailSalesDrafts[skuId]?.trim();
+          if (!value) {
+            return [];
+          }
+          return [{ skuId, unitsSold: Number(value) }];
+        }).filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold >= 0);
+        const serviceSalesSnapshot = serviceIds.flatMap((serviceId) => {
+          const value = serviceSalesDrafts[serviceId]?.trim();
+          if (!value) {
+            return [];
+          }
+          return [{ serviceId, unitsSold: Number(value) }];
+        }).filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold >= 0);
+        const derivedRetailRankings = [...retailSalesSnapshot]
+          .sort((left, right) => right.unitsSold - left.unitsSold || left.skuId.localeCompare(right.skuId))
+          .map((entry) => entry.skuId);
+        const derivedServiceRankings = [...serviceSalesSnapshot]
+          .sort((left, right) => right.unitsSold - left.unitsSold || left.serviceId.localeCompare(right.serviceId))
+          .map((entry) => entry.serviceId);
+        if (customerCompletedMode !== 'refund_reversal') {
+          payload.retailSalesSnapshot = retailSalesSnapshot;
+          payload.serviceSalesSnapshot = serviceSalesSnapshot;
+        }
+        payload.retailRankings = retailSalesChoice === 'yes' ? derivedRetailRankings : retailRankings;
+        payload.serviceRankings = serviceSalesChoice === 'yes' ? derivedServiceRankings : serviceRankings;
+        (payload.adjustmentSignals ??= []).push(
+          ...retailSkuIds.flatMap((skuId) => {
+            if (customerCompletedMode !== 'refund_reversal' || refundStockReturnDrafts[skuId] !== 'now') {
+              return [];
+            }
+            const value = retailSalesDrafts[skuId]?.trim();
+            if (!value) {
+              return [];
+            }
+            const quantity = Number(value);
+            if (!Number.isFinite(quantity) || quantity <= 0) {
+              return [];
+            }
+            return [{
+              skuId,
+              quantityDelta: quantity,
+              reason: 'return_to_stock',
+            }];
+          }),
+        );
+        (payload.commercialEvents ??= []).push(
+          ...retailSkuIds.flatMap((skuId) => {
+            const value = retailSalesDrafts[skuId]?.trim();
+            if (!value) {
+              return [];
+            }
+            const quantity = Number(value);
+            if (!Number.isFinite(quantity) || quantity <= 0) {
+              return [];
+            }
+            const pendingBefore = latestCustomerPendingBySku.get(skuId) ?? 0;
+            const realizedDelta = customerCompletedMode === 'refund_reversal' ? -quantity : quantity;
+            return [
+              ...(customerCompletedMode === 'from_pending' && quantity > 0
+                ? [{
+                    party: 'customer' as const,
+                    entityType: 'sku' as const,
+                    entityId: skuId,
+                    stage: 'pending' as const,
+                    quantityDelta: -Math.min(pendingBefore, quantity),
+                    flow: 'scheduled' as const,
+                    reason: customerCompletedMode,
+                    note: notes.trim() || null,
+                  }]
+                : []),
+              {
+                party: 'customer' as const,
+                entityType: 'sku' as const,
+                entityId: skuId,
+                stage: 'realized' as const,
+                quantityDelta: realizedDelta,
+                flow:
+                  customerCompletedMode === 'immediate_sale'
+                    ? ('immediate' as const)
+                    : customerCompletedMode === 'refund_reversal'
+                      ? ('reversal' as const)
+                      : ('scheduled' as const),
+                reason: customerCompletedMode,
+                note: notes.trim() || null,
+              },
+            ];
+          }),
+          ...serviceIds.flatMap((serviceId) => {
+            const value = serviceSalesDrafts[serviceId]?.trim();
+            if (!value) {
+              return [];
+            }
+            const quantity = Number(value);
+            if (!Number.isFinite(quantity) || quantity <= 0) {
+              return [];
+            }
+            const pendingBefore = latestCustomerPendingByService.get(serviceId) ?? 0;
+            const realizedDelta = customerCompletedMode === 'refund_reversal' ? -quantity : quantity;
+            return [
+              ...(customerCompletedMode === 'from_pending' && quantity > 0
+                ? [{
+                    party: 'customer' as const,
+                    entityType: 'service' as const,
+                    entityId: serviceId,
+                    stage: 'pending' as const,
+                    quantityDelta: -Math.min(pendingBefore, quantity),
+                    flow: 'scheduled' as const,
+                    reason: customerCompletedMode,
+                    note: notes.trim() || null,
+                  }]
+                : []),
+              {
+                party: 'customer' as const,
+                entityType: 'service' as const,
+                entityId: serviceId,
+                stage: 'realized' as const,
+                quantityDelta: realizedDelta,
+                flow:
+                  customerCompletedMode === 'immediate_sale'
+                    ? ('immediate' as const)
+                    : customerCompletedMode === 'refund_reversal'
+                      ? ('reversal' as const)
+                      : ('scheduled' as const),
+                reason: customerCompletedMode,
+                note: notes.trim() || null,
+              },
+            ];
+          }),
+        );
+      }
+
+      if (isSupplierPendingLane) {
+        const tableMeanDays =
+          recordOrderLeadTimeMeanDays.trim() === ''
+            ? null
+            : Number(recordOrderLeadTimeMeanDays);
+        const orderedEntries = Object.entries(visibleSkuSignalDrafts).filter(([, draft]) => {
+          const quantity = draft.orderedQuantity.trim();
+          return quantity !== '' && Number(quantity) > 0;
+        });
+        payload.orderSignals.push(
+          ...(supplierPendingMode === 'cancel_supplier_order'
+            ? []
+            : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+                const quantity = draft.orderedQuantity.trim();
+                if (quantity === '' || Number(quantity) <= 0) {
+                  return [];
+                }
+                return [{
+                  skuId,
+                  orderPlaced: true,
+                  receiptArrived: false,
+                  approximateOrderQuantity: Number(quantity),
+                  approximateReceiptQuantity: null,
+                  placementTimestamp: observedAtIso ?? new Date().toISOString(),
+                  receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate),
+                  leadTimeDaysHint: tableMeanDays,
+                }];
+              })),
+        );
+        payload.leadTimeHints.push(
+          ...(supplierPendingMode === 'cancel_supplier_order'
+            ? []
+            : orderedEntries.flatMap(([skuId]) => {
+                const variabilityClass =
+                  recordOrderLeadTimeVariability ||
+                  (tableMeanDays != null ? leadTimeVariabilityDefaults.get(skuId) : null) ||
+                  null;
+                if ((tableMeanDays == null || !Number.isFinite(tableMeanDays) || tableMeanDays < 0) && variabilityClass == null) {
+                  return [];
+                }
+                const compatibilityRange = compatibilityRangeForClass(tableMeanDays, variabilityClass);
+                return [{
+                  skuId,
+                  typicalDays: tableMeanDays,
+                  lowDays: compatibilityRange?.lowDays ?? null,
+                  highDays: compatibilityRange?.highDays ?? null,
+                  variabilityClass,
+                }];
+              })),
+        );
+        (payload.commercialEvents ??= []).push(
+          ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+            const quantity = draft.orderedQuantity.trim();
+            if (quantity === '' || Number(quantity) <= 0) {
+              return [];
+            }
+            return [{
+              party: 'supplier' as const,
+              entityType: 'sku' as const,
+              entityId: skuId,
+              stage: 'pending' as const,
+              quantityDelta: supplierPendingMode === 'cancel_supplier_order' ? -Number(quantity) : Number(quantity),
+              flow: 'scheduled' as const,
+              reason: supplierPendingMode,
+              note: notes.trim() || null,
+            }];
+          }),
+        );
+      }
+
+      if (isSupplierReceiptLane) {
+        payload.orderSignals.push(
+          ...(supplierReceiptMode === 'return_receipt_reversal'
+            ? []
+            : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+                const quantity = draft.receiptQuantity.trim();
+                if (quantity === '' || Number(quantity) <= 0) {
+                  return [];
+                }
+                return [{
+                  skuId,
+                  orderPlaced: false,
+                  receiptArrived: true,
+                  approximateOrderQuantity: null,
+                  approximateReceiptQuantity: Number(quantity),
+                  receiptTimestamp: dateInputToIso(recordReceiptReceivedDate),
+                }];
+              })),
+        );
+        (payload.commercialEvents ??= []).push(
+          ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+            const quantity = draft.receiptQuantity.trim();
+            if (quantity === '' || Number(quantity) <= 0) {
+              return [];
+            }
+            const numericQuantity = Number(quantity);
+            return [
+              ...(supplierReceiptMode === 'against_pending_supplier_order'
+                ? [{
+                    party: 'supplier' as const,
+                    entityType: 'sku' as const,
+                    entityId: skuId,
+                    stage: 'pending' as const,
+                    quantityDelta: -numericQuantity,
+                    flow: 'scheduled' as const,
+                    reason: supplierReceiptMode,
+                    note: notes.trim() || null,
+                  }]
+                : []),
+              {
+                party: 'supplier' as const,
+                entityType: 'sku' as const,
+                entityId: skuId,
+                stage: 'realized' as const,
+                quantityDelta: supplierReceiptMode === 'return_receipt_reversal' ? -numericQuantity : numericQuantity,
+                flow:
+                  supplierReceiptMode === 'immediate_purchase'
+                    ? ('immediate' as const)
+                    : supplierReceiptMode === 'return_receipt_reversal'
+                      ? ('reversal' as const)
+                      : ('scheduled' as const),
+                reason: supplierReceiptMode,
+                note: notes.trim() || null,
+              },
+            ];
+          }),
+        );
+      }
+
+      if (hasStockCountLane) {
+        payload.stockSnapshot = rows.filter((row) =>
+          editSession
+            ? shouldIncludeStockRowInEditPayload({ editSession, row, stockBySku })
+            : stockRowChanged(catalog, stockBySku, row),
+        );
+        if (!isSupplierPendingLane && !isSupplierReceiptLane) {
+          payload.orderSignals.push(
+            ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+              const nextSignals = [];
+              if (draft.orderEnabled && Number(draft.orderedQuantity) > 0) {
+                nextSignals.push({
+                  skuId,
+                  orderPlaced: true,
+                  receiptArrived: false,
+                  approximateOrderQuantity: Number(draft.orderedQuantity),
+                  approximateReceiptQuantity: null,
+                });
+              }
+              if (draft.receiptEnabled && Number(draft.receiptQuantity) > 0) {
+                nextSignals.push({
+                  skuId,
+                  orderPlaced: false,
+                  receiptArrived: true,
+                  approximateOrderQuantity: null,
+                  approximateReceiptQuantity: Number(draft.receiptQuantity),
+                });
+              }
+              return nextSignals;
+            }),
+          );
+        }
+        payload.servicePrices = Object.entries(serviceSignalDrafts)
+          .filter(([serviceId, draft]) =>
+            serviceDisplayPriceChanged(catalog, serviceId, draft, currency, usdToKhrExchangeRate),
+          )
+          .map(([serviceId, draft]) => ({
+            serviceId,
+            price: usdMoneyFromDisplay(Number(draft.price), currency, usdToKhrExchangeRate),
+          }));
+        payload.serviceStockouts = Object.entries(serviceSignalDrafts)
+          .filter(([, draft]) => draft.blockedEnabled && Boolean(draft.blockedState))
+          .map(([serviceId]) => serviceId);
+      }
+
+      payload.retailStockouts = [
+        ...new Set([
+          ...payload.retailStockouts,
+          ...Object.entries(visibleSkuSignalDrafts)
+            .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(draft.blockedState) && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
+            .map(([skuId]) => skuId),
+        ]),
+      ];
+      payload.regimeHint = regimeHint || null;
+      return payload;
+    }
+
     if (lane.id === 'customer-order-pending') {
       const payload = createEmptyObservationInput({
         observedAt: observedAtIso ?? new Date().toISOString(),
@@ -5491,13 +5966,13 @@ export function StockUpdateSessionRoute() {
 
   const stepStates = [
     {
-      id: 'observed-at',
+      id: 'observed-at' as const,
       title: t(STOCK_UPDATE_STEP_COPY['observed-at'].titleKey),
       description: observedAtIso ? t('stockUpdateStepObservedAtReady') : t('stockUpdateStepObservedAtMissing'),
       complete: Boolean(observedAtIso),
     },
     {
-      id: 'report-notes',
+      id: 'report-notes' as const,
       title: t(STOCK_UPDATE_STEP_COPY['report-notes'].titleKey),
       description: notes.trim() ? t('stockUpdateStepNotesAdded') : t('stockUpdateStepNotesOptional'),
       complete: true,
@@ -5585,19 +6060,20 @@ export function StockUpdateSessionRoute() {
                   : false,
           },
         ]
-      : isSupplierPendingLane || isSupplierReceiptLane
-        ? []
-        : [{
-            id: 'stock',
-            title: t(STOCK_UPDATE_STEP_COPY.stock.titleKey),
-            description:
-              isFirstObservation
-                ? t('stockUpdateStepCountAtLeastOneSku')
-                : t('stockUpdateStepOptionalLater'),
-            complete: stockStepSatisfied,
-          }]),
+      : []),
+    ...(hasStockCountLane
+      ? [{
+          id: 'stock' as const,
+          title: t(STOCK_UPDATE_STEP_COPY.stock.titleKey),
+          description:
+            isFirstObservation
+              ? t('stockUpdateStepCountAtLeastOneSku')
+              : t('stockUpdateStepOptionalLater'),
+          complete: stockStepSatisfied,
+        }]
+      : []),
     {
-      id: 'stock-cost',
+      id: 'stock-cost' as const,
       title: t('stockUpdateCostIfChanged'),
       description:
         stockStepChoices['stock-cost'] === 'no'
@@ -5610,7 +6086,7 @@ export function StockUpdateSessionRoute() {
       complete: stockStepChoices['stock-cost'] !== 'unset',
     },
     {
-      id: 'stock-price',
+      id: 'stock-price' as const,
       title: t('stockUpdateRetailPriceIfChanged'),
       description:
         stockStepChoices['stock-price'] === 'no'
@@ -5623,7 +6099,7 @@ export function StockUpdateSessionRoute() {
       complete: stockStepChoices['stock-price'] !== 'unset',
     },
     {
-      id: 'stock-flags',
+      id: 'stock-flags' as const,
       title: t('stockUpdateAddFlags'),
       description:
         stockStepChoices['stock-flags'] === 'no'
@@ -5636,25 +6112,25 @@ export function StockUpdateSessionRoute() {
       complete: stockStepChoices['stock-flags'] !== 'unset' && (stockStepChoices['stock-flags'] !== 'yes' || skuFlagsValid),
     },
     {
-      id: 'service',
+      id: 'service' as const,
       title: t(STOCK_UPDATE_STEP_COPY.service.titleKey),
       description: serviceFlagCount > 0 ? t('stockUpdateStepSignalsAdded', { count: serviceFlagCount, suffix: serviceFlagCount === 1 ? '' : 's' }) : t('stockUpdateStepOptional'),
       complete: (serviceFlagCount > 0 && serviceFlagsValid) || (serviceStepIndex >= 0 && normalizedCurrentStepIndex > serviceStepIndex),
     },
     {
-      id: 'rankings',
+      id: 'rankings' as const,
       title: t(STOCK_UPDATE_STEP_COPY.rankings.titleKey),
       description: rankingSignalCount > 0 ? t('stockUpdateStepSignalsAdded', { count: rankingSignalCount, suffix: rankingSignalCount === 1 ? '' : 's' }) : t('stockUpdateStepOptional'),
       complete: rankingSignalCount > 0 || (rankingsStepIndex >= 0 && normalizedCurrentStepIndex > rankingsStepIndex),
     },
     {
-      id: 'context',
+      id: 'context' as const,
       title: t(STOCK_UPDATE_STEP_COPY.context.titleKey),
       description: regimeHint ? t('stockUpdateStepRegimeSummary', { value: regimeHint.replaceAll('_', ' ') }) : t('stockUpdateStepRegimeOptional'),
       complete: true,
     },
     {
-      id: 'review',
+      id: 'review' as const,
       title: t(STOCK_UPDATE_STEP_COPY.review.titleKey),
       description: submitDisabled ? t('stockUpdateStepNotReady') : t('stockUpdateStepReadyToSave'),
       complete: !submitDisabled,
@@ -5691,7 +6167,7 @@ export function StockUpdateSessionRoute() {
           : true;
 
   const addSignalGuidanceText =
-    lane.id === 'stock-count'
+    hasStockCountLane
       ? t('stockUpdateGuidanceAddStockCountSignal')
       : isCustomerPendingLane
         ? translateUiLiteral(language, 'Add at least one open customer order change before saving.')
@@ -5776,6 +6252,7 @@ export function StockUpdateSessionRoute() {
     setEditSession(null);
     setPendingEditSession(null);
     setReplaceDraftDialogOpen(false);
+    setCustomSelectedLaneIds(lane.id === 'custom' ? routeCustomSelectedLaneIds : []);
     setCurrentStepId('observed-at');
     setUnlockedStepCount(1);
     setObservedAt(nextObservedAt);
