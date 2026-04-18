@@ -18,6 +18,7 @@ from typing import Any
 DEFAULT_OWNER = "desktop-owner"
 DEFAULT_YEARS = 3
 DEFAULT_INTERVAL_DAYS = 3.5
+DEV_HISTORY_VERSION = "current-sena-history-v1"
 
 
 @dataclass
@@ -473,6 +474,7 @@ def generate_reports(
                 adjustment_count += 1
 
             realized_consumption = min(unconstrained_demand, state.stock)
+            retail_units_sold = min(retail_draw, realized_consumption) if state.sold_as_product else 0.0
             lost_demand = max(0.0, unconstrained_demand - realized_consumption)
             lost_demand_by_sku[state.sku_id] = lost_demand
             next_stock = max(0.0, state.stock + adjustment_delta - realized_consumption)
@@ -513,6 +515,7 @@ def generate_reports(
                     "costPerUnit": next_cost,
                     "productPrice": next_price,
                     "previousProductPrice": previous_price,
+                    "retailUnitsSold": round_units(retail_units_sold),
                     "restockIncluded": receipts_by_sku.get(state.sku_id, 0.0) > 0,
                     "retailStockout": retail_stockout,
                     "adjustmentDelta": adjustment_delta if adjustment_delta != 0.0 else None,
@@ -580,6 +583,23 @@ def generate_reports(
         if report_index == 0:
             notes = "Synthetic historical baseline generated for the current desktop catalog."
 
+        service_sales_snapshot = [
+            {
+                "serviceId": service_id,
+                "unitsSold": round_units(units_sold),
+            }
+            for service_id, units_sold in sorted(service_demand_scores.items())
+            if units_sold > 0
+        ]
+        retail_sales_snapshot = [
+            {
+                "skuId": item["skuId"],
+                "unitsSold": item["retailUnitsSold"],
+            }
+            for item in sku_observations
+            if item.get("retailUnitsSold", 0) > 0
+        ]
+
         reports.append(
             {
                 "reportId": f"report-{report_index + 1:04d}",
@@ -588,6 +608,8 @@ def generate_reports(
                 "skuObservations": sku_observations,
                 "serviceSignals": service_signals,
                 "servicePriceAdjustments": service_price_adjustments,
+                "serviceSalesSnapshot": service_sales_snapshot,
+                "retailSalesSnapshot": retail_sales_snapshot,
                 "topServiceRanking": top_service_ranking,
                 "topRetailRanking": top_retail_ranking,
                 "regimeHint": final_regime,
@@ -625,6 +647,7 @@ def build_sena_catalog(skus: list[dict[str, Any]], services: list[dict[str, Any]
             "name": service["name"],
         }
         for service in services
+        if bool(service.get("bundle")) or len(service.get("skuIds", [])) > 1
     ]
     sharing_mask: list[dict[str, Any]] = []
     for service in services:
@@ -644,7 +667,10 @@ def build_sena_catalog(skus: list[dict[str, Any]], services: list[dict[str, Any]
                 "skuId": sku["skuId"],
                 "name": sku["name"],
                 "description": sku["description"],
+                "imagePath": sku.get("imagePath"),
+                "supplierName": sku.get("supplierName"),
                 "costPerUnit": sku["costPerUnit"],
+                "archived": bool(sku.get("archived", False)),
                 "soldAsProduct": sku["soldAsProduct"],
                 "productPrice": sku.get("productPrice"),
                 "leadTimeMeanDaysHint": sku.get("leadTimeMeanDays"),
@@ -657,7 +683,9 @@ def build_sena_catalog(skus: list[dict[str, Any]], services: list[dict[str, Any]
                 "serviceId": service["serviceId"],
                 "name": service["name"],
                 "description": service["description"],
+                "imagePath": service.get("imagePath"),
                 "price": service["price"],
+                "archived": bool(service.get("archived", False)),
                 "bundle": bool(service.get("bundle")) or len(service.get("skuIds", [])) > 1,
             }
             for service in services
@@ -681,7 +709,44 @@ def build_sena_observations(
             service_price_map[adjustment["serviceId"]] = float(adjustment["price"])
 
         order_signals = []
+        commercial_events: list[dict[str, Any]] = []
         for sku_observation in report["skuObservations"]:
+            if sku_observation.get("retailUnitsSold", 0) > 0:
+                commercial_events.append(
+                    {
+                        "party": "customer",
+                        "entityType": "sku",
+                        "entityId": sku_observation["skuId"],
+                        "stage": "realized",
+                        "quantityDelta": sku_observation["retailUnitsSold"],
+                        "flow": "immediate",
+                        "reason": "generated_retail_sale",
+                    }
+                )
+            if sku_observation.get("approximateOrderQuantity") is not None:
+                commercial_events.append(
+                    {
+                        "party": "supplier",
+                        "entityType": "sku",
+                        "entityId": sku_observation["skuId"],
+                        "stage": "pending",
+                        "quantityDelta": sku_observation["approximateOrderQuantity"],
+                        "flow": "scheduled",
+                        "reason": "generated_supplier_order",
+                    }
+                )
+            if sku_observation.get("approximateReceiptQuantity") is not None:
+                commercial_events.append(
+                    {
+                        "party": "supplier",
+                        "entityType": "sku",
+                        "entityId": sku_observation["skuId"],
+                        "stage": "realized",
+                        "quantityDelta": sku_observation["approximateReceiptQuantity"],
+                        "flow": "scheduled",
+                        "reason": "generated_supplier_receipt",
+                    }
+                )
             order_signals.append(
                 {
                     "skuId": sku_observation["skuId"],
@@ -724,6 +789,8 @@ def build_sena_observations(
                     }
                     for item in report["skuObservations"]
                 ],
+                "retailSalesSnapshot": report.get("retailSalesSnapshot", []),
+                "serviceSalesSnapshot": report.get("serviceSalesSnapshot", []),
                 "serviceRankings": report.get("topServiceRanking", []),
                 "retailRankings": report.get("topRetailRanking", []),
                 "serviceStockouts": [
@@ -756,6 +823,22 @@ def build_sena_observations(
                     }
                     for item in report["skuObservations"]
                     if item.get("adjustmentDelta") not in {None, 0}
+                ],
+                "commercialEvents": [
+                    *commercial_events,
+                    *[
+                        {
+                            "party": "customer",
+                            "entityType": "service",
+                            "entityId": item["serviceId"],
+                            "stage": "realized",
+                            "quantityDelta": item["unitsSold"],
+                            "flow": "immediate",
+                            "reason": "generated_service_sale",
+                        }
+                        for item in report.get("serviceSalesSnapshot", [])
+                        if item.get("unitsSold", 0) > 0
+                    ],
                 ],
                 "recipeUsageHints": report.get("recipeUsageHints", []),
                 "notes": report.get("notes"),
@@ -797,6 +880,18 @@ def enrich_lead_time_hints(observations: list[dict[str, Any]], skus: list[dict[s
         observation["leadTimeHints"] = hints
 
 
+def start_desktop_core(repo_root: Path, db_path: Path) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        ["cargo", "run", "--quiet", "--manifest-path", str(repo_root / "apps/desktop-core/Cargo.toml")],
+        cwd=repo_root,
+        env={**os.environ, "BANJI_DESKTOP_DATA_PATH": str(db_path)},
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
 def send_core_command(proc: subprocess.Popen[str], command_id: int, command: str, payload: Any) -> Any:
     envelope = {"id": command_id, "command": command, "payload": payload}
     assert proc.stdin is not None
@@ -812,21 +907,114 @@ def send_core_command(proc: subprocess.Popen[str], command_id: int, command: str
     return response.get("payload")
 
 
+def close_desktop_core(proc: subprocess.Popen[str]) -> None:
+    if proc.stdin:
+        proc.stdin.close()
+    stderr = proc.stderr.read() if proc.stderr else ""
+    return_code = proc.wait()
+    if return_code != 0:
+        raise RuntimeError(f"desktop core exited with {return_code}: {stderr.strip()}")
+
+
+def load_current_sena_catalog(repo_root: Path, db_path: Path) -> dict[str, Any]:
+    proc = start_desktop_core(repo_root, db_path)
+    try:
+        command_id = 1
+        catalog = send_core_command(proc, command_id, "sena.getCatalog", None)
+        command_id += 1
+        if catalog is None:
+            send_core_command(proc, command_id, "sena.seedDevWorkspace", None)
+            command_id += 1
+            catalog = send_core_command(proc, command_id, "sena.getCatalog", None)
+        if catalog is None:
+            raise RuntimeError("desktop core did not provide a SENA catalog")
+        return catalog
+    finally:
+        close_desktop_core(proc)
+
+
+def generation_inputs_from_sena_catalog(catalog: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    enabled_sku_ids_by_service: dict[str, list[str]] = {}
+    for entry in catalog.get("sharingMask", []):
+        if entry.get("enabled", True):
+            enabled_sku_ids_by_service.setdefault(entry["serviceId"], []).append(entry["skuId"])
+
+    skus: list[dict[str, Any]] = []
+    for index, sku in enumerate(catalog.get("skus", [])):
+        if sku.get("archived"):
+            continue
+        lead_mean = float(sku.get("leadTimeMeanDaysHint") or 7.0)
+        lead_std = float(sku.get("leadTimeStdDaysHint") or max(1.0, lead_mean * 0.25))
+        opening_units = 24.0 + (index % 5) * 8.0 + lead_mean * 2.0
+        skus.append(
+            {
+                "skuId": sku["skuId"],
+                "name": sku["name"],
+                "description": sku.get("description", ""),
+                "imagePath": sku.get("imagePath"),
+                "supplierName": sku.get("supplierName"),
+                "costPerUnit": float(sku.get("costPerUnit") or 0.0),
+                "archived": False,
+                "soldAsProduct": bool(sku.get("soldAsProduct")),
+                "productPrice": sku.get("productPrice"),
+                "leadTimeMeanDays": lead_mean,
+                "leadTimeStdDays": lead_std,
+                "unitsInStock": opening_units,
+            }
+        )
+
+    services: list[dict[str, Any]] = []
+    for service in catalog.get("services", []):
+        if service.get("archived"):
+            continue
+        service_id = service["serviceId"]
+        services.append(
+            {
+                "serviceId": service_id,
+                "name": service["name"],
+                "description": service.get("description", ""),
+                "imagePath": service.get("imagePath"),
+                "price": float(service.get("price") or 0.0),
+                "archived": False,
+                "bundle": bool(service.get("bundle")),
+                "skuIds": enabled_sku_ids_by_service.get(service_id, []),
+            }
+        )
+
+    if not skus:
+        raise RuntimeError("current SENA catalog has no active SKUs to generate history for")
+    return skus, services
+
+
+def history_marker_payload(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "version": DEV_HISTORY_VERSION,
+        "years": args.years,
+        "intervalDays": args.interval_days,
+    }
+
+
+def history_marker_current(path: Path, db_path: Path, args: argparse.Namespace) -> bool:
+    if args.force or not db_path.exists() or not path.exists():
+        return False
+    try:
+        return json.loads(path.read_text()) == history_marker_payload(args)
+    except json.JSONDecodeError:
+        return False
+
+
+def write_history_marker(path: Path, args: argparse.Namespace) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(history_marker_payload(args), indent=2) + "\n")
+
+
 def rebuild_sena_workspace(repo_root: Path, db_path: Path, marker_path: Path, catalog: dict[str, Any], observations: list[dict[str, Any]]) -> None:
     if db_path.exists():
         db_path.unlink()
     if marker_path.exists():
         marker_path.unlink()
 
-    proc = subprocess.Popen(
-        ["cargo", "run", "--quiet", "--manifest-path", str(repo_root / "apps/desktop-core/Cargo.toml")],
-        cwd=repo_root,
-        env={**os.environ, "BANJI_DESKTOP_DATA_PATH": str(db_path)},
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    proc = start_desktop_core(repo_root, db_path)
 
     try:
         command_id = 1
@@ -835,25 +1023,27 @@ def rebuild_sena_workspace(repo_root: Path, db_path: Path, marker_path: Path, ca
         for observation in observations:
             send_core_command(proc, command_id, "sena.ingestObservation", observation)
             command_id += 1
-        send_core_command(proc, command_id, "sena.triggerRun", {"algorithmVersion": "sena-analysis-v2"})
+        send_core_command(proc, command_id, "sena.triggerRun", {"algorithmVersion": "sena-analysis-v3"})
     finally:
-        if proc.stdin:
-            proc.stdin.close()
-        stderr = proc.stderr.read() if proc.stderr else ""
-        return_code = proc.wait()
-        if return_code != 0:
-            raise RuntimeError(f"desktop core exited with {return_code}: {stderr.strip()}")
+        close_desktop_core(proc)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate plausible dev history for the current desktop catalog.")
+    parser = argparse.ArgumentParser(description="Generate plausible SENA dev history for the current Banji app schema.")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--owner", default=DEFAULT_OWNER)
+    parser.add_argument("--owner", default=DEFAULT_OWNER, help="Owner id reported in the summary; desktop-core uses its default owner internally.")
     parser.add_argument("--years", type=int, default=DEFAULT_YEARS)
     parser.add_argument("--interval-days", type=float, default=DEFAULT_INTERVAL_DAYS)
-    parser.add_argument("--store", type=Path, default=None)
+    parser.add_argument(
+        "--source-catalog-json",
+        type=Path,
+        default=None,
+        help="Optional current-schema SENA catalog JSON. Defaults to the catalog already in the target SENA DB, seeding it first if empty.",
+    )
+    parser.add_argument("--store", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--sena-db", type=Path, default=None)
     parser.add_argument("--seed-marker", type=Path, default=None)
+    parser.add_argument("--force", action="store_true", help="Regenerate even when the history marker already matches.")
     return parser.parse_args()
 
 
@@ -861,17 +1051,31 @@ def main() -> None:
     args = parse_args()
     repo_root = args.repo_root.resolve()
     data_dir = repo_root / ".banji-dev-data"
-    store_path = args.store or (data_dir / "desktop-inventory-store.json")
     sena_db_path = args.sena_db or (data_dir / "desktop-sena-store.sqlite3")
-    seed_marker_path = args.seed_marker or (data_dir / "desktop-sena-dev-seed.txt")
+    seed_marker_path = args.seed_marker or (data_dir / "desktop-sena-dev-history.json")
 
-    store = load_store(store_path)
-    owner = store["owners"][args.owner]
-    catalog_skus = owner["catalog"]["skus"]
-    catalog_services = owner["catalog"]["services"]
+    if history_marker_current(seed_marker_path, sena_db_path, args):
+        print(
+            json.dumps(
+                {
+                    "owner": args.owner,
+                    "skipped": True,
+                    "reason": "history marker is current",
+                    "senaDbPath": str(sena_db_path),
+                    "seedMarkerPath": str(seed_marker_path),
+                },
+                indent=2,
+            )
+        )
+        return
 
-    latest_existing_report = owner.get("sist", {}).get("stockReports", [])[-1]["reportedAt"] if owner.get("sist", {}).get("stockReports") else None
-    end_at = parse_iso(latest_existing_report) if latest_existing_report else datetime.now(UTC).replace(hour=9, minute=0, second=0, microsecond=0)
+    if args.source_catalog_json:
+        source_catalog = json.loads(args.source_catalog_json.read_text())
+    else:
+        source_catalog = load_current_sena_catalog(repo_root, sena_db_path)
+
+    catalog_skus, catalog_services = generation_inputs_from_sena_catalog(source_catalog)
+    end_at = datetime.now(UTC).replace(hour=9, minute=0, second=0, microsecond=0)
 
     reports, latest_skus, latest_services = generate_reports(
         catalog_skus,
@@ -881,16 +1085,11 @@ def main() -> None:
         end_at=end_at,
     )
 
-    owner["catalog"]["skus"] = latest_skus
-    owner["catalog"]["services"] = latest_services
-    owner["sist"]["stockReports"] = reports
-    owner["sist"]["schemaVersion"] = 0
-    save_store(store_path, store)
-
     sena_catalog = build_sena_catalog(latest_skus, latest_services)
     sena_observations = build_sena_observations(reports, latest_services, latest_services)
     enrich_lead_time_hints(sena_observations, latest_skus)
     rebuild_sena_workspace(repo_root, sena_db_path, seed_marker_path, sena_catalog, sena_observations)
+    write_history_marker(seed_marker_path, args)
 
     print(
         json.dumps(
@@ -901,8 +1100,8 @@ def main() -> None:
                 "serviceCount": len(latest_services),
                 "firstReportAt": reports[0]["reportedAt"],
                 "lastReportAt": reports[-1]["reportedAt"],
-                "storePath": str(store_path),
                 "senaDbPath": str(sena_db_path),
+                "seedMarkerPath": str(seed_marker_path),
             },
             indent=2,
         )

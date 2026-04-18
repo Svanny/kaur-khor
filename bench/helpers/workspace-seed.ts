@@ -1,5 +1,9 @@
+import { execFile } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 export type BenchmarkWorkspaceSize = 'minimal' | 'medium' | 'heavy';
 
@@ -10,6 +14,32 @@ export interface BenchmarkWorkspaceSeed {
 
 export async function prepareBenchmarkWorkspace(seed: BenchmarkWorkspaceSeed) {
   await mkdir(seed.dataDirectory, { recursive: true });
+  const repoRoot = resolve('.');
+  const historySize = {
+    minimal: { years: 0, intervalDays: 7 },
+    medium: { years: 1, intervalDays: 7 },
+    heavy: { years: 3, intervalDays: 3.5 },
+  }[seed.size];
+  await execFileAsync(
+    'python3',
+    [
+      './scripts/generate_dev_history.py',
+      '--repo-root',
+      repoRoot,
+      '--sena-db',
+      join(seed.dataDirectory, 'desktop-sena-store.sqlite3'),
+      '--seed-marker',
+      join(seed.dataDirectory, 'desktop-sena-dev-history.json'),
+      '--years',
+      String(historySize.years),
+      '--interval-days',
+      String(historySize.intervalDays),
+    ],
+    {
+      cwd: repoRoot,
+      maxBuffer: 1024 * 1024 * 4,
+    },
+  );
   await writeFile(
     join(seed.dataDirectory, 'desktop-preferences.json'),
     `${JSON.stringify({
@@ -25,6 +55,6 @@ export async function prepareBenchmarkWorkspace(seed: BenchmarkWorkspaceSeed) {
   );
   return {
     ...seed,
-    mode: 'dev-seed',
+    mode: 'generated-history',
   };
 }

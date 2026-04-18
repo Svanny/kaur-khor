@@ -20,7 +20,9 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev --watch",
+    "dev": "pnpm data:generate && electron-vite dev --watch",
+    "data:generate": "python3 ./scripts/generate_dev_history.py",
+    "data:generate:force": "python3 ./scripts/generate_dev_history.py --force",
     "build": "electron-vite build",
     "build:icon": "bash ./scripts/build-macos-icon.sh",
     "package:mac": "bash ./scripts/package-mac.sh",
