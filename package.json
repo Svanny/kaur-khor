@@ -21,8 +21,8 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "pnpm data:generate && electron-vite dev --watch",
-    "data:generate": "python3 ./scripts/generate_dev_history.py",
-    "data:generate:force": "python3 ./scripts/generate_dev_history.py --force",
+    "data:generate": "python3 ./scripts/generate_dev_history.py --years 5 --interval-days 3.5",
+    "data:generate:force": "python3 ./scripts/generate_dev_history.py --years 5 --interval-days 3.5 --force",
     "build": "electron-vite build",
     "build:icon": "bash ./scripts/build-macos-icon.sh",
     "package:mac": "bash ./scripts/package-mac.sh",

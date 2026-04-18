@@ -16,7 +16,7 @@ from typing import Any
 
 
 DEFAULT_OWNER = "desktop-owner"
-DEFAULT_YEARS = 3
+DEFAULT_YEARS = 5
 DEFAULT_INTERVAL_DAYS = 3.5
 DEV_HISTORY_VERSION = "current-sena-history-v1"
 
