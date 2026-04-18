@@ -22,6 +22,7 @@ import {
 } from '@/lib/lead-time-variability-select';
 import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { createUniqueSkuId, emptySenaCatalog, upsertSenaSku } from '@/lib/sena-catalog';
+import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
@@ -112,6 +113,7 @@ export function SkuFormRoute() {
   const [productPriceDraft, setProductPriceDraft] = useState(() =>
     moneyDraftFromUsd((initialExistingSku ?? emptySku(skuId)).productPrice, currency, usdToKhrExchangeRate),
   );
+  const [priceEnableHintActive, setPriceEnableHintActive] = useState(false);
   const [leadTimeStdDaysDraft, setLeadTimeStdDaysDraft] = useState(() =>
     stdDaysDraftFromValue((initialExistingSku ?? emptySku(skuId)).leadTimeStdDaysHint),
   );
@@ -139,6 +141,12 @@ export function SkuFormRoute() {
       setLeadTimeVariability('');
     }
   }, [currency, editing, existingSku, usdToKhrExchangeRate]);
+
+  useEffect(() => {
+    if (form.soldAsProduct && priceEnableHintActive) {
+      setPriceEnableHintActive(false);
+    }
+  }, [form.soldAsProduct, priceEnableHintActive]);
 
   const normalizedBaseline = useMemo(() => existingSku ?? emptySku(editing ? (skuId ?? '') : ''), [editing, existingSku, skuId]);
   const baselineLeadTimeVariability = useMemo(
@@ -304,6 +312,7 @@ export function SkuFormRoute() {
               </EditorField>
 
               <EditorField
+                error={!form.soldAsProduct && priceEnableHintActive ? t('catalogSkuEditorRetailPriceEnableHint') : undefined}
                 helper={
                   form.soldAsProduct
                     ? t('catalogSkuEditorRetailPriceHelper')
@@ -313,13 +322,31 @@ export function SkuFormRoute() {
                 tooltip={t('catalogSkuEditorRetailPriceTooltip')}
               >
                 <input
-                  className={editorInputClassName}
-                  disabled={!form.soldAsProduct}
+                  aria-disabled={!form.soldAsProduct}
+                  className={cn(
+                    editorInputClassName,
+                    !form.soldAsProduct && 'cursor-not-allowed text-muted-foreground',
+                  )}
                   min="0"
+                  readOnly={!form.soldAsProduct}
                   step={moneyInputStep(currency)}
                   type="number"
                   value={productPriceDraft}
+                  onClick={() => {
+                    if (!form.soldAsProduct) {
+                      setPriceEnableHintActive(true);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (!form.soldAsProduct) {
+                      setPriceEnableHintActive(true);
+                    }
+                  }}
                   onChange={(event) => {
+                    if (!form.soldAsProduct) {
+                      setPriceEnableHintActive(true);
+                      return;
+                    }
                     const nextValue = event.target.value;
                     setProductPriceDraft(nextValue);
                     setForm((current) => ({
@@ -336,6 +363,11 @@ export function SkuFormRoute() {
 
             <CheckboxRow
               checked={form.soldAsProduct}
+              className={
+                priceEnableHintActive && !form.soldAsProduct
+                  ? 'border-destructive/60 bg-destructive/10 ring-2 ring-destructive/25'
+                  : undefined
+              }
               helper={t('catalogSkuEditorSellAsProductHelper')}
               label={
                 <SectionLabel tooltip={t('catalogSkuEditorSellAsProductTooltip')}>

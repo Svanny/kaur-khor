@@ -418,12 +418,25 @@ describe('SkuFormRoute', () => {
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
     const [, priceInput] = within(pricingPanel ?? document.body).getAllByRole('spinbutton');
-    expect(priceInput).toBeDisabled();
-    expect(screen.getByText('To enter a selling price, click the Sell as product box below first.')).toBeInTheDocument();
+    const enableHint = screen.getByText('To enter a selling price, click the Sell as product box below first.');
+    const sellAsProductCheckbox = screen.getByRole('checkbox', { name: /sell as product/i });
+    const sellAsProductRow = sellAsProductCheckbox.closest('[data-slot="checkbox-row"]');
+    expect(priceInput).toHaveAttribute('aria-disabled', 'true');
+    expect(priceInput).toHaveAttribute('readonly');
+    expect(enableHint).toBeInTheDocument();
+    expect(enableHint).not.toHaveClass('text-destructive');
+    expect(sellAsProductRow).not.toHaveClass('border-destructive/60');
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /sell as product/i }));
+    fireEvent.click(priceInput);
+
+    expect(screen.getByText('To enter a selling price, click the Sell as product box below first.')).toHaveClass('text-destructive');
+    expect(sellAsProductRow).toHaveClass('border-destructive/60');
+
+    fireEvent.click(sellAsProductCheckbox);
 
     expect(priceInput).toBeEnabled();
+    expect(priceInput).not.toHaveAttribute('readonly');
+    expect(sellAsProductRow).not.toHaveClass('border-destructive/60');
     fireEvent.change(priceInput, { target: { value: '25' } });
     expect(priceInput).toHaveValue(25);
   });
