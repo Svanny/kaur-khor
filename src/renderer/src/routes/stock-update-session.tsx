@@ -3831,7 +3831,7 @@ function RecordOrderStep({
                           : undefined}
                         key={nextMode}
                         orderQuantityPlaceholder={recommendedUnits && recommendedUnits > 0
-                          ? translateUiLiteral(language, 'Banji recommends {count} units.', { count: Math.round(recommendedUnits) })
+                          ? translateUiLiteral(language, 'banji recommends {count} units.', { count: Math.round(recommendedUnits) })
                           : ''}
                         orderQuantityValue={nextMode === mode ? draft.orderedQuantity : ''}
                         rowName={`${workflowStateLabel(language, nextMode)} ${sku?.name ?? row.skuId}`}

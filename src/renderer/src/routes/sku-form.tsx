@@ -273,7 +273,7 @@ export function SkuFormRoute() {
             </EditorField>
 
             <CatalogImageField
-              helper="Choose one picture for this SKU. Banji will show it on supported item surfaces."
+              helper="Choose one picture for this SKU. banji will show it on supported item surfaces."
               imagePath={form.imagePath}
               label="Picture"
               name={form.name || 'SKU image'}

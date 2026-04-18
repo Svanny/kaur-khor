@@ -11,14 +11,14 @@ function translationsFor(language: 'en' | 'km') {
     return {
       navHelp: 'ជំនួយ',
       helpPageTitle: 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
-      helpPageDescriptor: 'រកមើលលំហូរការងារ និងសំណួរញឹកញាប់របស់ Banji ពីទំព័រជំនួយតែមួយ។',
+      helpPageDescriptor: 'រកមើលលំហូរការងារ និងសំណួរញឹកញាប់របស់ banji ពីទំព័រជំនួយតែមួយ។',
       helpOpenOverviewAction: 'បើកទិដ្ឋភាពទូទៅ',
       helpStartUpdateAction: 'ចាប់ផ្តើមអាប់ដេត',
       helpSearchAriaLabel: 'ស្វែងរកជំនួយ',
       helpSearchPlaceholder: 'ស្វែងរកមុខងារ លំហូរការងារ ប៊ូតុង ឬសំណួរញឹកញាប់…',
       helpNoMatchesTitle: 'រកមិនឃើញផ្នែកជំនួយដែលត្រូវគ្នា',
       helpNoMatchesDescriptor: 'សាកពាក្យស្វែងរកទូលំទូលាយជាងមុន ឬសម្អាតតម្រងបច្ចុប្បន្ន។',
-      helpNoMatchesBody: 'Banji រកមិនឃើញផ្នែកជំនួយដែលត្រូវនឹងការស្វែងរករបស់អ្នកទេ។',
+      helpNoMatchesBody: 'banji រកមិនឃើញផ្នែកជំនួយដែលត្រូវនឹងការស្វែងរករបស់អ្នកទេ។',
       helpClearSearchAction: 'សម្អាតការស្វែងរក',
       helpBestMatchBadge: 'ត្រូវគ្នាបំផុត',
       helpIndexTitle: 'មាតិកា',
@@ -34,14 +34,14 @@ function translationsFor(language: 'en' | 'km') {
   return {
     navHelp: 'Help',
     helpPageTitle: 'User guide',
-    helpPageDescriptor: 'Browse Banji workflows.',
+    helpPageDescriptor: 'Browse banji workflows.',
     helpOpenOverviewAction: 'Open overview',
     helpStartUpdateAction: 'Start update',
     helpSearchAriaLabel: 'Search help',
     helpSearchPlaceholder: 'Search features, workflows, buttons, or FAQ…',
     helpNoMatchesTitle: 'No matching help sections',
     helpNoMatchesDescriptor: 'Try a broader search term or clear the current help filter.',
-    helpNoMatchesBody: 'Banji could not find a help section matching your search.',
+    helpNoMatchesBody: 'banji could not find a help section matching your search.',
     helpClearSearchAction: 'Clear search',
     helpBestMatchBadge: 'Best match',
     helpIndexTitle: 'Index',
@@ -188,7 +188,7 @@ describe('HelpRoute', () => {
 
   test('keeps the Khmer guide free of unexpected Latin letters', () => {
     const allowedLatinFragments = [
-      'Banji',
+      'banji',
       'banji',
       'SKU',
       'ERP',

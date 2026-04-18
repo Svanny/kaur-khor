@@ -96,7 +96,7 @@ export function ArchiveRoute() {
           pendingUnarchive
             ? translateUiLiteral(
                 language,
-                'This item will return to active workspaces and become visible across Banji again.',
+                'This item will return to active workspaces and become visible across banji again.',
               )
             : undefined
         }
@@ -205,7 +205,7 @@ export function ArchiveRoute() {
             title={`SKUs (${archivedSkus.length})`}
             descriptor={translateUiLiteral(
               language,
-              'Archived stock-carrying items stay in Banji history but stay hidden from active workspaces.',
+              'Archived stock-carrying items stay in banji history but stay hidden from active workspaces.',
             )}
           >
             <div className="grid gap-3">

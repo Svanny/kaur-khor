@@ -18,16 +18,16 @@ const onboardingCopyCycleMs = 9000;
 function onboardingCopy(englishText: string) {
   const khmerByEnglishText: Record<string, string> = {
     Welcome: 'សូមស្វាគមន៍',
-    'Set up Banji': 'រៀបចំ Banji',
-    'Choose the basic language and currency first. Banji will start in Custom View with extra guidance and floating title actions turned on.':
-      'ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ Banji នឹងចាប់ផ្តើមក្នុងទិដ្ឋភាពផ្ទាល់ខ្លួន ដោយបើកការណែនាំបន្ថែម និងសកម្មភាពចំណងជើងអណ្តែត។',
+    'Set up banji': 'រៀបចំ បញ្ជី',
+    'Choose the basic language and currency first. banji will start in Custom View with extra guidance and floating title actions turned on.':
+      'ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ បញ្ជី នឹងចាប់ផ្តើមក្នុងទិដ្ឋភាពផ្ទាល់ខ្លួន ដោយបើកការណែនាំបន្ថែម និងសកម្មភាពចំណងជើងអណ្តែត។',
     Language: 'ភាសា',
     Currency: 'រូបិយប័ណ្ណ',
     Continue: 'បន្ត',
   };
 
   return {
-    en: translateUiLiteral('en', englishText),
+    en: englishText,
     km: khmerByEnglishText[englishText] ?? translateUiLiteral('km', englishText),
   } satisfies Record<AppLanguage, string>;
 }
@@ -110,9 +110,9 @@ export function OnboardingRoute() {
   const [isSaving, setIsSaving] = useState(false);
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
-    title: onboardingCopy('Set up Banji'),
+    title: onboardingCopy('Set up banji'),
     description: onboardingCopy(
-      'Choose the basic language and currency first. Banji will start in Custom View with extra guidance and floating title actions turned on.',
+      'Choose the basic language and currency first. banji will start in Custom View with extra guidance and floating title actions turned on.',
     ),
     language: onboardingCopy('Language'),
     currency: onboardingCopy('Currency'),
@@ -123,8 +123,8 @@ export function OnboardingRoute() {
     return (
       <div className="flex min-h-svh items-center justify-center px-6">
         <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
-            Banji
+          <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
+            banji
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
             {translateUiLiteral(language, 'Loading preferences…')}

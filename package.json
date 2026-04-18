@@ -2,7 +2,7 @@
   "name": "banji",
   "version": "0.1.5",
   "private": true,
-  "description": "Electron desktop inventory workspace for Banji, with a bundled Rust desktop-core runtime for local persistence and analysis flows.",
+  "description": "Electron desktop inventory workspace for banji, with a bundled Rust desktop-core runtime for local persistence and analysis flows.",
   "author": {
     "name": "Svanny",
     "email": "svanny@users.noreply.github.com"

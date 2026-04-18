@@ -85,7 +85,7 @@ describe('OnboardingRoute', () => {
   it('renders the first-run onboarding form and saves the onboarding defaults', async () => {
     renderRoute();
 
-    expect((await screen.findAllByText('Set up Banji')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Set up banji')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Welcome').length).toBeGreaterThan(0);
     expect(screen.getByText('abc')).toBeInTheDocument();
     expect(screen.getByText('$')).toBeInTheDocument();

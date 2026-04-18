@@ -8,14 +8,14 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   navArchive: 'បណ្ណសារ',
   navHelp: 'ជំនួយ',
   helpPageTitle: 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
-  helpPageDescriptor: 'រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់ Banji ពីទំព័រជំនួយតែមួយ។',
+  helpPageDescriptor: 'រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់ banji ពីទំព័រជំនួយតែមួយ។',
   helpOpenOverviewAction: 'បើកទិដ្ឋភាពទូទៅ',
   helpStartUpdateAction: 'ចាប់ផ្តើមអាប់ដេត',
   helpSearchAriaLabel: 'ស្វែងរកជំនួយ',
   helpSearchPlaceholder: 'ស្វែងរកមុខងារ លំហូរការងារ ប៊ូតុង ឬសំណួរញឹកញាប់…',
   helpNoMatchesTitle: 'រកមិនឃើញផ្នែកជំនួយដែលត្រូវគ្នា',
   helpNoMatchesDescriptor: 'សាកពាក្យស្វែងរកទូលំទូលាយជាងមុន ឬសម្អាតតម្រងបច្ចុប្បន្ន។',
-  helpNoMatchesBody: 'Banji រកមិនឃើញផ្នែកជំនួយដែលត្រូវនឹងការស្វែងរករបស់អ្នកទេ។',
+  helpNoMatchesBody: 'banji រកមិនឃើញផ្នែកជំនួយដែលត្រូវនឹងការស្វែងរករបស់អ្នកទេ។',
   helpClearSearchAction: 'សម្អាតការស្វែងរក',
   helpBestMatchBadge: 'ត្រូវគ្នាបំផុត',
   helpIndexTitle: 'មាតិកា',
@@ -34,7 +34,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   workspaceComputingBody:
     'បញ្ជីកំពុងផ្ទុកកាតាឡុក ការអាប់ដេតថ្មីៗ និងការវិភាគចុងក្រោយក្នុងម៉ាស៊ីន។',
   workspaceComputingHint:
-    'ការបើកលើកដំបូងបន្ទាប់ពីកំណត់ឡើងវិញ ឬវិភាគម្តងទៀត អាចចំណាយពេលបន្ថែមបន្តិច ខណៈ Banji កំពុងសង់ទិដ្ឋភាពថ្មីៗឡើងវិញ។',
+    'ការបើកលើកដំបូងបន្ទាប់ពីកំណត់ឡើងវិញ ឬវិភាគម្តងទៀត អាចចំណាយពេលបន្ថែមបន្តិច ខណៈ banji កំពុងសង់ទិដ្ឋភាពថ្មីៗឡើងវិញ។',
   workspaceUnavailable: 'កន្លែងធ្វើការក្នុងម៉ាស៊ីនមិនអាចប្រើបាន។',
   overviewBody:
     'មើលអ្វីដែលត្រូវយកចិត្តទុកដាក់ឥឡូវនេះ អ្វីដែលបានផ្លាស់ប្តូរថ្មីៗ និងអ្វីដែលត្រូវធ្វើបន្ទាប់។',
@@ -42,7 +42,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ទំព័រ Overview សម្រាប់សកម្មភាពបន្ទាប់ក្នុងការងារ។ ការកែប្រែ កំណត់ហេតុ និងផែនការមាននៅកន្លែងផ្សេង។',
   overviewDecisionSupportCatalogTitle: 'ការធ្វើផែនការចាប់ផ្តើមបន្ទាប់ពីមានកាតាឡុក',
   overviewDecisionSupportCatalogBody:
-    'បន្ថែម SKU ដំបូង ដើម្បីឲ្យ Banji អាចបង្កើតការងារពីស្តុកពិត និងសកម្មភាពសេវាកម្ម។',
+    'បន្ថែម SKU ដំបូង ដើម្បីឲ្យ banji អាចបង្កើតការងារពីស្តុកពិត និងសកម្មភាពសេវាកម្ម។',
   overviewDecisionSupportRiskTitle: 'សេចក្តីសង្ខេបហានិភ័យបច្ចុប្បន្ន',
   overviewDecisionSupportRiskBody:
     'ផែនការគឺជាជំហានបន្ទាប់ ព្រោះហានិភ័យស្តុក និងសម្ពាធបញ្ជាទិញបន្ថែមកំពុងកើនឡើងជាមួយគ្នា។',
@@ -51,14 +51,14 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'សម្ពាធបញ្ជាទិញបន្ថែមកំពុងកើនឡើង។ ពិនិត្យអាទិភាពឥឡូវនេះ មុនពេល SKU ច្រើនទៀតក្លាយជាបន្ទាន់។',
   overviewDecisionSupportFirstReportTitle: 'កាតាឡុកត្រូវការការអាប់ដេតពិតលើកដំបូង',
   overviewDecisionSupportFirstReportBody:
-    'កាតាឡុករួចរាល់ហើយ ប៉ុន្តែ Banji នៅតែត្រូវការការអាប់ដេតពិតមួយ មុនពេលអាចទុកចិត្តលើស្ថានភាពបច្ចុប្បន្នបាន។',
+    'កាតាឡុករួចរាល់ហើយ ប៉ុន្តែ banji នៅតែត្រូវការការអាប់ដេតពិតមួយ មុនពេលអាចទុកចិត្តលើស្ថានភាពបច្ចុប្បន្នបាន។',
   overviewDecisionSupportSteadyTitle: 'ស្ថានភាពចុងក្រោយមើលទៅមានស្ថិរភាព',
   overviewDecisionSupportSteadyBody:
     'មិនមានអ្វីបន្ទាន់កំពុងរង់ចាំទេ។ ជំហានបន្ទាប់ល្អបំផុត គឺកត់ត្រាការអាប់ដេតស្តុកបន្ទាប់ ហើយរក្សា Overview ឲ្យទាន់សម័យ។',
   overviewPrimaryAddFirstSkuDescription:
-    'បង្កើត SKU ដំបូង ដើម្បីឲ្យ Banji ចាប់ផ្តើមតាមដានស្តុក សេវាកម្ម និងផែនការ។',
+    'បង្កើត SKU ដំបូង ដើម្បីឲ្យ banji ចាប់ផ្តើមតាមដានស្តុក សេវាកម្ម និងផែនការ។',
   overviewPrimaryStartFirstUpdateDescription:
-    'កត់ត្រាការអាប់ដេតស្តុកលើកដំបូង ដើម្បីឲ្យ Banji អាចបង្កើតការងារពីភស្តុតាងថ្មីៗ។',
+    'កត់ត្រាការអាប់ដេតស្តុកលើកដំបូង ដើម្បីឲ្យ banji អាចបង្កើតការងារពីភស្តុតាងថ្មីៗ។',
   overviewPrimaryReviewReorderPrioritiesDescription:
     'ពិនិត្យ SKU ដែលមានសម្ពាធខ្លាំងបំផុត មុនពេលសេចក្តីសម្រេចស្តុកបន្ទាប់យឺតពេល។',
   overviewPrimaryStartUpdateSessionDescription:
@@ -162,7 +162,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បើថ្ងៃនេះនៅមុនពេក សូមពន្យារការរំលឹកនេះ ហើយបញ្ជី នឹងយកវាមកវិញថ្ងៃស្អែក។',
   overviewSignalPromo: 'លំនាំពេលផ្សព្វផ្សាយ អាចបានជួយបង្កើនតម្រូវការសម្រាប់ {name}។',
   dashboardBody:
-    'Banji រក្សាការងារកាតាឡុក លំដាប់លក់ និងស្តុក នៅលើ Mac នេះ ដើម្បីឲ្យក្រុមអាចបន្តការងារបានដោយមិនចាំបាច់រង់ចាំ cloud។',
+    'banji រក្សាការងារកាតាឡុក លំដាប់លក់ និងស្តុក នៅលើ Mac នេះ ដើម្បីឲ្យក្រុមអាចបន្តការងារបានដោយមិនចាំបាច់រង់ចាំ cloud។',
   dashboardHealthDescription:
     'បង្ហាញថា សែលក្នុងម៉ាស៊ីន និងកន្លែងផ្ទុកទិន្នន័យរួចរាល់សម្រាប់ការងារឬអត់។',
   dashboardRecentDescription:
@@ -184,16 +184,16 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuEditorCostHelper: 'រក្សាតម្លៃថ្លៃដើមបច្ចុប្បន្ន ឬតម្លៃជំនួសក្នុងមួយឯកតានៅទីនេះ។',
   catalogSkuEditorCostRequired: 'សូមបញ្ចូលថ្លៃដើមក្នុងមួយឯកតា មុនពេលរក្សាទុក។',
   catalogSkuEditorLeadTimeMeanHelper:
-    'ពេលវេលាមកដល់ជាទូទៅពីអ្នកផ្គត់ផ្គង់ ដែល Banji គួរប្រើ មុនពេលមានភស្តុតាងថ្មីជាងនេះ។',
+    'ពេលវេលាមកដល់ជាទូទៅពីអ្នកផ្គត់ផ្គង់ ដែល banji គួរប្រើ មុនពេលមានភស្តុតាងថ្មីជាងនេះ។',
   catalogSkuEditorLeadTimeStdHelper:
     'បង្ហាញថាពេលវេលាពីអ្នកផ្គត់ផ្គង់ ជាទូទៅប្រែប្រួលជុំវិញមធ្យមប៉ុន្មាន។',
   catalogSkuEditorSellableHelper:
     'បើកជម្រើសនេះ នៅពេល SKU នេះត្រូវបានលក់ផ្ទាល់ ហើយត្រូវការតម្លៃលក់។',
   catalogSkuEditorPriceHelper: 'តម្លៃលក់ នឹងបង្ហាញតែពេល SKU នេះត្រូវបានលក់ផ្ទាល់ប៉ុណ្ណោះ។',
   catalogSkuEditorDetailsDescriptor:
-    'កំណត់ឈ្មោះ SKU និងការពិពណ៌នាខាងក្នុង ដែល Banji នឹងប្រើនៅទូទាំងកម្មវិធី។',
+    'កំណត់ឈ្មោះ SKU និងការពិពណ៌នាខាងក្នុង ដែល banji នឹងប្រើនៅទូទាំងកម្មវិធី។',
   catalogSkuEditorPricingDescriptor:
-    'កំណត់ថ្លៃដើម និងការកំណត់លក់ផ្ទាល់ ដែល Banji គួរប្រើសម្រាប់ SKU នេះ។',
+    'កំណត់ថ្លៃដើម និងការកំណត់លក់ផ្ទាល់ ដែល banji គួរប្រើសម្រាប់ SKU នេះ។',
   catalogSkuEditorRetailPriceHelper: 'បញ្ចូលតម្លៃលក់រាយ តែបើអតិថិជនទិញ SKU នេះដោយផ្ទាល់។',
   catalogSkuEditorSellAsProductHelper: 'បើកជម្រើសនេះ នៅពេលអតិថិជនអាចទិញ SKU នេះដោយផ្ទាល់។',
   catalogSkuEditorPlanningDescriptor:
@@ -204,53 +204,53 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogServiceEditorDescriptionHelper: 'ពិពណ៌នាថាសេវាកម្មនេះជាអ្វី ដើម្បីឲ្យកាតាឡុកមើលងាយស្រួល។',
   catalogServiceEditorPriceHelper: 'តម្លៃលក់ដែលបុគ្គលិក និងរបាយការណ៍គួរប្រើសម្រាប់សេវាកម្មនេះ។',
   catalogServiceEditorLinkedSkusDescriptor:
-    'ភ្ជាប់ SKU ដែលសេវាកម្មនេះប្រើ ដើម្បីឲ្យ Banji អាចតាមដានការគ្របដណ្តប់ និងចំណុចរារាំងបាន។',
+    'ភ្ជាប់ SKU ដែលសេវាកម្មនេះប្រើ ដើម្បីឲ្យ banji អាចតាមដានការគ្របដណ្តប់ និងចំណុចរារាំងបាន។',
   catalogServiceEditorDetailsDescriptor:
-    'កំណត់ឈ្មោះ និងការពិពណ៌នាសេវាកម្ម ដែល Banji នឹងបង្ហាញនៅទូទាំងកម្មវិធី។',
+    'កំណត់ឈ្មោះ និងការពិពណ៌នាសេវាកម្ម ដែល banji នឹងបង្ហាញនៅទូទាំងកម្មវិធី។',
   catalogServiceEditorIdentifierHelper:
-    'ប្រើលេខសម្គាល់សេវាកម្មដែលមានស្ថិរភាព។ Banji នឹងទប់ស្កាត់លេខសម្គាល់ស្ទួន ទាំងធាតុសកម្ម និងធាតុក្នុងបណ្ណសារ។',
+    'ប្រើលេខសម្គាល់សេវាកម្មដែលមានស្ថិរភាព។ banji នឹងទប់ស្កាត់លេខសម្គាល់ស្ទួន ទាំងធាតុសកម្ម និងធាតុក្នុងបណ្ណសារ។',
   catalogServiceEditorPricingDescriptor:
-    'កំណត់តម្លៃដែលអតិថិជនឃើញ ដែល Banji គួរប្រើសម្រាប់សេវាកម្មនេះ។',
+    'កំណត់តម្លៃដែលអតិថិជនឃើញ ដែល banji គួរប្រើសម្រាប់សេវាកម្មនេះ។',
   catalogServiceEditorLinkedSkusHelper:
     'ជ្រើស SKU ទាំងអស់ ដែលជាទូទៅត្រូវបានប្រើ នៅពេលសេវាកម្មនេះត្រូវបានលក់។',
   analysisRouteDescriptor:
-    'មើលថាការអាប់ដេតដែលបានរក្សាទុក បានក្លាយជាស្ថានភាពបច្ចុប្បន្នរបស់ Banji អំពីតម្រូវការ ស្តុកកំពុងមកដល់ ពេលវេលាមកដល់ និងតម្លៃ យ៉ាងដូចម្តេច។',
+    'មើលថាការអាប់ដេតដែលបានរក្សាទុក បានក្លាយជាស្ថានភាពបច្ចុប្បន្នរបស់ banji អំពីតម្រូវការ ស្តុកកំពុងមកដល់ ពេលវេលាមកដល់ និងតម្លៃ យ៉ាងដូចម្តេច។',
   analysisRouteNeedCatalogTitle: 'Analysis ត្រូវការកាតាឡុកជាមុន',
-  analysisRouteNeedCatalogHint: 'បង្កើត SKU ដំបូងរបស់អ្នក ដើម្បីឲ្យ Banji មានធាតុពិតសម្រាប់វិភាគ។',
+  analysisRouteNeedCatalogHint: 'បង្កើត SKU ដំបូងរបស់អ្នក ដើម្បីឲ្យ banji មានធាតុពិតសម្រាប់វិភាគ។',
   analysisRouteNeedRunTitle: 'Analysis ត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
-  analysisRouteNeedRunHint: 'រក្សាទុកការអាប់ដេតពិតមួយ ដើម្បីឲ្យ Banji អាចពន្យល់ថាស្ថានភាពបច្ចុប្បន្ន ត្រូវបានបង្កើតឡើងយ៉ាងដូចម្តេច។',
+  analysisRouteNeedRunHint: 'រក្សាទុកការអាប់ដេតពិតមួយ ដើម្បីឲ្យ banji អាចពន្យល់ថាស្ថានភាពបច្ចុប្បន្ន ត្រូវបានបង្កើតឡើងយ៉ាងដូចម្តេច។',
   catalogSenaSkuHeroTooltip:
-    'នេះគឺជាការប៉ាន់ស្មានចុងក្រោយរបស់ Banji សម្រាប់ SKU នេះ។ វារួមបញ្ចូលស្តុកបច្ចុប្បន្ន ភាពមិនច្បាស់លាស់ ថ្ងៃគ្រប់គ្រាន់ សម្ពាធបញ្ជាទិញបន្ថែម និងស្តុកកំពុងមកដល់ នៅក្នុងទិដ្ឋភាពតែមួយ។',
+    'នេះគឺជាការប៉ាន់ស្មានចុងក្រោយរបស់ banji សម្រាប់ SKU នេះ។ វារួមបញ្ចូលស្តុកបច្ចុប្បន្ន ភាពមិនច្បាស់លាស់ ថ្ងៃគ្រប់គ្រាន់ សម្ពាធបញ្ជាទិញបន្ថែម និងស្តុកកំពុងមកដល់ នៅក្នុងទិដ្ឋភាពតែមួយ។',
   catalogSenaSkuRibbonTooltip:
     'ផ្ទាំងនេះរក្សាទុកសញ្ញាសំខាន់បំផុតអំពីស្តុក ស្តុកកំពុងមកដល់ តម្រូវការ តម្លៃ និងផលប៉ះពាល់លើសេវាកម្ម នៅកន្លែងតែមួយ។',
   catalogSenaSkuLedgerTooltip:
-    'បន្ទាត់ពេលវេលានេះបង្ហាញអ្វីដែល Banji គិតថាបានកើតឡើងតាមពេលវេលា រួមមានលំនាំលក់ តម្រូវការ ការផ្លាស់ប្តូរស្តុក ការបញ្ជាទិញ ការទទួលទំនិញ និងការកែសម្រួល។',
+    'បន្ទាត់ពេលវេលានេះបង្ហាញអ្វីដែល banji គិតថាបានកើតឡើងតាមពេលវេលា រួមមានលំនាំលក់ តម្រូវការ ការផ្លាស់ប្តូរស្តុក ការបញ្ជាទិញ ការទទួលទំនិញ និងការកែសម្រួល។',
   catalogSenaSkuDependencyImpactTooltip:
     'មើលថាសេវាកម្មមួយណាពឹងផ្អែកលើ SKU នេះ និងកន្លែងណាដែលការខ្វះស្តុកអាចរារាំងការងារ។',
   catalogSenaSkuEvidenceTimelineTooltip:
-    'បន្ទាត់ពេលវេលានេះបង្ហាញការអាប់ដេតដែលបានរក្សាទុក ដែល Banji ប្រើដើម្បីបង្កើតការប៉ាន់ស្មានចុងក្រោយ។',
+    'បន្ទាត់ពេលវេលានេះបង្ហាញការអាប់ដេតដែលបានរក្សាទុក ដែល banji ប្រើដើម្បីបង្កើតការប៉ាន់ស្មានចុងក្រោយ។',
   catalogSenaSkuSelectedInterval: 'រយៈពេលដែលបានជ្រើស',
   catalogSenaSkuSelectedIntervalTooltip:
     'ចន្លោះពេលដែលបានជ្រើស បង្ហាញសង្ខេបនៃពេលវេលាដែលអ្នកកំពុងពិនិត្យឥឡូវនេះ។ វាធ្វើឲ្យផ្ទាំងខាងស្ដាំត្រូវគ្នានឹងចន្លោះពេលដូចគ្នាដែលបង្ហាញក្នុងបន្ទាត់ពេលវេលា។',
   catalogSenaSkuActNow: 'ជំហានបន្ទាប់',
-  catalogSenaSkuActNowTooltip: 'នេះគឺជាជំហានបន្ទាប់ដែល Banji ណែនាំសម្រាប់ SKU នេះ។',
+  catalogSenaSkuActNowTooltip: 'នេះគឺជាជំហានបន្ទាប់ដែល banji ណែនាំសម្រាប់ SKU នេះ។',
   catalogSenaSkuOpenPipelineTooltip:
     'មើលថាស្តុកណាខ្លះនៅតែកំពុងមកដល់សម្រាប់ SKU នេះ និងពេលណាដែលវាទំនងជានឹងមកដល់បំផុត។',
   catalogSenaSkuRailExposureTooltip:
     'មើលកន្លែងណាដែល SKU នេះកំពុងធ្វើឲ្យសេវាកម្មយឺត ឬអាចក្លាយជាចំណុចរារាំងក្នុងពេលឆាប់ៗ។',
-  catalogSenaSkuNextTouchTooltip: 'មើលថាពេលណាដែល Banji គិតថា SKU នេះត្រូវពិនិត្យម្ដងទៀត។',
-  catalogSenaSkuNeedsObservations: 'Banji ត្រូវការការអាប់ដេតយ៉ាងតិចពីរ សម្រាប់ទិដ្ឋភាពលម្អិតនេះ',
+  catalogSenaSkuNextTouchTooltip: 'មើលថាពេលណាដែល banji គិតថា SKU នេះត្រូវពិនិត្យម្ដងទៀត។',
+  catalogSenaSkuNeedsObservations: 'banji ត្រូវការការអាប់ដេតយ៉ាងតិចពីរ សម្រាប់ទិដ្ឋភាពលម្អិតនេះ',
   catalogSenaSkuDegraded:
     'ការវិភាគលម្អិតមិនអាចប្រើបានឥឡូវនេះទេ ប៉ុន្តែការគ្រប់គ្រង SKU សំខាន់ៗនៅតែដំណើរការ។',
   catalogSenaSkuDialogDescription: 'កត់ត្រាការអាប់ដេតជាក់លាក់សម្រាប់ SKU មួយ បន្ទាប់មកផ្ទុកទិដ្ឋភាពនេះឡើងវិញ។',
   catalogSenaSkuLeadTimeVariabilityHint:
     'ជ្រើសក្រុមពេលវេលាដែលត្រូវគ្នាបំផុតនឹងការអាប់ដេតពីអ្នកផ្គត់ផ្គង់នេះ។',
   catalogSenaSkuInventoryLaneTooltip:
-    'មើលការប៉ាន់ស្មានស្តុកចុងក្រោយរបស់ Banji ជាមួយបន្ទាត់បញ្ជាទិញបន្ថែម និងការណែនាំស្តុកសុវត្ថិភាព។',
+    'មើលការប៉ាន់ស្មានស្តុកចុងក្រោយរបស់ banji ជាមួយបន្ទាត់បញ្ជាទិញបន្ថែម និងការណែនាំស្តុកសុវត្ថិភាព។',
   catalogSenaSkuFlowLaneTooltip:
     'មើលថាអ្វីបានធ្វើឲ្យស្តុកផ្លាស់ប្តូរបំផុតក្នុងមួយរយៈពេល: តម្រូវការសេវាកម្ម តម្រូវការលក់រាយ ការទទួលទំនិញ និងការកែសម្រួល។',
   catalogSenaSkuPipelineLaneTooltip:
-    'មើលថា Banji គិតថាអ្វីនៅតែកំពុងមកដល់ រួមមានសញ្ញាបញ្ជាទិញ ស្តុកកំពុងមកដល់ និងការទទួលទំនិញ។',
+    'មើលថា banji គិតថាអ្វីនៅតែកំពុងមកដល់ រួមមានសញ្ញាបញ្ជាទិញ ស្តុកកំពុងមកដល់ និងការទទួលទំនិញ។',
   catalogNoResultsDescription: 'សាកល្បងស្វែងរកម្ដងទៀត ឬបង្កើតធាតុថ្មីមួយដែលសមនឹងកន្លែងនេះ។',
   catalogSenaSkuApproximateReceiptQuantity: 'បរិមាណទទួលទំនិញប្រហាក់ប្រហែល',
   catalogSenaSkuSaving: 'កំពុងរក្សាទុក…',
@@ -348,19 +348,19 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsDirtySummaryAdvanced: 'ការកំណត់លម្អិតសម្រាប់ផែនការបានផ្លាស់ប្តូរ។',
   settingsDirtySummaryBoth: 'ចំណូលចិត្តកន្លែងធ្វើការ និងការកំណត់លម្អិតសម្រាប់ផែនការបានផ្លាស់ប្តូរ។',
   settingsLocalDataDescription:
-    'Banji រក្សាទុកទិន្នន័យការងារនៅលើឧបករណ៍នេះ។ បើកថត នៅពេលអ្នកត្រូវការឯកសារក្នុងម៉ាស៊ីន។',
+    'banji រក្សាទុកទិន្នន័យការងារនៅលើឧបករណ៍នេះ។ បើកថត នៅពេលអ្នកត្រូវការឯកសារក្នុងម៉ាស៊ីន។',
   settingsLocalDataRawFormatNote:
-    'ឯកសារដើមប្រើទម្រង់ JSON ខាងក្នុងរបស់ Banji។ ការនាំចេញ CSV សម្រាប់ពិនិត្យក្នុងសៀវភៅតារាង។',
+    'ឯកសារដើមប្រើទម្រង់ JSON ខាងក្នុងរបស់ banji។ ការនាំចេញ CSV សម្រាប់ពិនិត្យក្នុងសៀវភៅតារាង។',
   settingsTargetServiceLevelTooltip:
-    'កម្រិតភាពមានស្រាប់ដែលគោលដៅ គឺជាគោលដៅស្តុកដែល Banji ប្រើសម្រាប់ផែនការ។ កម្រិតខ្ពស់ជាទូទៅមានន័យថាត្រូវកាន់ស្តុកច្រើនជាងមុន។',
+    'កម្រិតភាពមានស្រាប់ដែលគោលដៅ គឺជាគោលដៅស្តុកដែល banji ប្រើសម្រាប់ផែនការ។ កម្រិតខ្ពស់ជាទូទៅមានន័យថាត្រូវកាន់ស្តុកច្រើនជាងមុន។',
   settingsForecastHorizonTooltip:
-    'រយៈពេលព្យាករណ៍ បង្ហាញថា Banji មើលទៅមុខឆ្ងាយប៉ុន្មាន សម្រាប់តម្រូវការ និងហានិភ័យស្តុក។',
+    'រយៈពេលព្យាករណ៍ បង្ហាញថា banji មើលទៅមុខឆ្ងាយប៉ុន្មាន សម្រាប់តម្រូវការ និងហានិភ័យស្តុក។',
   settingsParticleCountTooltip:
-    'តម្លៃខ្ពស់ជាទូទៅធ្វើឲ្យការប៉ាន់ស្មានរបស់ Banji ស្ថិរភាពជាងមុន ប៉ុន្តែការផ្ទុកឡើងវិញនឹងយូរជាងមុន។',
+    'តម្លៃខ្ពស់ជាទូទៅធ្វើឲ្យការប៉ាន់ស្មានរបស់ banji ស្ថិរភាពជាងមុន ប៉ុន្តែការផ្ទុកឡើងវិញនឹងយូរជាងមុន។',
   settingsSmoothingWindowTooltip:
-    'បង្អួចបន្ថយភាពរញ៉េរញ៉ៃ កំណត់ថារបាយការណ៍ថ្មីៗប៉ុន្មាន ដែល Banji ផ្តោតជាងគេ នៅពេលធ្វើឲ្យការសង្កេតដែលខ្វះៗមើលងាយស្រួល។',
+    'បង្អួចបន្ថយភាពរញ៉េរញ៉ៃ កំណត់ថារបាយការណ៍ថ្មីៗប៉ុន្មាន ដែល banji ផ្តោតជាងគេ នៅពេលធ្វើឲ្យការសង្កេតដែលខ្វះៗមើលងាយស្រួល។',
   settingsDesktopPreferencesDescription:
-    'ជ្រើសថា Banji គួរបង្ហាញការណែនាំស្រេចចិត្តប៉ុន្មាន និងឲ្យឧបករណ៍នេះដំណើរការយ៉ាងដូចម្តេច។',
+    'ជ្រើសថា banji គួរបង្ហាញការណែនាំស្រេចចិត្តប៉ុន្មាន និងឲ្យឧបករណ៍នេះដំណើរការយ៉ាងដូចម្តេច។',
   settingsPreferencesControlsTitle: 'ចំណូលចិត្ត',
   settingsPreferencesControlsDescription: 'ការកំណត់ទាំងនេះប៉ះពាល់តែឧបករណ៍នេះប៉ុណ្ណោះ។',
   settingsInterfaceVisibilityTitle: 'ផ្ទៃមុខ',
@@ -397,36 +397,36 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsShowRightRailCardsHelp:
     'បង្ហាញផ្ទាំងព័ត៌មានខាងស្ដាំលើទំព័រវិភាគ សុខភាពអាជីវកម្ម ហិរញ្ញវត្ថុ និងទំព័រលម្អិត។',
   settingsSenaParametersPanelDescription:
-    'កែថា Banji ប្រើព័ត៌មានលម្អិតប៉ុន្មាន នៅពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញបន្ថែម។',
+    'កែថា banji ប្រើព័ត៌មានលម្អិតប៉ុន្មាន នៅពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញបន្ថែម។',
   settingsAnalysisProfileTooltip:
     'វាជ្រើសកំណែម៉ាស៊ីនវិភាគក្នុងម៉ាស៊ីន។ ទុកវាដដែល លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផលពីការរត់ផ្សេងៗ។',
-  settingsAnalysisProfileHelp: 'កំណែវិភាគក្នុងម៉ាស៊ីន ដែល Banji នឹងប្រើនៅពេលផ្ទុកឡើងវិញបន្ទាប់។',
+  settingsAnalysisProfileHelp: 'កំណែវិភាគក្នុងម៉ាស៊ីន ដែល banji នឹងប្រើនៅពេលផ្ទុកឡើងវិញបន្ទាប់។',
   settingsRecommendationQuantileHelp:
-    'កំណត់ថា Banji គួរប្រុងប្រយ័ត្នប៉ុន្មាន នៅពេលគណនាបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
+    'កំណត់ថា banji គួរប្រុងប្រយ័ត្នប៉ុន្មាន នៅពេលគណនាបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
   settingsRecommendationQuantileTooltip:
-    'តម្លៃខ្ពស់ធ្វើឲ្យ Banji ណែនាំបរិមាណបញ្ជាទិញធំជាងមុន ដើម្បីការពារតម្រូវការច្រើនជាងមុន។',
+    'តម្លៃខ្ពស់ធ្វើឲ្យ banji ណែនាំបរិមាណបញ្ជាទិញធំជាងមុន ដើម្បីការពារតម្រូវការច្រើនជាងមុន។',
   settingsRangeLowQuantileHelp: 'ចំណុចខាងក្រោមនៃជួរបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
-  settingsRangeLowQuantileTooltip: 'Banji ប្រើវាជាខាងក្រោមនៃជួរបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
+  settingsRangeLowQuantileTooltip: 'banji ប្រើវាជាខាងក្រោមនៃជួរបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
   settingsRangeHighQuantileHelp: 'ចំណុចខាងលើនៃជួរបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
-  settingsRangeHighQuantileTooltip: 'Banji ប្រើវាជាខាងលើនៃជួរបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
+  settingsRangeHighQuantileTooltip: 'banji ប្រើវាជាខាងលើនៃជួរបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
   settingsNeedProbabilityGateHelp:
-    'កំណត់ថា Banji ត្រូវប្រាកដប៉ុន្មាន មុនពេលណែនាំឲ្យបញ្ជាទិញបន្ថែមយ៉ាងច្បាស់។',
+    'កំណត់ថា banji ត្រូវប្រាកដប៉ុន្មាន មុនពេលណែនាំឲ្យបញ្ជាទិញបន្ថែមយ៉ាងច្បាស់។',
   settingsNeedProbabilityGateTooltip:
-    'ក្រោមកម្រិតនេះ Banji អាចនៅតែបង្ហាញបរិមាណបញ្ជាទិញជាជម្រើស ប៉ុន្តែមិនសម្គាល់ថាជាការណែនាំរឹងមាំទេ។',
+    'ក្រោមកម្រិតនេះ banji អាចនៅតែបង្ហាញបរិមាណបញ្ជាទិញជាជម្រើស ប៉ុន្តែមិនសម្គាល់ថាជាការណែនាំរឹងមាំទេ។',
   settingsReviewDelayDaysHelp:
-    'ចំនួនថ្ងៃបន្ថែមដែល Banji ការពារ មុនសេចក្តីសម្រេចបញ្ជាទិញបន្ថែមបន្ទាប់ទំនងកើតឡើង។',
+    'ចំនួនថ្ងៃបន្ថែមដែល banji ការពារ មុនសេចក្តីសម្រេចបញ្ជាទិញបន្ថែមបន្ទាប់ទំនងកើតឡើង។',
   settingsReviewDelayDaysTooltip:
-    'Banji បន្ថែមចំនួនថ្ងៃទាំងនេះលើពេលវេលាមកដល់ នៅពេលគណនាបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
-  settingsEnableSmoothingHelp: 'ធ្វើឲ្យខ្សែបន្ទាត់រលោង មុនពេល Banji សង្ខេបលទ្ធផល។',
+    'banji បន្ថែមចំនួនថ្ងៃទាំងនេះលើពេលវេលាមកដល់ នៅពេលគណនាបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
+  settingsEnableSmoothingHelp: 'ធ្វើឲ្យខ្សែបន្ទាត់រលោង មុនពេល banji សង្ខេបលទ្ធផល។',
   settingsEnableSmoothingTooltip:
     'វាអាចធ្វើឲ្យប្រវត្តិដែលខ្វះៗមើលងាយស្រួល ប៉ុន្តែក៏អាចលាក់ការផ្លាស់ប្តូរខ្លាំងៗបានដែរ។',
   settingsSenaParametersFixErrors: 'កែការកំណត់ផែនការដែលបានបន្លិច មុនពេលរក្សាទុក។',
   settingsSenaParametersRerunHint:
-    'ពេលរក្សាទុកចំណូលចិត្ត Banji នឹងរត់ការវិភាគផែនការក្នុងម៉ាស៊ីនម្ដងទៀត ជាមួយការកំណត់ទាំងនេះ។',
+    'ពេលរក្សាទុកចំណូលចិត្ត banji នឹងរត់ការវិភាគផែនការក្នុងម៉ាស៊ីនម្ដងទៀត ជាមួយការកំណត់ទាំងនេះ។',
   settingsExportSenaDataAction: 'នាំចេញទិន្នន័យផែនការ',
   settingsLocalWorkspaceStorageTitle: 'ទិន្នន័យ',
   settingsLocalWorkspaceStorageDescription:
-    'Banji រក្សាទុកទិន្នន័យកន្លែងធ្វើការនៅលើឧបករណ៍នេះ ក្នុងឯកសារ SQLite ក្នុងម៉ាស៊ីន ហើយបង្កើតស្នាមចម្លងបម្រុងទុកក្នុងម៉ាស៊ីនដោយស្វ័យប្រវត្តិ។',
+    'banji រក្សាទុកទិន្នន័យកន្លែងធ្វើការនៅលើឧបករណ៍នេះ ក្នុងឯកសារ SQLite ក្នុងម៉ាស៊ីន ហើយបង្កើតស្នាមចម្លងបម្រុងទុកក្នុងម៉ាស៊ីនដោយស្វ័យប្រវត្តិ។',
   settingsBackupDirectoryLabel: 'ស្នាមចម្លងបម្រុងទុក',
   settingsBackupSnapshotAction: 'បង្កើតស្នាមចម្លងបម្រុងទុក',
   settingsBackupSnapshotCreating: 'កំពុងបង្កើតស្នាមចម្លង…',
@@ -442,7 +442,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'លុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន និងចំណូលចិត្តបច្ចុប្បន្ន ខណៈពេលរក្សាទុកស្នាមចម្លងដែលបានរក្សាទុករួច។',
   settingsClearCurrentDataTitle: 'លុបទិន្នន័យក្នុងម៉ាស៊ីនបច្ចុប្បន្ន',
   settingsClearCurrentDataDescription:
-    'វាយពាក្យ DELETE CURRENT DATA ដើម្បីលុបឯកសារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ Banji នឹងរក្សាទុកស្នាមចម្លងដែលមានស្រាប់ ហើយបង្កើតស្នាមចម្លងសុវត្ថិភាពមួយទៀតជាមុន។',
+    'វាយពាក្យ DELETE CURRENT DATA ដើម្បីលុបឯកសារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ banji នឹងរក្សាទុកស្នាមចម្លងដែលមានស្រាប់ ហើយបង្កើតស្នាមចម្លងសុវត្ថិភាពមួយទៀតជាមុន។',
   settingsClearCurrentDataAction: 'លុបទិន្នន័យបច្ចុប្បន្ន',
   settingsClearCurrentDataCancel: 'បោះបង់',
   settingsClearCurrentDataCompleted:
@@ -461,21 +461,21 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'កម្រិតបរិមាណណែនាំ ត្រូវស្ថិតនៅចន្លោះចំណុចចាប់ផ្តើម និងចំណុចបញ្ចប់នៃជួរ។',
   settingsLocalWorkspaceInfoFailed: 'មិនអាចផ្ទុកព័ត៌មានកន្លែងធ្វើការក្នុងម៉ាស៊ីនបានទេ។',
   settingsPreferencesFixErrors: 'កែការកំណត់ដែលបានបន្លិច មុនពេលរក្សាទុក។',
-  settingsSenaRerunSaved: 'Banji បានផ្ទុកផែនការឡើងវិញ ជាមួយការកំណត់ដែលអ្នកបានរក្សាទុក។',
-  settingsSenaRerunDefaults: 'Banji បានផ្ទុកផែនការឡើងវិញ ជាមួយការកំណត់លំនាំដើម។',
-  settingsSenaRerunFailed: 'Banji មិនអាចផ្ទុកផែនការឡើងវិញឥឡូវនេះបានទេ។',
+  settingsSenaRerunSaved: 'banji បានផ្ទុកផែនការឡើងវិញ ជាមួយការកំណត់ដែលអ្នកបានរក្សាទុក។',
+  settingsSenaRerunDefaults: 'banji បានផ្ទុកផែនការឡើងវិញ ជាមួយការកំណត់លំនាំដើម។',
+  settingsSenaRerunFailed: 'banji មិនអាចផ្ទុកផែនការឡើងវិញឥឡូវនេះបានទេ។',
   settingsLogsExported: 'បាននាំចេញកំណត់ហេតុសកម្មភាពជា {format}។',
   settingsLogsExportFailed: 'មិនអាចនាំចេញកំណត់ហេតុសកម្មភាពបានទេ។',
-  settingsSenaDataWorkbookTitle: 'ទិន្នន័យផែនការ Banji',
+  settingsSenaDataWorkbookTitle: 'ទិន្នន័យផែនការ banji',
   settingsSenaDataExportFormatLabel: 'ជ្រើសទម្រង់ទិន្នន័យផែនការ',
   analysisWorkbenchLedgerDescriptor:
-    'ពិនិត្យមើលថាការអាប់ដេតដែលបានរក្សាទុក បានក្លាយជាការវាយតម្លៃបច្ចុប្បន្នរបស់ Banji យ៉ាងដូចម្តេច។',
+    'ពិនិត្យមើលថាការអាប់ដេតដែលបានរក្សាទុក បានក្លាយជាការវាយតម្លៃបច្ចុប្បន្នរបស់ banji យ៉ាងដូចម្តេច។',
   analysisWorkbenchLaneRegimeSubtitle:
     'មើលលំនាំលក់សំខាន់ ជាមួយសញ្ញាតម្លៃ និងស្តុកអស់ ដែលបង្ហាញជាសញ្ញាស្រាលៗ មិនមែនជាកាតធ្ងន់ៗ។',
   analysisWorkbenchLaneInventorySubtitle:
     'ការប៉ាន់ស្មានស្តុកត្រូវបានបង្ហាញបន្តគ្នា ខណៈតម្រូវការសេវាកម្ម តម្រូវការលក់រាយ ការទទួលទំនិញ និងការកែសម្រួល នៅតែភ្ជាប់នឹងចន្លោះពេលនីមួយៗ។',
   analysisWorkbenchLanePipelineSubtitle:
-    'ផ្លូវនេះបង្ហាញអ្វីដែល Banji គិតថានៅតែកំពុងមកដល់ ដោយបង្ហាញសញ្ញាបញ្ជាទិញ និងការដឹកមកដល់ដោយផ្ទាល់។',
+    'ផ្លូវនេះបង្ហាញអ្វីដែល banji គិតថានៅតែកំពុងមកដល់ ដោយបង្ហាញសញ្ញាបញ្ជាទិញ និងការដឹកមកដល់ដោយផ្ទាល់។',
   analysisWorkbenchLaneLeadTimeSubtitle:
     'ពេលវេលាមកដល់ត្រូវបានបង្ហាញជានិន្នាការ ជាមួយចន្លោះដែលទំនង ខណៈប្រភេទពេលវេលាត្រូវបានបង្ហាញនៅពេលជ្រើស មិនមែនបោះពុម្ពគ្រប់កន្លែងទេ។',
   analysisWorkbenchPressureDescriptor:
@@ -485,7 +485,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   analysisWorkbenchFragilityDescriptor:
     'មើលថា SKU ដែលភ្ជាប់មួយណា ទំនងជានឹងរារាំងសេវាកម្មនីមួយៗបំផុត។',
   analysisWorkbenchIntervalExplanationTooltip:
-    'សេចក្តីសង្ខេបរបស់ Banji សម្រាប់ចន្លោះពេលដែលបានជ្រើស។',
+    'សេចក្តីសង្ខេបរបស់ banji សម្រាប់ចន្លោះពេលដែលបានជ្រើស។',
   analysisWorkbenchWhatHappenedTooltip:
     'តម្រូវការ និងការផ្លាស់ប្តូរស្តុកសំខាន់ៗក្នុងចន្លោះពេលនេះ។',
   analysisWorkbenchOrdersTransitLeadTimeTooltip:
@@ -538,16 +538,16 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateRegimeDescriptionEmpty:
     'ទុកឲ្យទទេ ប្រសិនបើរយៈពេលនេះមិនត្រូវការការពន្យល់មូលហេតុលក់សំខាន់តែមួយទេ។',
   stockUpdateReviewTooltip:
-    'Banji រក្សាទុកតែជួរដែលបានផ្លាស់ប្តូរ និងសញ្ញាដែលកំពុងសកម្ម បន្ទាប់មកផ្ទុកទិដ្ឋភាពផែនការឡើងវិញ។',
+    'banji រក្សាទុកតែជួរដែលបានផ្លាស់ប្តូរ និងសញ្ញាដែលកំពុងសកម្ម បន្ទាប់មកផ្ទុកទិដ្ឋភាពផែនការឡើងវិញ។',
   stockUpdateReviewBody:
-    'Banji នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Overview ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមភស្តុតាងនេះទៅ Analysis។',
+    'banji នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Overview ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមភស្តុតាងនេះទៅ Analysis។',
   stockUpdateOrderSignalSaved:
     'បរិមាណបញ្ជាទិញ និងទទួលទំនិញ នឹងត្រូវបានរក្សាទុកជាសញ្ញាការបញ្ជាទិញសម្រាប់រយៈពេលនេះ។',
   stockUpdateServicePriceSaved:
     'តម្លៃសេវាកម្ម ត្រូវបានរក្សាទុកតែសម្រាប់ជួរដែលតម្លៃថ្មីខុសពីតម្លៃចុងក្រោយក្នុងកាតាឡុក។',
   stockUpdateGuidanceChooseObservedAt: 'ជ្រើសពេលវេលាដែលបានសង្កេតត្រឹមត្រូវ មុនពេលបន្ត។',
   stockUpdateGuidanceCountOneSku:
-    'រាប់ SKU យ៉ាងហោចណាស់មួយ មុនពេលបន្ត ដើម្បីឲ្យ Banji ចាប់យកការអាប់ដេតដំបូងបាន។',
+    'រាប់ SKU យ៉ាងហោចណាស់មួយ មុនពេលបន្ត ដើម្បីឲ្យ banji ចាប់យកការអាប់ដេតដំបូងបាន។',
   stockUpdateGuidanceFillSkuFlags:
     'បំពេញតម្លៃសញ្ញា SKU ទាំងអស់ដែលបានបើក ឬដកសញ្ញាទទេ មុនពេលបន្ត។',
   stockUpdateGuidanceFillServiceFlags:
@@ -561,10 +561,10 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateGuidanceAddStockCountSignal:
     'បន្ថែមការរាប់ស្តុក ព្រឹត្តិការណ៍ជួរ ការផ្លាស់ប្តូរថ្លៃដើម ការផ្លាស់ប្តូរតម្លៃលក់រាយ ឬលំនាំលក់យ៉ាងហោចណាស់មួយ មុនពេលរក្សាទុក។',
   stockUpdateGuidanceFirstUpdateNeedsCount:
-    'ការអាប់ដេតលើកដំបូង ត្រូវមាន SKU ដែលបានរាប់យ៉ាងហោចណាស់មួយ ដើម្បីឲ្យ Banji ចាប់យកស្តុកបាន។',
+    'ការអាប់ដេតលើកដំបូង ត្រូវមាន SKU ដែលបានរាប់យ៉ាងហោចណាស់មួយ ដើម្បីឲ្យ banji ចាប់យកស្តុកបាន។',
   stockUpdateDescriptorWithHistory: 'គ្របដណ្តប់ការផ្លាស់ប្តូរចាប់តាំងពី {date}{suffix}។',
   stockUpdateDescriptorFirst:
-    'ចាប់ផ្តើម Banji ដោយរាប់ SKU មួយជាមុនសិន បន្ទាប់មកការអាប់ដេតក្រោយៗអាចសាមញ្ញជាងនេះបាន។',
+    'ចាប់ផ្តើម banji ដោយរាប់ SKU មួយជាមុនសិន បន្ទាប់មកការអាប់ដេតក្រោយៗអាចសាមញ្ញជាងនេះបាន។',
   stockUpdateContextFooterEmpty:
     'ទុកលំនាំលក់ឲ្យទទេ ប្រសិនបើរយៈពេលនេះមិនត្រូវការការពន្យល់សំខាន់តែមួយទេ។',
   stockUpdateContextTooltip:
@@ -572,15 +572,15 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateObservedAtTooltip:
     'ពេលវេលានេះជាគោលសម្រាប់រយៈពេលចាប់តាំងពីការអាប់ដេតដែលបានបញ្ជាក់ចុងក្រោយ។',
   stockUpdateObservedAtHelp:
-    'Banji ចាប់ផ្តើមដោយប្រើកាលបរិច្ឆេទ និងម៉ោងបច្ចុប្បន្នរបស់ឧបករណ៍នេះ។ កែប្រែតែប៉ុណ្ណោះ ប្រសិនបើអ្នកបានសង្កេតការអាប់ដេតនេះមុននេះ។',
+    'banji ចាប់ផ្តើមដោយប្រើកាលបរិច្ឆេទ និងម៉ោងបច្ចុប្បន្នរបស់ឧបករណ៍នេះ។ កែប្រែតែប៉ុណ្ណោះ ប្រសិនបើអ្នកបានសង្កេតការអាប់ដេតនេះមុននេះ។',
   stockUpdateNotesTooltip:
-    'ប្រើកំណត់ចំណាំសម្រាប់បរិបទមនុស្ស។ បន្ថែមសញ្ញាមានរចនាសម្ព័ន្ធ នៅពេល Banji គួររៀនពីការផ្លាស់ប្តូរនេះ។',
+    'ប្រើកំណត់ចំណាំសម្រាប់បរិបទមនុស្ស។ បន្ថែមសញ្ញាមានរចនាសម្ព័ន្ធ នៅពេល banji គួររៀនពីការផ្លាស់ប្តូរនេះ។',
   stockUpdateNotesHelp:
     'កំណត់ចំណាំជួយពន្យល់ការអាប់ដេត ប៉ុន្តែវាមិនរាប់ជាសញ្ញាអាជីវកម្មដោយខ្លួនឯងទេ។',
   stockUpdateRankingsTooltip:
     'លំដាប់ទាំងនេះជាភស្តុតាងនៃលំដាប់លក់។ ទុកវាដដែល ប្រសិនបើលំដាប់លក់មិនបានផ្លាស់ប្តូរយ៉ាងមានន័យទេ។',
   stockUpdateSaveObservedAtError: 'ជ្រើសពេលវេលាដែលបានសង្កេតត្រឹមត្រូវ មុនពេលរក្សាទុក។',
-  stockUpdateSaveFailed: 'Banji មិនអាចរក្សាទុកការអាប់ដេតនេះឥឡូវនេះបានទេ។ សូមសាកម្តងទៀត។',
+  stockUpdateSaveFailed: 'banji មិនអាចរក្សាទុកការអាប់ដេតនេះឥឡូវនេះបានទេ។ សូមសាកម្តងទៀត។',
   stockTableTitle: 'ការសង្កេត SKU',
   stockHistorySourceManual: 'ការអាប់ដេតដោយដៃ',
   stockHistorySourceCompat: 'ការអាប់ដេតដែលបាននាំចូល',
@@ -829,20 +829,20 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   serviceVmHeroSummary:
     'ចន្លោះដែលទំនង {low}-{high} · ចំណុចរារាំងសំខាន់៖ {bottleneck} · ហានិភ័យ {risk} · ចំណុចរារាំងបន្ទាប់ {nextBlocker} · {inbound}',
   performanceRouteEmptyCatalogHint:
-    'បង្កើត SKU ដំបូង ដើម្បីឲ្យ Banji អាចប្រៀបធៀបតម្រូវការ ភាពមានស្រាប់ និងតម្លៃ ក្នុងទិដ្ឋភាពអាជីវកម្មតែមួយ។',
+    'បង្កើត SKU ដំបូង ដើម្បីឲ្យ banji អាចប្រៀបធៀបតម្រូវការ ភាពមានស្រាប់ និងតម្លៃ ក្នុងទិដ្ឋភាពអាជីវកម្មតែមួយ។',
   performanceRouteEmptyWorkspaceTitle: 'ទំព័រសុខភាពអាជីវកម្ម ត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
   performanceRouteEmptyWorkspaceHint:
-    'កត់ត្រាការអាប់ដេតពិតមួយ ដើម្បីឲ្យ Banji អាចអានតម្រូវការ សមត្ថភាព ស្តុកកំពុងមកដល់ និងតម្លៃ ជាមួយគ្នា។',
+    'កត់ត្រាការអាប់ដេតពិតមួយ ដើម្បីឲ្យ banji អាចអានតម្រូវការ សមត្ថភាព ស្តុកកំពុងមកដល់ និងតម្លៃ ជាមួយគ្នា។',
   performanceRouteDescriptor: 'តម្រូវការ សមត្ថភាពដែលអាចប្រើបាន ស្តុកកំពុងមកដល់ និងតម្លៃ នៅក្នុងទិដ្ឋភាពអាជីវកម្មតែមួយ។',
   performanceRouteRefiningSignals: 'កំពុងផ្ទុកសញ្ញាស្តុកកំពុងមកដល់ និងសមត្ថភាពឡើងវិញ…',
   performanceRouteShowingCompare: 'កំពុងបង្ហាញស្ថានភាព {current} ប្រៀបនឹង {previous}',
   performanceRouteShowingSingle: 'កំពុងបង្ហាញតែស្ថានភាព {current}',
-  performanceRouteMoveNowTooltip: 'ជួរសកម្មភាពអាជីវកម្មបច្ចុប្បន្ន ដែល Banji ណែនាំ។',
+  performanceRouteMoveNowTooltip: 'ជួរសកម្មភាពអាជីវកម្មបច្ចុប្បន្ន ដែល banji ណែនាំ។',
   performanceRouteMoveNowDescriptor: 'សកម្មភាពអាជីវកម្មដែលគួរធ្វើឥឡូវនេះ តាមលំដាប់ភាពបន្ទាន់ និងឱកាស។',
-  performanceRouteMoveHeaderTooltip: 'សកម្មភាពអាជីវកម្មដែល Banji ណែនាំសម្រាប់ជួរនេះ។',
+  performanceRouteMoveHeaderTooltip: 'សកម្មភាពអាជីវកម្មដែល banji ណែនាំសម្រាប់ជួរនេះ។',
   performanceRouteWhyNowHeaderTooltip: 'លក្ខខណ្ឌអាជីវកម្មដែលធ្វើឲ្យសកម្មភាពនេះគួរធ្វើឥឡូវនេះ។',
-  performanceRouteExpectedEffectHeaderTooltip: 'លទ្ធផលអាជីវកម្ម ដែល Banji រំពឹងថានឹងកើតឡើង ប្រសិនបើអ្នកធ្វើឥឡូវនេះ។',
-  performanceRouteActionHeaderTooltip: 'កន្លែងដែលត្រូវទៅក្នុង Banji ដើម្បីធ្វើសកម្មភាពបន្តលើជួរនេះ។',
+  performanceRouteExpectedEffectHeaderTooltip: 'លទ្ធផលអាជីវកម្ម ដែល banji រំពឹងថានឹងកើតឡើង ប្រសិនបើអ្នកធ្វើឥឡូវនេះ។',
+  performanceRouteActionHeaderTooltip: 'កន្លែងដែលត្រូវទៅក្នុង banji ដើម្បីធ្វើសកម្មភាពបន្តលើជួរនេះ។',
   performanceRouteBoardTooltip: 'ទិដ្ឋភាពចម្រុះនៃតម្រូវការ ការគាំទ្រ ស្តុកកំពុងមកដល់ និងស្ថានភាពប្រាក់ចំណេញ។',
   performanceRouteBoardDescriptor: 'ពិនិត្យសេវាកម្ម និង SKU ជាមួយគ្នាក្នុងល្បឿនតែមួយ។',
   navFinancials: 'ហិរញ្ញវត្ថុ',
@@ -855,10 +855,10 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   financialsRouteScopeSkus: 'SKU',
   financialsRouteEmptyCatalogTitle: 'ទំព័រហិរញ្ញវត្ថុ ត្រូវការកាតាឡុកជាមុន',
   financialsRouteEmptyCatalogHint:
-    'បង្កើត SKU ដំបូង ដើម្បីឲ្យ Banji អាចអានការលក់ ប្រាក់ចំណេញ តម្លៃស្តុក និងការប្តេជ្ញាជាមួយអ្នកផ្គត់ផ្គង់។',
+    'បង្កើត SKU ដំបូង ដើម្បីឲ្យ banji អាចអានការលក់ ប្រាក់ចំណេញ តម្លៃស្តុក និងការប្តេជ្ញាជាមួយអ្នកផ្គត់ផ្គង់។',
   financialsRouteEmptyWorkspaceTitle: 'ទំព័រហិរញ្ញវត្ថុ ត្រូវការការរត់ SENA ដំបូង',
   financialsRouteEmptyWorkspaceHint:
-    'កត់ត្រាការអាប់ដេតពិតមួយ ដើម្បីឲ្យ Banji អាចបម្លែងភស្តុតាងស្តុក ការលក់ ការបញ្ជាទិញ ការដឹកមកដល់ និងតម្លៃ ទៅជាទិដ្ឋភាពប្រាក់។',
+    'កត់ត្រាការអាប់ដេតពិតមួយ ដើម្បីឲ្យ banji អាចបម្លែងភស្តុតាងស្តុក ការលក់ ការបញ្ជាទិញ ការដឹកមកដល់ និងតម្លៃ ទៅជាទិដ្ឋភាពប្រាក់។',
 };
 
 const overviewTranslations: Partial<Record<TranslationKey, string>> = {
@@ -1288,7 +1288,7 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
   catalogServiceEditorDescriptionEdit:
     'អាប់ដេតព័ត៌មានសេវាកម្ម ដែលបញ្ជីប្រើសម្រាប់កាតាឡុក តម្លៃ និងការគ្របដណ្តប់។',
   catalogServiceEditorIdentifierDescription:
-    'រក្សាលេខសម្គាល់សេវាកម្មនេះឲ្យមានស្ថិរភាព លុះត្រាតែអ្នកត្រូវប្ដូរឈ្មោះវានៅគ្រប់កន្លែងដែល Banji តាមដានវា។',
+    'រក្សាលេខសម្គាល់សេវាកម្មនេះឲ្យមានស្ថិរភាព លុះត្រាតែអ្នកត្រូវប្ដូរឈ្មោះវានៅគ្រប់កន្លែងដែល banji តាមដានវា។',
   catalogServiceEditorDetailsTooltip:
     'វាលអត្តសញ្ញាណ កំណត់របៀបដែលបញ្ជីដាក់ឈ្មោះ និងស្វែងរកសេវាកម្មនេះ នៅទូទាំងកាតាឡុក កំណត់ហេតុ និងការវិភាគ។',
   catalogServiceEditorPricingTooltip: 'ការកំណត់តម្លៃ កំណត់ចំនួនទឹកប្រាក់ដែលបញ្ជីបង្ហាញឲ្យអតិថិជនសម្រាប់សេវាកម្មនេះ។',
@@ -1376,17 +1376,17 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     'វាជ្រើសកំណែម៉ាស៊ីនផែនការក្នុងម៉ាស៊ីន។ ទុកទម្រង់បច្ចុប្បន្ន លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផលពីការវិភាគផ្សេងៗ។',
   settingsAnalysisProfileHelp: 'កំណែម៉ាស៊ីនផែនការក្នុងម៉ាស៊ីន ដែលនឹងប្រើសម្រាប់ការផ្ទុកឡើងវិញបន្ទាប់។',
   settingsNeedProbabilityGateTooltip:
-    'ក្រោមកម្រិតនេះ Banji អាចនៅតែបង្ហាញបរិមាណបញ្ជាទិញជាជម្រើស ប៉ុន្តែមិនបង្ហាញថាជាការណែនាំរឹងមាំទេ។',
+    'ក្រោមកម្រិតនេះ banji អាចនៅតែបង្ហាញបរិមាណបញ្ជាទិញជាជម្រើស ប៉ុន្តែមិនបង្ហាញថាជាការណែនាំរឹងមាំទេ។',
   settingsSenaParametersFixErrors: 'កែការកំណត់ផែនការដែលបានបន្លិច មុនពេលរក្សាទុក។',
   settingsSenaParametersRerunHint:
-    'ពេលរក្សាទុកចំណូលចិត្ត Banji នឹងរត់ការវិភាគផែនការក្នុងម៉ាស៊ីនម្ដងទៀត ជាមួយការកំណត់ទាំងនេះ។',
+    'ពេលរក្សាទុកចំណូលចិត្ត banji នឹងរត់ការវិភាគផែនការក្នុងម៉ាស៊ីនម្ដងទៀត ជាមួយការកំណត់ទាំងនេះ។',
   settingsExportSenaDataAction: 'នាំចេញទិន្នន័យផែនការ',
   settingsParameterRunStatusExported: 'បាននាំចេញទិន្នន័យផែនការជា {format}។',
   settingsParameterRunStatusFailed: 'មិនអាចនាំចេញទិន្នន័យផែនការបានទេ។',
-  settingsSenaRerunSaved: 'Banji បានផ្ទុកផែនការឡើងវិញ ជាមួយការកំណត់ដែលអ្នកបានរក្សាទុក។',
-  settingsSenaRerunDefaults: 'Banji បានផ្ទុកផែនការឡើងវិញ ជាមួយការកំណត់លំនាំដើម។',
-  settingsSenaRerunFailed: 'Banji មិនអាចផ្ទុកផែនការឡើងវិញឥឡូវនេះបានទេ។',
-  settingsSenaDataWorkbookTitle: 'ទិន្នន័យផែនការ Banji',
+  settingsSenaRerunSaved: 'banji បានផ្ទុកផែនការឡើងវិញ ជាមួយការកំណត់ដែលអ្នកបានរក្សាទុក។',
+  settingsSenaRerunDefaults: 'banji បានផ្ទុកផែនការឡើងវិញ ជាមួយការកំណត់លំនាំដើម។',
+  settingsSenaRerunFailed: 'banji មិនអាចផ្ទុកផែនការឡើងវិញឥឡូវនេះបានទេ។',
+  settingsSenaDataWorkbookTitle: 'ទិន្នន័យផែនការ banji',
   settingsSenaDataExportFormatLabel: 'ទម្រង់ទិន្នន័យផែនការ',
   ...{
     overviewSignalPromo: 'ការផ្សព្វផ្សាយ អាចបានជួយបង្កើនតម្រូវការសម្រាប់ {name}។',
@@ -1404,7 +1404,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       'ទិដ្ឋភាពចម្រុះនៃតម្រូវការ ការគាំទ្រ ស្តុកកំពុងមកដល់ និងស្ថានភាពប្រាក់ចំណេញ។',
     performanceRouteRecoveryPipelineTitle: 'ផ្លូវស្តារឡើងវិញ',
     analysisRouteDescriptor:
-      'ពិនិត្យថាការអាប់ដេតដែលបានរក្សាទុក បានបង្កើតរូបភាពបច្ចុប្បន្នរបស់ Banji សម្រាប់តម្រូវការ ការបញ្ជាទិញ ការដឹកមកដល់ ការផ្លាស់ប្តូរពេលវេលា និងផលប៉ះពាល់តម្លៃ យ៉ាងដូចម្តេច។',
+      'ពិនិត្យថាការអាប់ដេតដែលបានរក្សាទុក បានបង្កើតរូបភាពបច្ចុប្បន្នរបស់ banji សម្រាប់តម្រូវការ ការបញ្ជាទិញ ការដឹកមកដល់ ការផ្លាស់ប្តូរពេលវេលា និងផលប៉ះពាល់តម្លៃ យ៉ាងដូចម្តេច។',
     analysisRouteNeedRunTitle: 'ការវិភាគត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
     analysisRouteLoadingDetails: 'កំពុងផ្ទុកព័ត៌មានលម្អិតធាតុ…',
     analysisWorkbenchSettingsSampleSizeLabel: 'កម្លាំងភស្តុតាង',
@@ -1428,7 +1428,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       'បង្ហាញសំណើបញ្ជាទិញបច្ចុប្បន្ន បន្ទាប់ពីគិតស្តុក ស្តុកកំពុងមកដល់ តម្រូវការ និងពេលវេលាមកដល់។',
     settingsAnalysisProfileLabel: 'វិធីផែនការ',
     settingsAnalysisProfileTooltip:
-      'វាជ្រើសវិធីផែនការក្នុងម៉ាស៊ីនដែល Banji នឹងប្រើ។ ទុកវាដដែល លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផល។',
+      'វាជ្រើសវិធីផែនការក្នុងម៉ាស៊ីនដែល banji នឹងប្រើ។ ទុកវាដដែល លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផល។',
     settingsAnalysisProfileHelp: 'វិធីផែនការក្នុងម៉ាស៊ីន ដែលនឹងប្រើនៅពេលផ្ទុកឡើងវិញបន្ទាប់។',
     settingsRecommendationQuantileLabel: 'កម្រិតសំណើបញ្ជាទិញ',
     settingsRecommendationQuantileHelp:
@@ -1447,7 +1447,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       'បញ្ជីប្រើតម្លៃនេះ ជាចំណុចខាងលើនៃជួរបរិមាណបញ្ជាទិញដែលទំនង។',
     settingsParticleCount: 'កម្រិតលម្អិតនៃភស្តុតាង',
     settingsParticleCountTooltip:
-      'តម្លៃខ្ពស់ជាងនេះ ជួយឲ្យការប៉ាន់ស្មានរបស់ Banji មានស្ថិរភាពជាងមុន ប៉ុន្តែចំណាយពេលផ្ទុកយូរជាងមុន។',
+      'តម្លៃខ្ពស់ជាងនេះ ជួយឲ្យការប៉ាន់ស្មានរបស់ banji មានស្ថិរភាពជាងមុន ប៉ុន្តែចំណាយពេលផ្ទុកយូរជាងមុន។',
     settingsEnableSmoothingHelp:
       'បន្ថយការឡើងចុះខ្លាំង មុនពេល បញ្ជី សង្ខេបវា។',
     settingsEnableSmoothingTooltip:
@@ -1489,7 +1489,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     overviewTaskWhyDetailOrder:
       'គ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {probability}',
     overviewTaskWhyReceiptLoop:
-      'Banji កំពុងតែតាមដានការដឹកមកដល់នេះនៅឡើយ។',
+      'banji កំពុងតែតាមដានការដឹកមកដល់នេះនៅឡើយ។',
     overviewTaskHeartbeatOnHand:
       'ទំនងជាមានក្នុងស្តុក {low}-{high}',
     overviewTaskHeartbeatReorder:
@@ -1506,9 +1506,9 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     stockUpdateOverallRegime: 'លំនាំលក់សរុប',
     stockUpdateNoRegimeSignal: 'មិនមានសញ្ញាលំនាំលក់',
     stockUpdateReviewTooltip:
-      'Banji រក្សាទុកតែជួរដែលបានផ្លាស់ប្តូរ និងសញ្ញាដែលកំពុងសកម្ម បន្ទាប់មកផ្ទុកទិដ្ឋភាពផែនការឡើងវិញ។',
+      'banji រក្សាទុកតែជួរដែលបានផ្លាស់ប្តូរ និងសញ្ញាដែលកំពុងសកម្ម បន្ទាប់មកផ្ទុកទិដ្ឋភាពផែនការឡើងវិញ។',
     stockUpdateReviewBody:
-      'Banji នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Overview ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមការអាប់ដេតនេះទៅក្នុង Analysis។',
+      'banji នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Overview ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមការអាប់ដេតនេះទៅក្នុង Analysis។',
     stockUpdateStepRegimeSummary: 'លំនាំលក់៖ {value}',
     stockUpdateStepContextSummary: 'ពេលវេលាដែលបានសង្កេត កំណត់ចំណាំ និងលំនាំលក់',
     stockUpdateContextFooterEmpty:
@@ -1924,7 +1924,7 @@ const exactValueTranslations: Record<string, string> = {
   'No SKUs are in the catalog yet. Add a SKU first if you need to record a reorder.':
     'មិនទាន់មាន SKU ក្នុងកាតាឡុកទេ។ បន្ថែម SKU មុន ប្រសិនបើអ្នកត្រូវការកត់ត្រាការបញ្ជាទិញបន្ថែម។',
   'Last order': 'ការបញ្ជាទិញចុងក្រោយ',
-  'Banji recommends {count} units.': 'Banji ណែនាំ {count} ឯកតា។',
+  'banji recommends {count} units.': 'banji ណែនាំ {count} ឯកតា។',
   'Record the stock that physically arrived and confirm the received date before saving.':
     'កត់ត្រាស្តុកដែលបានមកដល់ពិតប្រាកដ ហើយបញ្ជាក់កាលបរិច្ឆេទបានទទួលមុនរក្សាទុក។',
   'Record receipt': 'កត់ត្រាការទទួល',
@@ -2454,10 +2454,10 @@ const exactValueTranslations: Record<string, string> = {
   'Check {date}': 'ពិនិត្យ {date}',
   'Next check pending': 'កំពុងរង់ចាំពេលពិនិត្យបន្ទាប់',
   'Starting the desktop core and opening the local workspace.': 'កំពុងចាប់ផ្តើមផ្នែកក្នុងម៉ាស៊ីន និងបើកកន្លែងធ្វើការក្នុងម៉ាស៊ីន។',
-  "The task list built from Banji's orders, deliveries, and arrival timing.":
+  "The task list built from banji's orders, deliveries, and arrival timing.":
     'បញ្ជីការងារដែលបង្កើតពីការបញ្ជាទិញ ការដឹកមកដល់ និងពេលវេលាមកដល់របស់ បញ្ជី។',
   'Business signals': 'សញ្ញាអាជីវកម្ម',
-  'Sales-pattern and price changes will appear here once Banji has enough activity to explain them.':
+  'Sales-pattern and price changes will appear here once banji has enough activity to explain them.':
     'ការផ្លាស់ប្តូរលំនាំលក់ និងតម្លៃ នឹងបង្ហាញនៅទីនេះ ពេលបញ្ជីមានសកម្មភាពគ្រប់គ្រាន់សម្រាប់ពន្យល់។',
   ...{
     'Main view': 'ទិដ្ឋភាពមេ',
@@ -2529,7 +2529,7 @@ const exactValueTranslations: Record<string, string> = {
       'ការទទួលដែលបានបញ្ជាក់ នឹងបង្ហាញនៅទីនេះ នៅពេលស្តុកបានបិទវដ្តរួចរាល់។',
     'Regime and price shifts will surface here once SENA sees enough motion to narrate them.':
       'លំនាំលក់ និងការផ្លាស់ប្តូរតម្លៃ នឹងបង្ហាញនៅទីនេះ នៅពេលបញ្ជីមានទិន្នន័យគ្រប់គ្រាន់សម្រាប់ពន្យល់។',
-    'Regime and price shifts will surface here once Banji sees enough motion to explain them.':
+    'Regime and price shifts will surface here once banji sees enough motion to explain them.':
       'លំនាំលក់ និងការផ្លាស់ប្តូរតម្លៃ នឹងបង្ហាញនៅទីនេះ នៅពេលបញ្ជីមានទិន្នន័យគ្រប់គ្រាន់សម្រាប់ពន្យល់។',
     'Build the SENA catalog': 'រៀបចំកាតាឡុករបស់បញ្ជី',
     'Set up the catalog': 'រៀបចំកាតាឡុក',
@@ -2750,12 +2750,12 @@ const exactValueTranslations: Record<string, string> = {
   'First saved update': 'ការអាប់ដេតដែលបានរក្សាទុកដំបូង',
   'Update {count}': 'អាប់ដេត {count}',
   strong: 'ខ្ពស់គួរសម',
-  'Archived items disappear from active work, but their history stays available in Banji.':
-    'ធាតុដែលបានទុកក្នុងបណ្ណសារ នឹងបាត់ពីការងារសកម្ម ប៉ុន្តែប្រវត្តិរបស់វានៅតែអាចមើលបានក្នុង Banji។',
+  'Archived items disappear from active work, but their history stays available in banji.':
+    'ធាតុដែលបានទុកក្នុងបណ្ណសារ នឹងបាត់ពីការងារសកម្ម ប៉ុន្តែប្រវត្តិរបស់វានៅតែអាចមើលបានក្នុង banji។',
   'Review archived catalog items and restore anything that should return to active workspaces.':
     'ពិនិត្យធាតុកាតាឡុកដែលបានទុកក្នុងបណ្ណសារ ហើយស្ដារអ្វីដែលគួរត្រឡប់ទៅកន្លែងធ្វើការសកម្មវិញ។',
-  'Archived stock-carrying items stay in Banji history but stay hidden from active workspaces.':
-    'ធាតុស្តុកដែលបានទុកក្នុងបណ្ណសារ នឹងនៅសល់ក្នុងប្រវត្តិរបស់ Banji ប៉ុន្តែលាក់ចេញពីកន្លែងធ្វើការសកម្ម។',
+  'Archived stock-carrying items stay in banji history but stay hidden from active workspaces.':
+    'ធាតុស្តុកដែលបានទុកក្នុងបណ្ណសារ នឹងនៅសល់ក្នុងប្រវត្តិរបស់ banji ប៉ុន្តែលាក់ចេញពីកន្លែងធ្វើការសកម្ម។',
   'Archived services hidden from active planning and catalog workspaces.':
     'សេវាកម្មដែលបានទុកក្នុងបណ្ណសារ ត្រូវបានលាក់ចេញពីកន្លែងធ្វើការផែនការ និងកាតាឡុកដែលកំពុងសកម្ម។',
   'Search saved updates, see when real-world activity was captured, and inspect the signal package behind each interval.':
@@ -2782,16 +2782,16 @@ const exactValueTranslations: Record<string, string> = {
   'Enable smoothing': 'បើកការធ្វើឲ្យរលោង',
   'Disable smoothing': 'បិទការធ្វើឲ្យរលោង',
   'Overview needs the catalog first': 'ទិដ្ឋភាពទូទៅត្រូវការកាតាឡុកជាមុនសិន',
-  'Create the first SKU so Banji can build an action list from real stock work.':
+  'Create the first SKU so banji can build an action list from real stock work.':
     'បង្កើត SKU ដំបូងសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំបញ្ជីសកម្មភាពចេញពីការងារស្តុកពិតបាន។',
-  'Create the first SKU or service so Banji can build an action list from real catalog work.':
+  'Create the first SKU or service so banji can build an action list from real catalog work.':
     'បង្កើត SKU ឬសេវាកម្មដំបូងសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំបញ្ជីសកម្មភាពចេញពីកាតាឡុកពិតបាន។',
   'Create first service': 'បង្កើតសេវាកម្មដំបូង',
   'Overview needs the first SENA run': 'ទិដ្ឋភាពទូទៅត្រូវការការអាប់ដេតដំបូង',
-  'Capture a live observation so Banji can build the order, receipt, and follow-up queue.':
+  'Capture a live observation so banji can build the order, receipt, and follow-up queue.':
     'កត់ត្រាការសង្កេតពិតមួយសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំជួរបញ្ជាទិញ ការទទួល និងការតាមដានបាន។',
   'Start update': 'ចាប់ផ្តើមអាប់ដេត',
-  'See what needs attention next, what is already in motion, and when Banji will check back.':
+  'See what needs attention next, what is already in motion, and when banji will check back.':
     'មើលថាតើអ្វីត្រូវការការយកចិត្តទុកដាក់បន្ទាប់ អ្វីកំពុងដំណើរការ និងពេលណាបញ្ជីនឹងត្រឡប់មកពិនិត្យម្តងទៀត។',
   'Search overview': 'ស្វែងរកក្នុងទិដ្ឋភាពទូទៅ',
   'Filter overview tasks': 'តម្រងការងារទិដ្ឋភាពទូទៅ',
@@ -2805,14 +2805,14 @@ const exactValueTranslations: Record<string, string> = {
   'No urgent tasks are crowding the queue': 'មិនមានការងារបន្ទាន់ណាធ្វើឲ្យជួរតឹងណែនទេ',
   'Try a broader query or switch filters to bring more of the task ledger back into view.':
     'សាកល្បងពាក្យស្វែងរកឲ្យទូលំទូលាយជាងមុន ឬប្ដូរតម្រង ដើម្បីឲ្យបញ្ជីការងារបង្ហាញកាន់តែច្រើន។',
-  'Banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.':
+  'banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.':
     'បញ្ជីមិនទាន់ឃើញសកម្មភាពបញ្ជាទិញ ការទទួល ឬការតាមដានបន្ទាន់នៅពេលនេះទេ។ បន្តកត់ត្រា ឬកត់សញ្ញាពិតបន្ទាប់។',
   'Browse the catalog, search by name or description, and jump straight into the next edit.':
     'រកមើលកាតាឡុក ស្វែងរកតាមឈ្មោះ ឬការពិពណ៌នា ហើយចូលទៅកែប្រែបន្ទាប់បានភ្លាមៗ។',
   'SENA Integrated': 'កន្លែងធ្វើការកាតាឡុក',
-  'Stock-carrying items Banji tracks directly.': 'ទំនិញដែលមានស្តុក ហើយបញ្ជីតាមដានដោយផ្ទាល់។',
+  'Stock-carrying items banji tracks directly.': 'ទំនិញដែលមានស្តុក ហើយបញ្ជីតាមដានដោយផ្ទាល់។',
   'Sellable services and the SKUs that support them.': 'សេវាកម្មដែលអាចលក់បាន និង SKU ដែលគាំទ្រពួកវា។',
-  'Start with the first SKU. Banji uses the catalog to connect stock, services, and planning.':
+  'Start with the first SKU. banji uses the catalog to connect stock, services, and planning.':
     'ចាប់ផ្តើមពី SKU ដំបូងសិន។ បញ្ជីប្រើកាតាឡុកដើម្បីភ្ជាប់ស្តុក សេវាកម្ម និងផែនការ។',
   'New service': 'សេវាកម្មថ្មី',
   'Create the first SKU to initialize the local catalog.': 'បង្កើត SKU ដំបូង ដើម្បីចាប់ផ្តើមកាតាឡុកក្នុងម៉ាស៊ីននេះ។',
@@ -3018,7 +3018,7 @@ function normalizeSpacing(text: string): string {
 
 function localizeKhmerProductWords(text: string): string {
   return text
-    .replace(/\bBanji\b/g, 'បញ្ជី')
+    .replace(/\bbanji\b/gi, 'បញ្ជី')
     .replace(/\bdesktop\b/gi, 'កុំព្យូទ័រ')
     .replace(/\bDesktop\b/g, 'កុំព្យូទ័រ')
     .replace(/([ក-៿])\s+បញ្ជី/g, '$1បញ្ជី')

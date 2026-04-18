@@ -845,7 +845,7 @@ describe('DashboardRoute', () => {
     renderRouteWithOptionalHelp(false);
 
     expect(await screen.findByText('Overview needs the catalog first')).toBeInTheDocument();
-    expect(screen.queryByText('Create the first SKU or service so Banji can build an action list from real catalog work.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Create the first SKU or service so banji can build an action list from real catalog work.')).not.toBeInTheDocument();
   });
 
   test('hides overview task queue helper copy when optional help is disabled', async () => {

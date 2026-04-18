@@ -12,7 +12,7 @@ function extractTemplateVariables(template: string): string[] {
 function stripAllowedLatin(text: string): string {
   return text
     .replace(/\{[A-Za-z0-9_]+\}/g, '')
-    .replace(/\b(?:SKU|SKUs|CSV|USD|KHR|API|JSON|SQLite|ID|IDs|Monysovann|ETA|SENA|Banji|ESS)\b/g, '')
+    .replace(/\b(?:SKU|SKUs|CSV|USD|KHR|API|JSON|SQLite|ID|IDs|Monysovann|ETA|SENA|ESS)\b/g, '')
     .replace(/\b\d+(?:m|H|D|W|M|Y)\b/g, '');
 }
 
@@ -47,6 +47,12 @@ describe('getTranslation', () => {
     expect(getTranslation('en', 'settingsSenaParametersPanelTitle' as never)).toBe(
       'Planning settings',
     );
+  });
+
+  test('uses lowercase English and Khmer brand variants', () => {
+    expect(getTranslation('en', 'appBrand')).toBe('banji');
+    expect(getTranslation('km', 'appBrand')).toBe('បញ្ជី');
+    expect(translateUiLiteral('km', 'banji')).toBe('បញ្ជី');
   });
 
   test('preserves interpolation placeholders across the full Khmer map', () => {

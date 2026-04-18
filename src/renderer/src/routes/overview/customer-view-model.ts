@@ -162,7 +162,7 @@ export function buildCustomerOverviewModel({
                   count: snapshot.pendingQuantity,
                   suffix: snapshot.pendingQuantity === 1 ? '' : 's',
                 }),
-      whyDetail: literal(language, 'Banji is tracking this from customer order signals recorded in Record Updates.'),
+      whyDetail: literal(language, 'banji is tracking this from customer order signals recorded in Record Updates.'),
     });
   }
 
@@ -241,7 +241,7 @@ export function buildCustomerOverviewModel({
                   count: snapshot.pendingQuantity,
                   suffix: snapshot.pendingQuantity === 1 ? '' : 's',
                 }),
-      whyDetail: literal(language, 'Banji is tracking this from customer order signals recorded in Record Updates.'),
+      whyDetail: literal(language, 'banji is tracking this from customer order signals recorded in Record Updates.'),
     });
   }
 

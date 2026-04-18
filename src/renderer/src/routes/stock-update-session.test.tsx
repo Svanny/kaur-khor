@@ -414,7 +414,7 @@ describe('StockUpdateSessionRoute', () => {
     goToStockStep();
     expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
     expect(
-      screen.getByText('Count at least one SKU before continuing so Banji can anchor the first update.'),
+      screen.getByText('Count at least one SKU before continuing so banji can anchor the first update.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
 
@@ -456,9 +456,9 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getByRole('button', { name: /Supplier orders/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('columnheader', { name: 'Last order' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Current order' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Current order for Razor refill')).toHaveAttribute('placeholder', 'Banji recommends 8 units.');
+    expect(screen.getByLabelText('Current order for Razor refill')).toHaveAttribute('placeholder', 'banji recommends 8 units.');
     expect(screen.getByLabelText('Lead time mean')).toHaveAttribute('placeholder', '6');
-    expect(screen.queryByText('Banji recommends 8 units.')).not.toBeInTheDocument();
+    expect(screen.queryByText('banji recommends 8 units.')).not.toBeInTheDocument();
     const variabilitySelect = screen.getByRole('combobox', { name: 'Lead time variability' });
     fireEvent.click(variabilitySelect);
     expect(screen.getByRole('option', { name: /Very tight/i })).toBeInTheDocument();
@@ -530,7 +530,7 @@ describe('StockUpdateSessionRoute', () => {
       expect(screen.getByDisplayValue(localDateTimeValue(new Date()))).toBeInTheDocument();
       expect(
         screen.getByText(
-          'Banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
+          'banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
         ),
       ).toBeInTheDocument();
     } finally {

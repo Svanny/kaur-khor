@@ -153,12 +153,12 @@ function normalizeImportedImage(sourcePath: string) {
 
   const importedImage = nativeImage.createFromPath(sourcePath);
   if (importedImage.isEmpty()) {
-    throw new Error('Banji could not read that image file.');
+    throw new Error('banji could not read that image file.');
   }
 
   const { width, height } = importedImage.getSize();
   if (width <= 0 || height <= 0) {
-    throw new Error('Banji could not determine the image dimensions.');
+    throw new Error('banji could not determine the image dimensions.');
   }
 
   let bestBytes = encodeImportedImage(importedImage, targetExtension);
@@ -450,7 +450,7 @@ function installOptionalWindowZoomLimits(window: BrowserWindow) {
 function installPreferredWindowZoomBehavior(window: BrowserWindow) {
   const { webContents } = window;
 
-  // Banji owns zoom state itself so Chromium cannot drift to a different per-origin level and then
+  // banji owns zoom state itself so Chromium cannot drift to a different per-origin level and then
   // snap back later. Reapply the managed zoom across every lifecycle edge that can recreate or
   // reattach the renderer.
   windowZoomLevels.set(window, PREFERRED_BASELINE_ZOOM_LEVEL);
@@ -482,14 +482,14 @@ function createMainWindowWebPreferences(): Electron.BrowserWindowConstructorOpti
     contextIsolation: true,
     nodeIntegration: false,
     sandbox: false,
-    // Seed the preferred baseline into Chromium before the first paint so Banji never flashes at
+    // Seed the preferred baseline into Chromium before the first paint so banji never flashes at
     // Electron's default 100% zoom and then snaps back out after load.
     zoomFactor: PREFERRED_BASELINE_ZOOM_FACTOR,
   };
 }
 
 function setFocusedWindowToActualSize() {
-  // Banji's "Actual Size" restores the app's preferred baseline zoom, not Electron's literal 100%.
+  // banji's "Actual Size" restores the app's preferred baseline zoom, not Electron's literal 100%.
   applyPreferredWindowZoomLevel(BrowserWindow.getFocusedWindow());
 }
 
@@ -628,7 +628,7 @@ async function createMainWindow() {
     minWidth: 1180,
     minHeight: 760,
     backgroundColor: '#f2e8d8',
-    title: 'Banji Desktop',
+    title: 'banji desktop',
     icon: process.platform === 'darwin' ? undefined : iconAssets.dockIconPath,
     webPreferences: createMainWindowWebPreferences(),
   });

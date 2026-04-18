@@ -468,7 +468,7 @@ function WorkspacePreferencesPage({
             <div className="grid gap-1">
               <p className="text-sm font-medium text-foreground">Regional preferences</p>
               <p className="text-sm text-muted-foreground">
-                Choose how Banji presents language labels and KHR reference amounts across the desktop.
+                Choose how banji presents language labels and KHR reference amounts across the desktop.
               </p>
             </div>
             <label className="grid content-start gap-2 text-sm">
@@ -585,7 +585,7 @@ function WorkspacePreferencesPage({
             <div className="grid gap-1">
               <p className="text-sm font-medium text-foreground">Overview batch-action defaults</p>
               <p className="text-sm text-muted-foreground">
-                Choose whether Banji should ask, open one SKU at a time, or jump straight into a batch update for each overview action button.
+                Choose whether banji should ask, open one SKU at a time, or jump straight into a batch update for each overview action button.
               </p>
             </div>
             <div className="divide-y divide-border/60 rounded-[1.25rem] border border-border/60 bg-background/70">

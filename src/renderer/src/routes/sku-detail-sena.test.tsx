@@ -1215,14 +1215,14 @@ describe('SKU detail route', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByText('Banji needs at least two saved updates for this view')).toBeInTheDocument();
+      expect(screen.getByText('banji needs at least two saved updates for this view')).toBeInTheDocument();
     });
 
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     expect(screen.getByText('Record stock')).toBeInTheDocument();
   });
 
-  test('renders the log order sheet with Banji field primitives and shared select trigger', async () => {
+  test('renders the log order sheet with banji field primitives and shared select trigger', async () => {
     inventoryHook.mockReturnValue({
       snapshot,
       reports: [report],
@@ -1315,7 +1315,7 @@ describe('SKU detail route', () => {
 
     resolveSnapshot?.(snapshot);
     await waitFor(() => {
-      expect(screen.getByText('Banji needs at least two saved updates for this view')).toBeInTheDocument();
+      expect(screen.getByText('banji needs at least two saved updates for this view')).toBeInTheDocument();
     });
   });
 });

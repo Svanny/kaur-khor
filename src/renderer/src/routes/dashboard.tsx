@@ -396,7 +396,7 @@ export function DashboardRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title={translateUiLiteral(language, 'Overview needs the catalog first')}
-          hint={translateUiLiteral(language, 'Create the first SKU or service so Banji can build an action list from real catalog work.')}
+          hint={translateUiLiteral(language, 'Create the first SKU or service so banji can build an action list from real catalog work.')}
           action={
             <WorkspaceActionRow>
               <CreateFirstSkuButton />
@@ -418,7 +418,7 @@ export function DashboardRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title={translateUiLiteral(language, 'Overview needs your first update')}
-          hint={translateUiLiteral(language, 'Capture a live observation so Banji can build the order, receipt, and follow-up queue.')}
+          hint={translateUiLiteral(language, 'Capture a live observation so banji can build the order, receipt, and follow-up queue.')}
           action={
             <WorkspaceActionRow>
               <Button asChild className={overviewStartUpdateButtonClassName}>
@@ -445,7 +445,7 @@ export function DashboardRoute() {
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Overview')}
         title={translateUiLiteral(language, 'Mission Control')}
-        descriptor={translateUiLiteral(language, 'See what needs attention next, what is already in motion, and when Banji will check back.')}
+        descriptor={translateUiLiteral(language, 'See what needs attention next, what is already in motion, and when banji will check back.')}
         actions={
           <WorkspaceActionRow>
             <Button asChild className={overviewStartUpdateButtonClassName}>
@@ -734,7 +734,7 @@ export function DashboardRoute() {
                     {translateUiLiteral(language, 'Task queue')}
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    {translateUiLiteral(language, "The task list built from Banji's orders, deliveries, and arrival timing.")}
+                    {translateUiLiteral(language, "The task list built from banji's orders, deliveries, and arrival timing.")}
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -875,7 +875,7 @@ export function DashboardRoute() {
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     {query || filter !== 'all'
                       ? translateUiLiteral(language, 'Try a broader query or switch filters to bring more of the task ledger back into view.')
-                      : translateUiLiteral(language, 'Banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.')}
+                      : translateUiLiteral(language, 'banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.')}
                   </p>
                 </div>
               </div>
@@ -990,7 +990,7 @@ export function DashboardRoute() {
                   ))
                 ) : (
                   <p className="py-3 text-sm text-muted-foreground">
-                    {translateUiLiteral(language, 'Sales-pattern and price changes will appear here once Banji has enough activity to explain them.')}
+                    {translateUiLiteral(language, 'Sales-pattern and price changes will appear here once banji has enough activity to explain them.')}
                   </p>
                 )}
               </div>

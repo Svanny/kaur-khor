@@ -274,7 +274,7 @@ function CatalogLoadingState() {
       <div className="grid gap-6">
         <WorkspacePanel
           title="SKUs"
-          descriptor={translateUiLiteral(language, 'Stock-carrying items Banji tracks directly.')}
+          descriptor={translateUiLiteral(language, 'Stock-carrying items banji tracks directly.')}
         >
           <div className="grid gap-3">
             {CatalogLoadingRows({ count: 4 })}
@@ -411,7 +411,7 @@ export function InventoryRoute() {
         <WorkspaceTitleCard
           eyebrow={translateUiLiteral(language, 'Catalog')}
           title={translateUiLiteral(language, 'Set up the catalog')}
-          descriptor={translateUiLiteral(language, 'Start with the first SKU. Banji uses the catalog to connect stock, services, and planning.')}
+          descriptor={translateUiLiteral(language, 'Start with the first SKU. banji uses the catalog to connect stock, services, and planning.')}
           actions={
             <Button asChild>
               <Link to="/catalog/skus/new">
@@ -536,7 +536,7 @@ export function InventoryRoute() {
           pendingArchive
             ? translateUiLiteral(
                 language,
-                'Archived items disappear from active work, but their history stays available in Banji.',
+                'Archived items disappear from active work, but their history stays available in banji.',
               )
             : undefined
         }
@@ -565,7 +565,7 @@ export function InventoryRoute() {
       {showSkus && filteredSkus.length > 0 ? (
             <WorkspacePanel
               title={`SKUs (${filteredSkus.length})`}
-              descriptor={translateUiLiteral(language, 'Stock-carrying items Banji tracks directly.')}
+              descriptor={translateUiLiteral(language, 'Stock-carrying items banji tracks directly.')}
             >
               <div className="grid">
                 {filteredSkus.map((sku) => {

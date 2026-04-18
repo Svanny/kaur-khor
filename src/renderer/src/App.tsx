@@ -135,8 +135,8 @@ function AppFrame() {
     return (
       <div className="flex min-h-svh items-center justify-center px-6">
         <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
-            Banji
+          <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
+            banji
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
             Loading preferences…
@@ -195,8 +195,8 @@ export default function App() {
     return (
       <div className="flex min-h-svh items-center justify-center px-6">
         <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
-            Banji
+          <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
+            banji
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
             Loading local workspace…

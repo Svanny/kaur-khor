@@ -179,6 +179,7 @@ const SETTINGS_NAVIGATION_GROUPS: SettingsSidebarGroupConfig[] = [
 ];
 
 function SidebarSectionMenu({
+  language,
   sections,
   pathname,
   showSidebarText,
@@ -186,6 +187,7 @@ function SidebarSectionMenu({
   isSectionNew,
   t,
 }: {
+  language: 'en' | 'km';
   sections: ShellSectionConfig[];
   pathname: string;
   showSidebarText: boolean;
@@ -197,6 +199,7 @@ function SidebarSectionMenu({
     <SidebarMenu className="group-data-[collapsible=icon]:items-center">
       {sections.map((section) => {
         const label = t(section.labelKey);
+        const newLabel = translateUiLiteral(language, 'New!');
         const isActive = section.matches(pathname);
         const isNew = isSectionNew(section);
 
@@ -209,7 +212,7 @@ function SidebarSectionMenu({
                 isNew && !isActive ? 'border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15' : null,
               )}
               isActive={isActive}
-              tooltip={isNew ? translateUiLiteral('en', 'New!') : label}
+              tooltip={isNew ? newLabel : label}
             >
               <NavLink
                 aria-label={label}
@@ -224,7 +227,7 @@ function SidebarSectionMenu({
             </SidebarMenuButton>
             {isNew && showSidebarText ? (
               <SidebarMenuBadge className="right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary px-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground">
-                {translateUiLiteral('en', 'New!')}
+                {newLabel}
               </SidebarMenuBadge>
             ) : null}
           </SidebarMenuItem>
@@ -454,7 +457,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                       <NavigationRightPanelIcon aria-hidden="true" className="size-4.5" />
                     </span>
                   </span>
-                  <span className="min-w-0 truncate text-[0.82rem] font-semibold uppercase tracking-[0.24em] text-foreground">
+                  <span className="min-w-0 truncate text-[0.95rem] font-semibold leading-snug tracking-normal text-foreground">
                     {isSettingsRoute ? t('settingsTitle') : t('appBrand')}
                   </span>
                 </button>
@@ -516,6 +519,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                     <SidebarSectionMenu
                       pathname={location.pathname}
                       sections={visiblePrimarySections}
+                      language={language}
                       showSidebarText={showSidebarText}
                       isSectionNew={isSectionNew}
                       t={t}
@@ -532,6 +536,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                     <SidebarSectionMenu
                       pathname={location.pathname}
                       sections={visibleSecondarySections}
+                      language={language}
                       showSidebarText={showSidebarText}
                       isSectionNew={isSectionNew}
                       t={t}

@@ -26,7 +26,7 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain("label: 'Actual Size'");
     expect(mainSource).toContain("accelerator: 'CmdOrCtrl+0'");
     expect(mainSource).toContain('setFocusedWindowToActualSize();');
-    expect(mainSource).toContain("Banji's \"Actual Size\" restores the app's preferred baseline zoom");
+    expect(mainSource).toContain("banji's \"Actual Size\" restores the app's preferred baseline zoom");
     expect(mainSource).toContain('setManagedWindowZoomLevel(window, PREFERRED_BASELINE_ZOOM_LEVEL);');
     expect(mainSource).toContain("label: 'Zoom In'");
     expect(mainSource).toContain("label: 'Zoom Out'");

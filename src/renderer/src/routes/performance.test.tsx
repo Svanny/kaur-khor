@@ -532,7 +532,7 @@ describe('PerformanceRoute', () => {
 
     expect(screen.getByText('Analysis details')).toBeInTheDocument();
     expect(
-      screen.getByText('Inspect how saved updates shaped Banji’s current picture of demand, orders, deliveries, timing shifts, and price effects.'),
+      screen.getByText('Inspect how saved updates shaped banji’s current picture of demand, orders, deliveries, timing shifts, and price effects.'),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole('heading', { name: 'System timeline' }, { timeout: 10_000 }),
@@ -729,7 +729,7 @@ describe('PerformanceRoute', () => {
 
     expect(screen.getByText('Analysis details')).toBeInTheDocument();
     expect(
-      screen.queryByText('See how saved updates turned into Banji’s current picture of demand, incoming stock, delivery timing, and price.'),
+      screen.queryByText('See how saved updates turned into banji’s current picture of demand, incoming stock, delivery timing, and price.'),
     ).not.toBeInTheDocument();
   });
 

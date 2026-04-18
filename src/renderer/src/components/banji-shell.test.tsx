@@ -57,7 +57,7 @@ describe('BanjiShell', () => {
       showAnalysisPage: true,
       t: (key: string) => {
         const translations: Record<string, string> = {
-          appBrand: 'Banji',
+          appBrand: 'banji',
           navOverview: 'Overview',
           navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
@@ -162,7 +162,9 @@ describe('BanjiShell', () => {
     expect(navLinks.indexOf('Analysis')).toBeLessThan(navLinks.indexOf('Logs'));
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
-    expect(within(brandToggle).getByText('Banji')).toBeInTheDocument();
+    const brandLabel = within(brandToggle).getByText('banji');
+    expect(brandLabel).toBeInTheDocument();
+    expect(brandLabel).not.toHaveClass('uppercase');
     expect(screen.getByText('Search')).toBeInTheDocument();
     expect(screen.getByLabelText('Command')).toBeInTheDocument();
     expect(screen.getByText('K')).toBeInTheDocument();
@@ -204,7 +206,8 @@ describe('BanjiShell', () => {
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(within(brandToggle).getByText('Settings')).toBeInTheDocument();
-    expect(within(brandToggle).queryByText('Banji')).not.toBeInTheDocument();
+    expect(within(brandToggle).getByText('Settings')).not.toHaveClass('leading-none');
+    expect(within(brandToggle).queryByText('banji')).not.toBeInTheDocument();
     expect(screen.queryByText('Search')).not.toBeInTheDocument();
     expect(screen.getAllByText('Settings')).toHaveLength(1);
 
@@ -262,7 +265,7 @@ describe('BanjiShell', () => {
       showAnalysisPage: true,
       t: (key: string) =>
         ({
-          appBrand: 'Banji',
+          appBrand: 'banji',
           navOverview: 'Overview',
           navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
@@ -349,7 +352,7 @@ describe('BanjiShell', () => {
       showAnalysisPage: true,
       t: (key: string) =>
         ({
-          appBrand: 'Banji',
+          appBrand: 'banji',
           navOverview: 'Overview',
           navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
@@ -405,7 +408,7 @@ describe('BanjiShell', () => {
       showRightRailCards: true,
       t: (key: string) =>
         ({
-          appBrand: 'Banji',
+          appBrand: 'banji',
           navOverview: 'Overview',
           navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
